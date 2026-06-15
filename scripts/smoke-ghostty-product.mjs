@@ -13,7 +13,8 @@ import {
   createHelpText,
   formatLaunchCommand,
   parseSmokeArgs,
-  PRODUCT_PATH
+  PRODUCT_PATH,
+  writeSmokeEvidence
 } from "./smoke-ghostty-plan.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -40,6 +41,7 @@ async function main() {
     appLaunchViaOpen: true,
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
+    artifactPath: options.outputPath,
     events: [],
     permissions: undefined,
     runtimeStatus: undefined,
@@ -140,6 +142,15 @@ async function main() {
       await sleep(700);
       evidence.processesAfterCleanup = await readSkfiyProcesses();
       evidence.skfiyGhosttyProcessesAfterCleanup = await readSkfiyGhosttyProcesses();
+    }
+
+    if (options.outputPath) {
+      try {
+        await writeSmokeEvidence(options.outputPath, evidence);
+      } catch (error) {
+        evidence.artifactError = error instanceof Error ? error.message : String(error);
+        process.exitCode = process.exitCode ?? 1;
+      }
     }
 
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);

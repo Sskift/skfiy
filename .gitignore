@@ -1,6 +1,7 @@
 node_modules/
 dist/
 macos-helper/.build/
+.skfiy-smoke/
 .DS_Store
 *.log
 .env

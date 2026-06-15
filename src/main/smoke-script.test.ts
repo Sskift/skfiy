@@ -69,6 +69,60 @@ describe("Ghostty product smoke script", () => {
     ]);
   });
 
+  it("parses an output artifact path for persistent smoke evidence", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      createDefaultSmokeOptions,
+      createHelpText,
+      parseSmokeArgs
+    } = await import(pathToFileURL(modulePath).href) as {
+      createDefaultSmokeOptions: (rootDir: string) => Record<string, unknown>;
+      createHelpText: (defaults: Record<string, unknown>) => string;
+      parseSmokeArgs: (argv: string[], defaults: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const defaults = createDefaultSmokeOptions("/repo");
+
+    expect(parseSmokeArgs(["--output", "artifacts/smoke.json"], defaults)).toMatchObject({
+      outputPath: path.resolve("artifacts/smoke.json")
+    });
+    expect(createHelpText(defaults)).toContain("--output <path>");
+  });
+
+  it("writes persistent smoke evidence as formatted JSON and prepares its directory", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      writeSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      writeSmokeEvidence: (
+        outputPath: string,
+        evidence: Record<string, unknown>,
+        io: {
+          mkdir: (target: string, options: { recursive: boolean }) => Promise<void>;
+          writeFile: (target: string, content: string) => Promise<void>;
+        }
+      ) => Promise<void>;
+    };
+    const calls: Array<{ name: string; target: string; content?: string }> = [];
+
+    await writeSmokeEvidence("/tmp/skfiy/smoke/evidence.json", { result: "blocked" }, {
+      async mkdir(target) {
+        calls.push({ name: "mkdir", target });
+      },
+      async writeFile(target, content) {
+        calls.push({ name: "writeFile", target, content });
+      }
+    });
+
+    expect(calls).toEqual([
+      { name: "mkdir", target: "/tmp/skfiy/smoke" },
+      {
+        name: "writeFile",
+        target: "/tmp/skfiy/smoke/evidence.json",
+        content: `${JSON.stringify({ result: "blocked" }, null, 2)}\n`
+      }
+    ]);
+  });
+
   it("keeps the single-command product smoke path by default", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
 

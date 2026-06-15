@@ -87,7 +87,7 @@ npm install
 npm test -- --run
 npm run typecheck
 npm run build
-open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app
+npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
 ```
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main

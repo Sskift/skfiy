@@ -1,4 +1,5 @@
 import path from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
 
 export const DEFAULT_COMMAND = "打开 Ghostty 执行 pwd 并截图";
 export const DEFAULT_PORT = 9233;
@@ -43,6 +44,7 @@ export function createDefaultSmokeOptions(rootDir) {
     keepExisting: false,
     keepOpen: false,
     requirePassed: false,
+    outputPath: undefined,
     help: false
   };
 }
@@ -89,6 +91,10 @@ export function parseSmokeArgs(argv, defaults) {
         break;
       case "--require-passed":
         options.requirePassed = true;
+        break;
+      case "--output":
+        options.outputPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
         break;
       case "--help":
       case "-h":
@@ -230,8 +236,19 @@ Options:
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   --require-passed      Exit non-zero unless the task or matrix reaches passed.
+  --output <path>       Write the complete smoke JSON evidence to this file.
   -h, --help            Show this help.
 `;
+}
+
+export async function writeSmokeEvidence(
+  outputPath,
+  evidence,
+  io = { mkdir, writeFile }
+) {
+  const artifactPath = path.resolve(outputPath);
+  await io.mkdir(path.dirname(artifactPath), { recursive: true });
+  await io.writeFile(artifactPath, `${JSON.stringify(evidence, null, 2)}\n`);
 }
 
 function readPlannerMode(value, name) {

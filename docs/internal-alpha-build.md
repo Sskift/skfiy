@@ -60,7 +60,7 @@ The native macOS speech provider is a one-shot local Speech framework prototype.
 After `npm run build`, run:
 
 ```bash
-npm run smoke:ghostty
+npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
 ```
 
 Expected output before permissions are granted:
@@ -78,10 +78,10 @@ result: passed
 For a strict passing gate, use:
 
 ```bash
-npm run smoke:ghostty -- --require-passed
+npm run smoke:ghostty -- --require-passed --output .skfiy-smoke/ghostty-smoke-passed.json
 ```
 
-The smoke output is JSON and records launch identity, task events, permissions, runtime status, replay records, screenshot file checks, and cleanup process checks. A passing smoke run must include a completed event plus non-empty before/after screenshots from the packaged app product path.
+The smoke output is JSON and records launch identity, task events, permissions, runtime status, replay records, screenshot file checks, and cleanup process checks. `--output <path>` persists the same evidence to a local artifact file so dogfood reports do not depend on terminal scrollback. A passing smoke run must include a completed event plus non-empty before/after screenshots from the packaged app product path.
 
 For a low-level native speech readiness check after building the helper:
 
@@ -106,7 +106,7 @@ The external endpoint receives a JSON task request for the Ghostty terminal-comm
 
 ## Distribution Notes
 
-This build is unsigned and unnotarized. For local dogfood, share the repository or a zipped `dist/skfiy.app` with the matching commit SHA and ask testers to run the smoke command locally after granting permissions.
+This build is unsigned and unnotarized. For local dogfood, share the repository or a zipped `dist/skfiy.app` with the matching commit SHA and ask testers to run the smoke command locally after granting permissions. Ask testers to attach the `--output` JSON artifact and any before/after screenshot paths listed in that artifact.
 
 Before any broader internal release, add:
 
