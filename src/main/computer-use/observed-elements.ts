@@ -1,7 +1,12 @@
-import type { DesktopAppState, DesktopWindowBounds, DesktopWindowInfo } from "./types.js";
+import type {
+  DesktopAppState,
+  DesktopWindowBounds,
+  DesktopWindowInfo,
+  OcrLabelObservation
+} from "./types.js";
 
-export type ObservedElementRole = "window";
-export type ObservedElementSource = "window";
+export type ObservedElementRole = "window" | "text";
+export type ObservedElementSource = "window" | "ocr";
 
 export interface ObservedElement {
   id: string;
@@ -13,7 +18,7 @@ export interface ObservedElement {
   metadata: {
     bundleId: string;
     pid?: number;
-    layer: number;
+    layer?: number;
   };
 }
 
@@ -26,6 +31,36 @@ export interface ClickTarget {
 export function extractObservedElementsFromAppState(
   state: DesktopAppState
 ): ObservedElement[] {
+  return [
+    ...extractWindowElements(state),
+    ...extractOcrElements(state)
+  ];
+}
+
+export function findObservedElementsByLabel(
+  elements: readonly ObservedElement[],
+  label: string
+): ObservedElement[] {
+  const normalizedLabel = normalizeLabel(label);
+
+  if (!normalizedLabel) {
+    return [];
+  }
+
+  const exactMatches = elements.filter((element) => (
+    normalizeLabel(element.label) === normalizedLabel
+  ));
+  if (exactMatches.length > 0) {
+    return exactMatches;
+  }
+
+  return elements.filter((element) => {
+    const candidate = normalizeLabel(element.label);
+    return candidate.includes(normalizedLabel) || normalizedLabel.includes(candidate);
+  });
+}
+
+function extractWindowElements(state: DesktopAppState): ObservedElement[] {
   return (state.windows ?? [])
     .filter(hasClickableBounds)
     .map((window, originalIndex) => ({ window, originalIndex }))
@@ -44,6 +79,23 @@ export function extractObservedElementsFromAppState(
         bundleId: state.bundleId,
         pid: state.pid,
         layer: window.layer
+      }
+    }));
+}
+
+function extractOcrElements(state: DesktopAppState): ObservedElement[] {
+  return (state.ocrLabels ?? [])
+    .filter(hasUsableOcrLabel)
+    .map((label, index) => ({
+      id: `ocr:${index}`,
+      role: "text",
+      source: "ocr",
+      label: label.text.trim(),
+      bounds: { ...label.bounds },
+      confidence: label.confidence,
+      metadata: {
+        bundleId: state.bundleId,
+        pid: state.pid
       }
     }));
 }
@@ -76,7 +128,18 @@ function hasClickableBounds(window: DesktopWindowInfo): boolean {
   );
 }
 
+function hasUsableOcrLabel(label: OcrLabelObservation): boolean {
+  return label.text.trim().length > 0 && hasClickableBounds({
+    layer: 0,
+    bounds: label.bounds
+  });
+}
+
 function readWindowLabel(window: DesktopWindowInfo, fallback: string): string {
   const title = window.title?.trim();
   return title && title.length > 0 ? title : fallback;
+}
+
+function normalizeLabel(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }

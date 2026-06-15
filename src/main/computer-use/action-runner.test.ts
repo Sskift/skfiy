@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runDesktopActionPlan, type DesktopActionExecutor } from "./action-runner";
+import {
+  DesktopActionVerificationError,
+  runDesktopActionPlan,
+  type DesktopActionExecutor
+} from "./action-runner";
 import type { DesktopAction, DesktopActionResult, DesktopExecutableAction } from "./types";
 
 function createExecutor(
@@ -48,6 +52,81 @@ describe("runDesktopActionPlan", () => {
       }
     ]);
     expect(executor.calls).toEqual(actions);
+  });
+
+  it("runs step verification after executable actions and records passed decisions", async () => {
+    const executor = createExecutor([
+      { ok: true, message: "activated" },
+      { ok: true, message: "clicked" }
+    ]);
+    const actions: DesktopAction[] = [
+      { type: "activate_app", bundleId: "com.mitchellh.ghostty" },
+      { type: "click", x: 12, y: 34 }
+    ];
+    const verified: string[] = [];
+
+    await expect(runDesktopActionPlan(executor, actions, {
+      verifyStep: ({ action, result, stepIndex, previousResults }) => {
+        verified.push(`${stepIndex}:${action.type}:${"ok" in result ? result.ok : "result"}`);
+        expect(previousResults).toHaveLength(stepIndex);
+        return {
+          status: "passed",
+          message: `${action.type} verified`
+        };
+      }
+    })).resolves.toEqual([
+      {
+        action: { type: "activate_app", bundleId: "com.mitchellh.ghostty" },
+        result: { ok: true, message: "activated" },
+        verification: { status: "passed", message: "activate_app verified" }
+      },
+      {
+        action: { type: "click", x: 12, y: 34 },
+        result: { ok: true, message: "clicked" },
+        verification: { status: "passed", message: "click verified" }
+      }
+    ]);
+    expect(verified).toEqual(["0:activate_app:true", "1:click:true"]);
+  });
+
+  it("stops before later actions when step verification asks for user confirmation", async () => {
+    const executor = createExecutor([
+      { ok: true, message: "clicked" },
+      { ok: true, message: "typed" }
+    ]);
+    const actions: DesktopAction[] = [
+      { type: "click", x: 12, y: 34 },
+      { type: "type_text", text: "should not type" }
+    ];
+
+    await expect(runDesktopActionPlan(executor, actions, {
+      verifyStep: ({ action }) => action.type === "click"
+        ? {
+            status: "needs_user_confirmation",
+            reason: "Observed target moved after click."
+          }
+        : { status: "passed" }
+    })).rejects.toMatchObject({
+      name: "DesktopActionVerificationError",
+      message: "Desktop action verification needs user confirmation after click: Observed target moved after click.",
+      stepIndex: 0,
+      action: { type: "click", x: 12, y: 34 },
+      verification: {
+        status: "needs_user_confirmation",
+        reason: "Observed target moved after click."
+      },
+      partialResults: [
+        {
+          action: { type: "click", x: 12, y: 34 },
+          result: { ok: true, message: "clicked" },
+          verification: {
+            status: "needs_user_confirmation",
+            reason: "Observed target moved after click."
+          }
+        }
+      ]
+    } satisfies Partial<DesktopActionVerificationError>);
+    expect(executor.calls).toEqual([{ type: "click", x: 12, y: 34 }]);
   });
 
   it("handles wait actions without invoking the executor", async () => {

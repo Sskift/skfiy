@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ObservedElement } from "./observed-elements";
-import { createClickActionForTarget } from "./element-click-planner";
+import {
+  createClickActionForTarget,
+  planClickActionForTarget
+} from "./element-click-planner";
 
 const ELEMENTS: ObservedElement[] = [
   {
@@ -14,6 +17,18 @@ const ELEMENTS: ObservedElement[] = [
       bundleId: "com.mitchellh.ghostty",
       pid: 54502,
       layer: 0
+    }
+  },
+  {
+    id: "ocr:0",
+    role: "text",
+    source: "ocr",
+    label: "Run",
+    bounds: { x: 42, y: 50, width: 80, height: 24 },
+    confidence: 0.91,
+    metadata: {
+      bundleId: "com.mitchellh.ghostty",
+      pid: 54502
     }
   }
 ];
@@ -35,6 +50,39 @@ describe("createClickActionForTarget", () => {
       type: "click",
       x: 44,
       y: 55
+    });
+  });
+
+  it("creates a coordinate click from a unique observed text label", () => {
+    expect(createClickActionForTarget(ELEMENTS, { label: "run" })).toEqual({
+      type: "click",
+      x: 82,
+      y: 62
+    });
+  });
+
+  it("asks for user confirmation when a label target is ambiguous", () => {
+    expect(planClickActionForTarget([
+      ...ELEMENTS,
+      {
+        id: "ocr:1",
+        role: "text",
+        source: "ocr",
+        label: "Run",
+        bounds: { x: 200, y: 50, width: 80, height: 24 },
+        confidence: 0.9,
+        metadata: {
+          bundleId: "com.mitchellh.ghostty",
+          pid: 54502
+        }
+      }
+    ], { label: "run" })).toMatchObject({
+      type: "needs_user_confirmation",
+      reason: "Multiple observed elements matched label: run",
+      candidates: [
+        { id: "ocr:0", label: "Run" },
+        { id: "ocr:1", label: "Run" }
+      ]
     });
   });
 

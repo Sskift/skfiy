@@ -68,6 +68,7 @@ function hasPermissionFailure(run: ComputerUseEvaluationRun): boolean {
       permissions.screenRecording.state === "denied"
       || permissions.accessibility.state === "denied"
       || permissions.microphone.state === "denied"
+      || permissions.speechRecognition.state === "denied"
     )
   );
 }

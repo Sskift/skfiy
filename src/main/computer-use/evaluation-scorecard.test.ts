@@ -56,4 +56,23 @@ describe("createComputerUseScorecard", () => {
       permissionFailures: 0
     });
   });
+
+  it("counts Speech Recognition denial as a voice permission failure", () => {
+    expect(createComputerUseScorecard([
+      {
+        id: "voice-permission-blocked",
+        events: [
+          { status: "failed", message: "macOS speech recognition is not authorized." }
+        ],
+        permissions: {
+          screenRecording: { state: "granted" },
+          accessibility: { state: "granted" },
+          microphone: { state: "granted" },
+          speechRecognition: { state: "denied" }
+        }
+      }
+    ])).toMatchObject({
+      permissionFailures: 1
+    });
+  });
 });

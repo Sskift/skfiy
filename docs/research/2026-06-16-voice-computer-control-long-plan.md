@@ -261,6 +261,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - screenshot OCR label observations are modeled as a fallback signal and reflected in per-screenshot grounding recommendations
     - `skfiy-helper ocr-image --input <path>` now uses macOS Vision OCR, Ghostty observations ingest labels after screenshots, and replay rows surface OCR label counts for debugging
   - [x] define `ObservedElement` schema with id, label, role, bounds, source for window-level observations
+    - OCR screenshot labels now become `ObservedElement` records with role `text` and source `ocr`; click planning can target a unique label and returns `needs_user_confirmation` when the label is ambiguous
 - Implement element-targeted actions:
   - [x] resolve click target by observed element id for window-level elements
   - [x] click by coordinate only as fallback
@@ -270,6 +271,8 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] scroll wheel event
   - [x] mouse drag event with bounded duration
     - helper commands `scroll`, `drag`, and `press-shortcut` return structured JSON and route through Accessibility-gated HID events
+  - [x] post-action verification hook
+    - generic action plans can now run a verifier after each executable desktop action, record passed verification decisions, and fail closed before later actions when the verifier reports `failed` or `needs_user_confirmation`
 - Add recovery policies:
   - [x] if app hidden, activate
     - Ghostty before-observe now performs one-shot activate recovery before typing
@@ -293,7 +296,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] average steps
   - [x] unsafe-action blocks
   - [x] permission failures
-  - scorecard aggregation exists for product-path event logs and permission summaries
+  - scorecard aggregation exists for product-path event logs and permission summaries, including Screen Recording, Accessibility, Microphone, and Speech Recognition denial
 
 ### Week 4: Beta Quality, Safety, and Internal Alignment
 
