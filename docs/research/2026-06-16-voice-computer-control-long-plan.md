@@ -258,7 +258,8 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
 
 Goal: make it suitable for a small internal dogfood, and decide whether to integrate with AIME or stay separate.
 
-- Build signed/notarized alpha package or documented unsigned internal build.
+- [x] Build signed/notarized alpha package or documented unsigned internal build.
+  - documented current unsigned internal build path in `docs/internal-alpha-build.md`; signing/notarization remains required before broader release
 - Add app allowlist/denylist UI.
 - Add per-turn approval transcript:
   - what app
