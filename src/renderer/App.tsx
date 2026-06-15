@@ -24,7 +24,11 @@ export type PetWindowMode = "compact" | "expanded";
 export type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 export type DictationProviderSelection = "doubao" | "browser" | "native-macos";
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
-export type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
+export type PermissionSettingsTarget =
+  | "screen-recording"
+  | "accessibility"
+  | "microphone"
+  | "speech-recognition";
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 export type DictationProviderId = "doubao" | "browser" | "native-macos";
 export type AppPolicy = "allow" | "ask" | "deny";
@@ -157,6 +161,7 @@ export interface PermissionSummary {
   screenRecording: { state: PermissionState };
   accessibility: { state: PermissionState };
   microphone: { state: PermissionState };
+  speechRecognition: { state: PermissionState };
 }
 
 export interface StartupWarning {
@@ -350,7 +355,8 @@ const PERMISSION_ROWS: Array<{
 }> = [
   { key: "screenRecording", settingsTarget: "screen-recording", label: "屏幕录制" },
   { key: "accessibility", settingsTarget: "accessibility", label: "辅助功能" },
-  { key: "microphone", settingsTarget: "microphone", label: "麦克风" }
+  { key: "microphone", settingsTarget: "microphone", label: "麦克风" },
+  { key: "speechRecognition", settingsTarget: "speech-recognition", label: "语音识别" }
 ];
 
 const PERMISSION_STATE_COPY: Record<PermissionState, string> = {
@@ -387,7 +393,8 @@ const DICTATION_PROVIDER_OPTIONS: Array<{
 const UNKNOWN_PERMISSIONS: PermissionSummary = {
   screenRecording: { state: "unknown" },
   accessibility: { state: "unknown" },
-  microphone: { state: "unknown" }
+  microphone: { state: "unknown" },
+  speechRecognition: { state: "unknown" }
 };
 
 const DEFAULT_DICTATION_SETTINGS: DictationSettings = {

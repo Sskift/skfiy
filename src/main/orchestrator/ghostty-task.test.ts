@@ -34,7 +34,8 @@ function createDesktopClient(): DesktopClient & {
     getPermissions: vi.fn(async () => ({
       screenRecording: { state: "granted" },
       accessibility: { state: "granted" },
-      microphone: { state: "unknown" }
+      microphone: { state: "unknown" },
+      speechRecognition: { state: "unknown" }
     })),
     ocrImage: vi.fn(async (inputPath: string) => ({
       labels: inputPath.includes("after")
@@ -329,7 +330,8 @@ describe("runGhosttyCommandTask", () => {
     client.getPermissions.mockResolvedValue({
       screenRecording: { state: "denied" },
       accessibility: { state: "not-determined" },
-      microphone: { state: "granted" }
+      microphone: { state: "granted" },
+      speechRecognition: { state: "granted" }
     });
 
     const events = await collectEvents(
@@ -370,7 +372,8 @@ describe("runGhosttyCommandTask", () => {
     client.getPermissions.mockResolvedValue({
       screenRecording: { state: "granted" },
       accessibility: { state: "denied" },
-      microphone: { state: "unknown" }
+      microphone: { state: "unknown" },
+      speechRecognition: { state: "unknown" }
     });
 
     const events = await collectEvents(

@@ -590,7 +590,8 @@ function readPermissionSummary(payload: unknown, commandName: string): Permissio
   return {
     screenRecording: readPermissionStatus(record.screenRecording, commandName),
     accessibility: readPermissionStatus(record.accessibility, commandName),
-    microphone: readPermissionStatus(record.microphone, commandName)
+    microphone: readPermissionStatus(record.microphone, commandName),
+    speechRecognition: readPermissionStatus(record.speechRecognition, commandName)
   };
 }
 
@@ -733,11 +734,14 @@ function requirePermissionSettingsTarget(value: unknown): PermissionSettingsTarg
     value === "screen-recording"
     || value === "accessibility"
     || value === "microphone"
+    || value === "speech-recognition"
   ) {
     return value;
   }
 
-  throw new Error("permission must be screen-recording, accessibility, or microphone.");
+  throw new Error(
+    "permission must be screen-recording, accessibility, microphone, or speech-recognition."
+  );
 }
 
 function isPermissionState(value: string): value is PermissionState {

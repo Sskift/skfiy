@@ -93,7 +93,8 @@ import Vision
    data = {
      screenRecording: { status: String, granted: Boolean },
      accessibility: { status: String, granted: Boolean },
-     microphone: { status: String, granted: Boolean }
+     microphone: { status: String, granted: Boolean },
+     speechRecognition: { status: String, granted: Boolean }
    }
  - speech-status --locale <identifier>:
    data = {
@@ -110,7 +111,7 @@ import Vision
      durationMs: Number,
      silenceTimedOut: Boolean
    }
- - open-permission-settings --permission screen-recording|accessibility|microphone:
+ - open-permission-settings --permission screen-recording|accessibility|microphone|speech-recognition:
    data = { permission: String, url: String, opened: Boolean }
 
  Security contract:
@@ -310,6 +311,7 @@ struct PermissionsStatusPayload: Encodable {
     let screenRecording: PermissionStatusInfo
     let accessibility: PermissionStatusInfo
     let microphone: PermissionStatusInfo
+    let speechRecognition: PermissionStatusInfo
 }
 
 struct SpeechStatusPayload: Encodable {
@@ -971,6 +973,7 @@ enum PermissionKind: String, CaseIterable {
     case screenRecording = "screen-recording"
     case accessibility
     case microphone
+    case speechRecognition = "speech-recognition"
 
     var settingsURL: URL {
         let rawURL: String
@@ -982,6 +985,8 @@ enum PermissionKind: String, CaseIterable {
             rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         case .microphone:
             rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+        case .speechRecognition:
+            rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
         }
 
         return URL(string: rawURL)!
@@ -1517,7 +1522,8 @@ func handlePermissionsStatus(_ arguments: ArraySlice<String>) throws -> Permissi
     return PermissionsStatusPayload(
         screenRecording: booleanPermissionStatus(granted: CGPreflightScreenCaptureAccess()),
         accessibility: booleanPermissionStatus(granted: AXIsProcessTrusted()),
-        microphone: microphonePermissionStatus()
+        microphone: microphonePermissionStatus(),
+        speechRecognition: speechRecognitionPermissionStatus()
     )
 }
 

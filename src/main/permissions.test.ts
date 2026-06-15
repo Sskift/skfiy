@@ -18,8 +18,29 @@ describe("readPermissionsForRenderer", () => {
     ).resolves.toEqual({
       screenRecording: { state: "unknown" },
       accessibility: { state: "unknown" },
-      microphone: { state: "unknown" }
+      microphone: { state: "unknown" },
+      speechRecognition: { state: "unknown" }
     });
     expect(onErrorMessages).toEqual(["helper missing"]);
+  });
+
+  it("passes Speech Recognition permission through to the renderer summary", async () => {
+    await expect(
+      readPermissionsForRenderer({
+        helper: {
+          getPermissions: async (): Promise<PermissionSummary> => ({
+            screenRecording: { state: "granted" },
+            accessibility: { state: "granted" },
+            microphone: { state: "granted" },
+            speechRecognition: { state: "not-determined" }
+          })
+        }
+      })
+    ).resolves.toEqual({
+      screenRecording: { state: "granted" },
+      accessibility: { state: "granted" },
+      microphone: { state: "granted" },
+      speechRecognition: { state: "not-determined" }
+    });
   });
 });

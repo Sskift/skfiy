@@ -13,7 +13,11 @@ type TaskStatus =
 type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 type DictationProviderSelection = "doubao" | "browser" | "native-macos";
 type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
-type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
+type PermissionSettingsTarget =
+  | "screen-recording"
+  | "accessibility"
+  | "microphone"
+  | "speech-recognition";
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 type DictationProviderId = "doubao" | "browser" | "native-macos";
 type AppPolicy = "allow" | "ask" | "deny";
@@ -184,6 +188,7 @@ interface PermissionSummary {
   screenRecording: { state: PermissionState };
   accessibility: { state: PermissionState };
   microphone: { state: PermissionState };
+  speechRecognition: { state: PermissionState };
 }
 
 interface NativeSpeechStatus {
@@ -732,6 +737,7 @@ function isPermissionSummary(value: unknown): value is PermissionSummary {
     isPermissionStatus(summary.screenRecording)
     && isPermissionStatus(summary.accessibility)
     && isPermissionStatus(summary.microphone)
+    && isPermissionStatus(summary.speechRecognition)
   );
 }
 
@@ -772,6 +778,7 @@ function isPermissionSettingsTarget(value: unknown): value is PermissionSettings
     value === "screen-recording"
     || value === "accessibility"
     || value === "microphone"
+    || value === "speech-recognition"
   );
 }
 
@@ -812,7 +819,8 @@ function createUnknownPermissionSummary(): PermissionSummary {
   return {
     screenRecording: { state: "unknown" },
     accessibility: { state: "unknown" },
-    microphone: { state: "unknown" }
+    microphone: { state: "unknown" },
+    speechRecognition: { state: "unknown" }
   };
 }
 

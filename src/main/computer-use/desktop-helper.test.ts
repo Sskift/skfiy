@@ -39,10 +39,11 @@ describe("DesktopHelperClient", () => {
       ok,
       {
         stdout:
-          "{\"screenRecording\":{\"state\":\"granted\"},\"accessibility\":{\"state\":\"denied\"},\"microphone\":{\"state\":\"unknown\"}}",
+          "{\"screenRecording\":{\"state\":\"granted\"},\"accessibility\":{\"state\":\"denied\"},\"microphone\":{\"state\":\"unknown\"},\"speechRecognition\":{\"state\":\"unknown\"}}",
         stderr: "",
         exitCode: 0
       },
+      ok,
       ok,
       ok
     ]);
@@ -58,6 +59,7 @@ describe("DesktopHelperClient", () => {
     await client.pressShortcut("space", ["control", "option", "command", "shift"]);
     await client.getPermissions();
     await client.openPermissionSettings("screen-recording");
+    await client.openPermissionSettings("speech-recognition");
 
     expect(calls).toEqual([
       { command: "/tmp/skfiy-helper", args: ["list-apps"] },
@@ -92,6 +94,10 @@ describe("DesktopHelperClient", () => {
       {
         command: "/tmp/skfiy-helper",
         args: ["open-permission-settings", "--permission", "screen-recording"]
+      },
+      {
+        command: "/tmp/skfiy-helper",
+        args: ["open-permission-settings", "--permission", "speech-recognition"]
       }
     ]);
   });
@@ -272,7 +278,8 @@ describe("DesktopHelperClient", () => {
           data: {
             screenRecording: { status: "authorized", granted: true },
             accessibility: { status: "notAuthorized", granted: false },
-            microphone: { status: "notDetermined", granted: false }
+            microphone: { status: "notDetermined", granted: false },
+            speechRecognition: { status: "authorized", granted: true }
           }
         }),
         stderr: "",
@@ -283,7 +290,8 @@ describe("DesktopHelperClient", () => {
     await expect(client.getPermissions()).resolves.toEqual({
       screenRecording: { state: "granted" },
       accessibility: { state: "denied" },
-      microphone: { state: "not-determined" }
+      microphone: { state: "not-determined" },
+      speechRecognition: { state: "granted" }
     });
   });
 

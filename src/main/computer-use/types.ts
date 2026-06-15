@@ -94,7 +94,8 @@ export type PermissionState = "granted" | "denied" | "not-determined" | "unknown
 export type PermissionSettingsTarget =
   | "screen-recording"
   | "accessibility"
-  | "microphone";
+  | "microphone"
+  | "speech-recognition";
 
 export interface PermissionStatus {
   state: PermissionState;
@@ -104,6 +105,7 @@ export interface PermissionSummary {
   screenRecording: PermissionStatus;
   accessibility: PermissionStatus;
   microphone: PermissionStatus;
+  speechRecognition: PermissionStatus;
 }
 
 export interface DesktopAppState {

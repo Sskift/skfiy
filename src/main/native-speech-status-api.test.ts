@@ -19,4 +19,25 @@ describe("native speech status product API", () => {
     expect(preloadSource).toContain("isNativeSpeechStatus");
     expect(preloadSource).toContain("createUnknownNativeSpeechStatus");
   });
+
+  it("wires Speech Recognition as a first-class macOS permission settings target", () => {
+    const mainPath = path.join(process.cwd(), "src", "main", "main.ts");
+    const preloadPath = path.join(process.cwd(), "src", "main", "preload.cts");
+    const helperPath = path.join(
+      process.cwd(),
+      "macos-helper",
+      "Sources",
+      "skfiy-helper",
+      "main.swift"
+    );
+
+    const mainSource = readFileSync(mainPath, "utf8");
+    const preloadSource = readFileSync(preloadPath, "utf8");
+    const helperSource = readFileSync(helperPath, "utf8");
+
+    expect(mainSource).toContain('value === "speech-recognition"');
+    expect(preloadSource).toContain('value === "speech-recognition"');
+    expect(helperSource).toContain('case speechRecognition = "speech-recognition"');
+    expect(helperSource).toContain("Privacy_SpeechRecognition");
+  });
 });

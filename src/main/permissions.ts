@@ -3,7 +3,8 @@ import type { PermissionSummary } from "./computer-use/types.js";
 export const UNKNOWN_PERMISSION_SUMMARY: PermissionSummary = {
   screenRecording: { state: "unknown" },
   accessibility: { state: "unknown" },
-  microphone: { state: "unknown" }
+  microphone: { state: "unknown" },
+  speechRecognition: { state: "unknown" }
 };
 
 interface PermissionsReader {

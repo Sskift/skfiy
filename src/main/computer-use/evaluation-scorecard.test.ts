@@ -30,7 +30,8 @@ describe("createComputerUseScorecard", () => {
         permissions: {
           screenRecording: { state: "denied" },
           accessibility: { state: "denied" },
-          microphone: { state: "not-determined" }
+          microphone: { state: "not-determined" },
+          speechRecognition: { state: "not-determined" }
         }
       }
     ])).toEqual({

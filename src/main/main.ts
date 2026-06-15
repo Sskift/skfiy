@@ -412,7 +412,10 @@ function readTurnReplayTaskEvent(event: TaskEvent): TurnReplayTaskEvent {
 }
 
 function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget | undefined {
-  return value === "screen-recording" || value === "accessibility" || value === "microphone"
+  return value === "screen-recording"
+    || value === "accessibility"
+    || value === "microphone"
+    || value === "speech-recognition"
     ? value
     : undefined;
 }

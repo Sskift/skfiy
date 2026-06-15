@@ -94,7 +94,8 @@ beforeEach(() => {
     getPermissions: vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
       screenRecording: { state: "unknown" },
       accessibility: { state: "unknown" },
-      microphone: { state: "unknown" }
+      microphone: { state: "unknown" },
+      speechRecognition: { state: "unknown" }
     }),
     openPermissionSettings: vi.fn<DesktopApi["openPermissionSettings"]>().mockResolvedValue(
       undefined
@@ -209,7 +210,8 @@ describe("App", () => {
     api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
       screenRecording: { state: "denied" },
       accessibility: { state: "not-determined" },
-      microphone: { state: "granted" }
+      microphone: { state: "granted" },
+      speechRecognition: { state: "granted" }
     });
 
     render(<App />);
@@ -228,6 +230,31 @@ describe("App", () => {
     expect(api.openPermissionSettings).toHaveBeenCalledWith("screen-recording");
   });
 
+  it("opens permission onboarding when Speech Recognition is missing for voice", async () => {
+    const api = window.skfiy as DesktopApi;
+    api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
+      screenRecording: { state: "granted" },
+      accessibility: { state: "granted" },
+      microphone: { state: "granted" },
+      speechRecognition: { state: "not-determined" }
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const onboarding = await screen.findByLabelText("权限引导");
+    expect(within(onboarding).getByText("语音识别")).toBeInTheDocument();
+    expect(within(onboarding).queryByText("屏幕录制")).not.toBeInTheDocument();
+    expect(within(onboarding).queryByText("辅助功能")).not.toBeInTheDocument();
+    expect(within(onboarding).queryByText("麦克风")).not.toBeInTheDocument();
+    expect(api.prepareDictation).not.toHaveBeenCalled();
+
+    fireEvent.click(within(onboarding).getByRole("button", { name: "打开语音识别设置" }));
+
+    expect(api.openPermissionSettings).toHaveBeenCalledWith("speech-recognition");
+  });
+
   it("leaves permission onboarding after refresh grants required permissions", async () => {
     const api = window.skfiy as DesktopApi;
     api.getPermissions = vi
@@ -235,12 +262,14 @@ describe("App", () => {
       .mockResolvedValueOnce({
         screenRecording: { state: "denied" },
         accessibility: { state: "granted" },
-        microphone: { state: "granted" }
+        microphone: { state: "granted" },
+        speechRecognition: { state: "granted" }
       })
       .mockResolvedValue({
         screenRecording: { state: "granted" },
         accessibility: { state: "granted" },
-        microphone: { state: "granted" }
+        microphone: { state: "granted" },
+        speechRecognition: { state: "granted" }
       });
 
     render(<App />);
@@ -391,15 +420,17 @@ describe("App", () => {
         screenRecording: { state: "granted" | "denied" | "not-determined" | "unknown" };
         accessibility: { state: "granted" | "denied" | "not-determined" | "unknown" };
         microphone: { state: "granted" | "denied" | "not-determined" | "unknown" };
+        speechRecognition: { state: "granted" | "denied" | "not-determined" | "unknown" };
       }>;
       openPermissionSettings: (
-        permission: "screen-recording" | "accessibility" | "microphone"
+        permission: "screen-recording" | "accessibility" | "microphone" | "speech-recognition"
       ) => Promise<void>;
     };
     api.getPermissions = vi.fn().mockResolvedValue({
       screenRecording: { state: "denied" },
       accessibility: { state: "granted" },
-      microphone: { state: "not-determined" }
+      microphone: { state: "not-determined" },
+      speechRecognition: { state: "not-determined" }
     });
     api.openPermissionSettings = vi.fn().mockResolvedValue(undefined);
 
@@ -413,13 +444,14 @@ describe("App", () => {
     expect(screen.getByText("屏幕录制")).toBeInTheDocument();
     expect(screen.getByText("辅助功能")).toBeInTheDocument();
     expect(screen.getByText("麦克风")).toBeInTheDocument();
+    expect(screen.getByText("语音识别")).toBeInTheDocument();
     expect(screen.getByText("未授权")).toBeInTheDocument();
     expect(screen.getByText("已授权")).toBeInTheDocument();
-    expect(screen.getByText("待授权")).toBeInTheDocument();
+    expect(screen.getAllByText("待授权")).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "打开屏幕录制设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开语音识别设置" }));
 
-    expect(api.openPermissionSettings).toHaveBeenCalledWith("screen-recording");
+    expect(api.openPermissionSettings).toHaveBeenCalledWith("speech-recognition");
   });
 
   it("shows ASR provider choices and Doubao shortcut instructions in settings", async () => {

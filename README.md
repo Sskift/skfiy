@@ -31,10 +31,9 @@ The app needs three system permissions before it can behave like a voice Compute
 Open **System Settings > Privacy & Security** and grant these permissions to the
 compiled `skfiy.app` bundle used for local validation.
 
-Right-click the pet to view the current Screen Recording, Accessibility, and
-Microphone status, or to jump to the matching System Settings pane. The native
-macOS speech provider also needs Speech Recognition permission before it can
-produce transcripts.
+Right-click the pet to view the current Screen Recording, Accessibility,
+Microphone, and Speech Recognition status, or to jump to the matching System
+Settings pane.
 
 ## Doubao Dictation
 
