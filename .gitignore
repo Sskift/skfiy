@@ -1,5 +1,6 @@
 node_modules/
 dist/
+macos-helper/.build/
 .DS_Store
 *.log
 .env

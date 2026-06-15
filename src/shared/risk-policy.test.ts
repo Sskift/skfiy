@@ -37,4 +37,14 @@ describe("classifyTerminalCommand", () => {
       requiresApproval: true
     });
   });
+
+  it.each(["ls\nmkdir demo", "pwd\ntouch x", "whoami\rcp a b", "ls\u0007"])(
+    "blocks control-character command injection in %j",
+    (command) => {
+      expect(classifyTerminalCommand(command)).toMatchObject({
+        level: "blocked",
+        requiresApproval: true
+      });
+    }
+  );
 });

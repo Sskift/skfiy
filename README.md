@@ -32,9 +32,10 @@ terminal or app process running Skfiy during local development.
 
 Skfiy treats terminal control as higher risk than normal GUI automation.
 
-- Read-only commands such as `pwd`, `ls`, `date`, and `whoami` can run after
-  task-level approval.
-- Local state changes such as `mkdir demo` require approval.
+- Read-only commands such as `pwd`, `ls`, `date`, and `whoami` can run without
+  an extra approval pause.
+- Local state changes such as `mkdir demo` pause for approval and require the
+  Approve button before execution.
 - Destructive, privileged, piped installer, or automation commands such as
   `rm -rf`, `sudo`, `curl ... | sh`, and `osascript` require explicit approval
   and should be denied by default in the MVP.
@@ -45,9 +46,13 @@ Skfiy treats terminal control as higher risk than normal GUI automation.
 npm install
 npm test -- --run
 npm run typecheck
-npm run build:helper
 npm run build
+npm run build:helper
+npm start
 ```
+
+For renderer iteration, run `npm run dev:renderer`, then launch the built main
+process in another terminal with `npm run dev:electron`.
 
 The Electron UI and TypeScript core are testable without granting macOS
 permissions. The Swift helper requires macOS and may trigger permission prompts

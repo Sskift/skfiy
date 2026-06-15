@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
+    exclude: ["node_modules/**", "dist/**", "macos-helper/.build/**"],
     globals: true,
     setupFiles: ["src/test/setup.ts"]
   }

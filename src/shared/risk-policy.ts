@@ -1,6 +1,7 @@
-import type { RiskDecision, RiskLevel } from "./types";
+import type { RiskDecision, RiskLevel } from "./types.js";
 
 const LOW_RISK_COMMANDS = new Set(["pwd", "ls", "date", "whoami"]);
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/;
 
 const HIGH_RISK_PATTERNS: RegExp[] = [
   /\brm\s+-[^\n;|&]*r/i,
@@ -26,6 +27,10 @@ export function classifyTerminalCommand(command: string): RiskDecision {
 
   if (!normalized) {
     return decision("blocked", "Empty commands are not executable.", true);
+  }
+
+  if (CONTROL_CHARACTER_PATTERN.test(normalized)) {
+    return decision("blocked", "Control characters are not allowed in terminal commands.", true);
   }
 
   if (HIGH_RISK_PATTERNS.some((pattern) => pattern.test(normalized))) {

@@ -6,10 +6,14 @@
   "type": "module",
   "main": "dist/main/main.js",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "npm run dev:renderer",
+    "dev:renderer": "vite --host 127.0.0.1",
+    "dev:electron": "SKFIY_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "start": "electron .",
+    "clean": "rm -rf dist/main dist/shared dist/renderer",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "build": "vite build && tsc -p tsconfig.electron.json",
+    "build": "npm run clean && vite build && tsc -p tsconfig.electron.json",
     "build:helper": "bash scripts/build-helper.sh"
   },
   "dependencies": {
