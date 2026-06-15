@@ -6,7 +6,7 @@ import {
   type DoubaoVoiceTrigger
 } from "./dictation-backend.js";
 
-export type DictationProviderId = "doubao";
+export type DictationProviderId = "doubao" | "browser";
 
 export type DictationProviderState =
   | "unavailable"

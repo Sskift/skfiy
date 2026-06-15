@@ -35,11 +35,14 @@ Microphone status, or to jump to the matching System Settings pane.
 ## Doubao Dictation
 
 Left-click the desktop pet to enter skfiy's dictation flow. Right-click the pet
-for settings details. By default skfiy selects Doubao Input Method as the text
-bridge and sends a skfiy-owned voice shortcut:
+for settings details and ASR provider switching. By default skfiy selects Doubao
+Input Method as the text bridge and sends a skfiy-owned voice shortcut:
 `Control+Option+Command+Shift+Space`. Configure Doubao Input Method's voice
 shortcut to the same chord if you want Doubao's native speech recognition to
 write into skfiy's transcript area.
+
+Choose the browser provider in settings to skip Doubao triggering and use
+Chromium Web Speech fallback for the next voice turn.
 
 Press `Escape` while the pet has focus, or `Control+Option+Shift+Escape`
 globally, to stop the current voice or task turn.

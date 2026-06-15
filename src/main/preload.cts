@@ -4,10 +4,11 @@ type ManualMode = "active" | "quiet";
 type PetWindowMode = "compact" | "expanded";
 type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "completed" | "failed";
 type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
+type DictationProviderSelection = "doubao" | "browser";
 type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
-type DictationProviderId = "doubao";
+type DictationProviderId = "doubao" | "browser";
 type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
@@ -32,6 +33,12 @@ interface DictationProviderEvent {
   providerId: DictationProviderId;
   state: DictationProviderState;
   message: string;
+}
+
+interface DictationSettings {
+  provider: DictationProviderSelection;
+  doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
+  doubaoShortcutLabel: string;
 }
 
 interface PermissionSummary {
@@ -65,6 +72,10 @@ interface DesktopApi {
   getPermissions: () => Promise<PermissionSummary>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
+  getDictationSettings: () => Promise<DictationSettings>;
+  setDictationSettings: (
+    update: Partial<Pick<DictationSettings, "provider">>
+  ) => Promise<DictationSettings>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
@@ -128,6 +139,20 @@ const api: DesktopApi = {
   async getStartupWarnings() {
     const payload = await ipcRenderer.invoke("skfiy:get-startup-warnings");
     return Array.isArray(payload) ? payload.filter(isStartupWarning) : [];
+  },
+  async getDictationSettings() {
+    const payload = await ipcRenderer.invoke("skfiy:get-dictation-settings");
+    return isDictationSettings(payload) ? payload : createDefaultDictationSettings();
+  },
+  async setDictationSettings(update) {
+    const provider =
+      update && typeof update === "object" && "provider" in update
+        ? update.provider
+        : undefined;
+    const payload = await ipcRenderer.invoke("skfiy:set-dictation-settings", {
+      provider: isDictationProviderSelection(provider) ? provider : undefined
+    });
+    return isDictationSettings(payload) ? payload : createDefaultDictationSettings();
   },
   async getRuntimeStatus() {
     const payload = await ipcRenderer.invoke("skfiy:get-runtime-status");
@@ -207,6 +232,24 @@ function isDictationProviderState(value: unknown): value is DictationProviderSta
   );
 }
 
+function isDictationSettings(value: unknown): value is DictationSettings {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const settings = value as Partial<DictationSettings>;
+  return (
+    isDictationProviderSelection(settings.provider)
+    && (settings.doubaoVoiceTrigger === "skfiy-shortcut"
+      || settings.doubaoVoiceTrigger === "fn-double-tap")
+    && typeof settings.doubaoShortcutLabel === "string"
+  );
+}
+
+function isDictationProviderSelection(value: unknown): value is DictationProviderSelection {
+  return value === "doubao" || value === "browser";
+}
+
 function isPermissionSummary(value: unknown): value is PermissionSummary {
   if (!value || typeof value !== "object") {
     return false;
@@ -284,6 +327,14 @@ function createUnknownPermissionSummary(): PermissionSummary {
     screenRecording: { state: "unknown" },
     accessibility: { state: "unknown" },
     microphone: { state: "unknown" }
+  };
+}
+
+function createDefaultDictationSettings(): DictationSettings {
+  return {
+    provider: "doubao",
+    doubaoVoiceTrigger: "skfiy-shortcut",
+    doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
   };
 }
 

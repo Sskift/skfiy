@@ -160,7 +160,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] stopped
   - [x] failed
 - [x] Add a stop-turn hotkey and make pet click not start a new turn while dragging.
-- Ship a settings panel for ASR provider and Doubao shortcut instructions.
+- [x] Ship a settings panel for ASR provider and Doubao shortcut instructions.
 - Verification:
   - app launched via `open` has no tw-dashboard permission prompt
   - left-click starts listening or gives actionable provider error

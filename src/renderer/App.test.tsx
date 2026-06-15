@@ -61,6 +61,16 @@ beforeEach(() => {
       undefined
     ),
     getStartupWarnings: vi.fn<DesktopApi["getStartupWarnings"]>().mockResolvedValue([]),
+    getDictationSettings: vi.fn<DesktopApi["getDictationSettings"]>().mockResolvedValue({
+      provider: "doubao",
+      doubaoVoiceTrigger: "skfiy-shortcut",
+      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+    }),
+    setDictationSettings: vi.fn<DesktopApi["setDictationSettings"]>().mockResolvedValue({
+      provider: "browser",
+      doubaoVoiceTrigger: "skfiy-shortcut",
+      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+    }),
     getRuntimeStatus: vi.fn<DesktopApi["getRuntimeStatus"]>().mockResolvedValue({
       stopTurnHotkey: {
         accelerator: "Control+Alt+Shift+Esc",
@@ -246,6 +256,37 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "打开屏幕录制设置" }));
 
     expect(api.openPermissionSettings).toHaveBeenCalledWith("screen-recording");
+  });
+
+  it("shows ASR provider choices and Doubao shortcut instructions in settings", async () => {
+    const api = window.skfiy as DesktopApi;
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(screen.getByText("语音入口")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "选择豆包语音" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("button", { name: "选择浏览器语音" })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+    expect(screen.getByText("豆包输入法语音快捷键")).toBeInTheDocument();
+    expect(screen.getByText("Ctrl Opt Cmd Shift Space")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "选择浏览器语音" }));
+
+    await waitFor(() => {
+      expect(api.setDictationSettings).toHaveBeenCalledWith({ provider: "browser" });
+    });
+    expect(screen.getByRole("button", { name: "选择浏览器语音" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
   });
 
   it("switches from listening to settings on right click without sending a native stop key", async () => {

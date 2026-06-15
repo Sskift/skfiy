@@ -21,10 +21,11 @@ export type TaskStatus =
 export type ManualMode = "active" | "quiet";
 export type PetWindowMode = "compact" | "expanded";
 export type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
+export type DictationProviderSelection = "doubao" | "browser";
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 export type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
-export type DictationProviderId = "doubao";
+export type DictationProviderId = "doubao" | "browser";
 export type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
@@ -43,6 +44,12 @@ export interface DictationProviderEvent {
   providerId: DictationProviderId;
   state: DictationProviderState;
   message: string;
+}
+
+export interface DictationSettings {
+  provider: DictationProviderSelection;
+  doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
+  doubaoShortcutLabel: string;
 }
 
 export interface PermissionSummary {
@@ -82,6 +89,10 @@ export interface DesktopApi {
   getPermissions: () => Promise<PermissionSummary>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
+  getDictationSettings: () => Promise<DictationSettings>;
+  setDictationSettings: (
+    update: Partial<Pick<DictationSettings, "provider">>
+  ) => Promise<DictationSettings>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
@@ -199,6 +210,12 @@ const UNKNOWN_PERMISSIONS: PermissionSummary = {
   microphone: { state: "unknown" }
 };
 
+const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
+  provider: "doubao",
+  doubaoVoiceTrigger: "skfiy-shortcut",
+  doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+};
+
 const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
   prepareDictation: async () => ({ voiceTrigger: "none" }),
@@ -210,6 +227,11 @@ const fallbackApi: DesktopApi = {
   getPermissions: async () => UNKNOWN_PERMISSIONS,
   openPermissionSettings: async () => undefined,
   getStartupWarnings: async () => [],
+  getDictationSettings: async () => DEFAULT_DICTATION_SETTINGS,
+  setDictationSettings: async (update) => ({
+    ...DEFAULT_DICTATION_SETTINGS,
+    provider: update.provider === "browser" ? "browser" : "doubao"
+  }),
   getRuntimeStatus: async () => ({
     stopTurnHotkey: {
       accelerator: "",
@@ -294,6 +316,9 @@ export default function App() {
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [startupWarnings, setStartupWarnings] = useState<StartupWarning[]>([]);
+  const [dictationSettings, setDictationSettings] = useState<DictationSettings>(
+    DEFAULT_DICTATION_SETTINGS
+  );
   const [dictationProvider, setDictationProvider] = useState<DictationProviderEvent | null>(null);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
@@ -407,6 +432,20 @@ export default function App() {
     void api.getStartupWarnings().then((warnings) => {
       if (!cancelled) {
         setStartupWarnings(warnings);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void api.getDictationSettings().then((settings) => {
+      if (!cancelled) {
+        setDictationSettings(settings);
       }
     });
 
@@ -633,6 +672,17 @@ export default function App() {
     }
   }
 
+  async function selectDictationProvider(provider: DictationProviderSelection) {
+    try {
+      setDictationSettings(await api.setDictationSettings({ provider }));
+    } catch {
+      setTask({
+        status: "failed",
+        message: "切换语音入口失败."
+      });
+    }
+  }
+
   function startPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) {
       return;
@@ -744,13 +794,35 @@ export default function App() {
           {detailsOpen ? (
             <>
               <p>设置</p>
+              <div className="provider-panel" aria-label="语音入口">
+                <div className="provider-heading">
+                  <strong>语音入口</strong>
+                  <span>{dictationSettings.provider === "doubao" ? "豆包" : "浏览器"}</span>
+                </div>
+                <div className="provider-switch" role="group" aria-label="ASR provider">
+                  <button
+                    type="button"
+                    aria-label="选择豆包语音"
+                    aria-pressed={dictationSettings.provider === "doubao"}
+                    onClick={() => void selectDictationProvider("doubao")}
+                  >
+                    豆包
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="选择浏览器语音"
+                    aria-pressed={dictationSettings.provider === "browser"}
+                    onClick={() => void selectDictationProvider("browser")}
+                  >
+                    浏览器
+                  </button>
+                </div>
+              </div>
               <div className="settings-grid">
                 <span>入口</span>
                 <strong>左键</strong>
-                <span>豆包</span>
-                <strong>skfiy 快捷键</strong>
-                <span>组合键</span>
-                <strong>Ctrl Opt Cmd Shift Space</strong>
+                <span>豆包输入法语音快捷键</span>
+                <strong>{dictationSettings.doubaoShortcutLabel}</strong>
               </div>
               <div className="permissions-panel" aria-label="权限">
                 <div className="permissions-heading">

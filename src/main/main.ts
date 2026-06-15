@@ -7,7 +7,11 @@ import type {
   DesktopActionResult,
   PermissionSettingsTarget
 } from "./computer-use/types.js";
-import { readDoubaoVoiceTrigger } from "./dictation-backend.js";
+import {
+  createDictationSettingsStore,
+  readInitialDictationSettings,
+  resolveDictationVoiceTrigger
+} from "./dictation-settings.js";
 import {
   createDoubaoDictationProvider,
   type DictationProviderEvent
@@ -50,7 +54,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
 const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
-const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 360 };
+const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
+const dictationSettingsStore = createDictationSettingsStore(
+  readInitialDictationSettings(process.env)
+);
 
 let mainWindow: BrowserWindow | null = null;
 let currentTaskId = 0;
@@ -345,13 +352,22 @@ ipcMain.handle(
 
 ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  const voiceTrigger = readDoubaoVoiceTrigger(process.env);
+  const dictationSettings = dictationSettingsStore.get();
+  const voiceTrigger = resolveDictationVoiceTrigger(dictationSettings);
   let lastProviderState: DictationProviderEvent["state"] | undefined;
 
   if (window && !window.isDestroyed()) {
     window.setFocusable(true);
     window.show();
     window.focus();
+  }
+
+  if (dictationSettings.provider === "browser") {
+    return {
+      providerId: "browser",
+      voiceTrigger: "none",
+      nativeDictationActive: false
+    };
   }
 
   try {
@@ -381,7 +397,13 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
 
 ipcMain.handle("skfiy:stop-dictation", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  const voiceTrigger = readDoubaoVoiceTrigger(process.env);
+  const dictationSettings = dictationSettingsStore.get();
+
+  if (dictationSettings.provider === "browser") {
+    return;
+  }
+
+  const voiceTrigger = resolveDictationVoiceTrigger(dictationSettings);
 
   try {
     const provider = createDoubaoDictationProvider({
@@ -497,6 +519,16 @@ ipcMain.handle("skfiy:get-startup-warnings", () => {
     isPackaged: app.isPackaged,
     resourcesPath: process.resourcesPath
   });
+});
+
+ipcMain.handle("skfiy:get-dictation-settings", () => {
+  return dictationSettingsStore.get();
+});
+
+ipcMain.handle("skfiy:set-dictation-settings", (_event, update: unknown) => {
+  return dictationSettingsStore.set(
+    update && typeof update === "object" ? update : {}
+  );
 });
 
 ipcMain.handle("skfiy:get-runtime-status", () => {
