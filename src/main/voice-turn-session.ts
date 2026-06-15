@@ -34,6 +34,10 @@ export interface VoiceTurnTranscriptInput {
   confidence?: number;
 }
 
+export interface VoiceTurnTranscriptCandidateInput extends VoiceTurnTranscriptInput {
+  isFinal: boolean;
+}
+
 export interface VoiceTurnSessionStoreOptions {
   now?: () => number;
   defaultTimeoutMs?: number;
@@ -93,6 +97,24 @@ export function createVoiceTurnSessionStore({
         status: "transcribing",
         updatedAt: now(),
         partialTranscript: input.text,
+        confidence: input.confidence
+      });
+    },
+
+    recordTranscriptCandidate(
+      id: string,
+      input: VoiceTurnTranscriptCandidateInput
+    ): VoiceTurnSession {
+      const session = getActiveSession(id);
+      const transcript = input.isFinal
+        ? { finalTranscript: input.text }
+        : { partialTranscript: input.text };
+
+      return save({
+        ...session,
+        ...transcript,
+        status: "transcribing",
+        updatedAt: now(),
         confidence: input.confidence
       });
     },

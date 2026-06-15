@@ -14,6 +14,10 @@ type TestDesktopApi = DesktopApi & {
     command: string,
     options: { stopNativeDictation: boolean }
   ) => Promise<void>;
+  updateDictationTranscript: (
+    sessionId: string | undefined,
+    update: { text: string; isFinal: boolean; confidence?: number }
+  ) => Promise<void>;
 };
 
 let emitTaskEvent: (event: TaskEvent) => void;
@@ -22,7 +26,7 @@ let emitStopTurnHotkey: () => void;
 const speechRecognitionInstances: MockSpeechRecognition[] = [];
 
 interface MockSpeechRecognitionResult {
-  0: { transcript: string };
+  0: { transcript: string; confidence?: number };
   isFinal: boolean;
 }
 
@@ -77,6 +81,9 @@ beforeEach(() => {
     }),
     stopDictation: vi.fn<DesktopApi["stopDictation"]>().mockResolvedValue(undefined),
     submitDictation: vi.fn<TestDesktopApi["submitDictation"]>().mockResolvedValue(undefined),
+    updateDictationTranscript: vi
+      .fn<TestDesktopApi["updateDictationTranscript"]>()
+      .mockResolvedValue(undefined),
     approveTask: vi.fn<DesktopApi["approveTask"]>().mockResolvedValue(undefined),
     denyTask: vi.fn<DesktopApi["denyTask"]>().mockResolvedValue(undefined),
     takeScreenshot: vi.fn<DesktopApi["takeScreenshot"]>().mockResolvedValue(undefined),
@@ -756,7 +763,7 @@ describe("App", () => {
         resultIndex: 0,
         results: [
           {
-            0: { transcript: "打开 Ghostty 并截图" },
+            0: { transcript: "打开 Ghostty 并截图", confidence: 0.87 },
             isFinal: true
           }
         ]
@@ -764,6 +771,14 @@ describe("App", () => {
     });
 
     expect(screen.getByDisplayValue("打开 Ghostty 并截图")).toBeInTheDocument();
+    expect((window.skfiy as TestDesktopApi).updateDictationTranscript).toHaveBeenCalledWith(
+      "voice-turn-test",
+      {
+        text: "打开 Ghostty 并截图",
+        isFinal: true,
+        confidence: 0.87
+      }
+    );
   });
 
   it("auto-submits settled Doubao dictation text", async () => {

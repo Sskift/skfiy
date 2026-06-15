@@ -57,6 +57,12 @@ export interface DictationProviderEvent {
   message: string;
 }
 
+export interface DictationTranscriptUpdate {
+  text: string;
+  isFinal: boolean;
+  confidence?: number;
+}
+
 export interface DictationSettings {
   provider: DictationProviderSelection;
   doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
@@ -204,6 +210,10 @@ export interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
   stopDictation: (sessionId?: string) => Promise<void>;
+  updateDictationTranscript: (
+    sessionId: string | undefined,
+    update: DictationTranscriptUpdate
+  ) => Promise<void>;
   submitDictation: (
     sessionId: string | undefined,
     command: string,
@@ -238,6 +248,7 @@ export interface DesktopApi {
 interface BrowserSpeechRecognitionResult {
   0?: {
     transcript?: string;
+    confidence?: number;
   };
   isFinal?: boolean;
 }
@@ -388,6 +399,7 @@ const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
   prepareDictation: async () => ({ voiceTrigger: "none" }),
   stopDictation: async () => undefined,
+  updateDictationTranscript: async () => undefined,
   submitDictation: async () => undefined,
   approveTask: async () => undefined,
   denyTask: async () => undefined,
@@ -450,6 +462,31 @@ function readSpeechTranscript(event: BrowserSpeechRecognitionResultEvent): strin
   }
 
   return parts.join("").trim();
+}
+
+function readSpeechTranscriptUpdate(
+  event: BrowserSpeechRecognitionResultEvent
+): DictationTranscriptUpdate {
+  let isFinal = false;
+  let confidence: number | undefined;
+
+  for (let index = 0; index < event.results.length; index += 1) {
+    const result = event.results[index];
+    if (result?.isFinal) {
+      isFinal = true;
+    }
+
+    const nextConfidence = result?.[0]?.confidence;
+    if (typeof nextConfidence === "number" && Number.isFinite(nextConfidence)) {
+      confidence = nextConfidence;
+    }
+  }
+
+  return {
+    text: readSpeechTranscript(event),
+    isFinal,
+    confidence
+  };
 }
 
 function mergeReplayRecord(
@@ -707,7 +744,12 @@ export default function App() {
     recognition.interimResults = true;
     recognition.lang = "zh-CN";
     recognition.onresult = (event) => {
-      setDictationText(readSpeechTranscript(event));
+      const transcriptUpdate = readSpeechTranscriptUpdate(event);
+      setDictationText(transcriptUpdate.text);
+
+      if (transcriptUpdate.text) {
+        void api.updateDictationTranscript(voiceSessionIdRef.current, transcriptUpdate);
+      }
     };
     recognition.onerror = (event) => {
       recognitionRef.current = null;

@@ -36,7 +36,8 @@ import {
 import {
   createVoiceTurnSessionStore,
   type VoiceTurnSession,
-  type VoiceTurnProviderId
+  type VoiceTurnProviderId,
+  type VoiceTurnTranscriptCandidateInput
 } from "./voice-turn-session.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
@@ -153,6 +154,19 @@ function finalizeVoiceTurnSession(sessionId: unknown, transcript: string): void 
   }
 
   voiceTurnSessionStore.finalize(id, { text: transcript });
+}
+
+function recordVoiceTranscriptCandidate(
+  sessionId: unknown,
+  update: VoiceTurnTranscriptCandidateInput
+): void {
+  const id = typeof sessionId === "string" ? sessionId : voiceTurnSessionStore.getActive()?.id;
+
+  if (!id) {
+    return;
+  }
+
+  voiceTurnSessionStore.recordTranscriptCandidate(id, update);
 }
 
 function failVoiceTurnSession(sessionId: string, message: string): void {
@@ -332,6 +346,30 @@ function createDesktopHelper(): DesktopHelperClient {
 
 function readMode(value: unknown): ManualMode {
   return value === "quiet" || value === "active" ? value : "active";
+}
+
+function readVoiceTranscriptCandidate(value: unknown): VoiceTurnTranscriptCandidateInput | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const candidate = value as Partial<VoiceTurnTranscriptCandidateInput>;
+
+  if (typeof candidate.text !== "string" || !candidate.text.trim()) {
+    return undefined;
+  }
+
+  if (typeof candidate.isFinal !== "boolean") {
+    return undefined;
+  }
+
+  return {
+    text: candidate.text,
+    isFinal: candidate.isFinal,
+    confidence: typeof candidate.confidence === "number" && Number.isFinite(candidate.confidence)
+      ? candidate.confidence
+      : undefined
+  };
 }
 
 function readPetWindowMode(value: unknown): PetWindowMode | undefined {
@@ -639,6 +677,24 @@ ipcMain.handle("skfiy:stop-dictation", async (event, sessionId: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   cancelVoiceTurnSession(sessionId);
   await stopCurrentDictationProvider(window);
+});
+
+ipcMain.handle("skfiy:update-dictation-transcript", (event, sessionId: unknown, update: unknown) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const transcriptUpdate = readVoiceTranscriptCandidate(update);
+
+  if (!transcriptUpdate) {
+    return;
+  }
+
+  try {
+    recordVoiceTranscriptCandidate(sessionId, transcriptUpdate);
+  } catch (error) {
+    emitTaskEvent(window, {
+      status: "failed",
+      message: error instanceof Error ? error.message : "Voice transcript could not be recorded."
+    });
+  }
 });
 
 ipcMain.handle(

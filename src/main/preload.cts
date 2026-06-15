@@ -84,6 +84,12 @@ interface DictationProviderEvent {
   message: string;
 }
 
+interface DictationTranscriptUpdate {
+  text: string;
+  isFinal: boolean;
+  confidence?: number;
+}
+
 interface DictationSettings {
   provider: DictationProviderSelection;
   doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
@@ -193,6 +199,10 @@ interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
   stopDictation: (sessionId?: string) => Promise<void>;
+  updateDictationTranscript: (
+    sessionId: string | undefined,
+    update: DictationTranscriptUpdate
+  ) => Promise<void>;
   submitDictation: (
     sessionId: string | undefined,
     command: string,
@@ -253,6 +263,9 @@ const api: DesktopApi = {
   },
   async stopDictation(sessionId) {
     await ipcRenderer.invoke("skfiy:stop-dictation", sessionId);
+  },
+  async updateDictationTranscript(sessionId, update) {
+    await ipcRenderer.invoke("skfiy:update-dictation-transcript", sessionId, update);
   },
   async submitDictation(sessionId, command, options) {
     await ipcRenderer.invoke("skfiy:submit-dictation", sessionId, command, options);

@@ -164,6 +164,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] failed
 - [x] Add a main-process voice turn session model:
   - [x] `prepare-dictation` creates a session id for Doubao or browser speech turns
+  - [x] browser ASR result events stream partial/final transcript candidates back to the main-process session
   - [x] `submit-dictation` finalizes the session before entering the Computer Use task path
   - [x] `stop-dictation` cancels the active session on manual stop or panic stop
   - [x] partial/final transcript, confidence, timeout, cancellation, and provider failure states are represented in a testable backend store
@@ -174,6 +175,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - left-click starts listening or gives actionable provider error
   - current packaged UI check on 2026-06-16: CDP-clicking the pet in `dist/skfiy.app` opened `权限引导` with Screen Recording, Accessibility, and Microphone rows when permissions were denied/not-determined
   - voice submit path now flows through renderer -> preload -> main `submit-dictation`, finalizes a voice session, then enters the existing Computer Use command path
+  - browser ASR transcript updates now flow through renderer -> preload -> main `update-dictation-transcript` before submit
   - stop always returns to idle
   - screenshots/click/key helper commands still pass
 
@@ -220,7 +222,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
   - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
-  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9254` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Computer Use permission preflight before opening Ghostty, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
+  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9255` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Computer Use permission preflight before opening Ghostty, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
   - `passed` smoke classification now requires LaunchServices app launch, `runnerHasTmux=false`, the product path, a completed event, and non-empty before/after screenshot files
   - repeat command: `npm run smoke:ghostty`
   - repeat matrix command: `npm run smoke:ghostty -- --matrix`

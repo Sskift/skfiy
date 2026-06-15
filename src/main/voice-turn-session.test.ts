@@ -53,6 +53,36 @@ describe("voice turn session store", () => {
     );
   });
 
+  it("records partial and final transcript candidates without ending the active turn", () => {
+    const store = createVoiceTurnSessionStore({ now: () => 3_000 });
+    const session = store.start({ providerId: "browser", trigger: "pet-click" });
+
+    expect(store.recordTranscriptCandidate(session.id, {
+      text: "打开 Ghost",
+      isFinal: false,
+      confidence: 0.52
+    })).toMatchObject({
+      id: session.id,
+      status: "transcribing",
+      partialTranscript: "打开 Ghost",
+      confidence: 0.52
+    });
+    expect(store.getActive()?.id).toBe(session.id);
+
+    expect(store.recordTranscriptCandidate(session.id, {
+      text: "打开 Ghostty 执行 pwd",
+      isFinal: true,
+      confidence: 0.88
+    })).toMatchObject({
+      id: session.id,
+      status: "transcribing",
+      partialTranscript: "打开 Ghost",
+      finalTranscript: "打开 Ghostty 执行 pwd",
+      confidence: 0.88
+    });
+    expect(store.getActive()?.id).toBe(session.id);
+  });
+
   it("expires an active listening turn without final text", () => {
     let currentTime = 5_000;
     const store = createVoiceTurnSessionStore({
