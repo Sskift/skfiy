@@ -25,6 +25,7 @@ describe("Ghostty product smoke script", () => {
       plannerMode: "disabled"
     });
     expect(source).toContain("window.skfiy.setPlannerProviderSettings");
+    expect(source).toContain("acquireSmokeLock");
   });
 
   it("defines the Week 2 product-path task matrix as executable smoke runs", async () => {

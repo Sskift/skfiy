@@ -12,6 +12,7 @@ import {
   parseVoiceSmokeArgs,
   writeVoiceSmokeEvidence
 } from "./smoke-voice-plan.mjs";
+import { acquireSmokeLock } from "./smoke-lock.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -48,9 +49,14 @@ async function main() {
     taskEvents: [],
     result: "not-run"
   };
+  let smokeLock;
 
   try {
     assertVoiceSmokeReady(options);
+    smokeLock = await acquireSmokeLock({
+      rootDir: ROOT_DIR,
+      scriptName: "smoke:voice"
+    });
 
     if (!options.keepExisting) {
       await quitSkfiy();
@@ -125,6 +131,7 @@ async function main() {
       await sleep(700);
       evidence.processesAfterCleanup = await readSkfiyProcesses();
     }
+    await smokeLock?.release();
 
     if (options.outputPath) {
       try {

@@ -137,6 +137,7 @@ describe("native voice product smoke script", () => {
 
     const source = readFileSync(sourcePath, "utf8");
 
+    expect(source).toContain("acquireSmokeLock");
     expect(source).toContain("window.skfiy.setDictationSettings({ provider: \"native-macos\" })");
     expect(source).toContain("window.skfiy.prepareDictation()");
     expect(source).toContain("window.skfiy.stopDictation(");

@@ -88,6 +88,8 @@ After `npm run build`, run:
 npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
 ```
 
+Run Ghostty and voice product smoke commands sequentially. The scripts share `.skfiy-smoke/product-smoke.lock` and fail fast if another packaged-app smoke is already active, because concurrent runs can contaminate `processesAfterCleanup` evidence.
+
 Expected output before permissions are granted:
 
 ```text

@@ -16,6 +16,7 @@ import {
   PRODUCT_PATH,
   writeSmokeEvidence
 } from "./smoke-ghostty-plan.mjs";
+import { acquireSmokeLock } from "./smoke-lock.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -51,9 +52,14 @@ async function main() {
     screenshots: [],
     result: "not-run"
   };
+  let smokeLock;
 
   try {
     assertSmokeReady(options);
+    smokeLock = await acquireSmokeLock({
+      rootDir: ROOT_DIR,
+      scriptName: "smoke:ghostty"
+    });
 
     if (!options.keepExisting) {
       await quitSkfiy();
@@ -143,6 +149,7 @@ async function main() {
       evidence.processesAfterCleanup = await readSkfiyProcesses();
       evidence.skfiyGhosttyProcessesAfterCleanup = await readSkfiyGhosttyProcesses();
     }
+    await smokeLock?.release();
 
     if (options.outputPath) {
       try {
