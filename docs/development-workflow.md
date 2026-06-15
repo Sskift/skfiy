@@ -155,6 +155,16 @@ npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
 
 Use `npm run smoke:voice -- --require-passed` only after Microphone and Speech Recognition are granted to `dist/skfiy.app`; otherwise the expected result is `blocked` or `no-transcript` with fail-closed evidence. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> native macOS Speech`, provider events showing listening and stopped, and a final non-empty transcript event.
 
+### Dogfood Evidence Gate
+
+After creating an alpha manifest, verify that the manifest, zip, Ghostty smoke artifact, and native voice smoke artifact form one coherent evidence chain:
+
+```bash
+npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
+```
+
+Use `--require-passed` only for a release gate after both Ghostty and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, and required manifest links.
+
 ## Reporting Template
 
 Use this format when reporting a tested change:

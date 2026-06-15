@@ -45,6 +45,14 @@ This writes a versioned zip and manifest to `.skfiy-alpha/`, for example:
 
 The manifest records the exact commit SHA, bundle identifier, unsigned/notarized state, zip byte size, SHA256 checksum, the Ghostty smoke artifact path, and the native voice smoke artifact path used for dogfood evidence.
 
+Verify the evidence chain before sharing an alpha:
+
+```bash
+npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
+```
+
+This gate checks the manifest, zip byte count, Ghostty smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, and process cleanup. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and both smoke runs are expected to pass.
+
 ## Launch
 
 Use LaunchServices so macOS attributes permissions to the app bundle:
