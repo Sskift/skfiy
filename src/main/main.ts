@@ -6,10 +6,16 @@ import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type { DesktopActionResult } from "./computer-use/types.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
-import { calculatePetWindowBounds, readWindowPositionOverride } from "./window-position.js";
+import {
+  calculatePetWindowBounds,
+  readWindowPositionOverride,
+  resizePetWindowBoundsKeepingBottom,
+  type Size
+} from "./window-position.js";
 
 type ManualMode = "active" | "quiet";
 type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "completed" | "failed";
+type PetWindowMode = "compact" | "expanded";
 
 interface TaskEvent {
   status: TaskStatus;
@@ -26,6 +32,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
 const DOUBAO_INPUT_SOURCE_ID = "com.bytedance.inputmethod.doubaoime.pinyin";
+const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
+const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 360 };
 
 let mainWindow: BrowserWindow | null = null;
 let currentTaskId = 0;
@@ -144,6 +152,10 @@ function readMode(value: unknown): ManualMode {
   return value === "quiet" || value === "active" ? value : "active";
 }
 
+function readPetWindowMode(value: unknown): PetWindowMode | undefined {
+  return value === "compact" || value === "expanded" ? value : undefined;
+}
+
 function readFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
@@ -198,26 +210,21 @@ async function runCommandTask(
 }
 
 async function createWindow() {
-  const windowWidth = 320;
-  const windowHeight = 360;
   const initialBounds = calculatePetWindowBounds({
     cursorPoint: screen.getCursorScreenPoint(),
     displays: screen.getAllDisplays(),
-    windowSize: {
-      width: windowWidth,
-      height: windowHeight
-    },
+    windowSize: COMPACT_WINDOW_SIZE,
     margin: 28,
     positionOverride: readWindowPositionOverride(process.env)
   });
 
   mainWindow = new BrowserWindow({
-    width: windowWidth,
-    height: windowHeight,
+    width: COMPACT_WINDOW_SIZE.width,
+    height: COMPACT_WINDOW_SIZE.height,
     x: initialBounds.x,
     y: initialBounds.y,
-    minWidth: windowWidth,
-    minHeight: windowHeight,
+    minWidth: COMPACT_WINDOW_SIZE.width,
+    minHeight: COMPACT_WINDOW_SIZE.height,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -244,6 +251,17 @@ async function createWindow() {
   }
 }
 
+function setPetWindowMode(window: BrowserWindow, mode: PetWindowMode) {
+  const nextSize = mode === "expanded" ? EXPANDED_WINDOW_SIZE : COMPACT_WINDOW_SIZE;
+  const currentBounds = window.getBounds();
+
+  if (currentBounds.width === nextSize.width && currentBounds.height === nextSize.height) {
+    return;
+  }
+
+  window.setBounds(resizePetWindowBoundsKeepingBottom(currentBounds, nextSize));
+}
+
 ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const x = readFiniteNumber(deltaX);
@@ -255,6 +273,17 @@ ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown) => 
 
   const bounds = window.getBounds();
   window.setPosition(Math.round(bounds.x + x), Math.round(bounds.y + y));
+});
+
+ipcMain.on("skfiy:set-window-mode", (event, mode: unknown) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const nextMode = readPetWindowMode(mode);
+
+  if (!window || window.isDestroyed() || !nextMode) {
+    return;
+  }
+
+  setPetWindowMode(window, nextMode);
 });
 
 ipcMain.handle(

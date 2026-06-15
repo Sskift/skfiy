@@ -16,6 +16,7 @@ beforeEach(() => {
     takeScreenshot: vi.fn<SkfiyApi["takeScreenshot"]>().mockResolvedValue(undefined),
     stopTask: vi.fn<SkfiyApi["stopTask"]>().mockResolvedValue(undefined),
     moveWindowBy: vi.fn<SkfiyApi["moveWindowBy"]>(),
+    setWindowMode: vi.fn<SkfiyApi["setWindowMode"]>(),
     onTaskEvent: vi.fn((callback: (event: TaskEvent) => void) => {
       emitTaskEvent = callback;
       return vi.fn();
@@ -43,13 +44,13 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "语音" })).toBeInTheDocument();
   });
 
-  it("keeps the pet as a native draggable region instead of opening a command input", () => {
+  it("keeps the pet as a manual draggable region instead of opening a command input", () => {
     render(<App />);
 
     const pet = screen.getByLabelText(/skfiy codex-style pet/i);
     fireEvent.click(pet);
 
-    expect(pet).toHaveAttribute("data-native-drag", "true");
+    expect(pet).toHaveAttribute("data-drag-mode", "manual");
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
@@ -89,20 +90,41 @@ describe("App", () => {
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
-  it("uses Electron native dragging instead of renderer pointer-delta dragging", () => {
+  it("moves the window from pet pointer dragging, including upward movement", () => {
     render(<App />);
 
     const pet = screen.getByLabelText(/skfiy codex-style pet/i);
     const api = window.skfiy as SkfiyApi;
 
     fireEvent.pointerDown(pet, { button: 0, pointerId: 7, screenX: 100, screenY: 100 });
-    fireEvent.pointerMove(pet, { pointerId: 7, screenX: 112, screenY: 117 });
-    fireEvent.pointerUp(pet, { pointerId: 7, screenX: 112, screenY: 117 });
+    fireEvent.pointerMove(pet, { pointerId: 7, screenX: 112, screenY: 42 });
+    fireEvent.pointerMove(pet, { pointerId: 7, screenX: 112, screenY: 12 });
+    fireEvent.pointerUp(pet, { pointerId: 7, screenX: 112, screenY: 12 });
     fireEvent.click(pet);
 
-    expect(pet).toHaveAttribute("data-native-drag", "true");
-    expect(api.moveWindowBy).not.toHaveBeenCalled();
+    expect(pet).toHaveAttribute("data-drag-mode", "manual");
+    expect(api.moveWindowBy).toHaveBeenNthCalledWith(1, 12, -58);
+    expect(api.moveWindowBy).toHaveBeenNthCalledWith(2, 0, -30);
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
+  });
+
+  it("uses a compact transparent window until a voice or task bubble is visible", async () => {
+    render(<App />);
+
+    const api = window.skfiy as SkfiyApi;
+    expect(api.setWindowMode).toHaveBeenLastCalledWith("compact");
+
+    fireEvent.click(screen.getByRole("button", { name: "语音" }));
+
+    await waitFor(() => {
+      expect(api.setWindowMode).toHaveBeenLastCalledWith("expanded");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "停止" }));
+
+    await waitFor(() => {
+      expect(api.setWindowMode).toHaveBeenLastCalledWith("compact");
+    });
   });
 
   it("focuses a visible Doubao transcript area without showing a command input", async () => {

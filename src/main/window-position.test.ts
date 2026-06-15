@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculatePetWindowBounds, readWindowPositionOverride } from "./window-position";
+import {
+  calculatePetWindowBounds,
+  readWindowPositionOverride,
+  resizePetWindowBoundsKeepingBottom
+} from "./window-position";
 
 describe("calculatePetWindowBounds", () => {
   it("anchors the pet to the display containing the cursor instead of the primary display", () => {
@@ -9,12 +13,26 @@ describe("calculatePetWindowBounds", () => {
         { workArea: { x: 2048, y: 0, width: 1792, height: 1120 } },
         { workArea: { x: 0, y: 0, width: 2048, height: 1152 } }
       ],
-      windowSize: { width: 320, height: 360 },
+      windowSize: { width: 320, height: 224 },
       margin: 28
     });
 
     expect(bounds).toEqual({
       x: 1700,
+      y: 900,
+      width: 320,
+      height: 224
+    });
+  });
+
+  it("keeps the pet bottom anchored when the transparent window changes height", () => {
+    expect(
+      resizePetWindowBoundsKeepingBottom(
+        { x: 80, y: 900, width: 320, height: 224 },
+        { width: 320, height: 360 }
+      )
+    ).toEqual({
+      x: 80,
       y: 764,
       width: 320,
       height: 360

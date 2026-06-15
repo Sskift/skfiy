@@ -24,6 +24,17 @@ export interface CalculatePetWindowBoundsOptions {
 
 export interface PetWindowBounds extends Point, Size {}
 
+export function resizePetWindowBoundsKeepingBottom(
+  currentBounds: PetWindowBounds,
+  nextSize: Size
+): PetWindowBounds {
+  return {
+    x: currentBounds.x,
+    y: currentBounds.y + currentBounds.height - nextSize.height,
+    ...nextSize
+  };
+}
+
 export function calculatePetWindowBounds({
   cursorPoint,
   displays,

@@ -1,5 +1,12 @@
 import { CirclePause, Mic, Play } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent
+} from "react";
 import { getPetSpriteStyle, getPetStateForTask, PET_ATLAS, type PetAtlasState } from "./pet-atlas";
 
 export type TaskStatus =
@@ -11,6 +18,7 @@ export type TaskStatus =
   | "failed";
 
 export type ManualMode = "active" | "quiet";
+export type PetWindowMode = "compact" | "expanded";
 
 export interface TaskEvent {
   status: TaskStatus;
@@ -27,6 +35,7 @@ export interface SkfiyApi {
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
+  setWindowMode: (mode: PetWindowMode) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -39,6 +48,12 @@ declare global {
 interface TaskView {
   status: TaskStatus;
   message: string;
+}
+
+interface PetDragState {
+  pointerId: number;
+  lastScreenX: number;
+  lastScreenY: number;
 }
 
 const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
@@ -83,6 +98,7 @@ const fallbackApi: SkfiyApi = {
   takeScreenshot: async () => undefined,
   stopTask: async () => undefined,
   moveWindowBy: () => undefined,
+  setWindowMode: () => undefined,
   onTaskEvent: () => () => undefined
 };
 
@@ -92,7 +108,17 @@ function getSkfiyApi(): SkfiyApi {
   return window.skfiy ?? fallbackApi;
 }
 
-function SkfiyPet({ state }: { state: PetAtlasState }) {
+function SkfiyPet({
+  state,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp
+}: {
+  state: PetAtlasState;
+  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
+}) {
   const animation = PET_ATLAS.states[state];
 
   return (
@@ -101,7 +127,11 @@ function SkfiyPet({ state }: { state: PetAtlasState }) {
       className={`skfiy-pet pet-state-${state}`}
       data-atlas-state={state}
       data-frame-count={animation.frames}
-      data-native-drag="true"
+      data-drag-mode="manual"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
       style={getPetSpriteStyle(state)}
     >
       <span className="pet-sprite-frame" aria-hidden="true" />
@@ -119,6 +149,7 @@ export default function App() {
   });
   const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
   const lastDictationSubmitRef = useRef("");
+  const petDragRef = useRef<PetDragState | null>(null);
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
@@ -240,9 +271,59 @@ export default function App() {
     }
   }
 
+  function startPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    petDragRef.current = {
+      pointerId: event.pointerId,
+      lastScreenX: event.screenX,
+      lastScreenY: event.screenY
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function movePetDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = petDragRef.current;
+
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.screenX - drag.lastScreenX;
+    const deltaY = event.screenY - drag.lastScreenY;
+
+    if (deltaX === 0 && deltaY === 0) {
+      return;
+    }
+
+    petDragRef.current = {
+      pointerId: drag.pointerId,
+      lastScreenX: event.screenX,
+      lastScreenY: event.screenY
+    };
+    api.moveWindowBy(deltaX, deltaY);
+  }
+
+  function stopPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = petDragRef.current;
+
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    petDragRef.current = null;
+  }
+
   const status = STATUS_COPY[task.status];
   const petState = getPetStateForTask(listening ? "observing" : task.status);
   const showVoiceStatus = listening || task.status !== "idle";
+
+  useEffect(() => {
+    api.setWindowMode(showVoiceStatus ? "expanded" : "compact");
+  }, [api, showVoiceStatus]);
 
   return (
     <main
@@ -291,7 +372,12 @@ export default function App() {
         </section>
       ) : null}
 
-      <SkfiyPet state={petState} />
+      <SkfiyPet
+        state={petState}
+        onPointerDown={startPetDrag}
+        onPointerMove={movePetDrag}
+        onPointerUp={stopPetDrag}
+      />
 
       <button
         type="button"

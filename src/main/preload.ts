@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 
 type ManualMode = "active" | "quiet";
+type PetWindowMode = "compact" | "expanded";
 type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "completed" | "failed";
 
 interface TaskEvent {
@@ -18,6 +19,7 @@ interface SkfiyApi {
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
+  setWindowMode: (mode: PetWindowMode) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -63,6 +65,9 @@ const api: SkfiyApi = {
   },
   moveWindowBy(deltaX, deltaY) {
     ipcRenderer.send("skfiy:move-window-by", deltaX, deltaY);
+  },
+  setWindowMode(mode) {
+    ipcRenderer.send("skfiy:set-window-mode", mode);
   },
   onTaskEvent(callback) {
     const listener = (_event: IpcRendererEvent, payload: unknown) => {
