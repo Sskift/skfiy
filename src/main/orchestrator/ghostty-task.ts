@@ -87,9 +87,7 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  const session = readOpenGhosttySessionResult(
-    await client.executeAction({ type: "open_ghostty_session", title: SKFIY_GHOSTTY_SESSION_TITLE })
-  );
+  let session = await openGhosttySession(client);
   yield {
     type: "session_opened",
     appName: GHOSTTY_APP_NAME,
@@ -101,12 +99,7 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  const activationResults = await runDesktopActionPlan(
-    client,
-    [{ type: "activate_app", bundleId: session.bundleId, pid: session.pid }],
-    { signal: options.signal }
-  );
-  const activationFailure = readPlanFailure(activationResults);
+  const activationFailure = await activateGhosttySession(client, session, options.signal);
   if (activationFailure) {
     yield {
       type: "verification_failed",
@@ -127,15 +120,7 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  const initFailure = readPlanFailure(await runDesktopActionPlan(
-    client,
-    [
-      { type: "type_text", text: SKFIY_GHOSTTY_INIT_COMMAND },
-      { type: "press_key", key: "enter" },
-      { type: "wait", ms: SESSION_INIT_SETTLE_WAIT_MS }
-    ],
-    { signal: options.signal }
-  ));
+  const initFailure = await initializeGhosttySession(client, options.signal);
   if (initFailure) {
     yield {
       type: "verification_failed",
@@ -179,7 +164,7 @@ export async function* runGhosttyCommandTask(
     marker: SKFIY_GHOSTTY_SESSION_MARKER,
     sensitiveTitlePatterns: [/password/i, /keychain/i]
   });
-  if (beforeRecovery.type === "recover" && beforeRecovery.action === "activate") {
+  if (beforeRecovery.type === "recover") {
     yield {
       type: "recovery_attempted",
       stage: "before",
@@ -187,19 +172,63 @@ export async function* runGhosttyCommandTask(
       reason: beforeRecovery.reason
     };
 
-    const recoveryResults = await runDesktopActionPlan(
-      client,
-      [{ type: "activate_app", bundleId: session.bundleId, pid: session.pid }],
-      { signal: options.signal }
-    );
-    const recoveryFailure = readPlanFailure(recoveryResults);
-    if (recoveryFailure) {
+    if (beforeRecovery.action === "open") {
+      session = await openGhosttySession(client);
+      yield {
+        type: "session_opened",
+        appName: GHOSTTY_APP_NAME,
+        title: session.title,
+        pid: session.pid
+      };
+
+      if (isAborted(options.signal)) {
+        return;
+      }
+    }
+
+    const recoveryActivationFailure = await activateGhosttySession(client, session, options.signal);
+    if (recoveryActivationFailure) {
       yield {
         type: "verification_failed",
         stage: "before",
-        reason: recoveryFailure
+        reason: recoveryActivationFailure
       };
       return;
+    }
+
+    if (beforeRecovery.action === "open") {
+      yield {
+        type: "app_activated",
+        appName: GHOSTTY_APP_NAME,
+        bundleId: session.bundleId,
+        pid: session.pid
+      };
+    }
+
+    if (isAborted(options.signal)) {
+      return;
+    }
+
+    if (beforeRecovery.action === "open") {
+      const recoveryInitFailure = await initializeGhosttySession(client, options.signal);
+      if (recoveryInitFailure) {
+        yield {
+          type: "verification_failed",
+          stage: "before",
+          reason: recoveryInitFailure
+        };
+        return;
+      }
+
+      yield {
+        type: "session_initialized",
+        title: SKFIY_GHOSTTY_SESSION_TITLE,
+        marker: SKFIY_GHOSTTY_SESSION_MARKER
+      };
+
+      if (isAborted(options.signal)) {
+        return;
+      }
     }
 
     before = await observeApp(
@@ -298,6 +327,39 @@ export async function* runGhosttyCommandTask(
     command,
     summary: "Command submitted to Ghostty."
   };
+}
+
+async function openGhosttySession(client: DesktopClient): Promise<OpenGhosttySessionResult> {
+  return readOpenGhosttySessionResult(
+    await client.executeAction({ type: "open_ghostty_session", title: SKFIY_GHOSTTY_SESSION_TITLE })
+  );
+}
+
+async function activateGhosttySession(
+  client: DesktopClient,
+  session: OpenGhosttySessionResult,
+  signal: AbortSignal | undefined
+): Promise<string | undefined> {
+  return readPlanFailure(await runDesktopActionPlan(
+    client,
+    [{ type: "activate_app", bundleId: session.bundleId, pid: session.pid }],
+    { signal }
+  ));
+}
+
+async function initializeGhosttySession(
+  client: DesktopClient,
+  signal: AbortSignal | undefined
+): Promise<string | undefined> {
+  return readPlanFailure(await runDesktopActionPlan(
+    client,
+    [
+      { type: "type_text", text: SKFIY_GHOSTTY_INIT_COMMAND },
+      { type: "press_key", key: "enter" },
+      { type: "wait", ms: SESSION_INIT_SETTLE_WAIT_MS }
+    ],
+    { signal }
+  ));
 }
 
 async function observeApp(

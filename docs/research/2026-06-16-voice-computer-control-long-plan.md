@@ -236,7 +236,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] if app hidden, activate
     - Ghostty before-observe now performs one-shot activate recovery before typing
   - [x] if window missing, open
-    - decision layer exists; app-specific open recovery still needs adapter wiring beyond Ghostty's initial session open
+    - Ghostty before-observe now performs one-shot open recovery by creating a fresh `skfiy-shell`, reinitializing the marker, and reobserving before typing
   - [x] if duplicate target, ask user
   - [x] if sensitive UI appears, pause
 - Add Chrome proof of concept:

@@ -487,6 +487,114 @@ describe("runGhosttyCommandTask", () => {
     });
   });
 
+  it("recovers by opening a fresh skfiy Ghostty session when no target window is observable", async () => {
+    const client = createDesktopClient();
+    let openCount = 0;
+    let observeCount = 0;
+    client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
+      if (action.type === "open_ghostty_session") {
+        openCount += 1;
+        return {
+          bundleId: "com.mitchellh.ghostty",
+          title: "skfiy-shell",
+          pid: openCount === 1 ? 54502 : 54599,
+          opened: true
+        };
+      }
+
+      if (action.type === "observe_app") {
+        observeCount += 1;
+        if (observeCount === 1) {
+          return {
+            bundleId: action.bundleId,
+            pid: action.pid,
+            isRunning: false,
+            isActive: false,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: []
+          };
+        }
+
+        return {
+          bundleId: action.bundleId,
+          pid: action.pid,
+          isRunning: true,
+          isActive: true,
+          screenshotPath: action.screenshotOutputPath,
+          frontmostBundleId: "com.mitchellh.ghostty",
+          accessibilityTrusted: true,
+          windows: [
+            {
+              title: "skfiy-shell",
+              layer: 0,
+              bounds: { x: 10, y: 20, width: 640, height: 480 }
+            }
+          ]
+        };
+      }
+
+      return { ok: true };
+    });
+
+    const events = await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "locating_app",
+      "session_opened",
+      "app_activated",
+      "session_initialized",
+      "screenshot_before",
+      "recovery_attempted",
+      "session_opened",
+      "app_activated",
+      "session_initialized",
+      "screenshot_before",
+      "typing",
+      "submitted",
+      "screenshot_after",
+      "completed"
+    ]);
+    expect(events.find((event) => event.type === "recovery_attempted")).toMatchObject({
+      type: "recovery_attempted",
+      stage: "before",
+      action: "open",
+      reason: "Target app is not running or has no observable windows."
+    });
+    expect(events.filter((event) => event.type === "session_opened")).toMatchObject([
+      {
+        type: "session_opened",
+        pid: 54502
+      },
+      {
+        type: "session_opened",
+        pid: 54599
+      }
+    ]);
+    expect(client.executeAction).toHaveBeenNthCalledWith(6, {
+      type: "open_ghostty_session",
+      title: "skfiy-shell"
+    });
+    expect(client.executeAction).toHaveBeenCalledWith({
+      type: "type_text",
+      text: "pwd"
+    });
+    expect(client.executeAction).not.toHaveBeenCalledWith({
+      type: "observe_app",
+      bundleId: "com.mitchellh.ghostty",
+      pid: 54502,
+      screenshotOutputPath: "/tmp/after.png"
+    });
+    expect(client.executeAction).toHaveBeenCalledWith({
+      type: "observe_app",
+      bundleId: "com.mitchellh.ghostty",
+      pid: 54599,
+      screenshotOutputPath: "/tmp/after.png"
+    });
+  });
+
   it("asks for confirmation when the after screenshot no longer observes the owned session", async () => {
     const client = createDesktopClient();
     let observeCount = 0;
