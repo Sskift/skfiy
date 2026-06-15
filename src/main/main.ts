@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type { DesktopActionResult } from "./computer-use/types.js";
+import { prepareDoubaoDictation, readDoubaoVoiceTrigger } from "./dictation-backend.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
 import {
@@ -31,7 +32,6 @@ interface PendingApproval {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
-const DOUBAO_INPUT_SOURCE_ID = "com.bytedance.inputmethod.doubaoime.pinyin";
 const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 360 };
 
@@ -234,7 +234,7 @@ async function createWindow() {
     backgroundColor: "#00000000",
     title: "Skfiy",
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -324,16 +324,14 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   }
 
   try {
-    const helper = createDesktopHelper();
-    const selectResult = await helper.selectInputSource(DOUBAO_INPUT_SOURCE_ID);
-    assertDesktopActionResult(selectResult, "select Doubao input source");
-
-    const shortcutResult = await helper.doubleTapFunctionKey();
-    assertDesktopActionResult(shortcutResult, "trigger Doubao voice shortcut");
+    await prepareDoubaoDictation(
+      createDesktopHelper(),
+      readDoubaoVoiceTrigger(process.env)
+    );
   } catch (error) {
     emitTaskEvent(window, {
       status: "failed",
-      message: error instanceof Error ? error.message : "Doubao input source could not be selected."
+      message: error instanceof Error ? error.message : "Doubao dictation could not be prepared."
     });
   }
 });

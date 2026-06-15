@@ -28,6 +28,14 @@ The app needs two system permissions before it can behave like Computer Use:
 Open **System Settings > Privacy & Security** and grant both permissions to the
 terminal or app process running Skfiy during local development.
 
+## Doubao Dictation
+
+The voice button prepares Doubao Input Method as the dictation bridge. By
+default Skfiy selects Doubao's input source and double-taps the Fn key to start
+voice input. If your Doubao setup uses another trigger, launch with
+`SKFIY_DOUBAO_VOICE_TRIGGER=none` to only select the input source and handle the
+voice shortcut yourself.
+
 ## Safety Model
 
 Skfiy treats terminal control as higher risk than normal GUI automation.

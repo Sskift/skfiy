@@ -8,6 +8,6 @@
     "noEmit": false,
     "jsx": "react-jsx"
   },
-  "include": ["src/main/**/*.ts"],
+  "include": ["src/main/**/*.ts", "src/main/**/*.cts"],
   "exclude": ["src/**/*.test.ts"]
 }
