@@ -242,8 +242,10 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] use screenshot fallback for non-structured pages
     - fallback mode is explicit when no CDP endpoint is available
 - Add Finder proof of concept:
-  - organize a test folder
-  - no destructive delete without approval
+  - [x] organize a test folder
+    - safe planner groups files into Images/Documents/Code/Archives/Other folders
+  - [x] no destructive delete without approval
+    - planner emits only create-folder and move-file operations, and local mutation requires approval
 - Start evaluation scorecard:
   - [x] task success rate
   - [x] number of manual interventions
