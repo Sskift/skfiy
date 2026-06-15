@@ -177,7 +177,8 @@ Goal: make the first native app scenario reliable enough to demo without embarra
     - implemented by initializing the owned Ghostty process with `SKFIY_SESSION=1`, `[skfiy]` prompt state, and `skfiy-shell` OSC title before the user command is typed
   - [x] scope activate/observe to the opened Ghostty process id
   - [x] refuse to type into Codex TUI/editor/unknown state
-- [ ] Add product-path `observe_app` replay records with screenshot paths and accessibility trust.
+- [x] Add product-path `observe_app` replay records with screenshot paths and accessibility trust.
+  - renderer stores before/after records, clears them at the start of a new task, and displays screenshot path plus Accessibility trust state in the task bubble
 - [x] Implement action verification:
   - [x] after activate, confirm frontmost bundle
   - [x] after type/enter, capture after screenshot
@@ -205,7 +206,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - screenshots: before and after absolute paths
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
-  - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing` -> `observing` -> `failed`, and no Ghostty command was typed
+  - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
 - Week-2 demo criteria:
   - user says "打开 Ghostty 执行 pwd 并截图"
   - skfiy opens/uses its own Ghostty context

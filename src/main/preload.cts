@@ -27,6 +27,7 @@ interface TaskEvent {
   status: TaskStatus;
   message?: string;
   command?: string;
+  replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
 }
 

@@ -51,6 +51,7 @@ interface TaskEvent {
   status: TaskStatus;
   message?: string;
   command?: string;
+  replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
 }
 
@@ -134,7 +135,8 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
     case "started":
       return {
         status: "executing",
-        message: `${prefix}Risk ${event.risk.level}: ${event.risk.reason}`
+        message: `${prefix}Risk ${event.risk.level}: ${event.risk.reason}`,
+        replayReset: true
       };
     case "approval_required":
       return {

@@ -239,6 +239,51 @@ textarea:focus-visible {
   line-height: 1.3;
 }
 
+.task-replay {
+  display: grid;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.task-replay-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 21px;
+  padding: 3px 5px;
+  border: 1px solid rgba(238, 247, 255, 0.11);
+  border-radius: 6px;
+  background: rgba(13, 22, 36, 0.58);
+  color: rgba(238, 247, 255, 0.8);
+  font-size: 10px;
+}
+
+.task-replay-row strong {
+  color: #f7d56a;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.task-replay-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-replay-row em {
+  color: #8de6b0;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.task-replay-row em[data-state="denied"] {
+  color: #ffaba6;
+}
+
 .approval-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

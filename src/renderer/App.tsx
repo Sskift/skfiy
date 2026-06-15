@@ -77,6 +77,7 @@ export interface TaskEvent {
   status: TaskStatus;
   message?: string;
   command?: string;
+  replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
 }
 
@@ -296,6 +297,55 @@ function readSpeechTranscript(event: BrowserSpeechRecognitionResultEvent): strin
   return parts.join("").trim();
 }
 
+function mergeReplayRecord(
+  records: ObserveAppReplayRecord[],
+  nextRecord: ObserveAppReplayRecord
+): ObserveAppReplayRecord[] {
+  const byStage = new Map<ObserveAppReplayRecord["stage"], ObserveAppReplayRecord>();
+
+  for (const record of records) {
+    byStage.set(record.stage, record);
+  }
+
+  byStage.set(nextRecord.stage, nextRecord);
+  return ["before", "after"].flatMap((stage) => {
+    const record = byStage.get(stage as ObserveAppReplayRecord["stage"]);
+    return record ? [record] : [];
+  });
+}
+
+function getReplayAccessibilityLabel(record: ObserveAppReplayRecord): string {
+  if (record.accessibilityTrusted === true) {
+    return "AX ok";
+  }
+
+  if (record.accessibilityTrusted === false) {
+    return "AX denied";
+  }
+
+  return "AX unknown";
+}
+
+function TaskReplay({ records }: { records: ObserveAppReplayRecord[] }) {
+  if (records.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="task-replay" aria-label="Computer Use replay">
+      {records.map((record) => (
+        <div className="task-replay-row" key={record.stage}>
+          <strong>{record.stage}</strong>
+          <span title={record.screenshotPath}>{record.screenshotPath}</span>
+          <em data-state={record.accessibilityTrusted === false ? "denied" : "ok"}>
+            {getReplayAccessibilityLabel(record)}
+          </em>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DesktopPet({
   state,
   onClick,
@@ -351,6 +401,7 @@ export default function App() {
     status: "idle",
     message: STATUS_COPY.idle.message
   });
+  const [replayRecords, setReplayRecords] = useState<ObserveAppReplayRecord[]>([]);
   const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
   const lastDictationSubmitRef = useRef("");
   const petDragRef = useRef<PetDragState | null>(null);
@@ -425,6 +476,17 @@ export default function App() {
       setTask({
         status: event.status,
         message: event.message ?? STATUS_COPY[event.status].message
+      });
+      setReplayRecords((records) => {
+        if (event.replayReset) {
+          return event.replayRecord ? [event.replayRecord] : [];
+        }
+
+        if (event.replayRecord) {
+          return mergeReplayRecord(records, event.replayRecord);
+        }
+
+        return event.status === "idle" ? [] : records;
       });
 
       if (event.status !== "idle") {
@@ -930,7 +992,10 @@ export default function App() {
               <span>{startupWarning.message}</span>
             </div>
           ) : (
-            <p>{task.message}</p>
+            <>
+              <p>{task.message}</p>
+              <TaskReplay records={replayRecords} />
+            </>
           )}
         </section>
       ) : null}

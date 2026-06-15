@@ -530,4 +530,70 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "确认" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "拒绝" })).not.toBeInTheDocument();
   });
+
+  it("shows observe_app replay records with screenshot paths and accessibility trust", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "observing",
+      message: "Captured before screenshot: /tmp/before.png",
+      replayRecord: {
+        stage: "before",
+        bundleId: "com.mitchellh.ghostty",
+        isRunning: true,
+        isActive: true,
+        screenshotPath: "/tmp/before.png",
+        frontmostBundleId: "com.mitchellh.ghostty",
+        accessibilityTrusted: true
+      }
+    }));
+    act(() => emitTaskEvent({
+      status: "observing",
+      message: "Captured after screenshot: /tmp/after.png",
+      replayRecord: {
+        stage: "after",
+        bundleId: "com.mitchellh.ghostty",
+        isRunning: true,
+        isActive: true,
+        screenshotPath: "/tmp/after.png",
+        frontmostBundleId: "com.mitchellh.ghostty",
+        accessibilityTrusted: false
+      }
+    }));
+
+    const replay = screen.getByLabelText("Computer Use replay");
+    expect(replay).toHaveTextContent("before");
+    expect(replay).toHaveTextContent("/tmp/before.png");
+    expect(replay).toHaveTextContent("AX ok");
+    expect(replay).toHaveTextContent("after");
+    expect(replay).toHaveTextContent("/tmp/after.png");
+    expect(replay).toHaveTextContent("AX denied");
+  });
+
+  it("clears old replay records when a new task starts", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "observing",
+      message: "Captured before screenshot: /tmp/before.png",
+      replayRecord: {
+        stage: "before",
+        bundleId: "com.mitchellh.ghostty",
+        isRunning: true,
+        isActive: true,
+        screenshotPath: "/tmp/before.png",
+        accessibilityTrusted: true
+      }
+    }));
+
+    expect(screen.getByLabelText("Computer Use replay")).toHaveTextContent("/tmp/before.png");
+
+    act(() => emitTaskEvent({
+      status: "executing",
+      message: "Risk low: Read-only terminal command.",
+      replayReset: true
+    }));
+
+    expect(screen.queryByLabelText("Computer Use replay")).not.toBeInTheDocument();
+  });
 });
