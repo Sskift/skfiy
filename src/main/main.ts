@@ -31,6 +31,7 @@ import { resolvePlannerCommand } from "./planner-command.js";
 import { createExternalCuaTerminalPlannerFromEnv } from "./external-cua-planner.js";
 import {
   createDoubaoDictationProvider,
+  createNativeMacOSDictationProvider,
   type DictationProviderEvent
 } from "./dictation-provider.js";
 import {
@@ -108,6 +109,7 @@ let screenshotSerial = 0;
 let activeTaskController: AbortController | null = null;
 let pendingApproval: PendingApproval | null = null;
 let stopTurnHotkeyRegistered = false;
+let activeDictationProviderStop: (() => Promise<void>) | null = null;
 
 function emitTaskEvent(window: BrowserWindow | null, event: TaskEvent) {
   if (!window || window.isDestroyed()) {
@@ -123,6 +125,23 @@ function emitDictationProviderEvent(window: BrowserWindow | null, event: Dictati
   }
 
   window.webContents.send("skfiy:dictation-provider-event", event);
+}
+
+function emitDictationTranscriptEvent(
+  window: BrowserWindow | null,
+  event: {
+    providerId: VoiceTurnProviderId;
+    sessionId: string;
+    text: string;
+    isFinal: boolean;
+    confidence?: number;
+  }
+) {
+  if (!window || window.isDestroyed()) {
+    return;
+  }
+
+  window.webContents.send("skfiy:dictation-transcript-event", event);
 }
 
 function startVoiceTurnSession(providerId: VoiceTurnProviderId): VoiceTurnSession {
@@ -178,9 +197,16 @@ function failVoiceTurnSession(sessionId: string, message: string): void {
 }
 
 async function stopCurrentDictationProvider(window: BrowserWindow | null): Promise<void> {
+  if (activeDictationProviderStop) {
+    const stop = activeDictationProviderStop;
+    activeDictationProviderStop = null;
+    await stop();
+    return;
+  }
+
   const dictationSettings = dictationSettingsStore.get();
 
-  if (dictationSettings.provider === "browser") {
+  if (dictationSettings.provider !== "doubao") {
     return;
   }
 
@@ -632,11 +658,69 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   }
 
   if (dictationSettings.provider === "browser") {
+    activeDictationProviderStop = null;
     return {
       providerId: "browser",
       sessionId: voiceTurnSession.id,
       voiceTrigger: "none",
       nativeDictationActive: false
+    };
+  }
+
+  if (dictationSettings.provider === "native-macos") {
+    const provider = createNativeMacOSDictationProvider({
+      helper: createDesktopHelper(),
+      locale: "zh-CN",
+      emit: (providerEvent) => {
+        lastProviderState = providerEvent.state;
+        emitDictationProviderEvent(window, providerEvent);
+      },
+      emitTranscript: (transcript) => {
+        const update = {
+          text: transcript.text,
+          isFinal: transcript.isFinal,
+          confidence: transcript.confidence
+        };
+
+        try {
+          recordVoiceTranscriptCandidate(voiceTurnSession.id, update);
+        } catch {
+          // The user may have stopped the voice turn before native ASR returned.
+        }
+
+        emitDictationTranscriptEvent(window, {
+          providerId: "native-macos",
+          sessionId: voiceTurnSession.id,
+          ...update
+        });
+      }
+    });
+
+    try {
+      const preparation = await provider.prepare();
+      activeDictationProviderStop = provider.stop;
+      return {
+        ...preparation,
+        sessionId: voiceTurnSession.id
+      };
+    } catch (error) {
+      activeDictationProviderStop = null;
+      failVoiceTurnSession(
+        voiceTurnSession.id,
+        error instanceof Error ? error.message : "macOS speech could not be prepared."
+      );
+      emitTaskEvent(window, {
+        status: "failed",
+        message: error instanceof Error ? error.message : "macOS speech could not be prepared."
+      });
+    }
+
+    return {
+      providerId: "native-macos",
+      sessionId: voiceTurnSession.id,
+      voiceTrigger: "none",
+      nativeDictationActive: false,
+      providerState: lastProviderState ?? "failed"
     };
   }
 
@@ -649,8 +733,10 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
         emitDictationProviderEvent(window, providerEvent);
       }
     });
+    const preparation = await provider.prepare();
+    activeDictationProviderStop = provider.stop;
     return {
-      ...await provider.prepare(),
+      ...preparation,
       sessionId: voiceTurnSession.id
     };
   } catch (error) {

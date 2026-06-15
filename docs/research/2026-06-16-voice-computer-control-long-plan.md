@@ -34,8 +34,8 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 1. **Launch and permission model is wrong for product use.**
    Development launch through tmux caused macOS Accessibility prompts to be attributed to tw-dashboard. Product launch must be a real app bundle with stable identity, signing, and permission onboarding.
 
-2. **Voice is not a real voice stack yet.**
-   Current implementation depends on Doubao shortcut bridging or Chromium Web Speech fallback. It lacks native audio capture, VAD, push-to-talk semantics, provider switching, partial transcript streaming, cancellation, and clear failure states.
+2. **Voice is not a fully proven voice stack yet.**
+   Current implementation has Doubao shortcut bridging, Chromium Web Speech fallback, and a native macOS Speech framework one-shot prototype with silence timeout. It still needs native provider dogfood after Speech Recognition permission is granted, long-running VAD polish, cancellation of in-flight native helper recording, and broader failure-state testing.
 
 3. **Ghostty control is not context-aware.**
    The helper can activate Ghostty, screenshot, type, and press keys, but it typed `pwd` into a Codex TUI during real testing. The agent needs a clean shell/session strategy and state detection before any command execution.
@@ -162,6 +162,12 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] listening
   - [x] stopped
   - [x] failed
+- [x] Add a native macOS speech provider prototype:
+  - [x] helper command `speech-status --locale zh-CN` reports Speech Recognition, Microphone, and recognizer availability
+  - [x] helper command `transcribe-speech --locale zh-CN --max-duration-ms <n> --silence-timeout-ms <n>` performs a bounded one-shot Speech framework recognition turn
+  - [x] native provider streams the final transcript event back through main -> preload -> renderer without starting Chromium Web Speech
+  - [x] native provider fails closed when Speech Recognition or Microphone is not granted
+  - [ ] product-path native speech turn after Speech Recognition permission is granted
 - [x] Add a main-process voice turn session model:
   - [x] `prepare-dictation` creates a session id for Doubao or browser speech turns
   - [x] browser ASR result events stream partial/final transcript candidates back to the main-process session
@@ -178,6 +184,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - voice submit path now flows through renderer -> preload -> main `submit-dictation`, finalizes a voice session, then enters the existing Computer Use command path
   - browser ASR transcript updates now flow through renderer -> preload -> main `update-dictation-transcript` before submit
   - browser ASR auto-submit requires a final candidate and does not run low-confidence candidates
+  - native macOS speech status check on 2026-06-16: `./dist/skfiy-helper speech-status --locale zh-CN` returned Microphone `authorized`, Speech Recognition `notDetermined`, and recognizerAvailable `true`
   - stop always returns to idle
   - screenshots/click/key helper commands still pass
 
@@ -224,7 +231,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
   - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
-  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9258` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Computer Use permission preflight before opening Ghostty, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
+  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9259` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Computer Use permission preflight before opening Ghostty, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
   - `passed` smoke classification now requires LaunchServices app launch, `runnerHasTmux=false`, the product path, a completed event, and non-empty before/after screenshot files
   - repeat command: `npm run smoke:ghostty`
   - repeat matrix command: `npm run smoke:ghostty -- --matrix`

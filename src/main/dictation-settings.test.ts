@@ -34,4 +34,21 @@ describe("dictation settings", () => {
     expect(store.set({ provider: "doubao" })).toMatchObject({ provider: "doubao" });
     expect(resolveDictationVoiceTrigger(store.get())).toBe("skfiy-shortcut");
   });
+
+  it("can select native macOS speech without reusing Doubao shortcuts", () => {
+    const settings = readInitialDictationSettings({
+      SKFIY_DICTATION_PROVIDER: "native-macos"
+    });
+    const store = createDictationSettingsStore(readInitialDictationSettings({}));
+
+    expect(settings).toMatchObject({
+      provider: "native-macos",
+      doubaoVoiceTrigger: "skfiy-shortcut"
+    });
+    expect(resolveDictationVoiceTrigger(settings)).toBe("none");
+    expect(store.set({ provider: "native-macos" })).toMatchObject({
+      provider: "native-macos"
+    });
+    expect(resolveDictationVoiceTrigger(store.get())).toBe("none");
+  });
 });

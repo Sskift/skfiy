@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   createDoubaoDictationProvider,
+  createNativeMacOSDictationProvider,
   type DictationProviderEvent
 } from "./dictation-provider";
-import type { DesktopHelperActionResult } from "./computer-use/types";
+import type {
+  DesktopHelperActionResult,
+  NativeSpeechTranscriptionResult,
+  SpeechStatusResult
+} from "./computer-use/types";
 
 interface HelperCall {
   name: "selectInputSource" | "doubleTapFunctionKey" | "pressShortcut" | "pressKey";
@@ -162,5 +167,98 @@ describe("createDoubaoDictationProvider", () => {
       state: "failed",
       message: "Could not trigger Doubao voice shortcut: Accessibility permission denied."
     });
+  });
+});
+
+describe("createNativeMacOSDictationProvider", () => {
+  it("starts native speech recognition and streams the final transcript candidate", async () => {
+    const events: DictationProviderEvent[] = [];
+    const transcripts: NativeSpeechTranscriptionResult[] = [];
+    const provider = createNativeMacOSDictationProvider({
+      helper: {
+        async getSpeechStatus(): Promise<SpeechStatusResult> {
+          return {
+            locale: "zh-CN",
+            recognizerAvailable: true,
+            speechRecognition: { state: "granted" },
+            microphone: { state: "granted" }
+          };
+        },
+        async transcribeSpeech(): Promise<NativeSpeechTranscriptionResult> {
+          return {
+            text: "打开 Ghostty 执行 pwd",
+            isFinal: true,
+            confidence: 0.83,
+            durationMs: 1400,
+            silenceTimedOut: true
+          };
+        }
+      },
+      locale: "zh-CN",
+      emit: (event) => events.push(event),
+      emitTranscript: (transcript) => transcripts.push(transcript)
+    });
+
+    await expect(provider.prepare()).resolves.toEqual({
+      providerId: "native-macos",
+      voiceTrigger: "none",
+      nativeDictationActive: true
+    });
+    await provider.waitForTranscript?.();
+
+    expect(transcripts).toEqual([
+      {
+        text: "打开 Ghostty 执行 pwd",
+        isFinal: true,
+        confidence: 0.83,
+        durationMs: 1400,
+        silenceTimedOut: true
+      }
+    ]);
+    expect(events).toEqual([
+      {
+        providerId: "native-macos",
+        state: "listening",
+        message: "macOS 系统语音正在听."
+      },
+      {
+        providerId: "native-macos",
+        state: "stopped",
+        message: "macOS 系统语音已完成."
+      }
+    ]);
+  });
+
+  it("fails closed when native speech or microphone permission is missing", async () => {
+    const events: DictationProviderEvent[] = [];
+    const provider = createNativeMacOSDictationProvider({
+      helper: {
+        async getSpeechStatus(): Promise<SpeechStatusResult> {
+          return {
+            locale: "zh-CN",
+            recognizerAvailable: true,
+            speechRecognition: { state: "denied" },
+            microphone: { state: "granted" }
+          };
+        },
+        async transcribeSpeech(): Promise<NativeSpeechTranscriptionResult> {
+          throw new Error("should not transcribe without speech permission");
+        }
+      },
+      locale: "zh-CN",
+      emit: (event) => events.push(event),
+      emitTranscript: () => undefined
+    });
+
+    await expect(provider.prepare()).rejects.toThrow(
+      "macOS speech recognition permission is denied."
+    );
+    expect(events).toEqual([
+      {
+        providerId: "native-macos",
+        state: "unavailable",
+        message: "macOS speech recognition permission is denied."
+      }
+    ]);
   });
 });

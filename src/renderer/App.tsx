@@ -22,11 +22,11 @@ export type TaskStatus =
 export type ManualMode = "active" | "quiet";
 export type PetWindowMode = "compact" | "expanded";
 export type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
-export type DictationProviderSelection = "doubao" | "browser";
+export type DictationProviderSelection = "doubao" | "browser" | "native-macos";
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 export type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
-export type DictationProviderId = "doubao" | "browser";
+export type DictationProviderId = "doubao" | "browser" | "native-macos";
 export type AppPolicy = "allow" | "ask" | "deny";
 export type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
@@ -61,6 +61,11 @@ export interface DictationTranscriptUpdate {
   text: string;
   isFinal: boolean;
   confidence?: number;
+}
+
+export interface DictationTranscriptEvent extends DictationTranscriptUpdate {
+  providerId: DictationProviderId;
+  sessionId?: string;
 }
 
 export interface DictationSettings {
@@ -241,6 +246,7 @@ export interface DesktopApi {
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
+  onDictationTranscriptEvent: (callback: (event: DictationTranscriptEvent) => void) => () => void;
   onStopTurnHotkey: (callback: () => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
@@ -368,6 +374,16 @@ const PLANNER_PROVIDER_OPTIONS: Array<{ mode: PlannerProviderMode; label: string
   { mode: "disabled", label: "关闭", aria: "选择关闭规划" }
 ];
 
+const DICTATION_PROVIDER_OPTIONS: Array<{
+  provider: DictationProviderSelection;
+  label: string;
+  aria: string;
+}> = [
+  { provider: "doubao", label: "豆包", aria: "选择豆包语音" },
+  { provider: "browser", label: "浏览器", aria: "选择浏览器语音" },
+  { provider: "native-macos", label: "macOS", aria: "选择 macOS 系统语音" }
+];
+
 const UNKNOWN_PERMISSIONS: PermissionSummary = {
   screenRecording: { state: "unknown" },
   accessibility: { state: "unknown" },
@@ -411,7 +427,7 @@ const fallbackApi: DesktopApi = {
   getDictationSettings: async () => DEFAULT_DICTATION_SETTINGS,
   setDictationSettings: async (update) => ({
     ...DEFAULT_DICTATION_SETTINGS,
-    provider: update.provider === "browser" ? "browser" : "doubao"
+    provider: isDictationProviderSelection(update.provider) ? update.provider : "doubao"
   }),
   getAppPolicySettings: async () => DEFAULT_APP_POLICY_SETTINGS,
   setAppPolicy: async (update) => ({
@@ -437,6 +453,7 @@ const fallbackApi: DesktopApi = {
   moveWindowBy: () => undefined,
   setWindowMode: () => undefined,
   onDictationProviderEvent: () => () => undefined,
+  onDictationTranscriptEvent: () => () => undefined,
   onStopTurnHotkey: () => () => undefined,
   onTaskEvent: () => () => undefined
 };
@@ -446,6 +463,14 @@ const MIN_BROWSER_ASR_AUTO_SUBMIT_CONFIDENCE = 0.55;
 
 function getDesktopApi(): DesktopApi {
   return window.skfiy ?? fallbackApi;
+}
+
+function isDictationProviderSelection(value: unknown): value is DictationProviderSelection {
+  return value === "doubao" || value === "browser" || value === "native-macos";
+}
+
+function readDictationProviderLabel(provider: DictationProviderSelection): string {
+  return DICTATION_PROVIDER_OPTIONS.find((option) => option.provider === provider)?.label ?? "语音";
 }
 
 function getSpeechRecognitionConstructor(): BrowserSpeechRecognitionConstructor | undefined {
@@ -701,7 +726,7 @@ export default function App() {
     useState<PlannerProviderSettings>(DEFAULT_PLANNER_PROVIDER_SETTINGS);
   const [turnReplay, setTurnReplay] = useState<TurnReplay | null>(null);
   const [dictationProvider, setDictationProvider] = useState<DictationProviderEvent | null>(null);
-  const [browserTranscriptCandidate, setBrowserTranscriptCandidate] =
+  const [dictationTranscriptCandidate, setDictationTranscriptCandidate] =
     useState<DictationTranscriptUpdate | null>(null);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
@@ -749,7 +774,7 @@ export default function App() {
     recognition.lang = "zh-CN";
     recognition.onresult = (event) => {
       const transcriptUpdate = readSpeechTranscriptUpdate(event);
-      setBrowserTranscriptCandidate(transcriptUpdate);
+      setDictationTranscriptCandidate(transcriptUpdate);
       manualDictationTextRef.current = null;
       setDictationText(transcriptUpdate.text);
 
@@ -807,7 +832,7 @@ export default function App() {
       if (event.status !== "idle") {
         stopBrowserSpeechRecognition();
         nativeDictationActiveRef.current = false;
-        setBrowserTranscriptCandidate(null);
+        setDictationTranscriptCandidate(null);
         manualDictationTextRef.current = null;
         setListening(false);
         setDetailsOpen(false);
@@ -825,6 +850,23 @@ export default function App() {
       } else if (event.state === "stopped" || event.state === "failed" || event.state === "unavailable") {
         setListening(false);
       }
+    });
+  }, [api]);
+
+  useEffect(() => {
+    return api.onDictationTranscriptEvent((event) => {
+      if (event.sessionId && event.sessionId !== voiceSessionIdRef.current) {
+        return;
+      }
+
+      const transcriptUpdate = {
+        text: event.text,
+        isFinal: event.isFinal,
+        confidence: event.confidence
+      };
+      setDictationTranscriptCandidate(transcriptUpdate);
+      manualDictationTextRef.current = null;
+      setDictationText(event.text);
     });
   }, [api]);
 
@@ -936,7 +978,7 @@ export default function App() {
       const sessionId = voiceSessionIdRef.current;
       voiceSessionIdRef.current = undefined;
       nativeDictationActiveRef.current = false;
-      setBrowserTranscriptCandidate(null);
+      setDictationTranscriptCandidate(null);
       manualDictationTextRef.current = null;
       stopBrowserSpeechRecognition();
       setListening(false);
@@ -962,7 +1004,7 @@ export default function App() {
   );
 
   function canAutoSubmitDictation(command: string): boolean {
-    if (nativeDictationActiveRef.current || !recognitionRef.current) {
+    if (!dictationTranscriptCandidate && (nativeDictationActiveRef.current || !recognitionRef.current)) {
       return true;
     }
 
@@ -970,7 +1012,7 @@ export default function App() {
       return true;
     }
 
-    const candidate = browserTranscriptCandidate;
+    const candidate = dictationTranscriptCandidate;
 
     if (!candidate || candidate.text.trim() !== command) {
       return false;
@@ -1003,12 +1045,12 @@ export default function App() {
     }, DICTATION_AUTO_SUBMIT_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [browserTranscriptCandidate, dictationText, listening, submitDictation]);
+  }, [dictationTranscriptCandidate, dictationText, listening, submitDictation]);
 
   async function startDictation() {
     lastDictationSubmitRef.current = "";
     setDictationText("");
-    setBrowserTranscriptCandidate(null);
+    setDictationTranscriptCandidate(null);
     manualDictationTextRef.current = null;
     setListening(true);
     setDetailsOpen(false);
@@ -1052,7 +1094,7 @@ export default function App() {
     lastDictationSubmitRef.current = "";
     const sessionId = voiceSessionIdRef.current;
     voiceSessionIdRef.current = undefined;
-    setBrowserTranscriptCandidate(null);
+    setDictationTranscriptCandidate(null);
     manualDictationTextRef.current = null;
     stopBrowserSpeechRecognition();
     nativeDictationActiveRef.current = false;
@@ -1363,25 +1405,20 @@ export default function App() {
               <div className="provider-panel" aria-label="语音入口">
                 <div className="provider-heading">
                   <strong>语音入口</strong>
-                  <span>{dictationSettings.provider === "doubao" ? "豆包" : "浏览器"}</span>
+                  <span>{readDictationProviderLabel(dictationSettings.provider)}</span>
                 </div>
                 <div className="provider-switch" role="group" aria-label="ASR provider">
-                  <button
-                    type="button"
-                    aria-label="选择豆包语音"
-                    aria-pressed={dictationSettings.provider === "doubao"}
-                    onClick={() => void selectDictationProvider("doubao")}
-                  >
-                    豆包
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="选择浏览器语音"
-                    aria-pressed={dictationSettings.provider === "browser"}
-                    onClick={() => void selectDictationProvider("browser")}
-                  >
-                    浏览器
-                  </button>
+                  {DICTATION_PROVIDER_OPTIONS.map((option) => (
+                    <button
+                      type="button"
+                      key={option.provider}
+                      aria-label={option.aria}
+                      aria-pressed={dictationSettings.provider === option.provider}
+                      onClick={() => void selectDictationProvider(option.provider)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="settings-grid">
@@ -1527,7 +1564,7 @@ export default function App() {
                 value={dictationText}
                 onChange={(event) => {
                   manualDictationTextRef.current = event.currentTarget.value;
-                  setBrowserTranscriptCandidate(null);
+                  setDictationTranscriptCandidate(null);
                   setDictationText(event.currentTarget.value);
                 }}
                 autoCapitalize="off"
@@ -1557,7 +1594,7 @@ export default function App() {
             </>
           ) : showProviderStatus && dictationProvider ? (
             <div className="provider-status" aria-label="语音 provider 状态">
-              <strong>{dictationProvider.providerId === "doubao" ? "豆包" : "语音"}</strong>
+              <strong>{readDictationProviderLabel(dictationProvider.providerId)}</strong>
               <span>{dictationProvider.message}</span>
             </div>
           ) : showStartupWarning && startupWarning ? (

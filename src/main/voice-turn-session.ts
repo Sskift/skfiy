@@ -1,4 +1,4 @@
-export type VoiceTurnProviderId = "doubao" | "browser" | "local" | "cloud";
+export type VoiceTurnProviderId = "doubao" | "browser" | "native-macos" | "local" | "cloud";
 export type VoiceTurnTrigger = "pet-click" | "global-hotkey" | "doubao-shortcut" | "browser-speech";
 export type VoiceTurnStatus =
   | "listening"

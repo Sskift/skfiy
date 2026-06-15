@@ -92,18 +92,26 @@ async function rewriteInfoPlist(infoPlistPath) {
   const current = await fs.readFile(infoPlistPath, "utf8");
   const next = setInfoPlistString(
     setInfoPlistString(
-      setInfoPlistString(current, "CFBundleIdentifier", BUNDLE_IDENTIFIER),
-      "CFBundleName",
-      "skfiy"
+      setInfoPlistString(
+        setInfoPlistString(
+          setInfoPlistString(current, "CFBundleIdentifier", BUNDLE_IDENTIFIER),
+          "CFBundleName",
+          "skfiy"
+        ),
+        "CFBundleDisplayName",
+        "skfiy"
+      ),
+      "NSMicrophoneUsageDescription",
+      "skfiy needs microphone access for local voice command recognition."
     ),
-    "CFBundleDisplayName",
-    "skfiy"
+    "NSSpeechRecognitionUsageDescription",
+    "skfiy needs speech recognition access to transcribe local voice commands."
   );
 
   await fs.writeFile(infoPlistPath, next);
 }
 
-function setInfoPlistString(plist, key, value) {
+export function setInfoPlistString(plist, key, value) {
   const escapedKey = escapeRegExp(key);
   const pattern = new RegExp(`(<key>${escapedKey}</key>\\s*<string>)[^<]*(</string>)`);
 
@@ -112,8 +120,8 @@ function setInfoPlistString(plist, key, value) {
   }
 
   return plist.replace(
-    /<\/dict>/,
-    `\t<key>${key}</key>\n\t<string>${escapeXml(value)}</string>\n</dict>`
+    /<\/dict>\s*<\/plist>\s*$/,
+    `\t<key>${key}</key>\n\t<string>${escapeXml(value)}</string>\n</dict>\n</plist>\n`
   );
 }
 

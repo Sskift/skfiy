@@ -45,12 +45,15 @@ Grant these permissions to `skfiy.app`:
 - Screen Recording
 - Accessibility
 - Microphone
+- Speech Recognition
 
 Computer Use tasks cannot be reported as passing until Screen Recording and Accessibility are granted to `com.sskift.skfiy`.
 
 When either required Computer Use permission is missing, skfiy preflights the turn and stops before opening Ghostty or sending helper actions. The smoke event should name the missing Screen Recording and/or Accessibility grant.
 
 Left-clicking the pet also opens a permission onboarding panel before dictation when Screen Recording, Accessibility, or Microphone is denied or not determined.
+
+The native macOS speech provider is a one-shot local Speech framework prototype. It uses `speech-status` for readiness checks and `transcribe-speech` for a bounded recording turn with silence timeout. Before Speech Recognition is granted, status is expected to report `speechRecognition: notDetermined` or `denied` and native transcription must fail closed.
 
 ## Smoke Test
 
@@ -79,6 +82,14 @@ npm run smoke:ghostty -- --require-passed
 ```
 
 The smoke output is JSON and records launch identity, task events, permissions, runtime status, replay records, screenshot file checks, and cleanup process checks. A passing smoke run must include a completed event plus non-empty before/after screenshots from the packaged app product path.
+
+For a low-level native speech readiness check after building the helper:
+
+```bash
+./dist/skfiy-helper speech-status --locale zh-CN
+```
+
+This command does not record audio. It reports Speech Recognition permission, Microphone permission, and recognizer availability for the locale.
 
 ## External CUA Planner
 

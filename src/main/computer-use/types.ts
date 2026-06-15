@@ -53,6 +53,27 @@ export interface OcrImageResult {
   labels: OcrLabelObservation[];
 }
 
+export interface SpeechStatusResult {
+  locale: string;
+  recognizerAvailable: boolean;
+  speechRecognition: PermissionStatus;
+  microphone: PermissionStatus;
+}
+
+export interface NativeSpeechTranscriptionOptions {
+  locale: string;
+  maxDurationMs: number;
+  silenceTimeoutMs: number;
+}
+
+export interface NativeSpeechTranscriptionResult {
+  text: string;
+  isFinal: boolean;
+  confidence?: number;
+  durationMs: number;
+  silenceTimedOut: boolean;
+}
+
 export interface DesktopHelperActionResult {
   ok: boolean;
   message?: string;
@@ -123,6 +144,8 @@ export interface WaitResult {
 export type DesktopActionResult =
   | ScreenshotResult
   | OcrImageResult
+  | SpeechStatusResult
+  | NativeSpeechTranscriptionResult
   | DesktopHelperActionResult
   | OpenGhosttySessionResult
   | DesktopAppState

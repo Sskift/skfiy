@@ -4,6 +4,7 @@ import App, {
   type AppPolicySettings,
   type DesktopApi,
   type DictationProviderEvent,
+  type DictationTranscriptEvent,
   type PlannerProviderSettings,
   type TaskEvent
 } from "./App";
@@ -22,6 +23,7 @@ type TestDesktopApi = DesktopApi & {
 
 let emitTaskEvent: (event: TaskEvent) => void;
 let emitDictationProviderEvent: (event: DictationProviderEvent) => void;
+let emitDictationTranscriptEvent: (event: DictationTranscriptEvent) => void;
 let emitStopTurnHotkey: () => void;
 const speechRecognitionInstances: MockSpeechRecognition[] = [];
 
@@ -54,6 +56,7 @@ class MockSpeechRecognition {
 beforeEach(() => {
   emitTaskEvent = () => undefined;
   emitDictationProviderEvent = () => undefined;
+  emitDictationTranscriptEvent = () => undefined;
   emitStopTurnHotkey = () => undefined;
   speechRecognitionInstances.length = 0;
 
@@ -138,6 +141,10 @@ beforeEach(() => {
     setWindowMode: vi.fn<DesktopApi["setWindowMode"]>(),
     onDictationProviderEvent: vi.fn((callback: (event: DictationProviderEvent) => void) => {
       emitDictationProviderEvent = callback;
+      return vi.fn();
+    }),
+    onDictationTranscriptEvent: vi.fn((callback: (event: DictationTranscriptEvent) => void) => {
+      emitDictationTranscriptEvent = callback;
       return vi.fn();
     }),
     onStopTurnHotkey: vi.fn((callback: () => void) => {
@@ -269,6 +276,49 @@ describe("App", () => {
     });
     expect(speechRecognitionInstances).toHaveLength(0);
     expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses native macOS speech transcripts without starting browser speech recognition", async () => {
+    vi.useFakeTimers();
+    (window.skfiy as DesktopApi).prepareDictation = vi
+      .fn<DesktopApi["prepareDictation"]>()
+      .mockResolvedValue({
+        providerId: "native-macos",
+        voiceTrigger: "none",
+        nativeDictationActive: true,
+        sessionId: "native-session-test"
+      });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(speechRecognitionInstances).toHaveLength(0);
+
+    act(() => {
+      emitDictationTranscriptEvent({
+        providerId: "native-macos",
+        sessionId: "native-session-test",
+        text: "打开 Ghostty 执行 pwd",
+        isFinal: true,
+        confidence: 0.91
+      });
+    });
+    expect(screen.getByDisplayValue("打开 Ghostty 执行 pwd")).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(900);
+    });
+
+    expect((window.skfiy as TestDesktopApi).submitDictation).toHaveBeenCalledWith(
+      "native-session-test",
+      "打开 Ghostty 执行 pwd",
+      { stopNativeDictation: true }
+    );
   });
 
   it("does not start browser fallback when the provider reports a failed preparation", async () => {

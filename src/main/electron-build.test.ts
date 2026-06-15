@@ -33,6 +33,7 @@ describe("Electron build wiring", () => {
         bundledAppPath: string;
         bundledHelperPath: string;
       };
+      setInfoPlistString: (plist: string, key: string, value: string) => string;
     };
 
     expect(packageJson.scripts["package:mac"]).toBe("node scripts/package-macos-app.mjs");
@@ -52,5 +53,45 @@ describe("Electron build wiring", () => {
       bundledAppPath: "/repo/dist/skfiy.app/Contents/Resources/app",
       bundledHelperPath: "/repo/dist/skfiy.app/Contents/Resources/skfiy-helper"
     });
+  });
+
+  it("adds microphone and speech usage descriptions to the packaged app identity", () => {
+    const packagingScript = readFileSync(
+      path.join(process.cwd(), "scripts/package-macos-app.mjs"),
+      "utf8"
+    );
+
+    expect(packagingScript).toContain("NSMicrophoneUsageDescription");
+    expect(packagingScript).toContain("NSSpeechRecognitionUsageDescription");
+  });
+
+  it("inserts new Info.plist strings at the root dictionary instead of nested dictionaries", async () => {
+    const packagingModuleUrl = pathToFileURL(
+      path.join(process.cwd(), "scripts/package-macos-app.mjs")
+    ).href;
+    const packaging = await import(packagingModuleUrl) as {
+      setInfoPlistString: (plist: string, key: string, value: string) => string;
+    };
+    const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+\t<key>Nested</key>
+\t<dict>
+\t\t<key>hash</key>
+\t\t<string>abc</string>
+\t</dict>
+</dict>
+</plist>
+`;
+
+    const next = packaging.setInfoPlistString(
+      plist,
+      "NSSpeechRecognitionUsageDescription",
+      "speech"
+    );
+
+    expect(next).toContain(
+      "<key>hash</key>\n\t\t<string>abc</string>\n\t</dict>\n\t<key>NSSpeechRecognitionUsageDescription</key>"
+    );
   });
 });

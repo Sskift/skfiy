@@ -1,4 +1,9 @@
-import type { DesktopHelperActionResult } from "./computer-use/types.js";
+import type {
+  DesktopHelperActionResult,
+  NativeSpeechTranscriptionOptions,
+  NativeSpeechTranscriptionResult,
+  SpeechStatusResult
+} from "./computer-use/types.js";
 import {
   DOUBAO_INPUT_SOURCE_ID,
   SKFIY_DOUBAO_SHORTCUT_KEY,
@@ -6,7 +11,7 @@ import {
   type DoubaoVoiceTrigger
 } from "./dictation-backend.js";
 
-export type DictationProviderId = "doubao" | "browser";
+export type DictationProviderId = "doubao" | "browser" | "native-macos";
 
 export type DictationProviderState =
   | "unavailable"
@@ -32,6 +37,7 @@ export interface DictationProvider {
   id: DictationProviderId;
   prepare: () => Promise<DictationPreparation>;
   stop: () => Promise<void>;
+  waitForTranscript?: () => Promise<void>;
 }
 
 export interface DoubaoDictationProviderHelper {
@@ -39,6 +45,13 @@ export interface DoubaoDictationProviderHelper {
   doubleTapFunctionKey(): Promise<DesktopHelperActionResult>;
   pressShortcut(key: string, modifiers: readonly string[]): Promise<DesktopHelperActionResult>;
   pressKey(key: string): Promise<DesktopHelperActionResult>;
+}
+
+export interface NativeMacOSDictationProviderHelper {
+  getSpeechStatus(locale: string): Promise<SpeechStatusResult>;
+  transcribeSpeech(
+    options: NativeSpeechTranscriptionOptions
+  ): Promise<NativeSpeechTranscriptionResult>;
 }
 
 interface DoubaoDictationProviderOptions {
@@ -115,6 +128,110 @@ export function createDoubaoDictationProvider({
       });
     }
   };
+}
+
+interface NativeMacOSDictationProviderOptions {
+  helper: NativeMacOSDictationProviderHelper;
+  locale: string;
+  emit: (event: DictationProviderEvent) => void;
+  emitTranscript: (transcript: NativeSpeechTranscriptionResult) => void;
+}
+
+const NATIVE_MACOS_MAX_DURATION_MS = 7_000;
+const NATIVE_MACOS_SILENCE_TIMEOUT_MS = 900;
+
+export function createNativeMacOSDictationProvider({
+  helper,
+  locale,
+  emit,
+  emitTranscript
+}: NativeMacOSDictationProviderOptions): DictationProvider {
+  let transcriptTask: Promise<void> | undefined;
+  let stopped = false;
+
+  return {
+    id: "native-macos",
+    async prepare() {
+      const status = await helper.getSpeechStatus(locale);
+      const unavailableMessage = readNativeSpeechUnavailableMessage(status);
+
+      if (unavailableMessage) {
+        emit({
+          providerId: "native-macos",
+          state: "unavailable",
+          message: unavailableMessage
+        });
+        throw new Error(unavailableMessage);
+      }
+
+      stopped = false;
+      emit({
+        providerId: "native-macos",
+        state: "listening",
+        message: "macOS 系统语音正在听."
+      });
+
+      transcriptTask = helper.transcribeSpeech({
+        locale,
+        maxDurationMs: NATIVE_MACOS_MAX_DURATION_MS,
+        silenceTimeoutMs: NATIVE_MACOS_SILENCE_TIMEOUT_MS
+      }).then((transcript) => {
+        if (stopped) {
+          return;
+        }
+
+        emitTranscript(transcript);
+        emit({
+          providerId: "native-macos",
+          state: "stopped",
+          message: "macOS 系统语音已完成."
+        });
+      }).catch((error: unknown) => {
+        if (stopped) {
+          return;
+        }
+
+        emit({
+          providerId: "native-macos",
+          state: "failed",
+          message: readErrorMessage(error)
+        });
+      });
+
+      return {
+        providerId: "native-macos",
+        voiceTrigger: "none",
+        nativeDictationActive: true
+      };
+    },
+    async stop() {
+      stopped = true;
+      emit({
+        providerId: "native-macos",
+        state: "stopped",
+        message: "macOS 系统语音已停止."
+      });
+    },
+    waitForTranscript() {
+      return transcriptTask ?? Promise.resolve();
+    }
+  };
+}
+
+function readNativeSpeechUnavailableMessage(status: SpeechStatusResult): string | undefined {
+  if (status.speechRecognition.state !== "granted") {
+    return `macOS speech recognition permission is ${status.speechRecognition.state}.`;
+  }
+
+  if (status.microphone.state !== "granted") {
+    return `Microphone permission is ${status.microphone.state}.`;
+  }
+
+  if (!status.recognizerAvailable) {
+    return `macOS speech recognizer is unavailable for ${status.locale}.`;
+  }
+
+  return undefined;
 }
 
 async function runDictationStep(

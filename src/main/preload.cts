@@ -11,11 +11,11 @@ type TaskStatus =
   | "completed"
   | "failed";
 type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
-type DictationProviderSelection = "doubao" | "browser";
+type DictationProviderSelection = "doubao" | "browser" | "native-macos";
 type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
-type DictationProviderId = "doubao" | "browser";
+type DictationProviderId = "doubao" | "browser" | "native-macos";
 type AppPolicy = "allow" | "ask" | "deny";
 type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 type RiskLevel = "low" | "medium" | "high" | "blocked";
@@ -88,6 +88,11 @@ interface DictationTranscriptUpdate {
   text: string;
   isFinal: boolean;
   confidence?: number;
+}
+
+interface DictationTranscriptEvent extends DictationTranscriptUpdate {
+  providerId: DictationProviderId;
+  sessionId?: string;
 }
 
 interface DictationSettings {
@@ -230,6 +235,7 @@ interface DesktopApi {
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
+  onDictationTranscriptEvent: (callback: (event: DictationTranscriptEvent) => void) => () => void;
   onStopTurnHotkey: (callback: () => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
@@ -372,6 +378,16 @@ const api: DesktopApi = {
     ipcRenderer.on("skfiy:dictation-provider-event", listener);
     return () => ipcRenderer.removeListener("skfiy:dictation-provider-event", listener);
   },
+  onDictationTranscriptEvent(callback) {
+    const listener = (_event: IpcRendererEvent, payload: unknown) => {
+      if (isDictationTranscriptEvent(payload)) {
+        callback(payload);
+      }
+    };
+
+    ipcRenderer.on("skfiy:dictation-transcript-event", listener);
+    return () => ipcRenderer.removeListener("skfiy:dictation-transcript-event", listener);
+  },
   onStopTurnHotkey(callback) {
     const listener = () => callback();
 
@@ -406,10 +422,29 @@ function isDictationProviderEvent(value: unknown): value is DictationProviderEve
 
   const event = value as Partial<DictationProviderEvent>;
   return (
-    event.providerId === "doubao"
+    isDictationProviderId(event.providerId)
     && isDictationProviderState(event.state)
     && typeof event.message === "string"
   );
+}
+
+function isDictationTranscriptEvent(value: unknown): value is DictationTranscriptEvent {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const event = value as Partial<DictationTranscriptEvent>;
+  return (
+    isDictationProviderId(event.providerId)
+    && typeof event.text === "string"
+    && typeof event.isFinal === "boolean"
+    && (event.sessionId === undefined || typeof event.sessionId === "string")
+    && (event.confidence === undefined || typeof event.confidence === "number")
+  );
+}
+
+function isDictationProviderId(value: unknown): value is DictationProviderId {
+  return value === "doubao" || value === "browser" || value === "native-macos";
 }
 
 function isDictationProviderState(value: unknown): value is DictationProviderState {
@@ -437,7 +472,7 @@ function isDictationSettings(value: unknown): value is DictationSettings {
 }
 
 function isDictationProviderSelection(value: unknown): value is DictationProviderSelection {
-  return value === "doubao" || value === "browser";
+  return value === "doubao" || value === "browser" || value === "native-macos";
 }
 
 function isAppPolicySettings(value: unknown): value is AppPolicySettings {

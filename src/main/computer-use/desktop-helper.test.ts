@@ -287,6 +287,86 @@ describe("DesktopHelperClient", () => {
     });
   });
 
+  it("reads native macOS speech recognition readiness from the helper", async () => {
+    const { calls, client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "speech-status",
+          data: {
+            locale: "zh-CN",
+            recognizerAvailable: true,
+            speechRecognition: { status: "authorized", granted: true },
+            microphone: { status: "authorized", granted: true }
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(client.getSpeechStatus("zh-CN")).resolves.toEqual({
+      locale: "zh-CN",
+      recognizerAvailable: true,
+      speechRecognition: { state: "granted" },
+      microphone: { state: "granted" }
+    });
+    expect(calls).toEqual([
+      {
+        command: "/tmp/skfiy-helper",
+        args: ["speech-status", "--locale", "zh-CN"]
+      }
+    ]);
+  });
+
+  it("runs one-shot native macOS speech transcription through the helper", async () => {
+    const { calls, client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "transcribe-speech",
+          data: {
+            text: "打开 Ghostty 执行 pwd",
+            isFinal: true,
+            confidence: 0.82,
+            durationMs: 1850,
+            silenceTimedOut: true
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(
+      client.transcribeSpeech({
+        locale: "zh-CN",
+        maxDurationMs: 6000,
+        silenceTimeoutMs: 900
+      })
+    ).resolves.toEqual({
+      text: "打开 Ghostty 执行 pwd",
+      isFinal: true,
+      confidence: 0.82,
+      durationMs: 1850,
+      silenceTimedOut: true
+    });
+    expect(calls).toEqual([
+      {
+        command: "/tmp/skfiy-helper",
+        args: [
+          "transcribe-speech",
+          "--locale",
+          "zh-CN",
+          "--max-duration-ms",
+          "6000",
+          "--silence-timeout-ms",
+          "900"
+        ]
+      }
+    ]);
+  });
+
   it("parses OCR labels from screenshot image responses", async () => {
     const { calls, client } = createClientWithResponses([
       {

@@ -3,7 +3,7 @@ import {
   type DoubaoVoiceTrigger
 } from "./dictation-backend.js";
 
-export type DictationProviderSelection = "doubao" | "browser";
+export type DictationProviderSelection = "doubao" | "browser" | "native-macos";
 
 export interface DictationSettings {
   provider: DictationProviderSelection;
@@ -18,19 +18,20 @@ export interface DictationSettingsUpdate {
 export const DOUBAO_SHORTCUT_LABEL = "Ctrl Opt Cmd Shift Space";
 
 export function readInitialDictationSettings(
-  env: { SKFIY_DOUBAO_VOICE_TRIGGER?: string }
+  env: { SKFIY_DICTATION_PROVIDER?: string; SKFIY_DOUBAO_VOICE_TRIGGER?: string }
 ): DictationSettings {
   const voiceTrigger = readDoubaoVoiceTrigger(env);
+  const configuredProvider = readDictationProviderSelection(env.SKFIY_DICTATION_PROVIDER);
 
   return {
-    provider: voiceTrigger === "none" ? "browser" : "doubao",
+    provider: configuredProvider ?? (voiceTrigger === "none" ? "browser" : "doubao"),
     doubaoVoiceTrigger: voiceTrigger === "fn-double-tap" ? "fn-double-tap" : "skfiy-shortcut",
     doubaoShortcutLabel: DOUBAO_SHORTCUT_LABEL
   };
 }
 
 export function resolveDictationVoiceTrigger(settings: DictationSettings): DoubaoVoiceTrigger {
-  return settings.provider === "browser" ? "none" : settings.doubaoVoiceTrigger;
+  return settings.provider === "doubao" ? settings.doubaoVoiceTrigger : "none";
 }
 
 export function createDictationSettingsStore(initialSettings: DictationSettings) {
@@ -53,6 +54,10 @@ export function createDictationSettingsStore(initialSettings: DictationSettings)
   };
 }
 
+function readDictationProviderSelection(value: unknown): DictationProviderSelection | undefined {
+  return isDictationProviderSelection(value) ? value : undefined;
+}
+
 function isDictationProviderSelection(value: unknown): value is DictationProviderSelection {
-  return value === "doubao" || value === "browser";
+  return value === "doubao" || value === "browser" || value === "native-macos";
 }

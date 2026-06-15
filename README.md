@@ -25,12 +25,16 @@ The app needs three system permissions before it can behave like a voice Compute
 - **Accessibility**: allows synthetic clicks, typing, key presses, and window
   focus changes.
 - **Microphone**: allows voice turns when using a local speech provider.
+- **Speech Recognition**: allows the macOS native speech provider to transcribe
+  local voice commands.
 
 Open **System Settings > Privacy & Security** and grant these permissions to the
 compiled `skfiy.app` bundle used for local validation.
 
 Right-click the pet to view the current Screen Recording, Accessibility, and
-Microphone status, or to jump to the matching System Settings pane.
+Microphone status, or to jump to the matching System Settings pane. The native
+macOS speech provider also needs Speech Recognition permission before it can
+produce transcripts.
 
 ## Doubao Dictation
 
@@ -42,7 +46,10 @@ shortcut to the same chord if you want Doubao's native speech recognition to
 write into skfiy's transcript area.
 
 Choose the browser provider in settings to skip Doubao triggering and use
-Chromium Web Speech fallback for the next voice turn.
+Chromium Web Speech fallback for the next voice turn. Choose the macOS provider
+to use skfiy's local one-shot Speech framework prototype; it listens until a
+short silence timeout or a maximum duration, then streams the final transcript
+back into the same Computer Use path.
 
 Press `Escape` while the pet has focus, or `Control+Option+Shift+Escape`
 globally, to stop the current voice or task turn.

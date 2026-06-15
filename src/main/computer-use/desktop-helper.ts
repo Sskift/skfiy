@@ -9,6 +9,8 @@ import type {
   DesktopHelperProcessResult,
   DesktopPoint,
   DesktopWindowInfo,
+  NativeSpeechTranscriptionOptions,
+  NativeSpeechTranscriptionResult,
   OpenGhosttySessionResult,
   OcrImageResult,
   OcrLabelObservation,
@@ -16,7 +18,8 @@ import type {
   PermissionState,
   PermissionSummary,
   ProcessRunner,
-  ScreenshotResult
+  ScreenshotResult,
+  SpeechStatusResult
 } from "./types.js";
 
 const DEFAULT_HELPER_PATH = "dist/skfiy-helper";
@@ -230,6 +233,40 @@ export class DesktopHelperClient {
 
   async getPermissions(): Promise<PermissionSummary> {
     return this.runJson("permissions-status", ["permissions-status"], readPermissionSummary);
+  }
+
+  async getSpeechStatus(locale: string): Promise<SpeechStatusResult> {
+    const checkedLocale = requireNonEmptyString(locale, "locale");
+    return this.runJson(
+      "speech-status",
+      ["speech-status", "--locale", checkedLocale],
+      readSpeechStatusResult
+    );
+  }
+
+  async transcribeSpeech(
+    options: NativeSpeechTranscriptionOptions
+  ): Promise<NativeSpeechTranscriptionResult> {
+    const locale = requireNonEmptyString(options.locale, "locale");
+    const maxDurationMs = requirePositiveInteger(options.maxDurationMs, "maxDurationMs");
+    const silenceTimeoutMs = requirePositiveInteger(
+      options.silenceTimeoutMs,
+      "silenceTimeoutMs"
+    );
+
+    return this.runJson(
+      "transcribe-speech",
+      [
+        "transcribe-speech",
+        "--locale",
+        locale,
+        "--max-duration-ms",
+        String(maxDurationMs),
+        "--silence-timeout-ms",
+        String(silenceTimeoutMs)
+      ],
+      readNativeSpeechTranscriptionResult
+    );
   }
 
   async openPermissionSettings(
@@ -557,6 +594,37 @@ function readPermissionSummary(payload: unknown, commandName: string): Permissio
   };
 }
 
+function readSpeechStatusResult(payload: unknown, commandName: string): SpeechStatusResult {
+  const record = readRecord(payload, commandName);
+
+  return {
+    locale: readString(record, "locale", commandName),
+    recognizerAvailable: readBoolean(record, "recognizerAvailable", commandName),
+    speechRecognition: readPermissionStatus(record.speechRecognition, commandName),
+    microphone: readPermissionStatus(record.microphone, commandName)
+  };
+}
+
+function readNativeSpeechTranscriptionResult(
+  payload: unknown,
+  commandName: string
+): NativeSpeechTranscriptionResult {
+  const record = readRecord(payload, commandName);
+  const result: NativeSpeechTranscriptionResult = {
+    text: readString(record, "text", commandName),
+    isFinal: readBoolean(record, "isFinal", commandName),
+    durationMs: readNumber(record, "durationMs", commandName),
+    silenceTimedOut: readBoolean(record, "silenceTimedOut", commandName)
+  };
+  const confidence = readOptionalNumber(record, "confidence", commandName);
+
+  if (confidence !== undefined) {
+    result.confidence = confidence;
+  }
+
+  return result;
+}
+
 function readPermissionStatus(payload: unknown, commandName: string) {
   const record = readRecord(payload, commandName);
   const state = readOptionalString(record, "state", commandName)
@@ -772,6 +840,24 @@ function readNumber(
 
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw invalidShape(commandName, `expected ${key} to be a finite number`);
+  }
+
+  return value;
+}
+
+function readOptionalNumber(
+  record: Record<string, unknown>,
+  key: string,
+  commandName: string
+): number | undefined {
+  const value = record[key];
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw invalidShape(commandName, `expected ${key} to be a finite number when provided`);
   }
 
   return value;
