@@ -319,6 +319,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - runtime gate runs local deterministic mode, fails closed when disabled, verifies external CUA endpoint/key configuration, and can call an external terminal planner before entering the Ghostty safety/execution chain
   - external CUA planner rationale is recorded in the local replay transcript so model decisions remain inspectable during product smoke runs
   - current external CUA product smoke on 2026-06-16: `npm run smoke:ghostty -- --planner-mode external-cua --port 9248` failed closed before helper/Ghostty because `SKFIY_EXTERNAL_CUA_ENDPOINT` was unset, with `runnerHasTmux=false` and no residual processes after cleanup
+  - provider path decision recorded in `docs/decisions/2026-06-16-skfiy-cua-provider.md`: keep `local-deterministic` as default, keep `external-cua` as opt-in evaluation, and require `dogfood:verify --require-passed` evidence before any external CUA provider can become a candidate default
 - Compare against AIME:
   - AIME Buddy overlap: pet/status/notification
   - AIME Chrome Extension overlap: browser control
@@ -357,9 +358,8 @@ With one engineer, the same scope is closer to 6-8 weeks because packaging, ASR,
 ## Open Questions
 
 1. Are we allowed to use internal/cloud ASR for dogfood audio, or must the alpha be local-only?
-2. Which CUA model/provider should power the planner loop for internal tests?
-3. Do we target macOS only for the next month, or design Windows abstractions now?
-4. What is the first daily-use scenario beyond Ghostty: browser research, Lark office work, Finder organization, or coding assistant orchestration?
+2. Do we target macOS only for the next month, or design Windows abstractions now?
+3. What is the first daily-use scenario beyond Ghostty: browser research, Lark office work, Finder organization, or coding assistant orchestration?
 
 ## Recommended Next Move
 
