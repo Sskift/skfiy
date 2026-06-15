@@ -261,11 +261,12 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
 - [x] Build signed/notarized alpha package or documented unsigned internal build.
   - documented current unsigned internal build path in `docs/internal-alpha-build.md`; signing/notarization remains required before broader release
 - Add app allowlist/denylist UI.
-- Add per-turn approval transcript:
-  - what app
-  - what screenshots
-  - what actions
-  - what risk level
+- [x] Add per-turn approval transcript:
+  - [x] what app
+  - [x] what screenshots
+  - [x] what actions
+  - [x] what risk level
+  - transcript aggregation exists for Computer Use turn events; UI/replay viewer can consume the model next
 - Add local replay viewer for debugging.
 - Add model/provider config:
   - local deterministic adapter mode
