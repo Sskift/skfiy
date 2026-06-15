@@ -41,6 +41,9 @@ bridge and sends a skfiy-owned voice shortcut:
 shortcut to the same chord if you want Doubao's native speech recognition to
 write into skfiy's transcript area.
 
+Press `Escape` while the pet has focus, or `Control+Option+Shift+Escape`
+globally, to stop the current voice or task turn.
+
 Set `SKFIY_DOUBAO_VOICE_TRIGGER=none` to disable native shortcut triggering and
 fall back to Chromium Web Speech. That browser engine can fail with a `network`
 error in restricted environments even when microphone permission is already

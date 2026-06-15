@@ -4,6 +4,7 @@ import App, { type DesktopApi, type DictationProviderEvent, type TaskEvent } fro
 
 let emitTaskEvent: (event: TaskEvent) => void;
 let emitDictationProviderEvent: (event: DictationProviderEvent) => void;
+let emitStopTurnHotkey: () => void;
 const speechRecognitionInstances: MockSpeechRecognition[] = [];
 
 interface MockSpeechRecognitionResult {
@@ -35,6 +36,7 @@ class MockSpeechRecognition {
 beforeEach(() => {
   emitTaskEvent = () => undefined;
   emitDictationProviderEvent = () => undefined;
+  emitStopTurnHotkey = () => undefined;
   speechRecognitionInstances.length = 0;
 
   window.webkitSpeechRecognition =
@@ -59,10 +61,21 @@ beforeEach(() => {
       undefined
     ),
     getStartupWarnings: vi.fn<DesktopApi["getStartupWarnings"]>().mockResolvedValue([]),
+    getRuntimeStatus: vi.fn<DesktopApi["getRuntimeStatus"]>().mockResolvedValue({
+      stopTurnHotkey: {
+        accelerator: "Control+Alt+Shift+Esc",
+        label: "Ctrl Opt Shift Esc",
+        registered: true
+      }
+    }),
     moveWindowBy: vi.fn<DesktopApi["moveWindowBy"]>(),
     setWindowMode: vi.fn<DesktopApi["setWindowMode"]>(),
     onDictationProviderEvent: vi.fn((callback: (event: DictationProviderEvent) => void) => {
       emitDictationProviderEvent = callback;
+      return vi.fn();
+    }),
+    onStopTurnHotkey: vi.fn((callback: () => void) => {
+      emitStopTurnHotkey = callback;
       return vi.fn();
     }),
     onTaskEvent: vi.fn((callback: (event: TaskEvent) => void) => {
@@ -360,6 +373,43 @@ describe("App", () => {
     expect(speechRecognitionInstances[0].stop).toHaveBeenCalledTimes(1);
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
+  });
+
+  it("stops dictation with the Escape stop-turn hotkey", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    await waitFor(() => {
+      expect(screen.getByLabelText("语音转写")).toHaveFocus();
+    });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect((window.skfiy as DesktopApi).stopDictation).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
+  });
+
+  it("stops dictation when the main process panic hotkey fires", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    await waitFor(() => {
+      expect(screen.getByLabelText("语音转写")).toHaveFocus();
+    });
+
+    act(() => emitStopTurnHotkey());
+
+    expect((window.skfiy as DesktopApi).stopDictation).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
+  });
+
+  it("stops an active task with the Escape stop-turn hotkey", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({ status: "executing", message: "Running" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect((window.skfiy as DesktopApi).stopTask).toHaveBeenCalledTimes(1);
   });
 
   it("writes browser speech recognition results into the transcript", async () => {

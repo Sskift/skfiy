@@ -46,6 +46,14 @@ interface StartupWarning {
   message: string;
 }
 
+interface RuntimeStatus {
+  stopTurnHotkey: {
+    accelerator: string;
+    label: string;
+    registered: boolean;
+  };
+}
+
 interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
@@ -57,9 +65,11 @@ interface DesktopApi {
   getPermissions: () => Promise<PermissionSummary>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
+  getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
+  onStopTurnHotkey: (callback: () => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -119,6 +129,18 @@ const api: DesktopApi = {
     const payload = await ipcRenderer.invoke("skfiy:get-startup-warnings");
     return Array.isArray(payload) ? payload.filter(isStartupWarning) : [];
   },
+  async getRuntimeStatus() {
+    const payload = await ipcRenderer.invoke("skfiy:get-runtime-status");
+    return isRuntimeStatus(payload)
+      ? payload
+      : {
+        stopTurnHotkey: {
+          accelerator: "",
+          label: "",
+          registered: false
+        }
+      };
+  },
   moveWindowBy(deltaX, deltaY) {
     ipcRenderer.send("skfiy:move-window-by", deltaX, deltaY);
   },
@@ -134,6 +156,12 @@ const api: DesktopApi = {
 
     ipcRenderer.on("skfiy:dictation-provider-event", listener);
     return () => ipcRenderer.removeListener("skfiy:dictation-provider-event", listener);
+  },
+  onStopTurnHotkey(callback) {
+    const listener = () => callback();
+
+    ipcRenderer.on("skfiy:stop-turn-hotkey", listener);
+    return () => ipcRenderer.removeListener("skfiy:stop-turn-hotkey", listener);
   },
   onTaskEvent(callback) {
     const listener = (_event: IpcRendererEvent, payload: unknown) => {
@@ -233,6 +261,22 @@ function isStartupWarning(value: unknown): value is StartupWarning {
 
 function isStartupWarningId(value: unknown): value is StartupWarningId {
   return value === "tmux-launch" || value === "dev-server" || value === "unbundled-electron";
+}
+
+function isRuntimeStatus(value: unknown): value is RuntimeStatus {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const status = value as Partial<RuntimeStatus>;
+  const stopTurnHotkey = status.stopTurnHotkey;
+  return (
+    Boolean(stopTurnHotkey)
+    && typeof stopTurnHotkey === "object"
+    && typeof stopTurnHotkey.accelerator === "string"
+    && typeof stopTurnHotkey.label === "string"
+    && typeof stopTurnHotkey.registered === "boolean"
+  );
 }
 
 function createUnknownPermissionSummary(): PermissionSummary {

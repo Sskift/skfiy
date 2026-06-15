@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain, screen } from "electron";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,11 @@ import {
   readPermissionsForRenderer
 } from "./permissions.js";
 import { readStartupWarnings } from "./startup-guard.js";
+import {
+  readStopTurnHotkeyStatus,
+  registerStopTurnHotkey,
+  STOP_TURN_ACCELERATOR
+} from "./stop-turn-hotkey.js";
 import {
   calculatePetWindowBounds,
   readWindowPositionOverride,
@@ -52,6 +57,7 @@ let currentTaskId = 0;
 let screenshotSerial = 0;
 let activeTaskController: AbortController | null = null;
 let pendingApproval: PendingApproval | null = null;
+let stopTurnHotkeyRegistered = false;
 
 function emitTaskEvent(window: BrowserWindow | null, event: TaskEvent) {
   if (!window || window.isDestroyed()) {
@@ -493,8 +499,20 @@ ipcMain.handle("skfiy:get-startup-warnings", () => {
   });
 });
 
+ipcMain.handle("skfiy:get-runtime-status", () => {
+  return {
+    stopTurnHotkey: readStopTurnHotkeyStatus(stopTurnHotkeyRegistered)
+  };
+});
+
 app.whenReady().then(async () => {
   await createWindow();
+  if (!stopTurnHotkeyRegistered) {
+    stopTurnHotkeyRegistered = registerStopTurnHotkey({
+      registry: globalShortcut,
+      getWindow: () => mainWindow
+    });
+  }
 
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -506,5 +524,12 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+app.on("will-quit", () => {
+  if (stopTurnHotkeyRegistered) {
+    globalShortcut.unregister(STOP_TURN_ACCELERATOR);
+    stopTurnHotkeyRegistered = false;
   }
 });

@@ -25,10 +25,13 @@ This document is mandatory for all skfiy work. It exists because desktop agents 
 5. **Computer Use must be tested through the product path, not only the helper path.**
    Direct helper tests prove low-level capability. They do not prove skfiy works. A valid Computer Use test must go through renderer -> preload -> main -> helper -> target app.
 
-6. **Ghostty tests must use an isolated target context.**
+6. **Global hotkey automation must verify registration separately from behavior.**
+   Electron can report a global shortcut as registered while macOS ignores synthetic keyboard events from helper tools or System Events. For stop-turn work, query `window.skfiy.getRuntimeStatus()` from the packaged app to verify registration, then verify stop behavior through a focused product state such as approval_required -> Escape -> idle.
+
+7. **Ghostty tests must use an isolated target context.**
    Never validate terminal automation by typing into whichever Ghostty window is frontmost. The target must be known to be a skfiy-owned shell/session, or the task must pause and ask for confirmation.
 
-7. **Voice tests must separate microphone, ASR, and action execution.**
+8. **Voice tests must separate microphone, ASR, and action execution.**
    A voice result is not valid unless the report states which ASR provider was used, whether microphone permission was granted, how transcription entered skfiy, and which downstream command/action was executed.
 
 ## Launch Policy

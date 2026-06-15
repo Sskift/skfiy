@@ -57,6 +57,14 @@ export interface StartupWarning {
   message: string;
 }
 
+export interface RuntimeStatus {
+  stopTurnHotkey: {
+    accelerator: string;
+    label: string;
+    registered: boolean;
+  };
+}
+
 export interface TaskEvent {
   status: TaskStatus;
   message?: string;
@@ -74,9 +82,11 @@ export interface DesktopApi {
   getPermissions: () => Promise<PermissionSummary>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
+  getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
+  onStopTurnHotkey: (callback: () => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -200,9 +210,17 @@ const fallbackApi: DesktopApi = {
   getPermissions: async () => UNKNOWN_PERMISSIONS,
   openPermissionSettings: async () => undefined,
   getStartupWarnings: async () => [],
+  getRuntimeStatus: async () => ({
+    stopTurnHotkey: {
+      accelerator: "",
+      label: "",
+      registered: false
+    }
+  }),
   moveWindowBy: () => undefined,
   setWindowMode: () => undefined,
   onDictationProviderEvent: () => () => undefined,
+  onStopTurnHotkey: () => () => undefined,
   onTaskEvent: () => () => undefined
 };
 
@@ -531,6 +549,51 @@ export default function App() {
       });
     }
   }
+
+  const stopCurrentTurn = useCallback(async () => {
+    if (listening) {
+      await stopDictation();
+      return;
+    }
+
+    if (task.status === "observing" || task.status === "executing" || task.status === "approval_required") {
+      setDetailsOpen(false);
+      setDictationProvider(null);
+      setTask({
+        status: "idle",
+        message: STATUS_COPY.idle.message
+      });
+
+      try {
+        await api.stopTask();
+      } catch {
+        setTask({
+          status: "failed",
+          message: "停止任务失败."
+        });
+      }
+    }
+  }, [api, listening, task.status]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      void stopCurrentTurn();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [stopCurrentTurn]);
+
+  useEffect(() => {
+    return api.onStopTurnHotkey(() => {
+      void stopCurrentTurn();
+    });
+  }, [api, stopCurrentTurn]);
 
   async function approveTask() {
     setDetailsOpen(false);
