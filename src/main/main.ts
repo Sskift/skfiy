@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, screen } from "electron";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -199,11 +199,17 @@ async function runCommandTask(
 }
 
 async function createWindow() {
+  const windowWidth = 420;
+  const windowHeight = 420;
+  const workArea = screen.getPrimaryDisplay().workArea;
+
   mainWindow = new BrowserWindow({
-    width: 340,
-    height: 276,
-    minWidth: 320,
-    minHeight: 250,
+    width: windowWidth,
+    height: windowHeight,
+    x: workArea.x + workArea.width - windowWidth - 28,
+    y: workArea.y + workArea.height - windowHeight - 28,
+    minWidth: 360,
+    minHeight: 360,
     frame: false,
     transparent: true,
     alwaysOnTop: true,

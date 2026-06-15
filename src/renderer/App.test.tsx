@@ -25,29 +25,55 @@ afterEach(() => {
 });
 
 describe("App", () => {
-  it("renders each task status from task events", () => {
+  it("starts as a pet-first overlay with controls tucked away", () => {
+    render(<App />);
+
+    expect(screen.getByRole("button", { name: /cosmic pixel robot/i })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
+    expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /run command/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the command bubble from the pixel robot", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /cosmic pixel robot/i }));
+
+    expect(screen.getByRole("textbox", { name: /command/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /run command/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /take screenshot/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /stop task/i })).toBeInTheDocument();
+  });
+
+  it("renders each task status and switches pet animation from task events", () => {
     render(<App />);
 
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
 
-    const cases: Array<[TaskEvent["status"], string, string]> = [
-      ["observing", "Observing", "Reading the screen"],
-      ["executing", "Executing", "Typing in Ghostty"],
-      ["approval_required", "Approval required", "Needs a human check"],
-      ["completed", "Completed", "Task finished"],
-      ["failed", "Failed", "Could not complete"]
+    const robot = screen.getByRole("button", { name: /cosmic pixel robot/i });
+    expect(robot).toHaveAttribute("data-animation", "idle");
+
+    const cases: Array<[TaskEvent["status"], string, string, string]> = [
+      ["observing", "Observing", "Reading the screen", "scanning"],
+      ["executing", "Executing", "Typing in Ghostty", "controlling"],
+      ["approval_required", "Approval required", "Needs a human check", "approval"],
+      ["completed", "Completed", "Task finished", "celebrating"],
+      ["failed", "Failed", "Could not complete", "error"]
     ];
 
-    for (const [status, label, message] of cases) {
+    for (const [status, label, message, animation] of cases) {
       act(() => emitTaskEvent({ status, message }));
 
       expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent(label);
       expect(screen.getByText(message)).toBeInTheDocument();
+      expect(robot).toHaveAttribute("data-animation", animation);
     }
   });
 
   it("toggles manual mode between active and quiet", () => {
     render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /cosmic pixel robot/i }));
 
     const toggle = screen.getByRole("switch", { name: /manual mode/i });
     expect(toggle).toBeChecked();
@@ -61,6 +87,8 @@ describe("App", () => {
 
   it("can automatically switch between quiet idle and active task states", () => {
     render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /cosmic pixel robot/i }));
 
     const switchingToggle = screen.getByRole("switch", { name: /switching mode/i });
     fireEvent.click(switchingToggle);
@@ -78,6 +106,8 @@ describe("App", () => {
 
   it("exposes command, screenshot, run, and stop controls", () => {
     render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /cosmic pixel robot/i }));
 
     const input = screen.getByRole("textbox", { name: /command/i });
     fireEvent.change(input, { target: { value: "pwd" } });
