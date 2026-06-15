@@ -13,7 +13,7 @@
     "clean": "rm -rf dist/main dist/shared dist/renderer",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "build": "npm run clean && vite build && tsc -p tsconfig.electron.json",
+    "build": "npm run clean && vite build && tsc -p tsconfig.electron.json && npm run build:helper",
     "build:helper": "bash scripts/build-helper.sh"
   },
   "dependencies": {

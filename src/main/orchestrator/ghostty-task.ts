@@ -80,11 +80,11 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  await runDesktopActionPlan(
+  assertPlanSucceeded(await runDesktopActionPlan(
     client,
     [{ type: "activate_app", bundleId: ghostty.bundleId }],
     { signal: options.signal }
-  );
+  ));
   yield {
     type: "app_activated",
     appName: ghostty.name,
@@ -110,14 +110,14 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  await runDesktopActionPlan(
+  assertPlanSucceeded(await runDesktopActionPlan(
     client,
     [
       { type: "type_text", text: command },
       { type: "wait", ms: TYPE_SETTLE_WAIT_MS }
     ],
     { signal: options.signal }
-  );
+  ));
   yield {
     type: "typing",
     command
@@ -127,11 +127,11 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  await runDesktopActionPlan(
+  assertPlanSucceeded(await runDesktopActionPlan(
     client,
     [{ type: "press_key", key: "enter" }],
     { signal: options.signal }
-  );
+  ));
   yield {
     type: "submitted",
     key: "enter"
@@ -197,6 +197,25 @@ function readAppStateResult(step: DesktopActionPlanStepResult): DesktopAppState 
   }
 
   throw new Error("Desktop observe action returned an invalid app state.");
+}
+
+function assertPlanSucceeded(results: readonly DesktopActionPlanStepResult[]): void {
+  for (const step of results) {
+    if (isFailedActionResult(step.result)) {
+      throw new Error(step.result.message ?? `Desktop action failed: ${step.action.type}`);
+    }
+  }
+}
+
+function isFailedActionResult(
+  result: DesktopActionResult
+): result is { ok: false; message?: string } {
+  return (
+    typeof result === "object"
+    && result !== null
+    && "ok" in result
+    && result.ok === false
+  );
 }
 
 function isDesktopAppState(result: DesktopActionResult): result is DesktopAppState {

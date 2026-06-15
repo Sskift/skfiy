@@ -6,6 +6,7 @@ import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type { DesktopActionResult } from "./computer-use/types.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
+import { calculatePetWindowBounds, readWindowPositionOverride } from "./window-position.js";
 
 type ManualMode = "active" | "quiet";
 type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "completed" | "failed";
@@ -198,13 +199,22 @@ async function runCommandTask(
 async function createWindow() {
   const windowWidth = 320;
   const windowHeight = 360;
-  const workArea = screen.getPrimaryDisplay().workArea;
+  const initialBounds = calculatePetWindowBounds({
+    cursorPoint: screen.getCursorScreenPoint(),
+    displays: screen.getAllDisplays(),
+    windowSize: {
+      width: windowWidth,
+      height: windowHeight
+    },
+    margin: 28,
+    positionOverride: readWindowPositionOverride(process.env)
+  });
 
   mainWindow = new BrowserWindow({
     width: windowWidth,
     height: windowHeight,
-    x: workArea.x + workArea.width - windowWidth - 28,
-    y: workArea.y + workArea.height - windowHeight - 28,
+    x: initialBounds.x,
+    y: initialBounds.y,
     minWidth: windowWidth,
     minHeight: windowHeight,
     frame: false,

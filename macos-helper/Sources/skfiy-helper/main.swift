@@ -311,6 +311,39 @@ func requireAccessibilityTrust(for action: String) throws {
     }
 }
 
+func focusAppWindows(_ app: NSRunningApplication) throws {
+    try requireAccessibilityTrust(for: "activate-app")
+
+    let appElement = AXUIElementCreateApplication(app.processIdentifier)
+    AXUIElementSetAttributeValue(appElement, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+
+    var rawWindows: CFTypeRef?
+    let windowsResult = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &rawWindows)
+    guard windowsResult == .success, let windows = rawWindows as? [AXUIElement] else {
+        return
+    }
+
+    for window in windows.prefix(3) {
+        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+    }
+}
+
+func waitForFrontmost(bundleId: String, timeoutSeconds: TimeInterval = 1.5) -> Bool {
+    let deadline = Date().addingTimeInterval(timeoutSeconds)
+
+    while Date() < deadline {
+        if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleId {
+            return true
+        }
+
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+    }
+
+    return NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleId
+}
+
 func captureScreenshot(outputPath: String) throws -> String {
     let resolvedOutputPath = absolutePath(outputPath)
     let outputURL = URL(fileURLWithPath: resolvedOutputPath)
@@ -389,26 +422,36 @@ func postText(_ text: String) throws {
         return
     }
 
-    let source = CGEventSource(stateID: .hidSystemState)
-    var characters = Array(text.utf16)
+    let pasteboard = NSPasteboard.general
+    let previousString = pasteboard.string(forType: .string)
 
-    try characters.withUnsafeMutableBufferPointer { buffer in
-        guard let baseAddress = buffer.baseAddress else {
-            throw HelperFailure("event_creation_failed", "Failed to prepare text input.")
-        }
-
-        guard
-            let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-            let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
-        else {
-            throw HelperFailure("event_creation_failed", "Failed to create keyboard events.")
-        }
-
-        keyDown.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: baseAddress)
-        keyUp.keyboardSetUnicodeString(stringLength: buffer.count, unicodeString: baseAddress)
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+    pasteboard.clearContents()
+    guard pasteboard.setString(text, forType: .string) else {
+        throw HelperFailure("pasteboard_failed", "Failed to prepare text for paste.")
     }
+
+    try postModifiedKey(virtualKey: 9, modifiers: .maskCommand)
+    usleep(120_000)
+
+    pasteboard.clearContents()
+    if let previousString {
+        pasteboard.setString(previousString, forType: .string)
+    }
+}
+
+func postModifiedKey(virtualKey: CGKeyCode, modifiers: CGEventFlags = []) throws {
+    let source = CGEventSource(stateID: .hidSystemState)
+    guard
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: virtualKey, keyDown: true),
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: virtualKey, keyDown: false)
+    else {
+        throw HelperFailure("event_creation_failed", "Failed to create keyboard events.")
+    }
+
+    keyDown.flags = modifiers
+    keyUp.flags = modifiers
+    keyDown.post(tap: .cghidEventTap)
+    keyUp.post(tap: .cghidEventTap)
 }
 
 func postKey(_ key: String) throws {
@@ -512,7 +555,9 @@ func handleActivateApp(_ arguments: ArraySlice<String>) throws -> ActivateAppPay
     let options = try parseOptions(arguments, allowed: ["--bundle-id"])
     let bundleId = try requiredOption("--bundle-id", in: options)
     let app = try findRunningApp(bundleId: bundleId)
-    let activated = app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+    let requested = app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+    try focusAppWindows(app)
+    let activated = requested && waitForFrontmost(bundleId: bundleId)
     return ActivateAppPayload(bundleId: bundleId, activated: activated)
 }
 

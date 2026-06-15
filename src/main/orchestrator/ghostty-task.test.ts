@@ -148,6 +148,19 @@ describe("runGhosttyCommandTask", () => {
     expect(client.executeAction).not.toHaveBeenCalled();
   });
 
+  it("fails closed when Ghostty cannot become the focused app", async () => {
+    const client = createDesktopClient();
+    client.executeAction.mockResolvedValueOnce({
+      ok: false,
+      message: "Ghostty did not become frontmost."
+    });
+
+    await expect(
+      collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }))
+    ).rejects.toThrow("Ghostty did not become frontmost.");
+    expect(client.executeAction).toHaveBeenCalledTimes(1);
+  });
+
   it("runs an approved high-risk command after emitting approval context", async () => {
     const client = createDesktopClient();
 
