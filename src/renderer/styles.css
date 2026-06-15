@@ -175,6 +175,14 @@ textarea:focus-visible {
   transform: translateX(-50%);
 }
 
+.voice-bubble.settings-bubble {
+  max-height: calc(100vh - 224px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(142, 232, 255, 0.34) transparent;
+}
+
 .voice-bubble::after {
   position: absolute;
   left: calc(50% - 7px);
@@ -299,11 +307,12 @@ textarea:focus-visible {
 
 .provider-panel {
   display: grid;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 5px;
+  margin-top: 7px;
 }
 
-.provider-heading {
+.provider-heading,
+.app-policy-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -313,23 +322,33 @@ textarea:focus-visible {
   line-height: 1;
 }
 
-.provider-heading span {
+.provider-heading span,
+.app-policy-heading span {
   color: rgba(238, 247, 255, 0.74);
   font-size: 10px;
 }
 
-.provider-switch {
+.provider-switch,
+.app-policy-switch {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid rgba(238, 247, 255, 0.14);
   border-radius: 7px;
   background: rgba(13, 22, 36, 0.7);
 }
 
-.provider-switch button {
+.provider-switch {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.app-policy-switch {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.provider-switch button,
+.app-policy-switch button {
   min-width: 0;
-  min-height: 26px;
+  min-height: 24px;
   border: 0;
   border-radius: 0;
   color: rgba(238, 247, 255, 0.74);
@@ -338,16 +357,21 @@ textarea:focus-visible {
   font-weight: 650;
 }
 
-.provider-switch button[aria-pressed="true"] {
+.provider-switch button[aria-pressed="true"],
+.app-policy-switch button[aria-pressed="true"] {
   color: #061224;
   background: #8de6b0;
+}
+
+.app-policy-switch button[aria-label^="拒绝"][aria-pressed="true"] {
+  background: #ffaba6;
 }
 
 .settings-grid {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px 10px;
-  margin-top: 8px;
+  gap: 5px 10px;
+  margin-top: 7px;
   color: rgba(238, 247, 255, 0.78);
   font-size: 11px;
   line-height: 1.2;
@@ -362,8 +386,43 @@ textarea:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.app-policy-panel {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.app-policy-list {
+  display: grid;
+  gap: 5px;
+}
+
+.app-policy-row {
+  display: grid;
+  grid-template-columns: minmax(46px, 0.52fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+}
+
+.app-policy-row > span {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(238, 247, 255, 0.82);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-policy-switch button {
+  min-height: 23px;
+  font-size: 10px;
+}
+
 .permissions-panel {
-  margin-top: 9px;
+  margin-top: 8px;
 }
 
 .permissions-heading {
@@ -446,12 +505,18 @@ textarea:focus-visible {
   background: rgba(19, 35, 54, 0.86);
 }
 
-.provider-switch button:hover {
+.provider-switch button:hover,
+.app-policy-switch button:hover {
   background: rgba(19, 35, 54, 0.86);
 }
 
-.provider-switch button[aria-pressed="true"]:hover {
+.provider-switch button[aria-pressed="true"]:hover,
+.app-policy-switch button[aria-pressed="true"]:hover {
   background: #8de6b0;
+}
+
+.app-policy-switch button[aria-label^="拒绝"][aria-pressed="true"]:hover {
+  background: #ffaba6;
 }
 
 .sr-only {

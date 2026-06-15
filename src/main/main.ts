@@ -9,6 +9,11 @@ import type {
   PermissionSettingsTarget
 } from "./computer-use/types.js";
 import {
+  createAppPolicySettingsStore,
+  decideAppPolicy,
+  readInitialAppPolicySettings
+} from "./app-policy-settings.js";
+import {
   createDictationSettingsStore,
   readInitialDictationSettings,
   resolveDictationVoiceTrigger
@@ -69,6 +74,8 @@ const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
 const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
+const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";
+const appPolicySettingsStore = createAppPolicySettingsStore(readInitialAppPolicySettings());
 const dictationSettingsStore = createDictationSettingsStore(
   readInitialDictationSettings(process.env)
 );
@@ -249,6 +256,33 @@ async function runCommandTask(
   mode: ManualMode,
   approved: boolean
 ) {
+  const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), GHOSTTY_BUNDLE_ID);
+
+  if (appPolicy.decision === "deny") {
+    pendingApproval = null;
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    emitTaskEvent(window, {
+      status: "failed",
+      message: appPolicy.reason
+    });
+    return;
+  }
+
+  if (appPolicy.decision === "ask" && !approved) {
+    pendingApproval = { command, mode };
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    emitTaskEvent(window, {
+      status: "approval_required",
+      message: `Approval required (app policy): ${appPolicy.reason}`,
+      command
+    });
+    return;
+  }
+
   const taskId = currentTaskId + 1;
   currentTaskId = taskId;
   pendingApproval = null;
@@ -574,6 +608,16 @@ ipcMain.handle("skfiy:get-dictation-settings", () => {
 
 ipcMain.handle("skfiy:set-dictation-settings", (_event, update: unknown) => {
   return dictationSettingsStore.set(
+    update && typeof update === "object" ? update : {}
+  );
+});
+
+ipcMain.handle("skfiy:get-app-policy-settings", () => {
+  return appPolicySettingsStore.get();
+});
+
+ipcMain.handle("skfiy:set-app-policy", (_event, update: unknown) => {
+  return appPolicySettingsStore.set(
     update && typeof update === "object" ? update : {}
   );
 });

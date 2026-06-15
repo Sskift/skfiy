@@ -16,6 +16,7 @@ type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 type DictationProviderId = "doubao" | "browser";
+type AppPolicy = "allow" | "ask" | "deny";
 type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
@@ -70,6 +71,16 @@ interface DictationSettings {
   doubaoShortcutLabel: string;
 }
 
+interface ControlledAppPolicyEntry {
+  name: string;
+  bundleId: string;
+  policy: AppPolicy;
+}
+
+interface AppPolicySettings {
+  apps: ControlledAppPolicyEntry[];
+}
+
 interface PermissionSummary {
   screenRecording: { state: PermissionState };
   accessibility: { state: PermissionState };
@@ -105,6 +116,8 @@ interface DesktopApi {
   setDictationSettings: (
     update: Partial<Pick<DictationSettings, "provider">>
   ) => Promise<DictationSettings>;
+  getAppPolicySettings: () => Promise<AppPolicySettings>;
+  setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
@@ -183,6 +196,17 @@ const api: DesktopApi = {
       provider: isDictationProviderSelection(provider) ? provider : undefined
     });
     return isDictationSettings(payload) ? payload : createDefaultDictationSettings();
+  },
+  async getAppPolicySettings() {
+    const payload = await ipcRenderer.invoke("skfiy:get-app-policy-settings");
+    return isAppPolicySettings(payload) ? payload : createDefaultAppPolicySettings();
+  },
+  async setAppPolicy(update) {
+    const payload = await ipcRenderer.invoke("skfiy:set-app-policy", {
+      bundleId: typeof update.bundleId === "string" ? update.bundleId : undefined,
+      policy: isAppPolicy(update.policy) ? update.policy : undefined
+    });
+    return isAppPolicySettings(payload) ? payload : createDefaultAppPolicySettings();
   },
   async getRuntimeStatus() {
     const payload = await ipcRenderer.invoke("skfiy:get-runtime-status");
@@ -280,6 +304,32 @@ function isDictationProviderSelection(value: unknown): value is DictationProvide
   return value === "doubao" || value === "browser";
 }
 
+function isAppPolicySettings(value: unknown): value is AppPolicySettings {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const settings = value as Partial<AppPolicySettings>;
+  return Array.isArray(settings.apps) && settings.apps.every(isControlledAppPolicyEntry);
+}
+
+function isControlledAppPolicyEntry(value: unknown): value is ControlledAppPolicyEntry {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const entry = value as Partial<ControlledAppPolicyEntry>;
+  return (
+    typeof entry.name === "string"
+    && typeof entry.bundleId === "string"
+    && isAppPolicy(entry.policy)
+  );
+}
+
+function isAppPolicy(value: unknown): value is AppPolicy {
+  return value === "allow" || value === "ask" || value === "deny";
+}
+
 function isPermissionSummary(value: unknown): value is PermissionSummary {
   if (!value || typeof value !== "object") {
     return false;
@@ -365,6 +415,16 @@ function createDefaultDictationSettings(): DictationSettings {
     provider: "doubao",
     doubaoVoiceTrigger: "skfiy-shortcut",
     doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+  };
+}
+
+function createDefaultAppPolicySettings(): AppPolicySettings {
+  return {
+    apps: [
+      { name: "Ghostty", bundleId: "com.mitchellh.ghostty", policy: "allow" },
+      { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" },
+      { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
+    ]
   };
 }
 

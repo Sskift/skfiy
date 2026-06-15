@@ -1,6 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App, { type DesktopApi, type DictationProviderEvent, type TaskEvent } from "./App";
+import App, {
+  type AppPolicySettings,
+  type DesktopApi,
+  type DictationProviderEvent,
+  type TaskEvent
+} from "./App";
 
 let emitTaskEvent: (event: TaskEvent) => void;
 let emitDictationProviderEvent: (event: DictationProviderEvent) => void;
@@ -41,6 +46,13 @@ beforeEach(() => {
 
   window.webkitSpeechRecognition =
     MockSpeechRecognition as unknown as NonNullable<typeof window.webkitSpeechRecognition>;
+  const appPolicySettings: AppPolicySettings = {
+    apps: [
+      { name: "Ghostty", bundleId: "com.mitchellh.ghostty", policy: "allow" },
+      { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" },
+      { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
+    ]
+  };
 
   window.skfiy = {
     runCommand: vi.fn<DesktopApi["runCommand"]>().mockResolvedValue(undefined),
@@ -71,6 +83,16 @@ beforeEach(() => {
       doubaoVoiceTrigger: "skfiy-shortcut",
       doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
     }),
+    getAppPolicySettings: vi.fn<DesktopApi["getAppPolicySettings"]>().mockResolvedValue(
+      appPolicySettings
+    ),
+    setAppPolicy: vi.fn<DesktopApi["setAppPolicy"]>().mockImplementation(async (update) => ({
+      apps: appPolicySettings.apps.map((entry) =>
+        entry.bundleId === update.bundleId
+          ? { ...entry, policy: update.policy }
+          : entry
+      )
+    })),
     getRuntimeStatus: vi.fn<DesktopApi["getRuntimeStatus"]>().mockResolvedValue({
       stopTurnHotkey: {
         accelerator: "Control+Alt+Shift+Esc",
@@ -284,6 +306,38 @@ describe("App", () => {
       expect(api.setDictationSettings).toHaveBeenCalledWith({ provider: "browser" });
     });
     expect(screen.getByRole("button", { name: "选择浏览器语音" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  it("shows app policy choices and updates app allowlist decisions from settings", async () => {
+    const api = window.skfiy as DesktopApi;
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(screen.getByText("应用策略")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "允许 Ghostty" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("button", { name: "询问 Chrome" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "拒绝 Chrome" }));
+
+    await waitFor(() => {
+      expect(api.setAppPolicy).toHaveBeenCalledWith({
+        bundleId: "com.google.Chrome",
+        policy: "deny"
+      });
+    });
+    expect(screen.getByRole("button", { name: "拒绝 Chrome" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );

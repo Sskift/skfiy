@@ -27,6 +27,7 @@ export type PermissionState = "granted" | "denied" | "not-determined" | "unknown
 export type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 export type DictationProviderId = "doubao" | "browser";
+export type AppPolicy = "allow" | "ask" | "deny";
 export type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
@@ -51,6 +52,16 @@ export interface DictationSettings {
   provider: DictationProviderSelection;
   doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
   doubaoShortcutLabel: string;
+}
+
+export interface ControlledAppPolicyEntry {
+  name: string;
+  bundleId: string;
+  policy: AppPolicy;
+}
+
+export interface AppPolicySettings {
+  apps: ControlledAppPolicyEntry[];
 }
 
 export interface PermissionSummary {
@@ -116,6 +127,8 @@ export interface DesktopApi {
   setDictationSettings: (
     update: Partial<Pick<DictationSettings, "provider">>
   ) => Promise<DictationSettings>;
+  getAppPolicySettings: () => Promise<AppPolicySettings>;
+  setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
@@ -232,6 +245,12 @@ const PERMISSION_STATE_COPY: Record<PermissionState, string> = {
   unknown: "未知"
 };
 
+const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
+  { policy: "allow", label: "允许" },
+  { policy: "ask", label: "询问" },
+  { policy: "deny", label: "拒绝" }
+];
+
 const UNKNOWN_PERMISSIONS: PermissionSummary = {
   screenRecording: { state: "unknown" },
   accessibility: { state: "unknown" },
@@ -242,6 +261,14 @@ const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
   provider: "doubao",
   doubaoVoiceTrigger: "skfiy-shortcut",
   doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+};
+
+const DEFAULT_APP_POLICY_SETTINGS: AppPolicySettings = {
+  apps: [
+    { name: "Ghostty", bundleId: "com.mitchellh.ghostty", policy: "allow" },
+    { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" },
+    { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
+  ]
 };
 
 const fallbackApi: DesktopApi = {
@@ -259,6 +286,14 @@ const fallbackApi: DesktopApi = {
   setDictationSettings: async (update) => ({
     ...DEFAULT_DICTATION_SETTINGS,
     provider: update.provider === "browser" ? "browser" : "doubao"
+  }),
+  getAppPolicySettings: async () => DEFAULT_APP_POLICY_SETTINGS,
+  setAppPolicy: async (update) => ({
+    apps: DEFAULT_APP_POLICY_SETTINGS.apps.map((entry) =>
+      entry.bundleId === update.bundleId
+        ? { ...entry, policy: update.policy }
+        : entry
+    )
   }),
   getRuntimeStatus: async () => ({
     stopTurnHotkey: {
@@ -395,6 +430,9 @@ export default function App() {
   const [startupWarnings, setStartupWarnings] = useState<StartupWarning[]>([]);
   const [dictationSettings, setDictationSettings] = useState<DictationSettings>(
     DEFAULT_DICTATION_SETTINGS
+  );
+  const [appPolicySettings, setAppPolicySettings] = useState<AppPolicySettings>(
+    DEFAULT_APP_POLICY_SETTINGS
   );
   const [dictationProvider, setDictationProvider] = useState<DictationProviderEvent | null>(null);
   const [task, setTask] = useState<TaskView>({
@@ -535,6 +573,20 @@ export default function App() {
     void api.getDictationSettings().then((settings) => {
       if (!cancelled) {
         setDictationSettings(settings);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void api.getAppPolicySettings().then((settings) => {
+      if (!cancelled) {
+        setAppPolicySettings(settings);
       }
     });
 
@@ -777,6 +829,17 @@ export default function App() {
     }
   }
 
+  async function selectAppPolicy(bundleId: string, policy: AppPolicy) {
+    try {
+      setAppPolicySettings(await api.setAppPolicy({ bundleId, policy }));
+    } catch {
+      setTask({
+        status: "failed",
+        message: "切换应用策略失败."
+      });
+    }
+  }
+
   function startPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) {
       return;
@@ -917,6 +980,32 @@ export default function App() {
                 <strong>左键</strong>
                 <span>豆包输入法语音快捷键</span>
                 <strong>{dictationSettings.doubaoShortcutLabel}</strong>
+              </div>
+              <div className="app-policy-panel" aria-label="应用策略">
+                <div className="app-policy-heading">
+                  <strong>应用策略</strong>
+                  <span>Computer Use</span>
+                </div>
+                <div className="app-policy-list">
+                  {appPolicySettings.apps.map((entry) => (
+                    <div className="app-policy-row" key={entry.bundleId}>
+                      <span>{entry.name}</span>
+                      <div className="app-policy-switch" role="group" aria-label={`${entry.name} policy`}>
+                        {APP_POLICY_OPTIONS.map((option) => (
+                          <button
+                            type="button"
+                            key={option.policy}
+                            aria-label={`${option.label} ${entry.name}`}
+                            aria-pressed={entry.policy === option.policy}
+                            onClick={() => void selectAppPolicy(entry.bundleId, option.policy)}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="permissions-panel" aria-label="权限">
                 <div className="permissions-heading">
