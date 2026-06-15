@@ -13,8 +13,6 @@ beforeEach(() => {
     denyTask: vi.fn<SkfiyApi["denyTask"]>().mockResolvedValue(undefined),
     takeScreenshot: vi.fn<SkfiyApi["takeScreenshot"]>().mockResolvedValue(undefined),
     stopTask: vi.fn<SkfiyApi["stopTask"]>().mockResolvedValue(undefined),
-    setIgnoreMouse: vi.fn<SkfiyApi["setIgnoreMouse"]>(),
-    setOverlayState: vi.fn<SkfiyApi["setOverlayState"]>(),
     moveWindowBy: vi.fn<SkfiyApi["moveWindowBy"]>(),
     onTaskEvent: vi.fn((callback: (event: TaskEvent) => void) => {
       emitTaskEvent = callback;
@@ -41,16 +39,17 @@ describe("App", () => {
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
-  it("opens the command capsule from the pet", () => {
+  it("opens a simple command capsule from the pet", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
 
     expect(screen.getByLabelText(/skfiy command capsule/i)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /command/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /run command/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /take screenshot/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /stop task/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "执行" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "截图" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
   });
 
   it("renders each task status and switches pet animation from task events", () => {
@@ -78,15 +77,15 @@ describe("App", () => {
     }
   });
 
-  it("reports command capsule visibility to the overlay hit tester", () => {
+  it("closes the command capsule by clicking the pet again", () => {
     render(<App />);
 
-    const api = window.skfiy as SkfiyApi;
-    expect(api.setOverlayState).toHaveBeenLastCalledWith({ capsuleOpen: false });
+    const pet = screen.getByRole("button", { name: /skfiy codex-style pet/i });
+    fireEvent.click(pet);
+    expect(screen.getByLabelText(/skfiy command capsule/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
-
-    expect(api.setOverlayState).toHaveBeenLastCalledWith({ capsuleOpen: true });
+    fireEvent.click(pet);
+    expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
   it("drags the pet window without opening the command capsule", () => {
@@ -100,9 +99,7 @@ describe("App", () => {
     fireEvent.pointerUp(pet, { pointerId: 7, screenX: 112, screenY: 117 });
     fireEvent.click(pet);
 
-    expect(api.setOverlayState).toHaveBeenCalledWith({ dragging: true });
     expect(api.moveWindowBy).toHaveBeenCalledWith(12, 17);
-    expect(api.setOverlayState).toHaveBeenLastCalledWith({ dragging: false });
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
@@ -113,12 +110,12 @@ describe("App", () => {
 
     const toggle = screen.getByRole("switch", { name: /manual mode/i });
     expect(toggle).toBeChecked();
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getAllByText("主动").length).toBeGreaterThan(0);
 
     fireEvent.click(toggle);
 
     expect(toggle).not.toBeChecked();
-    expect(screen.getByText("Quiet")).toBeInTheDocument();
+    expect(screen.getAllByText("安静").length).toBeGreaterThan(0);
   });
 
   it("can automatically switch between quiet idle and active task states", () => {
@@ -130,14 +127,14 @@ describe("App", () => {
     fireEvent.click(switchingToggle);
 
     expect(switchingToggle).toBeChecked();
-    expect(screen.getByText("Auto")).toBeInTheDocument();
+    expect(screen.getByText("自动")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: /manual mode/i })).not.toBeChecked();
-    expect(screen.getByText("auto/quiet")).toBeInTheDocument();
+    expect(screen.getByText("自动/安静")).toBeInTheDocument();
 
     act(() => emitTaskEvent({ status: "executing", message: "Typing in Ghostty" }));
 
     expect(screen.getByRole("switch", { name: /manual mode/i })).toBeChecked();
-    expect(screen.getByText("auto/active")).toBeInTheDocument();
+    expect(screen.getByText("自动/主动")).toBeInTheDocument();
   });
 
   it("exposes command, screenshot, run, and stop controls", () => {
@@ -147,9 +144,9 @@ describe("App", () => {
 
     const input = screen.getByRole("textbox", { name: /command/i });
     fireEvent.change(input, { target: { value: "pwd" } });
-    fireEvent.click(screen.getByRole("button", { name: /run command/i }));
-    fireEvent.click(screen.getByRole("button", { name: /take screenshot/i }));
-    fireEvent.click(screen.getByRole("button", { name: /stop task/i }));
+    fireEvent.click(screen.getByRole("button", { name: "执行" }));
+    fireEvent.click(screen.getByRole("button", { name: "截图" }));
+    fireEvent.click(screen.getByRole("button", { name: "停止" }));
 
     const api = window.skfiy as SkfiyApi;
     expect(api.runCommand).toHaveBeenCalledWith("pwd", { mode: "active" });
@@ -161,8 +158,8 @@ describe("App", () => {
     render(<App />);
 
     act(() => emitTaskEvent({ status: "approval_required", message: "Needs a human check" }));
-    fireEvent.click(screen.getByRole("button", { name: /approve task/i }));
-    fireEvent.click(screen.getByRole("button", { name: /deny task/i }));
+    fireEvent.click(screen.getByRole("button", { name: "确认" }));
+    fireEvent.click(screen.getByRole("button", { name: "拒绝" }));
 
     const api = window.skfiy as SkfiyApi;
     expect(api.approveTask).toHaveBeenCalledTimes(1);

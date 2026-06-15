@@ -1,4 +1,4 @@
-import { Camera, CirclePause, Play, Sparkles, X } from "lucide-react";
+import { Camera, CirclePause, Play, Sparkles } from "lucide-react";
 import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
@@ -32,8 +32,6 @@ export interface SkfiyApi {
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
-  setIgnoreMouse: (ignore: boolean) => void;
-  setOverlayState: (state: { capsuleOpen?: boolean; dragging?: boolean }) => void;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
@@ -95,8 +93,6 @@ const fallbackApi: SkfiyApi = {
   denyTask: async () => undefined,
   takeScreenshot: async () => undefined,
   stopTask: async () => undefined,
-  setIgnoreMouse: () => undefined,
-  setOverlayState: () => undefined,
   moveWindowBy: () => undefined,
   onTaskEvent: () => () => undefined
 };
@@ -175,14 +171,6 @@ export default function App() {
   const effectiveMode = switchingMode === "auto" ? deriveAutoMode(task.status) : manualMode;
   const quiet = effectiveMode === "quiet";
   const showBubble = bubbleOpen || task.status === "approval_required";
-
-  useEffect(() => {
-    api.setOverlayState({ capsuleOpen: showBubble });
-
-    return () => {
-      api.setOverlayState({ capsuleOpen: false, dragging: false });
-    };
-  }, [api, showBubble]);
 
   async function runCommand(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -295,7 +283,6 @@ export default function App() {
       moved: false
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    api.setOverlayState({ dragging: true });
   }
 
   function movePetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -327,7 +314,6 @@ export default function App() {
 
     dragStateRef.current = null;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
-    api.setOverlayState({ dragging: false });
 
     if (dragState.moved) {
       suppressNextClickRef.current = true;
@@ -356,14 +342,6 @@ export default function App() {
               <p>Skfiy</p>
               <strong>{task.message}</strong>
             </div>
-            <button
-              type="button"
-              aria-label="Close command capsule"
-              className="icon-button"
-              onClick={() => setBubbleOpen(false)}
-            >
-              <X size={14} aria-hidden="true" />
-            </button>
           </div>
 
           <form className="command-row" onSubmit={runCommand}>
@@ -374,12 +352,12 @@ export default function App() {
               id="command-input"
               value={command}
               onChange={(event) => setCommand(event.currentTarget.value)}
-              placeholder="pwd"
+              placeholder="输入指令"
               spellCheck={false}
             />
-            <button type="submit" aria-label="Run command" className="primary-action">
+            <button type="submit" aria-label="执行" className="primary-action">
               <Play size={16} aria-hidden="true" />
-              <span>Run</span>
+              <span>执行</span>
             </button>
           </form>
 
@@ -392,7 +370,7 @@ export default function App() {
                 checked={switchingMode === "auto"}
                 onChange={(event) => setSwitchingMode(event.currentTarget.checked ? "auto" : "manual")}
               />
-              <span>{switchingMode === "auto" ? "Auto" : "Manual"}</span>
+              <span>{switchingMode === "auto" ? "自动" : "手动"}</span>
             </label>
             <label className="mode-toggle">
               <input
@@ -403,35 +381,41 @@ export default function App() {
                 disabled={switchingMode === "auto"}
                 onChange={(event) => setManualMode(event.currentTarget.checked ? "active" : "quiet")}
               />
-              <span>{quiet ? "Quiet" : "Active"}</span>
+              <span>{quiet ? "安静" : "主动"}</span>
             </label>
             <div className="intent-chip" aria-hidden="true">
               <Sparkles size={14} />
-              <span>{switchingMode === "auto" ? `auto/${effectiveMode}` : effectiveMode}</span>
+              <span>
+                {switchingMode === "auto"
+                  ? `自动/${effectiveMode === "active" ? "主动" : "安静"}`
+                  : effectiveMode === "active"
+                    ? "主动"
+                    : "安静"}
+              </span>
             </div>
           </div>
 
           <div className="tool-row">
             {task.status === "approval_required" ? (
               <>
-                <button type="button" aria-label="Approve task" onClick={approveTask}>
+                <button type="button" aria-label="确认" onClick={approveTask}>
                   <Play size={16} aria-hidden="true" />
-                  <span>Approve</span>
+                  <span>确认</span>
                 </button>
-                <button type="button" aria-label="Deny task" onClick={denyTask}>
+                <button type="button" aria-label="拒绝" onClick={denyTask}>
                   <CirclePause size={16} aria-hidden="true" />
-                  <span>Deny</span>
+                  <span>拒绝</span>
                 </button>
               </>
             ) : (
               <>
-                <button type="button" aria-label="Take screenshot" onClick={takeScreenshot}>
+                <button type="button" aria-label="截图" onClick={takeScreenshot}>
                   <Camera size={16} aria-hidden="true" />
-                  <span>Shot</span>
+                  <span>截图</span>
                 </button>
-                <button type="button" aria-label="Stop task" onClick={stopTask}>
+                <button type="button" aria-label="停止" onClick={stopTask}>
                   <CirclePause size={16} aria-hidden="true" />
-                  <span>Stop</span>
+                  <span>停止</span>
                 </button>
               </>
             )}

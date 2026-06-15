@@ -6,10 +6,6 @@ import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type { DesktopHelperActionResult } from "./computer-use/types.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
-import {
-  shouldCaptureMouseForPetOverlay,
-  type PetOverlayHitState
-} from "./pet-window-hit-test.js";
 
 type ManualMode = "active" | "quiet";
 type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "completed" | "failed";
@@ -34,12 +30,6 @@ let currentTaskId = 0;
 let screenshotSerial = 0;
 let activeTaskController: AbortController | null = null;
 let pendingApproval: PendingApproval | null = null;
-let overlayHitState: PetOverlayHitState = {
-  capsuleOpen: false,
-  dragging: false
-};
-let mouseHitTestTimer: ReturnType<typeof setInterval> | null = null;
-let currentMouseIgnoreState: boolean | null = null;
 
 function emitTaskEvent(window: BrowserWindow | null, event: TaskEvent) {
   if (!window || window.isDestroyed()) {
@@ -160,63 +150,8 @@ function readMode(value: unknown): ManualMode {
   return value === "quiet" || value === "active" ? value : "active";
 }
 
-function setOverlayMouseIgnore(window: BrowserWindow, ignore: boolean) {
-  if (currentMouseIgnoreState === ignore) {
-    return;
-  }
-
-  currentMouseIgnoreState = ignore;
-  window.setIgnoreMouseEvents(ignore, { forward: true });
-}
-
-function updateOverlayMouseCapture() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  const bounds = mainWindow.getBounds();
-  const cursor = screen.getCursorScreenPoint();
-  const localPoint = {
-    x: cursor.x - bounds.x,
-    y: cursor.y - bounds.y
-  };
-  const shouldCapture = shouldCaptureMouseForPetOverlay(localPoint, overlayHitState);
-
-  setOverlayMouseIgnore(mainWindow, !shouldCapture);
-}
-
-function startOverlayMouseHitTesting(window: BrowserWindow) {
-  stopOverlayMouseHitTesting();
-  setOverlayMouseIgnore(window, true);
-
-  mouseHitTestTimer = setInterval(updateOverlayMouseCapture, 50);
-  mouseHitTestTimer.unref?.();
-  window.on("closed", stopOverlayMouseHitTesting);
-}
-
-function stopOverlayMouseHitTesting() {
-  if (mouseHitTestTimer) {
-    clearInterval(mouseHitTestTimer);
-    mouseHitTestTimer = null;
-  }
-
-  currentMouseIgnoreState = null;
-}
-
 function readFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function readOverlayHitStatePatch(value: unknown): Partial<PetOverlayHitState> {
-  if (!value || typeof value !== "object") {
-    return {};
-  }
-
-  const patch = value as Partial<Record<keyof PetOverlayHitState, unknown>>;
-  return {
-    ...(typeof patch.capsuleOpen === "boolean" ? { capsuleOpen: patch.capsuleOpen } : {}),
-    ...(typeof patch.dragging === "boolean" ? { dragging: patch.dragging } : {})
-  };
 }
 
 async function runCommandTask(
@@ -297,7 +232,6 @@ async function createWindow() {
 
   mainWindow.setAlwaysOnTop(true, "floating");
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  startOverlayMouseHitTesting(mainWindow);
 
   if (devServerUrl) {
     await mainWindow.loadURL(devServerUrl);
@@ -305,30 +239,6 @@ async function createWindow() {
     await mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
 }
-
-ipcMain.on("skfiy:set-ignore-mouse", (event, ignore: unknown) => {
-  const window = BrowserWindow.fromWebContents(event.sender);
-
-  if (!window || window.isDestroyed()) {
-    return;
-  }
-
-  setOverlayMouseIgnore(window, ignore === true);
-});
-
-ipcMain.on("skfiy:set-overlay-state", (event, value: unknown) => {
-  const window = BrowserWindow.fromWebContents(event.sender);
-
-  if (!window || window.isDestroyed()) {
-    return;
-  }
-
-  overlayHitState = {
-    ...overlayHitState,
-    ...readOverlayHitStatePatch(value)
-  };
-  updateOverlayMouseCapture();
-});
 
 ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
@@ -341,7 +251,6 @@ ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown) => 
 
   const bounds = window.getBounds();
   window.setPosition(Math.round(bounds.x + x), Math.round(bounds.y + y));
-  updateOverlayMouseCapture();
 });
 
 ipcMain.handle(
