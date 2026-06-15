@@ -16,6 +16,8 @@ interface SkfiyApi {
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
   setIgnoreMouse: (ignore: boolean) => void;
+  setOverlayState: (state: { capsuleOpen?: boolean; dragging?: boolean }) => void;
+  moveWindowBy: (deltaX: number, deltaY: number) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -55,6 +57,15 @@ const api: SkfiyApi = {
   },
   setIgnoreMouse(ignore) {
     ipcRenderer.send("skfiy:set-ignore-mouse", ignore === true);
+  },
+  setOverlayState(state) {
+    ipcRenderer.send("skfiy:set-overlay-state", {
+      ...(typeof state.capsuleOpen === "boolean" ? { capsuleOpen: state.capsuleOpen } : {}),
+      ...(typeof state.dragging === "boolean" ? { dragging: state.dragging } : {})
+    });
+  },
+  moveWindowBy(deltaX, deltaY) {
+    ipcRenderer.send("skfiy:move-window-by", deltaX, deltaY);
   },
   onTaskEvent(callback) {
     const listener = (_event: IpcRendererEvent, payload: unknown) => {

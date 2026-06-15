@@ -47,7 +47,7 @@ input:focus-visible {
 }
 
 .pet-stage {
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
   position: relative;
   width: min(100vw, 320px);
   height: min(100vh, 360px);
@@ -92,7 +92,7 @@ input:focus-visible {
 }
 
 .skfiy-pet {
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
   position: absolute;
   left: 50%;
   bottom: 20px;
@@ -104,11 +104,16 @@ input:focus-visible {
   background: transparent;
   transform: translateX(-50%);
   animation: pet-bob 2.7s steps(4, end) infinite;
+  cursor: grab;
 }
 
 .skfiy-pet:hover {
   background: transparent;
   filter: drop-shadow(0 0 10px rgba(126, 225, 255, 0.32));
+}
+
+.skfiy-pet:active {
+  cursor: grabbing;
 }
 
 .pet-sprite-frame {

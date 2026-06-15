@@ -14,6 +14,8 @@ beforeEach(() => {
     takeScreenshot: vi.fn<SkfiyApi["takeScreenshot"]>().mockResolvedValue(undefined),
     stopTask: vi.fn<SkfiyApi["stopTask"]>().mockResolvedValue(undefined),
     setIgnoreMouse: vi.fn<SkfiyApi["setIgnoreMouse"]>(),
+    setOverlayState: vi.fn<SkfiyApi["setOverlayState"]>(),
+    moveWindowBy: vi.fn<SkfiyApi["moveWindowBy"]>(),
     onTaskEvent: vi.fn((callback: (event: TaskEvent) => void) => {
       emitTaskEvent = callback;
       return vi.fn();
@@ -76,29 +78,32 @@ describe("App", () => {
     }
   });
 
-  it("keeps transparent desktop areas click-through until the pointer reaches interactive pet UI", () => {
+  it("reports command capsule visibility to the overlay hit tester", () => {
     render(<App />);
 
     const api = window.skfiy as SkfiyApi;
-    const elementFromPoint = vi
-      .fn()
-      .mockReturnValueOnce(document.body)
-      .mockReturnValueOnce(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
-    Object.defineProperty(document, "elementFromPoint", {
-      configurable: true,
-      value: elementFromPoint
-    });
+    expect(api.setOverlayState).toHaveBeenLastCalledWith({ capsuleOpen: false });
 
-    expect(api.setIgnoreMouse).toHaveBeenLastCalledWith(true);
+    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
 
-    fireEvent.mouseMove(document, { clientX: 4, clientY: 6 });
-    expect(api.setIgnoreMouse).toHaveBeenLastCalledWith(true);
+    expect(api.setOverlayState).toHaveBeenLastCalledWith({ capsuleOpen: true });
+  });
 
-    fireEvent.mouseMove(document, { clientX: 120, clientY: 140 });
-    expect(api.setIgnoreMouse).toHaveBeenLastCalledWith(false);
+  it("drags the pet window without opening the command capsule", () => {
+    render(<App />);
 
-    expect(elementFromPoint).toHaveBeenCalledWith(4, 6);
-    expect(elementFromPoint).toHaveBeenCalledWith(120, 140);
+    const pet = screen.getByRole("button", { name: /skfiy codex-style pet/i });
+    const api = window.skfiy as SkfiyApi;
+
+    fireEvent.pointerDown(pet, { button: 0, pointerId: 7, screenX: 100, screenY: 100 });
+    fireEvent.pointerMove(pet, { pointerId: 7, screenX: 112, screenY: 117 });
+    fireEvent.pointerUp(pet, { pointerId: 7, screenX: 112, screenY: 117 });
+    fireEvent.click(pet);
+
+    expect(api.setOverlayState).toHaveBeenCalledWith({ dragging: true });
+    expect(api.moveWindowBy).toHaveBeenCalledWith(12, 17);
+    expect(api.setOverlayState).toHaveBeenLastCalledWith({ dragging: false });
+    expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
   it("toggles manual mode between active and quiet", () => {

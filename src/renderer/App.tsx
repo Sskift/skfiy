@@ -1,5 +1,12 @@
 import { Camera, CirclePause, Play, Sparkles, X } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { getPetSpriteStyle, getPetStateForTask, PET_ATLAS, type PetAtlasState } from "./pet-atlas";
 
 export type TaskStatus =
@@ -26,6 +33,8 @@ export interface SkfiyApi {
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
   setIgnoreMouse: (ignore: boolean) => void;
+  setOverlayState: (state: { capsuleOpen?: boolean; dragging?: boolean }) => void;
+  moveWindowBy: (deltaX: number, deltaY: number) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -38,6 +47,13 @@ declare global {
 interface TaskView {
   status: TaskStatus;
   message: string;
+}
+
+interface PetDragState {
+  pointerId: number;
+  lastScreenX: number;
+  lastScreenY: number;
+  moved: boolean;
 }
 
 const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
@@ -80,6 +96,8 @@ const fallbackApi: SkfiyApi = {
   takeScreenshot: async () => undefined,
   stopTask: async () => undefined,
   setIgnoreMouse: () => undefined,
+  setOverlayState: () => undefined,
+  moveWindowBy: () => undefined,
   onTaskEvent: () => () => undefined
 };
 
@@ -93,10 +111,16 @@ function deriveAutoMode(status: TaskStatus): ManualMode {
 
 function SkfiyPet({
   state,
-  onClick
+  onClick,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp
 }: {
   state: PetAtlasState;
   onClick: () => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
   const animation = PET_ATLAS.states[state];
 
@@ -110,6 +134,10 @@ function SkfiyPet({
       data-interactive="true"
       style={getPetSpriteStyle(state)}
       onClick={onClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
       <span className="pet-sprite-frame" aria-hidden="true" />
     </button>
@@ -126,6 +154,8 @@ export default function App() {
     status: "idle",
     message: STATUS_COPY.idle.message
   });
+  const dragStateRef = useRef<PetDragState | null>(null);
+  const suppressNextClickRef = useRef(false);
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
@@ -140,47 +170,19 @@ export default function App() {
     });
   }, [api]);
 
-  useEffect(() => {
-    let ignoringMouse = true;
-    api.setIgnoreMouse(true);
-
-    const setIgnoringMouse = (ignore: boolean) => {
-      if (ignore === ignoringMouse) {
-        return;
-      }
-
-      ignoringMouse = ignore;
-      api.setIgnoreMouse(ignore);
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const target =
-        typeof document.elementFromPoint === "function"
-          ? document.elementFromPoint(event.clientX, event.clientY)
-          : null;
-      const interactiveTarget =
-        target instanceof Element ? target.closest("[data-interactive='true']") : null;
-
-      setIgnoringMouse(!interactiveTarget);
-    };
-
-    const handleMouseLeave = () => setIgnoringMouse(true);
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseleave", handleMouseLeave);
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseleave", handleMouseLeave);
-      api.setIgnoreMouse(true);
-    };
-  }, [api]);
-
   const status = STATUS_COPY[task.status];
   const petState = getPetStateForTask(task.status);
   const effectiveMode = switchingMode === "auto" ? deriveAutoMode(task.status) : manualMode;
   const quiet = effectiveMode === "quiet";
   const showBubble = bubbleOpen || task.status === "approval_required";
+
+  useEffect(() => {
+    api.setOverlayState({ capsuleOpen: showBubble });
+
+    return () => {
+      api.setOverlayState({ capsuleOpen: false, dragging: false });
+    };
+  }, [api, showBubble]);
 
   async function runCommand(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -272,6 +274,66 @@ export default function App() {
     }
   }
 
+  function toggleCommandCapsule() {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      return;
+    }
+
+    setBubbleOpen((open) => !open);
+  }
+
+  function startPetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    dragStateRef.current = {
+      pointerId: event.pointerId,
+      lastScreenX: event.screenX,
+      lastScreenY: event.screenY,
+      moved: false
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    api.setOverlayState({ dragging: true });
+  }
+
+  function movePetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    const dragState = dragStateRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.screenX - dragState.lastScreenX;
+    const deltaY = event.screenY - dragState.lastScreenY;
+
+    if (deltaX === 0 && deltaY === 0) {
+      return;
+    }
+
+    dragState.moved = true;
+    dragState.lastScreenX = event.screenX;
+    dragState.lastScreenY = event.screenY;
+    api.moveWindowBy(deltaX, deltaY);
+  }
+
+  function finishPetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    const dragState = dragStateRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dragStateRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    api.setOverlayState({ dragging: false });
+
+    if (dragState.moved) {
+      suppressNextClickRef.current = true;
+    }
+  }
+
   return (
     <main className={`pet-stage status-${task.status}${showBubble ? " capsule-open" : ""}`} aria-label="Skfiy desktop pet">
       <div className="status-orb" role="status" aria-label="Task status">
@@ -279,7 +341,13 @@ export default function App() {
         <span>{status.pulse}</span>
       </div>
 
-      <SkfiyPet state={petState} onClick={() => setBubbleOpen((open) => !open)} />
+      <SkfiyPet
+        state={petState}
+        onClick={toggleCommandCapsule}
+        onPointerDown={startPetDrag}
+        onPointerMove={movePetDrag}
+        onPointerUp={finishPetDrag}
+      />
 
       {showBubble ? (
         <section className="command-capsule" aria-label="Skfiy command capsule" data-interactive="true">
