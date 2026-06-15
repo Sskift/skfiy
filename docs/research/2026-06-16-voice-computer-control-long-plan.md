@@ -324,9 +324,12 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - AIME Chrome Extension overlap: browser control
   - skfiy gap: native app system-level Computer Use
 - Decide integration path:
+  - [x] Decision recorded in `docs/decisions/2026-06-16-skfiy-aime-integration.md`.
+  - Current path: Option A now, Option B later.
   - Option A: skfiy as standalone experimental shell.
   - Option B: skfiy as AIME native Computer Use plugin.
   - Option C: skfiy only provides helper/runtime, AIME owns UX.
+  - Refreshed internal search on 2026-06-16: AIME Desktop overlaps assistant/workflow/local file tasks, AIME Chrome Extension overlaps browser control, AIME Buddy overlaps desktop companion/task notification/status, and native macOS app Computer Use remains the skfiy validation gap unless AIME/AIOS exposes a stable native control plugin/runtime.
 - Internal dogfood with 3-5 users:
   - coding terminal workflow
   - screenshot inspection workflow
@@ -353,11 +356,10 @@ With one engineer, the same scope is closer to 6-8 weeks because packaging, ASR,
 
 ## Open Questions
 
-1. Should the long-term owner be skfiy standalone or AIME plugin?
-2. Are we allowed to use internal/cloud ASR for dogfood audio, or must the alpha be local-only?
-3. Which CUA model/provider should power the planner loop for internal tests?
-4. Do we target macOS only for the next month, or design Windows abstractions now?
-5. What is the first daily-use scenario beyond Ghostty: browser research, Lark office work, Finder organization, or coding assistant orchestration?
+1. Are we allowed to use internal/cloud ASR for dogfood audio, or must the alpha be local-only?
+2. Which CUA model/provider should power the planner loop for internal tests?
+3. Do we target macOS only for the next month, or design Windows abstractions now?
+4. What is the first daily-use scenario beyond Ghostty: browser research, Lark office work, Finder organization, or coding assistant orchestration?
 
 ## Recommended Next Move
 
