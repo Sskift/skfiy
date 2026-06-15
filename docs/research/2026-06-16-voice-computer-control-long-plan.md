@@ -227,7 +227,8 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] define `ObservedElement` schema with id, label, role, bounds, source for window-level observations
 - Implement element-targeted actions:
   - [x] resolve click target by observed element id for window-level elements
-  - click by coordinate only as fallback
+  - [x] click by coordinate only as fallback
+    - planner requires explicit `allowCoordinateFallback` before producing a raw coordinate click action
 - Add recovery policies:
   - [x] if app hidden, activate
     - Ghostty before-observe now performs one-shot activate recovery before typing
