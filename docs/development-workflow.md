@@ -119,6 +119,14 @@ Run from the compiled app bundle and verify:
 - Drag moves the pet across screen bounds.
 - Stop returns the pet to idle.
 
+Use the packaged app path and click the real desktop pet through the renderer DOM:
+
+```bash
+npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
+```
+
+This launches `dist/skfiy.app` via LaunchServices, clicks the pet, waits for the React permission onboarding state, and records the visible permission rows. A `passed` result requires `runnerHasTmux=false`, the product path `LaunchServices -> renderer DOM -> React permission onboarding`, `petClicked=true`, `onboardingVisible=true`, and Screen Recording, Accessibility, Microphone, and Speech Recognition rows in the overlay. If all permissions are already granted, the expected result is `no-onboarding`.
+
 ### Ghostty Computer Use Smoke
 
 Use only a skfiy-owned Ghostty context.
@@ -135,7 +143,7 @@ Preferred local command after `npm run build`:
 npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
 ```
 
-Run product smoke commands sequentially. `smoke:ghostty` and `smoke:voice` share a `.skfiy-smoke/product-smoke.lock` guard so concurrent packaged-app runs fail instead of producing contaminated cleanup evidence.
+Run product smoke commands sequentially. `smoke:ui`, `smoke:ghostty`, and `smoke:voice` share a `.skfiy-smoke/product-smoke.lock` guard so concurrent packaged-app runs fail instead of producing contaminated cleanup evidence.
 
 Use `npm run smoke:ghostty -- --require-passed` only when Screen Recording and Accessibility are already granted to `dist/skfiy.app`; otherwise the expected result is `blocked` with fail-closed evidence.
 The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, replay records, screenshot file sizes, and cleanup process checks. Use `--output <path>` to persist the exact JSON evidence for dogfood reports. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, a completed task event, and non-empty before/after screenshot files.

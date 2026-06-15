@@ -86,6 +86,7 @@ npm install
 npm test -- --run
 npm run typecheck
 npm run build
+npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
 npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
 npm run alpha:artifact -- --smoke-artifact .skfiy-smoke/ghostty-smoke.json
 ```

@@ -181,6 +181,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - app launched via `open` has no tw-dashboard permission prompt
   - left-click starts listening or gives actionable provider error
   - current packaged UI check on 2026-06-16: CDP-clicking the pet in `dist/skfiy.app` opened `权限引导` with Screen Recording, Accessibility, Microphone, and Speech Recognition rows when permissions were denied/not-determined
+  - repeatable packaged UI smoke now exists: `npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json`; it launches `dist/skfiy.app`, clicks the real renderer pet through DOM events, records onboarding visibility and permission rows, and shares the product smoke lock with Ghostty/voice runs
   - voice submit path now flows through renderer -> preload -> main `submit-dictation`, finalizes a voice session, then enters the existing Computer Use command path
   - browser ASR transcript updates now flow through renderer -> preload -> main `update-dictation-transcript` before submit
   - browser ASR auto-submit requires a final candidate and does not run low-confidence candidates
@@ -189,7 +190,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - product-path native voice smoke now records structured `speechStatus` through `window.skfiy.getNativeSpeechStatus("zh-CN")`, so Speech Recognition and Microphone readiness are machine-checkable in dogfood evidence
   - renderer permissions summary and settings now treat Speech Recognition as a first-class permission row, including a direct System Settings jump to `Privacy_SpeechRecognition`
   - current product-path native voice smoke on 2026-06-16: `npm run smoke:voice -- --output .skfiy-smoke/voice-native.json --listen-ms 1200` launched `dist/skfiy.app` via `open`, used `runnerHasTmux=false`, selected `native-macos` through preload, emitted provider `unavailable`, emitted task `failed`, and persisted result `blocked` because Speech Recognition was `not-determined` and Microphone was `not-determined`
-  - Ghostty and voice product smoke scripts now share `.skfiy-smoke/product-smoke.lock` so dogfood evidence is not contaminated by concurrent packaged-app runs
+  - UI, Ghostty, and voice product smoke scripts now share `.skfiy-smoke/product-smoke.lock` so dogfood evidence is not contaminated by concurrent packaged-app runs
   - stop always returns to idle
   - screenshots/click/key helper commands still pass
 
