@@ -56,7 +56,7 @@ function createDictationHelper(options: {
 }
 
 describe("readDoubaoVoiceTrigger", () => {
-  it("defaults to the Skfiy-owned trigger instead of touching Doubao native shortcuts", () => {
+  it("defaults to the skfiy-owned trigger instead of touching Doubao native shortcuts", () => {
     expect(readDoubaoVoiceTrigger({})).toBe("skfiy-shortcut");
   });
 
@@ -71,7 +71,7 @@ describe("readDoubaoVoiceTrigger", () => {
     expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "none" })).toBe("none");
   });
 
-  it("supports the Skfiy-owned voice shortcut explicitly", () => {
+  it("supports the skfiy-owned voice shortcut explicitly", () => {
     expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "skfiy-shortcut" })).toBe(
       "skfiy-shortcut"
     );
@@ -85,7 +85,7 @@ describe("readDoubaoVoiceTrigger", () => {
 });
 
 describe("prepareDoubaoDictation", () => {
-  it("selects Doubao and triggers the Skfiy-owned voice shortcut by default", async () => {
+  it("selects Doubao and triggers the skfiy-owned voice shortcut by default", async () => {
     const { calls, helper } = createDictationHelper();
 
     await prepareDoubaoDictation(helper, "skfiy-shortcut");
@@ -146,7 +146,7 @@ describe("prepareDoubaoDictation", () => {
 });
 
 describe("shouldStopDoubaoDictation", () => {
-  it("does not send a native stop key when Skfiy owns the trigger", () => {
+  it("does not send a native stop key when skfiy owns the trigger", () => {
     expect(shouldStopDoubaoDictation("skfiy-shortcut")).toBe(true);
   });
 

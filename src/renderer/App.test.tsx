@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App, { type SkfiyApi, type TaskEvent } from "./App";
+import App, { type DesktopApi, type TaskEvent } from "./App";
 
 let emitTaskEvent: (event: TaskEvent) => void;
 const speechRecognitionInstances: MockSpeechRecognition[] = [];
@@ -39,22 +39,22 @@ beforeEach(() => {
     MockSpeechRecognition as unknown as NonNullable<typeof window.webkitSpeechRecognition>;
 
   window.skfiy = {
-    runCommand: vi.fn<SkfiyApi["runCommand"]>().mockResolvedValue(undefined),
-    prepareDictation: vi.fn<SkfiyApi["prepareDictation"]>().mockResolvedValue({
+    runCommand: vi.fn<DesktopApi["runCommand"]>().mockResolvedValue(undefined),
+    prepareDictation: vi.fn<DesktopApi["prepareDictation"]>().mockResolvedValue({
       voiceTrigger: "none"
     }),
-    stopDictation: vi.fn<SkfiyApi["stopDictation"]>().mockResolvedValue(undefined),
-    approveTask: vi.fn<SkfiyApi["approveTask"]>().mockResolvedValue(undefined),
-    denyTask: vi.fn<SkfiyApi["denyTask"]>().mockResolvedValue(undefined),
-    takeScreenshot: vi.fn<SkfiyApi["takeScreenshot"]>().mockResolvedValue(undefined),
-    stopTask: vi.fn<SkfiyApi["stopTask"]>().mockResolvedValue(undefined),
-    moveWindowBy: vi.fn<SkfiyApi["moveWindowBy"]>(),
-    setWindowMode: vi.fn<SkfiyApi["setWindowMode"]>(),
+    stopDictation: vi.fn<DesktopApi["stopDictation"]>().mockResolvedValue(undefined),
+    approveTask: vi.fn<DesktopApi["approveTask"]>().mockResolvedValue(undefined),
+    denyTask: vi.fn<DesktopApi["denyTask"]>().mockResolvedValue(undefined),
+    takeScreenshot: vi.fn<DesktopApi["takeScreenshot"]>().mockResolvedValue(undefined),
+    stopTask: vi.fn<DesktopApi["stopTask"]>().mockResolvedValue(undefined),
+    moveWindowBy: vi.fn<DesktopApi["moveWindowBy"]>(),
+    setWindowMode: vi.fn<DesktopApi["setWindowMode"]>(),
     onTaskEvent: vi.fn((callback: (event: TaskEvent) => void) => {
       emitTaskEvent = callback;
       return vi.fn();
     })
-  } satisfies SkfiyApi;
+  } satisfies DesktopApi;
 });
 
 afterEach(() => {
@@ -93,7 +93,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("语音转写")).toHaveFocus();
     });
-    expect((window.skfiy as SkfiyApi).prepareDictation).toHaveBeenCalledTimes(1);
+    expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
     expect(speechRecognitionInstances).toHaveLength(1);
     expect(speechRecognitionInstances[0]).toMatchObject({
       continuous: true,
@@ -104,8 +104,8 @@ describe("App", () => {
   });
 
   it("uses native Doubao dictation without starting browser speech recognition", async () => {
-    (window.skfiy as SkfiyApi).prepareDictation = vi
-      .fn<SkfiyApi["prepareDictation"]>()
+    (window.skfiy as DesktopApi).prepareDictation = vi
+      .fn<DesktopApi["prepareDictation"]>()
       .mockResolvedValue({ voiceTrigger: "skfiy-shortcut" });
 
     render(<App />);
@@ -116,7 +116,7 @@ describe("App", () => {
       expect(screen.getByLabelText("语音转写")).toHaveFocus();
     });
     expect(speechRecognitionInstances).toHaveLength(0);
-    expect((window.skfiy as SkfiyApi).prepareDictation).toHaveBeenCalledTimes(1);
+    expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
   });
 
   it("opens settings details from a right click on the pet without starting dictation", () => {
@@ -126,7 +126,7 @@ describe("App", () => {
 
     expect(screen.getByLabelText(/skfiy settings/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
-    expect((window.skfiy as SkfiyApi).prepareDictation).not.toHaveBeenCalled();
+    expect((window.skfiy as DesktopApi).prepareDictation).not.toHaveBeenCalled();
   });
 
   it("switches from listening to settings on right click without sending a native stop key", async () => {
@@ -142,7 +142,7 @@ describe("App", () => {
 
     expect(screen.getByLabelText(/skfiy settings/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
-    expect((window.skfiy as SkfiyApi).stopDictation).not.toHaveBeenCalled();
+    expect((window.skfiy as DesktopApi).stopDictation).not.toHaveBeenCalled();
     expect(speechRecognitionInstances[0].stop).toHaveBeenCalledTimes(1);
   });
 
@@ -184,7 +184,7 @@ describe("App", () => {
     render(<App />);
 
     const pet = screen.getByLabelText(/skfiy codex-style pet/i);
-    const api = window.skfiy as SkfiyApi;
+    const api = window.skfiy as DesktopApi;
 
     fireEvent.pointerDown(pet, { button: 0, pointerId: 7, screenX: 100, screenY: 100 });
     fireEvent.pointerMove(pet, { pointerId: 7, screenX: 112, screenY: 42 });
@@ -202,7 +202,7 @@ describe("App", () => {
   it("uses a compact transparent window until a voice or task bubble is visible", async () => {
     render(<App />);
 
-    const api = window.skfiy as SkfiyApi;
+    const api = window.skfiy as DesktopApi;
     expect(screen.getByLabelText(/skfiy desktop pet/i)).not.toHaveClass("panel-open");
     expect(api.setWindowMode).toHaveBeenLastCalledWith("compact");
 
@@ -233,7 +233,7 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
-    expect((window.skfiy as SkfiyApi).prepareDictation).toHaveBeenCalledTimes(1);
+    expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
   });
 
   it("can manually stop dictation without submitting the current transcript", async () => {
@@ -249,8 +249,8 @@ describe("App", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "停止" }));
 
-    expect((window.skfiy as SkfiyApi).runCommand).not.toHaveBeenCalled();
-    expect((window.skfiy as SkfiyApi).stopDictation).toHaveBeenCalledTimes(1);
+    expect((window.skfiy as DesktopApi).runCommand).not.toHaveBeenCalled();
+    expect((window.skfiy as DesktopApi).stopDictation).toHaveBeenCalledTimes(1);
     expect(speechRecognitionInstances[0].stop).toHaveBeenCalledTimes(1);
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
@@ -294,7 +294,7 @@ describe("App", () => {
       vi.advanceTimersByTime(899);
     });
 
-    const api = window.skfiy as SkfiyApi;
+    const api = window.skfiy as DesktopApi;
     expect(api.runCommand).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -312,7 +312,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "确认" }));
     fireEvent.click(screen.getByRole("button", { name: "拒绝" }));
 
-    const api = window.skfiy as SkfiyApi;
+    const api = window.skfiy as DesktopApi;
     expect(api.approveTask).toHaveBeenCalledTimes(1);
     expect(api.denyTask).toHaveBeenCalledTimes(1);
   });

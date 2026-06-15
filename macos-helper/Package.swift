@@ -8,11 +8,11 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "skfiy-helper", targets: ["SkfiyHelper"])
+        .executable(name: "skfiy-helper", targets: ["skfiyHelper"])
     ],
     targets: [
         .executableTarget(
-            name: "SkfiyHelper",
+            name: "skfiyHelper",
             path: "Sources/skfiy-helper",
             linkerSettings: [
                 .linkedFramework("AppKit"),

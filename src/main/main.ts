@@ -236,7 +236,7 @@ async function createWindow() {
     skipTaskbar: true,
     hasShadow: false,
     backgroundColor: "#00000000",
-    title: "Skfiy",
+    title: "skfiy",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

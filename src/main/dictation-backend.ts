@@ -49,7 +49,7 @@ export async function prepareDoubaoDictation(
   if (voiceTrigger === "skfiy-shortcut") {
     await runDictationStep(
       () => helper.pressShortcut(SKFIY_DOUBAO_SHORTCUT_KEY, SKFIY_DOUBAO_SHORTCUT_MODIFIERS),
-      "Could not trigger Skfiy Doubao voice shortcut"
+      "Could not trigger skfiy Doubao voice shortcut"
     );
   } else if (voiceTrigger === "fn-double-tap") {
     await runDictationStep(

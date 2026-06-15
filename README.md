@@ -1,6 +1,6 @@
-# Skfiy
+# skfiy
 
-Skfiy is a macOS desktop Computer Use prototype focused on Ghostty control,
+skfiy is a macOS desktop Computer Use prototype focused on Ghostty control,
 screen observation, and explicit user approval.
 
 The first version is intentionally narrow: observe the desktop, activate
@@ -26,16 +26,16 @@ The app needs two system permissions before it can behave like Computer Use:
   focus changes.
 
 Open **System Settings > Privacy & Security** and grant both permissions to the
-terminal or app process running Skfiy during local development.
+terminal or app process running skfiy during local development.
 
 ## Doubao Dictation
 
-Left-click the desktop pet to enter Skfiy's dictation flow. Right-click the pet
-for settings details. By default Skfiy selects Doubao Input Method as the text
-bridge and sends a Skfiy-owned voice shortcut:
+Left-click the desktop pet to enter skfiy's dictation flow. Right-click the pet
+for settings details. By default skfiy selects Doubao Input Method as the text
+bridge and sends a skfiy-owned voice shortcut:
 `Control+Option+Command+Shift+Space`. Configure Doubao Input Method's voice
 shortcut to the same chord if you want Doubao's native speech recognition to
-write into Skfiy's transcript area.
+write into skfiy's transcript area.
 
 Set `SKFIY_DOUBAO_VOICE_TRIGGER=none` to disable native shortcut triggering and
 fall back to Chromium Web Speech. That browser engine can fail with a `network`
@@ -46,7 +46,7 @@ trigger.
 
 ## Safety Model
 
-Skfiy treats terminal control as higher risk than normal GUI automation.
+skfiy treats terminal control as higher risk than normal GUI automation.
 
 - Read-only commands such as `pwd`, `ls`, `date`, and `whoami` can run without
   an extra approval pause.
@@ -58,7 +58,7 @@ Skfiy treats terminal control as higher risk than normal GUI automation.
 
 ## Development
 
-Skfiy has a mandatory workflow contract for user-facing tests:
+skfiy has a mandatory workflow contract for user-facing tests:
 [docs/development-workflow.md](docs/development-workflow.md).
 
 Important: `npm start`, Vite, direct Electron launches, `tmux`, and shell

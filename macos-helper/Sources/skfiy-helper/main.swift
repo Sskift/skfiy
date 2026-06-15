@@ -332,7 +332,7 @@ func requireAccessibilityTrust(for action: String) throws {
     guard AXIsProcessTrustedWithOptions(options) else {
         throw HelperFailure(
             "accessibility_permission_required",
-            "Accessibility permission is required. Grant it to Skfiy or the terminal running Skfiy, then try again.",
+            "Accessibility permission is required. Grant it to skfiy or the terminal running skfiy, then try again.",
             details: ["action": .string(action)]
         )
     }

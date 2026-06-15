@@ -15,7 +15,7 @@ interface DictationPreparation {
   voiceTrigger: DoubaoVoiceTrigger;
 }
 
-interface SkfiyApi {
+interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
   stopDictation: () => Promise<void>;
@@ -46,7 +46,7 @@ function isTaskEvent(value: unknown): value is TaskEvent {
   return typeof candidate.status === "string" && taskStatuses.has(candidate.status);
 }
 
-const api: SkfiyApi = {
+const api: DesktopApi = {
   async runCommand(command, options) {
     await ipcRenderer.invoke("skfiy:run-command", command, options);
   },

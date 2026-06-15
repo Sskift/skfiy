@@ -1,10 +1,10 @@
-# Skfiy Voice Computer Control Research and Long Plan
+# skfiy Voice Computer Control Research and Long Plan
 
 Date: 2026-06-16
 
 ## Positioning
 
-Skfiy should not be "a chat input floating on the desktop". The product shape is a voice-first desktop companion that can become the primary entry point for complex computer work after the user grants explicit control permissions.
+skfiy should not be "a chat input floating on the desktop". The product shape is a voice-first desktop companion that can become the primary entry point for complex computer work after the user grants explicit control permissions.
 
 The durable wedge is not the pet itself, nor dictation alone. The wedge is: voice intent -> grounded desktop observation -> safe action loop -> visible status/recovery. This is the gap between AIME-style assistant/chat workflows and Codex-style Computer Use.
 
@@ -23,11 +23,11 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 ### Internal
 
 - AIME desktop already covers local file/coding workflows, cross-end context, and browser control through a Chrome extension. Internal search also shows AIME Buddy as a desktop pet for task notification and multi-agent companionship.
-- AIME does not appear to cover broad system-level GUI automation across arbitrary native macOS apps. That remains Skfiy's defensible gap.
+- AIME does not appear to cover broad system-level GUI automation across arbitrary native macOS apps. That remains skfiy's defensible gap.
 - Internal Computer-Using Agent material converges on the same architecture: perception -> reasoning -> execution, with screenshot, accessibility/DOM trees, OCR, and structured interactive elements as complementary observation channels.
 - Internal AIME/Computer Use research points to Ghostty as a reasonable first native app target, but only if we isolate the terminal state. Blindly typing into the current Ghostty window is not acceptable because it may be a Codex TUI, shell, editor, or anything else.
-- Doubao Input Method is valuable for first voice entry because it already has production ASR and custom shortcuts. But it is not a stable API. Internal search confirms voice shortcut customization and Hammerspoon-style bridging, so Skfiy should treat Doubao as one ASR/input provider, not as the whole voice architecture.
-- Internal feishu_asr experience reinforces the right decomposition: hotkey/trigger, audio capture, ASR call, text injection, floating panel. Skfiy needs the same separation plus a Computer Use loop.
+- Doubao Input Method is valuable for first voice entry because it already has production ASR and custom shortcuts. But it is not a stable API. Internal search confirms voice shortcut customization and Hammerspoon-style bridging, so skfiy should treat Doubao as one ASR/input provider, not as the whole voice architecture.
+- Internal feishu_asr experience reinforces the right decomposition: hotkey/trigger, audio capture, ASR call, text injection, floating panel. skfiy needs the same separation plus a Computer Use loop.
 
 ## Current Defects
 
@@ -117,7 +117,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 
 - Ghostty first:
   - Detect whether current window is shell, Codex TUI, editor, or unknown.
-  - Prefer opening a dedicated Skfiy shell tab/window/session.
+  - Prefer opening a dedicated skfiy shell tab/window/session.
   - Read terminal state via screenshots plus optional shell markers.
   - Never type into unknown foreground terminal without confirmation.
 - Chrome second:
@@ -172,7 +172,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
 Goal: make the first native app scenario reliable enough to demo without embarrassing blind typing.
 
 - Create a dedicated Ghostty session strategy:
-  - open new Ghostty window/tab for Skfiy
+  - open new Ghostty window/tab for skfiy
   - label prompt with a marker
   - refuse to type into Codex TUI/editor/unknown state
 - Add `observe_app` replay records with screenshot paths and accessibility trust.
@@ -194,7 +194,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - `rm -rf` requires approval and defaults to deny
 - Week-2 demo criteria:
   - user says "打开 Ghostty 执行 pwd 并截图"
-  - Skfiy opens/uses its own Ghostty context
+  - skfiy opens/uses its own Ghostty context
   - captures before/after screenshots
   - shows status on pet
   - does not type into unrelated terminal UI
@@ -247,11 +247,11 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
 - Compare against AIME:
   - AIME Buddy overlap: pet/status/notification
   - AIME Chrome Extension overlap: browser control
-  - Skfiy gap: native app system-level Computer Use
+  - skfiy gap: native app system-level Computer Use
 - Decide integration path:
-  - Option A: Skfiy as standalone experimental shell.
-  - Option B: Skfiy as AIME native Computer Use plugin.
-  - Option C: Skfiy only provides helper/runtime, AIME owns UX.
+  - Option A: skfiy as standalone experimental shell.
+  - Option B: skfiy as AIME native Computer Use plugin.
+  - Option C: skfiy only provides helper/runtime, AIME owns UX.
 - Internal dogfood with 3-5 users:
   - coding terminal workflow
   - screenshot inspection workflow
@@ -278,7 +278,7 @@ With one engineer, the same scope is closer to 6-8 weeks because packaging, ASR,
 
 ## Open Questions
 
-1. Should the long-term owner be Skfiy standalone or AIME plugin?
+1. Should the long-term owner be skfiy standalone or AIME plugin?
 2. Are we allowed to use internal/cloud ASR for dogfood audio, or must the alpha be local-only?
 3. Which CUA model/provider should power the planner loop for internal tests?
 4. Do we target macOS only for the next month, or design Windows abstractions now?
@@ -294,7 +294,7 @@ Do not add more random UI features. The next implementation milestone should be:
 4. Build minimal observe-plan-act-verify loop with replay logs.
 5. Keep voice provider pluggable and make Doubao setup explicit.
 
-This gives us a real Computer Use foundation and a clear competitive story against AIME: AIME owns assistant workflows and browser extension control; Skfiy proves native desktop control with voice-first, pet-visible, permissioned execution.
+This gives us a real Computer Use foundation and a clear competitive story against AIME: AIME owns assistant workflows and browser extension control; skfiy proves native desktop control with voice-first, pet-visible, permissioned execution.
 
 ## Sources Checked
 

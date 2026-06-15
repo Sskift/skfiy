@@ -32,7 +32,7 @@ export interface TaskEvent {
   command?: string;
 }
 
-export interface SkfiyApi {
+export interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
   stopDictation: () => Promise<void>;
@@ -80,7 +80,7 @@ type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 
 declare global {
   interface Window {
-    skfiy?: SkfiyApi;
+    skfiy?: DesktopApi;
     SpeechRecognition?: BrowserSpeechRecognitionConstructor;
     webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
   }
@@ -131,7 +131,7 @@ const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: s
   }
 };
 
-const fallbackApi: SkfiyApi = {
+const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
   prepareDictation: async () => ({ voiceTrigger: "none" }),
   stopDictation: async () => undefined,
@@ -146,7 +146,7 @@ const fallbackApi: SkfiyApi = {
 
 const DICTATION_AUTO_SUBMIT_DELAY_MS = 900;
 
-function getSkfiyApi(): SkfiyApi {
+function getDesktopApi(): DesktopApi {
   return window.skfiy ?? fallbackApi;
 }
 
@@ -167,7 +167,7 @@ function readSpeechTranscript(event: BrowserSpeechRecognitionResultEvent): strin
   return parts.join("").trim();
 }
 
-function SkfiyPet({
+function DesktopPet({
   state,
   onClick,
   onContextMenu,
@@ -186,7 +186,7 @@ function SkfiyPet({
 
   return (
     <div
-      aria-label="Skfiy Codex-style pet"
+      aria-label="skfiy Codex-style pet"
       className={`skfiy-pet pet-state-${state}`}
       data-atlas-state={state}
       data-frame-count={animation.frames}
@@ -207,7 +207,7 @@ function SkfiyPet({
 }
 
 export default function App() {
-  const api = useMemo(getSkfiyApi, []);
+  const api = useMemo(getDesktopApi, []);
   const [dictationText, setDictationText] = useState("");
   const [listening, setListening] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -525,7 +525,7 @@ export default function App() {
   return (
     <main
       className={`pet-stage status-${task.status}${listening ? " listening" : ""}${showPanel ? " panel-open" : ""}`}
-      aria-label="Skfiy desktop pet"
+      aria-label="skfiy desktop pet"
     >
       <div className="status-orb" role="status" aria-label="Task status">
         <strong>{status.label}</strong>
@@ -535,7 +535,7 @@ export default function App() {
       {showPanel ? (
         <section
           className={`voice-bubble${detailsOpen ? " settings-bubble" : ""}`}
-          aria-label={detailsOpen ? "Skfiy settings" : "Skfiy voice status"}
+          aria-label={detailsOpen ? "skfiy settings" : "skfiy voice status"}
         >
           {detailsOpen ? (
             <>
@@ -544,7 +544,7 @@ export default function App() {
                 <span>入口</span>
                 <strong>左键</strong>
                 <span>豆包</span>
-                <strong>Skfiy 快捷键</strong>
+                <strong>skfiy 快捷键</strong>
                 <span>组合键</span>
                 <strong>Ctrl Opt Cmd Shift Space</strong>
               </div>
@@ -589,7 +589,7 @@ export default function App() {
         </section>
       ) : null}
 
-      <SkfiyPet
+      <DesktopPet
         state={petState}
         onClick={startDictationFromPet}
         onContextMenu={toggleDetailsFromPet}
