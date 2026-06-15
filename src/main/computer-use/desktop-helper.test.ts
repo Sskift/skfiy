@@ -293,7 +293,16 @@ describe("DesktopHelperClient", () => {
               processIdentifier: 4312,
               isActive: false
             },
-            screenshot: { output: "/tmp/state.png" }
+            frontmostBundleId: "com.mitchellh.ghostty",
+            accessibilityTrusted: true,
+            screenshot: { output: "/tmp/state.png" },
+            windows: [
+              {
+                title: "skfiy-shell",
+                layer: 0,
+                bounds: { x: 10, y: 20, width: 640, height: 480 }
+              }
+            ]
           }
         }),
         stderr: "",
@@ -312,7 +321,16 @@ describe("DesktopHelperClient", () => {
       bundleId: "com.mitchellh.ghostty",
       isRunning: true,
       isActive: false,
-      screenshotPath: "/tmp/state.png"
+      screenshotPath: "/tmp/state.png",
+      frontmostBundleId: "com.mitchellh.ghostty",
+      accessibilityTrusted: true,
+      windows: [
+        {
+          title: "skfiy-shell",
+          layer: 0,
+          bounds: { x: 10, y: 20, width: 640, height: 480 }
+        }
+      ]
     });
   });
 

@@ -66,6 +66,22 @@ export interface DesktopAppState {
   isRunning: boolean;
   isActive: boolean;
   screenshotPath: string;
+  frontmostBundleId?: string;
+  accessibilityTrusted?: boolean;
+  windows?: DesktopWindowInfo[];
+}
+
+export interface DesktopWindowInfo {
+  title?: string;
+  layer: number;
+  bounds: DesktopWindowBounds;
+}
+
+export interface DesktopWindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface WaitResult {

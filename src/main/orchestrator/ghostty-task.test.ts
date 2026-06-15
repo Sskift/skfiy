@@ -30,7 +30,16 @@ function createDesktopClient(): DesktopClient & { executeAction: ReturnType<type
             bundleId: action.bundleId,
             isRunning: true,
             isActive: true,
-            screenshotPath: action.screenshotOutputPath
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.mitchellh.ghostty",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: "skfiy-shell",
+                layer: 0,
+                bounds: { x: 10, y: 20, width: 640, height: 480 }
+              }
+            ]
           };
         case "screenshot":
           return { outputPath: action.outputPath };
@@ -65,6 +74,30 @@ describe("runGhosttyCommandTask", () => {
       "screenshot_after",
       "completed"
     ]);
+    expect(events.find((event) => event.type === "screenshot_before")).toMatchObject({
+      type: "screenshot_before",
+      path: "/tmp/before.png",
+      observation: {
+        screenshotPath: "/tmp/before.png",
+        frontmostBundleId: "com.mitchellh.ghostty",
+        accessibilityTrusted: true,
+        windows: [
+          {
+            title: "skfiy-shell",
+            layer: 0,
+            bounds: { x: 10, y: 20, width: 640, height: 480 }
+          }
+        ]
+      }
+    });
+    expect(events.find((event) => event.type === "screenshot_after")).toMatchObject({
+      type: "screenshot_after",
+      path: "/tmp/after.png",
+      observation: {
+        screenshotPath: "/tmp/after.png",
+        accessibilityTrusted: true
+      }
+    });
     expect(client.listApps).toHaveBeenCalledTimes(1);
     expect(client.executeAction).toHaveBeenNthCalledWith(1, {
       type: "activate_app",

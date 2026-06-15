@@ -76,6 +76,27 @@ export interface TaskEvent {
   status: TaskStatus;
   message?: string;
   command?: string;
+  replayRecord?: ObserveAppReplayRecord;
+}
+
+export interface ObserveAppReplayRecord {
+  stage: "before" | "after";
+  bundleId: string;
+  isRunning: boolean;
+  isActive: boolean;
+  screenshotPath: string;
+  frontmostBundleId?: string;
+  accessibilityTrusted?: boolean;
+  windows?: Array<{
+    title?: string;
+    layer: number;
+    bounds: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  }>;
 }
 
 export interface DesktopApi {

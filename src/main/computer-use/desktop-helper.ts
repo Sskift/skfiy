@@ -7,6 +7,7 @@ import type {
   DesktopHelperActionResult,
   DesktopHelperClientOptions,
   DesktopHelperProcessResult,
+  DesktopWindowInfo,
   PermissionSettingsTarget,
   PermissionState,
   PermissionSummary,
@@ -346,7 +347,10 @@ function readAppState(payload: unknown, commandName: string): DesktopAppState {
       isActive: readBoolean(record.app, "isActive", commandName),
       screenshotPath:
         readOptionalString(screenshot, "screenshotPath", commandName)
-        ?? readString(screenshot, "output", commandName)
+        ?? readString(screenshot, "output", commandName),
+      frontmostBundleId: readOptionalString(record, "frontmostBundleId", commandName),
+      accessibilityTrusted: readOptionalBoolean(record, "accessibilityTrusted", commandName),
+      windows: readOptionalWindows(record, commandName)
     };
   }
 
@@ -354,7 +358,43 @@ function readAppState(payload: unknown, commandName: string): DesktopAppState {
     bundleId: readString(record, "bundleId", commandName),
     isRunning: readBoolean(record, "isRunning", commandName),
     isActive: readBoolean(record, "isActive", commandName),
-    screenshotPath: readString(record, "screenshotPath", commandName)
+    screenshotPath: readString(record, "screenshotPath", commandName),
+    frontmostBundleId: readOptionalString(record, "frontmostBundleId", commandName),
+    accessibilityTrusted: readOptionalBoolean(record, "accessibilityTrusted", commandName),
+    windows: readOptionalWindows(record, commandName)
+  };
+}
+
+function readOptionalWindows(
+  record: Record<string, unknown>,
+  commandName: string
+): DesktopWindowInfo[] | undefined {
+  const windows = record.windows;
+
+  if (windows === undefined || windows === null) {
+    return undefined;
+  }
+
+  if (!Array.isArray(windows)) {
+    throw invalidShape(commandName, "expected windows to be an array when provided");
+  }
+
+  return windows.map((window) => readWindowInfo(window, commandName));
+}
+
+function readWindowInfo(payload: unknown, commandName: string): DesktopWindowInfo {
+  const record = readRecord(payload, commandName);
+  const bounds = readRecord(record.bounds, commandName);
+
+  return {
+    title: readOptionalString(record, "title", commandName),
+    layer: readNumber(record, "layer", commandName),
+    bounds: {
+      x: readNumber(bounds, "x", commandName),
+      y: readNumber(bounds, "y", commandName),
+      width: readNumber(bounds, "width", commandName),
+      height: readNumber(bounds, "height", commandName)
+    }
   };
 }
 
@@ -504,6 +544,38 @@ function readBoolean(
 
   if (typeof value !== "boolean") {
     throw invalidShape(commandName, `expected ${key} to be a boolean`);
+  }
+
+  return value;
+}
+
+function readOptionalBoolean(
+  record: Record<string, unknown>,
+  key: string,
+  commandName: string
+): boolean | undefined {
+  const value = record[key];
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "boolean") {
+    throw invalidShape(commandName, `expected ${key} to be a boolean when provided`);
+  }
+
+  return value;
+}
+
+function readNumber(
+  record: Record<string, unknown>,
+  key: string,
+  commandName: string
+): number {
+  const value = record[key];
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw invalidShape(commandName, `expected ${key} to be a finite number`);
   }
 
   return value;

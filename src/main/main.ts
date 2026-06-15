@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type {
   DesktopActionResult,
+  DesktopAppState,
   PermissionSettingsTarget
 } from "./computer-use/types.js";
 import {
@@ -43,11 +44,16 @@ interface TaskEvent {
   status: TaskStatus;
   message?: string;
   command?: string;
+  replayRecord?: ObserveAppReplayRecord;
 }
 
 interface PendingApproval {
   command: string;
   mode: ManualMode;
+}
+
+interface ObserveAppReplayRecord extends DesktopAppState {
+  stage: "before" | "after";
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -142,7 +148,8 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
     case "screenshot_before":
       return {
         status: "observing",
-        message: `${prefix}Captured before screenshot: ${event.path}`
+        message: `${prefix}Captured before screenshot: ${event.path}`,
+        replayRecord: createObserveAppReplayRecord("before", event.observation)
       };
     case "typing":
       return {
@@ -157,7 +164,8 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
     case "screenshot_after":
       return {
         status: "observing",
-        message: `${prefix}Captured after screenshot: ${event.path}`
+        message: `${prefix}Captured after screenshot: ${event.path}`,
+        replayRecord: createObserveAppReplayRecord("after", event.observation)
       };
     case "completed":
       return {
@@ -169,6 +177,16 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
   return {
     status: "failed",
     message: "Unknown task event."
+  };
+}
+
+function createObserveAppReplayRecord(
+  stage: "before" | "after",
+  observation: DesktopAppState
+): ObserveAppReplayRecord {
+  return {
+    ...observation,
+    stage
   };
 }
 

@@ -103,7 +103,8 @@ export async function* runGhosttyCommandTask(
   );
   yield {
     type: "screenshot_before",
-    path: before.screenshotPath
+    path: before.screenshotPath,
+    observation: before
   };
 
   if (isAborted(options.signal)) {
@@ -150,7 +151,8 @@ export async function* runGhosttyCommandTask(
   );
   yield {
     type: "screenshot_after",
-    path: after.screenshotPath
+    path: after.screenshotPath,
+    observation: after
   };
 
   yield {

@@ -1,4 +1,5 @@
 import type { RiskDecision } from "../../shared/types.js";
+import type { DesktopAppState } from "../computer-use/types.js";
 
 export type GhosttyTaskEvent =
   | {
@@ -23,6 +24,7 @@ export type GhosttyTaskEvent =
   | {
       type: "screenshot_before";
       path: string;
+      observation: DesktopAppState;
     }
   | {
       type: "typing";
@@ -35,6 +37,7 @@ export type GhosttyTaskEvent =
   | {
       type: "screenshot_after";
       path: string;
+      observation: DesktopAppState;
     }
   | {
       type: "completed";

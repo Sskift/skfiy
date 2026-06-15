@@ -20,6 +20,27 @@ interface TaskEvent {
   status: TaskStatus;
   message?: string;
   command?: string;
+  replayRecord?: ObserveAppReplayRecord;
+}
+
+interface ObserveAppReplayRecord {
+  stage: "before" | "after";
+  bundleId: string;
+  isRunning: boolean;
+  isActive: boolean;
+  screenshotPath: string;
+  frontmostBundleId?: string;
+  accessibilityTrusted?: boolean;
+  windows?: Array<{
+    title?: string;
+    layer: number;
+    bounds: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  }>;
 }
 
 interface DictationPreparation {
