@@ -59,7 +59,8 @@ describe("alpha artifact packaging", () => {
   it("creates a dogfood manifest with checksum and required smoke evidence fields", async () => {
     const modulePath = path.join(process.cwd(), "scripts/create-alpha-artifact.mjs");
     const {
-      createAlphaManifest
+      createAlphaManifest,
+      parseAlphaArtifactArgs
     } = await import(pathToFileURL(modulePath).href) as {
       createAlphaManifest: (input: {
         plan: {
@@ -75,8 +76,29 @@ describe("alpha artifact packaging", () => {
         sha256: string;
         zipBytes: number;
         smokeArtifactPath?: string;
+        voiceSmokeArtifactPath?: string;
       }) => Record<string, unknown>;
+      parseAlphaArtifactArgs: (
+        argv: string[],
+        defaults: Record<string, unknown>
+      ) => Record<string, unknown>;
     };
+
+    expect(parseAlphaArtifactArgs([
+      "--smoke-artifact",
+      ".skfiy-smoke/ghostty-matrix.json",
+      "--voice-smoke-artifact",
+      ".skfiy-smoke/voice-native.json"
+    ], {
+      appPath: "/repo/dist/skfiy.app",
+      outputDir: "/repo/.skfiy-alpha",
+      smokeArtifactPath: undefined,
+      voiceSmokeArtifactPath: undefined,
+      help: false
+    })).toMatchObject({
+      smokeArtifactPath: path.resolve(".skfiy-smoke/ghostty-matrix.json"),
+      voiceSmokeArtifactPath: path.resolve(".skfiy-smoke/voice-native.json")
+    });
 
     expect(createAlphaManifest({
       plan: {
@@ -91,7 +113,8 @@ describe("alpha artifact packaging", () => {
       createdAt: "2026-06-16T00:00:00.000Z",
       sha256: "f".repeat(64),
       zipBytes: 4096,
-      smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json"
+      smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
+      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json"
     })).toMatchObject({
       schemaVersion: 1,
       appName: "skfiy",
@@ -106,8 +129,10 @@ describe("alpha artifact packaging", () => {
         sha256: "f".repeat(64)
       },
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
+      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json",
       requiredDogfoodEvidence: [
         "npm run smoke:ghostty -- --output <path>",
+        "npm run smoke:voice -- --output <path>",
         "Screen Recording permission state",
         "Accessibility permission state",
         "Microphone or ASR provider state",

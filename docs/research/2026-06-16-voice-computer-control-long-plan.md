@@ -297,7 +297,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
 
 - [x] Build signed/notarized alpha package or documented unsigned internal build.
   - documented current unsigned internal build path in `docs/internal-alpha-build.md`; signing/notarization remains required before broader release
-  - unsigned local dogfood artifacts now use `npm run alpha:artifact`, producing a versioned `.zip` plus manifest with commit SHA, bundle id, signing/notarization state, SHA256 checksum, and optional smoke artifact path
+  - unsigned local dogfood artifacts now use `npm run alpha:artifact`, producing a versioned `.zip` plus manifest with commit SHA, bundle id, signing/notarization state, SHA256 checksum, optional Ghostty smoke artifact path, and optional native voice smoke artifact path
   - GitHub dogfood issue form now requires alpha manifest, alpha zip, commit SHA, Ghostty smoke artifact, voice smoke artifact, `runnerHasTmux`, permission states, ASR provider, Computer Use result, screenshot paths, and panic stop notes
 - [x] Add app allowlist/denylist UI.
   - settings panel now exposes allow/ask/deny policies for Ghostty, Chrome, and Finder; Ghostty defaults to allow for the current product smoke path, while ask/deny can gate Computer Use before touching the app

@@ -31,7 +31,9 @@ dist/skfiy.app/Contents/Resources/skfiy-helper
 Create a local unsigned dogfood artifact after `npm run build`:
 
 ```bash
-npm run alpha:artifact -- --smoke-artifact .skfiy-smoke/ghostty-matrix-9260.json
+npm run alpha:artifact \
+  -- --smoke-artifact .skfiy-smoke/ghostty-matrix-9260.json \
+  --voice-smoke-artifact .skfiy-smoke/voice-native.json
 ```
 
 This writes a versioned zip and manifest to `.skfiy-alpha/`, for example:
@@ -41,7 +43,7 @@ This writes a versioned zip and manifest to `.skfiy-alpha/`, for example:
 .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-The manifest records the exact commit SHA, bundle identifier, unsigned/notarized state, zip byte size, SHA256 checksum, and the smoke artifact path used for dogfood evidence.
+The manifest records the exact commit SHA, bundle identifier, unsigned/notarized state, zip byte size, SHA256 checksum, the Ghostty smoke artifact path, and the native voice smoke artifact path used for dogfood evidence.
 
 ## Launch
 

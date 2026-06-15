@@ -13,6 +13,7 @@ const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
 const DOGFOOD_EVIDENCE = [
   "npm run smoke:ghostty -- --output <path>",
+  "npm run smoke:voice -- --output <path>",
   "Screen Recording permission state",
   "Accessibility permission state",
   "Microphone or ASR provider state",
@@ -53,7 +54,8 @@ export function createAlphaManifest({
   createdAt,
   sha256,
   zipBytes,
-  smokeArtifactPath
+  smokeArtifactPath,
+  voiceSmokeArtifactPath
 }) {
   return {
     schemaVersion: 1,
@@ -73,6 +75,7 @@ export function createAlphaManifest({
       sha256
     },
     smokeArtifactPath,
+    voiceSmokeArtifactPath,
     requiredDogfoodEvidence: DOGFOOD_EVIDENCE
   };
 }
@@ -96,6 +99,10 @@ export function parseAlphaArtifactArgs(argv, defaults) {
         options.smokeArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
+      case "--voice-smoke-artifact":
+        options.voiceSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
       case "--help":
       case "-h":
         options.help = true;
@@ -117,6 +124,8 @@ Options:
   --app <path>              App bundle path. Default: ${defaults.appPath}
   --output-dir <path>       Artifact directory. Default: ${defaults.outputDir}
   --smoke-artifact <path>   Smoke JSON artifact to reference in the manifest.
+  --voice-smoke-artifact <path>
+                            Native voice smoke JSON artifact to reference in the manifest.
   -h, --help                Show this help.
 `;
 }
@@ -133,6 +142,7 @@ export async function createAlphaArtifact({
     appPath: defaults.appPath,
     outputDir: defaults.outputDir,
     smokeArtifactPath: undefined,
+    voiceSmokeArtifactPath: undefined,
     help: false
   });
 
@@ -165,7 +175,8 @@ export async function createAlphaArtifact({
     createdAt: now(),
     sha256,
     zipBytes: zipStats.size,
-    smokeArtifactPath: options.smokeArtifactPath
+    smokeArtifactPath: options.smokeArtifactPath,
+    voiceSmokeArtifactPath: options.voiceSmokeArtifactPath
   });
   await io.writeFile(plan.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
