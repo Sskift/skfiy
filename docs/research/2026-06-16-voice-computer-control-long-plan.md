@@ -210,7 +210,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
   - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
-  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9243` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Accessibility, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
+  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9245` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Accessibility, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
   - repeat command: `npm run smoke:ghostty`
   - repeat matrix command: `npm run smoke:ghostty -- --matrix`
 - Week-2 demo criteria:
@@ -281,13 +281,15 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - transcript aggregation exists for Computer Use turn events; UI/replay viewer can consume the model next
 - [x] Add local replay viewer for debugging.
   - main process stores the latest Computer Use turn transcript plus renderer-visible timeline; right-click settings exposes command, risk, action list, screenshot paths, and event timeline for local debugging
+  - external planner turns now preserve provider, planned command, and rationale in the per-turn transcript before execution actions
 - [x] Add model/provider config:
   - [x] local deterministic adapter mode
   - [x] external CUA model mode
   - [x] disabled/offline mode
   - planner provider settings now flow through main IPC, preload, and the right-click settings panel
   - runtime gate runs local deterministic mode, fails closed when disabled, verifies external CUA endpoint/key configuration, and can call an external terminal planner before entering the Ghostty safety/execution chain
-  - current external CUA product smoke on 2026-06-16: `npm run smoke:ghostty -- --planner-mode external-cua --port 9240` failed closed before helper/Ghostty because `SKFIY_EXTERNAL_CUA_ENDPOINT` was unset, with `runnerHasTmux=false` and no residual processes after cleanup
+  - external CUA planner rationale is recorded in the local replay transcript so model decisions remain inspectable during product smoke runs
+  - current external CUA product smoke on 2026-06-16: `npm run smoke:ghostty -- --planner-mode external-cua --port 9244` failed closed before helper/Ghostty because `SKFIY_EXTERNAL_CUA_ENDPOINT` was unset, with `runnerHasTmux=false` and no residual processes after cleanup
 - Compare against AIME:
   - AIME Buddy overlap: pet/status/notification
   - AIME Chrome Extension overlap: browser control

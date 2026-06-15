@@ -171,6 +171,44 @@ describe("createTurnTranscript", () => {
     });
   });
 
+  it("records planner rationale before execution actions", () => {
+    expect(createTurnTranscript([
+      {
+        type: "planner_resolved",
+        providerLabel: "External CUA",
+        input: "打开 Ghostty 执行 pwd 并截图",
+        command: "pwd",
+        rationale: "Read the current working directory."
+      },
+      {
+        type: "started",
+        command: "pwd",
+        risk: {
+          level: "low",
+          reason: "Read-only terminal command.",
+          requiresApproval: false
+        }
+      },
+      { type: "typing", command: "pwd" }
+    ])).toMatchObject({
+      command: "pwd",
+      planner: {
+        providerLabel: "External CUA",
+        input: "打开 Ghostty 执行 pwd 并截图",
+        command: "pwd",
+        rationale: "Read the current working directory."
+      },
+      actions: [
+        {
+          type: "plan",
+          providerLabel: "External CUA",
+          command: "pwd"
+        },
+        { type: "type_text", text: "pwd" }
+      ]
+    });
+  });
+
   it("uses OCR labels as screenshot grounding when accessibility is blocked", () => {
     expect(createTurnTranscript([
       {

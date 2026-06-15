@@ -87,7 +87,7 @@ SKFIY_EXTERNAL_CUA_API_KEY=... \
 open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app
 ```
 
-The external endpoint receives a JSON task request for the Ghostty terminal-command capability and must return a single-line terminal command, for example `{ "command": "pwd" }`. skfiy redacts the API key in renderer settings and still routes the planned command through the local risk, approval, Ghostty isolation, screenshot, and replay path.
+The external endpoint receives a JSON task request for the Ghostty terminal-command capability and must return a single-line terminal command, for example `{ "command": "pwd" }`. skfiy redacts the API key in renderer settings, records the planner provider/command/rationale in the local replay transcript, and still routes the planned command through the local risk, approval, Ghostty isolation, screenshot, and replay path.
 
 ## Distribution Notes
 

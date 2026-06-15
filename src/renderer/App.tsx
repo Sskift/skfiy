@@ -86,6 +86,12 @@ export interface TurnTranscript {
     reason: string;
     requiresApproval: boolean;
   };
+  planner?: {
+    providerLabel: string;
+    input: string;
+    command: string;
+    rationale?: string;
+  };
   approvalRequired: boolean;
   apps: Array<{
     name: string;
@@ -119,6 +125,9 @@ export interface TurnTranscript {
     action?: string;
     stage?: string;
     reason?: string;
+    providerLabel?: string;
+    command?: string;
+    rationale?: string;
   }>;
   outcome: TurnTranscriptOutcome;
 }
@@ -511,6 +520,10 @@ function LocalReplayViewer({ replay }: { replay: TurnReplay | null }) {
             <span>风险</span>
             <strong>{transcript.risk?.level ?? "unknown"}</strong>
           </div>
+          <ReplayList
+            title="规划"
+            items={transcript.planner ? [formatReplayPlanner(transcript.planner)] : []}
+          />
           <ReplayList title="动作" items={transcript.actions.map(formatReplayAction)} />
           <ReplayList
             title="截图"
@@ -548,7 +561,16 @@ function ReplayList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+function formatReplayPlanner(planner: NonNullable<TurnTranscript["planner"]>): string {
+  return `${planner.providerLabel}: ${planner.command}`
+    + (planner.rationale ? ` (${planner.rationale})` : "");
+}
+
 function formatReplayAction(action: TurnTranscript["actions"][number]): string {
+  if (action.type === "plan") {
+    return `${action.type}: ${action.providerLabel ?? ""} ${action.command ?? ""}`.trim();
+  }
+
   if (action.type === "type_text") {
     return `${action.type}: ${action.text ?? ""}`;
   }

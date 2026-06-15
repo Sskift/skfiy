@@ -347,6 +347,13 @@ async function runCommandTask(
     });
 
     if (plannedCommand.providerLabel) {
+      turnReplayStore.recordComputerUseEvent({
+        type: "planner_resolved",
+        providerLabel: plannedCommand.providerLabel,
+        input: command,
+        command: plannedCommand.command,
+        rationale: plannedCommand.rationale
+      });
       emitTurnReplayTaskEvent(window, {
         status: "executing",
         message: plannedCommand.rationale

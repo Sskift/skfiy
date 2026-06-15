@@ -82,4 +82,39 @@ describe("createTurnReplayStore", () => {
 
     expect(store.getReplay()?.transcript.outcome).toBe("failed");
   });
+
+  it("keeps external planner rationale in the replay transcript", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "planner_resolved",
+      providerLabel: "External CUA",
+      input: "打开 Ghostty 执行 pwd 并截图",
+      command: "pwd",
+      rationale: "Read the current working directory."
+    });
+    store.recordTaskEvent({
+      status: "executing",
+      message: "External CUA planned: pwd"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        planner: {
+          providerLabel: "External CUA",
+          input: "打开 Ghostty 执行 pwd 并截图",
+          command: "pwd",
+          rationale: "Read the current working directory."
+        },
+        actions: [
+          {
+            type: "plan",
+            providerLabel: "External CUA",
+            command: "pwd"
+          }
+        ]
+      }
+    });
+  });
 });

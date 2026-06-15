@@ -113,6 +113,12 @@ interface TurnTranscript {
     reason: string;
     requiresApproval: boolean;
   };
+  planner?: {
+    providerLabel: string;
+    input: string;
+    command: string;
+    rationale?: string;
+  };
   approvalRequired: boolean;
   apps: Array<{
     name: string;
@@ -146,6 +152,9 @@ interface TurnTranscript {
     action?: string;
     stage?: string;
     reason?: string;
+    providerLabel?: string;
+    command?: string;
+    rationale?: string;
   }>;
   outcome: TurnTranscriptOutcome;
 }
@@ -479,6 +488,7 @@ function isTurnTranscript(value: unknown): value is TurnTranscript {
   return (
     (transcript.command === undefined || typeof transcript.command === "string")
     && (transcript.risk === undefined || isRiskDecision(transcript.risk))
+    && (transcript.planner === undefined || isTurnTranscriptPlanner(transcript.planner))
     && typeof transcript.approvalRequired === "boolean"
     && Array.isArray(transcript.apps)
     && transcript.apps.every(isTurnTranscriptApp)
@@ -487,6 +497,20 @@ function isTurnTranscript(value: unknown): value is TurnTranscript {
     && Array.isArray(transcript.actions)
     && transcript.actions.every(isTurnTranscriptAction)
     && isTurnTranscriptOutcome(transcript.outcome)
+  );
+}
+
+function isTurnTranscriptPlanner(value: unknown): value is NonNullable<TurnTranscript["planner"]> {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const planner = value as NonNullable<TurnTranscript["planner"]>;
+  return (
+    typeof planner.providerLabel === "string"
+    && typeof planner.input === "string"
+    && typeof planner.command === "string"
+    && (planner.rationale === undefined || typeof planner.rationale === "string")
   );
 }
 
@@ -594,6 +618,9 @@ function isTurnTranscriptAction(value: unknown): value is TurnTranscript["action
     && (action.action === undefined || typeof action.action === "string")
     && (action.stage === undefined || typeof action.stage === "string")
     && (action.reason === undefined || typeof action.reason === "string")
+    && (action.providerLabel === undefined || typeof action.providerLabel === "string")
+    && (action.command === undefined || typeof action.command === "string")
+    && (action.rationale === undefined || typeof action.rationale === "string")
   );
 }
 

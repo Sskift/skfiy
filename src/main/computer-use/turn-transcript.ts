@@ -9,6 +9,13 @@ import type { DesktopAppState } from "./types.js";
 export type ComputerUseTurnEvent =
   | { type: "started"; command: string; risk: RiskDecision }
   | { type: "approval_required"; command: string; risk: RiskDecision }
+  | {
+    type: "planner_resolved";
+    providerLabel: string;
+    input: string;
+    command: string;
+    rationale?: string;
+  }
   | { type: "locating_app"; appName: string }
   | { type: "session_opened"; appName: string; title: string; pid: number }
   | { type: "app_activated"; appName: string; bundleId: string; pid?: number }
@@ -36,7 +43,15 @@ export interface TurnTranscriptScreenshot {
   grounding: GroundingCoverageEvaluation;
 }
 
+export interface TurnTranscriptPlanner {
+  providerLabel: string;
+  input: string;
+  command: string;
+  rationale?: string;
+}
+
 export type TurnTranscriptAction =
+  | { type: "plan"; providerLabel: string; command: string; rationale?: string }
   | { type: "open_session"; appName: string; pid: number }
   | { type: "activate_app"; appName: string; bundleId: string; pid?: number }
   | { type: "type_text"; text: string }
@@ -53,6 +68,7 @@ export type TurnTranscriptOutcome =
 export interface TurnTranscript {
   command?: string;
   risk?: RiskDecision;
+  planner?: TurnTranscriptPlanner;
   approvalRequired: boolean;
   apps: TurnTranscriptApp[];
   screenshots: TurnTranscriptScreenshot[];
@@ -68,6 +84,7 @@ export function createTurnTranscript(
   const actions: TurnTranscriptAction[] = [];
   let command: string | undefined;
   let risk: RiskDecision | undefined;
+  let planner: TurnTranscriptPlanner | undefined;
   let approvalRequired = false;
   let outcome: TurnTranscriptOutcome = "running";
 
@@ -82,6 +99,20 @@ export function createTurnTranscript(
         risk = event.risk;
         approvalRequired = true;
         outcome = "approval_required";
+        break;
+      case "planner_resolved":
+        planner = {
+          providerLabel: event.providerLabel,
+          input: event.input,
+          command: event.command,
+          rationale: event.rationale
+        };
+        actions.push({
+          type: "plan",
+          providerLabel: event.providerLabel,
+          command: event.command,
+          rationale: event.rationale
+        });
         break;
       case "session_opened":
         actions.push({ type: "open_session", appName: event.appName, pid: event.pid });
@@ -131,6 +162,7 @@ export function createTurnTranscript(
   return {
     command,
     risk,
+    planner,
     approvalRequired,
     apps: Array.from(apps.values()),
     screenshots,

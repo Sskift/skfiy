@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, {
   type AppPolicySettings,
@@ -413,6 +413,12 @@ describe("App", () => {
         transcript: {
           command?: string;
           risk?: { level: string; reason: string; requiresApproval: boolean };
+          planner?: {
+            providerLabel: string;
+            input: string;
+            command: string;
+            rationale?: string;
+          };
           approvalRequired: boolean;
           apps: Array<{ name: string; bundleId?: string; pid?: number }>;
           screenshots: Array<{ stage: "before" | "after"; path: string }>;
@@ -429,6 +435,12 @@ describe("App", () => {
           level: "low",
           reason: "Read-only terminal command.",
           requiresApproval: false
+        },
+        planner: {
+          providerLabel: "External CUA",
+          input: "打开 Ghostty 执行 pwd 并截图",
+          command: "pwd",
+          rationale: "Read the current working directory."
         },
         approvalRequired: false,
         apps: [{ name: "Ghostty", bundleId: "com.mitchellh.ghostty", pid: 54502 }],
@@ -482,15 +494,20 @@ describe("App", () => {
 
     fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
 
+    let replayPanel: HTMLElement | undefined;
     await waitFor(() => {
-      expect(screen.getByLabelText("本地回放")).toBeInTheDocument();
+      replayPanel = screen.getByLabelText("本地回放");
+      expect(replayPanel).toBeInTheDocument();
     });
-    expect(screen.getAllByText("pwd").length).toBeGreaterThan(0);
-    expect(screen.getByText("low")).toBeInTheDocument();
-    expect(screen.getByText(/type_text/)).toBeInTheDocument();
-    expect(screen.getByText(/\/tmp\/after\.png/)).toBeInTheDocument();
-    expect(screen.getAllByText(/structured_first/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Command submitted to Ghostty/)).toBeInTheDocument();
+    const replay = within(replayPanel as HTMLElement);
+    expect(replay.getAllByText("pwd").length).toBeGreaterThan(0);
+    expect(replay.getByText(/External CUA: pwd/)).toBeInTheDocument();
+    expect(replay.getByText(/Read the current working directory/)).toBeInTheDocument();
+    expect(replay.getByText("low")).toBeInTheDocument();
+    expect(replay.getByText(/type_text/)).toBeInTheDocument();
+    expect(replay.getByText(/\/tmp\/after\.png/)).toBeInTheDocument();
+    expect(replay.getAllByText(/structured_first/).length).toBeGreaterThan(0);
+    expect(replay.getByText(/Command submitted to Ghostty/)).toBeInTheDocument();
   });
 
   it("switches from listening to settings on right click without sending a native stop key", async () => {
