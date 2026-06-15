@@ -224,9 +224,9 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
 - Add OCR/element parser research spike:
   - evaluate macOS accessibility tree coverage
   - evaluate OCR labels on screenshots
-  - define `ObservedElement` schema with id, label, role, bounds, source
+  - [x] define `ObservedElement` schema with id, label, role, bounds, source for window-level observations
 - Implement element-targeted actions:
-  - click by observed element id
+  - [x] resolve click target by observed element id for window-level elements
   - click by coordinate only as fallback
 - Add recovery policies:
   - if app hidden, activate
