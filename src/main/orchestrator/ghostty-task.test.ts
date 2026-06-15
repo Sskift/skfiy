@@ -376,6 +376,75 @@ describe("runGhosttyCommandTask", () => {
     expect(client.executeAction).toHaveBeenCalledTimes(2);
   });
 
+  it("recovers by reactivating when the before screenshot is not frontmost", async () => {
+    const client = createDesktopClient();
+    let observeCount = 0;
+    client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
+      if (action.type === "open_ghostty_session") {
+        return {
+          bundleId: "com.mitchellh.ghostty",
+          title: "skfiy-shell",
+          pid: 54502,
+          opened: true
+        };
+      }
+
+      if (action.type === "observe_app") {
+        observeCount += 1;
+        return {
+          bundleId: action.bundleId,
+          pid: action.pid,
+          isRunning: true,
+          isActive: observeCount > 1,
+          screenshotPath: action.screenshotOutputPath,
+          frontmostBundleId: observeCount === 1 ? "com.apple.finder" : "com.mitchellh.ghostty",
+          accessibilityTrusted: true,
+          windows: [
+            {
+              title: "skfiy-shell",
+              layer: 0,
+              bounds: { x: 10, y: 20, width: 640, height: 480 }
+            }
+          ]
+        };
+      }
+
+      return { ok: true };
+    });
+
+    const events = await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "locating_app",
+      "session_opened",
+      "app_activated",
+      "session_initialized",
+      "screenshot_before",
+      "recovery_attempted",
+      "screenshot_before",
+      "typing",
+      "submitted",
+      "screenshot_after",
+      "completed"
+    ]);
+    expect(events.find((event) => event.type === "recovery_attempted")).toMatchObject({
+      type: "recovery_attempted",
+      stage: "before",
+      action: "activate",
+      reason: "Target app is running but not frontmost."
+    });
+    expect(client.executeAction).toHaveBeenNthCalledWith(6, {
+      type: "activate_app",
+      bundleId: "com.mitchellh.ghostty",
+      pid: 54502
+    });
+    expect(client.executeAction).toHaveBeenNthCalledWith(8, {
+      type: "type_text",
+      text: "pwd"
+    });
+  });
+
   it("asks for confirmation when the after screenshot no longer observes the owned session", async () => {
     const client = createDesktopClient();
     let observeCount = 0;

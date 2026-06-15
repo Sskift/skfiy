@@ -39,6 +39,12 @@ export type GhosttyTaskEvent =
       reason: string;
     }
   | {
+      type: "recovery_attempted";
+      stage: "before" | "after";
+      action: "activate" | "open";
+      reason: string;
+    }
+  | {
       type: "screenshot_before";
       path: string;
       observation: DesktopAppState;

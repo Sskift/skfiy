@@ -169,6 +169,11 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
         status: "needs_confirmation",
         message: `${prefix}Verification failed (${event.stage}): ${event.reason}`
       };
+    case "recovery_attempted":
+      return {
+        status: "executing",
+        message: `${prefix}Recovering ${event.stage} observation with ${event.action}: ${event.reason}`
+      };
     case "screenshot_before":
       return {
         status: "observing",

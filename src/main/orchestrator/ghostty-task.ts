@@ -6,6 +6,7 @@ import {
   type DesktopActionExecutor,
   type DesktopActionPlanStepResult
 } from "../computer-use/action-runner.js";
+import { decideAppRecovery } from "../computer-use/recovery-policy.js";
 import type {
   DesktopAction,
   DesktopActionResult,
@@ -152,7 +153,7 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  const before = await observeApp(
+  let before = await observeApp(
     client,
     session.bundleId,
     createScreenshotPath("before", options),
@@ -165,6 +166,61 @@ export async function* runGhosttyCommandTask(
     path: before.screenshotPath,
     observation: before
   };
+
+  if (isAborted(options.signal)) {
+    return;
+  }
+
+  const beforeRecovery = decideAppRecovery(before, {
+    bundleId: GHOSTTY_BUNDLE_ID,
+    pid: session.pid,
+    marker: SKFIY_GHOSTTY_SESSION_MARKER,
+    sensitiveTitlePatterns: [/password/i, /keychain/i]
+  });
+  if (beforeRecovery.type === "recover" && beforeRecovery.action === "activate") {
+    yield {
+      type: "recovery_attempted",
+      stage: "before",
+      action: beforeRecovery.action,
+      reason: beforeRecovery.reason
+    };
+
+    const recoveryResults = await runDesktopActionPlan(
+      client,
+      [{ type: "activate_app", bundleId: session.bundleId, pid: session.pid }],
+      { signal: options.signal }
+    );
+    const recoveryFailure = readPlanFailure(recoveryResults);
+    if (recoveryFailure) {
+      yield {
+        type: "verification_failed",
+        stage: "before",
+        reason: recoveryFailure
+      };
+      return;
+    }
+
+    before = await observeApp(
+      client,
+      session.bundleId,
+      createScreenshotPath("before", options),
+      options.signal,
+      0,
+      session.pid
+    );
+    yield {
+      type: "screenshot_before",
+      path: before.screenshotPath,
+      observation: before
+    };
+  } else if (beforeRecovery.type !== "continue") {
+    yield {
+      type: "verification_failed",
+      stage: "before",
+      reason: beforeRecovery.reason
+    };
+    return;
+  }
 
   if (isAborted(options.signal)) {
     return;

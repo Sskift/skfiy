@@ -229,10 +229,12 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] resolve click target by observed element id for window-level elements
   - click by coordinate only as fallback
 - Add recovery policies:
-  - if app hidden, activate
-  - if window missing, open
-  - if duplicate target, ask user
-  - if sensitive UI appears, pause
+  - [x] if app hidden, activate
+    - Ghostty before-observe now performs one-shot activate recovery before typing
+  - [x] if window missing, open
+    - decision layer exists; app-specific open recovery still needs adapter wiring beyond Ghostty's initial session open
+  - [x] if duplicate target, ask user
+  - [x] if sensitive UI appears, pause
 - Add Chrome proof of concept:
   - prefer CDP/extension-like structured control
   - use screenshot fallback for non-structured pages
