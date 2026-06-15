@@ -268,10 +268,11 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] what risk level
   - transcript aggregation exists for Computer Use turn events; UI/replay viewer can consume the model next
 - Add local replay viewer for debugging.
-- Add model/provider config:
-  - local deterministic adapter mode
-  - external CUA model mode
-  - disabled/offline mode
+- [x] Add model/provider config:
+  - [x] local deterministic adapter mode
+  - [x] external CUA model mode
+  - [x] disabled/offline mode
+  - planner provider settings store exists; external CUA execution remains a provider integration task
 - Compare against AIME:
   - AIME Buddy overlap: pet/status/notification
   - AIME Chrome Extension overlap: browser control
