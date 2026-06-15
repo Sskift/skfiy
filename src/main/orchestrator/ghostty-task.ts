@@ -18,6 +18,13 @@ const GHOSTTY_APP_NAME = "Ghostty";
 const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";
 const SKFIY_GHOSTTY_SESSION_MARKER = "skfiy";
 const SKFIY_GHOSTTY_SESSION_TITLE = "skfiy-shell";
+const SKFIY_GHOSTTY_INIT_COMMAND = [
+  "export SKFIY_SESSION=1",
+  "PROMPT='[skfiy] %~ %# '",
+  "PS1='[skfiy] \\w \\$ '",
+  `printf '\\033]0;${SKFIY_GHOSTTY_SESSION_TITLE}\\007'`
+].join("; ");
+const SESSION_INIT_SETTLE_WAIT_MS = 90;
 const TYPE_SETTLE_WAIT_MS = 90;
 const SUBMIT_SETTLE_WAIT_MS = 300;
 
@@ -111,6 +118,34 @@ export async function* runGhosttyCommandTask(
     appName: GHOSTTY_APP_NAME,
     bundleId: session.bundleId,
     pid: session.pid
+  };
+
+  if (isAborted(options.signal)) {
+    return;
+  }
+
+  const initFailure = readPlanFailure(await runDesktopActionPlan(
+    client,
+    [
+      { type: "type_text", text: SKFIY_GHOSTTY_INIT_COMMAND },
+      { type: "press_key", key: "enter" },
+      { type: "wait", ms: SESSION_INIT_SETTLE_WAIT_MS }
+    ],
+    { signal: options.signal }
+  ));
+  if (initFailure) {
+    yield {
+      type: "verification_failed",
+      stage: "initialize",
+      reason: initFailure
+    };
+    return;
+  }
+
+  yield {
+    type: "session_initialized",
+    title: SKFIY_GHOSTTY_SESSION_TITLE,
+    marker: SKFIY_GHOSTTY_SESSION_MARKER
   };
 
   if (isAborted(options.signal)) {

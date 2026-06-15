@@ -157,6 +157,11 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
         status: "executing",
         message: `${prefix}Activated ${event.appName}.`
       };
+    case "session_initialized":
+      return {
+        status: "executing",
+        message: `${prefix}Initialized Ghostty session marker: ${event.title}.`
+      };
     case "verification_failed":
       return {
         status: "needs_confirmation",

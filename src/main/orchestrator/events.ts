@@ -29,8 +29,13 @@ export type GhosttyTaskEvent =
       pid?: number;
     }
   | {
+      type: "session_initialized";
+      title: string;
+      marker: string;
+    }
+  | {
       type: "verification_failed";
-      stage: "activate" | "before" | "after";
+      stage: "activate" | "initialize" | "before" | "after";
       reason: string;
     }
   | {

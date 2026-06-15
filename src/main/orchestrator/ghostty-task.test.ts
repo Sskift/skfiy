@@ -77,12 +77,18 @@ describe("runGhosttyCommandTask", () => {
       "locating_app",
       "session_opened",
       "app_activated",
+      "session_initialized",
       "screenshot_before",
       "typing",
       "submitted",
       "screenshot_after",
       "completed"
     ]);
+    expect(events.find((event) => event.type === "session_initialized")).toMatchObject({
+      type: "session_initialized",
+      title: "skfiy-shell",
+      marker: "skfiy"
+    });
     expect(events.find((event) => event.type === "screenshot_before")).toMatchObject({
       type: "screenshot_before",
       path: "/tmp/before.png",
@@ -119,25 +125,54 @@ describe("runGhosttyCommandTask", () => {
       pid: 54502
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(3, {
+      type: "type_text",
+      text: expect.stringContaining("skfiy-shell")
+    });
+    expect(client.executeAction).toHaveBeenNthCalledWith(4, {
+      type: "press_key",
+      key: "enter"
+    });
+    expect(client.executeAction).toHaveBeenNthCalledWith(5, {
       type: "observe_app",
       bundleId: "com.mitchellh.ghostty",
       pid: 54502,
       screenshotOutputPath: "/tmp/before.png"
     });
-    expect(client.executeAction).toHaveBeenNthCalledWith(4, {
+    expect(client.executeAction).toHaveBeenNthCalledWith(6, {
       type: "type_text",
       text: "pwd"
     });
-    expect(client.executeAction).toHaveBeenNthCalledWith(5, {
+    expect(client.executeAction).toHaveBeenNthCalledWith(7, {
       type: "press_key",
       key: "enter"
     });
-    expect(client.executeAction).toHaveBeenNthCalledWith(6, {
+    expect(client.executeAction).toHaveBeenNthCalledWith(8, {
       type: "observe_app",
       bundleId: "com.mitchellh.ghostty",
       pid: 54502,
       screenshotOutputPath: "/tmp/after.png"
     });
+  });
+
+  it("initializes the skfiy shell marker before observing or typing the user command", async () => {
+    const client = createDesktopClient();
+
+    await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+
+    const actions = client.executeAction.mock.calls.map(([action]) => action);
+    const initIndex = actions.findIndex(
+      (action) => action.type === "type_text" && action.text.includes("SKFIY_SESSION=1")
+    );
+    const beforeObserveIndex = actions.findIndex(
+      (action) => action.type === "observe_app" && action.screenshotOutputPath === "/tmp/before.png"
+    );
+    const userTypeIndex = actions.findIndex(
+      (action) => action.type === "type_text" && action.text === "pwd"
+    );
+
+    expect(initIndex).toBeGreaterThan(-1);
+    expect(beforeObserveIndex).toBeGreaterThan(initIndex);
+    expect(userTypeIndex).toBeGreaterThan(beforeObserveIndex);
   });
 
   it("plans a voice request into the terminal command before typing", async () => {
@@ -230,9 +265,10 @@ describe("runGhosttyCommandTask", () => {
       "locating_app",
       "session_opened",
       "app_activated",
+      "session_initialized",
       "screenshot_before"
     ]);
-    expect(client.executeAction).toHaveBeenCalledTimes(3);
+    expect(client.executeAction).toHaveBeenCalledTimes(5);
   });
 
   it("asks for confirmation instead of typing when the observed Ghostty window is unsafe", async () => {
@@ -276,6 +312,7 @@ describe("runGhosttyCommandTask", () => {
       "locating_app",
       "session_opened",
       "app_activated",
+      "session_initialized",
       "screenshot_before",
       "verification_failed"
     ]);
@@ -382,6 +419,7 @@ describe("runGhosttyCommandTask", () => {
       "locating_app",
       "session_opened",
       "app_activated",
+      "session_initialized",
       "screenshot_before",
       "typing",
       "submitted",
@@ -411,6 +449,7 @@ describe("runGhosttyCommandTask", () => {
       "locating_app",
       "session_opened",
       "app_activated",
+      "session_initialized",
       "screenshot_before",
       "typing",
       "submitted",

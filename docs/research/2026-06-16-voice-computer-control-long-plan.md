@@ -171,9 +171,10 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
 
 Goal: make the first native app scenario reliable enough to demo without embarrassing blind typing.
 
-- [ ] Create a dedicated Ghostty session strategy:
+- [x] Create a dedicated Ghostty session strategy:
   - [x] open new Ghostty window/tab/process for skfiy
-  - [ ] label skfiy Ghostty context with marker title/status/prompt state
+  - [x] label skfiy Ghostty context with marker title/status/prompt state
+    - implemented by initializing the owned Ghostty process with `SKFIY_SESSION=1`, `[skfiy]` prompt state, and `skfiy-shell` OSC title before the user command is typed
   - [x] scope activate/observe to the opened Ghostty process id
   - [x] refuse to type into Codex TUI/editor/unknown state
 - [ ] Add product-path `observe_app` replay records with screenshot paths and accessibility trust.
@@ -181,7 +182,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - [x] after activate, confirm frontmost bundle
   - [x] after type/enter, capture after screenshot
   - [x] if verification fails, ask user instead of continuing
-- [ ] Add a primitive planner loop for terminal tasks:
+- [x] Add a primitive planner loop for terminal tasks:
   - [x] parse command intent
   - [x] classify risk
   - [x] prepare session
@@ -204,6 +205,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - screenshots: before and after absolute paths
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
+  - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing` -> `observing` -> `failed`, and no Ghostty command was typed
 - Week-2 demo criteria:
   - user says "打开 Ghostty 执行 pwd 并截图"
   - skfiy opens/uses its own Ghostty context
