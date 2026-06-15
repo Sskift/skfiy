@@ -128,6 +128,15 @@ Use only a skfiy-owned Ghostty context.
 - Verify task event sequence includes observing, executing, submitted, completed.
 - Verify the command was not typed into Codex TUI, an editor, or an unrelated terminal.
 
+Preferred local command after `npm run build`:
+
+```bash
+npm run smoke:ghostty
+```
+
+Use `npm run smoke:ghostty -- --require-passed` only when Screen Recording and Accessibility are already granted to `dist/skfiy.app`; otherwise the expected result is `blocked` with fail-closed evidence.
+The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, replay records, screenshot file sizes, and cleanup process checks.
+
 ### Safety Smoke
 
 - Read-only command runs without extra approval.

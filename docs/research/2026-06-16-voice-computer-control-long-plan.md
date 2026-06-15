@@ -195,7 +195,8 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - [x] `date`
   - [x] `mkdir skfiy-demo` requires approval
   - [x] `rm -rf` requires approval and defaults to deny
-  - [ ] product-path task scripts after Accessibility is granted
+  - [x] packaged product-path smoke script: `npm run smoke:ghostty`
+  - [ ] passing product-path task scripts after Accessibility is granted
 - Week-2 acceptance evidence:
   - launch command: `open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app`
   - trigger path: packaged app product path, not direct helper
@@ -207,6 +208,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
   - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
+  - repeat command: `npm run smoke:ghostty`
 - Week-2 demo criteria:
   - user says "打开 Ghostty 执行 pwd 并截图"
   - skfiy opens/uses its own Ghostty context
