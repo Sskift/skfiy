@@ -1,0 +1,155 @@
+# Skfiy Development Workflow Contract
+
+This document is mandatory for all Skfiy work. It exists because desktop agents can look correct in a dev shell while failing in the real macOS permission, focus, and app-control environment.
+
+## Non-Negotiable Rules
+
+1. **User-visible testing must run from a compiled app bundle.**
+   A feature is not demo-ready until it runs from a packaged macOS app with a stable bundle identity. Running `npm start`, Vite, Electron from `node_modules`, or a shell wrapper is allowed only for local engineering debug.
+
+2. **Do not run Skfiy for user testing through tmux.**
+   `tmux`, tw-dashboard-attached shells, detached terminal sessions, and background shell launchers can change macOS Accessibility attribution. They must not be used to validate permissions, voice, click, type, screenshot, or drag behavior.
+
+3. **Every "works" claim needs real desktop evidence.**
+   Before saying a feature works, run a real task against the local desktop and record:
+   - launch method
+   - app process identity
+   - command or interaction used
+   - task event log
+   - before/after screenshot paths when Computer Use is involved
+   - observed failure or success state
+
+4. **The app must stay usable in the real scene while development continues.**
+   Do not leave the user with a dead dialog, a hidden window, a stuck listening state, or a process that requires a terminal backend. If a dev process is started for debugging, stop it or replace it with the approved launch path before handoff.
+
+5. **Computer Use must be tested through the product path, not only the helper path.**
+   Direct helper tests prove low-level capability. They do not prove Skfiy works. A valid Computer Use test must go through renderer -> preload -> main -> helper -> target app.
+
+6. **Ghostty tests must use an isolated target context.**
+   Never validate terminal automation by typing into whichever Ghostty window is frontmost. The target must be known to be a Skfiy-owned shell/session, or the task must pause and ask for confirmation.
+
+7. **Voice tests must separate microphone, ASR, and action execution.**
+   A voice result is not valid unless the report states which ASR provider was used, whether microphone permission was granted, how transcription entered Skfiy, and which downstream command/action was executed.
+
+## Launch Policy
+
+### Valid for User-Facing Demo
+
+Use a compiled app bundle:
+
+```bash
+open -na /Applications/Skfiy.app
+```
+
+or, during local packaging work:
+
+```bash
+open -na /absolute/path/to/Skfiy.app
+```
+
+The app must have a stable bundle identifier and embed the Swift helper. Screen Recording, Accessibility, and Microphone permissions must be granted to that app identity.
+
+### Temporary Engineering Debug Only
+
+These commands may be used to inspect or debug code, but they are not valid acceptance evidence:
+
+```bash
+npm start
+npm run dev:renderer
+npm run dev:electron
+./node_modules/.bin/electron .
+./node_modules/.bin/electron --remote-debugging-port=9233 .
+```
+
+If Electron must be launched before packaging exists, prefer LaunchServices over tmux or shell detachment:
+
+```bash
+open -na /absolute/path/to/Electron.app --args /absolute/path/to/skfiy
+```
+
+This is still a development workaround, not a release-quality launch path.
+
+### Prohibited for User-Facing Demo
+
+Do not use:
+
+```bash
+tmux new-session ...
+tmux attach-session ...
+nohup npm start &
+nohup ./node_modules/.bin/electron ... &
+```
+
+These launch paths can misattribute macOS permissions and leave unmanaged background state.
+
+## Required Pre-Handoff Checklist
+
+Before handing work to the user, complete this checklist and include the evidence in the final response.
+
+- [ ] `git status --short` is clean or all remaining changes are explicitly explained.
+- [ ] Unit tests relevant to the change passed.
+- [ ] `npm run typecheck` passed for TypeScript changes.
+- [ ] `npm run build` passed when production app/main/helper code changed.
+- [ ] No Skfiy process is running from tmux.
+- [ ] User-facing Skfiy is launched through the approved app-bundle path, or the response clearly says packaging is not ready and no user-facing demo is valid yet.
+- [ ] For Computer Use changes, a real product-path task was run.
+- [ ] For UI changes, the real overlay was inspected on desktop.
+- [ ] For voice changes, ASR provider, permission state, start/stop behavior, and failure state were tested.
+- [ ] Any screenshots or logs used as evidence are listed.
+
+## Real-Scene Test Matrix
+
+### Permission Smoke
+
+Run from the compiled app bundle and verify:
+
+- Screen Recording: screenshot returns a non-empty PNG.
+- Accessibility: activate app, click, type, and press key succeed.
+- Microphone: permission state is available and provider-specific listening starts.
+
+### Pet UI Smoke
+
+- Pet appears as a desktop companion, not a normal dialog.
+- Transparent background is visually transparent.
+- Left click starts voice turn.
+- Right click opens settings.
+- Drag moves the pet across screen bounds.
+- Stop returns the pet to idle.
+
+### Ghostty Computer Use Smoke
+
+Use only a Skfiy-owned Ghostty context.
+
+- Run a read-only command such as `pwd`.
+- Capture before and after screenshots.
+- Verify task event sequence includes observing, executing, submitted, completed.
+- Verify the command was not typed into Codex TUI, an editor, or an unrelated terminal.
+
+### Safety Smoke
+
+- Read-only command runs without extra approval.
+- Local mutation asks for approval.
+- Destructive command asks for approval and defaults to deny.
+- Stop/panic cancels the active turn.
+
+## Reporting Template
+
+Use this format when reporting a tested change:
+
+```markdown
+Launch: /Applications/Skfiy.app via open
+Process: Skfiy.app, not tmux
+Permissions: Screen Recording ok, Accessibility ok, Microphone ok
+Task: "open Ghostty, run pwd, screenshot"
+Events: observing -> executing -> submitted -> completed
+Screenshots:
+- before: /path/to/before.png
+- after: /path/to/after.png
+Result: passed
+Known gaps: ...
+```
+
+## Immediate Project Implication
+
+The current repository does not yet provide a packaged `Skfiy.app`. Until that packaging exists, no future work should be described as user-demo-ready. Development can continue with Electron debug launches, but acceptance must wait for the app-bundle path.
+

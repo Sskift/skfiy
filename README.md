@@ -58,6 +58,13 @@ Skfiy treats terminal control as higher risk than normal GUI automation.
 
 ## Development
 
+Skfiy has a mandatory workflow contract for user-facing tests:
+[docs/development-workflow.md](docs/development-workflow.md).
+
+Important: `npm start`, Vite, direct Electron launches, `tmux`, and shell
+background processes are development-only. A user-visible demo must run from a
+compiled macOS app bundle with a stable permission identity.
+
 ```bash
 npm install
 npm test -- --run
