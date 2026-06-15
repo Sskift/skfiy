@@ -268,7 +268,8 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] what actions
   - [x] what risk level
   - transcript aggregation exists for Computer Use turn events; UI/replay viewer can consume the model next
-- Add local replay viewer for debugging.
+- [x] Add local replay viewer for debugging.
+  - main process stores the latest Computer Use turn transcript plus renderer-visible timeline; right-click settings exposes command, risk, action list, screenshot paths, and event timeline for local debugging
 - [x] Add model/provider config:
   - [x] local deterministic adapter mode
   - [x] external CUA model mode

@@ -17,6 +17,13 @@ type PermissionSettingsTarget = "screen-recording" | "accessibility" | "micropho
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 type DictationProviderId = "doubao" | "browser";
 type AppPolicy = "allow" | "ask" | "deny";
+type RiskLevel = "low" | "medium" | "high" | "blocked";
+type TurnTranscriptOutcome =
+  | "completed"
+  | "approval_required"
+  | "verification_failed"
+  | "failed"
+  | "running";
 type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
@@ -81,6 +88,49 @@ interface AppPolicySettings {
   apps: ControlledAppPolicyEntry[];
 }
 
+interface TurnTranscript {
+  command?: string;
+  risk?: {
+    level: RiskLevel;
+    reason: string;
+    requiresApproval: boolean;
+  };
+  approvalRequired: boolean;
+  apps: Array<{
+    name: string;
+    bundleId?: string;
+    pid?: number;
+  }>;
+  screenshots: Array<{
+    stage: "before" | "after";
+    path: string;
+    bundleId: string;
+    pid?: number;
+    accessibilityTrusted?: boolean;
+  }>;
+  actions: Array<{
+    type: string;
+    appName?: string;
+    bundleId?: string;
+    pid?: number;
+    text?: string;
+    key?: string;
+    action?: string;
+    stage?: string;
+    reason?: string;
+  }>;
+  outcome: TurnTranscriptOutcome;
+}
+
+interface TurnReplay {
+  transcript: TurnTranscript;
+  timeline: Array<{
+    status: TaskStatus;
+    message?: string;
+    command?: string;
+  }>;
+}
+
 interface PermissionSummary {
   screenRecording: { state: PermissionState };
   accessibility: { state: PermissionState };
@@ -118,6 +168,7 @@ interface DesktopApi {
   ) => Promise<DictationSettings>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
+  getTurnReplay: () => Promise<TurnReplay | null>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
@@ -207,6 +258,10 @@ const api: DesktopApi = {
       policy: isAppPolicy(update.policy) ? update.policy : undefined
     });
     return isAppPolicySettings(payload) ? payload : createDefaultAppPolicySettings();
+  },
+  async getTurnReplay() {
+    const payload = await ipcRenderer.invoke("skfiy:get-turn-replay");
+    return isTurnReplay(payload) ? payload : null;
   },
   async getRuntimeStatus() {
     const payload = await ipcRenderer.invoke("skfiy:get-runtime-status");
@@ -328,6 +383,134 @@ function isControlledAppPolicyEntry(value: unknown): value is ControlledAppPolic
 
 function isAppPolicy(value: unknown): value is AppPolicy {
   return value === "allow" || value === "ask" || value === "deny";
+}
+
+function isTurnReplay(value: unknown): value is TurnReplay {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const replay = value as Partial<TurnReplay>;
+  return isTurnTranscript(replay.transcript) && Array.isArray(replay.timeline)
+    && replay.timeline.every(isTurnReplayTimelineEvent);
+}
+
+function isTurnTranscript(value: unknown): value is TurnTranscript {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const transcript = value as Partial<TurnTranscript>;
+  return (
+    (transcript.command === undefined || typeof transcript.command === "string")
+    && (transcript.risk === undefined || isRiskDecision(transcript.risk))
+    && typeof transcript.approvalRequired === "boolean"
+    && Array.isArray(transcript.apps)
+    && transcript.apps.every(isTurnTranscriptApp)
+    && Array.isArray(transcript.screenshots)
+    && transcript.screenshots.every(isTurnTranscriptScreenshot)
+    && Array.isArray(transcript.actions)
+    && transcript.actions.every(isTurnTranscriptAction)
+    && isTurnTranscriptOutcome(transcript.outcome)
+  );
+}
+
+function isRiskDecision(value: unknown): value is TurnTranscript["risk"] {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const risk = value as NonNullable<TurnTranscript["risk"]>;
+  return (
+    isRiskLevel(risk.level)
+    && typeof risk.reason === "string"
+    && typeof risk.requiresApproval === "boolean"
+  );
+}
+
+function isRiskLevel(value: unknown): value is RiskLevel {
+  return value === "low" || value === "medium" || value === "high" || value === "blocked";
+}
+
+function isTurnTranscriptApp(value: unknown): value is TurnTranscript["apps"][number] {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const app = value as TurnTranscript["apps"][number];
+  return (
+    typeof app.name === "string"
+    && (app.bundleId === undefined || typeof app.bundleId === "string")
+    && (app.pid === undefined || typeof app.pid === "number")
+  );
+}
+
+function isTurnTranscriptScreenshot(
+  value: unknown
+): value is TurnTranscript["screenshots"][number] {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const screenshot = value as TurnTranscript["screenshots"][number];
+  return (
+    (screenshot.stage === "before" || screenshot.stage === "after")
+    && typeof screenshot.path === "string"
+    && typeof screenshot.bundleId === "string"
+    && (screenshot.pid === undefined || typeof screenshot.pid === "number")
+    && (
+      screenshot.accessibilityTrusted === undefined
+      || typeof screenshot.accessibilityTrusted === "boolean"
+    )
+  );
+}
+
+function isTurnTranscriptAction(value: unknown): value is TurnTranscript["actions"][number] {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const action = value as TurnTranscript["actions"][number];
+  return (
+    typeof action.type === "string"
+    && (action.appName === undefined || typeof action.appName === "string")
+    && (action.bundleId === undefined || typeof action.bundleId === "string")
+    && (action.pid === undefined || typeof action.pid === "number")
+    && (action.text === undefined || typeof action.text === "string")
+    && (action.key === undefined || typeof action.key === "string")
+    && (action.action === undefined || typeof action.action === "string")
+    && (action.stage === undefined || typeof action.stage === "string")
+    && (action.reason === undefined || typeof action.reason === "string")
+  );
+}
+
+function isTurnTranscriptOutcome(value: unknown): value is TurnTranscriptOutcome {
+  return (
+    value === "completed"
+    || value === "approval_required"
+    || value === "verification_failed"
+    || value === "failed"
+    || value === "running"
+  );
+}
+
+function isTurnReplayTimelineEvent(
+  value: unknown
+): value is TurnReplay["timeline"][number] {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const event = value as TurnReplay["timeline"][number];
+  return (
+    isTaskStatus(event.status)
+    && (event.message === undefined || typeof event.message === "string")
+    && (event.command === undefined || typeof event.command === "string")
+  );
+}
+
+function isTaskStatus(value: unknown): value is TaskStatus {
+  return typeof value === "string" && taskStatuses.has(value as TaskStatus);
 }
 
 function isPermissionSummary(value: unknown): value is PermissionSummary {

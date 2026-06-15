@@ -421,6 +421,79 @@ textarea:focus-visible {
   font-size: 10px;
 }
 
+.turn-replay-panel {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.turn-replay-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.turn-replay-heading span {
+  color: rgba(238, 247, 255, 0.74);
+  font-size: 10px;
+}
+
+.turn-replay-panel p {
+  color: rgba(238, 247, 255, 0.72);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.turn-replay-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  padding: 6px;
+  border: 1px solid rgba(238, 247, 255, 0.1);
+  border-radius: 7px;
+  background: rgba(13, 22, 36, 0.52);
+  color: rgba(238, 247, 255, 0.72);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.turn-replay-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #eef7ff;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.turn-replay-list {
+  display: grid;
+  gap: 4px;
+  color: rgba(238, 247, 255, 0.78);
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.turn-replay-list > span {
+  color: #f7d56a;
+  font-weight: 700;
+}
+
+.turn-replay-list em {
+  min-width: 0;
+  overflow: hidden;
+  padding: 3px 5px;
+  border-radius: 6px;
+  background: rgba(13, 22, 36, 0.58);
+  color: rgba(238, 247, 255, 0.82);
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .permissions-panel {
   margin-top: 8px;
 }

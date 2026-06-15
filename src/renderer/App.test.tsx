@@ -93,6 +93,7 @@ beforeEach(() => {
           : entry
       )
     })),
+    getTurnReplay: vi.fn<DesktopApi["getTurnReplay"]>().mockResolvedValue(null),
     getRuntimeStatus: vi.fn<DesktopApi["getRuntimeStatus"]>().mockResolvedValue({
       stopTurnHotkey: {
         accelerator: "Control+Alt+Shift+Esc",
@@ -341,6 +342,61 @@ describe("App", () => {
       "aria-pressed",
       "true"
     );
+  });
+
+  it("shows the latest local replay transcript in settings", async () => {
+    const api = window.skfiy as DesktopApi & {
+      getTurnReplay: () => Promise<{
+        transcript: {
+          command?: string;
+          risk?: { level: string; reason: string; requiresApproval: boolean };
+          approvalRequired: boolean;
+          apps: Array<{ name: string; bundleId?: string; pid?: number }>;
+          screenshots: Array<{ stage: "before" | "after"; path: string }>;
+          actions: Array<{ type: string; text?: string; key?: string }>;
+          outcome: string;
+        };
+        timeline: Array<{ status: string; message?: string }>;
+      }>;
+    };
+    api.getTurnReplay = vi.fn().mockResolvedValue({
+      transcript: {
+        command: "pwd",
+        risk: {
+          level: "low",
+          reason: "Read-only terminal command.",
+          requiresApproval: false
+        },
+        approvalRequired: false,
+        apps: [{ name: "Ghostty", bundleId: "com.mitchellh.ghostty", pid: 54502 }],
+        screenshots: [
+          { stage: "before", path: "/tmp/before.png" },
+          { stage: "after", path: "/tmp/after.png" }
+        ],
+        actions: [
+          { type: "type_text", text: "pwd" },
+          { type: "press_key", key: "enter" }
+        ],
+        outcome: "completed"
+      },
+      timeline: [
+        { status: "executing", message: "Typing command in Ghostty." },
+        { status: "completed", message: "Command submitted to Ghostty." }
+      ]
+    });
+
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("本地回放")).toBeInTheDocument();
+    });
+    expect(screen.getAllByText("pwd").length).toBeGreaterThan(0);
+    expect(screen.getByText("low")).toBeInTheDocument();
+    expect(screen.getByText(/type_text/)).toBeInTheDocument();
+    expect(screen.getByText(/\/tmp\/after\.png/)).toBeInTheDocument();
+    expect(screen.getByText(/Command submitted to Ghostty/)).toBeInTheDocument();
   });
 
   it("switches from listening to settings on right click without sending a native stop key", async () => {

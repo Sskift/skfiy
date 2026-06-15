@@ -3,6 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
+import {
+  createTurnReplayStore,
+  type TurnReplayTaskEvent
+} from "./computer-use/turn-replay-store.js";
 import type {
   DesktopActionResult,
   DesktopAppState,
@@ -76,6 +80,7 @@ const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
 const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";
 const appPolicySettingsStore = createAppPolicySettingsStore(readInitialAppPolicySettings());
+const turnReplayStore = createTurnReplayStore();
 const dictationSettingsStore = createDictationSettingsStore(
   readInitialDictationSettings(process.env)
 );
@@ -101,6 +106,11 @@ function emitDictationProviderEvent(window: BrowserWindow | null, event: Dictati
   }
 
   window.webContents.send("skfiy:dictation-provider-event", event);
+}
+
+function emitTurnReplayTaskEvent(window: BrowserWindow | null, event: TaskEvent): void {
+  turnReplayStore.recordTaskEvent(readTurnReplayTaskEvent(event));
+  emitTaskEvent(window, event);
 }
 
 function resolveHelperPath(): string {
@@ -240,6 +250,14 @@ function readPetWindowMode(value: unknown): PetWindowMode | undefined {
   return value === "compact" || value === "expanded" ? value : undefined;
 }
 
+function readTurnReplayTaskEvent(event: TaskEvent): TurnReplayTaskEvent {
+  return {
+    status: event.status,
+    message: event.message,
+    command: event.command
+  };
+}
+
 function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget | undefined {
   return value === "screen-recording" || value === "accessibility" || value === "microphone"
     ? value
@@ -256,6 +274,10 @@ async function runCommandTask(
   mode: ManualMode,
   approved: boolean
 ) {
+  if (!approved) {
+    turnReplayStore.startTurn();
+  }
+
   const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), GHOSTTY_BUNDLE_ID);
 
   if (appPolicy.decision === "deny") {
@@ -263,7 +285,7 @@ async function runCommandTask(
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTaskEvent(window, {
+    emitTurnReplayTaskEvent(window, {
       status: "failed",
       message: appPolicy.reason
     });
@@ -275,7 +297,7 @@ async function runCommandTask(
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTaskEvent(window, {
+    emitTurnReplayTaskEvent(window, {
       status: "approval_required",
       message: `Approval required (app policy): ${appPolicy.reason}`,
       command
@@ -304,18 +326,20 @@ async function runCommandTask(
         return;
       }
 
+      turnReplayStore.recordComputerUseEvent(taskEvent);
+
       if (taskEvent.type === "approval_required" && !approved) {
         pendingApproval = { command, mode };
       }
 
-      emitTaskEvent(window, createTaskEvent(taskEvent, mode));
+      emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));
     }
   } catch (error) {
     if (controller.signal.aborted || taskId !== currentTaskId) {
       return;
     }
 
-    emitTaskEvent(window, {
+    emitTurnReplayTaskEvent(window, {
       status: "failed",
       message: error instanceof Error ? error.message : "Task failed."
     });
@@ -620,6 +644,10 @@ ipcMain.handle("skfiy:set-app-policy", (_event, update: unknown) => {
   return appPolicySettingsStore.set(
     update && typeof update === "object" ? update : {}
   );
+});
+
+ipcMain.handle("skfiy:get-turn-replay", () => {
+  return turnReplayStore.getReplay();
 });
 
 ipcMain.handle("skfiy:get-runtime-status", () => {

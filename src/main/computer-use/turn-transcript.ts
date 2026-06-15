@@ -41,6 +41,7 @@ export type TurnTranscriptOutcome =
   | "completed"
   | "approval_required"
   | "verification_failed"
+  | "failed"
   | "running";
 
 export interface TurnTranscript {

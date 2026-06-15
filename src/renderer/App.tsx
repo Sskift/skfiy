@@ -28,6 +28,13 @@ export type PermissionSettingsTarget = "screen-recording" | "accessibility" | "m
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 export type DictationProviderId = "doubao" | "browser";
 export type AppPolicy = "allow" | "ask" | "deny";
+export type RiskLevel = "low" | "medium" | "high" | "blocked";
+export type TurnTranscriptOutcome =
+  | "completed"
+  | "approval_required"
+  | "verification_failed"
+  | "failed"
+  | "running";
 export type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
@@ -62,6 +69,49 @@ export interface ControlledAppPolicyEntry {
 
 export interface AppPolicySettings {
   apps: ControlledAppPolicyEntry[];
+}
+
+export interface TurnTranscript {
+  command?: string;
+  risk?: {
+    level: RiskLevel;
+    reason: string;
+    requiresApproval: boolean;
+  };
+  approvalRequired: boolean;
+  apps: Array<{
+    name: string;
+    bundleId?: string;
+    pid?: number;
+  }>;
+  screenshots: Array<{
+    stage: "before" | "after";
+    path: string;
+    bundleId?: string;
+    pid?: number;
+    accessibilityTrusted?: boolean;
+  }>;
+  actions: Array<{
+    type: string;
+    appName?: string;
+    bundleId?: string;
+    pid?: number;
+    text?: string;
+    key?: string;
+    action?: string;
+    stage?: string;
+    reason?: string;
+  }>;
+  outcome: TurnTranscriptOutcome;
+}
+
+export interface TurnReplay {
+  transcript: TurnTranscript;
+  timeline: Array<{
+    status: TaskStatus;
+    message?: string;
+    command?: string;
+  }>;
 }
 
 export interface PermissionSummary {
@@ -129,6 +179,7 @@ export interface DesktopApi {
   ) => Promise<DictationSettings>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
+  getTurnReplay: () => Promise<TurnReplay | null>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
@@ -295,6 +346,7 @@ const fallbackApi: DesktopApi = {
         : entry
     )
   }),
+  getTurnReplay: async () => null,
   getRuntimeStatus: async () => ({
     stopTurnHotkey: {
       accelerator: "",
@@ -381,6 +433,77 @@ function TaskReplay({ records }: { records: ObserveAppReplayRecord[] }) {
   );
 }
 
+function LocalReplayViewer({ replay }: { replay: TurnReplay | null }) {
+  const transcript = replay?.transcript;
+
+  return (
+    <div className="turn-replay-panel" aria-label="本地回放">
+      <div className="turn-replay-heading">
+        <strong>本地回放</strong>
+        <span>{transcript?.outcome ?? "empty"}</span>
+      </div>
+      {transcript ? (
+        <>
+          <div className="turn-replay-summary">
+            <span>命令</span>
+            <strong>{transcript.command ?? "未记录"}</strong>
+            <span>风险</span>
+            <strong>{transcript.risk?.level ?? "unknown"}</strong>
+          </div>
+          <ReplayList title="动作" items={transcript.actions.map(formatReplayAction)} />
+          <ReplayList
+            title="截图"
+            items={transcript.screenshots.map((screenshot) => `${screenshot.stage}: ${screenshot.path}`)}
+          />
+          <ReplayList
+            title="时间线"
+            items={(replay?.timeline ?? []).map((event) =>
+              `${event.status}: ${event.message ?? event.command ?? ""}`
+            )}
+          />
+        </>
+      ) : (
+        <p>暂无回放</p>
+      )}
+    </div>
+  );
+}
+
+function ReplayList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="turn-replay-list">
+      <span>{title}</span>
+      {items.map((item, index) => (
+        <em key={`${title}-${index}`}>{item}</em>
+      ))}
+    </div>
+  );
+}
+
+function formatReplayAction(action: TurnTranscript["actions"][number]): string {
+  if (action.type === "type_text") {
+    return `${action.type}: ${action.text ?? ""}`;
+  }
+
+  if (action.type === "press_key") {
+    return `${action.type}: ${action.key ?? ""}`;
+  }
+
+  if (action.type === "activate_app" || action.type === "open_session") {
+    return `${action.type}: ${action.appName ?? action.bundleId ?? ""}`;
+  }
+
+  if (action.type === "recover") {
+    return `${action.type}: ${action.action ?? ""} ${action.stage ?? ""}`.trim();
+  }
+
+  return action.type;
+}
+
 function DesktopPet({
   state,
   onClick,
@@ -434,6 +557,7 @@ export default function App() {
   const [appPolicySettings, setAppPolicySettings] = useState<AppPolicySettings>(
     DEFAULT_APP_POLICY_SETTINGS
   );
+  const [turnReplay, setTurnReplay] = useState<TurnReplay | null>(null);
   const [dictationProvider, setDictationProvider] = useState<DictationProviderEvent | null>(null);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
@@ -607,11 +731,20 @@ export default function App() {
     }
   }, [api]);
 
+  const refreshTurnReplay = useCallback(async () => {
+    try {
+      setTurnReplay(await api.getTurnReplay());
+    } catch {
+      setTurnReplay(null);
+    }
+  }, [api]);
+
   useEffect(() => {
     if (detailsOpen) {
       void refreshPermissions();
+      void refreshTurnReplay();
     }
-  }, [detailsOpen, refreshPermissions]);
+  }, [detailsOpen, refreshPermissions, refreshTurnReplay]);
 
   useEffect(() => {
     if (listening) {
@@ -1007,6 +1140,7 @@ export default function App() {
                   ))}
                 </div>
               </div>
+              <LocalReplayViewer replay={turnReplay} />
               <div className="permissions-panel" aria-label="权限">
                 <div className="permissions-heading">
                   <strong>权限</strong>
