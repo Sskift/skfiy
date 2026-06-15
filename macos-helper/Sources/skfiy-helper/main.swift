@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon
 import CoreGraphics
 import Foundation
 
@@ -44,6 +45,10 @@ import Foundation
    data = { textLength: Number }
  - press-key --key enter|escape|space:
    data = { key: String }
+ - select-input-source --source-id <id>:
+   data = { sourceId: String }
+ - double-tap-fn:
+   data = { key: "fn", taps: 2 }
  - get-app-state --bundle-id <id> --screenshot-output <path>:
    data = {
      app: <same shape as list-apps item>,
@@ -70,6 +75,8 @@ let supportedCommands = [
     "click",
     "type-text",
     "press-key",
+    "select-input-source",
+    "double-tap-fn",
     "get-app-state"
 ]
 
@@ -160,6 +167,15 @@ struct TypeTextPayload: Encodable {
 
 struct PressKeyPayload: Encodable {
     let key: String
+}
+
+struct SelectInputSourcePayload: Encodable {
+    let sourceId: String
+}
+
+struct DoubleTapFunctionKeyPayload: Encodable {
+    let key: String
+    let taps: Int
 }
 
 struct WindowBounds: Encodable {
@@ -481,6 +497,60 @@ func postKey(_ key: String) throws {
     keyUp.post(tap: .cghidEventTap)
 }
 
+func selectInputSource(sourceId: String) throws {
+    let filter = [kTISPropertyInputSourceID: sourceId] as CFDictionary
+    guard
+        let sourceList = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource],
+        let source = sourceList.first
+    else {
+        throw HelperFailure(
+            "input_source_not_found",
+            "No input source found for id.",
+            details: ["sourceId": .string(sourceId)]
+        )
+    }
+
+    let status = TISSelectInputSource(source)
+    guard status == noErr else {
+        throw HelperFailure(
+            "input_source_select_failed",
+            "Failed to select input source.",
+            details: ["sourceId": .string(sourceId), "status": .int(Int(status))]
+        )
+    }
+}
+
+func postFunctionKeyTap(source: CGEventSource) throws {
+    guard
+        let keyDown = CGEvent(source: source),
+        let keyUp = CGEvent(source: source)
+    else {
+        throw HelperFailure("event_create_failed", "Unable to create function key events.")
+    }
+
+    keyDown.type = .flagsChanged
+    keyDown.flags = .maskSecondaryFn
+    keyDown.setIntegerValueField(.keyboardEventKeycode, value: Int64(kVK_Function))
+    keyDown.post(tap: .cghidEventTap)
+
+    usleep(30_000)
+
+    keyUp.type = .flagsChanged
+    keyUp.flags = CGEventFlags(rawValue: 0)
+    keyUp.setIntegerValueField(.keyboardEventKeycode, value: Int64(kVK_Function))
+    keyUp.post(tap: .cghidEventTap)
+}
+
+func doubleTapFunctionKey() throws {
+    guard let source = CGEventSource(stateID: .hidSystemState) else {
+        throw HelperFailure("event_source_failed", "Unable to create keyboard event source.")
+    }
+
+    try postFunctionKeyTap(source: source)
+    usleep(80_000)
+    try postFunctionKeyTap(source: source)
+}
+
 func intValue(_ value: Any?) -> Int? {
     if let int = value as? Int {
         return int
@@ -589,6 +659,19 @@ func handlePressKey(_ arguments: ArraySlice<String>) throws -> PressKeyPayload {
     return PressKeyPayload(key: key)
 }
 
+func handleSelectInputSource(_ arguments: ArraySlice<String>) throws -> SelectInputSourcePayload {
+    let options = try parseOptions(arguments, allowed: ["--source-id"])
+    let sourceId = try requiredOption("--source-id", in: options)
+    try selectInputSource(sourceId: sourceId)
+    return SelectInputSourcePayload(sourceId: sourceId)
+}
+
+func handleDoubleTapFunctionKey(_ arguments: ArraySlice<String>) throws -> DoubleTapFunctionKeyPayload {
+    _ = try parseOptions(arguments, allowed: [])
+    try doubleTapFunctionKey()
+    return DoubleTapFunctionKeyPayload(key: "fn", taps: 2)
+}
+
 func handleGetAppState(_ arguments: ArraySlice<String>) throws -> AppStatePayload {
     let options = try parseOptions(arguments, allowed: ["--bundle-id", "--screenshot-output"])
     let bundleId = try requiredOption("--bundle-id", in: options)
@@ -628,6 +711,10 @@ do {
         succeed(command: commandName, data: try handleTypeText(arguments))
     case "press-key":
         succeed(command: commandName, data: try handlePressKey(arguments))
+    case "select-input-source":
+        succeed(command: commandName, data: try handleSelectInputSource(arguments))
+    case "double-tap-fn":
+        succeed(command: commandName, data: try handleDoubleTapFunctionKey(arguments))
     case "get-app-state":
         succeed(command: commandName, data: try handleGetAppState(arguments))
     default:

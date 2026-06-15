@@ -25,6 +25,7 @@ interface PendingApproval {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
+const DOUBAO_INPUT_SOURCE_ID = "com.bytedance.inputmethod.doubaoime.pinyin";
 
 let mainWindow: BrowserWindow | null = null;
 let currentTaskId = 0;
@@ -283,6 +284,44 @@ ipcMain.handle(
     await runCommandTask(window, trimmed, mode, false);
   }
 );
+
+ipcMain.handle("skfiy:prepare-dictation", async (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (window && !window.isDestroyed()) {
+    window.setFocusable(true);
+    window.show();
+    window.focus();
+  }
+
+  try {
+    const helper = createDesktopHelper();
+    const selectResult = await helper.selectInputSource(DOUBAO_INPUT_SOURCE_ID);
+    assertDesktopActionResult(selectResult, "select Doubao input source");
+
+    const shortcutResult = await helper.doubleTapFunctionKey();
+    assertDesktopActionResult(shortcutResult, "trigger Doubao voice shortcut");
+  } catch (error) {
+    emitTaskEvent(window, {
+      status: "failed",
+      message: error instanceof Error ? error.message : "Doubao input source could not be selected."
+    });
+  }
+});
+
+ipcMain.handle("skfiy:stop-dictation", async (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  try {
+    const result = await createDesktopHelper().pressKey("escape");
+    assertDesktopActionResult(result, "stop Doubao dictation");
+  } catch (error) {
+    emitTaskEvent(window, {
+      status: "failed",
+      message: error instanceof Error ? error.message : "Doubao dictation could not be stopped."
+    });
+  }
+});
 
 ipcMain.handle("skfiy:approve-task", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);

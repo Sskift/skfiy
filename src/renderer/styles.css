@@ -30,7 +30,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   -webkit-app-region: no-drag;
   font: inherit;
   letter-spacing: 0;
@@ -41,7 +42,8 @@ button {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+textarea:focus-visible {
   outline: 2px solid #8ee8ff;
   outline-offset: 2px;
 }
@@ -92,7 +94,7 @@ input:focus-visible {
 }
 
 .skfiy-pet {
-  -webkit-app-region: no-drag;
+  -webkit-app-region: drag;
   position: absolute;
   left: 50%;
   bottom: 20px;
@@ -105,6 +107,11 @@ input:focus-visible {
   transform: translateX(-50%);
   animation: pet-bob 2.7s steps(4, end) infinite;
   cursor: grab;
+}
+
+.skfiy-pet:focus,
+.skfiy-pet:focus-visible {
+  outline: none;
 }
 
 .skfiy-pet:hover {
@@ -144,14 +151,14 @@ input:focus-visible {
   animation: pet-error-shake 0.34s steps(2, end) infinite;
 }
 
-.command-capsule {
+.voice-bubble {
   -webkit-app-region: no-drag;
   position: absolute;
   left: 50%;
   bottom: 202px;
   z-index: 5;
-  width: min(calc(100% - 26px), 292px);
-  padding: 8px;
+  width: min(calc(100% - 54px), 248px);
+  padding: 7px 9px;
   border: 1px solid rgba(238, 247, 255, 0.18);
   border-radius: 8px;
   color: #eef7ff;
@@ -162,7 +169,7 @@ input:focus-visible {
   transform: translateX(-50%);
 }
 
-.command-capsule::after {
+.voice-bubble::after {
   position: absolute;
   left: calc(50% - 7px);
   bottom: -8px;
@@ -175,35 +182,53 @@ input:focus-visible {
   transform: rotate(45deg);
 }
 
-.capsule-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 7px;
-  align-items: start;
-  margin-bottom: 7px;
-}
-
-.capsule-header p {
-  margin: 0 0 3px;
-  color: #8bdcff;
-  font-size: 10px;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.capsule-header strong {
-  display: block;
-  min-width: 0;
+.voice-bubble p {
+  margin: 0;
   overflow-wrap: anywhere;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 650;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
-.icon-button,
-.primary-action,
-.tool-row button {
+.voice-transcript {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  max-height: 86px;
+  margin-top: 7px;
+  padding: 3px 1px;
+  border: 0;
+  border-radius: 0;
+  color: #eef7ff;
+  background: transparent;
+  caret-color: #f7d56a;
+  font-size: 12px;
+  line-height: 1.35;
+  resize: none;
+}
+
+.voice-transcript:focus,
+.voice-transcript:focus-visible {
+  outline: none;
+}
+
+.approval-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.voice-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 7px;
+}
+
+.approval-actions button,
+.voice-actions button,
+.voice-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -215,121 +240,32 @@ input:focus-visible {
   background: rgba(13, 22, 36, 0.78);
 }
 
-.icon-button:hover,
-.primary-action:hover,
-.tool-row button:hover {
+.approval-actions button:hover,
+.voice-actions button:hover,
+.voice-button:hover {
   border-color: rgba(142, 232, 255, 0.42);
   background: rgba(19, 35, 54, 0.86);
 }
 
-.icon-button {
-  width: 24px;
-  min-height: 24px;
-  padding: 0;
-}
-
-.command-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 54px;
-  gap: 6px;
-}
-
-.command-row input {
-  min-width: 0;
-  height: 30px;
-  border: 1px solid rgba(238, 247, 255, 0.14);
-  border-radius: 7px;
-  padding: 0 9px;
-  color: #ffffff;
-  background: rgba(2, 7, 15, 0.7);
-}
-
-.command-row input::placeholder {
-  color: rgba(238, 247, 255, 0.42);
-}
-
-.primary-action {
-  border-color: rgba(139, 220, 255, 0.42);
-  background: rgba(28, 111, 158, 0.78);
-}
-
-.mode-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.mode-toggle {
+.voice-button {
   -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 5px;
-  min-height: 25px;
-  padding: 2px 6px;
-  border: 1px solid rgba(238, 247, 255, 0.13);
-  border-radius: 7px;
-  color: rgba(238, 247, 255, 0.86);
-  background: rgba(238, 247, 255, 0.07);
-  font-size: 10px;
-}
-
-.mode-toggle input {
-  width: 22px;
-  height: 13px;
-  margin: 0;
-  accent-color: #8bdcff;
-}
-
-.mode-toggle input:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.intent-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 25px;
-  max-width: 86px;
-  padding: 0 6px;
-  border: 1px solid rgba(247, 213, 106, 0.28);
-  border-radius: 7px;
-  color: rgba(255, 248, 222, 0.9);
-  background: rgba(247, 213, 106, 0.12);
-  font-size: 10px;
-}
-
-.intent-chip span {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  z-index: 6;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tool-row {
-  display: grid;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.tool-row.default-tools {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.tool-row.approval-tools {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.tool-row button {
-  min-width: 0;
-  padding: 0 7px;
+  min-height: 28px;
+  padding: 0 9px;
   font-size: 11px;
+  transform: translateX(-50%);
 }
 
-.tool-row button.is-active {
+.voice-button:focus,
+.voice-button:focus-visible {
+  outline: none;
+}
+
+.voice-button.is-listening {
   border-color: rgba(247, 213, 106, 0.48);
   color: #fff8de;
   background: rgba(88, 68, 20, 0.78);

@@ -9,6 +9,8 @@ beforeEach(() => {
 
   window.skfiy = {
     runCommand: vi.fn<SkfiyApi["runCommand"]>().mockResolvedValue(undefined),
+    prepareDictation: vi.fn<SkfiyApi["prepareDictation"]>().mockResolvedValue(undefined),
+    stopDictation: vi.fn<SkfiyApi["stopDictation"]>().mockResolvedValue(undefined),
     approveTask: vi.fn<SkfiyApi["approveTask"]>().mockResolvedValue(undefined),
     denyTask: vi.fn<SkfiyApi["denyTask"]>().mockResolvedValue(undefined),
     takeScreenshot: vi.fn<SkfiyApi["takeScreenshot"]>().mockResolvedValue(undefined),
@@ -30,28 +32,27 @@ describe("App", () => {
   it("starts as a Codex-style pet overlay with controls tucked away", () => {
     render(<App />);
 
-    const pet = screen.getByRole("button", { name: /skfiy codex-style pet/i });
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
     expect(pet).toBeInTheDocument();
     expect(pet).toHaveAttribute("data-atlas-state", "idle");
     expect(pet).toHaveAttribute("data-frame-count", "6");
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
     expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /run command/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "语音" })).toBeInTheDocument();
   });
 
-  it("opens a simple command capsule from the pet", () => {
+  it("keeps the pet as a native draggable region instead of opening a command input", () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    fireEvent.click(pet);
 
-    expect(screen.getByLabelText(/skfiy command capsule/i)).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: /command/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "执行" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "语音输入" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "截图" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
+    expect(pet).toHaveAttribute("data-native-drag", "true");
+    expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
   });
 
   it("renders each task status and switches pet animation from task events", () => {
@@ -59,7 +60,7 @@ describe("App", () => {
 
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
 
-    const pet = screen.getByRole("button", { name: /skfiy codex-style pet/i });
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
     expect(pet).toHaveAttribute("data-atlas-state", "idle");
 
     const cases: Array<[TaskEvent["status"], string, string, string]> = [
@@ -79,21 +80,19 @@ describe("App", () => {
     }
   });
 
-  it("closes the command capsule by clicking the pet again", () => {
+  it("does not show a focusable box around the pet", () => {
     render(<App />);
 
-    const pet = screen.getByRole("button", { name: /skfiy codex-style pet/i });
-    fireEvent.click(pet);
-    expect(screen.getByLabelText(/skfiy command capsule/i)).toBeInTheDocument();
-
-    fireEvent.click(pet);
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    expect(pet.tagName.toLowerCase()).not.toBe("button");
+    expect(pet).not.toHaveAttribute("tabindex");
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
-  it("drags the pet window without opening the command capsule", () => {
+  it("uses Electron native dragging instead of renderer pointer-delta dragging", () => {
     render(<App />);
 
-    const pet = screen.getByRole("button", { name: /skfiy codex-style pet/i });
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
     const api = window.skfiy as SkfiyApi;
 
     fireEvent.pointerDown(pet, { button: 0, pointerId: 7, screenX: 100, screenY: 100 });
@@ -101,82 +100,52 @@ describe("App", () => {
     fireEvent.pointerUp(pet, { pointerId: 7, screenX: 112, screenY: 117 });
     fireEvent.click(pet);
 
-    expect(api.moveWindowBy).toHaveBeenCalledWith(12, 17);
+    expect(pet).toHaveAttribute("data-native-drag", "true");
+    expect(api.moveWindowBy).not.toHaveBeenCalled();
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
-  it("toggles manual mode between active and quiet", () => {
+  it("focuses a visible Doubao transcript area without showing a command input", async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
-
-    const toggle = screen.getByRole("switch", { name: /manual mode/i });
-    expect(toggle).toBeChecked();
-    expect(screen.getAllByText("主动").length).toBeGreaterThan(0);
-
-    fireEvent.click(toggle);
-
-    expect(toggle).not.toBeChecked();
-    expect(screen.getAllByText("安静").length).toBeGreaterThan(0);
-  });
-
-  it("can automatically switch between quiet idle and active task states", () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
-
-    const switchingToggle = screen.getByRole("switch", { name: /switching mode/i });
-    fireEvent.click(switchingToggle);
-
-    expect(switchingToggle).toBeChecked();
-    expect(screen.getByText("自动")).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: /manual mode/i })).not.toBeChecked();
-    expect(screen.getByText("自动/安静")).toBeInTheDocument();
-
-    act(() => emitTaskEvent({ status: "executing", message: "Typing in Ghostty" }));
-
-    expect(screen.getByRole("switch", { name: /manual mode/i })).toBeChecked();
-    expect(screen.getByText("自动/主动")).toBeInTheDocument();
-  });
-
-  it("exposes command, screenshot, run, and stop controls", () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
-
-    const input = screen.getByRole("textbox", { name: /command/i });
-    fireEvent.change(input, { target: { value: "pwd" } });
-    fireEvent.click(screen.getByRole("button", { name: "执行" }));
-    fireEvent.click(screen.getByRole("button", { name: "截图" }));
-    fireEvent.click(screen.getByRole("button", { name: "停止" }));
-
-    const api = window.skfiy as SkfiyApi;
-    expect(api.runCommand).toHaveBeenCalledWith("pwd", { mode: "active" });
-    expect(api.takeScreenshot).toHaveBeenCalledTimes(1);
-    expect(api.stopTask).toHaveBeenCalledTimes(1);
-  });
-
-  it("focuses the command input for Doubao dictation", async () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
-    fireEvent.click(screen.getByRole("button", { name: "语音输入" }));
+    fireEvent.click(screen.getByRole("button", { name: "语音" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("textbox", { name: /command/i })).toHaveFocus();
+      expect(screen.getByLabelText("语音转写")).toHaveFocus();
     });
-    expect(screen.getByRole("button", { name: "语音输入" })).toHaveTextContent("听写中");
+    expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "语音" })).toHaveTextContent("听写中");
+    expect((window.skfiy as SkfiyApi).prepareDictation).toHaveBeenCalledTimes(1);
+  });
+
+  it("can manually stop dictation without submitting the current transcript", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "语音" }));
+    const transcript = screen.getByLabelText("语音转写");
+    fireEvent.change(transcript, {
+      target: { value: "不要提交这句话" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "停止" }));
+
+    expect((window.skfiy as SkfiyApi).runCommand).not.toHaveBeenCalled();
+    expect((window.skfiy as SkfiyApi).stopDictation).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "语音" })).toHaveTextContent("语音");
   });
 
   it("auto-submits settled Doubao dictation text", async () => {
     vi.useFakeTimers();
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
-    fireEvent.click(screen.getByRole("button", { name: "语音输入" }));
-    fireEvent.change(screen.getByRole("textbox", { name: /command/i }), {
+    fireEvent.click(screen.getByRole("button", { name: "语音" }));
+    fireEvent.change(screen.getByLabelText("语音转写"), {
       target: { value: "打开 Ghostty 并截图" }
     });
+
+    expect(screen.getByDisplayValue("打开 Ghostty 并截图")).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(899);
@@ -190,7 +159,7 @@ describe("App", () => {
     });
 
     expect(api.runCommand).toHaveBeenCalledWith("打开 Ghostty 并截图", { mode: "active" });
-    expect(screen.getByRole("button", { name: "语音输入" })).toHaveTextContent("语音");
+    expect(screen.getByRole("button", { name: "语音" })).toHaveTextContent("语音");
   });
 
   it("exposes approval controls when a command is waiting for approval", () => {

@@ -11,6 +11,8 @@ interface TaskEvent {
 
 interface SkfiyApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
+  prepareDictation: () => Promise<void>;
+  stopDictation: () => Promise<void>;
   approveTask: () => Promise<void>;
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
@@ -40,6 +42,12 @@ function isTaskEvent(value: unknown): value is TaskEvent {
 const api: SkfiyApi = {
   async runCommand(command, options) {
     await ipcRenderer.invoke("skfiy:run-command", command, options);
+  },
+  async prepareDictation() {
+    await ipcRenderer.invoke("skfiy:prepare-dictation");
+  },
+  async stopDictation() {
+    await ipcRenderer.invoke("skfiy:stop-dictation");
   },
   async approveTask() {
     await ipcRenderer.invoke("skfiy:approve-task");

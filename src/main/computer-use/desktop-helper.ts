@@ -99,6 +99,19 @@ export class DesktopHelperClient {
     return this.runJson("press-key", ["press-key", "--key", checkedKey], readActionResult);
   }
 
+  async selectInputSource(sourceId: string): Promise<DesktopHelperActionResult> {
+    const checkedSourceId = requireNonEmptyString(sourceId, "sourceId");
+    return this.runJson(
+      "select-input-source",
+      ["select-input-source", "--source-id", checkedSourceId],
+      readActionResult
+    );
+  }
+
+  async doubleTapFunctionKey(): Promise<DesktopHelperActionResult> {
+    return this.runJson("double-tap-fn", ["double-tap-fn"], readActionResult);
+  }
+
   async getAppState(bundleId: string, screenshotOutputPath: string): Promise<DesktopAppState> {
     const checkedBundleId = requireNonEmptyString(bundleId, "bundleId");
     const checkedScreenshotOutputPath = requireNonEmptyString(

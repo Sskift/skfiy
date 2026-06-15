@@ -1,13 +1,5 @@
-import { Camera, CirclePause, Mic, Play, Sparkles } from "lucide-react";
-import {
-  useCallback,
-  type FormEvent,
-  type PointerEvent as ReactPointerEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from "react";
+import { CirclePause, Mic, Play } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getPetSpriteStyle, getPetStateForTask, PET_ATLAS, type PetAtlasState } from "./pet-atlas";
 
 export type TaskStatus =
@@ -19,7 +11,6 @@ export type TaskStatus =
   | "failed";
 
 export type ManualMode = "active" | "quiet";
-type SwitchingMode = "auto" | "manual";
 
 export interface TaskEvent {
   status: TaskStatus;
@@ -29,6 +20,8 @@ export interface TaskEvent {
 
 export interface SkfiyApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
+  prepareDictation: () => Promise<void>;
+  stopDictation: () => Promise<void>;
   approveTask: () => Promise<void>;
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
@@ -48,48 +41,43 @@ interface TaskView {
   message: string;
 }
 
-interface PetDragState {
-  pointerId: number;
-  lastScreenX: number;
-  lastScreenY: number;
-  moved: boolean;
-}
-
 const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
   idle: {
     label: "Idle",
-    message: "Ready for a command.",
+    message: "待命中.",
     pulse: "Tucked"
   },
   observing: {
     label: "Observing",
-    message: "Looking at the desktop.",
+    message: "正在看桌面.",
     pulse: "Review"
   },
   executing: {
     label: "Executing",
-    message: "Working in Ghostty.",
+    message: "正在执行.",
     pulse: "Running"
   },
   approval_required: {
     label: "Approval required",
-    message: "Waiting for a human check.",
+    message: "需要确认.",
     pulse: "Waiting"
   },
   completed: {
     label: "Completed",
-    message: "Task finished.",
+    message: "完成了.",
     pulse: "Waving"
   },
   failed: {
     label: "Failed",
-    message: "Could not complete the task.",
+    message: "执行失败.",
     pulse: "Fault"
   }
 };
 
 const fallbackApi: SkfiyApi = {
   runCommand: async () => undefined,
+  prepareDictation: async () => undefined,
+  stopDictation: async () => undefined,
   approveTask: async () => undefined,
   denyTask: async () => undefined,
   takeScreenshot: async () => undefined,
@@ -104,59 +92,32 @@ function getSkfiyApi(): SkfiyApi {
   return window.skfiy ?? fallbackApi;
 }
 
-function deriveAutoMode(status: TaskStatus): ManualMode {
-  return status === "idle" || status === "completed" ? "quiet" : "active";
-}
-
-function SkfiyPet({
-  state,
-  onClick,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp
-}: {
-  state: PetAtlasState;
-  onClick: () => void;
-  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-}) {
+function SkfiyPet({ state }: { state: PetAtlasState }) {
   const animation = PET_ATLAS.states[state];
 
   return (
-    <button
-      type="button"
+    <div
       aria-label="Skfiy Codex-style pet"
       className={`skfiy-pet pet-state-${state}`}
       data-atlas-state={state}
       data-frame-count={animation.frames}
-      data-interactive="true"
+      data-native-drag="true"
       style={getPetSpriteStyle(state)}
-      onClick={onClick}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
     >
       <span className="pet-sprite-frame" aria-hidden="true" />
-    </button>
+    </div>
   );
 }
 
 export default function App() {
   const api = useMemo(getSkfiyApi, []);
-  const [command, setCommand] = useState("");
-  const [manualMode, setManualMode] = useState<ManualMode>("active");
-  const [switchingMode, setSwitchingMode] = useState<SwitchingMode>("manual");
-  const [bubbleOpen, setBubbleOpen] = useState(false);
-  const [dictationMode, setDictationMode] = useState(false);
+  const [dictationText, setDictationText] = useState("");
+  const [listening, setListening] = useState(false);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
     message: STATUS_COPY.idle.message
   });
-  const commandInputRef = useRef<HTMLInputElement | null>(null);
-  const dragStateRef = useRef<PetDragState | null>(null);
-  const suppressNextClickRef = useRef(false);
+  const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
   const lastDictationSubmitRef = useRef("");
 
   useEffect(() => {
@@ -167,343 +128,181 @@ export default function App() {
       });
 
       if (event.status !== "idle") {
-        setBubbleOpen(true);
+        setListening(false);
       }
     });
   }, [api]);
 
-  const status = STATUS_COPY[task.status];
-  const petState = getPetStateForTask(task.status);
-  const effectiveMode = switchingMode === "auto" ? deriveAutoMode(task.status) : manualMode;
-  const quiet = effectiveMode === "quiet";
-  const showBubble = bubbleOpen || task.status === "approval_required";
-
   useEffect(() => {
-    if (showBubble && dictationMode) {
-      commandInputRef.current?.focus();
+    if (listening) {
+      transcriptRef.current?.focus();
     }
-  }, [dictationMode, showBubble]);
+  }, [listening]);
 
-  const submitCommandText = useCallback(
-    async (rawCommand: string, source: "manual" | "dictation") => {
+  const submitDictation = useCallback(
+    async (rawCommand: string) => {
       const nextCommand = rawCommand.trim();
-
-      if (source === "dictation") {
-        lastDictationSubmitRef.current = nextCommand;
-        setDictationMode(false);
-      }
-
-      setBubbleOpen(true);
-
-      if (!nextCommand) {
-        setTask({
-          status: "failed",
-          message: "Enter a command before running."
-        });
+      if (!nextCommand || nextCommand === lastDictationSubmitRef.current) {
         return;
       }
 
-      const mode = switchingMode === "auto" ? deriveAutoMode("executing") : manualMode;
+      lastDictationSubmitRef.current = nextCommand;
+      setListening(false);
+      setDictationText("");
       setTask({
         status: "executing",
-        message:
-          source === "dictation"
-            ? `Heard "${nextCommand}".`
-            : mode === "quiet"
-              ? "Queued quietly."
-              : `Running "${nextCommand}".`
+        message: `听到: ${nextCommand}`
       });
 
       try {
-        await api.runCommand(nextCommand, { mode });
+        await api.runCommand(nextCommand, { mode: "active" });
       } catch {
         setTask({
           status: "failed",
-          message: "Command could not be sent."
+          message: "语音指令发送失败."
         });
       }
     },
-    [api, manualMode, switchingMode]
+    [api]
   );
 
   useEffect(() => {
-    if (!dictationMode) {
+    if (!listening) {
       return undefined;
     }
 
-    const nextCommand = command.trim();
+    const nextCommand = dictationText.trim();
     if (!nextCommand || nextCommand === lastDictationSubmitRef.current) {
       return undefined;
     }
 
     const timer = window.setTimeout(() => {
-      void submitCommandText(nextCommand, "dictation");
+      void submitDictation(nextCommand);
     }, DICTATION_AUTO_SUBMIT_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [command, dictationMode, submitCommandText]);
+  }, [dictationText, listening, submitDictation]);
 
-  async function runCommand(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setDictationMode(false);
-    await submitCommandText(command, "manual");
-  }
-
-  async function takeScreenshot() {
-    setBubbleOpen(true);
+  async function startDictation() {
+    lastDictationSubmitRef.current = "";
+    setDictationText("");
+    setListening(true);
     setTask({
-      status: "observing",
-      message: "Capturing the desktop."
+      status: "idle",
+      message: "正在听你说."
     });
 
     try {
-      await api.takeScreenshot();
+      await api.prepareDictation();
+    } finally {
+      transcriptRef.current?.focus();
+    }
+  }
+
+  async function stopDictation() {
+    lastDictationSubmitRef.current = "";
+    setListening(false);
+    setDictationText("");
+    setTask({
+      status: "idle",
+      message: STATUS_COPY.idle.message
+    });
+
+    try {
+      await api.stopDictation();
     } catch {
       setTask({
         status: "failed",
-        message: "Screenshot request failed."
+        message: "停止语音失败."
       });
     }
   }
 
   async function approveTask() {
-    setBubbleOpen(true);
-
     try {
       await api.approveTask();
     } catch {
       setTask({
         status: "failed",
-        message: "Approval request failed."
+        message: "确认请求失败."
       });
     }
   }
 
   async function denyTask() {
-    setBubbleOpen(true);
-
     try {
       await api.denyTask();
     } catch {
       setTask({
         status: "failed",
-        message: "Deny request failed."
+        message: "拒绝请求失败."
       });
     }
   }
 
-  async function stopTask() {
-    setDictationMode(false);
-    setBubbleOpen(true);
-    setTask({
-      status: "idle",
-      message: "Stopping current task."
-    });
-
-    try {
-      await api.stopTask();
-    } catch {
-      setTask({
-        status: "failed",
-        message: "Stop request failed."
-      });
-    }
-  }
-
-  function toggleCommandCapsule() {
-    if (suppressNextClickRef.current) {
-      suppressNextClickRef.current = false;
-      return;
-    }
-
-    setBubbleOpen((open) => {
-      const nextOpen = !open;
-      if (!nextOpen) {
-        setDictationMode(false);
-      }
-      return nextOpen;
-    });
-  }
-
-  function toggleDictationMode() {
-    setBubbleOpen(true);
-    setDictationMode((active) => {
-      const nextActive = !active;
-
-      if (nextActive) {
-        lastDictationSubmitRef.current = "";
-        setTask({
-          status: "idle",
-          message: "正在听写，豆包输入法识别后会自动执行."
-        });
-      }
-
-      return nextActive;
-    });
-  }
-
-  function startPetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (event.button !== 0) {
-      return;
-    }
-
-    dragStateRef.current = {
-      pointerId: event.pointerId,
-      lastScreenX: event.screenX,
-      lastScreenY: event.screenY,
-      moved: false
-    };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  }
-
-  function movePetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
-    const dragState = dragStateRef.current;
-
-    if (!dragState || dragState.pointerId !== event.pointerId) {
-      return;
-    }
-
-    const deltaX = event.screenX - dragState.lastScreenX;
-    const deltaY = event.screenY - dragState.lastScreenY;
-
-    if (deltaX === 0 && deltaY === 0) {
-      return;
-    }
-
-    dragState.moved = true;
-    dragState.lastScreenX = event.screenX;
-    dragState.lastScreenY = event.screenY;
-    api.moveWindowBy(deltaX, deltaY);
-  }
-
-  function finishPetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
-    const dragState = dragStateRef.current;
-
-    if (!dragState || dragState.pointerId !== event.pointerId) {
-      return;
-    }
-
-    dragStateRef.current = null;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-
-    if (dragState.moved) {
-      suppressNextClickRef.current = true;
-    }
-  }
+  const status = STATUS_COPY[task.status];
+  const petState = getPetStateForTask(listening ? "observing" : task.status);
+  const showVoiceStatus = listening || task.status !== "idle";
 
   return (
-    <main className={`pet-stage status-${task.status}${showBubble ? " capsule-open" : ""}`} aria-label="Skfiy desktop pet">
+    <main
+      className={`pet-stage status-${task.status}${listening ? " listening" : ""}`}
+      aria-label="Skfiy desktop pet"
+    >
       <div className="status-orb" role="status" aria-label="Task status">
         <strong>{status.label}</strong>
         <span>{status.pulse}</span>
       </div>
 
-      <SkfiyPet
-        state={petState}
-        onClick={toggleCommandCapsule}
-        onPointerDown={startPetDrag}
-        onPointerMove={movePetDrag}
-        onPointerUp={finishPetDrag}
-      />
-
-      {showBubble ? (
-        <section className="command-capsule" aria-label="Skfiy command capsule" data-interactive="true">
-          <div className="capsule-header">
-            <div>
-              <p>Skfiy</p>
-              <strong>{task.message}</strong>
-            </div>
-          </div>
-
-          <form className="command-row" onSubmit={runCommand}>
-            <label className="sr-only" htmlFor="command-input">
-              Command
-            </label>
-            <input
-              ref={commandInputRef}
-              id="command-input"
-              value={command}
-              onChange={(event) => setCommand(event.currentTarget.value)}
-              placeholder={dictationMode ? "豆包听写会填到这里" : "输入指令"}
-              spellCheck={false}
-            />
-            <button type="submit" aria-label="执行" className="primary-action">
-              <Play size={16} aria-hidden="true" />
-              <span>执行</span>
-            </button>
-          </form>
-
-          <div className="mode-row" aria-label="Mode controls">
-            <label className="mode-toggle">
-              <input
-                type="checkbox"
-                role="switch"
-                aria-label="Switching mode"
-                checked={switchingMode === "auto"}
-                onChange={(event) => setSwitchingMode(event.currentTarget.checked ? "auto" : "manual")}
+      {showVoiceStatus ? (
+        <section className="voice-bubble" aria-label="Skfiy voice status">
+          <p>{listening ? "正在听你说" : task.message}</p>
+          {listening ? (
+            <>
+              <textarea
+                ref={transcriptRef}
+                aria-label="语音转写"
+                className="voice-transcript"
+                value={dictationText}
+                onChange={(event) => setDictationText(event.currentTarget.value)}
+                autoCapitalize="off"
+                autoComplete="off"
+                spellCheck={false}
               />
-              <span>{switchingMode === "auto" ? "自动" : "手动"}</span>
-            </label>
-            <label className="mode-toggle">
-              <input
-                type="checkbox"
-                role="switch"
-                aria-label="Manual mode"
-                checked={!quiet}
-                disabled={switchingMode === "auto"}
-                onChange={(event) => setManualMode(event.currentTarget.checked ? "active" : "quiet")}
-              />
-              <span>{quiet ? "安静" : "主动"}</span>
-            </label>
-            <div className="intent-chip" aria-hidden="true">
-              <Sparkles size={14} />
-              <span>
-                {switchingMode === "auto"
-                  ? `自动/${effectiveMode === "active" ? "主动" : "安静"}`
-                  : effectiveMode === "active"
-                    ? "主动"
-                    : "安静"}
-              </span>
-            </div>
-          </div>
-
-          <div className={`tool-row ${task.status === "approval_required" ? "approval-tools" : "default-tools"}`}>
-            {task.status === "approval_required" ? (
-              <>
-                <button type="button" aria-label="确认" onClick={approveTask}>
-                  <Play size={16} aria-hidden="true" />
-                  <span>确认</span>
-                </button>
-                <button type="button" aria-label="拒绝" onClick={denyTask}>
-                  <CirclePause size={16} aria-hidden="true" />
-                  <span>拒绝</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  aria-label="语音输入"
-                  aria-pressed={dictationMode}
-                  className={dictationMode ? "is-active" : undefined}
-                  onClick={toggleDictationMode}
-                >
-                  <Mic size={16} aria-hidden="true" />
-                  <span>{dictationMode ? "听写中" : "语音"}</span>
-                </button>
-                <button type="button" aria-label="截图" onClick={takeScreenshot}>
-                  <Camera size={16} aria-hidden="true" />
-                  <span>截图</span>
-                </button>
-                <button type="button" aria-label="停止" onClick={stopTask}>
-                  <CirclePause size={16} aria-hidden="true" />
+              <div className="voice-actions">
+                <button type="button" aria-label="停止" onClick={stopDictation}>
+                  <CirclePause size={14} aria-hidden="true" />
                   <span>停止</span>
                 </button>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          ) : task.status === "approval_required" ? (
+            <div className="approval-actions">
+              <button type="button" aria-label="确认" onClick={approveTask}>
+                <Play size={14} aria-hidden="true" />
+                <span>确认</span>
+              </button>
+              <button type="button" aria-label="拒绝" onClick={denyTask}>
+                <CirclePause size={14} aria-hidden="true" />
+                <span>拒绝</span>
+              </button>
+            </div>
+          ) : null}
         </section>
       ) : null}
+
+      <SkfiyPet state={petState} />
+
+      <button
+        type="button"
+        aria-label="语音"
+        aria-pressed={listening}
+        className={`voice-button${listening ? " is-listening" : ""}`}
+        onClick={startDictation}
+      >
+        <Mic size={14} aria-hidden="true" />
+        <span>{listening ? "听写中" : "语音"}</span>
+      </button>
     </main>
   );
 }

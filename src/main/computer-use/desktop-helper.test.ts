@@ -33,6 +33,8 @@ describe("DesktopHelperClient", () => {
       { stdout: "{\"outputPath\":\"/tmp/shot.png\"}", stderr: "", exitCode: 0 },
       ok,
       ok,
+      ok,
+      ok,
       ok
     ]);
 
@@ -42,6 +44,8 @@ describe("DesktopHelperClient", () => {
     await client.typeText("echo hello; rm -rf /");
     await client.pressKey("enter");
     await client.click(12, 34);
+    await client.selectInputSource("com.bytedance.inputmethod.doubaoime.pinyin");
+    await client.doubleTapFunctionKey();
 
     expect(calls).toEqual([
       { command: "/tmp/skfiy-helper", args: ["list-apps"] },
@@ -49,7 +53,19 @@ describe("DesktopHelperClient", () => {
       { command: "/tmp/skfiy-helper", args: ["screenshot", "--output", "/tmp/shot.png"] },
       { command: "/tmp/skfiy-helper", args: ["type-text", "--text", "echo hello; rm -rf /"] },
       { command: "/tmp/skfiy-helper", args: ["press-key", "--key", "enter"] },
-      { command: "/tmp/skfiy-helper", args: ["click", "--x", "12", "--y", "34"] }
+      { command: "/tmp/skfiy-helper", args: ["click", "--x", "12", "--y", "34"] },
+      {
+        command: "/tmp/skfiy-helper",
+        args: [
+          "select-input-source",
+          "--source-id",
+          "com.bytedance.inputmethod.doubaoime.pinyin"
+        ]
+      },
+      {
+        command: "/tmp/skfiy-helper",
+        args: ["double-tap-fn"]
+      }
     ]);
   });
 
@@ -344,6 +360,9 @@ describe("DesktopHelperClient", () => {
     );
     await expect(client.getAppState("com.mitchellh.ghostty", "")).rejects.toThrow(
       "screenshotOutputPath must be a non-empty string"
+    );
+    await expect(client.selectInputSource("")).rejects.toThrow(
+      "sourceId must be a non-empty string"
     );
 
     expect(calls).toEqual([]);
