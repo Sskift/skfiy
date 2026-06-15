@@ -1,4 +1,6 @@
 import { classifyTerminalCommand } from "../../shared/risk-policy.js";
+import type { RiskDecision } from "../../shared/types.js";
+import { parseTerminalIntent } from "../../shared/terminal-intent.js";
 import {
   runDesktopActionPlan,
   type DesktopActionExecutor,
@@ -36,25 +38,28 @@ export interface GhosttyTaskOptions {
 
 export async function* runGhosttyCommandTask(
   client: DesktopClient,
-  command: string,
+  input: string,
   options: GhosttyTaskOptions = {}
 ): AsyncGenerator<GhosttyTaskEvent> {
+  const planned = parseTerminalIntent(input);
+  const command = planned.ok ? planned.command : input.trim();
   const risk = classifyTerminalCommand(command);
+  const effectiveRisk = planned.ok ? risk : blockedDecision(planned.reason);
 
   yield {
     type: "started",
     command,
-    risk
+    risk: effectiveRisk
   };
 
-  if (risk.requiresApproval) {
+  if (effectiveRisk.requiresApproval) {
     yield {
       type: "approval_required",
       command,
-      risk
+      risk: effectiveRisk
     };
 
-    if (!options.approved || risk.level === "blocked") {
+    if (!options.approved || effectiveRisk.level === "blocked") {
       return;
     }
   }
@@ -309,6 +314,14 @@ function isDesktopAppState(result: DesktopActionResult): result is DesktopAppSta
 
 function createScreenshotPath(stage: "before" | "after", options: GhosttyTaskOptions): string {
   return options.createScreenshotPath?.(stage) ?? `/tmp/skfiy-ghostty-${stage}.png`;
+}
+
+function blockedDecision(reason: string): RiskDecision {
+  return {
+    level: "blocked",
+    reason,
+    requiresApproval: true
+  };
 }
 
 function isAborted(signal: AbortSignal | undefined): boolean {

@@ -182,17 +182,18 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - after type/enter, capture after screenshot
   - if verification fails, ask user instead of continuing
 - [ ] Add a primitive planner loop for terminal tasks:
-  - parse command intent
-  - classify risk
-  - prepare session
-  - execute
-  - verify
-  - summarize
+  - [x] parse command intent
+  - [x] classify risk
+  - [x] prepare session
+  - [x] execute
+  - [ ] verify
+  - [x] summarize
 - [ ] Add tests and real task scripts:
-  - `pwd`
-  - `date`
-  - `mkdir skfiy-demo` requires approval
-  - `rm -rf` requires approval and defaults to deny
+  - [x] `pwd`
+  - [x] `date`
+  - [x] `mkdir skfiy-demo` requires approval
+  - [x] `rm -rf` requires approval and defaults to deny
+  - [ ] product-path task scripts after Accessibility is granted
 - Week-2 acceptance evidence:
   - launch command: `open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app`
   - trigger path: packaged app product path, not direct helper

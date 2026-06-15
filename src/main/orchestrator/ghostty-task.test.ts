@@ -140,6 +140,44 @@ describe("runGhosttyCommandTask", () => {
     });
   });
 
+  it("plans a voice request into the terminal command before typing", async () => {
+    const client = createDesktopClient();
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "打开 Ghostty 执行 pwd 并截图", { createScreenshotPath })
+    );
+
+    expect(events[0]).toMatchObject({
+      type: "started",
+      command: "pwd"
+    });
+    expect(client.executeAction).toHaveBeenCalledWith({
+      type: "type_text",
+      text: "pwd"
+    });
+    expect(client.executeAction).not.toHaveBeenCalledWith({
+      type: "type_text",
+      text: "打开 Ghostty 执行 pwd 并截图"
+    });
+  });
+
+  it("blocks unrecognized natural language before opening Ghostty", async () => {
+    const client = createDesktopClient();
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "帮我整理一下桌面", { createScreenshotPath })
+    );
+
+    expect(events.map((event) => event.type)).toEqual(["started", "approval_required"]);
+    expect(events[0]).toMatchObject({
+      type: "started",
+      risk: {
+        level: "blocked"
+      }
+    });
+    expect(client.executeAction).not.toHaveBeenCalled();
+  });
+
   it("requires approval for high-risk commands before typing or submitting", async () => {
     const client = createDesktopClient();
 
