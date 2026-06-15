@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
 import type {
+  DesktopAction,
+  DesktopActionResult,
   DesktopAppInfo,
   DesktopAppState,
   DesktopHelperActionResult,
@@ -24,39 +26,95 @@ export class DesktopHelperClient {
     this.runner = options.runner ?? runProcess;
   }
 
+  async executeAction(action: DesktopAction): Promise<DesktopActionResult> {
+    if (!isRecord(action)) {
+      throw new Error("Desktop action must be a JSON object.");
+    }
+
+    if (typeof action.type !== "string" || action.type.length === 0) {
+      throw new Error("Desktop action type must be a non-empty string.");
+    }
+
+    switch (action.type) {
+      case "activate_app":
+        return this.activateApp(action.bundleId);
+      case "screenshot":
+        return this.screenshot(action.outputPath);
+      case "click":
+        return this.click(action.x, action.y);
+      case "type_text":
+        return this.typeText(action.text);
+      case "press_key":
+        return this.pressKey(action.key);
+      case "observe_app":
+        return this.getAppState(action.bundleId, action.screenshotOutputPath);
+      default: {
+        const unsupportedAction = action as { type: string };
+        throw new Error(`Unsupported desktop action type: ${unsupportedAction.type}`);
+      }
+    }
+  }
+
   async listApps(): Promise<DesktopAppInfo[]> {
     const response = await this.runJson("list-apps", ["list-apps"], readListAppsResponse);
     return response.apps;
   }
 
   async activateApp(bundleId: string): Promise<DesktopHelperActionResult> {
+    const checkedBundleId = requireNonEmptyString(bundleId, "bundleId");
+
     return this.runJson(
       "activate-app",
-      ["activate-app", "--bundle-id", bundleId],
+      ["activate-app", "--bundle-id", checkedBundleId],
       readActionResult
     );
   }
 
   async screenshot(outputPath: string): Promise<ScreenshotResult> {
-    return this.runJson("screenshot", ["screenshot", "--output", outputPath], readScreenshotResult);
+    const checkedOutputPath = requireNonEmptyString(outputPath, "outputPath");
+    return this.runJson(
+      "screenshot",
+      ["screenshot", "--output", checkedOutputPath],
+      readScreenshotResult
+    );
   }
 
   async click(x: number, y: number): Promise<DesktopHelperActionResult> {
-    return this.runJson("click", ["click", "--x", String(x), "--y", String(y)], readActionResult);
+    const checkedX = requireFiniteNumber(x, "x");
+    const checkedY = requireFiniteNumber(y, "y");
+    return this.runJson(
+      "click",
+      ["click", "--x", String(checkedX), "--y", String(checkedY)],
+      readActionResult
+    );
   }
 
   async typeText(text: string): Promise<DesktopHelperActionResult> {
-    return this.runJson("type-text", ["type-text", "--text", text], readActionResult);
+    const checkedText = requireNonEmptyString(text, "text");
+    return this.runJson("type-text", ["type-text", "--text", checkedText], readActionResult);
   }
 
   async pressKey(key: string): Promise<DesktopHelperActionResult> {
-    return this.runJson("press-key", ["press-key", "--key", key], readActionResult);
+    const checkedKey = requireNonEmptyString(key, "key");
+    return this.runJson("press-key", ["press-key", "--key", checkedKey], readActionResult);
   }
 
   async getAppState(bundleId: string, screenshotOutputPath: string): Promise<DesktopAppState> {
+    const checkedBundleId = requireNonEmptyString(bundleId, "bundleId");
+    const checkedScreenshotOutputPath = requireNonEmptyString(
+      screenshotOutputPath,
+      "screenshotOutputPath"
+    );
+
     return this.runJson(
       "get-app-state",
-      ["get-app-state", "--bundle-id", bundleId, "--screenshot-output", screenshotOutputPath],
+      [
+        "get-app-state",
+        "--bundle-id",
+        checkedBundleId,
+        "--screenshot-output",
+        checkedScreenshotOutputPath
+      ],
       readAppState
     );
   }
@@ -257,6 +315,22 @@ function readRecord(payload: unknown, commandName: string): Record<string, unkno
   }
 
   return payload;
+}
+
+function requireNonEmptyString(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${label} must be a non-empty string.`);
+  }
+
+  return value;
+}
+
+function requireFiniteNumber(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${label} must be a finite number.`);
+  }
+
+  return value;
 }
 
 function readString(

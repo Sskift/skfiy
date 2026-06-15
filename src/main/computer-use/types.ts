@@ -20,6 +20,14 @@ export interface DesktopAppInfo {
   pid?: number;
 }
 
+export type DesktopAction =
+  | { type: "screenshot"; outputPath: string }
+  | { type: "click"; x: number; y: number }
+  | { type: "type_text"; text: string }
+  | { type: "press_key"; key: string }
+  | { type: "activate_app"; bundleId: string }
+  | { type: "observe_app"; bundleId: string; screenshotOutputPath: string };
+
 export interface ScreenshotResult {
   outputPath: string;
 }
@@ -35,3 +43,8 @@ export interface DesktopAppState {
   isActive: boolean;
   screenshotPath: string;
 }
+
+export type DesktopActionResult =
+  | ScreenshotResult
+  | DesktopHelperActionResult
+  | DesktopAppState;

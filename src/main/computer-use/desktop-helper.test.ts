@@ -53,6 +53,41 @@ describe("DesktopHelperClient", () => {
     ]);
   });
 
+  it("dispatches desktop actions through safe helper commands", async () => {
+    const { calls, client } = createClientWithResponses([
+      { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 },
+      { stdout: "{\"outputPath\":\"/tmp/action-shot.png\"}", stderr: "", exitCode: 0 },
+      { stdout: "{\"ok\":true,\"message\":\"clicked\"}", stderr: "", exitCode: 0 },
+      { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 },
+      { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 }
+    ]);
+
+    await expect(
+      client.executeAction({ type: "activate_app", bundleId: "com.mitchellh.ghostty" })
+    ).resolves.toEqual({ ok: true });
+    await expect(
+      client.executeAction({ type: "screenshot", outputPath: "/tmp/action-shot.png" })
+    ).resolves.toEqual({ outputPath: "/tmp/action-shot.png" });
+    await expect(client.executeAction({ type: "click", x: 12, y: 34 })).resolves.toEqual({
+      ok: true,
+      message: "clicked"
+    });
+    await expect(client.executeAction({ type: "type_text", text: "hello" })).resolves.toEqual({
+      ok: true
+    });
+    await expect(client.executeAction({ type: "press_key", key: "enter" })).resolves.toEqual({
+      ok: true
+    });
+
+    expect(calls).toEqual([
+      { command: "/tmp/skfiy-helper", args: ["activate-app", "--bundle-id", "com.mitchellh.ghostty"] },
+      { command: "/tmp/skfiy-helper", args: ["screenshot", "--output", "/tmp/action-shot.png"] },
+      { command: "/tmp/skfiy-helper", args: ["click", "--x", "12", "--y", "34"] },
+      { command: "/tmp/skfiy-helper", args: ["type-text", "--text", "hello"] },
+      { command: "/tmp/skfiy-helper", args: ["press-key", "--key", "enter"] }
+    ]);
+  });
+
   it("parses JSON responses from listApps and getAppState", async () => {
     const { calls, client } = createClientWithResponses([
       {
@@ -99,6 +134,47 @@ describe("DesktopHelperClient", () => {
         "/tmp/state.png"
       ]
     });
+  });
+
+  it("returns app state for observe_app desktop actions", async () => {
+    const { calls, client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          bundleId: "com.mitchellh.ghostty",
+          isRunning: true,
+          isActive: true,
+          screenshotPath: "/tmp/observed.png"
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(
+      client.executeAction({
+        type: "observe_app",
+        bundleId: "com.mitchellh.ghostty",
+        screenshotOutputPath: "/tmp/observed.png"
+      })
+    ).resolves.toEqual({
+      bundleId: "com.mitchellh.ghostty",
+      isRunning: true,
+      isActive: true,
+      screenshotPath: "/tmp/observed.png"
+    });
+
+    expect(calls).toEqual([
+      {
+        command: "/tmp/skfiy-helper",
+        args: [
+          "get-app-state",
+          "--bundle-id",
+          "com.mitchellh.ghostty",
+          "--screenshot-output",
+          "/tmp/observed.png"
+        ]
+      }
+    ]);
   });
 
   it("parses enveloped Swift helper responses and normalizes payload names", async () => {
@@ -220,5 +296,56 @@ describe("DesktopHelperClient", () => {
     await expect(client.listApps()).rejects.toThrow(
       "Desktop helper returned invalid JSON for list-apps: not-json"
     );
+  });
+
+  it("rejects invalid action inputs before invoking the helper", async () => {
+    const { calls, client } = createClientWithResponses([]);
+
+    await expect(client.executeAction({ type: "click", x: Number.NaN, y: 1 })).rejects.toThrow(
+      "x must be a finite number"
+    );
+    await expect(client.executeAction({ type: "type_text", text: "" })).rejects.toThrow(
+      "text must be a non-empty string"
+    );
+    await expect(client.executeAction({ type: "screenshot", outputPath: "" })).rejects.toThrow(
+      "outputPath must be a non-empty string"
+    );
+    await expect(
+      client.executeAction({ type: "activate_app", bundleId: "" })
+    ).rejects.toThrow("bundleId must be a non-empty string");
+    await expect(client.executeAction({ type: "press_key", key: "" })).rejects.toThrow(
+      "key must be a non-empty string"
+    );
+    await expect(
+      client.executeAction({
+        type: "observe_app",
+        bundleId: "com.mitchellh.ghostty",
+        screenshotOutputPath: ""
+      })
+    ).rejects.toThrow("screenshotOutputPath must be a non-empty string");
+    await expect(client.executeAction({ type: "drag" } as never)).rejects.toThrow(
+      "Unsupported desktop action type: drag"
+    );
+
+    expect(calls).toEqual([]);
+  });
+
+  it("rejects invalid legacy helper method inputs before invoking the helper", async () => {
+    const { calls, client } = createClientWithResponses([]);
+
+    await expect(client.click(Number.POSITIVE_INFINITY, 1)).rejects.toThrow(
+      "x must be a finite number"
+    );
+    await expect(client.typeText("")).rejects.toThrow("text must be a non-empty string");
+    await expect(client.pressKey("")).rejects.toThrow("key must be a non-empty string");
+    await expect(client.activateApp("")).rejects.toThrow("bundleId must be a non-empty string");
+    await expect(client.screenshot("")).rejects.toThrow(
+      "outputPath must be a non-empty string"
+    );
+    await expect(client.getAppState("com.mitchellh.ghostty", "")).rejects.toThrow(
+      "screenshotOutputPath must be a non-empty string"
+    );
+
+    expect(calls).toEqual([]);
   });
 });

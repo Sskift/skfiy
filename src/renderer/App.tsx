@@ -1,5 +1,6 @@
-import { Camera, CirclePause, Play, Sparkles } from "lucide-react";
+import { Camera, CirclePause, Play, Sparkles, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { getPetSpriteStyle, getPetStateForTask, PET_ATLAS, type PetAtlasState } from "./pet-atlas";
 
 export type TaskStatus =
   | "idle"
@@ -11,7 +12,6 @@ export type TaskStatus =
 
 export type ManualMode = "active" | "quiet";
 type SwitchingMode = "auto" | "manual";
-type PetAnimation = "idle" | "scanning" | "controlling" | "approval" | "celebrating" | "error";
 
 export interface TaskEvent {
   status: TaskStatus;
@@ -25,6 +25,7 @@ export interface SkfiyApi {
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
+  setIgnoreMouse: (ignore: boolean) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -39,42 +40,36 @@ interface TaskView {
   message: string;
 }
 
-const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string; animation: PetAnimation }> = {
+const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
   idle: {
     label: "Idle",
     message: "Ready for a command.",
-    pulse: "Orbiting",
-    animation: "idle"
+    pulse: "Tucked"
   },
   observing: {
     label: "Observing",
     message: "Looking at the desktop.",
-    pulse: "Scanning",
-    animation: "scanning"
+    pulse: "Review"
   },
   executing: {
     label: "Executing",
     message: "Working in Ghostty.",
-    pulse: "Piloting",
-    animation: "controlling"
+    pulse: "Running"
   },
   approval_required: {
     label: "Approval required",
     message: "Waiting for a human check.",
-    pulse: "Holding",
-    animation: "approval"
+    pulse: "Waiting"
   },
   completed: {
     label: "Completed",
     message: "Task finished.",
-    pulse: "Spark",
-    animation: "celebrating"
+    pulse: "Waving"
   },
   failed: {
     label: "Failed",
     message: "Could not complete the task.",
-    pulse: "Alert",
-    animation: "error"
+    pulse: "Fault"
   }
 };
 
@@ -84,6 +79,7 @@ const fallbackApi: SkfiyApi = {
   denyTask: async () => undefined,
   takeScreenshot: async () => undefined,
   stopTask: async () => undefined,
+  setIgnoreMouse: () => undefined,
   onTaskEvent: () => () => undefined
 };
 
@@ -95,43 +91,27 @@ function deriveAutoMode(status: TaskStatus): ManualMode {
   return status === "idle" || status === "completed" ? "quiet" : "active";
 }
 
-function PixelCosmicRobot({
-  animation,
+function SkfiyPet({
+  state,
   onClick
 }: {
-  animation: PetAnimation;
+  state: PetAtlasState;
   onClick: () => void;
 }) {
+  const animation = PET_ATLAS.states[state];
+
   return (
     <button
       type="button"
-      aria-label="Cosmic pixel robot"
-      className={`cosmic-robot robot-${animation}`}
-      data-animation={animation}
+      aria-label="Skfiy Codex-style pet"
+      className={`skfiy-pet pet-state-${state}`}
+      data-atlas-state={state}
+      data-frame-count={animation.frames}
+      data-interactive="true"
+      style={getPetSpriteStyle(state)}
       onClick={onClick}
     >
-      <span className="orbit-ring" aria-hidden="true" />
-      <span className="star star-a" aria-hidden="true" />
-      <span className="star star-b" aria-hidden="true" />
-      <span className="robot-shadow" aria-hidden="true" />
-      <span className="robot-pack" aria-hidden="true" />
-      <span className="robot-body" aria-hidden="true">
-        <span className="robot-antenna" />
-        <span className="robot-visor">
-          <span className="robot-eye eye-left" />
-          <span className="robot-eye eye-right" />
-          <span className="robot-scanline" />
-        </span>
-        <span className="robot-cheek cheek-left" />
-        <span className="robot-cheek cheek-right" />
-        <span className="robot-panel" />
-      </span>
-      <span className="robot-arm arm-left" aria-hidden="true" />
-      <span className="robot-arm arm-right" aria-hidden="true" />
-      <span className="robot-leg leg-left" aria-hidden="true" />
-      <span className="robot-leg leg-right" aria-hidden="true" />
-      <span className="thruster flame-left" aria-hidden="true" />
-      <span className="thruster flame-right" aria-hidden="true" />
+      <span className="pet-sprite-frame" aria-hidden="true" />
     </button>
   );
 }
@@ -160,7 +140,44 @@ export default function App() {
     });
   }, [api]);
 
+  useEffect(() => {
+    let ignoringMouse = true;
+    api.setIgnoreMouse(true);
+
+    const setIgnoringMouse = (ignore: boolean) => {
+      if (ignore === ignoringMouse) {
+        return;
+      }
+
+      ignoringMouse = ignore;
+      api.setIgnoreMouse(ignore);
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const target =
+        typeof document.elementFromPoint === "function"
+          ? document.elementFromPoint(event.clientX, event.clientY)
+          : null;
+      const interactiveTarget =
+        target instanceof Element ? target.closest("[data-interactive='true']") : null;
+
+      setIgnoringMouse(!interactiveTarget);
+    };
+
+    const handleMouseLeave = () => setIgnoringMouse(true);
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseleave", handleMouseLeave);
+      api.setIgnoreMouse(true);
+    };
+  }, [api]);
+
   const status = STATUS_COPY[task.status];
+  const petState = getPetStateForTask(task.status);
   const effectiveMode = switchingMode === "auto" ? deriveAutoMode(task.status) : manualMode;
   const quiet = effectiveMode === "quiet";
   const showBubble = bubbleOpen || task.status === "approval_required";
@@ -256,28 +273,28 @@ export default function App() {
   }
 
   return (
-    <main className={`pet-stage status-${task.status}${showBubble ? " bubble-open" : ""}`} aria-label="Skfiy desktop pet">
+    <main className={`pet-stage status-${task.status}${showBubble ? " capsule-open" : ""}`} aria-label="Skfiy desktop pet">
       <div className="status-orb" role="status" aria-label="Task status">
         <strong>{status.label}</strong>
         <span>{status.pulse}</span>
       </div>
 
-      <PixelCosmicRobot animation={status.animation} onClick={() => setBubbleOpen((open) => !open)} />
+      <SkfiyPet state={petState} onClick={() => setBubbleOpen((open) => !open)} />
 
       {showBubble ? (
-        <section className="command-bubble" aria-label="Skfiy command bubble">
-          <div className="bubble-header">
+        <section className="command-capsule" aria-label="Skfiy command capsule" data-interactive="true">
+          <div className="capsule-header">
             <div>
               <p>Skfiy</p>
               <strong>{task.message}</strong>
             </div>
             <button
               type="button"
-              aria-label="Close command bubble"
+              aria-label="Close command capsule"
               className="icon-button"
               onClick={() => setBubbleOpen(false)}
             >
-              x
+              <X size={14} aria-hidden="true" />
             </button>
           </div>
 

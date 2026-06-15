@@ -13,6 +13,7 @@ beforeEach(() => {
     denyTask: vi.fn<SkfiyApi["denyTask"]>().mockResolvedValue(undefined),
     takeScreenshot: vi.fn<SkfiyApi["takeScreenshot"]>().mockResolvedValue(undefined),
     stopTask: vi.fn<SkfiyApi["stopTask"]>().mockResolvedValue(undefined),
+    setIgnoreMouse: vi.fn<SkfiyApi["setIgnoreMouse"]>(),
     onTaskEvent: vi.fn((callback: (event: TaskEvent) => void) => {
       emitTaskEvent = callback;
       return vi.fn();
@@ -25,20 +26,25 @@ afterEach(() => {
 });
 
 describe("App", () => {
-  it("starts as a pet-first overlay with controls tucked away", () => {
+  it("starts as a Codex-style pet overlay with controls tucked away", () => {
     render(<App />);
 
-    expect(screen.getByRole("button", { name: /cosmic pixel robot/i })).toBeInTheDocument();
+    const pet = screen.getByRole("button", { name: /skfiy codex-style pet/i });
+    expect(pet).toBeInTheDocument();
+    expect(pet).toHaveAttribute("data-atlas-state", "idle");
+    expect(pet).toHaveAttribute("data-frame-count", "6");
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
     expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /run command/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
-  it("opens the command bubble from the pixel robot", () => {
+  it("opens the command capsule from the pet", () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /cosmic pixel robot/i }));
+    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
 
+    expect(screen.getByLabelText(/skfiy command capsule/i)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /command/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /run command/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /take screenshot/i })).toBeInTheDocument();
@@ -50,15 +56,15 @@ describe("App", () => {
 
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
 
-    const robot = screen.getByRole("button", { name: /cosmic pixel robot/i });
-    expect(robot).toHaveAttribute("data-animation", "idle");
+    const pet = screen.getByRole("button", { name: /skfiy codex-style pet/i });
+    expect(pet).toHaveAttribute("data-atlas-state", "idle");
 
     const cases: Array<[TaskEvent["status"], string, string, string]> = [
-      ["observing", "Observing", "Reading the screen", "scanning"],
-      ["executing", "Executing", "Typing in Ghostty", "controlling"],
-      ["approval_required", "Approval required", "Needs a human check", "approval"],
-      ["completed", "Completed", "Task finished", "celebrating"],
-      ["failed", "Failed", "Could not complete", "error"]
+      ["observing", "Observing", "Reading the screen", "review"],
+      ["executing", "Executing", "Typing in Ghostty", "running"],
+      ["approval_required", "Approval required", "Needs a human check", "waiting"],
+      ["completed", "Completed", "Task finished", "waving"],
+      ["failed", "Failed", "Could not complete", "failed"]
     ];
 
     for (const [status, label, message, animation] of cases) {
@@ -66,14 +72,39 @@ describe("App", () => {
 
       expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent(label);
       expect(screen.getByText(message)).toBeInTheDocument();
-      expect(robot).toHaveAttribute("data-animation", animation);
+      expect(pet).toHaveAttribute("data-atlas-state", animation);
     }
+  });
+
+  it("keeps transparent desktop areas click-through until the pointer reaches interactive pet UI", () => {
+    render(<App />);
+
+    const api = window.skfiy as SkfiyApi;
+    const elementFromPoint = vi
+      .fn()
+      .mockReturnValueOnce(document.body)
+      .mockReturnValueOnce(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: elementFromPoint
+    });
+
+    expect(api.setIgnoreMouse).toHaveBeenLastCalledWith(true);
+
+    fireEvent.mouseMove(document, { clientX: 4, clientY: 6 });
+    expect(api.setIgnoreMouse).toHaveBeenLastCalledWith(true);
+
+    fireEvent.mouseMove(document, { clientX: 120, clientY: 140 });
+    expect(api.setIgnoreMouse).toHaveBeenLastCalledWith(false);
+
+    expect(elementFromPoint).toHaveBeenCalledWith(4, 6);
+    expect(elementFromPoint).toHaveBeenCalledWith(120, 140);
   });
 
   it("toggles manual mode between active and quiet", () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /cosmic pixel robot/i }));
+    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
 
     const toggle = screen.getByRole("switch", { name: /manual mode/i });
     expect(toggle).toBeChecked();
@@ -88,7 +119,7 @@ describe("App", () => {
   it("can automatically switch between quiet idle and active task states", () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /cosmic pixel robot/i }));
+    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
 
     const switchingToggle = screen.getByRole("switch", { name: /switching mode/i });
     fireEvent.click(switchingToggle);
@@ -107,7 +138,7 @@ describe("App", () => {
   it("exposes command, screenshot, run, and stop controls", () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /cosmic pixel robot/i }));
+    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
 
     const input = screen.getByRole("textbox", { name: /command/i });
     fireEvent.change(input, { target: { value: "pwd" } });

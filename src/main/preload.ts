@@ -15,6 +15,7 @@ interface SkfiyApi {
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
+  setIgnoreMouse: (ignore: boolean) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -51,6 +52,9 @@ const api: SkfiyApi = {
   },
   async stopTask() {
     await ipcRenderer.invoke("skfiy:stop-task");
+  },
+  setIgnoreMouse(ignore) {
+    ipcRenderer.send("skfiy:set-ignore-mouse", ignore === true);
   },
   onTaskEvent(callback) {
     const listener = (_event: IpcRendererEvent, payload: unknown) => {

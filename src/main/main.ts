@@ -199,8 +199,8 @@ async function runCommandTask(
 }
 
 async function createWindow() {
-  const windowWidth = 420;
-  const windowHeight = 420;
+  const windowWidth = 320;
+  const windowHeight = 360;
   const workArea = screen.getPrimaryDisplay().workArea;
 
   mainWindow = new BrowserWindow({
@@ -208,8 +208,8 @@ async function createWindow() {
     height: windowHeight,
     x: workArea.x + workArea.width - windowWidth - 28,
     y: workArea.y + workArea.height - windowHeight - 28,
-    minWidth: 360,
-    minHeight: 360,
+    minWidth: windowWidth,
+    minHeight: windowHeight,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -218,8 +218,6 @@ async function createWindow() {
     hasShadow: false,
     backgroundColor: "#00000000",
     title: "Skfiy",
-    vibrancy: "under-window",
-    visualEffectState: "active",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -230,6 +228,7 @@ async function createWindow() {
 
   mainWindow.setAlwaysOnTop(true, "floating");
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.setIgnoreMouseEvents(true, { forward: true });
 
   if (devServerUrl) {
     await mainWindow.loadURL(devServerUrl);
@@ -237,6 +236,16 @@ async function createWindow() {
     await mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
 }
+
+ipcMain.on("skfiy:set-ignore-mouse", (event, ignore: unknown) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (!window || window.isDestroyed()) {
+    return;
+  }
+
+  window.setIgnoreMouseEvents(ignore === true, { forward: true });
+});
 
 ipcMain.handle(
   "skfiy:run-command",
