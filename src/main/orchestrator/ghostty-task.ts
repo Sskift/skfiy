@@ -13,6 +13,7 @@ import type {
   DesktopAppState,
   OcrImageResult,
   OpenGhosttySessionResult,
+  PermissionSummary,
 } from "../computer-use/types.js";
 import type { GhosttyTaskEvent } from "./events.js";
 
@@ -37,6 +38,7 @@ export interface DesktopApp {
 
 export interface DesktopClient extends DesktopActionExecutor {
   listApps(): Promise<DesktopApp[]>;
+  getPermissions?(): Promise<PermissionSummary>;
   ocrImage?(inputPath: string): Promise<OcrImageResult>;
 }
 
@@ -72,6 +74,20 @@ export async function* runGhosttyCommandTask(
     if (!options.approved || effectiveRisk.level === "blocked") {
       return;
     }
+  }
+
+  if (isAborted(options.signal)) {
+    return;
+  }
+
+  const missingPermissions = await readMissingComputerUsePermissions(client);
+  if (missingPermissions.length > 0) {
+    yield {
+      type: "verification_failed",
+      stage: "permissions",
+      reason: createPermissionFailureReason(missingPermissions)
+    };
+    return;
   }
 
   if (isAborted(options.signal)) {
@@ -525,6 +541,56 @@ function isDesktopAppState(result: DesktopActionResult): result is DesktopAppSta
 
 function createScreenshotPath(stage: "before" | "after", options: GhosttyTaskOptions): string {
   return options.createScreenshotPath?.(stage) ?? `/tmp/skfiy-ghostty-${stage}.png`;
+}
+
+type RequiredComputerUsePermission = "screenRecording" | "accessibility";
+
+interface MissingComputerUsePermission {
+  permission: RequiredComputerUsePermission;
+  label: string;
+  state: PermissionSummary[RequiredComputerUsePermission]["state"];
+}
+
+async function readMissingComputerUsePermissions(
+  client: DesktopClient
+): Promise<MissingComputerUsePermission[]> {
+  if (!client.getPermissions) {
+    return [];
+  }
+
+  const permissions = await client.getPermissions();
+  return REQUIRED_COMPUTER_USE_PERMISSIONS.flatMap((permission) => {
+    const state = permissions[permission].state;
+    if (state === "granted") {
+      return [];
+    }
+
+    return [{
+      permission,
+      label: COMPUTER_USE_PERMISSION_LABELS[permission],
+      state
+    }];
+  });
+}
+
+const REQUIRED_COMPUTER_USE_PERMISSIONS: readonly RequiredComputerUsePermission[] = [
+  "screenRecording",
+  "accessibility"
+];
+
+const COMPUTER_USE_PERMISSION_LABELS: Record<RequiredComputerUsePermission, string> = {
+  screenRecording: "Screen Recording",
+  accessibility: "Accessibility"
+};
+
+function createPermissionFailureReason(
+  missingPermissions: readonly MissingComputerUsePermission[]
+): string {
+  const details = missingPermissions
+    .map((permission) => `${permission.label} is ${permission.state}`)
+    .join("; ");
+
+  return `Computer Use permissions required: ${details}. Grant them to skfiy.app in System Settings, then retry.`;
 }
 
 function blockedDecision(reason: string): RiskDecision {

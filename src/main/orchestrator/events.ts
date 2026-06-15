@@ -35,7 +35,7 @@ export type GhosttyTaskEvent =
     }
   | {
       type: "verification_failed";
-      stage: "activate" | "initialize" | "before" | "after";
+      stage: "permissions" | "activate" | "initialize" | "before" | "after";
       reason: string;
     }
   | {

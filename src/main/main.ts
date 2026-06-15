@@ -140,6 +140,7 @@ function createScreenshotPath(scope: string): string {
 
 function createGhosttyDesktopClient(helper: DesktopHelperClient): DesktopClient {
   return {
+    getPermissions: async () => helper.getPermissions(),
     listApps: async () => helper.listApps(),
     ocrImage: async (inputPath) => helper.ocrImage(inputPath),
     executeAction: async (action) => {
@@ -193,6 +194,13 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
         message: `${prefix}Initialized Ghostty session marker: ${event.title}.`
       };
     case "verification_failed":
+      if (event.stage === "permissions") {
+        return {
+          status: "failed",
+          message: `${prefix}${event.reason}`
+        };
+      }
+
       return {
         status: "needs_confirmation",
         message: `${prefix}Verification failed (${event.stage}): ${event.reason}`

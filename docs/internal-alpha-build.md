@@ -48,6 +48,8 @@ Grant these permissions to `skfiy.app`:
 
 Computer Use tasks cannot be reported as passing until Screen Recording and Accessibility are granted to `com.sskift.skfiy`.
 
+When either required Computer Use permission is missing, skfiy preflights the turn and stops before opening Ghostty or sending helper actions. The smoke event should name the missing Screen Recording and/or Accessibility grant.
+
 ## Smoke Test
 
 After `npm run build`, run:

@@ -91,4 +91,28 @@ describe("Ghostty product smoke script", () => {
       }
     ]);
   });
+
+  it("classifies required Computer Use permission failures as blocked", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      classifySmokeResult
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifySmokeResult: (
+        events: Array<{ status: string; message?: string }>
+      ) => string;
+    };
+
+    expect(classifySmokeResult([
+      {
+        status: "failed",
+        message: "Computer Use permissions required: Screen Recording is denied."
+      }
+    ])).toBe("blocked");
+    expect(classifySmokeResult([
+      {
+        status: "failed",
+        message: "Computer Use permissions required: Accessibility is denied."
+      }
+    ])).toBe("blocked");
+  });
 });

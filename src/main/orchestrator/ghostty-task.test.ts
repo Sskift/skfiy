@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DesktopActionResult, DesktopExecutableAction } from "../computer-use/types";
+import type {
+  DesktopActionResult,
+  DesktopExecutableAction,
+  PermissionSummary
+} from "../computer-use/types";
 import { runGhosttyCommandTask, type DesktopClient } from "./ghostty-task";
 
 async function collectEvents(
@@ -16,15 +20,22 @@ async function collectEvents(
 
 function createDesktopClient(): DesktopClient & {
   executeAction: ReturnType<typeof vi.fn>;
+  getPermissions: ReturnType<typeof vi.fn<() => Promise<PermissionSummary>>>;
   ocrImage: ReturnType<typeof vi.fn>;
 } {
   const client: DesktopClient & {
     executeAction: ReturnType<typeof vi.fn>;
+    getPermissions: ReturnType<typeof vi.fn<() => Promise<PermissionSummary>>>;
     ocrImage: ReturnType<typeof vi.fn>;
   } = {
     listApps: vi.fn(async () => [
       { name: "Ghostty", bundleId: "com.mitchellh.ghostty" }
     ]),
+    getPermissions: vi.fn(async () => ({
+      screenRecording: { state: "granted" },
+      accessibility: { state: "granted" },
+      microphone: { state: "unknown" }
+    })),
     ocrImage: vi.fn(async () => ({ labels: [] })),
     executeAction: vi.fn(async (action: DesktopExecutableAction): Promise<DesktopActionResult> => {
       switch (action.type) {
@@ -255,6 +266,34 @@ describe("runGhosttyCommandTask", () => {
         level: "blocked"
       }
     });
+    expect(client.getPermissions).not.toHaveBeenCalled();
+    expect(client.executeAction).not.toHaveBeenCalled();
+  });
+
+  it("stops before opening Ghostty when required Computer Use permissions are missing", async () => {
+    const client = createDesktopClient();
+    client.getPermissions.mockResolvedValue({
+      screenRecording: { state: "denied" },
+      accessibility: { state: "not-determined" },
+      microphone: { state: "granted" }
+    });
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "permissions",
+      reason: expect.stringContaining("Screen Recording")
+    });
+    expect(events.at(-1)).toMatchObject({
+      reason: expect.stringContaining("Accessibility")
+    });
     expect(client.executeAction).not.toHaveBeenCalled();
   });
 
@@ -268,6 +307,35 @@ describe("runGhosttyCommandTask", () => {
       "approval_required"
     ]);
     expect(client.listApps).not.toHaveBeenCalled();
+    expect(client.getPermissions).not.toHaveBeenCalled();
+    expect(client.executeAction).not.toHaveBeenCalled();
+  });
+
+  it("checks permissions after approval for high-risk commands and still avoids opening Ghostty when blocked", async () => {
+    const client = createDesktopClient();
+    client.getPermissions.mockResolvedValue({
+      screenRecording: { state: "granted" },
+      accessibility: { state: "denied" },
+      microphone: { state: "unknown" }
+    });
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "sudo spctl --master-disable", {
+        approved: true,
+        createScreenshotPath
+      })
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "approval_required",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "permissions",
+      reason: expect.stringContaining("Accessibility")
+    });
     expect(client.executeAction).not.toHaveBeenCalled();
   });
 

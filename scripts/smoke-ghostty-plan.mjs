@@ -141,12 +141,23 @@ export function classifySmokeResult(events) {
   if (
     last.status === "failed"
     && typeof last.message === "string"
-    && last.message.toLowerCase().includes("accessibility")
+    && isPermissionBlockedMessage(last.message)
   ) {
     return "blocked";
   }
 
   return last.status;
+}
+
+function isPermissionBlockedMessage(message) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("permission")
+    && (
+      normalized.includes("accessibility")
+      || normalized.includes("screen recording")
+    )
+  );
 }
 
 export function classifyMatrixResult(runs) {

@@ -153,6 +153,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] Accessibility status.
   - [x] Microphone status.
   - [x] "Open System Settings" actions.
+  - [x] Computer Use preflight blocks before opening Ghostty when Screen Recording or Accessibility is not granted, while keeping approval-first behavior for medium/high risk commands.
 - [x] Refactor dictation into a provider interface.
 - [x] Keep Doubao as a provider, but add provider state events:
   - [x] unavailable
@@ -210,7 +211,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
   - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
-  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9245` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Accessibility, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
+  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9247` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Computer Use permission preflight before opening Ghostty, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
   - repeat command: `npm run smoke:ghostty`
   - repeat matrix command: `npm run smoke:ghostty -- --matrix`
 - Week-2 demo criteria:
@@ -289,7 +290,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - planner provider settings now flow through main IPC, preload, and the right-click settings panel
   - runtime gate runs local deterministic mode, fails closed when disabled, verifies external CUA endpoint/key configuration, and can call an external terminal planner before entering the Ghostty safety/execution chain
   - external CUA planner rationale is recorded in the local replay transcript so model decisions remain inspectable during product smoke runs
-  - current external CUA product smoke on 2026-06-16: `npm run smoke:ghostty -- --planner-mode external-cua --port 9244` failed closed before helper/Ghostty because `SKFIY_EXTERNAL_CUA_ENDPOINT` was unset, with `runnerHasTmux=false` and no residual processes after cleanup
+  - current external CUA product smoke on 2026-06-16: `npm run smoke:ghostty -- --planner-mode external-cua --port 9248` failed closed before helper/Ghostty because `SKFIY_EXTERNAL_CUA_ENDPOINT` was unset, with `runnerHasTmux=false` and no residual processes after cleanup
 - Compare against AIME:
   - AIME Buddy overlap: pet/status/notification
   - AIME Chrome Extension overlap: browser control
@@ -336,6 +337,7 @@ Do not add more random UI features. The next implementation milestone should be:
 
 1. Package stable app identity.
 2. Fix permissions onboarding.
+   - current state: permission center plus Computer Use preflight now names missing Screen Recording/Accessibility before any target-app action
 3. Implement dedicated Ghostty session.
 4. Build minimal observe-plan-act-verify loop with replay logs.
 5. Keep voice provider pluggable and make Doubao setup explicit.
