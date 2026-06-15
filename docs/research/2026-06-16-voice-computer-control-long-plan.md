@@ -191,12 +191,13 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - [x] execute
   - [x] verify
   - [x] summarize
-- [ ] Add tests and real task scripts:
+- [x] Add tests and real task scripts:
   - [x] `pwd`
   - [x] `date`
   - [x] `mkdir skfiy-demo` requires approval
   - [x] `rm -rf` requires approval and defaults to deny
   - [x] packaged product-path smoke script: `npm run smoke:ghostty`
+  - [x] packaged product-path smoke matrix: `npm run smoke:ghostty -- --matrix`
   - [ ] passing product-path task scripts after Accessibility is granted
 - Week-2 acceptance evidence:
   - launch command: `open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app`
@@ -209,7 +210,9 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
   - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
+  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9237` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Accessibility, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
   - repeat command: `npm run smoke:ghostty`
+  - repeat matrix command: `npm run smoke:ghostty -- --matrix`
 - Week-2 demo criteria:
   - user says "打开 Ghostty 执行 pwd 并截图"
   - skfiy opens/uses its own Ghostty context

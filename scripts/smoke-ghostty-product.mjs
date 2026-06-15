@@ -5,32 +5,37 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import {
+  buildSmokeRunPlan,
+  classifyMatrixResult,
+  classifySmokeResult,
+  createDefaultSmokeOptions,
+  createHelpText,
+  formatLaunchCommand,
+  parseSmokeArgs
+} from "./smoke-ghostty-plan.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
-const DEFAULT_APP_PATH = path.join(ROOT_DIR, "dist", "skfiy.app");
-const DEFAULT_COMMAND = "打开 Ghostty 执行 pwd 并截图";
-const DEFAULT_PORT = 9233;
-const DEFAULT_TIMEOUT_MS = 8_000;
-const DEFAULT_SETTLE_MS = 500;
 const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
-const PLANNER_MODES = new Set(["local-deterministic", "external-cua", "disabled"]);
 
 async function main() {
-  const options = parseArgs(process.argv.slice(2));
+  const defaults = createDefaultSmokeOptions(ROOT_DIR);
+  const options = parseSmokeArgs(process.argv.slice(2), defaults);
 
   if (options.help) {
-    printHelp();
+    process.stdout.write(createHelpText(defaults));
     return;
   }
 
   const evidence = {
     timestamp: new Date().toISOString(),
     appPath: options.appPath,
-    command: options.command,
+    command: options.matrix ? undefined : options.command,
+    matrix: options.matrix || undefined,
     plannerMode: options.plannerMode,
-    launch: `open -na ${options.appPath} --args --remote-debugging-port=${options.port}`,
+    launch: formatLaunchCommand(options),
     appLaunchViaOpen: true,
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: "renderer -> preload -> main -> helper -> Ghostty",
@@ -76,12 +81,10 @@ async function main() {
         });
       }
 
-      await cdp.send("Runtime.evaluate", {
-        expression: `window.skfiy.runCommand(${JSON.stringify(options.command)}, { mode: "active" })`,
-        awaitPromise: true,
-        returnByValue: true
-      });
-      await sleep(options.settleMs);
+      const runs = [];
+      for (const run of buildSmokeRunPlan(options)) {
+        runs.push(await runSmokeCommand(cdp, options, run));
+      }
 
       const permissions = await cdp.send("Runtime.evaluate", {
         expression: "window.skfiy.getPermissions()",
@@ -109,9 +112,12 @@ async function main() {
       evidence.startupWarnings = startupWarnings.result?.value;
       evidence.plannerProviderSettings = plannerProviderSettings.result?.value;
       evidence.events = cdp.events;
+      evidence.runs = options.matrix ? runs : undefined;
       evidence.replayRecords = readReplayRecords(cdp.events);
       evidence.screenshots = await inspectReplayScreenshots(evidence.replayRecords);
-      evidence.result = classifySmokeResult(cdp.events);
+      evidence.result = options.matrix
+        ? classifyMatrixResult(runs)
+        : runs[0]?.result ?? "no-events";
     } finally {
       cdp.close();
     }
@@ -133,97 +139,6 @@ async function main() {
 
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
   }
-}
-
-function parseArgs(argv) {
-  const options = {
-    appPath: DEFAULT_APP_PATH,
-    command: DEFAULT_COMMAND,
-    port: DEFAULT_PORT,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
-    settleMs: DEFAULT_SETTLE_MS,
-    plannerMode: undefined,
-    keepExisting: false,
-    keepOpen: false,
-    requirePassed: false,
-    help: false
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-
-    switch (arg) {
-      case "--app":
-        options.appPath = path.resolve(readValue(argv, index, arg));
-        index += 1;
-        break;
-      case "--command":
-        options.command = readValue(argv, index, arg);
-        index += 1;
-        break;
-      case "--port":
-        options.port = readPositiveInteger(readValue(argv, index, arg), arg);
-        index += 1;
-        break;
-      case "--timeout-ms":
-        options.timeoutMs = readPositiveInteger(readValue(argv, index, arg), arg);
-        index += 1;
-        break;
-      case "--settle-ms":
-        options.settleMs = readPositiveInteger(readValue(argv, index, arg), arg);
-        index += 1;
-        break;
-      case "--planner-mode":
-        options.plannerMode = readPlannerMode(readValue(argv, index, arg), arg);
-        index += 1;
-        break;
-      case "--keep-existing":
-        options.keepExisting = true;
-        break;
-      case "--keep-open":
-        options.keepOpen = true;
-        break;
-      case "--require-passed":
-        options.requirePassed = true;
-        break;
-      case "--help":
-      case "-h":
-        options.help = true;
-        break;
-      default:
-        throw new Error(`Unknown argument: ${arg}`);
-    }
-  }
-
-  return options;
-}
-
-function readPlannerMode(value, name) {
-  if (!PLANNER_MODES.has(value)) {
-    throw new Error(
-      `${name} must be one of ${Array.from(PLANNER_MODES).join(", ")}.`
-    );
-  }
-
-  return value;
-}
-
-function readValue(argv, index, name) {
-  const value = argv[index + 1];
-  if (!value || value.startsWith("--")) {
-    throw new Error(`${name} requires a value.`);
-  }
-
-  return value;
-}
-
-function readPositiveInteger(value, name) {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error(`${name} must be a positive integer.`);
-  }
-
-  return parsed;
 }
 
 function assertSmokeReady(options) {
@@ -275,6 +190,37 @@ async function waitForRendererPage(port, timeoutMs) {
     `Timed out waiting for skfiy renderer on CDP port ${port}.`
       + (lastError instanceof Error ? ` Last error: ${lastError.message}` : "")
   );
+}
+
+async function runSmokeCommand(cdp, options, run) {
+  const startIndex = cdp.events.length;
+
+  await cdp.send("Runtime.evaluate", {
+    expression: `window.skfiy.runCommand(${JSON.stringify(run.command)}, { mode: "active" })`,
+    awaitPromise: true,
+    returnByValue: true
+  });
+  await sleep(options.settleMs);
+
+  if (run.approvalAction === "deny") {
+    await cdp.send("Runtime.evaluate", {
+      expression: "window.skfiy.denyTask()",
+      awaitPromise: true,
+      returnByValue: true
+    });
+    await sleep(options.settleMs);
+  }
+
+  const events = cdp.events.slice(startIndex);
+  const replayRecords = readReplayRecords(events);
+
+  return {
+    ...run,
+    events,
+    replayRecords,
+    screenshots: await inspectReplayScreenshots(replayRecords),
+    result: classifySmokeResult(events)
+  };
 }
 
 async function createCdpClient(webSocketDebuggerUrl) {
@@ -343,32 +289,6 @@ function installEventSinkExpression() {
   })()`;
 }
 
-function classifySmokeResult(events) {
-  const last = events.at(-1);
-
-  if (!last) {
-    return "no-events";
-  }
-
-  if (last.status === "completed") {
-    return "passed";
-  }
-
-  if (last.status === "needs_confirmation" || last.status === "approval_required") {
-    return "needs-user-confirmation";
-  }
-
-  if (
-    last.status === "failed"
-    && typeof last.message === "string"
-    && last.message.toLowerCase().includes("accessibility")
-  ) {
-    return "blocked";
-  }
-
-  return last.status;
-}
-
 function readReplayRecords(events) {
   return events
     .map((event) => event.replayRecord)
@@ -426,26 +346,6 @@ function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
-}
-
-function printHelp() {
-  process.stdout.write(`Usage: npm run smoke:ghostty -- [options]
-
-Runs the packaged skfiy app through the real product path:
-renderer -> preload -> main -> helper -> Ghostty.
-
-Options:
-  --app <path>          App bundle path. Default: dist/skfiy.app
-  --command <text>      Voice command text. Default: ${DEFAULT_COMMAND}
-  --port <number>       Electron remote debugging port. Default: ${DEFAULT_PORT}
-  --timeout-ms <ms>     Wait time for the renderer CDP page. Default: ${DEFAULT_TIMEOUT_MS}
-  --settle-ms <ms>      Wait after command completion before reading evidence. Default: ${DEFAULT_SETTLE_MS}
-  --planner-mode <mode> Set planner mode before running: local-deterministic, external-cua, disabled.
-  --keep-existing       Do not quit an existing skfiy app before launch.
-  --keep-open           Leave skfiy open after the smoke run.
-  --require-passed      Exit non-zero unless the task reaches completed.
-  -h, --help            Show this help.
-`);
 }
 
 await main();
