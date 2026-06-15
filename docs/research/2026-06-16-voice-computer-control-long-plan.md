@@ -210,7 +210,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
   - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
-  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9242` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Accessibility, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
+  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9243` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Accessibility, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
   - repeat command: `npm run smoke:ghostty`
   - repeat matrix command: `npm run smoke:ghostty -- --matrix`
 - Week-2 demo criteria:
@@ -235,6 +235,11 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] resolve click target by observed element id for window-level elements
   - [x] click by coordinate only as fallback
     - planner requires explicit `allowCoordinateFallback` before producing a raw coordinate click action
+- Expand generic desktop action schema:
+  - [x] hotkey via `press-shortcut`
+  - [x] scroll wheel event
+  - [x] mouse drag event with bounded duration
+    - helper commands `scroll`, `drag`, and `press-shortcut` return structured JSON and route through Accessibility-gated HID events
 - Add recovery policies:
   - [x] if app hidden, activate
     - Ghostty before-observe now performs one-shot activate recovery before typing

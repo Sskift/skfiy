@@ -7,6 +7,7 @@ import type {
   DesktopHelperActionResult,
   DesktopHelperClientOptions,
   DesktopHelperProcessResult,
+  DesktopPoint,
   DesktopWindowInfo,
   OpenGhosttySessionResult,
   OcrImageResult,
@@ -49,10 +50,16 @@ export class DesktopHelperClient {
         return this.screenshot(action.outputPath);
       case "click":
         return this.click(action.x, action.y);
+      case "drag":
+        return this.drag(action.from, action.to, action.durationMs);
+      case "scroll":
+        return this.scroll(action.deltaX, action.deltaY);
       case "type_text":
         return this.typeText(action.text);
       case "press_key":
         return this.pressKey(action.key);
+      case "hotkey":
+        return this.pressShortcut(action.key, action.modifiers);
       case "open_ghostty_session":
         return this.openGhosttySession(action.title, action.workingDirectory);
       case "observe_app":
@@ -105,6 +112,42 @@ export class DesktopHelperClient {
     return this.runJson(
       "click",
       ["click", "--x", String(checkedX), "--y", String(checkedY)],
+      readActionResult
+    );
+  }
+
+  async drag(
+    from: DesktopPoint,
+    to: DesktopPoint,
+    durationMs?: number
+  ): Promise<DesktopHelperActionResult> {
+    const checkedFrom = requirePoint(from, "from");
+    const checkedTo = requirePoint(to, "to");
+    const args = [
+      "drag",
+      "--from-x",
+      String(checkedFrom.x),
+      "--from-y",
+      String(checkedFrom.y),
+      "--to-x",
+      String(checkedTo.x),
+      "--to-y",
+      String(checkedTo.y)
+    ];
+
+    if (durationMs !== undefined) {
+      args.push("--duration-ms", String(requireFiniteNumber(durationMs, "durationMs")));
+    }
+
+    return this.runJson("drag", args, readActionResult);
+  }
+
+  async scroll(deltaX: number, deltaY: number): Promise<DesktopHelperActionResult> {
+    const checkedDeltaX = requireFiniteNumber(deltaX, "deltaX");
+    const checkedDeltaY = requireFiniteNumber(deltaY, "deltaY");
+    return this.runJson(
+      "scroll",
+      ["scroll", "--delta-x", String(checkedDeltaX), "--delta-y", String(checkedDeltaY)],
       readActionResult
     );
   }
@@ -586,6 +629,17 @@ function requireFiniteNumber(value: unknown, label: string): number {
   }
 
   return value;
+}
+
+function requirePoint(value: unknown, label: string): DesktopPoint {
+  if (!isRecord(value)) {
+    throw new Error(`${label} must be a point object.`);
+  }
+
+  return {
+    x: requireFiniteNumber(value.x, `${label}.x`),
+    y: requireFiniteNumber(value.y, `${label}.y`)
+  };
 }
 
 function requirePositiveInteger(value: unknown, label: string): number {

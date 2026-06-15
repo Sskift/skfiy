@@ -116,6 +116,9 @@ describe("DesktopHelperClient", () => {
       { stdout: "{\"outputPath\":\"/tmp/action-shot.png\"}", stderr: "", exitCode: 0 },
       { stdout: "{\"ok\":true,\"message\":\"clicked\"}", stderr: "", exitCode: 0 },
       { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 },
+      { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 },
+      { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 },
+      { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 },
       { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 }
     ]);
 
@@ -147,6 +150,24 @@ describe("DesktopHelperClient", () => {
     await expect(client.executeAction({ type: "press_key", key: "enter" })).resolves.toEqual({
       ok: true
     });
+    await expect(
+      client.executeAction({
+        type: "hotkey",
+        key: "space",
+        modifiers: ["control", "option", "command", "shift"]
+      })
+    ).resolves.toEqual({ ok: true });
+    await expect(
+      client.executeAction({ type: "scroll", deltaX: 0, deltaY: -420 })
+    ).resolves.toEqual({ ok: true });
+    await expect(
+      client.executeAction({
+        type: "drag",
+        from: { x: 10, y: 20 },
+        to: { x: 110, y: 220 },
+        durationMs: 250
+      })
+    ).resolves.toEqual({ ok: true });
 
     expect(calls).toEqual([
       {
@@ -163,7 +184,34 @@ describe("DesktopHelperClient", () => {
       { command: "/tmp/skfiy-helper", args: ["screenshot", "--output", "/tmp/action-shot.png"] },
       { command: "/tmp/skfiy-helper", args: ["click", "--x", "12", "--y", "34"] },
       { command: "/tmp/skfiy-helper", args: ["type-text", "--text", "hello"] },
-      { command: "/tmp/skfiy-helper", args: ["press-key", "--key", "enter"] }
+      { command: "/tmp/skfiy-helper", args: ["press-key", "--key", "enter"] },
+      {
+        command: "/tmp/skfiy-helper",
+        args: [
+          "press-shortcut",
+          "--key",
+          "space",
+          "--modifiers",
+          "control,option,command,shift"
+        ]
+      },
+      { command: "/tmp/skfiy-helper", args: ["scroll", "--delta-x", "0", "--delta-y", "-420"] },
+      {
+        command: "/tmp/skfiy-helper",
+        args: [
+          "drag",
+          "--from-x",
+          "10",
+          "--from-y",
+          "20",
+          "--to-x",
+          "110",
+          "--to-y",
+          "220",
+          "--duration-ms",
+          "250"
+        ]
+      }
     ]);
   });
 
@@ -501,8 +549,20 @@ describe("DesktopHelperClient", () => {
         screenshotOutputPath: ""
       })
     ).rejects.toThrow("screenshotOutputPath must be a non-empty string");
-    await expect(client.executeAction({ type: "drag" } as never)).rejects.toThrow(
-      "Unsupported desktop action type: drag"
+    await expect(
+      client.executeAction({ type: "hotkey", key: "space", modifiers: [] })
+    ).rejects.toThrow("modifiers must include at least one modifier");
+    await expect(
+      client.executeAction({ type: "scroll", deltaX: Number.NaN, deltaY: 1 })
+    ).rejects.toThrow("deltaX must be a finite number");
+    await expect(
+      client.executeAction({
+        type: "drag",
+        from: { x: 0, y: Number.NaN },
+        to: { x: 1, y: 1 }
+      })
+    ).rejects.toThrow(
+      "from.y must be a finite number"
     );
 
     expect(calls).toEqual([]);

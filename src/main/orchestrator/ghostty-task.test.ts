@@ -38,6 +38,9 @@ function createDesktopClient(): DesktopClient & {
         case "activate_app":
         case "type_text":
         case "press_key":
+        case "hotkey":
+        case "scroll":
+        case "drag":
           return { ok: true };
         case "observe_app":
           return {

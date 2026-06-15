@@ -62,6 +62,10 @@ import Vision
    }
  - click --x <n> --y <n>:
    data = { x: Number, y: Number }
+ - scroll --delta-x <n> --delta-y <n>:
+   data = { deltaX: Number, deltaY: Number }
+ - drag --from-x <n> --from-y <n> --to-x <n> --to-y <n> [--duration-ms <n>]:
+   data = { from: { x: Number, y: Number }, to: { x: Number, y: Number }, durationMs: Number }
  - type-text --text <text>:
    data = { textLength: Number }
  - press-key --key enter|escape|space:
@@ -107,6 +111,8 @@ let supportedCommands = [
     "screenshot",
     "ocr-image",
     "click",
+    "scroll",
+    "drag",
     "type-text",
     "press-key",
     "press-shortcut",
@@ -216,6 +222,22 @@ struct OcrImagePayload: Encodable {
 struct ClickPayload: Encodable {
     let x: Double
     let y: Double
+}
+
+struct PointPayload: Encodable {
+    let x: Double
+    let y: Double
+}
+
+struct ScrollPayload: Encodable {
+    let deltaX: Double
+    let deltaY: Double
+}
+
+struct DragPayload: Encodable {
+    let from: PointPayload
+    let to: PointPayload
+    let durationMs: Int
 }
 
 struct TypeTextPayload: Encodable {
@@ -626,6 +648,69 @@ func postMouseClick(x: Double, y: Double) throws {
     }
 
     mouseDown.post(tap: .cghidEventTap)
+    mouseUp.post(tap: .cghidEventTap)
+}
+
+func postScroll(deltaX: Double, deltaY: Double) throws {
+    try requireAccessibilityTrust(for: "scroll")
+
+    let source = CGEventSource(stateID: .hidSystemState)
+    guard let event = CGEvent(
+        scrollWheelEvent2Source: source,
+        units: .pixel,
+        wheelCount: 2,
+        wheel1: Int32(deltaY.rounded()),
+        wheel2: Int32(deltaX.rounded()),
+        wheel3: 0
+    ) else {
+        throw HelperFailure("event_creation_failed", "Failed to create scroll event.")
+    }
+
+    event.post(tap: .cghidEventTap)
+}
+
+func postMouseDrag(
+    from: CGPoint,
+    to: CGPoint,
+    durationMilliseconds: Int
+) throws {
+    try requireAccessibilityTrust(for: "drag")
+
+    let source = CGEventSource(stateID: .hidSystemState)
+    guard
+        let mouseDown = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: from, mouseButton: .left),
+        let mouseUp = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: to, mouseButton: .left)
+    else {
+        throw HelperFailure("event_creation_failed", "Failed to create mouse drag events.")
+    }
+
+    mouseDown.post(tap: .cghidEventTap)
+
+    let steps = max(1, min(60, durationMilliseconds / 16))
+    let stepDelay = durationMilliseconds > 0 ? UInt32((durationMilliseconds * 1000) / steps) : 0
+
+    for step in 1...steps {
+        let progress = Double(step) / Double(steps)
+        let point = CGPoint(
+            x: from.x + ((to.x - from.x) * progress),
+            y: from.y + ((to.y - from.y) * progress)
+        )
+
+        guard let dragged = CGEvent(
+            mouseEventSource: source,
+            mouseType: .leftMouseDragged,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        ) else {
+            throw HelperFailure("event_creation_failed", "Failed to create mouse drag move event.")
+        }
+
+        dragged.post(tap: .cghidEventTap)
+        if stepDelay > 0 {
+            usleep(stepDelay)
+        }
+    }
+
     mouseUp.post(tap: .cghidEventTap)
 }
 
@@ -1052,6 +1137,40 @@ func handleClick(_ arguments: ArraySlice<String>) throws -> ClickPayload {
     return ClickPayload(x: x, y: y)
 }
 
+func handleScroll(_ arguments: ArraySlice<String>) throws -> ScrollPayload {
+    let options = try parseOptions(arguments, allowed: ["--delta-x", "--delta-y"])
+    let deltaX = try requiredDoubleOption("--delta-x", in: options)
+    let deltaY = try requiredDoubleOption("--delta-y", in: options)
+    try postScroll(deltaX: deltaX, deltaY: deltaY)
+    return ScrollPayload(deltaX: deltaX, deltaY: deltaY)
+}
+
+func handleDrag(_ arguments: ArraySlice<String>) throws -> DragPayload {
+    let options = try parseOptions(arguments, allowed: [
+        "--from-x",
+        "--from-y",
+        "--to-x",
+        "--to-y",
+        "--duration-ms"
+    ])
+    let from = PointPayload(
+        x: try requiredDoubleOption("--from-x", in: options),
+        y: try requiredDoubleOption("--from-y", in: options)
+    )
+    let to = PointPayload(
+        x: try requiredDoubleOption("--to-x", in: options),
+        y: try requiredDoubleOption("--to-y", in: options)
+    )
+    let durationMs = try optionalPositiveIntOption("--duration-ms", in: options) ?? 250
+
+    try postMouseDrag(
+        from: CGPoint(x: from.x, y: from.y),
+        to: CGPoint(x: to.x, y: to.y),
+        durationMilliseconds: durationMs
+    )
+    return DragPayload(from: from, to: to, durationMs: durationMs)
+}
+
 func handleTypeText(_ arguments: ArraySlice<String>) throws -> TypeTextPayload {
     let options = try parseOptions(arguments, allowed: ["--text"])
     let text = try requiredOption("--text", in: options)
@@ -1157,6 +1276,10 @@ do {
         succeed(command: commandName, data: try handleOcrImage(arguments))
     case "click":
         succeed(command: commandName, data: try handleClick(arguments))
+    case "scroll":
+        succeed(command: commandName, data: try handleScroll(arguments))
+    case "drag":
+        succeed(command: commandName, data: try handleDrag(arguments))
     case "type-text":
         succeed(command: commandName, data: try handleTypeText(arguments))
     case "press-key":

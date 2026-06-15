@@ -23,8 +23,11 @@ export interface DesktopAppInfo {
 export type DesktopExecutableAction =
   | { type: "screenshot"; outputPath: string }
   | { type: "click"; x: number; y: number }
+  | { type: "drag"; from: DesktopPoint; to: DesktopPoint; durationMs?: number }
+  | { type: "scroll"; deltaX: number; deltaY: number }
   | { type: "type_text"; text: string }
   | { type: "press_key"; key: string }
+  | { type: "hotkey"; key: string; modifiers: readonly string[] }
   | { type: "activate_app"; bundleId: string; pid?: number }
   | { type: "open_ghostty_session"; title: string; workingDirectory?: string }
   | { type: "observe_app"; bundleId: string; pid?: number; screenshotOutputPath: string };
@@ -105,6 +108,11 @@ export interface DesktopWindowBounds {
   y: number;
   width: number;
   height: number;
+}
+
+export interface DesktopPoint {
+  x: number;
+  y: number;
 }
 
 export interface WaitResult {
