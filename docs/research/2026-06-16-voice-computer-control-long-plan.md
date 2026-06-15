@@ -88,6 +88,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - Local state mutation.
   - External side effect.
   - Credential/payment/security sensitive.
+  - Current MVP terminal policy covers local mutation, destructive/security commands, external publish/write commands, package installs, external read/sync commands, and common credential/key reads.
 - Approval model integrated into pet bubble.
 
 ### 4. Computer Use Core

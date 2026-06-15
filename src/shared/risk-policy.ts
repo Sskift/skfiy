@@ -9,12 +9,26 @@ const HIGH_RISK_PATTERNS: RegExp[] = [
   /\bspctl\b/i,
   /\|\s*(sh|bash|zsh)\b/i,
   /\bosascript\b/i,
+  /\bgit\s+push\b/i,
+  /\bgh\s+(pr\s+merge|release\s+create)\b/i,
+  /\b(curl|wget)\b(?=.*\s(-X|--request)\s*(POST|PUT|PATCH|DELETE)\b)/i,
+  /\b(curl|wget)\b(?=.*\s(-d|--data(?:-[a-z-]+)?|--form|-F)\b)/i,
+  /\b(ssh|scp|sftp|rsync)\b/i,
+  /\b(brew|npm|pnpm|yarn|pip3?|cargo|gem)\s+(install|add|update|upgrade)\b/i,
+  /\bsecurity\s+find-(generic|internet)-password\b/i,
+  /(^|[\/\s])\.env(\b|$)/i,
+  /(~\/)?\.(ssh|aws|gnupg)(\/|\b)/i,
+  /\b(id_rsa|id_ed25519|\.pem|\.p12|\.key|\.npmrc|\.netrc)\b/i,
+  /\b[A-Z0-9_]*(TOKEN|SECRET|PASSWORD|API_KEY|ACCESS_KEY)[A-Z0-9_]*\b/,
   /\bchmod\s+[-+]?R?\s*777\b/i,
   /\bchown\b/i,
   /\bmv\b.+\s+(\/System|\/Library|~\/Library)/i
 ];
 
 const MEDIUM_RISK_PATTERNS: RegExp[] = [
+  /\b(curl|wget)\b/i,
+  /\bopen\s+https?:\/\//i,
+  /\bgit\s+(pull|fetch|clone)\b/i,
   /\bmkdir\b/i,
   /\btouch\b/i,
   /\bcp\b/i,
