@@ -237,8 +237,10 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] if duplicate target, ask user
   - [x] if sensitive UI appears, pause
 - Add Chrome proof of concept:
-  - prefer CDP/extension-like structured control
-  - use screenshot fallback for non-structured pages
+  - [x] prefer CDP/extension-like structured control
+    - CDP mode selection plus navigate, click-selector, and extract-text command builders exist
+  - [x] use screenshot fallback for non-structured pages
+    - fallback mode is explicit when no CDP endpoint is available
 - Add Finder proof of concept:
   - organize a test folder
   - no destructive delete without approval
