@@ -33,6 +33,11 @@ import {
   createDoubaoDictationProvider,
   type DictationProviderEvent
 } from "./dictation-provider.js";
+import {
+  createVoiceTurnSessionStore,
+  type VoiceTurnSession,
+  type VoiceTurnProviderId
+} from "./voice-turn-session.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
@@ -94,6 +99,7 @@ const turnReplayStore = createTurnReplayStore();
 const dictationSettingsStore = createDictationSettingsStore(
   readInitialDictationSettings(process.env)
 );
+const voiceTurnSessionStore = createVoiceTurnSessionStore();
 
 let mainWindow: BrowserWindow | null = null;
 let currentTaskId = 0;
@@ -116,6 +122,69 @@ function emitDictationProviderEvent(window: BrowserWindow | null, event: Dictati
   }
 
   window.webContents.send("skfiy:dictation-provider-event", event);
+}
+
+function startVoiceTurnSession(providerId: VoiceTurnProviderId): VoiceTurnSession {
+  return voiceTurnSessionStore.start({
+    providerId,
+    trigger: "pet-click"
+  });
+}
+
+function cancelVoiceTurnSession(sessionId: unknown): void {
+  const id = typeof sessionId === "string" ? sessionId : voiceTurnSessionStore.getActive()?.id;
+
+  if (!id) {
+    return;
+  }
+
+  try {
+    voiceTurnSessionStore.cancel(id, "manual-stop");
+  } catch {
+    // The renderer can send a late stop after a submit already finalized the session.
+  }
+}
+
+function finalizeVoiceTurnSession(sessionId: unknown, transcript: string): void {
+  const id = typeof sessionId === "string" ? sessionId : voiceTurnSessionStore.getActive()?.id;
+
+  if (!id) {
+    return;
+  }
+
+  voiceTurnSessionStore.finalize(id, { text: transcript });
+}
+
+function failVoiceTurnSession(sessionId: string, message: string): void {
+  try {
+    voiceTurnSessionStore.fail(sessionId, message);
+  } catch {
+    // The session may already have been stopped by the user.
+  }
+}
+
+async function stopCurrentDictationProvider(window: BrowserWindow | null): Promise<void> {
+  const dictationSettings = dictationSettingsStore.get();
+
+  if (dictationSettings.provider === "browser") {
+    return;
+  }
+
+  const voiceTrigger = resolveDictationVoiceTrigger(dictationSettings);
+
+  try {
+    const provider = createDoubaoDictationProvider({
+      helper: createDesktopHelper(),
+      voiceTrigger,
+      emit: (providerEvent) => emitDictationProviderEvent(window, providerEvent)
+    });
+    await provider.stop();
+  } catch (error) {
+    emitTaskEvent(window, {
+      status: "failed",
+      message: error instanceof Error ? error.message : "Doubao dictation could not be stopped."
+    });
+  }
 }
 
 function emitTurnReplayTaskEvent(window: BrowserWindow | null, event: TaskEvent): void {
@@ -515,6 +584,7 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const dictationSettings = dictationSettingsStore.get();
   const voiceTrigger = resolveDictationVoiceTrigger(dictationSettings);
+  const voiceTurnSession = startVoiceTurnSession(dictationSettings.provider);
   let lastProviderState: DictationProviderEvent["state"] | undefined;
 
   if (window && !window.isDestroyed()) {
@@ -526,6 +596,7 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   if (dictationSettings.provider === "browser") {
     return {
       providerId: "browser",
+      sessionId: voiceTurnSession.id,
       voiceTrigger: "none",
       nativeDictationActive: false
     };
@@ -540,8 +611,15 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
         emitDictationProviderEvent(window, providerEvent);
       }
     });
-    return await provider.prepare();
+    return {
+      ...await provider.prepare(),
+      sessionId: voiceTurnSession.id
+    };
   } catch (error) {
+    failVoiceTurnSession(
+      voiceTurnSession.id,
+      error instanceof Error ? error.message : "Doubao dictation could not be prepared."
+    );
     emitTaskEvent(window, {
       status: "failed",
       message: error instanceof Error ? error.message : "Doubao dictation could not be prepared."
@@ -550,36 +628,64 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
 
   return {
     providerId: "doubao",
+    sessionId: voiceTurnSession.id,
     voiceTrigger,
     nativeDictationActive: false,
     providerState: lastProviderState ?? "failed"
   };
 });
 
-ipcMain.handle("skfiy:stop-dictation", async (event) => {
+ipcMain.handle("skfiy:stop-dictation", async (event, sessionId: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  const dictationSettings = dictationSettingsStore.get();
-
-  if (dictationSettings.provider === "browser") {
-    return;
-  }
-
-  const voiceTrigger = resolveDictationVoiceTrigger(dictationSettings);
-
-  try {
-    const provider = createDoubaoDictationProvider({
-      helper: createDesktopHelper(),
-      voiceTrigger,
-      emit: (providerEvent) => emitDictationProviderEvent(window, providerEvent)
-    });
-    await provider.stop();
-  } catch (error) {
-    emitTaskEvent(window, {
-      status: "failed",
-      message: error instanceof Error ? error.message : "Doubao dictation could not be stopped."
-    });
-  }
+  cancelVoiceTurnSession(sessionId);
+  await stopCurrentDictationProvider(window);
 });
+
+ipcMain.handle(
+  "skfiy:submit-dictation",
+  async (
+    event,
+    sessionId: unknown,
+    command: unknown,
+    options: { stopNativeDictation?: unknown } = {}
+  ) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+
+    if (typeof command !== "string") {
+      emitTaskEvent(window, {
+        status: "failed",
+        message: "Voice command must be text."
+      });
+      return;
+    }
+
+    const trimmed = command.trim();
+
+    if (!trimmed) {
+      emitTaskEvent(window, {
+        status: "failed",
+        message: "No voice command was provided."
+      });
+      return;
+    }
+
+    try {
+      finalizeVoiceTurnSession(sessionId, trimmed);
+    } catch (error) {
+      emitTaskEvent(window, {
+        status: "failed",
+        message: error instanceof Error ? error.message : "Voice turn could not be finalized."
+      });
+      return;
+    }
+
+    if (options.stopNativeDictation === true) {
+      await stopCurrentDictationProvider(window);
+    }
+
+    await runCommandTask(window, trimmed, "active", false);
+  }
+);
 
 ipcMain.handle("skfiy:approve-task", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);

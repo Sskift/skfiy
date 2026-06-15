@@ -48,6 +48,7 @@ export interface DictationPreparation {
   voiceTrigger: DoubaoVoiceTrigger;
   nativeDictationActive?: boolean;
   providerState?: DictationProviderState;
+  sessionId?: string;
 }
 
 export interface DictationProviderEvent {
@@ -202,7 +203,12 @@ export interface ObserveAppReplayRecord {
 export interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
-  stopDictation: () => Promise<void>;
+  stopDictation: (sessionId?: string) => Promise<void>;
+  submitDictation: (
+    sessionId: string | undefined,
+    command: string,
+    options: { stopNativeDictation: boolean }
+  ) => Promise<void>;
   approveTask: () => Promise<void>;
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
@@ -382,6 +388,7 @@ const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
   prepareDictation: async () => ({ voiceTrigger: "none" }),
   stopDictation: async () => undefined,
+  submitDictation: async () => undefined,
   approveTask: async () => undefined,
   denyTask: async () => undefined,
   takeScreenshot: async () => undefined,
@@ -666,6 +673,7 @@ export default function App() {
   const petDragRef = useRef<PetDragState | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const nativeDictationActiveRef = useRef(false);
+  const voiceSessionIdRef = useRef<string | undefined>(undefined);
   const suppressNextPetClickRef = useRef(false);
 
   function stopBrowserSpeechRecognition() {
@@ -875,6 +883,8 @@ export default function App() {
 
       lastDictationSubmitRef.current = nextCommand;
       const shouldStopNativeDictation = nativeDictationActiveRef.current;
+      const sessionId = voiceSessionIdRef.current;
+      voiceSessionIdRef.current = undefined;
       nativeDictationActiveRef.current = false;
       stopBrowserSpeechRecognition();
       setListening(false);
@@ -886,11 +896,9 @@ export default function App() {
       });
 
       try {
-        if (shouldStopNativeDictation) {
-          await api.stopDictation();
-        }
-
-        await api.runCommand(nextCommand, { mode: "active" });
+        await api.submitDictation(sessionId, nextCommand, {
+          stopNativeDictation: shouldStopNativeDictation
+        });
       } catch {
         setTask({
           status: "failed",
@@ -931,7 +939,10 @@ export default function App() {
 
     try {
       const preparation = await api.prepareDictation();
+      voiceSessionIdRef.current = preparation.sessionId;
+
       if (preparation.providerState === "failed" || preparation.providerState === "unavailable") {
+        voiceSessionIdRef.current = undefined;
         nativeDictationActiveRef.current = false;
         setListening(false);
         return;
@@ -944,6 +955,7 @@ export default function App() {
         return;
       }
     } catch {
+      voiceSessionIdRef.current = undefined;
       setListening(false);
       setTask({
         status: "failed",
@@ -957,6 +969,8 @@ export default function App() {
 
   async function stopDictation() {
     lastDictationSubmitRef.current = "";
+    const sessionId = voiceSessionIdRef.current;
+    voiceSessionIdRef.current = undefined;
     stopBrowserSpeechRecognition();
     nativeDictationActiveRef.current = false;
     setListening(false);
@@ -970,7 +984,7 @@ export default function App() {
     });
 
     try {
-      await api.stopDictation();
+      await api.stopDictation(sessionId);
     } catch {
       setTask({
         status: "failed",

@@ -75,6 +75,7 @@ interface DictationPreparation {
   voiceTrigger: DoubaoVoiceTrigger;
   nativeDictationActive?: boolean;
   providerState?: DictationProviderState;
+  sessionId?: string;
 }
 
 interface DictationProviderEvent {
@@ -191,7 +192,12 @@ interface RuntimeStatus {
 interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
-  stopDictation: () => Promise<void>;
+  stopDictation: (sessionId?: string) => Promise<void>;
+  submitDictation: (
+    sessionId: string | undefined,
+    command: string,
+    options: { stopNativeDictation: boolean }
+  ) => Promise<void>;
   approveTask: () => Promise<void>;
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
@@ -245,8 +251,11 @@ const api: DesktopApi = {
     const payload = await ipcRenderer.invoke("skfiy:prepare-dictation");
     return isDictationPreparation(payload) ? payload : { voiceTrigger: "none" };
   },
-  async stopDictation() {
-    await ipcRenderer.invoke("skfiy:stop-dictation");
+  async stopDictation(sessionId) {
+    await ipcRenderer.invoke("skfiy:stop-dictation", sessionId);
+  },
+  async submitDictation(sessionId, command, options) {
+    await ipcRenderer.invoke("skfiy:submit-dictation", sessionId, command, options);
   },
   async approveTask() {
     await ipcRenderer.invoke("skfiy:approve-task");

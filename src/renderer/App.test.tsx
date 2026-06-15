@@ -8,6 +8,14 @@ import App, {
   type TaskEvent
 } from "./App";
 
+type TestDesktopApi = DesktopApi & {
+  submitDictation: (
+    sessionId: string | undefined,
+    command: string,
+    options: { stopNativeDictation: boolean }
+  ) => Promise<void>;
+};
+
 let emitTaskEvent: (event: TaskEvent) => void;
 let emitDictationProviderEvent: (event: DictationProviderEvent) => void;
 let emitStopTurnHotkey: () => void;
@@ -64,9 +72,11 @@ beforeEach(() => {
   window.skfiy = {
     runCommand: vi.fn<DesktopApi["runCommand"]>().mockResolvedValue(undefined),
     prepareDictation: vi.fn<DesktopApi["prepareDictation"]>().mockResolvedValue({
-      voiceTrigger: "none"
+      voiceTrigger: "none",
+      sessionId: "voice-turn-test"
     }),
     stopDictation: vi.fn<DesktopApi["stopDictation"]>().mockResolvedValue(undefined),
+    submitDictation: vi.fn<TestDesktopApi["submitDictation"]>().mockResolvedValue(undefined),
     approveTask: vi.fn<DesktopApi["approveTask"]>().mockResolvedValue(undefined),
     denyTask: vi.fn<DesktopApi["denyTask"]>().mockResolvedValue(undefined),
     takeScreenshot: vi.fn<DesktopApi["takeScreenshot"]>().mockResolvedValue(undefined),
@@ -131,7 +141,7 @@ beforeEach(() => {
       emitTaskEvent = callback;
       return vi.fn();
     })
-  } satisfies DesktopApi;
+  } satisfies TestDesktopApi;
 });
 
 afterEach(() => {
@@ -775,14 +785,17 @@ describe("App", () => {
       vi.advanceTimersByTime(899);
     });
 
-    const api = window.skfiy as DesktopApi;
+    const api = window.skfiy as TestDesktopApi;
     expect(api.runCommand).not.toHaveBeenCalled();
 
     await act(async () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(api.runCommand).toHaveBeenCalledWith("打开 Ghostty 并截图", { mode: "active" });
+    expect(api.submitDictation).toHaveBeenCalledWith("voice-turn-test", "打开 Ghostty 并截图", {
+      stopNativeDictation: false
+    });
+    expect(api.runCommand).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
   });
 
