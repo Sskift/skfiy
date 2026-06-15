@@ -135,7 +135,7 @@ npm run smoke:ghostty
 ```
 
 Use `npm run smoke:ghostty -- --require-passed` only when Screen Recording and Accessibility are already granted to `dist/skfiy.app`; otherwise the expected result is `blocked` with fail-closed evidence.
-The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, replay records, screenshot file sizes, and cleanup process checks.
+The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, replay records, screenshot file sizes, and cleanup process checks. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, a completed task event, and non-empty before/after screenshot files.
 
 ### Safety Smoke
 

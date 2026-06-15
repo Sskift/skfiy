@@ -4,6 +4,7 @@ export const DEFAULT_COMMAND = "打开 Ghostty 执行 pwd 并截图";
 export const DEFAULT_PORT = 9233;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
+export const PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 export const PLANNER_MODES = new Set(["local-deterministic", "external-cua", "disabled"]);
 
 export const GHOSTTY_PRODUCT_SMOKE_MATRIX = [
@@ -149,6 +150,32 @@ export function classifySmokeResult(events) {
   return last.status;
 }
 
+export function classifySmokeRunEvidence({
+  events,
+  screenshots = [],
+  runnerHasTmux = false,
+  appLaunchViaOpen = false,
+  productPath
+}) {
+  const eventResult = classifySmokeResult(events);
+
+  if (eventResult !== "passed") {
+    return eventResult;
+  }
+
+  if (
+    runnerHasTmux
+    || appLaunchViaOpen !== true
+    || productPath !== PRODUCT_PATH
+    || !hasNonEmptyScreenshotStage(screenshots, "before")
+    || !hasNonEmptyScreenshotStage(screenshots, "after")
+  ) {
+    return "failed";
+  }
+
+  return "passed";
+}
+
 function isPermissionBlockedMessage(message) {
   const normalized = message.toLowerCase();
   return (
@@ -157,6 +184,16 @@ function isPermissionBlockedMessage(message) {
       normalized.includes("accessibility")
       || normalized.includes("screen recording")
     )
+  );
+}
+
+function hasNonEmptyScreenshotStage(screenshots, stage) {
+  return screenshots.some((screenshot) =>
+    screenshot?.stage === stage
+    && screenshot.exists === true
+    && screenshot.nonEmpty === true
+    && Number.isFinite(screenshot.bytes)
+    && screenshot.bytes > 0
   );
 }
 

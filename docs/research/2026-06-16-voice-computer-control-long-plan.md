@@ -213,7 +213,8 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - events: observing -> executing -> submitted -> completed
   - result: passed, blocked, or needs-user-confirmation
   - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
-  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9247` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Computer Use permission preflight before opening Ghostty, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
+  - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9252` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Computer Use permission preflight before opening Ghostty, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.`
+  - `passed` smoke classification now requires LaunchServices app launch, `runnerHasTmux=false`, the product path, a completed event, and non-empty before/after screenshot files
   - repeat command: `npm run smoke:ghostty`
   - repeat matrix command: `npm run smoke:ghostty -- --matrix`
 - Week-2 demo criteria:

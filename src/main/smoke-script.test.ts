@@ -115,4 +115,48 @@ describe("Ghostty product smoke script", () => {
       }
     ])).toBe("blocked");
   });
+
+  it("requires product-path screenshot evidence before classifying a completed run as passed", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      classifySmokeRunEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifySmokeRunEvidence: (input: {
+        events: Array<{ status: string; message?: string }>;
+        screenshots?: Array<{ stage: string; exists: boolean; nonEmpty: boolean; bytes?: number }>;
+        runnerHasTmux?: boolean;
+        appLaunchViaOpen?: boolean;
+        productPath?: string;
+      }) => string;
+    };
+    const completedEvents = [{ status: "completed", message: "Command submitted to Ghostty." }];
+
+    expect(classifySmokeRunEvidence({
+      events: completedEvents,
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper -> Ghostty",
+      screenshots: []
+    })).toBe("failed");
+    expect(classifySmokeRunEvidence({
+      events: completedEvents,
+      appLaunchViaOpen: true,
+      runnerHasTmux: true,
+      productPath: "renderer -> preload -> main -> helper -> Ghostty",
+      screenshots: [
+        { stage: "before", exists: true, nonEmpty: true, bytes: 2048 },
+        { stage: "after", exists: true, nonEmpty: true, bytes: 4096 }
+      ]
+    })).toBe("failed");
+    expect(classifySmokeRunEvidence({
+      events: completedEvents,
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper -> Ghostty",
+      screenshots: [
+        { stage: "before", exists: true, nonEmpty: true, bytes: 2048 },
+        { stage: "after", exists: true, nonEmpty: true, bytes: 4096 }
+      ]
+    })).toBe("passed");
+  });
 });

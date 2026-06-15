@@ -8,11 +8,12 @@ import { promisify } from "node:util";
 import {
   buildSmokeRunPlan,
   classifyMatrixResult,
-  classifySmokeResult,
+  classifySmokeRunEvidence,
   createDefaultSmokeOptions,
   createHelpText,
   formatLaunchCommand,
-  parseSmokeArgs
+  parseSmokeArgs,
+  PRODUCT_PATH
 } from "./smoke-ghostty-plan.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -38,7 +39,7 @@ async function main() {
     launch: formatLaunchCommand(options),
     appLaunchViaOpen: true,
     runnerHasTmux: Boolean(process.env.TMUX),
-    productPath: "renderer -> preload -> main -> helper -> Ghostty",
+    productPath: PRODUCT_PATH,
     events: [],
     permissions: undefined,
     runtimeStatus: undefined,
@@ -83,7 +84,11 @@ async function main() {
 
       const runs = [];
       for (const run of buildSmokeRunPlan(options)) {
-        runs.push(await runSmokeCommand(cdp, options, run));
+        runs.push(await runSmokeCommand(cdp, options, run, {
+          appLaunchViaOpen: evidence.appLaunchViaOpen,
+          productPath: evidence.productPath,
+          runnerHasTmux: evidence.runnerHasTmux
+        }));
       }
 
       const permissions = await cdp.send("Runtime.evaluate", {
@@ -192,7 +197,7 @@ async function waitForRendererPage(port, timeoutMs) {
   );
 }
 
-async function runSmokeCommand(cdp, options, run) {
+async function runSmokeCommand(cdp, options, run, context) {
   const startIndex = cdp.events.length;
 
   await cdp.send("Runtime.evaluate", {
@@ -213,13 +218,18 @@ async function runSmokeCommand(cdp, options, run) {
 
   const events = cdp.events.slice(startIndex);
   const replayRecords = readReplayRecords(events);
+  const screenshots = await inspectReplayScreenshots(replayRecords);
 
   return {
     ...run,
     events,
     replayRecords,
-    screenshots: await inspectReplayScreenshots(replayRecords),
-    result: classifySmokeResult(events)
+    screenshots,
+    result: classifySmokeRunEvidence({
+      events,
+      screenshots,
+      ...context
+    })
   };
 }
 

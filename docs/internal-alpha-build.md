@@ -78,7 +78,7 @@ For a strict passing gate, use:
 npm run smoke:ghostty -- --require-passed
 ```
 
-The smoke output is JSON and records launch identity, task events, permissions, runtime status, replay records, screenshot file checks, and cleanup process checks.
+The smoke output is JSON and records launch identity, task events, permissions, runtime status, replay records, screenshot file checks, and cleanup process checks. A passing smoke run must include a completed event plus non-empty before/after screenshots from the packaged app product path.
 
 ## External CUA Planner
 
