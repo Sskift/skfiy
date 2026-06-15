@@ -30,11 +30,12 @@ terminal or app process running Skfiy during local development.
 
 ## Doubao Dictation
 
-The voice button prepares Doubao Input Method as the dictation bridge. By
-default Skfiy selects Doubao's input source and double-taps the Fn key to start
-voice input. If your Doubao setup uses another trigger, launch with
-`SKFIY_DOUBAO_VOICE_TRIGGER=none` to only select the input source and handle the
-voice shortcut yourself.
+Left-click the desktop pet to enter Skfiy's dictation flow. Right-click the pet
+for settings details. By default Skfiy selects Doubao Input Method as the text
+bridge and does not simulate Doubao's native voice shortcuts, so it avoids
+colliding with user-level input method shortcuts. For local compatibility
+experiments only, launch with `SKFIY_DOUBAO_VOICE_TRIGGER=fn-double-tap` to
+restore the legacy Fn double-tap trigger.
 
 ## Safety Model
 

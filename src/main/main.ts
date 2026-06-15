@@ -4,7 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type { DesktopActionResult } from "./computer-use/types.js";
-import { prepareDoubaoDictation, readDoubaoVoiceTrigger } from "./dictation-backend.js";
+import {
+  prepareDoubaoDictation,
+  readDoubaoVoiceTrigger,
+  shouldStopDoubaoDictation
+} from "./dictation-backend.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
 import {
@@ -338,6 +342,11 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
 
 ipcMain.handle("skfiy:stop-dictation", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
+  const voiceTrigger = readDoubaoVoiceTrigger(process.env);
+
+  if (!shouldStopDoubaoDictation(voiceTrigger)) {
+    return;
+  }
 
   try {
     const result = await createDesktopHelper().pressKey("escape");

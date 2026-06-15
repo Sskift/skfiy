@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   DOUBAO_INPUT_SOURCE_ID,
   prepareDoubaoDictation,
-  readDoubaoVoiceTrigger
+  readDoubaoVoiceTrigger,
+  shouldStopDoubaoDictation
 } from "./dictation-backend";
 import type { DesktopHelperActionResult } from "./computer-use/types";
 
@@ -45,21 +46,37 @@ function createDictationHelper(options: {
 }
 
 describe("readDoubaoVoiceTrigger", () => {
-  it("defaults to fn-double-tap", () => {
-    expect(readDoubaoVoiceTrigger({})).toBe("fn-double-tap");
-    expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "" })).toBe("fn-double-tap");
+  it("defaults to the Skfiy-owned trigger without touching Doubao native shortcuts", () => {
+    expect(readDoubaoVoiceTrigger({})).toBe("none");
+    expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "" })).toBe("none");
     expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "invalid" })).toBe(
-      "fn-double-tap"
+      "none"
     );
   });
 
   it("supports disabling the voice shortcut trigger", () => {
     expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "none" })).toBe("none");
   });
+
+  it("keeps the old Fn trigger available only as an explicit opt-in", () => {
+    expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "fn-double-tap" })).toBe(
+      "fn-double-tap"
+    );
+  });
 });
 
 describe("prepareDoubaoDictation", () => {
-  it("selects the Doubao input source and double taps Fn by default", async () => {
+  it("selects the Doubao input source without touching native voice shortcuts by default", async () => {
+    const { calls, helper } = createDictationHelper();
+
+    await prepareDoubaoDictation(helper, "none");
+
+    expect(calls).toEqual([
+      { name: "selectInputSource", value: DOUBAO_INPUT_SOURCE_ID }
+    ]);
+  });
+
+  it("can still double tap Fn when explicitly configured for local debugging", async () => {
     const { calls, helper } = createDictationHelper();
 
     await prepareDoubaoDictation(helper, "fn-double-tap");
@@ -67,16 +84,6 @@ describe("prepareDoubaoDictation", () => {
     expect(calls).toEqual([
       { name: "selectInputSource", value: DOUBAO_INPUT_SOURCE_ID },
       { name: "doubleTapFunctionKey" }
-    ]);
-  });
-
-  it("selects the Doubao input source without double tapping Fn when trigger is none", async () => {
-    const { calls, helper } = createDictationHelper();
-
-    await prepareDoubaoDictation(helper, "none");
-
-    expect(calls).toEqual([
-      { name: "selectInputSource", value: DOUBAO_INPUT_SOURCE_ID }
     ]);
   });
 
@@ -101,5 +108,15 @@ describe("prepareDoubaoDictation", () => {
     await expect(prepareDoubaoDictation(helper, "fn-double-tap")).rejects.toThrow(
       "Could not trigger Doubao voice shortcut: Accessibility permission denied."
     );
+  });
+});
+
+describe("shouldStopDoubaoDictation", () => {
+  it("does not send a native stop key when Skfiy owns the trigger", () => {
+    expect(shouldStopDoubaoDictation("none")).toBe(false);
+  });
+
+  it("stops native dictation only for explicit native shortcut triggers", () => {
+    expect(shouldStopDoubaoDictation("fn-double-tap")).toBe(true);
   });
 });

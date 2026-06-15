@@ -12,7 +12,7 @@ export interface DoubaoDictationHelper {
 export function readDoubaoVoiceTrigger(
   env: { SKFIY_DOUBAO_VOICE_TRIGGER?: string }
 ): DoubaoVoiceTrigger {
-  return env.SKFIY_DOUBAO_VOICE_TRIGGER === "none" ? "none" : "fn-double-tap";
+  return env.SKFIY_DOUBAO_VOICE_TRIGGER === "fn-double-tap" ? "fn-double-tap" : "none";
 }
 
 export async function prepareDoubaoDictation(
@@ -32,6 +32,10 @@ export async function prepareDoubaoDictation(
     () => helper.doubleTapFunctionKey(),
     "Could not trigger Doubao voice shortcut"
   );
+}
+
+export function shouldStopDoubaoDictation(voiceTrigger: DoubaoVoiceTrigger): boolean {
+  return voiceTrigger !== "none";
 }
 
 async function runDictationStep(

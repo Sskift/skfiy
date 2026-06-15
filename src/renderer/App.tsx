@@ -1,8 +1,9 @@
-import { CirclePause, Mic, Play } from "lucide-react";
+import { CirclePause, Play } from "lucide-react";
 import {
   useCallback,
   useEffect,
   useMemo,
+  type MouseEvent as ReactMouseEvent,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent
@@ -54,6 +55,7 @@ interface PetDragState {
   pointerId: number;
   lastScreenX: number;
   lastScreenY: number;
+  moved: boolean;
 }
 
 const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
@@ -110,11 +112,15 @@ function getSkfiyApi(): SkfiyApi {
 
 function SkfiyPet({
   state,
+  onClick,
+  onContextMenu,
   onPointerDown,
   onPointerMove,
   onPointerUp
 }: {
   state: PetAtlasState;
+  onClick: () => void;
+  onContextMenu: (event: ReactMouseEvent<HTMLDivElement>) => void;
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -128,6 +134,10 @@ function SkfiyPet({
       data-atlas-state={state}
       data-frame-count={animation.frames}
       data-drag-mode="manual"
+      data-voice-entry="left-click"
+      data-settings-entry="right-click"
+      onClick={onClick}
+      onContextMenu={onContextMenu}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -143,6 +153,7 @@ export default function App() {
   const api = useMemo(getSkfiyApi, []);
   const [dictationText, setDictationText] = useState("");
   const [listening, setListening] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
     message: STATUS_COPY.idle.message
@@ -150,6 +161,7 @@ export default function App() {
   const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
   const lastDictationSubmitRef = useRef("");
   const petDragRef = useRef<PetDragState | null>(null);
+  const suppressNextPetClickRef = useRef(false);
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
@@ -160,6 +172,7 @@ export default function App() {
 
       if (event.status !== "idle") {
         setListening(false);
+        setDetailsOpen(false);
       }
     });
   }, [api]);
@@ -179,6 +192,7 @@ export default function App() {
 
       lastDictationSubmitRef.current = nextCommand;
       setListening(false);
+      setDetailsOpen(false);
       setDictationText("");
       setTask({
         status: "executing",
@@ -218,6 +232,7 @@ export default function App() {
     lastDictationSubmitRef.current = "";
     setDictationText("");
     setListening(true);
+    setDetailsOpen(false);
     setTask({
       status: "idle",
       message: "正在听你说."
@@ -233,6 +248,7 @@ export default function App() {
   async function stopDictation() {
     lastDictationSubmitRef.current = "";
     setListening(false);
+    setDetailsOpen(false);
     setDictationText("");
     setTask({
       status: "idle",
@@ -250,6 +266,8 @@ export default function App() {
   }
 
   async function approveTask() {
+    setDetailsOpen(false);
+
     try {
       await api.approveTask();
     } catch {
@@ -261,6 +279,8 @@ export default function App() {
   }
 
   async function denyTask() {
+    setDetailsOpen(false);
+
     try {
       await api.denyTask();
     } catch {
@@ -279,7 +299,8 @@ export default function App() {
     petDragRef.current = {
       pointerId: event.pointerId,
       lastScreenX: event.screenX,
-      lastScreenY: event.screenY
+      lastScreenY: event.screenY,
+      moved: false
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -301,7 +322,8 @@ export default function App() {
     petDragRef.current = {
       pointerId: drag.pointerId,
       lastScreenX: event.screenX,
-      lastScreenY: event.screenY
+      lastScreenY: event.screenY,
+      moved: true
     };
     api.moveWindowBy(deltaX, deltaY);
   }
@@ -315,19 +337,41 @@ export default function App() {
 
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     petDragRef.current = null;
+
+    if (drag.moved) {
+      suppressNextPetClickRef.current = true;
+    }
+  }
+
+  function startDictationFromPet() {
+    if (suppressNextPetClickRef.current) {
+      suppressNextPetClickRef.current = false;
+      return;
+    }
+
+    void startDictation();
+  }
+
+  function toggleDetailsFromPet(event: ReactMouseEvent<HTMLDivElement>) {
+    event.preventDefault();
+    lastDictationSubmitRef.current = "";
+    setDictationText("");
+    setListening(false);
+
+    setDetailsOpen((open) => !open);
   }
 
   const status = STATUS_COPY[task.status];
   const petState = getPetStateForTask(listening ? "observing" : task.status);
-  const showVoiceStatus = listening || task.status !== "idle";
+  const showPanel = listening || detailsOpen || task.status !== "idle";
 
   useEffect(() => {
-    api.setWindowMode(showVoiceStatus ? "expanded" : "compact");
-  }, [api, showVoiceStatus]);
+    api.setWindowMode(showPanel ? "expanded" : "compact");
+  }, [api, showPanel]);
 
   return (
     <main
-      className={`pet-stage status-${task.status}${listening ? " listening" : ""}`}
+      className={`pet-stage status-${task.status}${listening ? " listening" : ""}${showPanel ? " panel-open" : ""}`}
       aria-label="Skfiy desktop pet"
     >
       <div className="status-orb" role="status" aria-label="Task status">
@@ -335,11 +379,24 @@ export default function App() {
         <span>{status.pulse}</span>
       </div>
 
-      {showVoiceStatus ? (
-        <section className="voice-bubble" aria-label="Skfiy voice status">
-          <p>{listening ? "正在听你说" : task.message}</p>
-          {listening ? (
+      {showPanel ? (
+        <section
+          className={`voice-bubble${detailsOpen ? " settings-bubble" : ""}`}
+          aria-label={detailsOpen ? "Skfiy settings" : "Skfiy voice status"}
+        >
+          {detailsOpen ? (
             <>
+              <p>设置</p>
+              <div className="settings-grid">
+                <span>入口</span>
+                <strong>左键</strong>
+                <span>豆包</span>
+                <strong>仅切换输入法</strong>
+              </div>
+            </>
+          ) : listening ? (
+            <>
+              <p>正在听你说</p>
               <textarea
                 ref={transcriptRef}
                 aria-label="语音转写"
@@ -358,38 +415,33 @@ export default function App() {
               </div>
             </>
           ) : task.status === "approval_required" ? (
-            <div className="approval-actions">
-              <button type="button" aria-label="确认" onClick={approveTask}>
-                <Play size={14} aria-hidden="true" />
-                <span>确认</span>
-              </button>
-              <button type="button" aria-label="拒绝" onClick={denyTask}>
-                <CirclePause size={14} aria-hidden="true" />
-                <span>拒绝</span>
-              </button>
-            </div>
-          ) : null}
+            <>
+              <p>{task.message}</p>
+              <div className="approval-actions">
+                <button type="button" aria-label="确认" onClick={approveTask}>
+                  <Play size={14} aria-hidden="true" />
+                  <span>确认</span>
+                </button>
+                <button type="button" aria-label="拒绝" onClick={denyTask}>
+                  <CirclePause size={14} aria-hidden="true" />
+                  <span>拒绝</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <p>{task.message}</p>
+          )}
         </section>
       ) : null}
 
       <SkfiyPet
         state={petState}
+        onClick={startDictationFromPet}
+        onContextMenu={toggleDetailsFromPet}
         onPointerDown={startPetDrag}
         onPointerMove={movePetDrag}
         onPointerUp={stopPetDrag}
       />
-
-      <button
-        type="button"
-        aria-label="语音"
-        aria-pressed={listening}
-        data-placement="edge"
-        className={`voice-button${listening ? " is-listening" : ""}`}
-        onClick={startDictation}
-      >
-        <Mic size={14} aria-hidden="true" />
-        <span>{listening ? "听写中" : "语音"}</span>
-      </button>
     </main>
   );
 }

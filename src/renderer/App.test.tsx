@@ -37,17 +37,16 @@ describe("App", () => {
     expect(pet).toBeInTheDocument();
     expect(pet).toHaveAttribute("data-atlas-state", "idle");
     expect(pet).toHaveAttribute("data-frame-count", "6");
+    expect(pet).toHaveAttribute("data-voice-entry", "left-click");
+    expect(pet).toHaveAttribute("data-settings-entry", "right-click");
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
     expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "语音" })).toHaveAttribute(
-      "data-placement",
-      "edge"
-    );
+    expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
   });
 
-  it("keeps the pet as a manual draggable region instead of opening a command input", () => {
+  it("starts dictation from a plain left click on the pet", async () => {
     render(<App />);
 
     const pet = screen.getByLabelText(/skfiy codex-style pet/i);
@@ -57,6 +56,36 @@ describe("App", () => {
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText("语音转写")).toHaveFocus();
+    });
+    expect((window.skfiy as SkfiyApi).prepareDictation).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens settings details from a right click on the pet without starting dictation", () => {
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    expect(screen.getByLabelText(/skfiy settings/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
+    expect((window.skfiy as SkfiyApi).prepareDictation).not.toHaveBeenCalled();
+  });
+
+  it("switches from listening to settings on right click without sending a native stop key", async () => {
+    render(<App />);
+
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    fireEvent.click(pet);
+    await waitFor(() => {
+      expect(screen.getByLabelText("语音转写")).toHaveFocus();
+    });
+
+    fireEvent.contextMenu(pet);
+
+    expect(screen.getByLabelText(/skfiy settings/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
+    expect((window.skfiy as SkfiyApi).stopDictation).not.toHaveBeenCalled();
   });
 
   it("renders each task status and switches pet animation from task events", () => {
@@ -108,6 +137,7 @@ describe("App", () => {
     expect(pet).toHaveAttribute("data-drag-mode", "manual");
     expect(api.moveWindowBy).toHaveBeenNthCalledWith(1, 12, -58);
     expect(api.moveWindowBy).toHaveBeenNthCalledWith(2, 0, -30);
+    expect(api.prepareDictation).not.toHaveBeenCalled();
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
@@ -115,25 +145,28 @@ describe("App", () => {
     render(<App />);
 
     const api = window.skfiy as SkfiyApi;
+    expect(screen.getByLabelText(/skfiy desktop pet/i)).not.toHaveClass("panel-open");
     expect(api.setWindowMode).toHaveBeenLastCalledWith("compact");
 
-    fireEvent.click(screen.getByRole("button", { name: "语音" }));
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
 
     await waitFor(() => {
       expect(api.setWindowMode).toHaveBeenLastCalledWith("expanded");
     });
+    expect(screen.getByLabelText(/skfiy desktop pet/i)).toHaveClass("panel-open");
 
     fireEvent.click(screen.getByRole("button", { name: "停止" }));
 
     await waitFor(() => {
       expect(api.setWindowMode).toHaveBeenLastCalledWith("compact");
     });
+    expect(screen.getByLabelText(/skfiy desktop pet/i)).not.toHaveClass("panel-open");
   });
 
   it("focuses a visible Doubao transcript area without showing a command input", async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "语音" }));
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
 
     await waitFor(() => {
       expect(screen.getByLabelText("语音转写")).toHaveFocus();
@@ -141,14 +174,14 @@ describe("App", () => {
     expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "语音" })).toHaveTextContent("听写中");
+    expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
     expect((window.skfiy as SkfiyApi).prepareDictation).toHaveBeenCalledTimes(1);
   });
 
   it("can manually stop dictation without submitting the current transcript", async () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "语音" }));
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
     const transcript = screen.getByLabelText("语音转写");
     fireEvent.change(transcript, {
       target: { value: "不要提交这句话" }
@@ -158,14 +191,14 @@ describe("App", () => {
     expect((window.skfiy as SkfiyApi).runCommand).not.toHaveBeenCalled();
     expect((window.skfiy as SkfiyApi).stopDictation).toHaveBeenCalledTimes(1);
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "语音" })).toHaveTextContent("语音");
+    expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
   });
 
   it("auto-submits settled Doubao dictation text", async () => {
     vi.useFakeTimers();
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "语音" }));
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
     fireEvent.change(screen.getByLabelText("语音转写"), {
       target: { value: "打开 Ghostty 并截图" }
     });
@@ -184,7 +217,7 @@ describe("App", () => {
     });
 
     expect(api.runCommand).toHaveBeenCalledWith("打开 Ghostty 并截图", { mode: "active" });
-    expect(screen.getByRole("button", { name: "语音" })).toHaveTextContent("语音");
+    expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
   });
 
   it("exposes approval controls when a command is waiting for approval", () => {
