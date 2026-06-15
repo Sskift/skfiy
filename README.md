@@ -19,14 +19,18 @@ floating desktop companion.
 
 ## macOS Permissions
 
-The app needs two system permissions before it can behave like Computer Use:
+The app needs three system permissions before it can behave like a voice Computer Use app:
 
 - **Screen Recording**: allows screenshots of the desktop or target window.
 - **Accessibility**: allows synthetic clicks, typing, key presses, and window
   focus changes.
+- **Microphone**: allows voice turns when using a local speech provider.
 
-Open **System Settings > Privacy & Security** and grant both permissions to the
+Open **System Settings > Privacy & Security** and grant these permissions to the
 compiled `skfiy.app` bundle used for local validation.
+
+Right-click the pet to view the current Screen Recording, Accessibility, and
+Microphone status, or to jump to the matching System Settings pane.
 
 ## Doubao Dictation
 

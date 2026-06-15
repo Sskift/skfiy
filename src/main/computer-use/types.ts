@@ -44,6 +44,23 @@ export interface DesktopHelperActionResult {
   message?: string;
 }
 
+export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
+
+export type PermissionSettingsTarget =
+  | "screen-recording"
+  | "accessibility"
+  | "microphone";
+
+export interface PermissionStatus {
+  state: PermissionState;
+}
+
+export interface PermissionSummary {
+  screenRecording: PermissionStatus;
+  accessibility: PermissionStatus;
+  microphone: PermissionStatus;
+}
+
 export interface DesktopAppState {
   bundleId: string;
   isRunning: boolean;

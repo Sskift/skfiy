@@ -3,14 +3,21 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
-import type { DesktopActionResult } from "./computer-use/types.js";
+import type {
+  DesktopActionResult,
+  PermissionSettingsTarget
+} from "./computer-use/types.js";
 import {
   prepareDoubaoDictation,
   readDoubaoVoiceTrigger,
   shouldStopDoubaoDictation
 } from "./dictation-backend.js";
+import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
+import {
+  readPermissionsForRenderer
+} from "./permissions.js";
 import {
   calculatePetWindowBounds,
   readWindowPositionOverride,
@@ -54,15 +61,12 @@ function emitTaskEvent(window: BrowserWindow | null, event: TaskEvent) {
 }
 
 function resolveHelperPath(): string {
-  if (process.env.SKFIY_HELPER_PATH) {
-    return process.env.SKFIY_HELPER_PATH;
-  }
-
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, "skfiy-helper");
-  }
-
-  return path.join(app.getAppPath(), "dist", "skfiy-helper");
+  return resolveDesktopHelperPath({
+    env: process.env,
+    appPath: app.getAppPath(),
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath
+  });
 }
 
 function createScreenshotPath(scope: string): string {
@@ -158,6 +162,12 @@ function readMode(value: unknown): ManualMode {
 
 function readPetWindowMode(value: unknown): PetWindowMode | undefined {
   return value === "compact" || value === "expanded" ? value : undefined;
+}
+
+function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget | undefined {
+  return value === "screen-recording" || value === "accessibility" || value === "microphone"
+    ? value
+    : undefined;
 }
 
 function readFiniteNumber(value: unknown): number | undefined {
@@ -421,6 +431,33 @@ ipcMain.handle("skfiy:stop-task", async (event) => {
     status: "idle",
     message: "Task stopped."
   });
+});
+
+ipcMain.handle("skfiy:get-permissions", async (event) => {
+  return readPermissionsForRenderer({ helper: createDesktopHelper() });
+});
+
+ipcMain.handle("skfiy:open-permission-settings", async (event, permission: unknown) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const target = readPermissionSettingsTarget(permission);
+
+  if (!target) {
+    emitTaskEvent(window, {
+      status: "failed",
+      message: "Unknown permission settings target."
+    });
+    return;
+  }
+
+  try {
+    const result = await createDesktopHelper().openPermissionSettings(target);
+    assertDesktopActionResult(result, "open permission settings");
+  } catch (error) {
+    emitTaskEvent(window, {
+      status: "failed",
+      message: error instanceof Error ? error.message : "Permission settings could not be opened."
+    });
+  }
 });
 
 app.whenReady().then(async () => {

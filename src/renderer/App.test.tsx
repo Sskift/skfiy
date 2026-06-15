@@ -48,6 +48,14 @@ beforeEach(() => {
     denyTask: vi.fn<DesktopApi["denyTask"]>().mockResolvedValue(undefined),
     takeScreenshot: vi.fn<DesktopApi["takeScreenshot"]>().mockResolvedValue(undefined),
     stopTask: vi.fn<DesktopApi["stopTask"]>().mockResolvedValue(undefined),
+    getPermissions: vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
+      screenRecording: { state: "unknown" },
+      accessibility: { state: "unknown" },
+      microphone: { state: "unknown" }
+    }),
+    openPermissionSettings: vi.fn<DesktopApi["openPermissionSettings"]>().mockResolvedValue(
+      undefined
+    ),
     moveWindowBy: vi.fn<DesktopApi["moveWindowBy"]>(),
     setWindowMode: vi.fn<DesktopApi["setWindowMode"]>(),
     onTaskEvent: vi.fn((callback: (event: TaskEvent) => void) => {
@@ -127,6 +135,43 @@ describe("App", () => {
     expect(screen.getByLabelText(/skfiy settings/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
     expect((window.skfiy as DesktopApi).prepareDictation).not.toHaveBeenCalled();
+  });
+
+  it("shows permission status in settings and opens the matching macOS settings pane", async () => {
+    const api = window.skfiy as DesktopApi & {
+      getPermissions: () => Promise<{
+        screenRecording: { state: "granted" | "denied" | "not-determined" | "unknown" };
+        accessibility: { state: "granted" | "denied" | "not-determined" | "unknown" };
+        microphone: { state: "granted" | "denied" | "not-determined" | "unknown" };
+      }>;
+      openPermissionSettings: (
+        permission: "screen-recording" | "accessibility" | "microphone"
+      ) => Promise<void>;
+    };
+    api.getPermissions = vi.fn().mockResolvedValue({
+      screenRecording: { state: "denied" },
+      accessibility: { state: "granted" },
+      microphone: { state: "not-determined" }
+    });
+    api.openPermissionSettings = vi.fn().mockResolvedValue(undefined);
+
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(screen.getByText("权限")).toBeInTheDocument();
+    });
+    expect(screen.getByText("屏幕录制")).toBeInTheDocument();
+    expect(screen.getByText("辅助功能")).toBeInTheDocument();
+    expect(screen.getByText("麦克风")).toBeInTheDocument();
+    expect(screen.getByText("未授权")).toBeInTheDocument();
+    expect(screen.getByText("已授权")).toBeInTheDocument();
+    expect(screen.getByText("待授权")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开屏幕录制设置" }));
+
+    expect(api.openPermissionSettings).toHaveBeenCalledWith("screen-recording");
   });
 
   it("switches from listening to settings on right click without sending a native stop key", async () => {

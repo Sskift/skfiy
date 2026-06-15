@@ -36,6 +36,14 @@ describe("DesktopHelperClient", () => {
       ok,
       ok,
       ok,
+      ok,
+      {
+        stdout:
+          "{\"screenRecording\":{\"state\":\"granted\"},\"accessibility\":{\"state\":\"denied\"},\"microphone\":{\"state\":\"unknown\"}}",
+        stderr: "",
+        exitCode: 0
+      },
+      ok,
       ok
     ]);
 
@@ -48,6 +56,8 @@ describe("DesktopHelperClient", () => {
     await client.selectInputSource("com.bytedance.inputmethod.doubaoime.pinyin");
     await client.doubleTapFunctionKey();
     await client.pressShortcut("space", ["control", "option", "command", "shift"]);
+    await client.getPermissions();
+    await client.openPermissionSettings("screen-recording");
 
     expect(calls).toEqual([
       { command: "/tmp/skfiy-helper", args: ["list-apps"] },
@@ -77,6 +87,11 @@ describe("DesktopHelperClient", () => {
           "--modifiers",
           "control,option,command,shift"
         ]
+      },
+      { command: "/tmp/skfiy-helper", args: ["permissions-status"] },
+      {
+        command: "/tmp/skfiy-helper",
+        args: ["open-permission-settings", "--permission", "screen-recording"]
       }
     ]);
   });
@@ -161,6 +176,30 @@ describe("DesktopHelperClient", () => {
         "--screenshot-output",
         "/tmp/state.png"
       ]
+    });
+  });
+
+  it("parses permission status responses", async () => {
+    const { client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "permissions-status",
+          data: {
+            screenRecording: { status: "authorized", granted: true },
+            accessibility: { status: "notAuthorized", granted: false },
+            microphone: { status: "notDetermined", granted: false }
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(client.getPermissions()).resolves.toEqual({
+      screenRecording: { state: "granted" },
+      accessibility: { state: "denied" },
+      microphone: { state: "not-determined" }
     });
   });
 

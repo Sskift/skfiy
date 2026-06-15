@@ -7,6 +7,9 @@ import type {
   DesktopHelperActionResult,
   DesktopHelperClientOptions,
   DesktopHelperProcessResult,
+  PermissionSettingsTarget,
+  PermissionState,
+  PermissionSummary,
   ProcessRunner,
   ScreenshotResult
 } from "./types.js";
@@ -143,6 +146,21 @@ export class DesktopHelperClient {
         checkedScreenshotOutputPath
       ],
       readAppState
+    );
+  }
+
+  async getPermissions(): Promise<PermissionSummary> {
+    return this.runJson("permissions-status", ["permissions-status"], readPermissionSummary);
+  }
+
+  async openPermissionSettings(
+    permission: PermissionSettingsTarget
+  ): Promise<DesktopHelperActionResult> {
+    const checkedPermission = requirePermissionSettingsTarget(permission);
+    return this.runJson(
+      "open-permission-settings",
+      ["open-permission-settings", "--permission", checkedPermission],
+      readActionResult
     );
   }
 
@@ -340,6 +358,54 @@ function readAppState(payload: unknown, commandName: string): DesktopAppState {
   };
 }
 
+function readPermissionSummary(payload: unknown, commandName: string): PermissionSummary {
+  const record = readRecord(payload, commandName);
+
+  return {
+    screenRecording: readPermissionStatus(record.screenRecording, commandName),
+    accessibility: readPermissionStatus(record.accessibility, commandName),
+    microphone: readPermissionStatus(record.microphone, commandName)
+  };
+}
+
+function readPermissionStatus(payload: unknown, commandName: string) {
+  const record = readRecord(payload, commandName);
+  const state = readOptionalString(record, "state", commandName)
+    ?? normalizeNativePermissionStatus(record, commandName);
+
+  if (!isPermissionState(state)) {
+    throw invalidShape(commandName, `expected permission state to be known, got ${state}`);
+  }
+
+  return { state };
+}
+
+function normalizeNativePermissionStatus(
+  record: Record<string, unknown>,
+  commandName: string
+): PermissionState {
+  const status = readOptionalString(record, "status", commandName);
+
+  if (!status) {
+    throw invalidShape(commandName, "expected state or status to be a string");
+  }
+
+  switch (status) {
+    case "authorized":
+      return "granted";
+    case "notDetermined":
+      return "not-determined";
+    case "denied":
+    case "restricted":
+    case "notAuthorized":
+      return "denied";
+    case "unknown":
+      return "unknown";
+    default:
+      throw invalidShape(commandName, `expected known native permission status, got ${status}`);
+  }
+}
+
 function readRecord(payload: unknown, commandName: string): Record<string, unknown> {
   if (!isRecord(payload)) {
     throw invalidShape(commandName, "expected a JSON object");
@@ -374,6 +440,27 @@ function requireFiniteNumber(value: unknown, label: string): number {
   }
 
   return value;
+}
+
+function requirePermissionSettingsTarget(value: unknown): PermissionSettingsTarget {
+  if (
+    value === "screen-recording"
+    || value === "accessibility"
+    || value === "microphone"
+  ) {
+    return value;
+  }
+
+  throw new Error("permission must be screen-recording, accessibility, or microphone.");
+}
+
+function isPermissionState(value: string): value is PermissionState {
+  return (
+    value === "granted"
+    || value === "denied"
+    || value === "not-determined"
+    || value === "unknown"
+  );
 }
 
 function readString(

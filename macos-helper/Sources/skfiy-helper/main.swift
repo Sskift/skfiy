@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import AVFoundation
 import Carbon
 import CoreGraphics
 import Foundation
@@ -63,6 +64,14 @@ import Foundation
        bounds: { x: Number, y: Number, width: Number, height: Number }
      }]
    }
+ - permissions-status:
+   data = {
+     screenRecording: { status: String, granted: Boolean },
+     accessibility: { status: String, granted: Boolean },
+     microphone: { status: String, granted: Boolean }
+   }
+ - open-permission-settings --permission screen-recording|accessibility|microphone:
+   data = { permission: String, url: String, opened: Boolean }
 
  Security contract:
  - This helper never executes shell commands.
@@ -80,7 +89,9 @@ let supportedCommands = [
     "press-shortcut",
     "select-input-source",
     "double-tap-fn",
-    "get-app-state"
+    "get-app-state",
+    "permissions-status",
+    "open-permission-settings"
 ]
 
 enum JSONValue: Encodable {
@@ -205,6 +216,23 @@ struct AppStatePayload: Encodable {
     let accessibilityTrusted: Bool
     let screenshot: ScreenshotPayload
     let windows: [WindowInfo]
+}
+
+struct PermissionStatusInfo: Encodable {
+    let status: String
+    let granted: Bool
+}
+
+struct PermissionsStatusPayload: Encodable {
+    let screenRecording: PermissionStatusInfo
+    let accessibility: PermissionStatusInfo
+    let microphone: PermissionStatusInfo
+}
+
+struct OpenPermissionSettingsPayload: Encodable {
+    let permission: String
+    let url: String
+    let opened: Bool
 }
 
 func writeJSON<T: Encodable>(_ value: T) {
@@ -662,6 +690,63 @@ func windowInfos(for app: NSRunningApplication) -> [WindowInfo] {
     return windows
 }
 
+enum PermissionKind: String, CaseIterable {
+    case screenRecording = "screen-recording"
+    case accessibility
+    case microphone
+
+    var settingsURL: URL {
+        let rawURL: String
+
+        switch self {
+        case .screenRecording:
+            rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        case .accessibility:
+            rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        case .microphone:
+            rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+        }
+
+        return URL(string: rawURL)!
+    }
+}
+
+func permissionKind(for rawValue: String) throws -> PermissionKind {
+    guard let permission = PermissionKind(rawValue: rawValue) else {
+        throw HelperFailure(
+            "unsupported_permission",
+            "Unsupported permission.",
+            details: [
+                "permission": .string(rawValue),
+                "supportedPermissions": .strings(PermissionKind.allCases.map(\.rawValue))
+            ]
+        )
+    }
+
+    return permission
+}
+
+func booleanPermissionStatus(granted: Bool) -> PermissionStatusInfo {
+    PermissionStatusInfo(status: granted ? "authorized" : "notAuthorized", granted: granted)
+}
+
+func microphonePermissionStatus() -> PermissionStatusInfo {
+    let status = AVCaptureDevice.authorizationStatus(for: .audio)
+
+    switch status {
+    case .authorized:
+        return PermissionStatusInfo(status: "authorized", granted: true)
+    case .denied:
+        return PermissionStatusInfo(status: "denied", granted: false)
+    case .notDetermined:
+        return PermissionStatusInfo(status: "notDetermined", granted: false)
+    case .restricted:
+        return PermissionStatusInfo(status: "restricted", granted: false)
+    @unknown default:
+        return PermissionStatusInfo(status: "unknown", granted: false)
+    }
+}
+
 func handleListApps(_ arguments: ArraySlice<String>) throws -> ListAppsPayload {
     _ = try parseOptions(arguments, allowed: [])
     let apps = NSWorkspace.shared.runningApplications
@@ -751,6 +836,36 @@ func handleGetAppState(_ arguments: ArraySlice<String>) throws -> AppStatePayloa
     )
 }
 
+func handlePermissionsStatus(_ arguments: ArraySlice<String>) throws -> PermissionsStatusPayload {
+    _ = try parseOptions(arguments, allowed: [])
+
+    return PermissionsStatusPayload(
+        screenRecording: booleanPermissionStatus(granted: CGPreflightScreenCaptureAccess()),
+        accessibility: booleanPermissionStatus(granted: AXIsProcessTrusted()),
+        microphone: microphonePermissionStatus()
+    )
+}
+
+func handleOpenPermissionSettings(_ arguments: ArraySlice<String>) throws -> OpenPermissionSettingsPayload {
+    let options = try parseOptions(arguments, allowed: ["--permission"])
+    let permission = try permissionKind(for: requiredOption("--permission", in: options))
+    let settingsURL = permission.settingsURL
+
+    guard NSWorkspace.shared.open(settingsURL) else {
+        throw HelperFailure(
+            "open_permission_settings_failed",
+            "Failed to open System Settings for permission.",
+            details: ["permission": .string(permission.rawValue), "url": .string(settingsURL.absoluteString)]
+        )
+    }
+
+    return OpenPermissionSettingsPayload(
+        permission: permission.rawValue,
+        url: settingsURL.absoluteString,
+        opened: true
+    )
+}
+
 let rawArguments = CommandLine.arguments.dropFirst()
 let command = rawArguments.first ?? "unknown"
 
@@ -782,6 +897,10 @@ do {
         succeed(command: commandName, data: try handleDoubleTapFunctionKey(arguments))
     case "get-app-state":
         succeed(command: commandName, data: try handleGetAppState(arguments))
+    case "permissions-status":
+        succeed(command: commandName, data: try handlePermissionsStatus(arguments))
+    case "open-permission-settings":
+        succeed(command: commandName, data: try handleOpenPermissionSettings(arguments))
     default:
         throw HelperFailure(
             "unknown_command",

@@ -4,6 +4,8 @@ type ManualMode = "active" | "quiet";
 type PetWindowMode = "compact" | "expanded";
 type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "completed" | "failed";
 type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
+type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
+type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 
 interface TaskEvent {
   status: TaskStatus;
@@ -15,6 +17,12 @@ interface DictationPreparation {
   voiceTrigger: DoubaoVoiceTrigger;
 }
 
+interface PermissionSummary {
+  screenRecording: { state: PermissionState };
+  accessibility: { state: PermissionState };
+  microphone: { state: PermissionState };
+}
+
 interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
@@ -23,6 +31,8 @@ interface DesktopApi {
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
+  getPermissions: () => Promise<PermissionSummary>;
+  openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
@@ -69,6 +79,17 @@ const api: DesktopApi = {
   async stopTask() {
     await ipcRenderer.invoke("skfiy:stop-task");
   },
+  async getPermissions() {
+    const payload = await ipcRenderer.invoke("skfiy:get-permissions");
+    return isPermissionSummary(payload) ? payload : createUnknownPermissionSummary();
+  },
+  async openPermissionSettings(permission) {
+    if (!isPermissionSettingsTarget(permission)) {
+      return;
+    }
+
+    await ipcRenderer.invoke("skfiy:open-permission-settings", permission);
+  },
   moveWindowBy(deltaX, deltaY) {
     ipcRenderer.send("skfiy:move-window-by", deltaX, deltaY);
   },
@@ -94,6 +115,53 @@ function isDictationPreparation(value: unknown): value is DictationPreparation {
 
   const trigger = (value as Partial<DictationPreparation>).voiceTrigger;
   return trigger === "skfiy-shortcut" || trigger === "fn-double-tap" || trigger === "none";
+}
+
+function isPermissionSummary(value: unknown): value is PermissionSummary {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const summary = value as Partial<PermissionSummary>;
+  return (
+    isPermissionStatus(summary.screenRecording)
+    && isPermissionStatus(summary.accessibility)
+    && isPermissionStatus(summary.microphone)
+  );
+}
+
+function isPermissionStatus(value: unknown): value is { state: PermissionState } {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const state = (value as { state?: unknown }).state;
+  return isPermissionState(state);
+}
+
+function isPermissionState(value: unknown): value is PermissionState {
+  return (
+    value === "granted"
+    || value === "denied"
+    || value === "not-determined"
+    || value === "unknown"
+  );
+}
+
+function isPermissionSettingsTarget(value: unknown): value is PermissionSettingsTarget {
+  return (
+    value === "screen-recording"
+    || value === "accessibility"
+    || value === "microphone"
+  );
+}
+
+function createUnknownPermissionSummary(): PermissionSummary {
+  return {
+    screenRecording: { state: "unknown" },
+    accessibility: { state: "unknown" },
+    microphone: { state: "unknown" }
+  };
 }
 
 contextBridge.exposeInMainWorld("skfiy", api);

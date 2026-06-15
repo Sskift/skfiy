@@ -147,11 +147,11 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
 
 - [x] Package a local macOS app bundle with fixed bundle ID and embedded Swift helper.
 - Add a startup guard that warns when running under tmux/dev shell for user testing.
-- Build a permissions center:
-  - Screen Recording status.
-  - Accessibility status.
-  - Microphone status.
-  - "Open System Settings" actions.
+- [x] Build a permissions center:
+  - [x] Screen Recording status.
+  - [x] Accessibility status.
+  - [x] Microphone status.
+  - [x] "Open System Settings" actions.
 - Refactor dictation into a provider interface.
 - Keep Doubao as a provider, but add provider state events:
   - unavailable

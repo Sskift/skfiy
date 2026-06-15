@@ -1,4 +1,4 @@
-import { CirclePause, Play } from "lucide-react";
+import { CirclePause, ExternalLink, Play, RefreshCw } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -21,9 +21,17 @@ export type TaskStatus =
 export type ManualMode = "active" | "quiet";
 export type PetWindowMode = "compact" | "expanded";
 export type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
+export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
+export type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 
 export interface DictationPreparation {
   voiceTrigger: DoubaoVoiceTrigger;
+}
+
+export interface PermissionSummary {
+  screenRecording: { state: PermissionState };
+  accessibility: { state: PermissionState };
+  microphone: { state: PermissionState };
 }
 
 export interface TaskEvent {
@@ -40,6 +48,8 @@ export interface DesktopApi {
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
+  getPermissions: () => Promise<PermissionSummary>;
+  openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
@@ -131,6 +141,29 @@ const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: s
   }
 };
 
+const PERMISSION_ROWS: Array<{
+  key: keyof PermissionSummary;
+  settingsTarget: PermissionSettingsTarget;
+  label: string;
+}> = [
+  { key: "screenRecording", settingsTarget: "screen-recording", label: "屏幕录制" },
+  { key: "accessibility", settingsTarget: "accessibility", label: "辅助功能" },
+  { key: "microphone", settingsTarget: "microphone", label: "麦克风" }
+];
+
+const PERMISSION_STATE_COPY: Record<PermissionState, string> = {
+  granted: "已授权",
+  denied: "未授权",
+  "not-determined": "待授权",
+  unknown: "未知"
+};
+
+const UNKNOWN_PERMISSIONS: PermissionSummary = {
+  screenRecording: { state: "unknown" },
+  accessibility: { state: "unknown" },
+  microphone: { state: "unknown" }
+};
+
 const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
   prepareDictation: async () => ({ voiceTrigger: "none" }),
@@ -139,6 +172,8 @@ const fallbackApi: DesktopApi = {
   denyTask: async () => undefined,
   takeScreenshot: async () => undefined,
   stopTask: async () => undefined,
+  getPermissions: async () => UNKNOWN_PERMISSIONS,
+  openPermissionSettings: async () => undefined,
   moveWindowBy: () => undefined,
   setWindowMode: () => undefined,
   onTaskEvent: () => () => undefined
@@ -211,6 +246,8 @@ export default function App() {
   const [dictationText, setDictationText] = useState("");
   const [listening, setListening] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
     message: STATUS_COPY.idle.message
@@ -303,6 +340,24 @@ export default function App() {
   useEffect(() => {
     return () => stopBrowserSpeechRecognition();
   }, []);
+
+  const refreshPermissions = useCallback(async () => {
+    setPermissionsLoading(true);
+
+    try {
+      setPermissions(await api.getPermissions());
+    } catch {
+      setPermissions(UNKNOWN_PERMISSIONS);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  }, [api]);
+
+  useEffect(() => {
+    if (detailsOpen) {
+      void refreshPermissions();
+    }
+  }, [detailsOpen, refreshPermissions]);
 
   useEffect(() => {
     if (listening) {
@@ -439,6 +494,18 @@ export default function App() {
     }
   }
 
+  async function openPermissionSettings(permission: PermissionSettingsTarget) {
+    try {
+      await api.openPermissionSettings(permission);
+      await refreshPermissions();
+    } catch {
+      setTask({
+        status: "failed",
+        message: "打开系统设置失败."
+      });
+    }
+  }
+
   function startPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) {
       return;
@@ -547,6 +614,34 @@ export default function App() {
                 <strong>skfiy 快捷键</strong>
                 <span>组合键</span>
                 <strong>Ctrl Opt Cmd Shift Space</strong>
+              </div>
+              <div className="permissions-panel" aria-label="权限">
+                <div className="permissions-heading">
+                  <strong>权限</strong>
+                  <button type="button" aria-label="刷新权限状态" onClick={() => void refreshPermissions()}>
+                    <RefreshCw size={12} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="permissions-list">
+                  {PERMISSION_ROWS.map((permission) => {
+                    const state = permissions[permission.key].state;
+                    return (
+                      <div className="permission-row" key={permission.key}>
+                        <span>{permission.label}</span>
+                        <strong data-state={state}>
+                          {permissionsLoading ? "检查中" : PERMISSION_STATE_COPY[state]}
+                        </strong>
+                        <button
+                          type="button"
+                          aria-label={`打开${permission.label}设置`}
+                          onClick={() => void openPermissionSettings(permission.settingsTarget)}
+                        >
+                          <ExternalLink size={12} aria-hidden="true" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </>
           ) : listening ? (
