@@ -1,0 +1,42 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+describe("skfiy dogfood issue template", () => {
+  const templatePath = path.join(
+    process.cwd(),
+    ".github",
+    "ISSUE_TEMPLATE",
+    "skfiy-dogfood.yml"
+  );
+
+  it("requires dogfood reports to include alpha, smoke, permission, voice, and screenshot evidence", () => {
+    expect(existsSync(templatePath)).toBe(true);
+
+    const template = readFileSync(templatePath, "utf8");
+    const requiredEvidence = [
+      "alpha manifest",
+      "alpha zip",
+      "commit sha",
+      "smoke artifact",
+      "runnerHasTmux",
+      "Screen Recording",
+      "Accessibility",
+      "Microphone",
+      "ASR provider",
+      "Speech Recognition",
+      "Computer Use result",
+      "before screenshot",
+      "after screenshot",
+      "panic stop"
+    ];
+
+    for (const evidence of requiredEvidence) {
+      expect(template).toContain(evidence);
+    }
+
+    expect(template).toContain("labels:");
+    expect(template).toContain("dogfood");
+    expect(template).toContain("skfiy");
+  });
+});
