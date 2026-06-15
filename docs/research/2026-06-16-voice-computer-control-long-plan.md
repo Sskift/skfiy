@@ -243,11 +243,12 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - organize a test folder
   - no destructive delete without approval
 - Start evaluation scorecard:
-  - task success rate
-  - number of manual interventions
-  - average steps
-  - unsafe-action blocks
-  - permission failures
+  - [x] task success rate
+  - [x] number of manual interventions
+  - [x] average steps
+  - [x] unsafe-action blocks
+  - [x] permission failures
+  - scorecard aggregation exists for product-path event logs and permission summaries
 
 ### Week 4: Beta Quality, Safety, and Internal Alignment
 

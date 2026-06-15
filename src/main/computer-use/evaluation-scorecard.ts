@@ -1,0 +1,73 @@
+import type { PermissionSummary } from "./types.js";
+
+export interface ComputerUseEvaluationEvent {
+  status: string;
+  message?: string;
+}
+
+export interface ComputerUseEvaluationRun {
+  id: string;
+  events: ComputerUseEvaluationEvent[];
+  permissions?: PermissionSummary;
+}
+
+export interface ComputerUseScorecard {
+  totalRuns: number;
+  successfulRuns: number;
+  taskSuccessRate: number;
+  manualInterventions: number;
+  averageSteps: number;
+  unsafeActionBlocks: number;
+  permissionFailures: number;
+}
+
+export function createComputerUseScorecard(
+  runs: readonly ComputerUseEvaluationRun[]
+): ComputerUseScorecard {
+  const totalRuns = runs.length;
+  const successfulRuns = runs.filter(isSuccessfulRun).length;
+  const totalSteps = runs.reduce((sum, run) => sum + run.events.length, 0);
+
+  return {
+    totalRuns,
+    successfulRuns,
+    taskSuccessRate: totalRuns === 0 ? 0 : successfulRuns / totalRuns,
+    manualInterventions: runs.filter(hasManualIntervention).length,
+    averageSteps: totalRuns === 0 ? 0 : totalSteps / totalRuns,
+    unsafeActionBlocks: runs.filter(hasUnsafeActionBlock).length,
+    permissionFailures: runs.filter(hasPermissionFailure).length
+  };
+}
+
+function isSuccessfulRun(run: ComputerUseEvaluationRun): boolean {
+  return run.events.some((event) => event.status === "completed");
+}
+
+function hasManualIntervention(run: ComputerUseEvaluationRun): boolean {
+  return run.events.some((event) => (
+    event.status === "approval_required" || event.status === "needs_confirmation"
+  ));
+}
+
+function hasUnsafeActionBlock(run: ComputerUseEvaluationRun): boolean {
+  return run.events.some((event) => event.status === "approval_required");
+}
+
+function hasPermissionFailure(run: ComputerUseEvaluationRun): boolean {
+  if (run.events.some((event) => {
+    const message = event.message?.toLowerCase() ?? "";
+    return event.status === "failed" && message.includes("permission");
+  })) {
+    return true;
+  }
+
+  const permissions = run.permissions;
+  return Boolean(
+    permissions
+    && (
+      permissions.screenRecording.state === "denied"
+      || permissions.accessibility.state === "denied"
+      || permissions.microphone.state === "denied"
+    )
+  );
+}
