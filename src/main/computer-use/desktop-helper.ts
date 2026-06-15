@@ -99,6 +99,20 @@ export class DesktopHelperClient {
     return this.runJson("press-key", ["press-key", "--key", checkedKey], readActionResult);
   }
 
+  async pressShortcut(
+    key: string,
+    modifiers: readonly string[]
+  ): Promise<DesktopHelperActionResult> {
+    const checkedKey = requireNonEmptyString(key, "key");
+    const checkedModifiers = requireNonEmptyStringArray(modifiers, "modifiers", "modifier");
+
+    return this.runJson(
+      "press-shortcut",
+      ["press-shortcut", "--key", checkedKey, "--modifiers", checkedModifiers.join(",")],
+      readActionResult
+    );
+  }
+
   async selectInputSource(sourceId: string): Promise<DesktopHelperActionResult> {
     const checkedSourceId = requireNonEmptyString(sourceId, "sourceId");
     return this.runJson(
@@ -336,6 +350,18 @@ function requireNonEmptyString(value: unknown, label: string): string {
   }
 
   return value;
+}
+
+function requireNonEmptyStringArray(
+  value: unknown,
+  label: string,
+  itemLabel: string
+): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${label} must include at least one ${itemLabel}.`);
+  }
+
+  return value.map((item) => requireNonEmptyString(item, itemLabel));
 }
 
 function requireFiniteNumber(value: unknown, label: string): number {

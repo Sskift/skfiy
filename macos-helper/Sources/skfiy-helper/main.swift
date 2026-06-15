@@ -45,6 +45,8 @@ import Foundation
    data = { textLength: Number }
  - press-key --key enter|escape|space:
    data = { key: String }
+ - press-shortcut --key enter|escape|space --modifiers control,option,command,shift:
+   data = { key: String, modifiers: [String] }
  - select-input-source --source-id <id>:
    data = { sourceId: String }
  - double-tap-fn:
@@ -75,6 +77,7 @@ let supportedCommands = [
     "click",
     "type-text",
     "press-key",
+    "press-shortcut",
     "select-input-source",
     "double-tap-fn",
     "get-app-state"
@@ -167,6 +170,11 @@ struct TypeTextPayload: Encodable {
 
 struct PressKeyPayload: Encodable {
     let key: String
+}
+
+struct PressShortcutPayload: Encodable {
+    let key: String
+    let modifiers: [String]
 }
 
 struct SelectInputSourcePayload: Encodable {
@@ -318,10 +326,13 @@ func findRunningApp(bundleId: String) throws -> NSRunningApplication {
 }
 
 func requireAccessibilityTrust(for action: String) throws {
-    guard AXIsProcessTrusted() else {
+    let promptOption = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+    let options = [promptOption: true] as CFDictionary
+
+    guard AXIsProcessTrustedWithOptions(options) else {
         throw HelperFailure(
             "accessibility_permission_required",
-            "Accessibility permission is required for this action.",
+            "Accessibility permission is required. Grant it to Skfiy or the terminal running Skfiy, then try again.",
             details: ["action": .string(action)]
         )
     }
@@ -470,31 +481,75 @@ func postModifiedKey(virtualKey: CGKeyCode, modifiers: CGEventFlags = []) throws
     keyUp.post(tap: .cghidEventTap)
 }
 
-func postKey(_ key: String) throws {
-    try requireAccessibilityTrust(for: "press-key")
-
-    let keyCode: CGKeyCode
+func keyCode(for key: String) throws -> CGKeyCode {
     switch key {
     case "enter":
-        keyCode = 36
+        return 36
     case "escape":
-        keyCode = 53
+        return 53
     case "space":
-        keyCode = 49
+        return 49
     default:
         throw HelperFailure("unsupported_key", "Unsupported key.", details: ["key": .string(key), "supportedKeys": .strings(["enter", "escape", "space"])])
     }
+}
 
-    let source = CGEventSource(stateID: .hidSystemState)
-    guard
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
-    else {
-        throw HelperFailure("event_creation_failed", "Failed to create keyboard events.")
+func modifierFlag(for modifier: String) throws -> CGEventFlags {
+    switch modifier {
+    case "control":
+        return .maskControl
+    case "option":
+        return .maskAlternate
+    case "command":
+        return .maskCommand
+    case "shift":
+        return .maskShift
+    default:
+        throw HelperFailure(
+            "unsupported_modifier",
+            "Unsupported keyboard shortcut modifier.",
+            details: ["modifier": .string(modifier), "supportedModifiers": .strings(["control", "option", "command", "shift"])]
+        )
+    }
+}
+
+func parseShortcutModifiers(_ rawModifiers: String) throws -> [String] {
+    let modifiers = rawModifiers
+        .split(separator: ",", omittingEmptySubsequences: false)
+        .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    guard !modifiers.isEmpty, modifiers.allSatisfy({ !$0.isEmpty }) else {
+        throw HelperFailure(
+            "invalid_modifiers",
+            "Shortcut modifiers must be a non-empty comma-separated list."
+        )
     }
 
-    keyDown.post(tap: .cghidEventTap)
-    keyUp.post(tap: .cghidEventTap)
+    for modifier in modifiers {
+        _ = try modifierFlag(for: modifier)
+    }
+
+    return modifiers
+}
+
+func flags(for modifiers: [String]) throws -> CGEventFlags {
+    var flags: CGEventFlags = []
+
+    for modifier in modifiers {
+        flags.insert(try modifierFlag(for: modifier))
+    }
+
+    return flags
+}
+
+func postKey(_ key: String) throws {
+    try requireAccessibilityTrust(for: "press-key")
+    try postModifiedKey(virtualKey: keyCode(for: key))
+}
+
+func postShortcut(key: String, modifiers: [String]) throws {
+    try requireAccessibilityTrust(for: "press-shortcut")
+    try postModifiedKey(virtualKey: keyCode(for: key), modifiers: flags(for: modifiers))
 }
 
 func selectInputSource(sourceId: String) throws {
@@ -659,6 +714,14 @@ func handlePressKey(_ arguments: ArraySlice<String>) throws -> PressKeyPayload {
     return PressKeyPayload(key: key)
 }
 
+func handlePressShortcut(_ arguments: ArraySlice<String>) throws -> PressShortcutPayload {
+    let options = try parseOptions(arguments, allowed: ["--key", "--modifiers"])
+    let key = try requiredOption("--key", in: options)
+    let modifiers = try parseShortcutModifiers(requiredOption("--modifiers", in: options))
+    try postShortcut(key: key, modifiers: modifiers)
+    return PressShortcutPayload(key: key, modifiers: modifiers)
+}
+
 func handleSelectInputSource(_ arguments: ArraySlice<String>) throws -> SelectInputSourcePayload {
     let options = try parseOptions(arguments, allowed: ["--source-id"])
     let sourceId = try requiredOption("--source-id", in: options)
@@ -711,6 +774,8 @@ do {
         succeed(command: commandName, data: try handleTypeText(arguments))
     case "press-key":
         succeed(command: commandName, data: try handlePressKey(arguments))
+    case "press-shortcut":
+        succeed(command: commandName, data: try handlePressShortcut(arguments))
     case "select-input-source":
         succeed(command: commandName, data: try handleSelectInputSource(arguments))
     case "double-tap-fn":

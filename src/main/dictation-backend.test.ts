@@ -8,8 +8,9 @@ import {
 import type { DesktopHelperActionResult } from "./computer-use/types";
 
 interface HelperCall {
-  name: "selectInputSource" | "doubleTapFunctionKey";
+  name: "selectInputSource" | "doubleTapFunctionKey" | "pressShortcut";
   value?: string;
+  modifiers?: string[];
 }
 
 function createDictationHelper(options: {
@@ -40,14 +41,26 @@ function createDictationHelper(options: {
         }
 
         return options.shortcutResult ?? { ok: true };
+      },
+      async pressShortcut(key: string, modifiers: readonly string[]): Promise<DesktopHelperActionResult> {
+        calls.push({ name: "pressShortcut", value: key, modifiers: [...modifiers] });
+
+        if (options.shortcutError) {
+          throw options.shortcutError;
+        }
+
+        return options.shortcutResult ?? { ok: true };
       }
     }
   };
 }
 
 describe("readDoubaoVoiceTrigger", () => {
-  it("defaults to the Skfiy-owned trigger without touching Doubao native shortcuts", () => {
-    expect(readDoubaoVoiceTrigger({})).toBe("none");
+  it("defaults to the Skfiy-owned trigger instead of touching Doubao native shortcuts", () => {
+    expect(readDoubaoVoiceTrigger({})).toBe("skfiy-shortcut");
+  });
+
+  it("does not trigger a voice shortcut for empty or invalid configuration", () => {
     expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "" })).toBe("none");
     expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "invalid" })).toBe(
       "none"
@@ -58,6 +71,12 @@ describe("readDoubaoVoiceTrigger", () => {
     expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "none" })).toBe("none");
   });
 
+  it("supports the Skfiy-owned voice shortcut explicitly", () => {
+    expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "skfiy-shortcut" })).toBe(
+      "skfiy-shortcut"
+    );
+  });
+
   it("keeps the old Fn trigger available only as an explicit opt-in", () => {
     expect(readDoubaoVoiceTrigger({ SKFIY_DOUBAO_VOICE_TRIGGER: "fn-double-tap" })).toBe(
       "fn-double-tap"
@@ -66,7 +85,22 @@ describe("readDoubaoVoiceTrigger", () => {
 });
 
 describe("prepareDoubaoDictation", () => {
-  it("selects the Doubao input source without touching native voice shortcuts by default", async () => {
+  it("selects Doubao and triggers the Skfiy-owned voice shortcut by default", async () => {
+    const { calls, helper } = createDictationHelper();
+
+    await prepareDoubaoDictation(helper, "skfiy-shortcut");
+
+    expect(calls).toEqual([
+      { name: "selectInputSource", value: DOUBAO_INPUT_SOURCE_ID },
+      {
+        name: "pressShortcut",
+        value: "space",
+        modifiers: ["control", "option", "command", "shift"]
+      }
+    ]);
+  });
+
+  it("can select the Doubao input source without touching voice shortcuts", async () => {
     const { calls, helper } = createDictationHelper();
 
     await prepareDoubaoDictation(helper, "none");
@@ -113,10 +147,14 @@ describe("prepareDoubaoDictation", () => {
 
 describe("shouldStopDoubaoDictation", () => {
   it("does not send a native stop key when Skfiy owns the trigger", () => {
+    expect(shouldStopDoubaoDictation("skfiy-shortcut")).toBe(true);
+  });
+
+  it("does not stop native dictation when shortcuts are disabled", () => {
     expect(shouldStopDoubaoDictation("none")).toBe(false);
   });
 
-  it("stops native dictation only for explicit native shortcut triggers", () => {
+  it("stops native dictation for explicit native shortcut triggers", () => {
     expect(shouldStopDoubaoDictation("fn-double-tap")).toBe(true);
   });
 });

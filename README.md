@@ -32,10 +32,17 @@ terminal or app process running Skfiy during local development.
 
 Left-click the desktop pet to enter Skfiy's dictation flow. Right-click the pet
 for settings details. By default Skfiy selects Doubao Input Method as the text
-bridge and does not simulate Doubao's native voice shortcuts, so it avoids
-colliding with user-level input method shortcuts. For local compatibility
-experiments only, launch with `SKFIY_DOUBAO_VOICE_TRIGGER=fn-double-tap` to
-restore the legacy Fn double-tap trigger.
+bridge and sends a Skfiy-owned voice shortcut:
+`Control+Option+Command+Shift+Space`. Configure Doubao Input Method's voice
+shortcut to the same chord if you want Doubao's native speech recognition to
+write into Skfiy's transcript area.
+
+Set `SKFIY_DOUBAO_VOICE_TRIGGER=none` to disable native shortcut triggering and
+fall back to Chromium Web Speech. That browser engine can fail with a `network`
+error in restricted environments even when microphone permission is already
+granted. For local compatibility experiments only, launch with
+`SKFIY_DOUBAO_VOICE_TRIGGER=fn-double-tap` to restore the legacy Fn double-tap
+trigger.
 
 ## Safety Model
 

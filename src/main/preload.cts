@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 type ManualMode = "active" | "quiet";
 type PetWindowMode = "compact" | "expanded";
 type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "completed" | "failed";
+type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 
 interface TaskEvent {
   status: TaskStatus;
@@ -10,9 +11,13 @@ interface TaskEvent {
   command?: string;
 }
 
+interface DictationPreparation {
+  voiceTrigger: DoubaoVoiceTrigger;
+}
+
 interface SkfiyApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
-  prepareDictation: () => Promise<void>;
+  prepareDictation: () => Promise<DictationPreparation>;
   stopDictation: () => Promise<void>;
   approveTask: () => Promise<void>;
   denyTask: () => Promise<void>;
@@ -46,7 +51,8 @@ const api: SkfiyApi = {
     await ipcRenderer.invoke("skfiy:run-command", command, options);
   },
   async prepareDictation() {
-    await ipcRenderer.invoke("skfiy:prepare-dictation");
+    const payload = await ipcRenderer.invoke("skfiy:prepare-dictation");
+    return isDictationPreparation(payload) ? payload : { voiceTrigger: "none" };
   },
   async stopDictation() {
     await ipcRenderer.invoke("skfiy:stop-dictation");
@@ -80,5 +86,14 @@ const api: SkfiyApi = {
     return () => ipcRenderer.removeListener("skfiy:task-event", listener);
   }
 };
+
+function isDictationPreparation(value: unknown): value is DictationPreparation {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const trigger = (value as Partial<DictationPreparation>).voiceTrigger;
+  return trigger === "skfiy-shortcut" || trigger === "fn-double-tap" || trigger === "none";
+}
 
 contextBridge.exposeInMainWorld("skfiy", api);

@@ -320,6 +320,7 @@ ipcMain.handle(
 
 ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
+  const voiceTrigger = readDoubaoVoiceTrigger(process.env);
 
   if (window && !window.isDestroyed()) {
     window.setFocusable(true);
@@ -328,16 +329,15 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   }
 
   try {
-    await prepareDoubaoDictation(
-      createDesktopHelper(),
-      readDoubaoVoiceTrigger(process.env)
-    );
+    await prepareDoubaoDictation(createDesktopHelper(), voiceTrigger);
   } catch (error) {
     emitTaskEvent(window, {
       status: "failed",
       message: error instanceof Error ? error.message : "Doubao dictation could not be prepared."
     });
   }
+
+  return { voiceTrigger };
 });
 
 ipcMain.handle("skfiy:stop-dictation", async (event) => {

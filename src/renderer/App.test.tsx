@@ -3,13 +3,46 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, { type SkfiyApi, type TaskEvent } from "./App";
 
 let emitTaskEvent: (event: TaskEvent) => void;
+const speechRecognitionInstances: MockSpeechRecognition[] = [];
+
+interface MockSpeechRecognitionResult {
+  0: { transcript: string };
+  isFinal: boolean;
+}
+
+interface MockSpeechRecognitionResultEvent {
+  resultIndex: number;
+  results: MockSpeechRecognitionResult[];
+}
+
+class MockSpeechRecognition {
+  continuous = false;
+  interimResults = false;
+  lang = "";
+  onresult: ((event: MockSpeechRecognitionResultEvent) => void) | null = null;
+  onerror: ((event: { error?: string }) => void) | null = null;
+  onend: (() => void) | null = null;
+  start = vi.fn();
+  stop = vi.fn();
+  abort = vi.fn();
+
+  constructor() {
+    speechRecognitionInstances.push(this);
+  }
+}
 
 beforeEach(() => {
   emitTaskEvent = () => undefined;
+  speechRecognitionInstances.length = 0;
+
+  window.webkitSpeechRecognition =
+    MockSpeechRecognition as unknown as NonNullable<typeof window.webkitSpeechRecognition>;
 
   window.skfiy = {
     runCommand: vi.fn<SkfiyApi["runCommand"]>().mockResolvedValue(undefined),
-    prepareDictation: vi.fn<SkfiyApi["prepareDictation"]>().mockResolvedValue(undefined),
+    prepareDictation: vi.fn<SkfiyApi["prepareDictation"]>().mockResolvedValue({
+      voiceTrigger: "none"
+    }),
     stopDictation: vi.fn<SkfiyApi["stopDictation"]>().mockResolvedValue(undefined),
     approveTask: vi.fn<SkfiyApi["approveTask"]>().mockResolvedValue(undefined),
     denyTask: vi.fn<SkfiyApi["denyTask"]>().mockResolvedValue(undefined),
@@ -27,6 +60,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  delete window.webkitSpeechRecognition;
 });
 
 describe("App", () => {
@@ -60,6 +94,29 @@ describe("App", () => {
       expect(screen.getByLabelText("语音转写")).toHaveFocus();
     });
     expect((window.skfiy as SkfiyApi).prepareDictation).toHaveBeenCalledTimes(1);
+    expect(speechRecognitionInstances).toHaveLength(1);
+    expect(speechRecognitionInstances[0]).toMatchObject({
+      continuous: true,
+      interimResults: true,
+      lang: "zh-CN"
+    });
+    expect(speechRecognitionInstances[0].start).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses native Doubao dictation without starting browser speech recognition", async () => {
+    (window.skfiy as SkfiyApi).prepareDictation = vi
+      .fn<SkfiyApi["prepareDictation"]>()
+      .mockResolvedValue({ voiceTrigger: "skfiy-shortcut" });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("语音转写")).toHaveFocus();
+    });
+    expect(speechRecognitionInstances).toHaveLength(0);
+    expect((window.skfiy as SkfiyApi).prepareDictation).toHaveBeenCalledTimes(1);
   });
 
   it("opens settings details from a right click on the pet without starting dictation", () => {
@@ -86,6 +143,7 @@ describe("App", () => {
     expect(screen.getByLabelText(/skfiy settings/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
     expect((window.skfiy as SkfiyApi).stopDictation).not.toHaveBeenCalled();
+    expect(speechRecognitionInstances[0].stop).toHaveBeenCalledTimes(1);
   });
 
   it("renders each task status and switches pet animation from task events", () => {
@@ -186,12 +244,39 @@ describe("App", () => {
     fireEvent.change(transcript, {
       target: { value: "不要提交这句话" }
     });
+    await waitFor(() => {
+      expect(speechRecognitionInstances).toHaveLength(1);
+    });
     fireEvent.click(screen.getByRole("button", { name: "停止" }));
 
     expect((window.skfiy as SkfiyApi).runCommand).not.toHaveBeenCalled();
     expect((window.skfiy as SkfiyApi).stopDictation).toHaveBeenCalledTimes(1);
+    expect(speechRecognitionInstances[0].stop).toHaveBeenCalledTimes(1);
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
+  });
+
+  it("writes browser speech recognition results into the transcript", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    await waitFor(() => {
+      expect(screen.getByLabelText("语音转写")).toHaveFocus();
+    });
+
+    act(() => {
+      speechRecognitionInstances[0].onresult?.({
+        resultIndex: 0,
+        results: [
+          {
+            0: { transcript: "打开 Ghostty 并截图" },
+            isFinal: true
+          }
+        ]
+      });
+    });
+
+    expect(screen.getByDisplayValue("打开 Ghostty 并截图")).toBeInTheDocument();
   });
 
   it("auto-submits settled Doubao dictation text", async () => {

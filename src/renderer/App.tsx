@@ -20,6 +20,11 @@ export type TaskStatus =
 
 export type ManualMode = "active" | "quiet";
 export type PetWindowMode = "compact" | "expanded";
+export type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
+
+export interface DictationPreparation {
+  voiceTrigger: DoubaoVoiceTrigger;
+}
 
 export interface TaskEvent {
   status: TaskStatus;
@@ -29,7 +34,7 @@ export interface TaskEvent {
 
 export interface SkfiyApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
-  prepareDictation: () => Promise<void>;
+  prepareDictation: () => Promise<DictationPreparation>;
   stopDictation: () => Promise<void>;
   approveTask: () => Promise<void>;
   denyTask: () => Promise<void>;
@@ -40,9 +45,44 @@ export interface SkfiyApi {
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
+interface BrowserSpeechRecognitionResult {
+  0?: {
+    transcript?: string;
+  };
+  isFinal?: boolean;
+}
+
+interface BrowserSpeechRecognitionResultEvent {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: BrowserSpeechRecognitionResult;
+  };
+}
+
+interface BrowserSpeechRecognitionErrorEvent {
+  error?: string;
+}
+
+interface BrowserSpeechRecognition {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: BrowserSpeechRecognitionResultEvent) => void) | null;
+  onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort?: () => void;
+}
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
 declare global {
   interface Window {
     skfiy?: SkfiyApi;
+    SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
   }
 }
 
@@ -93,7 +133,7 @@ const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: s
 
 const fallbackApi: SkfiyApi = {
   runCommand: async () => undefined,
-  prepareDictation: async () => undefined,
+  prepareDictation: async () => ({ voiceTrigger: "none" }),
   stopDictation: async () => undefined,
   approveTask: async () => undefined,
   denyTask: async () => undefined,
@@ -108,6 +148,23 @@ const DICTATION_AUTO_SUBMIT_DELAY_MS = 900;
 
 function getSkfiyApi(): SkfiyApi {
   return window.skfiy ?? fallbackApi;
+}
+
+function getSpeechRecognitionConstructor(): BrowserSpeechRecognitionConstructor | undefined {
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition;
+}
+
+function readSpeechTranscript(event: BrowserSpeechRecognitionResultEvent): string {
+  const parts: string[] = [];
+
+  for (let index = 0; index < event.results.length; index += 1) {
+    const transcript = event.results[index]?.[0]?.transcript;
+    if (transcript) {
+      parts.push(transcript);
+    }
+  }
+
+  return parts.join("").trim();
 }
 
 function SkfiyPet({
@@ -161,7 +218,71 @@ export default function App() {
   const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
   const lastDictationSubmitRef = useRef("");
   const petDragRef = useRef<PetDragState | null>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const nativeDictationActiveRef = useRef(false);
   const suppressNextPetClickRef = useRef(false);
+
+  function stopBrowserSpeechRecognition() {
+    const recognition = recognitionRef.current;
+    if (!recognition) {
+      return;
+    }
+
+    recognition.onresult = null;
+    recognition.onerror = null;
+    recognition.onend = null;
+    recognition.stop();
+    recognitionRef.current = null;
+  }
+
+  function startBrowserSpeechRecognition(): boolean {
+    stopBrowserSpeechRecognition();
+
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      setListening(false);
+      setTask({
+        status: "failed",
+        message: "当前环境不支持语音识别."
+      });
+      return false;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "zh-CN";
+    recognition.onresult = (event) => {
+      setDictationText(readSpeechTranscript(event));
+    };
+    recognition.onerror = (event) => {
+      recognitionRef.current = null;
+      setListening(false);
+      setTask({
+        status: "failed",
+        message: `语音识别失败${event.error ? `: ${event.error}` : "."}`
+      });
+    };
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) {
+        recognitionRef.current = null;
+      }
+    };
+    recognitionRef.current = recognition;
+
+    try {
+      recognition.start();
+      return true;
+    } catch (error) {
+      recognitionRef.current = null;
+      setListening(false);
+      setTask({
+        status: "failed",
+        message: error instanceof Error ? error.message : "语音识别启动失败."
+      });
+      return false;
+    }
+  }
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
@@ -171,11 +292,17 @@ export default function App() {
       });
 
       if (event.status !== "idle") {
+        stopBrowserSpeechRecognition();
+        nativeDictationActiveRef.current = false;
         setListening(false);
         setDetailsOpen(false);
       }
     });
   }, [api]);
+
+  useEffect(() => {
+    return () => stopBrowserSpeechRecognition();
+  }, []);
 
   useEffect(() => {
     if (listening) {
@@ -191,6 +318,9 @@ export default function App() {
       }
 
       lastDictationSubmitRef.current = nextCommand;
+      const shouldStopNativeDictation = nativeDictationActiveRef.current;
+      nativeDictationActiveRef.current = false;
+      stopBrowserSpeechRecognition();
       setListening(false);
       setDetailsOpen(false);
       setDictationText("");
@@ -200,6 +330,10 @@ export default function App() {
       });
 
       try {
+        if (shouldStopNativeDictation) {
+          await api.stopDictation();
+        }
+
         await api.runCommand(nextCommand, { mode: "active" });
       } catch {
         setTask({
@@ -239,14 +373,28 @@ export default function App() {
     });
 
     try {
-      await api.prepareDictation();
-    } finally {
-      transcriptRef.current?.focus();
+      const preparation = await api.prepareDictation();
+      nativeDictationActiveRef.current = preparation.voiceTrigger !== "none";
+
+      if (!nativeDictationActiveRef.current && !startBrowserSpeechRecognition()) {
+        return;
+      }
+    } catch {
+      setListening(false);
+      setTask({
+        status: "failed",
+        message: "语音准备失败."
+      });
+      return;
     }
+
+    transcriptRef.current?.focus();
   }
 
   async function stopDictation() {
     lastDictationSubmitRef.current = "";
+    stopBrowserSpeechRecognition();
+    nativeDictationActiveRef.current = false;
     setListening(false);
     setDetailsOpen(false);
     setDictationText("");
@@ -356,6 +504,11 @@ export default function App() {
     event.preventDefault();
     lastDictationSubmitRef.current = "";
     setDictationText("");
+    stopBrowserSpeechRecognition();
+    if (nativeDictationActiveRef.current) {
+      nativeDictationActiveRef.current = false;
+      void api.stopDictation();
+    }
     setListening(false);
 
     setDetailsOpen((open) => !open);
@@ -391,7 +544,9 @@ export default function App() {
                 <span>入口</span>
                 <strong>左键</strong>
                 <span>豆包</span>
-                <strong>仅切换输入法</strong>
+                <strong>Skfiy 快捷键</strong>
+                <span>组合键</span>
+                <strong>Ctrl Opt Cmd Shift Space</strong>
               </div>
             </>
           ) : listening ? (

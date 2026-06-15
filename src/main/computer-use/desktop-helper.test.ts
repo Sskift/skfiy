@@ -35,6 +35,7 @@ describe("DesktopHelperClient", () => {
       ok,
       ok,
       ok,
+      ok,
       ok
     ]);
 
@@ -46,6 +47,7 @@ describe("DesktopHelperClient", () => {
     await client.click(12, 34);
     await client.selectInputSource("com.bytedance.inputmethod.doubaoime.pinyin");
     await client.doubleTapFunctionKey();
+    await client.pressShortcut("space", ["control", "option", "command", "shift"]);
 
     expect(calls).toEqual([
       { command: "/tmp/skfiy-helper", args: ["list-apps"] },
@@ -65,6 +67,16 @@ describe("DesktopHelperClient", () => {
       {
         command: "/tmp/skfiy-helper",
         args: ["double-tap-fn"]
+      },
+      {
+        command: "/tmp/skfiy-helper",
+        args: [
+          "press-shortcut",
+          "--key",
+          "space",
+          "--modifiers",
+          "control,option,command,shift"
+        ]
       }
     ]);
   });
@@ -363,6 +375,15 @@ describe("DesktopHelperClient", () => {
     );
     await expect(client.selectInputSource("")).rejects.toThrow(
       "sourceId must be a non-empty string"
+    );
+    await expect(client.pressShortcut("", ["control"])).rejects.toThrow(
+      "key must be a non-empty string"
+    );
+    await expect(client.pressShortcut("space", [])).rejects.toThrow(
+      "modifiers must include at least one modifier"
+    );
+    await expect(client.pressShortcut("space", ["control", ""])).rejects.toThrow(
+      "modifier must be a non-empty string"
     );
 
     expect(calls).toEqual([]);
