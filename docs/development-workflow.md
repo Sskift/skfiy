@@ -126,6 +126,7 @@ Use only a skfiy-owned Ghostty context.
 - Run a read-only command such as `pwd`.
 - Capture before and after screenshots.
 - Verify task event sequence includes observing, executing, submitted, completed.
+- Verify `completed` is emitted only after the after screenshot/OCR observes the per-command `SKFIY_DONE_*` completion marker.
 - Verify the command was not typed into Codex TUI, an editor, or an unrelated terminal.
 
 Preferred local command after `npm run build`:

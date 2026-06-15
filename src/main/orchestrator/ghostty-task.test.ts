@@ -36,7 +36,15 @@ function createDesktopClient(): DesktopClient & {
       accessibility: { state: "granted" },
       microphone: { state: "unknown" }
     })),
-    ocrImage: vi.fn(async () => ({ labels: [] })),
+    ocrImage: vi.fn(async (inputPath: string) => ({
+      labels: inputPath.includes("after")
+        ? [{
+            text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_0",
+            confidence: 0.93,
+            bounds: { x: 36, y: 420, width: 180, height: 18 }
+          }]
+        : []
+    })),
     executeAction: vi.fn(async (action: DesktopExecutableAction): Promise<DesktopActionResult> => {
       switch (action.type) {
         case "open_ghostty_session":
@@ -83,6 +91,25 @@ function createDesktopClient(): DesktopClient & {
 
 function createScreenshotPath(stage: "before" | "after"): string {
   return stage === "before" ? "/tmp/before.png" : "/tmp/after.png";
+}
+
+function readLatestCompletionMarker(calls: unknown[][]): string | undefined {
+  const typedTexts = calls
+    .map(([action]) => action as DesktopExecutableAction | undefined)
+    .filter((action): action is Extract<DesktopExecutableAction, { type: "type_text" }> =>
+      action?.type === "type_text"
+    )
+    .map((action) => action.text)
+    .reverse();
+
+  for (const text of typedTexts) {
+    const match = text.match(/SKFIY_DONE_\d+_EXIT_%s/);
+    if (match) {
+      return match[0];
+    }
+  }
+
+  return undefined;
 }
 
 describe("runGhosttyCommandTask", () => {
@@ -161,7 +188,7 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(6, {
       type: "type_text",
-      text: "pwd"
+      text: expect.stringMatching(/^pwd; printf '\\nSKFIY_DONE_\d+_EXIT_%s\\n' "\$\?"$/)
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(7, {
       type: "press_key",
@@ -223,7 +250,7 @@ describe("runGhosttyCommandTask", () => {
       (action) => action.type === "observe_app" && action.screenshotOutputPath === "/tmp/before.png"
     );
     const userTypeIndex = actions.findIndex(
-      (action) => action.type === "type_text" && action.text === "pwd"
+      (action) => action.type === "type_text" && action.text.startsWith("pwd; printf")
     );
 
     expect(initIndex).toBeGreaterThan(-1);
@@ -244,11 +271,38 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).toHaveBeenCalledWith({
       type: "type_text",
-      text: "pwd"
+      text: expect.stringContaining("pwd; printf")
     });
     expect(client.executeAction).not.toHaveBeenCalledWith({
       type: "type_text",
-      text: "打开 Ghostty 执行 pwd 并截图"
+      text: expect.stringContaining("打开 Ghostty 执行 pwd 并截图")
+    });
+  });
+
+  it("fails after submission when the completion marker is not observed", async () => {
+    const client = createDesktopClient();
+    client.ocrImage.mockResolvedValue({ labels: [] });
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "locating_app",
+      "session_opened",
+      "app_activated",
+      "session_initialized",
+      "screenshot_before",
+      "typing",
+      "submitted",
+      "screenshot_after",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "after",
+      reason: "Command completion marker was not observed in Ghostty output."
     });
   });
 
@@ -554,7 +608,7 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(8, {
       type: "type_text",
-      text: "pwd"
+      text: expect.stringContaining("pwd; printf")
     });
   });
 
@@ -650,7 +704,7 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).toHaveBeenCalledWith({
       type: "type_text",
-      text: "pwd"
+      text: expect.stringContaining("pwd; printf")
     });
     expect(client.executeAction).not.toHaveBeenCalledWith({
       type: "observe_app",
@@ -748,7 +802,7 @@ describe("runGhosttyCommandTask", () => {
     ]);
     expect(client.executeAction).toHaveBeenCalledWith({
       type: "type_text",
-      text: "sudo spctl --master-disable"
+      text: expect.stringContaining("sudo spctl --master-disable; printf")
     });
     expect(client.executeAction).toHaveBeenCalledWith({
       type: "press_key",

@@ -30,6 +30,7 @@ const SKFIY_GHOSTTY_INIT_COMMAND = [
 const SESSION_INIT_SETTLE_WAIT_MS = 90;
 const TYPE_SETTLE_WAIT_MS = 90;
 const SUBMIT_SETTLE_WAIT_MS = 300;
+let completionMarkerSerial = 0;
 
 export interface DesktopApp {
   name: string;
@@ -55,6 +56,8 @@ export async function* runGhosttyCommandTask(
 ): AsyncGenerator<GhosttyTaskEvent> {
   const planned = parseTerminalIntent(input);
   const command = planned.ok ? planned.command : input.trim();
+  const completionMarker = createCommandCompletionMarker();
+  const executableCommand = createVerifiableTerminalCommand(command, completionMarker);
   const risk = classifyTerminalCommand(command);
   const effectiveRisk = planned.ok ? risk : blockedDecision(planned.reason);
 
@@ -286,7 +289,7 @@ export async function* runGhosttyCommandTask(
   assertPlanSucceeded(await runDesktopActionPlan(
     client,
     [
-      { type: "type_text", text: command },
+      { type: "type_text", text: executableCommand },
       { type: "wait", ms: TYPE_SETTLE_WAIT_MS }
     ],
     { signal: options.signal }
@@ -338,11 +341,30 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
+  const commandVerificationFailure = readCommandCompletionFailure(after, completionMarker);
+  if (commandVerificationFailure) {
+    yield {
+      type: "verification_failed",
+      stage: "after",
+      reason: commandVerificationFailure
+    };
+    return;
+  }
+
   yield {
     type: "completed",
     command,
-    summary: "Command submitted to Ghostty."
+    summary: "Command completed in Ghostty."
   };
+}
+
+function createCommandCompletionMarker(): string {
+  completionMarkerSerial += 1;
+  return `SKFIY_DONE_${completionMarkerSerial}`;
+}
+
+function createVerifiableTerminalCommand(command: string, completionMarker: string): string {
+  return `${command}; printf '\\n${completionMarker}_EXIT_%s\\n' "$?"`;
 }
 
 async function openGhosttySession(client: DesktopClient): Promise<OpenGhosttySessionResult> {
@@ -515,6 +537,26 @@ function readOwnedGhosttySessionFailure(
   }
 
   return undefined;
+}
+
+function readCommandCompletionFailure(
+  observation: DesktopAppState,
+  completionMarker: string
+): string | undefined {
+  const normalizedMarker = normalizeTerminalText(completionMarker);
+  const labelText = (observation.ocrLabels ?? [])
+    .map((label) => label.text)
+    .join("\n");
+
+  if (normalizeTerminalText(labelText).includes(normalizedMarker)) {
+    return undefined;
+  }
+
+  return "Command completion marker was not observed in Ghostty output.";
+}
+
+function normalizeTerminalText(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
 function isFailedActionResult(
