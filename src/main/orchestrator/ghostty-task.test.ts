@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { DesktopActionResult, DesktopExecutableAction } from "../computer-use/types";
 import { runGhosttyCommandTask, type DesktopClient } from "./ghostty-task";
 
 async function collectEvents(
@@ -13,26 +14,46 @@ async function collectEvents(
   return events;
 }
 
-function createDesktopClient(): DesktopClient {
-  return {
+function createDesktopClient(): DesktopClient & { executeAction: ReturnType<typeof vi.fn> } {
+  const client: DesktopClient & { executeAction: ReturnType<typeof vi.fn> } = {
     listApps: vi.fn(async () => [
       { name: "Ghostty", bundleId: "com.mitchellh.ghostty" }
     ]),
-    activateApp: vi.fn(async () => undefined),
-    screenshot: vi
-      .fn()
-      .mockResolvedValueOnce({ path: "/tmp/before.png" })
-      .mockResolvedValueOnce({ path: "/tmp/after.png" }),
-    typeText: vi.fn(async () => undefined),
-    pressKey: vi.fn(async () => undefined)
+    executeAction: vi.fn(async (action: DesktopExecutableAction): Promise<DesktopActionResult> => {
+      switch (action.type) {
+        case "activate_app":
+        case "type_text":
+        case "press_key":
+          return { ok: true };
+        case "observe_app":
+          return {
+            bundleId: action.bundleId,
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath
+          };
+        case "screenshot":
+          return { outputPath: action.outputPath };
+        case "click":
+          return { ok: true };
+      }
+    })
   };
+
+  return client;
+}
+
+function createScreenshotPath(stage: "before" | "after"): string {
+  return stage === "before" ? "/tmp/before.png" : "/tmp/after.png";
 }
 
 describe("runGhosttyCommandTask", () => {
   it("runs a low-risk command in Ghostty and emits task progress events", async () => {
     const client = createDesktopClient();
 
-    const events = await collectEvents(runGhosttyCommandTask(client, "pwd"));
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
+    );
 
     expect(events.map((event) => event.type)).toEqual([
       "started",
@@ -45,10 +66,28 @@ describe("runGhosttyCommandTask", () => {
       "completed"
     ]);
     expect(client.listApps).toHaveBeenCalledTimes(1);
-    expect(client.activateApp).toHaveBeenCalledWith("com.mitchellh.ghostty");
-    expect(client.screenshot).toHaveBeenCalledTimes(2);
-    expect(client.typeText).toHaveBeenCalledWith("pwd");
-    expect(client.pressKey).toHaveBeenCalledWith("enter");
+    expect(client.executeAction).toHaveBeenNthCalledWith(1, {
+      type: "activate_app",
+      bundleId: "com.mitchellh.ghostty"
+    });
+    expect(client.executeAction).toHaveBeenNthCalledWith(2, {
+      type: "observe_app",
+      bundleId: "com.mitchellh.ghostty",
+      screenshotOutputPath: "/tmp/before.png"
+    });
+    expect(client.executeAction).toHaveBeenNthCalledWith(3, {
+      type: "type_text",
+      text: "pwd"
+    });
+    expect(client.executeAction).toHaveBeenNthCalledWith(4, {
+      type: "press_key",
+      key: "enter"
+    });
+    expect(client.executeAction).toHaveBeenNthCalledWith(5, {
+      type: "observe_app",
+      bundleId: "com.mitchellh.ghostty",
+      screenshotOutputPath: "/tmp/after.png"
+    });
   });
 
   it("requires approval for high-risk commands before typing or submitting", async () => {
@@ -61,23 +100,31 @@ describe("runGhosttyCommandTask", () => {
       "approval_required"
     ]);
     expect(client.listApps).not.toHaveBeenCalled();
-    expect(client.activateApp).not.toHaveBeenCalled();
-    expect(client.screenshot).not.toHaveBeenCalled();
-    expect(client.typeText).not.toHaveBeenCalled();
-    expect(client.pressKey).not.toHaveBeenCalled();
+    expect(client.executeAction).not.toHaveBeenCalled();
   });
 
   it("stops before typing when aborted after the before screenshot", async () => {
     const client = createDesktopClient();
     const controller = new AbortController();
-    vi.mocked(client.screenshot).mockReset();
-    vi.mocked(client.screenshot).mockImplementationOnce(async () => {
-      controller.abort();
-      return { path: "/tmp/before.png" };
+    client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
+      if (action.type === "observe_app") {
+        controller.abort();
+        return {
+          bundleId: action.bundleId,
+          isRunning: true,
+          isActive: true,
+          screenshotPath: action.screenshotOutputPath
+        };
+      }
+
+      return { ok: true };
     });
 
     const events = await collectEvents(
-      runGhosttyCommandTask(client, "pwd", { signal: controller.signal })
+      runGhosttyCommandTask(client, "pwd", {
+        createScreenshotPath,
+        signal: controller.signal
+      })
     );
 
     expect(events.map((event) => event.type)).toEqual([
@@ -86,8 +133,7 @@ describe("runGhosttyCommandTask", () => {
       "app_activated",
       "screenshot_before"
     ]);
-    expect(client.typeText).not.toHaveBeenCalled();
-    expect(client.pressKey).not.toHaveBeenCalled();
+    expect(client.executeAction).toHaveBeenCalledTimes(2);
   });
 
   it("fails closed when the running app is not the exact Ghostty bundle id", async () => {
@@ -99,7 +145,7 @@ describe("runGhosttyCommandTask", () => {
     await expect(collectEvents(runGhosttyCommandTask(client, "pwd"))).rejects.toThrow(
       "Ghostty is not running or could not be found."
     );
-    expect(client.activateApp).not.toHaveBeenCalled();
+    expect(client.executeAction).not.toHaveBeenCalled();
   });
 
   it("runs an approved high-risk command after emitting approval context", async () => {
@@ -107,7 +153,8 @@ describe("runGhosttyCommandTask", () => {
 
     const events = await collectEvents(
       runGhosttyCommandTask(client, "sudo spctl --master-disable", {
-        approved: true
+        approved: true,
+        createScreenshotPath
       })
     );
 
@@ -122,7 +169,13 @@ describe("runGhosttyCommandTask", () => {
       "screenshot_after",
       "completed"
     ]);
-    expect(client.typeText).toHaveBeenCalledWith("sudo spctl --master-disable");
-    expect(client.pressKey).toHaveBeenCalledWith("enter");
+    expect(client.executeAction).toHaveBeenCalledWith({
+      type: "type_text",
+      text: "sudo spctl --master-disable"
+    });
+    expect(client.executeAction).toHaveBeenCalledWith({
+      type: "press_key",
+      key: "enter"
+    });
   });
 });

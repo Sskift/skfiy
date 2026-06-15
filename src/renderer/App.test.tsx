@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, { type SkfiyApi, type TaskEvent } from "./App";
 
@@ -22,6 +22,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -47,6 +48,7 @@ describe("App", () => {
     expect(screen.getByLabelText(/skfiy command capsule/i)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /command/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "执行" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "语音输入" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "截图" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /close/i })).not.toBeInTheDocument();
@@ -152,6 +154,43 @@ describe("App", () => {
     expect(api.runCommand).toHaveBeenCalledWith("pwd", { mode: "active" });
     expect(api.takeScreenshot).toHaveBeenCalledTimes(1);
     expect(api.stopTask).toHaveBeenCalledTimes(1);
+  });
+
+  it("focuses the command input for Doubao dictation", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
+    fireEvent.click(screen.getByRole("button", { name: "语音输入" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: /command/i })).toHaveFocus();
+    });
+    expect(screen.getByRole("button", { name: "语音输入" })).toHaveTextContent("听写中");
+  });
+
+  it("auto-submits settled Doubao dictation text", async () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /skfiy codex-style pet/i }));
+    fireEvent.click(screen.getByRole("button", { name: "语音输入" }));
+    fireEvent.change(screen.getByRole("textbox", { name: /command/i }), {
+      target: { value: "打开 Ghostty 并截图" }
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(899);
+    });
+
+    const api = window.skfiy as SkfiyApi;
+    expect(api.runCommand).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(api.runCommand).toHaveBeenCalledWith("打开 Ghostty 并截图", { mode: "active" });
+    expect(screen.getByRole("button", { name: "语音输入" })).toHaveTextContent("语音");
   });
 
   it("exposes approval controls when a command is waiting for approval", () => {

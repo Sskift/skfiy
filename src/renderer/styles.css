@@ -311,15 +311,28 @@ input:focus-visible {
 
 .tool-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 6px;
   margin-top: 6px;
+}
+
+.tool-row.default-tools {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tool-row.approval-tools {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .tool-row button {
   min-width: 0;
   padding: 0 7px;
   font-size: 11px;
+}
+
+.tool-row button.is-active {
+  border-color: rgba(247, 213, 106, 0.48);
+  color: #fff8de;
+  background: rgba(88, 68, 20, 0.78);
 }
 
 .sr-only {

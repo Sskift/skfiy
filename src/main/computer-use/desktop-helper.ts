@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import type {
-  DesktopAction,
   DesktopActionResult,
   DesktopAppInfo,
   DesktopAppState,
+  DesktopExecutableAction,
   DesktopHelperActionResult,
   DesktopHelperClientOptions,
   DesktopHelperProcessResult,
@@ -26,7 +26,7 @@ export class DesktopHelperClient {
     this.runner = options.runner ?? runProcess;
   }
 
-  async executeAction(action: DesktopAction): Promise<DesktopActionResult> {
+  async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
     if (!isRecord(action)) {
       throw new Error("Desktop action must be a JSON object.");
     }

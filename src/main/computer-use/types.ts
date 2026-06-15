@@ -20,13 +20,20 @@ export interface DesktopAppInfo {
   pid?: number;
 }
 
-export type DesktopAction =
+export type DesktopExecutableAction =
   | { type: "screenshot"; outputPath: string }
   | { type: "click"; x: number; y: number }
   | { type: "type_text"; text: string }
   | { type: "press_key"; key: string }
   | { type: "activate_app"; bundleId: string }
   | { type: "observe_app"; bundleId: string; screenshotOutputPath: string };
+
+export interface WaitAction {
+  type: "wait";
+  ms: number;
+}
+
+export type DesktopAction = DesktopExecutableAction | WaitAction;
 
 export interface ScreenshotResult {
   outputPath: string;
@@ -44,7 +51,13 @@ export interface DesktopAppState {
   screenshotPath: string;
 }
 
+export interface WaitResult {
+  ok: true;
+  waitedMs: number;
+}
+
 export type DesktopActionResult =
   | ScreenshotResult
   | DesktopHelperActionResult
-  | DesktopAppState;
+  | DesktopAppState
+  | WaitResult;

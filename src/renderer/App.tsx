@@ -1,5 +1,6 @@
-import { Camera, CirclePause, Play, Sparkles } from "lucide-react";
+import { Camera, CirclePause, Mic, Play, Sparkles } from "lucide-react";
 import {
+  useCallback,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -97,6 +98,8 @@ const fallbackApi: SkfiyApi = {
   onTaskEvent: () => () => undefined
 };
 
+const DICTATION_AUTO_SUBMIT_DELAY_MS = 900;
+
 function getSkfiyApi(): SkfiyApi {
   return window.skfiy ?? fallbackApi;
 }
@@ -146,12 +149,15 @@ export default function App() {
   const [manualMode, setManualMode] = useState<ManualMode>("active");
   const [switchingMode, setSwitchingMode] = useState<SwitchingMode>("manual");
   const [bubbleOpen, setBubbleOpen] = useState(false);
+  const [dictationMode, setDictationMode] = useState(false);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
     message: STATUS_COPY.idle.message
   });
+  const commandInputRef = useRef<HTMLInputElement | null>(null);
   const dragStateRef = useRef<PetDragState | null>(null);
   const suppressNextClickRef = useRef(false);
+  const lastDictationSubmitRef = useRef("");
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
@@ -172,34 +178,75 @@ export default function App() {
   const quiet = effectiveMode === "quiet";
   const showBubble = bubbleOpen || task.status === "approval_required";
 
-  async function runCommand(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBubbleOpen(true);
+  useEffect(() => {
+    if (showBubble && dictationMode) {
+      commandInputRef.current?.focus();
+    }
+  }, [dictationMode, showBubble]);
+
+  const submitCommandText = useCallback(
+    async (rawCommand: string, source: "manual" | "dictation") => {
+      const nextCommand = rawCommand.trim();
+
+      if (source === "dictation") {
+        lastDictationSubmitRef.current = nextCommand;
+        setDictationMode(false);
+      }
+
+      setBubbleOpen(true);
+
+      if (!nextCommand) {
+        setTask({
+          status: "failed",
+          message: "Enter a command before running."
+        });
+        return;
+      }
+
+      const mode = switchingMode === "auto" ? deriveAutoMode("executing") : manualMode;
+      setTask({
+        status: "executing",
+        message:
+          source === "dictation"
+            ? `Heard "${nextCommand}".`
+            : mode === "quiet"
+              ? "Queued quietly."
+              : `Running "${nextCommand}".`
+      });
+
+      try {
+        await api.runCommand(nextCommand, { mode });
+      } catch {
+        setTask({
+          status: "failed",
+          message: "Command could not be sent."
+        });
+      }
+    },
+    [api, manualMode, switchingMode]
+  );
+
+  useEffect(() => {
+    if (!dictationMode) {
+      return undefined;
+    }
 
     const nextCommand = command.trim();
-    if (!nextCommand) {
-      setTask({
-        status: "failed",
-        message: "Enter a command before running."
-      });
-      return;
+    if (!nextCommand || nextCommand === lastDictationSubmitRef.current) {
+      return undefined;
     }
 
-    setTask({
-      status: "executing",
-      message: quiet ? "Queued quietly." : `Running "${nextCommand}".`
-    });
+    const timer = window.setTimeout(() => {
+      void submitCommandText(nextCommand, "dictation");
+    }, DICTATION_AUTO_SUBMIT_DELAY_MS);
 
-    try {
-      await api.runCommand(nextCommand, {
-        mode: switchingMode === "auto" ? deriveAutoMode("executing") : manualMode
-      });
-    } catch {
-      setTask({
-        status: "failed",
-        message: "Command could not be sent."
-      });
-    }
+    return () => window.clearTimeout(timer);
+  }, [command, dictationMode, submitCommandText]);
+
+  async function runCommand(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setDictationMode(false);
+    await submitCommandText(command, "manual");
   }
 
   async function takeScreenshot() {
@@ -246,6 +293,7 @@ export default function App() {
   }
 
   async function stopTask() {
+    setDictationMode(false);
     setBubbleOpen(true);
     setTask({
       status: "idle",
@@ -268,7 +316,30 @@ export default function App() {
       return;
     }
 
-    setBubbleOpen((open) => !open);
+    setBubbleOpen((open) => {
+      const nextOpen = !open;
+      if (!nextOpen) {
+        setDictationMode(false);
+      }
+      return nextOpen;
+    });
+  }
+
+  function toggleDictationMode() {
+    setBubbleOpen(true);
+    setDictationMode((active) => {
+      const nextActive = !active;
+
+      if (nextActive) {
+        lastDictationSubmitRef.current = "";
+        setTask({
+          status: "idle",
+          message: "正在听写，豆包输入法识别后会自动执行."
+        });
+      }
+
+      return nextActive;
+    });
   }
 
   function startPetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -349,10 +420,11 @@ export default function App() {
               Command
             </label>
             <input
+              ref={commandInputRef}
               id="command-input"
               value={command}
               onChange={(event) => setCommand(event.currentTarget.value)}
-              placeholder="输入指令"
+              placeholder={dictationMode ? "豆包听写会填到这里" : "输入指令"}
               spellCheck={false}
             />
             <button type="submit" aria-label="执行" className="primary-action">
@@ -395,7 +467,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="tool-row">
+          <div className={`tool-row ${task.status === "approval_required" ? "approval-tools" : "default-tools"}`}>
             {task.status === "approval_required" ? (
               <>
                 <button type="button" aria-label="确认" onClick={approveTask}>
@@ -409,6 +481,16 @@ export default function App() {
               </>
             ) : (
               <>
+                <button
+                  type="button"
+                  aria-label="语音输入"
+                  aria-pressed={dictationMode}
+                  className={dictationMode ? "is-active" : undefined}
+                  onClick={toggleDictationMode}
+                >
+                  <Mic size={16} aria-hidden="true" />
+                  <span>{dictationMode ? "听写中" : "语音"}</span>
+                </button>
                 <button type="button" aria-label="截图" onClick={takeScreenshot}>
                   <Camera size={16} aria-hidden="true" />
                   <span>截图</span>

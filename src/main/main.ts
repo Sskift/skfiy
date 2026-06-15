@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
-import type { DesktopHelperActionResult } from "./computer-use/types.js";
+import type { DesktopActionResult } from "./computer-use/types.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
 
@@ -57,29 +57,21 @@ function createScreenshotPath(scope: string): string {
   return path.join(os.tmpdir(), "skfiy", `${scope}-${timestamp}-${screenshotSerial}.png`);
 }
 
-function assertActionResult(result: DesktopHelperActionResult, label: string): void {
-  if (!result.ok) {
-    throw new Error(result.message ?? `Desktop helper could not ${label}.`);
-  }
-}
-
 function createGhosttyDesktopClient(helper: DesktopHelperClient): DesktopClient {
   return {
     listApps: async () => helper.listApps(),
-    activateApp: async (bundleId) => {
-      assertActionResult(await helper.activateApp(bundleId), "activate Ghostty");
-    },
-    screenshot: async () => {
-      const screenshot = await helper.screenshot(createScreenshotPath("ghostty"));
-      return { path: screenshot.outputPath };
-    },
-    typeText: async (text) => {
-      assertActionResult(await helper.typeText(text), "type in Ghostty");
-    },
-    pressKey: async (key) => {
-      assertActionResult(await helper.pressKey(key), `press ${key}`);
+    executeAction: async (action) => {
+      const result = await helper.executeAction(action);
+      assertDesktopActionResult(result, action.type);
+      return result;
     }
   };
+}
+
+function assertDesktopActionResult(result: DesktopActionResult, label: string): void {
+  if ("ok" in result && !result.ok) {
+    throw new Error(result.message ?? `Desktop helper could not ${label}.`);
+  }
 }
 
 function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
@@ -174,6 +166,7 @@ async function runCommandTask(
 
     for await (const taskEvent of runGhosttyCommandTask(desktopClient, command, {
       approved,
+      createScreenshotPath: (stage) => createScreenshotPath(`ghostty-${stage}`),
       signal: controller.signal
     })) {
       if (controller.signal.aborted || taskId !== currentTaskId) {
