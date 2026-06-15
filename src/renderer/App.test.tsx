@@ -370,8 +370,38 @@ describe("App", () => {
         approvalRequired: false,
         apps: [{ name: "Ghostty", bundleId: "com.mitchellh.ghostty", pid: 54502 }],
         screenshots: [
-          { stage: "before", path: "/tmp/before.png" },
-          { stage: "after", path: "/tmp/after.png" }
+          {
+            stage: "before",
+            path: "/tmp/before.png",
+            grounding: {
+              recommendation: "structured_first",
+              sources: [
+                {
+                  source: "macos_accessibility",
+                  status: "covered",
+                  observedElementCount: 1,
+                  labelCount: 1,
+                  notes: []
+                }
+              ]
+            }
+          },
+          {
+            stage: "after",
+            path: "/tmp/after.png",
+            grounding: {
+              recommendation: "structured_first",
+              sources: [
+                {
+                  source: "macos_accessibility",
+                  status: "covered",
+                  observedElementCount: 1,
+                  labelCount: 1,
+                  notes: []
+                }
+              ]
+            }
+          }
         ],
         actions: [
           { type: "type_text", text: "pwd" },
@@ -396,6 +426,7 @@ describe("App", () => {
     expect(screen.getByText("low")).toBeInTheDocument();
     expect(screen.getByText(/type_text/)).toBeInTheDocument();
     expect(screen.getByText(/\/tmp\/after\.png/)).toBeInTheDocument();
+    expect(screen.getAllByText(/structured_first/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Command submitted to Ghostty/)).toBeInTheDocument();
   });
 

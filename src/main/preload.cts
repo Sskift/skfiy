@@ -107,6 +107,16 @@ interface TurnTranscript {
     bundleId: string;
     pid?: number;
     accessibilityTrusted?: boolean;
+    grounding?: {
+      recommendation: string;
+      sources: Array<{
+        source: string;
+        status: string;
+        observedElementCount: number;
+        labelCount: number;
+        notes?: string[];
+      }>;
+    };
   }>;
   actions: Array<{
     type: string;
@@ -462,6 +472,44 @@ function isTurnTranscriptScreenshot(
       screenshot.accessibilityTrusted === undefined
       || typeof screenshot.accessibilityTrusted === "boolean"
     )
+    && (
+      screenshot.grounding === undefined
+      || isTurnTranscriptGrounding(screenshot.grounding)
+    )
+  );
+}
+
+function isTurnTranscriptGrounding(
+  value: unknown
+): value is NonNullable<TurnTranscript["screenshots"][number]["grounding"]> {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const grounding = value as NonNullable<TurnTranscript["screenshots"][number]["grounding"]>;
+  return (
+    typeof grounding.recommendation === "string"
+    && Array.isArray(grounding.sources)
+    && grounding.sources.every(isTurnTranscriptGroundingSource)
+  );
+}
+
+function isTurnTranscriptGroundingSource(
+  value: unknown
+): value is NonNullable<TurnTranscript["screenshots"][number]["grounding"]>["sources"][number] {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const source =
+    value as NonNullable<TurnTranscript["screenshots"][number]["grounding"]>["sources"][number];
+  return (
+    typeof source.source === "string"
+    && typeof source.status === "string"
+    && typeof source.observedElementCount === "number"
+    && typeof source.labelCount === "number"
+    && (source.notes === undefined
+      || (Array.isArray(source.notes) && source.notes.every((note) => typeof note === "string")))
   );
 }
 

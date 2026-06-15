@@ -90,6 +90,16 @@ export interface TurnTranscript {
     bundleId?: string;
     pid?: number;
     accessibilityTrusted?: boolean;
+    grounding?: {
+      recommendation: string;
+      sources: Array<{
+        source: string;
+        status: string;
+        observedElementCount: number;
+        labelCount: number;
+        notes?: string[];
+      }>;
+    };
   }>;
   actions: Array<{
     type: string;
@@ -453,7 +463,10 @@ function LocalReplayViewer({ replay }: { replay: TurnReplay | null }) {
           <ReplayList title="动作" items={transcript.actions.map(formatReplayAction)} />
           <ReplayList
             title="截图"
-            items={transcript.screenshots.map((screenshot) => `${screenshot.stage}: ${screenshot.path}`)}
+            items={transcript.screenshots.map((screenshot) =>
+              `${screenshot.stage}: ${screenshot.path}`
+                + (screenshot.grounding ? ` (${screenshot.grounding.recommendation})` : "")
+            )}
           />
           <ReplayList
             title="时间线"

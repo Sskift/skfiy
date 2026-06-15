@@ -1,4 +1,9 @@
 import type { RiskDecision } from "../../shared/types.js";
+import {
+  evaluateGroundingCoverage,
+  type GroundingCoverageEvaluation
+} from "./grounding-evaluation.js";
+import { extractObservedElementsFromAppState } from "./observed-elements.js";
 import type { DesktopAppState } from "./types.js";
 
 export type ComputerUseTurnEvent =
@@ -28,6 +33,7 @@ export interface TurnTranscriptScreenshot {
   bundleId: string;
   pid?: number;
   accessibilityTrusted?: boolean;
+  grounding: GroundingCoverageEvaluation;
 }
 
 export type TurnTranscriptAction =
@@ -149,6 +155,10 @@ function createScreenshot(
     path: event.path,
     bundleId: event.observation.bundleId,
     pid: event.observation.pid,
-    accessibilityTrusted: event.observation.accessibilityTrusted
+    accessibilityTrusted: event.observation.accessibilityTrusted,
+    grounding: evaluateGroundingCoverage({
+      state: event.observation,
+      elements: extractObservedElementsFromAppState(event.observation)
+    })
   };
 }

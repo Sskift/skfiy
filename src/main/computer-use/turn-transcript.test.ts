@@ -25,7 +25,14 @@ describe("createTurnTranscript", () => {
           isRunning: true,
           isActive: true,
           screenshotPath: "/tmp/before.png",
-          accessibilityTrusted: true
+          accessibilityTrusted: true,
+          windows: [
+            {
+              title: "skfiy-shell",
+              layer: 0,
+              bounds: { x: 10, y: 20, width: 640, height: 480 }
+            }
+          ]
         }
       },
       { type: "typing", command: "pwd" },
@@ -39,7 +46,14 @@ describe("createTurnTranscript", () => {
           isRunning: true,
           isActive: true,
           screenshotPath: "/tmp/after.png",
-          accessibilityTrusted: true
+          accessibilityTrusted: true,
+          windows: [
+            {
+              title: "skfiy-shell",
+              layer: 0,
+              bounds: { x: 10, y: 20, width: 640, height: 480 }
+            }
+          ]
         }
       },
       { type: "completed", command: "pwd", summary: "Command submitted to Ghostty." }
@@ -64,14 +78,56 @@ describe("createTurnTranscript", () => {
           path: "/tmp/before.png",
           bundleId: "com.mitchellh.ghostty",
           pid: 54502,
-          accessibilityTrusted: true
+          accessibilityTrusted: true,
+          grounding: {
+            bundleId: "com.mitchellh.ghostty",
+            screenshotPath: "/tmp/before.png",
+            recommendation: "structured_first",
+            sources: [
+              {
+                source: "macos_accessibility",
+                status: "covered",
+                observedElementCount: 1,
+                labelCount: 1,
+                notes: ["Accessibility is trusted and produced 1 window-level element."]
+              },
+              {
+                source: "screenshot_ocr",
+                status: "missing",
+                observedElementCount: 0,
+                labelCount: 0,
+                notes: ["OCR labels have not been parsed for this screenshot."]
+              }
+            ]
+          }
         },
         {
           stage: "after",
           path: "/tmp/after.png",
           bundleId: "com.mitchellh.ghostty",
           pid: 54502,
-          accessibilityTrusted: true
+          accessibilityTrusted: true,
+          grounding: {
+            bundleId: "com.mitchellh.ghostty",
+            screenshotPath: "/tmp/after.png",
+            recommendation: "structured_first",
+            sources: [
+              {
+                source: "macos_accessibility",
+                status: "covered",
+                observedElementCount: 1,
+                labelCount: 1,
+                notes: ["Accessibility is trusted and produced 1 window-level element."]
+              },
+              {
+                source: "screenshot_ocr",
+                status: "missing",
+                observedElementCount: 0,
+                labelCount: 0,
+                notes: ["OCR labels have not been parsed for this screenshot."]
+              }
+            ]
+          }
         }
       ],
       actions: [

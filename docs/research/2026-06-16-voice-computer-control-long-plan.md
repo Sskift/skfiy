@@ -221,9 +221,11 @@ Goal: make the first native app scenario reliable enough to demo without embarra
 
 Goal: move from scripted Ghostty automation toward Computer Use behavior.
 
-- Add OCR/element parser research spike:
-  - evaluate macOS accessibility tree coverage
-  - evaluate OCR labels on screenshots
+- [x] Add OCR/element parser research spike:
+  - [x] evaluate macOS accessibility tree coverage
+    - `grounding-evaluation` records whether trusted Accessibility/window elements are covered, partial, missing, or blocked
+  - [x] evaluate OCR labels on screenshots
+    - screenshot OCR label observations are modeled as a fallback signal and reflected in per-screenshot grounding recommendations; production OCR extraction remains a provider integration task
   - [x] define `ObservedElement` schema with id, label, role, bounds, source for window-level observations
 - Implement element-targeted actions:
   - [x] resolve click target by observed element id for window-level elements
