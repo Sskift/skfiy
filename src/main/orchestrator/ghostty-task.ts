@@ -13,6 +13,7 @@ import type { GhosttyTaskEvent } from "./events.js";
 
 const GHOSTTY_APP_NAME = "Ghostty";
 const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";
+const SKFIY_GHOSTTY_SESSION_MARKER = "skfiy";
 const TYPE_SETTLE_WAIT_MS = 90;
 const SUBMIT_SETTLE_WAIT_MS = 300;
 
@@ -111,6 +112,8 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
+  assertOwnedGhosttySession(before);
+
   assertPlanSucceeded(await runDesktopActionPlan(
     client,
     [
@@ -206,6 +209,22 @@ function assertPlanSucceeded(results: readonly DesktopActionPlanStepResult[]): v
     if (isFailedActionResult(step.result)) {
       throw new Error(step.result.message ?? `Desktop action failed: ${step.action.type}`);
     }
+  }
+}
+
+function assertOwnedGhosttySession(observation: DesktopAppState): void {
+  if (observation.frontmostBundleId && observation.frontmostBundleId !== GHOSTTY_BUNDLE_ID) {
+    throw new Error("Observed Ghostty window is not frontmost.");
+  }
+
+  const windows = observation.windows ?? [];
+  const hasMarkedWindow = windows.some((window) => {
+    const title = window.title?.toLowerCase() ?? "";
+    return title.includes(SKFIY_GHOSTTY_SESSION_MARKER);
+  });
+
+  if (!hasMarkedWindow) {
+    throw new Error("Observed Ghostty window is not a skfiy-owned session.");
   }
 }
 

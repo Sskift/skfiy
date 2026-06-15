@@ -172,9 +172,9 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
 Goal: make the first native app scenario reliable enough to demo without embarrassing blind typing.
 
 - Create a dedicated Ghostty session strategy:
-  - open new Ghostty window/tab for skfiy
-  - label prompt with a marker
-  - refuse to type into Codex TUI/editor/unknown state
+  - [ ] open new Ghostty window/tab for skfiy
+  - [ ] label prompt with a marker
+  - [x] refuse to type into Codex TUI/editor/unknown state
 - Add `observe_app` replay records with screenshot paths and accessibility trust.
 - Implement action verification:
   - after activate, confirm frontmost bundle

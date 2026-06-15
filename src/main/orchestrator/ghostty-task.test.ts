@@ -169,6 +169,39 @@ describe("runGhosttyCommandTask", () => {
     expect(client.executeAction).toHaveBeenCalledTimes(2);
   });
 
+  it("refuses to type when the observed Ghostty window is not a skfiy session", async () => {
+    const client = createDesktopClient();
+    client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
+      if (action.type === "observe_app") {
+        return {
+          bundleId: action.bundleId,
+          isRunning: true,
+          isActive: true,
+          screenshotPath: action.screenshotOutputPath,
+          frontmostBundleId: "com.mitchellh.ghostty",
+          accessibilityTrusted: true,
+          windows: [
+            {
+              title: "Codex",
+              layer: 0,
+              bounds: { x: 10, y: 20, width: 640, height: 480 }
+            }
+          ]
+        };
+      }
+
+      return { ok: true };
+    });
+
+    await expect(
+      collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }))
+    ).rejects.toThrow("Observed Ghostty window is not a skfiy-owned session.");
+    expect(client.executeAction).not.toHaveBeenCalledWith({
+      type: "type_text",
+      text: "pwd"
+    });
+  });
+
   it("fails closed when the running app is not the exact Ghostty bundle id", async () => {
     const client = createDesktopClient();
     vi.mocked(client.listApps).mockResolvedValueOnce([
