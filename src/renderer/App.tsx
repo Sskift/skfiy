@@ -24,9 +24,25 @@ export type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 export type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
+export type DictationProviderId = "doubao";
+export type DictationProviderState =
+  | "unavailable"
+  | "waiting_for_shortcut_configuration"
+  | "listening"
+  | "stopped"
+  | "failed";
 
 export interface DictationPreparation {
+  providerId?: DictationProviderId;
   voiceTrigger: DoubaoVoiceTrigger;
+  nativeDictationActive?: boolean;
+  providerState?: DictationProviderState;
+}
+
+export interface DictationProviderEvent {
+  providerId: DictationProviderId;
+  state: DictationProviderState;
+  message: string;
 }
 
 export interface PermissionSummary {
@@ -60,6 +76,7 @@ export interface DesktopApi {
   getStartupWarnings: () => Promise<StartupWarning[]>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
+  onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -185,6 +202,7 @@ const fallbackApi: DesktopApi = {
   getStartupWarnings: async () => [],
   moveWindowBy: () => undefined,
   setWindowMode: () => undefined,
+  onDictationProviderEvent: () => () => undefined,
   onTaskEvent: () => () => undefined
 };
 
@@ -258,6 +276,7 @@ export default function App() {
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [startupWarnings, setStartupWarnings] = useState<StartupWarning[]>([]);
+  const [dictationProvider, setDictationProvider] = useState<DictationProviderEvent | null>(null);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
     message: STATUS_COPY.idle.message
@@ -343,6 +362,19 @@ export default function App() {
         nativeDictationActiveRef.current = false;
         setListening(false);
         setDetailsOpen(false);
+        setDictationProvider(null);
+      }
+    });
+  }, [api]);
+
+  useEffect(() => {
+    return api.onDictationProviderEvent((event) => {
+      setDictationProvider(event);
+
+      if (event.state === "listening") {
+        setListening(true);
+      } else if (event.state === "stopped" || event.state === "failed" || event.state === "unavailable") {
+        setListening(false);
       }
     });
   }, [api]);
@@ -453,7 +485,14 @@ export default function App() {
 
     try {
       const preparation = await api.prepareDictation();
-      nativeDictationActiveRef.current = preparation.voiceTrigger !== "none";
+      if (preparation.providerState === "failed" || preparation.providerState === "unavailable") {
+        nativeDictationActiveRef.current = false;
+        setListening(false);
+        return;
+      }
+
+      nativeDictationActiveRef.current =
+        preparation.nativeDictationActive ?? preparation.voiceTrigger !== "none";
 
       if (!nativeDictationActiveRef.current && !startBrowserSpeechRecognition()) {
         return;
@@ -477,6 +516,7 @@ export default function App() {
     setListening(false);
     setDetailsOpen(false);
     setDictationText("");
+    setDictationProvider(null);
     setTask({
       status: "idle",
       message: STATUS_COPY.idle.message
@@ -612,7 +652,12 @@ export default function App() {
     && !listening
     && !detailsOpen
     && task.status === "idle";
-  const showPanel = listening || detailsOpen || task.status !== "idle" || showStartupWarning;
+  const showProviderStatus = Boolean(dictationProvider)
+    && !listening
+    && !detailsOpen
+    && task.status === "idle";
+  const showPanel =
+    listening || detailsOpen || task.status !== "idle" || showStartupWarning || showProviderStatus;
 
   useEffect(() => {
     api.setWindowMode(showPanel ? "expanded" : "compact");
@@ -675,7 +720,7 @@ export default function App() {
             </>
           ) : listening ? (
             <>
-              <p>正在听你说</p>
+              <p>{dictationProvider?.message ?? "正在听你说"}</p>
               <textarea
                 ref={transcriptRef}
                 aria-label="语音转写"
@@ -707,6 +752,11 @@ export default function App() {
                 </button>
               </div>
             </>
+          ) : showProviderStatus && dictationProvider ? (
+            <div className="provider-status" aria-label="语音 provider 状态">
+              <strong>{dictationProvider.providerId === "doubao" ? "豆包" : "语音"}</strong>
+              <span>{dictationProvider.message}</span>
+            </div>
           ) : showStartupWarning && startupWarning ? (
             <div className="startup-warning" aria-label="启动警告">
               <strong>{startupWarning.title}</strong>

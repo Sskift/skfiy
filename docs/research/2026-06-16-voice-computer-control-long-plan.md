@@ -152,13 +152,13 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] Accessibility status.
   - [x] Microphone status.
   - [x] "Open System Settings" actions.
-- Refactor dictation into a provider interface.
-- Keep Doubao as a provider, but add provider state events:
-  - unavailable
-  - waiting for shortcut configuration
-  - listening
-  - stopped
-  - failed
+- [x] Refactor dictation into a provider interface.
+- [x] Keep Doubao as a provider, but add provider state events:
+  - [x] unavailable
+  - [x] waiting for shortcut configuration
+  - [x] listening
+  - [x] stopped
+  - [x] failed
 - Add a stop-turn hotkey and make pet click not start a new turn while dragging.
 - Ship a settings panel for ASR provider and Doubao shortcut instructions.
 - Verification:

@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App, { type DesktopApi, type TaskEvent } from "./App";
+import App, { type DesktopApi, type DictationProviderEvent, type TaskEvent } from "./App";
 
 let emitTaskEvent: (event: TaskEvent) => void;
+let emitDictationProviderEvent: (event: DictationProviderEvent) => void;
 const speechRecognitionInstances: MockSpeechRecognition[] = [];
 
 interface MockSpeechRecognitionResult {
@@ -33,6 +34,7 @@ class MockSpeechRecognition {
 
 beforeEach(() => {
   emitTaskEvent = () => undefined;
+  emitDictationProviderEvent = () => undefined;
   speechRecognitionInstances.length = 0;
 
   window.webkitSpeechRecognition =
@@ -59,6 +61,10 @@ beforeEach(() => {
     getStartupWarnings: vi.fn<DesktopApi["getStartupWarnings"]>().mockResolvedValue([]),
     moveWindowBy: vi.fn<DesktopApi["moveWindowBy"]>(),
     setWindowMode: vi.fn<DesktopApi["setWindowMode"]>(),
+    onDictationProviderEvent: vi.fn((callback: (event: DictationProviderEvent) => void) => {
+      emitDictationProviderEvent = callback;
+      return vi.fn();
+    }),
     onTaskEvent: vi.fn((callback: (event: TaskEvent) => void) => {
       emitTaskEvent = callback;
       return vi.fn();
@@ -126,6 +132,39 @@ describe("App", () => {
     });
     expect(speechRecognitionInstances).toHaveLength(0);
     expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not start browser fallback when the provider reports a failed preparation", async () => {
+    (window.skfiy as DesktopApi).prepareDictation = vi
+      .fn<DesktopApi["prepareDictation"]>()
+      .mockResolvedValue({
+        providerId: "doubao",
+        voiceTrigger: "skfiy-shortcut",
+        nativeDictationActive: false,
+        providerState: "failed"
+      });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
+    });
+    expect(speechRecognitionInstances).toHaveLength(0);
+  });
+
+  it("renders dictation provider state events in the voice bubble", async () => {
+    render(<App />);
+
+    act(() => emitDictationProviderEvent({
+      providerId: "doubao",
+      state: "listening",
+      message: "豆包语音已启动."
+    }));
+
+    expect(screen.getByLabelText(/skfiy voice status/i)).toHaveTextContent("豆包语音已启动.");
+    expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
   });
 
   it("opens settings details from a right click on the pet without starting dictation", () => {

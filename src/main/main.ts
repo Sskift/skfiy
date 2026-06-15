@@ -7,11 +7,11 @@ import type {
   DesktopActionResult,
   PermissionSettingsTarget
 } from "./computer-use/types.js";
+import { readDoubaoVoiceTrigger } from "./dictation-backend.js";
 import {
-  prepareDoubaoDictation,
-  readDoubaoVoiceTrigger,
-  shouldStopDoubaoDictation
-} from "./dictation-backend.js";
+  createDoubaoDictationProvider,
+  type DictationProviderEvent
+} from "./dictation-provider.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
@@ -59,6 +59,14 @@ function emitTaskEvent(window: BrowserWindow | null, event: TaskEvent) {
   }
 
   window.webContents.send("skfiy:task-event", event);
+}
+
+function emitDictationProviderEvent(window: BrowserWindow | null, event: DictationProviderEvent) {
+  if (!window || window.isDestroyed()) {
+    return;
+  }
+
+  window.webContents.send("skfiy:dictation-provider-event", event);
 }
 
 function resolveHelperPath(): string {
@@ -332,6 +340,7 @@ ipcMain.handle(
 ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const voiceTrigger = readDoubaoVoiceTrigger(process.env);
+  let lastProviderState: DictationProviderEvent["state"] | undefined;
 
   if (window && !window.isDestroyed()) {
     window.setFocusable(true);
@@ -340,7 +349,15 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   }
 
   try {
-    await prepareDoubaoDictation(createDesktopHelper(), voiceTrigger);
+    const provider = createDoubaoDictationProvider({
+      helper: createDesktopHelper(),
+      voiceTrigger,
+      emit: (providerEvent) => {
+        lastProviderState = providerEvent.state;
+        emitDictationProviderEvent(window, providerEvent);
+      }
+    });
+    return await provider.prepare();
   } catch (error) {
     emitTaskEvent(window, {
       status: "failed",
@@ -348,20 +365,25 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
     });
   }
 
-  return { voiceTrigger };
+  return {
+    providerId: "doubao",
+    voiceTrigger,
+    nativeDictationActive: false,
+    providerState: lastProviderState ?? "failed"
+  };
 });
 
 ipcMain.handle("skfiy:stop-dictation", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const voiceTrigger = readDoubaoVoiceTrigger(process.env);
 
-  if (!shouldStopDoubaoDictation(voiceTrigger)) {
-    return;
-  }
-
   try {
-    const result = await createDesktopHelper().pressKey("escape");
-    assertDesktopActionResult(result, "stop Doubao dictation");
+    const provider = createDoubaoDictationProvider({
+      helper: createDesktopHelper(),
+      voiceTrigger,
+      emit: (providerEvent) => emitDictationProviderEvent(window, providerEvent)
+    });
+    await provider.stop();
   } catch (error) {
     emitTaskEvent(window, {
       status: "failed",

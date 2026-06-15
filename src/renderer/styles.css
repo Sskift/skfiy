@@ -219,18 +219,21 @@ textarea:focus-visible {
   outline: none;
 }
 
-.startup-warning {
+.startup-warning,
+.provider-status {
   display: grid;
   gap: 5px;
 }
 
-.startup-warning strong {
+.startup-warning strong,
+.provider-status strong {
   color: #f7d56a;
   font-size: 11px;
   line-height: 1.2;
 }
 
-.startup-warning span {
+.startup-warning span,
+.provider-status span {
   color: rgba(238, 247, 255, 0.82);
   font-size: 11px;
   line-height: 1.3;

@@ -7,6 +7,13 @@ type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
+type DictationProviderId = "doubao";
+type DictationProviderState =
+  | "unavailable"
+  | "waiting_for_shortcut_configuration"
+  | "listening"
+  | "stopped"
+  | "failed";
 
 interface TaskEvent {
   status: TaskStatus;
@@ -15,7 +22,16 @@ interface TaskEvent {
 }
 
 interface DictationPreparation {
+  providerId?: DictationProviderId;
   voiceTrigger: DoubaoVoiceTrigger;
+  nativeDictationActive?: boolean;
+  providerState?: DictationProviderState;
+}
+
+interface DictationProviderEvent {
+  providerId: DictationProviderId;
+  state: DictationProviderState;
+  message: string;
 }
 
 interface PermissionSummary {
@@ -43,6 +59,7 @@ interface DesktopApi {
   getStartupWarnings: () => Promise<StartupWarning[]>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
+  onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
@@ -108,6 +125,16 @@ const api: DesktopApi = {
   setWindowMode(mode) {
     ipcRenderer.send("skfiy:set-window-mode", mode);
   },
+  onDictationProviderEvent(callback) {
+    const listener = (_event: IpcRendererEvent, payload: unknown) => {
+      if (isDictationProviderEvent(payload)) {
+        callback(payload);
+      }
+    };
+
+    ipcRenderer.on("skfiy:dictation-provider-event", listener);
+    return () => ipcRenderer.removeListener("skfiy:dictation-provider-event", listener);
+  },
   onTaskEvent(callback) {
     const listener = (_event: IpcRendererEvent, payload: unknown) => {
       if (isTaskEvent(payload)) {
@@ -127,6 +154,29 @@ function isDictationPreparation(value: unknown): value is DictationPreparation {
 
   const trigger = (value as Partial<DictationPreparation>).voiceTrigger;
   return trigger === "skfiy-shortcut" || trigger === "fn-double-tap" || trigger === "none";
+}
+
+function isDictationProviderEvent(value: unknown): value is DictationProviderEvent {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const event = value as Partial<DictationProviderEvent>;
+  return (
+    event.providerId === "doubao"
+    && isDictationProviderState(event.state)
+    && typeof event.message === "string"
+  );
+}
+
+function isDictationProviderState(value: unknown): value is DictationProviderState {
+  return (
+    value === "unavailable"
+    || value === "waiting_for_shortcut_configuration"
+    || value === "listening"
+    || value === "stopped"
+    || value === "failed"
+  );
 }
 
 function isPermissionSummary(value: unknown): value is PermissionSummary {
