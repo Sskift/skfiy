@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
+const execFileAsync = promisify(execFile);
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
@@ -16,6 +19,8 @@ export function createDefaultDogfoodVerifyOptions(rootDir) {
     manifestPath: undefined,
     rootDir,
     requirePassed: false,
+    requireCurrentHead: false,
+    currentHeadSha: undefined,
     help: false
   };
 }
@@ -33,6 +38,9 @@ export function parseDogfoodVerifyArgs(argv, defaults) {
         break;
       case "--require-passed":
         options.requirePassed = true;
+        break;
+      case "--require-current-head":
+        options.requireCurrentHead = true;
         break;
       case "--help":
       case "-h":
@@ -95,6 +103,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:voice -- --output <path>"),
     "manifest must require native voice smoke evidence"
   );
+  await verifyCurrentHead(manifest, options, io, checks);
 
   if (zipPath) {
     await verifyZip(zipPath, manifest, io, checks);
@@ -135,6 +144,23 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     errors,
     checks
   };
+}
+
+async function verifyCurrentHead(manifest, options, io, checks) {
+  if (!options.requireCurrentHead) {
+    return;
+  }
+
+  const currentHeadSha = typeof options.currentHeadSha === "string"
+    ? options.currentHeadSha
+    : await io.readCurrentHead(options.rootDir ?? DEFAULT_ROOT_DIR);
+
+  check(
+    checks,
+    "manifest.currentHead",
+    typeof manifest?.commitSha === "string" && manifest.commitSha === currentHeadSha,
+    `manifest commitSha must match current HEAD ${currentHeadSha}`
+  );
 }
 
 function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
@@ -287,6 +313,10 @@ function createDefaultIo() {
       return JSON.parse(await readFile(filePath, "utf8"));
     },
     stat,
+    async readCurrentHead(rootDir) {
+      const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: rootDir });
+      return String(stdout).trim();
+    },
     async findLatestManifest(rootDir) {
       const alphaDir = path.join(rootDir, ".skfiy-alpha");
       if (!existsSync(alphaDir)) {
@@ -333,6 +363,8 @@ Validates that an alpha manifest references a coherent packaged-app dogfood evid
 Options:
   --manifest <path>     Alpha manifest JSON from npm run alpha:artifact.
   --require-passed      Fail unless both Ghostty and native voice smoke results are passed.
+  --require-current-head
+                       Fail unless manifest commitSha matches the current git HEAD.
   -h, --help            Show this help.
 `;
 }

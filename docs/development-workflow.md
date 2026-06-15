@@ -163,7 +163,7 @@ After creating an alpha manifest, verify that the manifest, zip, Ghostty smoke a
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-Use `--require-passed` only for a release gate after both Ghostty and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, and required manifest links.
+Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after both Ghostty and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, and required manifest links.
 
 ## Reporting Template
 

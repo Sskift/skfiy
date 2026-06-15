@@ -51,7 +51,7 @@ Verify the evidence chain before sharing an alpha:
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-This gate checks the manifest, zip byte count, Ghostty smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, and process cleanup. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and both smoke runs are expected to pass.
+This gate checks the manifest, zip byte count, Ghostty smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, and process cleanup. Add `--require-current-head` before sharing a local alpha so stale manifests from older commits fail. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and both smoke runs are expected to pass.
 
 ## Launch
 
