@@ -94,7 +94,7 @@ textarea:focus-visible {
 }
 
 .skfiy-pet {
-  -webkit-app-region: no-drag;
+  -webkit-app-region: drag;
   position: absolute;
   left: 50%;
   bottom: 20px;
@@ -107,7 +107,6 @@ textarea:focus-visible {
   transform: translateX(-50%);
   animation: pet-bob 2.7s steps(4, end) infinite;
   cursor: grab;
-  touch-action: none;
 }
 
 .skfiy-pet:focus,

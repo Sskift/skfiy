@@ -4,8 +4,7 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent
+  useState
 } from "react";
 import { getPetSpriteStyle, getPetStateForTask, PET_ATLAS, type PetAtlasState } from "./pet-atlas";
 
@@ -48,12 +47,6 @@ declare global {
 interface TaskView {
   status: TaskStatus;
   message: string;
-}
-
-interface PetDragState {
-  pointerId: number;
-  lastScreenX: number;
-  lastScreenY: number;
 }
 
 const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
@@ -108,17 +101,7 @@ function getSkfiyApi(): SkfiyApi {
   return window.skfiy ?? fallbackApi;
 }
 
-function SkfiyPet({
-  state,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp
-}: {
-  state: PetAtlasState;
-  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
-}) {
+function SkfiyPet({ state }: { state: PetAtlasState }) {
   const animation = PET_ATLAS.states[state];
 
   return (
@@ -127,11 +110,7 @@ function SkfiyPet({
       className={`skfiy-pet pet-state-${state}`}
       data-atlas-state={state}
       data-frame-count={animation.frames}
-      data-drag-mode="manual"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      data-drag-mode="native"
       style={getPetSpriteStyle(state)}
     >
       <span className="pet-sprite-frame" aria-hidden="true" />
@@ -149,7 +128,6 @@ export default function App() {
   });
   const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
   const lastDictationSubmitRef = useRef("");
-  const petDragRef = useRef<PetDragState | null>(null);
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
@@ -271,52 +249,6 @@ export default function App() {
     }
   }
 
-  function startPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) {
-      return;
-    }
-
-    petDragRef.current = {
-      pointerId: event.pointerId,
-      lastScreenX: event.screenX,
-      lastScreenY: event.screenY
-    };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  }
-
-  function movePetDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    const drag = petDragRef.current;
-
-    if (!drag || drag.pointerId !== event.pointerId) {
-      return;
-    }
-
-    const deltaX = event.screenX - drag.lastScreenX;
-    const deltaY = event.screenY - drag.lastScreenY;
-
-    if (deltaX === 0 && deltaY === 0) {
-      return;
-    }
-
-    petDragRef.current = {
-      pointerId: drag.pointerId,
-      lastScreenX: event.screenX,
-      lastScreenY: event.screenY
-    };
-    api.moveWindowBy(deltaX, deltaY);
-  }
-
-  function stopPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    const drag = petDragRef.current;
-
-    if (!drag || drag.pointerId !== event.pointerId) {
-      return;
-    }
-
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    petDragRef.current = null;
-  }
-
   const status = STATUS_COPY[task.status];
   const petState = getPetStateForTask(listening ? "observing" : task.status);
   const showVoiceStatus = listening || task.status !== "idle";
@@ -372,12 +304,7 @@ export default function App() {
         </section>
       ) : null}
 
-      <SkfiyPet
-        state={petState}
-        onPointerDown={startPetDrag}
-        onPointerMove={movePetDrag}
-        onPointerUp={stopPetDrag}
-      />
+      <SkfiyPet state={petState} />
 
       <button
         type="button"
