@@ -209,6 +209,10 @@ function readFailureDetail(commandName: string, result: DesktopHelperProcessResu
 
   const stdout = result.stdout.trim();
   if (!stdout) {
+    if (commandName === "screenshot" || commandName === "get-app-state") {
+      return "Screen Recording permission is required for skfiy. Grant it in System Settings > Privacy & Security > Screen Recording, then try again.";
+    }
+
     return "No error output.";
   }
 

@@ -26,7 +26,7 @@ The app needs two system permissions before it can behave like Computer Use:
   focus changes.
 
 Open **System Settings > Privacy & Security** and grant both permissions to the
-terminal or app process running skfiy during local development.
+compiled `skfiy.app` bundle used for local validation.
 
 ## Doubao Dictation
 
@@ -70,8 +70,7 @@ npm install
 npm test -- --run
 npm run typecheck
 npm run build
-npm run build:helper
-npm start
+open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app
 ```
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main

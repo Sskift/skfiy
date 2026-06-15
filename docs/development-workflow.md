@@ -151,4 +151,6 @@ Known gaps: ...
 
 ## Immediate Project Implication
 
-The current repository does not yet provide a packaged `skfiy.app`. Until that packaging exists, no future work should be described as user-demo-ready. Development can continue with Electron debug launches, but acceptance must wait for the app-bundle path.
+`npm run build` now produces a local packaged app at `dist/skfiy.app` with bundle id `com.sskift.skfiy` and an embedded Swift helper. Future user-facing validation should launch that app bundle through `open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app`.
+
+Current permission state still matters: screenshots, clicks, typing, and voice cannot be claimed as working until Screen Recording, Accessibility, and Microphone permission checks pass for this bundle identity.

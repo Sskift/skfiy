@@ -291,6 +291,20 @@ describe("DesktopHelperClient", () => {
     );
   });
 
+  it("explains screenshot permission failures when screencapture exits silently", async () => {
+    const { client } = createClientWithResponses([
+      {
+        stdout: "",
+        stderr: "",
+        exitCode: 1
+      }
+    ]);
+
+    await expect(client.screenshot("/tmp/shot.png")).rejects.toThrow(
+      "Desktop helper command failed (screenshot) with exit code 1: Screen Recording permission is required"
+    );
+  });
+
   it("throws useful errors from helper error envelopes", async () => {
     const { client } = createClientWithResponses([
       {

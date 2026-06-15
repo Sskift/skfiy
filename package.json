@@ -13,8 +13,9 @@
     "clean": "rm -rf dist/main dist/shared dist/renderer",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "build": "npm run clean && vite build && tsc -p tsconfig.electron.json && npm run build:helper",
-    "build:helper": "bash scripts/build-helper.sh"
+    "build": "npm run clean && vite build && tsc -p tsconfig.electron.json && npm run build:helper && npm run package:mac",
+    "build:helper": "bash scripts/build-helper.sh",
+    "package:mac": "node scripts/package-macos-app.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.2",
