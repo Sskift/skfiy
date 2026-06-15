@@ -23,6 +23,7 @@ export type PetWindowMode = "compact" | "expanded";
 export type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 export type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
+export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 
 export interface DictationPreparation {
   voiceTrigger: DoubaoVoiceTrigger;
@@ -32,6 +33,12 @@ export interface PermissionSummary {
   screenRecording: { state: PermissionState };
   accessibility: { state: PermissionState };
   microphone: { state: PermissionState };
+}
+
+export interface StartupWarning {
+  id: StartupWarningId;
+  title: string;
+  message: string;
 }
 
 export interface TaskEvent {
@@ -50,6 +57,7 @@ export interface DesktopApi {
   stopTask: () => Promise<void>;
   getPermissions: () => Promise<PermissionSummary>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
+  getStartupWarnings: () => Promise<StartupWarning[]>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
@@ -174,6 +182,7 @@ const fallbackApi: DesktopApi = {
   stopTask: async () => undefined,
   getPermissions: async () => UNKNOWN_PERMISSIONS,
   openPermissionSettings: async () => undefined,
+  getStartupWarnings: async () => [],
   moveWindowBy: () => undefined,
   setWindowMode: () => undefined,
   onTaskEvent: () => () => undefined
@@ -248,6 +257,7 @@ export default function App() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [startupWarnings, setStartupWarnings] = useState<StartupWarning[]>([]);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
     message: STATUS_COPY.idle.message
@@ -340,6 +350,20 @@ export default function App() {
   useEffect(() => {
     return () => stopBrowserSpeechRecognition();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void api.getStartupWarnings().then((warnings) => {
+      if (!cancelled) {
+        setStartupWarnings(warnings);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
 
   const refreshPermissions = useCallback(async () => {
     setPermissionsLoading(true);
@@ -583,7 +607,12 @@ export default function App() {
 
   const status = STATUS_COPY[task.status];
   const petState = getPetStateForTask(listening ? "observing" : task.status);
-  const showPanel = listening || detailsOpen || task.status !== "idle";
+  const startupWarning = startupWarnings[0];
+  const showStartupWarning = Boolean(startupWarning)
+    && !listening
+    && !detailsOpen
+    && task.status === "idle";
+  const showPanel = listening || detailsOpen || task.status !== "idle" || showStartupWarning;
 
   useEffect(() => {
     api.setWindowMode(showPanel ? "expanded" : "compact");
@@ -678,6 +707,11 @@ export default function App() {
                 </button>
               </div>
             </>
+          ) : showStartupWarning && startupWarning ? (
+            <div className="startup-warning" aria-label="启动警告">
+              <strong>{startupWarning.title}</strong>
+              <span>{startupWarning.message}</span>
+            </div>
           ) : (
             <p>{task.message}</p>
           )}

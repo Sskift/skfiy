@@ -6,6 +6,7 @@ type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "co
 type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 type PermissionSettingsTarget = "screen-recording" | "accessibility" | "microphone";
+type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 
 interface TaskEvent {
   status: TaskStatus;
@@ -23,6 +24,12 @@ interface PermissionSummary {
   microphone: { state: PermissionState };
 }
 
+interface StartupWarning {
+  id: StartupWarningId;
+  title: string;
+  message: string;
+}
+
 interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
@@ -33,6 +40,7 @@ interface DesktopApi {
   stopTask: () => Promise<void>;
   getPermissions: () => Promise<PermissionSummary>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
+  getStartupWarnings: () => Promise<StartupWarning[]>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
@@ -89,6 +97,10 @@ const api: DesktopApi = {
     }
 
     await ipcRenderer.invoke("skfiy:open-permission-settings", permission);
+  },
+  async getStartupWarnings() {
+    const payload = await ipcRenderer.invoke("skfiy:get-startup-warnings");
+    return Array.isArray(payload) ? payload.filter(isStartupWarning) : [];
   },
   moveWindowBy(deltaX, deltaY) {
     ipcRenderer.send("skfiy:move-window-by", deltaX, deltaY);
@@ -154,6 +166,23 @@ function isPermissionSettingsTarget(value: unknown): value is PermissionSettings
     || value === "accessibility"
     || value === "microphone"
   );
+}
+
+function isStartupWarning(value: unknown): value is StartupWarning {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const warning = value as Partial<StartupWarning>;
+  return (
+    isStartupWarningId(warning.id)
+    && typeof warning.title === "string"
+    && typeof warning.message === "string"
+  );
+}
+
+function isStartupWarningId(value: unknown): value is StartupWarningId {
+  return value === "tmux-launch" || value === "dev-server" || value === "unbundled-electron";
 }
 
 function createUnknownPermissionSummary(): PermissionSummary {

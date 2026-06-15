@@ -18,6 +18,7 @@ import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostt
 import {
   readPermissionsForRenderer
 } from "./permissions.js";
+import { readStartupWarnings } from "./startup-guard.js";
 import {
   calculatePetWindowBounds,
   readWindowPositionOverride,
@@ -458,6 +459,16 @@ ipcMain.handle("skfiy:open-permission-settings", async (event, permission: unkno
       message: error instanceof Error ? error.message : "Permission settings could not be opened."
     });
   }
+});
+
+ipcMain.handle("skfiy:get-startup-warnings", () => {
+  return readStartupWarnings({
+    appPath: app.getAppPath(),
+    devServerUrl,
+    env: process.env,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath
+  });
 });
 
 app.whenReady().then(async () => {

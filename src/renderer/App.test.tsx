@@ -56,6 +56,7 @@ beforeEach(() => {
     openPermissionSettings: vi.fn<DesktopApi["openPermissionSettings"]>().mockResolvedValue(
       undefined
     ),
+    getStartupWarnings: vi.fn<DesktopApi["getStartupWarnings"]>().mockResolvedValue([]),
     moveWindowBy: vi.fn<DesktopApi["moveWindowBy"]>(),
     setWindowMode: vi.fn<DesktopApi["setWindowMode"]>(),
     onTaskEvent: vi.fn((callback: (event: TaskEvent) => void) => {
@@ -135,6 +136,27 @@ describe("App", () => {
     expect(screen.getByLabelText(/skfiy settings/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
     expect((window.skfiy as DesktopApi).prepareDictation).not.toHaveBeenCalled();
+  });
+
+  it("shows startup guard warnings as a non-blocking pet bubble", async () => {
+    const api = window.skfiy as DesktopApi;
+    api.getStartupWarnings = vi.fn<DesktopApi["getStartupWarnings"]>().mockResolvedValue([
+      {
+        id: "tmux-launch",
+        title: "tmux 启动会影响权限归属",
+        message: "用户可见测试请通过 open -na dist/skfiy.app 启动。"
+      }
+    ]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("tmux 启动会影响权限归属")).toBeInTheDocument();
+    });
+    expect(screen.getByText("用户可见测试请通过 open -na dist/skfiy.app 启动。")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
+    expect(api.setWindowMode).toHaveBeenLastCalledWith("expanded");
   });
 
   it("shows permission status in settings and opens the matching macOS settings pane", async () => {

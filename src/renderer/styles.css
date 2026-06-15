@@ -219,6 +219,23 @@ textarea:focus-visible {
   outline: none;
 }
 
+.startup-warning {
+  display: grid;
+  gap: 5px;
+}
+
+.startup-warning strong {
+  color: #f7d56a;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.startup-warning span {
+  color: rgba(238, 247, 255, 0.82);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
 .approval-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

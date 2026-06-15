@@ -146,7 +146,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 Goal: remove permission confusion, make voice lifecycle explicit, make app identity stable.
 
 - [x] Package a local macOS app bundle with fixed bundle ID and embedded Swift helper.
-- Add a startup guard that warns when running under tmux/dev shell for user testing.
+- [x] Add a startup guard that warns when running under tmux/dev shell for user testing.
 - [x] Build a permissions center:
   - [x] Screen Recording status.
   - [x] Accessibility status.
