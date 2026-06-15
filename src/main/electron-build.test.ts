@@ -31,6 +31,7 @@ describe("Electron build wiring", () => {
         appBundlePath: string;
         bundleIdentifier: string;
         bundledAppPath: string;
+        bundledExecutablePath: string;
         bundledHelperPath: string;
       };
       setInfoPlistString: (plist: string, key: string, value: string) => string;
@@ -52,8 +53,26 @@ describe("Electron build wiring", () => {
       appBundlePath: "/repo/dist/skfiy.app",
       bundleIdentifier: "com.sskift.skfiy",
       bundledAppPath: "/repo/dist/skfiy.app/Contents/Resources/app",
+      bundledExecutablePath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy",
       bundledHelperPath: "/repo/dist/skfiy.app/Contents/Resources/skfiy-helper"
     });
+  });
+
+  it("keeps the packaged app identity lowercase across bundle metadata and executable name", () => {
+    const packagingScript = readFileSync(
+      path.join(process.cwd(), "scripts/package-macos-app.mjs"),
+      "utf8"
+    );
+
+    expect(packagingScript).toContain('setInfoPlistString(current, "CFBundleExecutable", "skfiy")');
+    expect(packagingScript).toContain('path.join(plan.appBundlePath, "Contents", "MacOS", "Electron")');
+    expect(packagingScript).toContain("await fs.rename(electronExecutablePath, plan.bundledExecutablePath)");
+  });
+
+  it("sets the Electron app name to lowercase skfiy before creating windows", () => {
+    const mainSource = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+
+    expect(mainSource).toContain('app.setName("skfiy")');
   });
 
   it("adds microphone and speech usage descriptions to the packaged app identity", () => {

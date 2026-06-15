@@ -90,6 +90,7 @@ interface ObserveAppReplayRecord extends DesktopAppState {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
+app.setName("skfiy");
 const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
 const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";

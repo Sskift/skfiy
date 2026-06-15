@@ -27,6 +27,7 @@ export function createPackagePlan({
     infoPlistPath: path.join(appBundlePath, "Contents", "Info.plist"),
     resourcesPath,
     bundledAppPath: path.join(resourcesPath, "app"),
+    bundledExecutablePath: path.join(appBundlePath, "Contents", "MacOS", "skfiy"),
     bundledHelperPath: path.join(resourcesPath, "skfiy-helper"),
     appPackageJsonPath: path.join(resourcesPath, "app", "package.json"),
     sourceHelperPath: path.join(rootDir, "dist", "skfiy-helper"),
@@ -50,6 +51,8 @@ export async function packageMacosApp({
 
   await fs.rm(plan.appBundlePath, { force: true, recursive: true });
   await fs.cp(plan.electronAppPath, plan.appBundlePath, ELECTRON_APP_COPY_OPTIONS);
+  const electronExecutablePath = path.join(plan.appBundlePath, "Contents", "MacOS", "Electron");
+  await fs.rename(electronExecutablePath, plan.bundledExecutablePath);
   await rewriteInfoPlist(plan.infoPlistPath);
   await fs.rm(plan.bundledAppPath, { force: true, recursive: true });
   await fs.mkdir(path.join(plan.bundledAppPath, "dist"), { recursive: true });
@@ -90,11 +93,12 @@ function createRuntimePackageJson(rootDir) {
 
 async function rewriteInfoPlist(infoPlistPath) {
   const current = await fs.readFile(infoPlistPath, "utf8");
+  const withExecutable = setInfoPlistString(current, "CFBundleExecutable", "skfiy");
   const next = setInfoPlistString(
     setInfoPlistString(
       setInfoPlistString(
         setInfoPlistString(
-          setInfoPlistString(current, "CFBundleIdentifier", BUNDLE_IDENTIFIER),
+          setInfoPlistString(withExecutable, "CFBundleIdentifier", BUNDLE_IDENTIFIER),
           "CFBundleName",
           "skfiy"
         ),
