@@ -814,6 +814,114 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
   });
 
+  it("does not auto-submit interim browser speech candidates", async () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      speechRecognitionInstances[0].onresult?.({
+        resultIndex: 0,
+        results: [
+          {
+            0: { transcript: "打开 Ghost", confidence: 0.9 },
+            isFinal: false
+          }
+        ]
+      });
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_200);
+    });
+
+    expect((window.skfiy as TestDesktopApi).submitDictation).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue("打开 Ghost")).toBeInTheDocument();
+  });
+
+  it("does not auto-submit low-confidence final browser speech candidates", async () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      speechRecognitionInstances[0].onresult?.({
+        resultIndex: 0,
+        results: [
+          {
+            0: { transcript: "打开 Ghostty 并截图", confidence: 0.34 },
+            isFinal: true
+          }
+        ]
+      });
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_200);
+    });
+
+    expect((window.skfiy as TestDesktopApi).submitDictation).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue("打开 Ghostty 并截图")).toBeInTheDocument();
+  });
+
+  it("auto-submits when an interim browser speech candidate becomes final with confidence", async () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      speechRecognitionInstances[0].onresult?.({
+        resultIndex: 0,
+        results: [
+          {
+            0: { transcript: "打开 Ghostty 并截图", confidence: 0.89 },
+            isFinal: false
+          }
+        ]
+      });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1_200);
+    });
+    expect((window.skfiy as TestDesktopApi).submitDictation).not.toHaveBeenCalled();
+
+    act(() => {
+      speechRecognitionInstances[0].onresult?.({
+        resultIndex: 0,
+        results: [
+          {
+            0: { transcript: "打开 Ghostty 并截图", confidence: 0.89 },
+            isFinal: true
+          }
+        ]
+      });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(900);
+    });
+
+    expect((window.skfiy as TestDesktopApi).submitDictation).toHaveBeenCalledWith(
+      "voice-turn-test",
+      "打开 Ghostty 并截图",
+      { stopNativeDictation: false }
+    );
+  });
+
   it("exposes approval controls when a command is waiting for approval", () => {
     render(<App />);
 

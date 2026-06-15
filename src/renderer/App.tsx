@@ -442,6 +442,7 @@ const fallbackApi: DesktopApi = {
 };
 
 const DICTATION_AUTO_SUBMIT_DELAY_MS = 900;
+const MIN_BROWSER_ASR_AUTO_SUBMIT_CONFIDENCE = 0.55;
 
 function getDesktopApi(): DesktopApi {
   return window.skfiy ?? fallbackApi;
@@ -700,6 +701,8 @@ export default function App() {
     useState<PlannerProviderSettings>(DEFAULT_PLANNER_PROVIDER_SETTINGS);
   const [turnReplay, setTurnReplay] = useState<TurnReplay | null>(null);
   const [dictationProvider, setDictationProvider] = useState<DictationProviderEvent | null>(null);
+  const [browserTranscriptCandidate, setBrowserTranscriptCandidate] =
+    useState<DictationTranscriptUpdate | null>(null);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
     message: STATUS_COPY.idle.message
@@ -711,6 +714,7 @@ export default function App() {
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const nativeDictationActiveRef = useRef(false);
   const voiceSessionIdRef = useRef<string | undefined>(undefined);
+  const manualDictationTextRef = useRef<string | null>(null);
   const suppressNextPetClickRef = useRef(false);
 
   function stopBrowserSpeechRecognition() {
@@ -745,6 +749,8 @@ export default function App() {
     recognition.lang = "zh-CN";
     recognition.onresult = (event) => {
       const transcriptUpdate = readSpeechTranscriptUpdate(event);
+      setBrowserTranscriptCandidate(transcriptUpdate);
+      manualDictationTextRef.current = null;
       setDictationText(transcriptUpdate.text);
 
       if (transcriptUpdate.text) {
@@ -801,6 +807,8 @@ export default function App() {
       if (event.status !== "idle") {
         stopBrowserSpeechRecognition();
         nativeDictationActiveRef.current = false;
+        setBrowserTranscriptCandidate(null);
+        manualDictationTextRef.current = null;
         setListening(false);
         setDetailsOpen(false);
         setDictationProvider(null);
@@ -928,6 +936,8 @@ export default function App() {
       const sessionId = voiceSessionIdRef.current;
       voiceSessionIdRef.current = undefined;
       nativeDictationActiveRef.current = false;
+      setBrowserTranscriptCandidate(null);
+      manualDictationTextRef.current = null;
       stopBrowserSpeechRecognition();
       setListening(false);
       setDetailsOpen(false);
@@ -951,6 +961,29 @@ export default function App() {
     [api]
   );
 
+  function canAutoSubmitDictation(command: string): boolean {
+    if (nativeDictationActiveRef.current || !recognitionRef.current) {
+      return true;
+    }
+
+    if (manualDictationTextRef.current?.trim() === command) {
+      return true;
+    }
+
+    const candidate = browserTranscriptCandidate;
+
+    if (!candidate || candidate.text.trim() !== command) {
+      return false;
+    }
+
+    if (!candidate.isFinal) {
+      return false;
+    }
+
+    return candidate.confidence === undefined
+      || candidate.confidence >= MIN_BROWSER_ASR_AUTO_SUBMIT_CONFIDENCE;
+  }
+
   useEffect(() => {
     if (!listening) {
       return undefined;
@@ -961,16 +994,22 @@ export default function App() {
       return undefined;
     }
 
+    if (!canAutoSubmitDictation(nextCommand)) {
+      return undefined;
+    }
+
     const timer = window.setTimeout(() => {
       void submitDictation(nextCommand);
     }, DICTATION_AUTO_SUBMIT_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [dictationText, listening, submitDictation]);
+  }, [browserTranscriptCandidate, dictationText, listening, submitDictation]);
 
   async function startDictation() {
     lastDictationSubmitRef.current = "";
     setDictationText("");
+    setBrowserTranscriptCandidate(null);
+    manualDictationTextRef.current = null;
     setListening(true);
     setDetailsOpen(false);
     setPermissionOnboardingOpen(false);
@@ -1013,6 +1052,8 @@ export default function App() {
     lastDictationSubmitRef.current = "";
     const sessionId = voiceSessionIdRef.current;
     voiceSessionIdRef.current = undefined;
+    setBrowserTranscriptCandidate(null);
+    manualDictationTextRef.current = null;
     stopBrowserSpeechRecognition();
     nativeDictationActiveRef.current = false;
     setListening(false);
@@ -1484,7 +1525,11 @@ export default function App() {
                 aria-label="语音转写"
                 className="voice-transcript"
                 value={dictationText}
-                onChange={(event) => setDictationText(event.currentTarget.value)}
+                onChange={(event) => {
+                  manualDictationTextRef.current = event.currentTarget.value;
+                  setBrowserTranscriptCandidate(null);
+                  setDictationText(event.currentTarget.value);
+                }}
                 autoCapitalize="off"
                 autoComplete="off"
                 spellCheck={false}
