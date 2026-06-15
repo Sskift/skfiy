@@ -23,6 +23,11 @@ import {
   resolveDictationVoiceTrigger
 } from "./dictation-settings.js";
 import {
+  createPlannerProviderSettingsStore,
+  readInitialPlannerProviderSettings
+} from "./planner-provider-settings.js";
+import { decidePlannerProviderRuntime } from "./planner-provider-runtime.js";
+import {
   createDoubaoDictationProvider,
   type DictationProviderEvent
 } from "./dictation-provider.js";
@@ -80,6 +85,9 @@ const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
 const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";
 const appPolicySettingsStore = createAppPolicySettingsStore(readInitialAppPolicySettings());
+const plannerProviderSettingsStore = createPlannerProviderSettingsStore(
+  readInitialPlannerProviderSettings(process.env)
+);
 const turnReplayStore = createTurnReplayStore();
 const dictationSettingsStore = createDictationSettingsStore(
   readInitialDictationSettings(process.env)
@@ -277,6 +285,20 @@ async function runCommandTask(
 ) {
   if (!approved) {
     turnReplayStore.startTurn();
+  }
+
+  const plannerRuntime = decidePlannerProviderRuntime(plannerProviderSettingsStore.get());
+
+  if (plannerRuntime.decision === "unavailable") {
+    pendingApproval = null;
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    emitTurnReplayTaskEvent(window, {
+      status: plannerRuntime.status,
+      message: plannerRuntime.message
+    });
+    return;
   }
 
   const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), GHOSTTY_BUNDLE_ID);
@@ -643,6 +665,16 @@ ipcMain.handle("skfiy:get-app-policy-settings", () => {
 
 ipcMain.handle("skfiy:set-app-policy", (_event, update: unknown) => {
   return appPolicySettingsStore.set(
+    update && typeof update === "object" ? update : {}
+  );
+});
+
+ipcMain.handle("skfiy:get-planner-provider-settings", () => {
+  return plannerProviderSettingsStore.get();
+});
+
+ipcMain.handle("skfiy:set-planner-provider-settings", (_event, update: unknown) => {
+  return plannerProviderSettingsStore.set(
     update && typeof update === "object" ? update : {}
   );
 });

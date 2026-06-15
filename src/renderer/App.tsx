@@ -28,6 +28,7 @@ export type PermissionSettingsTarget = "screen-recording" | "accessibility" | "m
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 export type DictationProviderId = "doubao" | "browser";
 export type AppPolicy = "allow" | "ask" | "deny";
+export type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
 export type TurnTranscriptOutcome =
   | "completed"
@@ -69,6 +70,11 @@ export interface ControlledAppPolicyEntry {
 
 export interface AppPolicySettings {
   apps: ControlledAppPolicyEntry[];
+}
+
+export interface PlannerProviderSettings {
+  mode: PlannerProviderMode;
+  externalProviderLabel: string;
 }
 
 export interface TurnTranscript {
@@ -199,6 +205,10 @@ export interface DesktopApi {
   ) => Promise<DictationSettings>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
+  getPlannerProviderSettings: () => Promise<PlannerProviderSettings>;
+  setPlannerProviderSettings: (
+    update: Partial<Pick<PlannerProviderSettings, "mode">>
+  ) => Promise<PlannerProviderSettings>;
   getTurnReplay: () => Promise<TurnReplay | null>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
@@ -322,6 +332,12 @@ const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
   { policy: "deny", label: "拒绝" }
 ];
 
+const PLANNER_PROVIDER_OPTIONS: Array<{ mode: PlannerProviderMode; label: string; aria: string }> = [
+  { mode: "local-deterministic", label: "本地确定性", aria: "选择本地确定性规划" },
+  { mode: "external-cua", label: "External CUA", aria: "选择 External CUA 规划" },
+  { mode: "disabled", label: "关闭", aria: "选择关闭规划" }
+];
+
 const UNKNOWN_PERMISSIONS: PermissionSummary = {
   screenRecording: { state: "unknown" },
   accessibility: { state: "unknown" },
@@ -340,6 +356,11 @@ const DEFAULT_APP_POLICY_SETTINGS: AppPolicySettings = {
     { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" },
     { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
   ]
+};
+
+const DEFAULT_PLANNER_PROVIDER_SETTINGS: PlannerProviderSettings = {
+  mode: "local-deterministic",
+  externalProviderLabel: "External CUA"
 };
 
 const fallbackApi: DesktopApi = {
@@ -365,6 +386,11 @@ const fallbackApi: DesktopApi = {
         ? { ...entry, policy: update.policy }
         : entry
     )
+  }),
+  getPlannerProviderSettings: async () => DEFAULT_PLANNER_PROVIDER_SETTINGS,
+  setPlannerProviderSettings: async (update) => ({
+    ...DEFAULT_PLANNER_PROVIDER_SETTINGS,
+    mode: update.mode ?? DEFAULT_PLANNER_PROVIDER_SETTINGS.mode
   }),
   getTurnReplay: async () => null,
   getRuntimeStatus: async () => ({
@@ -591,6 +617,8 @@ export default function App() {
   const [appPolicySettings, setAppPolicySettings] = useState<AppPolicySettings>(
     DEFAULT_APP_POLICY_SETTINGS
   );
+  const [plannerProviderSettings, setPlannerProviderSettings] =
+    useState<PlannerProviderSettings>(DEFAULT_PLANNER_PROVIDER_SETTINGS);
   const [turnReplay, setTurnReplay] = useState<TurnReplay | null>(null);
   const [dictationProvider, setDictationProvider] = useState<DictationProviderEvent | null>(null);
   const [task, setTask] = useState<TaskView>({
@@ -745,6 +773,20 @@ export default function App() {
     void api.getAppPolicySettings().then((settings) => {
       if (!cancelled) {
         setAppPolicySettings(settings);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void api.getPlannerProviderSettings().then((settings) => {
+      if (!cancelled) {
+        setPlannerProviderSettings(settings);
       }
     });
 
@@ -1007,6 +1049,17 @@ export default function App() {
     }
   }
 
+  async function selectPlannerProviderMode(mode: PlannerProviderMode) {
+    try {
+      setPlannerProviderSettings(await api.setPlannerProviderSettings({ mode }));
+    } catch {
+      setTask({
+        status: "failed",
+        message: "切换规划模式失败."
+      });
+    }
+  }
+
   function startPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) {
       return;
@@ -1171,6 +1224,29 @@ export default function App() {
                         ))}
                       </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+              <div className="app-policy-panel" aria-label="规划模式">
+                <div className="app-policy-heading">
+                  <strong>规划模式</strong>
+                  <span>
+                    {plannerProviderSettings.mode === "external-cua"
+                      ? plannerProviderSettings.externalProviderLabel
+                      : "Computer Use"}
+                  </span>
+                </div>
+                <div className="provider-switch" role="group" aria-label="Computer Use planner">
+                  {PLANNER_PROVIDER_OPTIONS.map((option) => (
+                    <button
+                      type="button"
+                      key={option.mode}
+                      aria-label={option.aria}
+                      aria-pressed={plannerProviderSettings.mode === option.mode}
+                      onClick={() => void selectPlannerProviderMode(option.mode)}
+                    >
+                      {option.label}
+                    </button>
                   ))}
                 </div>
               </div>

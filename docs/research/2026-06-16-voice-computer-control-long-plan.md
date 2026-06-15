@@ -277,7 +277,8 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] local deterministic adapter mode
   - [x] external CUA model mode
   - [x] disabled/offline mode
-  - planner provider settings store exists; external CUA execution remains a provider integration task
+  - planner provider settings now flow through main IPC, preload, and the right-click settings panel
+  - runtime gate runs local deterministic mode, fails closed when disabled, and reports external CUA as configured but not implemented until a provider is wired
 - Compare against AIME:
   - AIME Buddy overlap: pet/status/notification
   - AIME Chrome Extension overlap: browser control

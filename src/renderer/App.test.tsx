@@ -4,6 +4,7 @@ import App, {
   type AppPolicySettings,
   type DesktopApi,
   type DictationProviderEvent,
+  type PlannerProviderSettings,
   type TaskEvent
 } from "./App";
 
@@ -53,6 +54,10 @@ beforeEach(() => {
       { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
     ]
   };
+  const plannerProviderSettings: PlannerProviderSettings = {
+    mode: "local-deterministic",
+    externalProviderLabel: "External CUA"
+  };
 
   window.skfiy = {
     runCommand: vi.fn<DesktopApi["runCommand"]>().mockResolvedValue(undefined),
@@ -93,6 +98,15 @@ beforeEach(() => {
           : entry
       )
     })),
+    getPlannerProviderSettings: vi
+      .fn<DesktopApi["getPlannerProviderSettings"]>()
+      .mockResolvedValue(plannerProviderSettings),
+    setPlannerProviderSettings: vi
+      .fn<DesktopApi["setPlannerProviderSettings"]>()
+      .mockImplementation(async (update) => ({
+        ...plannerProviderSettings,
+        mode: update.mode ?? plannerProviderSettings.mode
+      })),
     getTurnReplay: vi.fn<DesktopApi["getTurnReplay"]>().mockResolvedValue(null),
     getRuntimeStatus: vi.fn<DesktopApi["getRuntimeStatus"]>().mockResolvedValue({
       stopTurnHotkey: {
@@ -339,6 +353,33 @@ describe("App", () => {
       });
     });
     expect(screen.getByRole("button", { name: "拒绝 Chrome" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  it("shows planner provider choices and updates Computer Use planner mode from settings", async () => {
+    const api = window.skfiy as DesktopApi;
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(screen.getByText("规划模式")).toBeInTheDocument();
+    });
+    expect(screen.getByText("本地确定性")).toBeInTheDocument();
+    expect(screen.getByText("External CUA")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "选择本地确定性规划" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "选择关闭规划" }));
+
+    await waitFor(() => {
+      expect(api.setPlannerProviderSettings).toHaveBeenCalledWith({ mode: "disabled" });
+    });
+    expect(screen.getByRole("button", { name: "选择关闭规划" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );

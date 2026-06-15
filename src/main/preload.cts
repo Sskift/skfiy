@@ -17,6 +17,7 @@ type PermissionSettingsTarget = "screen-recording" | "accessibility" | "micropho
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 type DictationProviderId = "doubao" | "browser";
 type AppPolicy = "allow" | "ask" | "deny";
+type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 type RiskLevel = "low" | "medium" | "high" | "blocked";
 type TurnTranscriptOutcome =
   | "completed"
@@ -96,6 +97,11 @@ interface ControlledAppPolicyEntry {
 
 interface AppPolicySettings {
   apps: ControlledAppPolicyEntry[];
+}
+
+interface PlannerProviderSettings {
+  mode: PlannerProviderMode;
+  externalProviderLabel: string;
 }
 
 interface TurnTranscript {
@@ -188,6 +194,10 @@ interface DesktopApi {
   ) => Promise<DictationSettings>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
+  getPlannerProviderSettings: () => Promise<PlannerProviderSettings>;
+  setPlannerProviderSettings: (
+    update: Partial<Pick<PlannerProviderSettings, "mode">>
+  ) => Promise<PlannerProviderSettings>;
   getTurnReplay: () => Promise<TurnReplay | null>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
@@ -278,6 +288,24 @@ const api: DesktopApi = {
       policy: isAppPolicy(update.policy) ? update.policy : undefined
     });
     return isAppPolicySettings(payload) ? payload : createDefaultAppPolicySettings();
+  },
+  async getPlannerProviderSettings() {
+    const payload = await ipcRenderer.invoke("skfiy:get-planner-provider-settings");
+    return isPlannerProviderSettings(payload)
+      ? payload
+      : createDefaultPlannerProviderSettings();
+  },
+  async setPlannerProviderSettings(update) {
+    const mode =
+      update && typeof update === "object" && "mode" in update
+        ? update.mode
+        : undefined;
+    const payload = await ipcRenderer.invoke("skfiy:set-planner-provider-settings", {
+      mode: isPlannerProviderMode(mode) ? mode : undefined
+    });
+    return isPlannerProviderSettings(payload)
+      ? payload
+      : createDefaultPlannerProviderSettings();
   },
   async getTurnReplay() {
     const payload = await ipcRenderer.invoke("skfiy:get-turn-replay");
@@ -403,6 +431,26 @@ function isControlledAppPolicyEntry(value: unknown): value is ControlledAppPolic
 
 function isAppPolicy(value: unknown): value is AppPolicy {
   return value === "allow" || value === "ask" || value === "deny";
+}
+
+function isPlannerProviderSettings(value: unknown): value is PlannerProviderSettings {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const settings = value as Partial<PlannerProviderSettings>;
+  return (
+    isPlannerProviderMode(settings.mode)
+    && typeof settings.externalProviderLabel === "string"
+  );
+}
+
+function isPlannerProviderMode(value: unknown): value is PlannerProviderMode {
+  return (
+    value === "local-deterministic"
+    || value === "external-cua"
+    || value === "disabled"
+  );
 }
 
 function isTurnReplay(value: unknown): value is TurnReplay {
@@ -666,6 +714,13 @@ function createDefaultAppPolicySettings(): AppPolicySettings {
       { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" },
       { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
     ]
+  };
+}
+
+function createDefaultPlannerProviderSettings(): PlannerProviderSettings {
+  return {
+    mode: "local-deterministic",
+    externalProviderLabel: "External CUA"
   };
 }
 

@@ -15,6 +15,7 @@ const DEFAULT_PORT = 9233;
 const DEFAULT_TIMEOUT_MS = 8_000;
 const DEFAULT_SETTLE_MS = 500;
 const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
+const PLANNER_MODES = new Set(["local-deterministic", "external-cua", "disabled"]);
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -28,6 +29,7 @@ async function main() {
     timestamp: new Date().toISOString(),
     appPath: options.appPath,
     command: options.command,
+    plannerMode: options.plannerMode,
     launch: `open -na ${options.appPath} --args --remote-debugging-port=${options.port}`,
     appLaunchViaOpen: true,
     runnerHasTmux: Boolean(process.env.TMUX),
@@ -36,6 +38,7 @@ async function main() {
     permissions: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
+    plannerProviderSettings: undefined,
     replayRecords: [],
     screenshots: [],
     result: "not-run"
@@ -63,6 +66,16 @@ async function main() {
         awaitPromise: true,
         returnByValue: true
       });
+
+      if (options.plannerMode) {
+        await cdp.send("Runtime.evaluate", {
+          expression:
+            `window.skfiy.setPlannerProviderSettings({ mode: ${JSON.stringify(options.plannerMode)} })`,
+          awaitPromise: true,
+          returnByValue: true
+        });
+      }
+
       await cdp.send("Runtime.evaluate", {
         expression: `window.skfiy.runCommand(${JSON.stringify(options.command)}, { mode: "active" })`,
         awaitPromise: true,
@@ -85,10 +98,16 @@ async function main() {
         awaitPromise: true,
         returnByValue: true
       });
+      const plannerProviderSettings = await cdp.send("Runtime.evaluate", {
+        expression: "window.skfiy.getPlannerProviderSettings()",
+        awaitPromise: true,
+        returnByValue: true
+      });
 
       evidence.permissions = permissions.result?.value;
       evidence.runtimeStatus = runtimeStatus.result?.value;
       evidence.startupWarnings = startupWarnings.result?.value;
+      evidence.plannerProviderSettings = plannerProviderSettings.result?.value;
       evidence.events = cdp.events;
       evidence.replayRecords = readReplayRecords(cdp.events);
       evidence.screenshots = await inspectReplayScreenshots(evidence.replayRecords);
@@ -123,6 +142,7 @@ function parseArgs(argv) {
     port: DEFAULT_PORT,
     timeoutMs: DEFAULT_TIMEOUT_MS,
     settleMs: DEFAULT_SETTLE_MS,
+    plannerMode: undefined,
     keepExisting: false,
     keepOpen: false,
     requirePassed: false,
@@ -153,6 +173,10 @@ function parseArgs(argv) {
         options.settleMs = readPositiveInteger(readValue(argv, index, arg), arg);
         index += 1;
         break;
+      case "--planner-mode":
+        options.plannerMode = readPlannerMode(readValue(argv, index, arg), arg);
+        index += 1;
+        break;
       case "--keep-existing":
         options.keepExisting = true;
         break;
@@ -172,6 +196,16 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+function readPlannerMode(value, name) {
+  if (!PLANNER_MODES.has(value)) {
+    throw new Error(
+      `${name} must be one of ${Array.from(PLANNER_MODES).join(", ")}.`
+    );
+  }
+
+  return value;
 }
 
 function readValue(argv, index, name) {
@@ -406,6 +440,7 @@ Options:
   --port <number>       Electron remote debugging port. Default: ${DEFAULT_PORT}
   --timeout-ms <ms>     Wait time for the renderer CDP page. Default: ${DEFAULT_TIMEOUT_MS}
   --settle-ms <ms>      Wait after command completion before reading evidence. Default: ${DEFAULT_SETTLE_MS}
+  --planner-mode <mode> Set planner mode before running: local-deterministic, external-cua, disabled.
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   --require-passed      Exit non-zero unless the task reaches completed.
