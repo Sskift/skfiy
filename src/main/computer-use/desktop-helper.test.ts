@@ -239,6 +239,45 @@ describe("DesktopHelperClient", () => {
     });
   });
 
+  it("parses OCR labels from screenshot image responses", async () => {
+    const { calls, client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "ocr-image",
+          data: {
+            labels: [
+              {
+                text: "skfiy-shell",
+                confidence: 0.91,
+                bounds: { x: 14, y: 24, width: 180, height: 22 }
+              }
+            ]
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(client.ocrImage("/tmp/ghostty.png")).resolves.toEqual({
+      labels: [
+        {
+          text: "skfiy-shell",
+          confidence: 0.91,
+          bounds: { x: 14, y: 24, width: 180, height: 22 }
+        }
+      ]
+    });
+
+    expect(calls).toEqual([
+      {
+        command: "/tmp/skfiy-helper",
+        args: ["ocr-image", "--input", "/tmp/ghostty.png"]
+      }
+    ]);
+  });
+
   it("returns app state for observe_app desktop actions", async () => {
     const { calls, client } = createClientWithResponses([
       {
@@ -483,6 +522,9 @@ describe("DesktopHelperClient", () => {
     );
     await expect(client.getAppState("com.mitchellh.ghostty", "")).rejects.toThrow(
       "screenshotOutputPath must be a non-empty string"
+    );
+    await expect(client.ocrImage("")).rejects.toThrow(
+      "inputPath must be a non-empty string"
     );
     await expect(client.selectInputSource("")).rejects.toThrow(
       "sourceId must be a non-empty string"

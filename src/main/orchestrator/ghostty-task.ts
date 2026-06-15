@@ -11,6 +11,7 @@ import type {
   DesktopAction,
   DesktopActionResult,
   DesktopAppState,
+  OcrImageResult,
   OpenGhosttySessionResult,
 } from "../computer-use/types.js";
 import type { GhosttyTaskEvent } from "./events.js";
@@ -36,6 +37,7 @@ export interface DesktopApp {
 
 export interface DesktopClient extends DesktopActionExecutor {
   listApps(): Promise<DesktopApp[]>;
+  ocrImage?(inputPath: string): Promise<OcrImageResult>;
 }
 
 export interface GhosttyTaskOptions {
@@ -326,7 +328,21 @@ async function observeApp(
     throw new Error("Desktop observe action did not produce a result.");
   }
 
-  return readAppStateResult(observeStep);
+  const observation = readAppStateResult(observeStep);
+
+  if (isAborted(signal) || !client.ocrImage) {
+    return observation;
+  }
+
+  try {
+    const ocr = await client.ocrImage(observation.screenshotPath);
+    return {
+      ...observation,
+      ocrLabels: ocr.labels
+    };
+  } catch {
+    return observation;
+  }
 }
 
 function readAppStateResult(step: DesktopActionPlanStepResult): DesktopAppState {

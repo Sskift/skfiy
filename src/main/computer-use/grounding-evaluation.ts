@@ -1,5 +1,5 @@
 import type { ObservedElement } from "./observed-elements.js";
-import type { DesktopAppState, DesktopWindowBounds } from "./types.js";
+import type { DesktopAppState, OcrLabelObservation } from "./types.js";
 
 export type GroundingSource = "macos_accessibility" | "screenshot_ocr";
 export type GroundingSourceStatus = "covered" | "partial" | "missing" | "blocked";
@@ -7,12 +7,6 @@ export type GroundingRecommendation =
   | "structured_first"
   | "ocr_fallback"
   | "coordinate_fallback_only";
-
-export interface OcrLabelObservation {
-  text: string;
-  confidence: number;
-  bounds: DesktopWindowBounds;
-}
 
 export interface GroundingSourceEvaluation {
   source: GroundingSource;

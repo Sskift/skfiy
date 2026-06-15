@@ -685,7 +685,14 @@ describe("App", () => {
         isActive: true,
         screenshotPath: "/tmp/before.png",
         frontmostBundleId: "com.mitchellh.ghostty",
-        accessibilityTrusted: true
+        accessibilityTrusted: true,
+        ocrLabels: [
+          {
+            text: "pwd",
+            confidence: 0.88,
+            bounds: { x: 36, y: 88, width: 42, height: 18 }
+          }
+        ]
       }
     }));
     act(() => emitTaskEvent({
@@ -706,6 +713,7 @@ describe("App", () => {
     expect(replay).toHaveTextContent("before");
     expect(replay).toHaveTextContent("/tmp/before.png");
     expect(replay).toHaveTextContent("AX ok");
+    expect(replay).toHaveTextContent("OCR 1");
     expect(replay).toHaveTextContent("after");
     expect(replay).toHaveTextContent("/tmp/after.png");
     expect(replay).toHaveTextContent("AX denied");

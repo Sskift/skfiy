@@ -9,6 +9,8 @@ import type {
   DesktopHelperProcessResult,
   DesktopWindowInfo,
   OpenGhosttySessionResult,
+  OcrImageResult,
+  OcrLabelObservation,
   PermissionSettingsTarget,
   PermissionState,
   PermissionSummary,
@@ -85,6 +87,15 @@ export class DesktopHelperClient {
       "screenshot",
       ["screenshot", "--output", checkedOutputPath],
       readScreenshotResult
+    );
+  }
+
+  async ocrImage(inputPath: string): Promise<OcrImageResult> {
+    const checkedInputPath = requireNonEmptyString(inputPath, "inputPath");
+    return this.runJson(
+      "ocr-image",
+      ["ocr-image", "--input", checkedInputPath],
+      readOcrImageResult
     );
   }
 
@@ -341,6 +352,35 @@ function readScreenshotResult(payload: unknown, commandName: string): Screenshot
     outputPath:
       readOptionalString(record, "outputPath", commandName)
       ?? readString(record, "output", commandName)
+  };
+}
+
+function readOcrImageResult(payload: unknown, commandName: string): OcrImageResult {
+  const record = readRecord(payload, commandName);
+  const labels = record.labels;
+
+  if (!Array.isArray(labels)) {
+    throw invalidShape(commandName, "expected labels to be an array");
+  }
+
+  return {
+    labels: labels.map((label) => readOcrLabelObservation(label, commandName))
+  };
+}
+
+function readOcrLabelObservation(payload: unknown, commandName: string): OcrLabelObservation {
+  const record = readRecord(payload, commandName);
+  const bounds = readRecord(record.bounds, commandName);
+
+  return {
+    text: readString(record, "text", commandName),
+    confidence: readNumber(record, "confidence", commandName),
+    bounds: {
+      x: readNumber(bounds, "x", commandName),
+      y: readNumber(bounds, "y", commandName),
+      width: readNumber(bounds, "width", commandName),
+      height: readNumber(bounds, "height", commandName)
+    }
   };
 }
 

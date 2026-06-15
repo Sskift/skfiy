@@ -131,6 +131,7 @@ function createScreenshotPath(scope: string): string {
 function createGhosttyDesktopClient(helper: DesktopHelperClient): DesktopClient {
   return {
     listApps: async () => helper.listApps(),
+    ocrImage: async (inputPath) => helper.ocrImage(inputPath),
     executeAction: async (action) => {
       const result = await helper.executeAction(action);
       assertDesktopActionResult(result, action.type);

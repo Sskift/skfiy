@@ -225,7 +225,8 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] evaluate macOS accessibility tree coverage
     - `grounding-evaluation` records whether trusted Accessibility/window elements are covered, partial, missing, or blocked
   - [x] evaluate OCR labels on screenshots
-    - screenshot OCR label observations are modeled as a fallback signal and reflected in per-screenshot grounding recommendations; production OCR extraction remains a provider integration task
+    - screenshot OCR label observations are modeled as a fallback signal and reflected in per-screenshot grounding recommendations
+    - `skfiy-helper ocr-image --input <path>` now uses macOS Vision OCR, Ghostty observations ingest labels after screenshots, and replay rows surface OCR label counts for debugging
   - [x] define `ObservedElement` schema with id, label, role, bounds, source for window-level observations
 - Implement element-targeted actions:
   - [x] resolve click target by observed element id for window-level elements

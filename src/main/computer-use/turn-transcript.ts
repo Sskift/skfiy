@@ -158,7 +158,8 @@ function createScreenshot(
     accessibilityTrusted: event.observation.accessibilityTrusted,
     grounding: evaluateGroundingCoverage({
       state: event.observation,
-      elements: extractObservedElementsFromAppState(event.observation)
+      elements: extractObservedElementsFromAppState(event.observation),
+      ocrLabels: event.observation.ocrLabels
     })
   };
 }

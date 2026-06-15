@@ -170,4 +170,49 @@ describe("createTurnTranscript", () => {
       outcome: "approval_required"
     });
   });
+
+  it("uses OCR labels as screenshot grounding when accessibility is blocked", () => {
+    expect(createTurnTranscript([
+      {
+        type: "screenshot_before",
+        path: "/tmp/before.png",
+        observation: {
+          bundleId: "com.mitchellh.ghostty",
+          pid: 54502,
+          isRunning: true,
+          isActive: true,
+          screenshotPath: "/tmp/before.png",
+          accessibilityTrusted: false,
+          windows: [],
+          ocrLabels: [
+            {
+              text: "pwd",
+              confidence: 0.88,
+              bounds: { x: 36, y: 88, width: 42, height: 18 }
+            }
+          ]
+        }
+      }
+    ] as never)).toMatchObject({
+      screenshots: [
+        {
+          grounding: {
+            recommendation: "ocr_fallback",
+            sources: [
+              {
+                source: "macos_accessibility",
+                status: "blocked"
+              },
+              {
+                source: "screenshot_ocr",
+                status: "covered",
+                observedElementCount: 1,
+                labelCount: 1
+              }
+            ]
+          }
+        }
+      ]
+    });
+  });
 });

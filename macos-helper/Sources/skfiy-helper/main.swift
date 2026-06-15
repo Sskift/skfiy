@@ -5,6 +5,7 @@ import Carbon
 import CoreGraphics
 import Dispatch
 import Foundation
+import Vision
 
 /*
  JSON output contract:
@@ -51,6 +52,14 @@ import Foundation
    }
  - screenshot --output <path>:
    data = { output: String }
+ - ocr-image --input <path>:
+   data = {
+     labels: [{
+       text: String,
+       confidence: Number,
+       bounds: { x: Number, y: Number, width: Number, height: Number }
+     }]
+   }
  - click --x <n> --y <n>:
    data = { x: Number, y: Number }
  - type-text --text <text>:
@@ -96,6 +105,7 @@ let supportedCommands = [
     "activate-app",
     "open-ghostty-session",
     "screenshot",
+    "ocr-image",
     "click",
     "type-text",
     "press-key",
@@ -191,6 +201,16 @@ struct OpenGhosttySessionPayload: Encodable {
 
 struct ScreenshotPayload: Encodable {
     let output: String
+}
+
+struct OcrLabelPayload: Encodable {
+    let text: String
+    let confidence: Double
+    let bounds: WindowBounds
+}
+
+struct OcrImagePayload: Encodable {
+    let labels: [OcrLabelPayload]
 }
 
 struct ClickPayload: Encodable {
@@ -361,6 +381,21 @@ func absolutePath(_ path: String) -> String {
         .path
 }
 
+func existingFileURL(_ rawPath: String, label: String) throws -> URL {
+    let resolvedPath = absolutePath(rawPath)
+    var isDirectory = ObjCBool(false)
+
+    guard FileManager.default.fileExists(atPath: resolvedPath, isDirectory: &isDirectory), !isDirectory.boolValue else {
+        throw HelperFailure(
+            "input_file_not_found",
+            "Input file does not exist or is not a file.",
+            details: [label: .string(resolvedPath)]
+        )
+    }
+
+    return URL(fileURLWithPath: resolvedPath)
+}
+
 func activationPolicyName(_ policy: NSApplication.ActivationPolicy) -> String {
     switch policy {
     case .regular:
@@ -499,6 +534,83 @@ func captureScreenshot(outputPath: String) throws -> String {
     }
 
     return resolvedOutputPath
+}
+
+func imageSize(for imageURL: URL) throws -> CGSize {
+    guard let image = NSImage(contentsOf: imageURL) else {
+        throw HelperFailure(
+            "image_read_failed",
+            "Failed to read image for OCR.",
+            details: ["input": .string(imageURL.path)]
+        )
+    }
+
+    guard image.size.width > 0, image.size.height > 0 else {
+        throw HelperFailure(
+            "image_size_invalid",
+            "Image has invalid dimensions for OCR.",
+            details: ["input": .string(imageURL.path)]
+        )
+    }
+
+    return image.size
+}
+
+func topLeftPixelBounds(
+    for normalizedBounds: CGRect,
+    imageSize: CGSize
+) -> WindowBounds {
+    let width = normalizedBounds.width * imageSize.width
+    let height = normalizedBounds.height * imageSize.height
+    let x = normalizedBounds.minX * imageSize.width
+    let y = (1 - normalizedBounds.maxY) * imageSize.height
+
+    return WindowBounds(
+        x: Double(x),
+        y: Double(y),
+        width: Double(width),
+        height: Double(height)
+    )
+}
+
+func recognizeTextLabels(inputPath: String) throws -> [OcrLabelPayload] {
+    let imageURL = try existingFileURL(inputPath, label: "input")
+    let size = try imageSize(for: imageURL)
+    let request = VNRecognizeTextRequest()
+    request.recognitionLevel = .fast
+    request.usesLanguageCorrection = false
+
+    let handler = VNImageRequestHandler(url: imageURL, options: [:])
+
+    do {
+        try handler.perform([request])
+    } catch {
+        throw HelperFailure(
+            "ocr_failed",
+            "Vision OCR failed for image.",
+            details: [
+                "input": .string(imageURL.path),
+                "underlyingError": .string(String(describing: error))
+            ]
+        )
+    }
+
+    return (request.results ?? []).compactMap { observation in
+        guard let candidate = observation.topCandidates(1).first else {
+            return nil
+        }
+
+        let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            return nil
+        }
+
+        return OcrLabelPayload(
+            text: text,
+            confidence: Double(candidate.confidence),
+            bounds: topLeftPixelBounds(for: observation.boundingBox, imageSize: size)
+        )
+    }
 }
 
 func postMouseClick(x: Double, y: Double) throws {
@@ -926,6 +1038,12 @@ func handleScreenshot(_ arguments: ArraySlice<String>) throws -> ScreenshotPaylo
     return ScreenshotPayload(output: try captureScreenshot(outputPath: output))
 }
 
+func handleOcrImage(_ arguments: ArraySlice<String>) throws -> OcrImagePayload {
+    let options = try parseOptions(arguments, allowed: ["--input"])
+    let input = try requiredOption("--input", in: options)
+    return OcrImagePayload(labels: try recognizeTextLabels(inputPath: input))
+}
+
 func handleClick(_ arguments: ArraySlice<String>) throws -> ClickPayload {
     let options = try parseOptions(arguments, allowed: ["--x", "--y"])
     let x = try requiredDoubleOption("--x", in: options)
@@ -1035,6 +1153,8 @@ do {
         succeed(command: commandName, data: try handleOpenGhosttySession(arguments))
     case "screenshot":
         succeed(command: commandName, data: try handleScreenshot(arguments))
+    case "ocr-image":
+        succeed(command: commandName, data: try handleOcrImage(arguments))
     case "click":
         succeed(command: commandName, data: try handleClick(arguments))
     case "type-text":

@@ -14,11 +14,18 @@ async function collectEvents(
   return events;
 }
 
-function createDesktopClient(): DesktopClient & { executeAction: ReturnType<typeof vi.fn> } {
-  const client: DesktopClient & { executeAction: ReturnType<typeof vi.fn> } = {
+function createDesktopClient(): DesktopClient & {
+  executeAction: ReturnType<typeof vi.fn>;
+  ocrImage: ReturnType<typeof vi.fn>;
+} {
+  const client: DesktopClient & {
+    executeAction: ReturnType<typeof vi.fn>;
+    ocrImage: ReturnType<typeof vi.fn>;
+  } = {
     listApps: vi.fn(async () => [
       { name: "Ghostty", bundleId: "com.mitchellh.ghostty" }
     ]),
+    ocrImage: vi.fn(async () => ({ labels: [] })),
     executeAction: vi.fn(async (action: DesktopExecutableAction): Promise<DesktopActionResult> => {
       switch (action.type) {
         case "open_ghostty_session":
@@ -151,6 +158,41 @@ describe("runGhosttyCommandTask", () => {
       bundleId: "com.mitchellh.ghostty",
       pid: 54502,
       screenshotOutputPath: "/tmp/after.png"
+    });
+  });
+
+  it("adds OCR labels to screenshot observations without turning OCR into a desktop action", async () => {
+    const client = createDesktopClient();
+    client.ocrImage.mockResolvedValue({
+      labels: [
+        {
+          text: "pwd",
+          confidence: 0.88,
+          bounds: { x: 36, y: 88, width: 42, height: 18 }
+        }
+      ]
+    });
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
+    );
+
+    expect(events.find((event) => event.type === "screenshot_before")).toMatchObject({
+      observation: {
+        ocrLabels: [
+          {
+            text: "pwd",
+            confidence: 0.88,
+            bounds: { x: 36, y: 88, width: 42, height: 18 }
+          }
+        ]
+      }
+    });
+    expect(client.ocrImage).toHaveBeenCalledWith("/tmp/before.png");
+    expect(client.ocrImage).toHaveBeenCalledWith("/tmp/after.png");
+    expect(client.executeAction).not.toHaveBeenCalledWith({
+      type: "ocr_image",
+      inputPath: "/tmp/before.png"
     });
   });
 

@@ -170,6 +170,16 @@ export interface ObserveAppReplayRecord {
       height: number;
     };
   }>;
+  ocrLabels?: Array<{
+    text: string;
+    confidence: number;
+    bounds: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  }>;
 }
 
 export interface DesktopApi {
@@ -423,6 +433,14 @@ function getReplayAccessibilityLabel(record: ObserveAppReplayRecord): string {
   return "AX unknown";
 }
 
+function getReplayOcrLabel(record: ObserveAppReplayRecord): string | null {
+  if (!record.ocrLabels) {
+    return null;
+  }
+
+  return `OCR ${record.ocrLabels.length}`;
+}
+
 function TaskReplay({ records }: { records: ObserveAppReplayRecord[] }) {
   if (records.length === 0) {
     return null;
@@ -437,6 +455,9 @@ function TaskReplay({ records }: { records: ObserveAppReplayRecord[] }) {
           <em data-state={record.accessibilityTrusted === false ? "denied" : "ok"}>
             {getReplayAccessibilityLabel(record)}
           </em>
+          {getReplayOcrLabel(record) ? (
+            <em data-state="ok">{getReplayOcrLabel(record)}</em>
+          ) : null}
         </div>
       ))}
     </div>

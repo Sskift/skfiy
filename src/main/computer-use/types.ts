@@ -40,6 +40,16 @@ export interface ScreenshotResult {
   outputPath: string;
 }
 
+export interface OcrLabelObservation {
+  text: string;
+  confidence: number;
+  bounds: DesktopWindowBounds;
+}
+
+export interface OcrImageResult {
+  labels: OcrLabelObservation[];
+}
+
 export interface DesktopHelperActionResult {
   ok: boolean;
   message?: string;
@@ -81,6 +91,7 @@ export interface DesktopAppState {
   frontmostBundleId?: string;
   accessibilityTrusted?: boolean;
   windows?: DesktopWindowInfo[];
+  ocrLabels?: OcrLabelObservation[];
 }
 
 export interface DesktopWindowInfo {
@@ -103,6 +114,7 @@ export interface WaitResult {
 
 export type DesktopActionResult =
   | ScreenshotResult
+  | OcrImageResult
   | DesktopHelperActionResult
   | OpenGhosttySessionResult
   | DesktopAppState

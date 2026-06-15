@@ -57,6 +57,16 @@ interface ObserveAppReplayRecord {
       height: number;
     };
   }>;
+  ocrLabels?: Array<{
+    text: string;
+    confidence: number;
+    bounds: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  }>;
 }
 
 interface DictationPreparation {
