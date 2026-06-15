@@ -75,6 +75,8 @@ export interface AppPolicySettings {
 export interface PlannerProviderSettings {
   mode: PlannerProviderMode;
   externalProviderLabel: string;
+  externalEndpoint?: string;
+  externalApiKeyConfigured: boolean;
 }
 
 export interface TurnTranscript {
@@ -360,7 +362,9 @@ const DEFAULT_APP_POLICY_SETTINGS: AppPolicySettings = {
 
 const DEFAULT_PLANNER_PROVIDER_SETTINGS: PlannerProviderSettings = {
   mode: "local-deterministic",
-  externalProviderLabel: "External CUA"
+  externalProviderLabel: "External CUA",
+  externalEndpoint: undefined,
+  externalApiKeyConfigured: false
 };
 
 const fallbackApi: DesktopApi = {
@@ -1249,6 +1253,18 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+                {plannerProviderSettings.mode === "external-cua" ? (
+                  <div className="settings-grid" aria-label="External CUA 配置">
+                    <span>Endpoint</span>
+                    <strong>
+                      {plannerProviderSettings.externalEndpoint ? "Endpoint 已配置" : "Endpoint 未配置"}
+                    </strong>
+                    <span>API Key</span>
+                    <strong>
+                      {plannerProviderSettings.externalApiKeyConfigured ? "API Key 已配置" : "API Key 未配置"}
+                    </strong>
+                  </div>
+                ) : null}
               </div>
               <LocalReplayViewer replay={turnReplay} />
               <div className="permissions-panel" aria-label="权限">

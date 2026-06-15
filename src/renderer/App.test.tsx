@@ -56,7 +56,9 @@ beforeEach(() => {
   };
   const plannerProviderSettings: PlannerProviderSettings = {
     mode: "local-deterministic",
-    externalProviderLabel: "External CUA"
+    externalProviderLabel: "External CUA",
+    externalEndpoint: undefined,
+    externalApiKeyConfigured: false
   };
 
   window.skfiy = {
@@ -383,6 +385,26 @@ describe("App", () => {
       "aria-pressed",
       "true"
     );
+  });
+
+  it("shows external CUA endpoint and API key configuration status", async () => {
+    const api = window.skfiy as DesktopApi;
+    api.getPlannerProviderSettings = vi.fn<DesktopApi["getPlannerProviderSettings"]>()
+      .mockResolvedValue({
+        mode: "external-cua",
+        externalProviderLabel: "External CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      });
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(screen.getByText("External CUA")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Endpoint 已配置")).toBeInTheDocument();
+    expect(screen.getByText("API Key 已配置")).toBeInTheDocument();
   });
 
   it("shows the latest local replay transcript in settings", async () => {

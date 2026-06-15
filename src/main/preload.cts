@@ -102,6 +102,8 @@ interface AppPolicySettings {
 interface PlannerProviderSettings {
   mode: PlannerProviderMode;
   externalProviderLabel: string;
+  externalEndpoint?: string;
+  externalApiKeyConfigured: boolean;
 }
 
 interface TurnTranscript {
@@ -442,6 +444,11 @@ function isPlannerProviderSettings(value: unknown): value is PlannerProviderSett
   return (
     isPlannerProviderMode(settings.mode)
     && typeof settings.externalProviderLabel === "string"
+    && (
+      settings.externalEndpoint === undefined
+      || typeof settings.externalEndpoint === "string"
+    )
+    && typeof settings.externalApiKeyConfigured === "boolean"
   );
 }
 
@@ -720,7 +727,9 @@ function createDefaultAppPolicySettings(): AppPolicySettings {
 function createDefaultPlannerProviderSettings(): PlannerProviderSettings {
   return {
     mode: "local-deterministic",
-    externalProviderLabel: "External CUA"
+    externalProviderLabel: "External CUA",
+    externalEndpoint: undefined,
+    externalApiKeyConfigured: false
   };
 }
 

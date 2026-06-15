@@ -27,6 +27,8 @@ import {
   readInitialPlannerProviderSettings
 } from "./planner-provider-settings.js";
 import { decidePlannerProviderRuntime } from "./planner-provider-runtime.js";
+import { resolvePlannerCommand } from "./planner-command.js";
+import { createExternalCuaTerminalPlannerFromEnv } from "./external-cua-planner.js";
 import {
   createDoubaoDictationProvider,
   type DictationProviderEvent
@@ -337,10 +339,26 @@ async function runCommandTask(
   activeTaskController = controller;
 
   try {
+    const plannedCommand = await resolvePlannerCommand({
+      input: command,
+      runtime: plannerRuntime,
+      signal: controller.signal,
+      createExternalPlanner: () => createExternalCuaTerminalPlannerFromEnv(process.env)
+    });
+
+    if (plannedCommand.providerLabel) {
+      emitTurnReplayTaskEvent(window, {
+        status: "executing",
+        message: plannedCommand.rationale
+          ? `${plannedCommand.providerLabel} planned: ${plannedCommand.command} (${plannedCommand.rationale})`
+          : `${plannedCommand.providerLabel} planned: ${plannedCommand.command}`
+      });
+    }
+
     const helper = createDesktopHelper();
     const desktopClient = createGhosttyDesktopClient(helper);
 
-    for await (const taskEvent of runGhosttyCommandTask(desktopClient, command, {
+    for await (const taskEvent of runGhosttyCommandTask(desktopClient, plannedCommand.command, {
       approved,
       createScreenshotPath: (stage) => createScreenshotPath(`ghostty-${stage}`),
       signal: controller.signal
@@ -352,7 +370,7 @@ async function runCommandTask(
       turnReplayStore.recordComputerUseEvent(taskEvent);
 
       if (taskEvent.type === "approval_required" && !approved) {
-        pendingApproval = { command, mode };
+        pendingApproval = { command: taskEvent.command, mode };
       }
 
       emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));

@@ -2,6 +2,7 @@ import type { PlannerProviderSettings } from "./planner-provider-settings.js";
 
 export type PlannerProviderRuntimeDecision =
   | { decision: "run-local-deterministic" }
+  | { decision: "run-external-cua"; label: string; endpoint: string }
   | { decision: "unavailable"; status: "failed"; message: string };
 
 export function decidePlannerProviderRuntime(
@@ -12,10 +13,26 @@ export function decidePlannerProviderRuntime(
   }
 
   if (settings.mode === "external-cua") {
+    if (!settings.externalEndpoint) {
+      return {
+        decision: "unavailable",
+        status: "failed",
+        message: "External CUA endpoint is not configured. Set SKFIY_EXTERNAL_CUA_ENDPOINT."
+      };
+    }
+
+    if (!settings.externalApiKeyConfigured) {
+      return {
+        decision: "unavailable",
+        status: "failed",
+        message: "External CUA API key is not configured. Set SKFIY_EXTERNAL_CUA_API_KEY."
+      };
+    }
+
     return {
-      decision: "unavailable",
-      status: "failed",
-      message: `${settings.externalProviderLabel} provider is configured but not implemented yet.`
+      decision: "run-external-cua",
+      label: settings.externalProviderLabel,
+      endpoint: settings.externalEndpoint
     };
   }
 

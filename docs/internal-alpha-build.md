@@ -76,6 +76,19 @@ npm run smoke:ghostty -- --require-passed
 
 The smoke output is JSON and records launch identity, task events, permissions, runtime status, replay records, screenshot file checks, and cleanup process checks.
 
+## External CUA Planner
+
+The default planner is local deterministic. To test the external CUA terminal planner bridge, launch the packaged app with:
+
+```bash
+SKFIY_PLANNER_MODE=external-cua \
+SKFIY_EXTERNAL_CUA_ENDPOINT=https://example.internal/plan \
+SKFIY_EXTERNAL_CUA_API_KEY=... \
+open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app
+```
+
+The external endpoint receives a JSON task request for the Ghostty terminal-command capability and must return a single-line terminal command, for example `{ "command": "pwd" }`. skfiy redacts the API key in renderer settings and still routes the planned command through the local risk, approval, Ghostty isolation, screenshot, and replay path.
+
 ## Distribution Notes
 
 This build is unsigned and unnotarized. For local dogfood, share the repository or a zipped `dist/skfiy.app` with the matching commit SHA and ask testers to run the smoke command locally after granting permissions.
