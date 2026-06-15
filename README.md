@@ -88,6 +88,7 @@ npm test -- --run
 npm run typecheck
 npm run build
 npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
+npm run alpha:artifact -- --smoke-artifact .skfiy-smoke/ghostty-smoke.json
 ```
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main

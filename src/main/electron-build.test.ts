@@ -37,6 +37,7 @@ describe("Electron build wiring", () => {
     };
 
     expect(packageJson.scripts["package:mac"]).toBe("node scripts/package-macos-app.mjs");
+    expect(packageJson.scripts["alpha:artifact"]).toBe("node scripts/create-alpha-artifact.mjs");
     expect(packageJson.scripts.build).toContain("npm run package:mac");
     expect(packaging.ELECTRON_APP_COPY_OPTIONS).toMatchObject({
       recursive: true,
