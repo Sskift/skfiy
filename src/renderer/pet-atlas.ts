@@ -6,6 +6,7 @@ export type TaskStatusName =
   | "observing"
   | "executing"
   | "approval_required"
+  | "needs_confirmation"
   | "completed"
   | "failed";
 
@@ -46,6 +47,7 @@ export const TASK_STATUS_TO_PET_STATE: Record<TaskStatusName, PetAtlasState> = {
   observing: "review",
   executing: "running",
   approval_required: "waiting",
+  needs_confirmation: "waiting",
   completed: "waving",
   failed: "failed"
 };

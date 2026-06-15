@@ -177,16 +177,16 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - [x] scope activate/observe to the opened Ghostty process id
   - [x] refuse to type into Codex TUI/editor/unknown state
 - [ ] Add product-path `observe_app` replay records with screenshot paths and accessibility trust.
-- [ ] Implement action verification:
-  - after activate, confirm frontmost bundle
-  - after type/enter, capture after screenshot
-  - if verification fails, ask user instead of continuing
+- [x] Implement action verification:
+  - [x] after activate, confirm frontmost bundle
+  - [x] after type/enter, capture after screenshot
+  - [x] if verification fails, ask user instead of continuing
 - [ ] Add a primitive planner loop for terminal tasks:
   - [x] parse command intent
   - [x] classify risk
   - [x] prepare session
   - [x] execute
-  - [ ] verify
+  - [x] verify
   - [x] summarize
 - [ ] Add tests and real task scripts:
   - [x] `pwd`

@@ -235,7 +235,7 @@ describe("runGhosttyCommandTask", () => {
     expect(client.executeAction).toHaveBeenCalledTimes(3);
   });
 
-  it("refuses to type when the observed Ghostty window is not a skfiy session", async () => {
+  it("asks for confirmation instead of typing when the observed Ghostty window is unsafe", async () => {
     const client = createDesktopClient();
     client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
       if (action.type === "open_ghostty_session") {
@@ -269,9 +269,21 @@ describe("runGhosttyCommandTask", () => {
       return { ok: true };
     });
 
-    await expect(
-      collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }))
-    ).rejects.toThrow("Observed Ghostty window is not a skfiy-owned session.");
+    const events = await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "locating_app",
+      "session_opened",
+      "app_activated",
+      "screenshot_before",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "before",
+      reason: "Observed Ghostty window is not a skfiy-owned session."
+    });
     expect(client.executeAction).not.toHaveBeenCalledWith({
       type: "type_text",
       text: "pwd"
@@ -297,7 +309,7 @@ describe("runGhosttyCommandTask", () => {
     });
   });
 
-  it("fails closed when Ghostty cannot become the focused app", async () => {
+  it("asks for confirmation when Ghostty cannot become the focused app", async () => {
     const client = createDesktopClient();
     client.executeAction
       .mockResolvedValueOnce({
@@ -311,10 +323,76 @@ describe("runGhosttyCommandTask", () => {
         message: "Ghostty did not become frontmost."
       });
 
-    await expect(
-      collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }))
-    ).rejects.toThrow("Ghostty did not become frontmost.");
+    const events = await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "locating_app",
+      "session_opened",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "activate",
+      reason: "Ghostty did not become frontmost."
+    });
     expect(client.executeAction).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks for confirmation when the after screenshot no longer observes the owned session", async () => {
+    const client = createDesktopClient();
+    let observeCount = 0;
+    client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
+      if (action.type === "open_ghostty_session") {
+        return {
+          bundleId: "com.mitchellh.ghostty",
+          title: "skfiy-shell",
+          pid: 54502,
+          opened: true
+        };
+      }
+
+      if (action.type === "observe_app") {
+        observeCount += 1;
+        return {
+          bundleId: action.bundleId,
+          pid: observeCount === 1 ? action.pid : 12345,
+          isRunning: true,
+          isActive: true,
+          screenshotPath: action.screenshotOutputPath,
+          frontmostBundleId: "com.mitchellh.ghostty",
+          accessibilityTrusted: true,
+          windows: [
+            {
+              title: observeCount === 1 ? "skfiy-shell" : "other-shell",
+              layer: 0,
+              bounds: { x: 10, y: 20, width: 640, height: 480 }
+            }
+          ]
+        };
+      }
+
+      return { ok: true };
+    });
+
+    const events = await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "locating_app",
+      "session_opened",
+      "app_activated",
+      "screenshot_before",
+      "typing",
+      "submitted",
+      "screenshot_after",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "after",
+      reason: "Observed Ghostty window is not a skfiy-owned session."
+    });
   });
 
   it("runs an approved high-risk command after emitting approval context", async () => {

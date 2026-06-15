@@ -2,7 +2,14 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 
 type ManualMode = "active" | "quiet";
 type PetWindowMode = "compact" | "expanded";
-type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "completed" | "failed";
+type TaskStatus =
+  | "idle"
+  | "observing"
+  | "executing"
+  | "approval_required"
+  | "needs_confirmation"
+  | "completed"
+  | "failed";
 type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 type DictationProviderSelection = "doubao" | "browser";
 type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
@@ -110,6 +117,7 @@ const taskStatuses = new Set<TaskStatus>([
   "observing",
   "executing",
   "approval_required",
+  "needs_confirmation",
   "completed",
   "failed"
 ]);

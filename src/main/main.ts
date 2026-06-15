@@ -37,7 +37,14 @@ import {
 } from "./window-position.js";
 
 type ManualMode = "active" | "quiet";
-type TaskStatus = "idle" | "observing" | "executing" | "approval_required" | "completed" | "failed";
+type TaskStatus =
+  | "idle"
+  | "observing"
+  | "executing"
+  | "approval_required"
+  | "needs_confirmation"
+  | "completed"
+  | "failed";
 type PetWindowMode = "compact" | "expanded";
 
 interface TaskEvent {
@@ -149,6 +156,11 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
       return {
         status: "executing",
         message: `${prefix}Activated ${event.appName}.`
+      };
+    case "verification_failed":
+      return {
+        status: "needs_confirmation",
+        message: `${prefix}Verification failed (${event.stage}): ${event.reason}`
       };
     case "screenshot_before":
       return {

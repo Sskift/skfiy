@@ -29,6 +29,11 @@ export type GhosttyTaskEvent =
       pid?: number;
     }
   | {
+      type: "verification_failed";
+      stage: "activate" | "before" | "after";
+      reason: string;
+    }
+  | {
       type: "screenshot_before";
       path: string;
       observation: DesktopAppState;

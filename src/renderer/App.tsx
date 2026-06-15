@@ -15,6 +15,7 @@ export type TaskStatus =
   | "observing"
   | "executing"
   | "approval_required"
+  | "needs_confirmation"
   | "completed"
   | "failed";
 
@@ -194,6 +195,11 @@ const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: s
   approval_required: {
     label: "Approval required",
     message: "需要确认.",
+    pulse: "Waiting"
+  },
+  needs_confirmation: {
+    label: "Needs confirmation",
+    message: "需要人工确认.",
     pulse: "Waiting"
   },
   completed: {
@@ -616,7 +622,12 @@ export default function App() {
       return;
     }
 
-    if (task.status === "observing" || task.status === "executing" || task.status === "approval_required") {
+    if (
+      task.status === "observing"
+      || task.status === "executing"
+      || task.status === "approval_required"
+      || task.status === "needs_confirmation"
+    ) {
       setDetailsOpen(false);
       setDictationProvider(null);
       setTask({

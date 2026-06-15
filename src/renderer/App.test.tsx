@@ -318,6 +318,7 @@ describe("App", () => {
       ["observing", "Observing", "Reading the screen", "review"],
       ["executing", "Executing", "Typing in Ghostty", "running"],
       ["approval_required", "Approval required", "Needs a human check", "waiting"],
+      ["needs_confirmation", "Needs confirmation", "Verification failed", "waiting"],
       ["completed", "Completed", "Task finished", "waving"],
       ["failed", "Failed", "Could not complete", "failed"]
     ];
@@ -512,5 +513,21 @@ describe("App", () => {
     const api = window.skfiy as DesktopApi;
     expect(api.approveTask).toHaveBeenCalledTimes(1);
     expect(api.denyTask).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows verification failure as human confirmation without approval execution controls", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "needs_confirmation",
+      message: "Verification failed: Ghostty did not become frontmost."
+    }));
+
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent(
+      "Needs confirmation"
+    );
+    expect(screen.getByText("Verification failed: Ghostty did not become frontmost.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "拒绝" })).not.toBeInTheDocument();
   });
 });

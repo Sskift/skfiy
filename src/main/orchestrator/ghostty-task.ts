@@ -91,11 +91,21 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  assertPlanSucceeded(await runDesktopActionPlan(
+  const activationResults = await runDesktopActionPlan(
     client,
     [{ type: "activate_app", bundleId: session.bundleId, pid: session.pid }],
     { signal: options.signal }
-  ));
+  );
+  const activationFailure = readPlanFailure(activationResults);
+  if (activationFailure) {
+    yield {
+      type: "verification_failed",
+      stage: "activate",
+      reason: activationFailure
+    };
+    return;
+  }
+
   yield {
     type: "app_activated",
     appName: GHOSTTY_APP_NAME,
@@ -125,7 +135,15 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  assertOwnedGhosttySession(before, session.pid);
+  const beforeVerificationFailure = readOwnedGhosttySessionFailure(before, session.pid);
+  if (beforeVerificationFailure) {
+    yield {
+      type: "verification_failed",
+      stage: "before",
+      reason: beforeVerificationFailure
+    };
+    return;
+  }
 
   assertPlanSucceeded(await runDesktopActionPlan(
     client,
@@ -171,6 +189,16 @@ export async function* runGhosttyCommandTask(
     path: after.screenshotPath,
     observation: after
   };
+
+  const afterVerificationFailure = readOwnedGhosttySessionFailure(after, session.pid);
+  if (afterVerificationFailure) {
+    yield {
+      type: "verification_failed",
+      stage: "after",
+      reason: afterVerificationFailure
+    };
+    return;
+  }
 
   yield {
     type: "completed",
@@ -237,11 +265,20 @@ function readOpenGhosttySessionResult(result: DesktopActionResult): OpenGhosttyS
 }
 
 function assertPlanSucceeded(results: readonly DesktopActionPlanStepResult[]): void {
+  const failure = readPlanFailure(results);
+  if (failure) {
+    throw new Error(failure);
+  }
+}
+
+function readPlanFailure(results: readonly DesktopActionPlanStepResult[]): string | undefined {
   for (const step of results) {
     if (isFailedActionResult(step.result)) {
-      throw new Error(step.result.message ?? `Desktop action failed: ${step.action.type}`);
+      return step.result.message ?? `Desktop action failed: ${step.action.type}`;
     }
   }
+
+  return undefined;
 }
 
 function isOpenGhosttySessionResult(
@@ -261,9 +298,12 @@ function isOpenGhosttySessionResult(
   );
 }
 
-function assertOwnedGhosttySession(observation: DesktopAppState, expectedPid: number): void {
+function readOwnedGhosttySessionFailure(
+  observation: DesktopAppState,
+  expectedPid: number
+): string | undefined {
   if (observation.frontmostBundleId && observation.frontmostBundleId !== GHOSTTY_BUNDLE_ID) {
-    throw new Error("Observed Ghostty window is not frontmost.");
+    return "Observed Ghostty window is not frontmost.";
   }
 
   const windows = observation.windows ?? [];
@@ -273,11 +313,11 @@ function assertOwnedGhosttySession(observation: DesktopAppState, expectedPid: nu
   });
 
   if (hasUnsafeWindow) {
-    throw new Error("Observed Ghostty window is not a skfiy-owned session.");
+    return "Observed Ghostty window is not a skfiy-owned session.";
   }
 
   if (observation.pid === expectedPid) {
-    return;
+    return undefined;
   }
 
   const hasMarkedWindow = windows.some((window) => {
@@ -286,8 +326,10 @@ function assertOwnedGhosttySession(observation: DesktopAppState, expectedPid: nu
   });
 
   if (!hasMarkedWindow) {
-    throw new Error("Observed Ghostty window is not a skfiy-owned session.");
+    return "Observed Ghostty window is not a skfiy-owned session.";
   }
+
+  return undefined;
 }
 
 function isFailedActionResult(
