@@ -46,6 +46,15 @@ body:
     validations:
       required: true
 
+  - type: input
+    id: voice_smoke_artifact
+    attributes:
+      label: voice smoke artifact
+      description: Path or attachment name for `npm run smoke:voice -- --output <path>` JSON evidence.
+      placeholder: .skfiy-smoke/voice-native.json
+    validations:
+      required: true
+
   - type: dropdown
     id: runner_has_tmux
     attributes:
@@ -169,6 +178,7 @@ body:
       placeholder: |
         npm run build
         npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
+        npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
         npm run alpha:artifact -- --smoke-artifact .skfiy-smoke/ghostty-matrix.json
     validations:
       required: true

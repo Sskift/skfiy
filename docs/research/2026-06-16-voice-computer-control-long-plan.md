@@ -185,6 +185,8 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - browser ASR transcript updates now flow through renderer -> preload -> main `update-dictation-transcript` before submit
   - browser ASR auto-submit requires a final candidate and does not run low-confidence candidates
   - native macOS speech status check on 2026-06-16: `./dist/skfiy-helper speech-status --locale zh-CN` returned Microphone `authorized`, Speech Recognition `notDetermined`, and recognizerAvailable `true`
+  - product-path native voice smoke harness now exists: `npm run smoke:voice -- --output .skfiy-smoke/voice-native.json`; it launches `dist/skfiy.app`, selects the native provider through preload, records provider/transcript/task events, stops dictation, and fails closed until Microphone/Speech Recognition permission plus a final transcript are available
+  - current product-path native voice smoke on 2026-06-16: `npm run smoke:voice -- --output .skfiy-smoke/voice-native.json --listen-ms 1200` launched `dist/skfiy.app` via `open`, used `runnerHasTmux=false`, selected `native-macos` through preload, emitted provider `unavailable`, emitted task `failed`, and persisted result `blocked` because Speech Recognition was `not-determined` and Microphone was `not-determined`
   - stop always returns to idle
   - screenshots/click/key helper commands still pass
 
@@ -296,7 +298,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
 - [x] Build signed/notarized alpha package or documented unsigned internal build.
   - documented current unsigned internal build path in `docs/internal-alpha-build.md`; signing/notarization remains required before broader release
   - unsigned local dogfood artifacts now use `npm run alpha:artifact`, producing a versioned `.zip` plus manifest with commit SHA, bundle id, signing/notarization state, SHA256 checksum, and optional smoke artifact path
-  - GitHub dogfood issue form now requires alpha manifest, alpha zip, commit SHA, smoke artifact, `runnerHasTmux`, permission states, ASR provider, Computer Use result, screenshot paths, and panic stop notes
+  - GitHub dogfood issue form now requires alpha manifest, alpha zip, commit SHA, Ghostty smoke artifact, voice smoke artifact, `runnerHasTmux`, permission states, ASR provider, Computer Use result, screenshot paths, and panic stop notes
 - [x] Add app allowlist/denylist UI.
   - settings panel now exposes allow/ask/deny policies for Ghostty, Chrome, and Finder; Ghostty defaults to allow for the current product smoke path, while ask/deny can gate Computer Use before touching the app
 - [x] Add per-turn approval transcript:

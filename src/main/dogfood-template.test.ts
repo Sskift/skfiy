@@ -19,6 +19,7 @@ describe("skfiy dogfood issue template", () => {
       "alpha zip",
       "commit sha",
       "smoke artifact",
+      "voice smoke artifact",
       "runnerHasTmux",
       "Screen Recording",
       "Accessibility",

@@ -17,7 +17,8 @@
     "build:helper": "bash scripts/build-helper.sh",
     "package:mac": "node scripts/package-macos-app.mjs",
     "alpha:artifact": "node scripts/create-alpha-artifact.mjs",
-    "smoke:ghostty": "node scripts/smoke-ghostty-product.mjs"
+    "smoke:ghostty": "node scripts/smoke-ghostty-product.mjs",
+    "smoke:voice": "node scripts/smoke-voice-product.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.2",
