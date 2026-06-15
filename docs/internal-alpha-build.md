@@ -50,6 +50,8 @@ Computer Use tasks cannot be reported as passing until Screen Recording and Acce
 
 When either required Computer Use permission is missing, skfiy preflights the turn and stops before opening Ghostty or sending helper actions. The smoke event should name the missing Screen Recording and/or Accessibility grant.
 
+Left-clicking the pet also opens a permission onboarding panel before dictation when Screen Recording, Accessibility, or Microphone is denied or not determined.
+
 ## Smoke Test
 
 After `npm run build`, run:

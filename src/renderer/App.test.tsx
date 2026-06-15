@@ -180,6 +180,64 @@ describe("App", () => {
     expect(speechRecognitionInstances[0].start).toHaveBeenCalledTimes(1);
   });
 
+  it("opens permission onboarding from left click when required permissions are missing", async () => {
+    const api = window.skfiy as DesktopApi;
+    api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
+      screenRecording: { state: "denied" },
+      accessibility: { state: "not-determined" },
+      microphone: { state: "granted" }
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const onboarding = await screen.findByLabelText("权限引导");
+    expect(within(onboarding).getByText("需要授权")).toBeInTheDocument();
+    expect(within(onboarding).getByText("屏幕录制")).toBeInTheDocument();
+    expect(within(onboarding).getByText("辅助功能")).toBeInTheDocument();
+    expect(within(onboarding).queryByText("麦克风")).not.toBeInTheDocument();
+    expect(api.prepareDictation).not.toHaveBeenCalled();
+
+    fireEvent.click(within(onboarding).getByRole("button", { name: "打开屏幕录制设置" }));
+
+    expect(api.openPermissionSettings).toHaveBeenCalledWith("screen-recording");
+  });
+
+  it("leaves permission onboarding after refresh grants required permissions", async () => {
+    const api = window.skfiy as DesktopApi;
+    api.getPermissions = vi
+      .fn<DesktopApi["getPermissions"]>()
+      .mockResolvedValueOnce({
+        screenRecording: { state: "denied" },
+        accessibility: { state: "granted" },
+        microphone: { state: "granted" }
+      })
+      .mockResolvedValue({
+        screenRecording: { state: "granted" },
+        accessibility: { state: "granted" },
+        microphone: { state: "granted" }
+      });
+
+    render(<App />);
+
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    fireEvent.click(pet);
+    const onboarding = await screen.findByLabelText("权限引导");
+    fireEvent.click(within(onboarding).getByRole("button", { name: "刷新权限状态" }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("权限引导")).not.toBeInTheDocument();
+    });
+    expect(api.prepareDictation).not.toHaveBeenCalled();
+
+    fireEvent.click(pet);
+
+    await waitFor(() => {
+      expect(api.prepareDictation).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("uses native Doubao dictation without starting browser speech recognition", async () => {
     (window.skfiy as DesktopApi).prepareDictation = vi
       .fn<DesktopApi["prepareDictation"]>()
@@ -622,7 +680,7 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    const transcript = screen.getByLabelText("语音转写");
+    const transcript = await screen.findByLabelText("语音转写");
     fireEvent.change(transcript, {
       target: { value: "不要提交这句话" }
     });
@@ -703,6 +761,10 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     fireEvent.change(screen.getByLabelText("语音转写"), {
       target: { value: "打开 Ghostty 并截图" }
     });

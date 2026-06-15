@@ -154,6 +154,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] Microphone status.
   - [x] "Open System Settings" actions.
   - [x] Computer Use preflight blocks before opening Ghostty when Screen Recording or Accessibility is not granted, while keeping approval-first behavior for medium/high risk commands.
+  - [x] Left-click voice entry opens a permission onboarding panel before dictation when required permissions are denied or not determined.
 - [x] Refactor dictation into a provider interface.
 - [x] Keep Doubao as a provider, but add provider state events:
   - [x] unavailable
@@ -166,6 +167,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
 - Verification:
   - app launched via `open` has no tw-dashboard permission prompt
   - left-click starts listening or gives actionable provider error
+  - current packaged UI check on 2026-06-16: CDP-clicking the pet in `dist/skfiy.app` opened `权限引导` with Screen Recording, Accessibility, and Microphone rows when permissions were denied/not-determined
   - stop always returns to idle
   - screenshots/click/key helper commands still pass
 
@@ -337,7 +339,7 @@ Do not add more random UI features. The next implementation milestone should be:
 
 1. Package stable app identity.
 2. Fix permissions onboarding.
-   - current state: permission center plus Computer Use preflight now names missing Screen Recording/Accessibility before any target-app action
+   - current state: permission center plus left-click onboarding and Computer Use preflight now name missing grants before voice or target-app actions
 3. Implement dedicated Ghostty session.
 4. Build minimal observe-plan-act-verify loop with replay logs.
 5. Keep voice provider pluggable and make Doubao setup explicit.

@@ -337,6 +337,8 @@ const PERMISSION_STATE_COPY: Record<PermissionState, string> = {
   unknown: "未知"
 };
 
+const BLOCKING_PERMISSION_STATES: readonly PermissionState[] = ["denied", "not-determined"];
+
 const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
   { policy: "allow", label: "允许" },
   { policy: "ask", label: "询问" },
@@ -590,6 +592,12 @@ function formatReplayAction(action: TurnTranscript["actions"][number]): string {
   return action.type;
 }
 
+function readMissingPermissionRows(permissions: PermissionSummary): typeof PERMISSION_ROWS {
+  return PERMISSION_ROWS.filter((permission) =>
+    BLOCKING_PERMISSION_STATES.includes(permissions[permission.key].state)
+  );
+}
+
 function DesktopPet({
   state,
   onClick,
@@ -634,6 +642,7 @@ export default function App() {
   const [dictationText, setDictationText] = useState("");
   const [listening, setListening] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [permissionOnboardingOpen, setPermissionOnboardingOpen] = useState(false);
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [startupWarnings, setStartupWarnings] = useState<StartupWarning[]>([]);
@@ -825,9 +834,12 @@ export default function App() {
     setPermissionsLoading(true);
 
     try {
-      setPermissions(await api.getPermissions());
+      const nextPermissions = await api.getPermissions();
+      setPermissions(nextPermissions);
+      return nextPermissions;
     } catch {
       setPermissions(UNKNOWN_PERMISSIONS);
+      return UNKNOWN_PERMISSIONS;
     } finally {
       setPermissionsLoading(false);
     }
@@ -911,6 +923,7 @@ export default function App() {
     setDictationText("");
     setListening(true);
     setDetailsOpen(false);
+    setPermissionOnboardingOpen(false);
     setTask({
       status: "idle",
       message: "正在听你说."
@@ -948,6 +961,7 @@ export default function App() {
     nativeDictationActiveRef.current = false;
     setListening(false);
     setDetailsOpen(false);
+    setPermissionOnboardingOpen(false);
     setDictationText("");
     setDictationProvider(null);
     setTask({
@@ -1044,11 +1058,25 @@ export default function App() {
   async function openPermissionSettings(permission: PermissionSettingsTarget) {
     try {
       await api.openPermissionSettings(permission);
-      await refreshPermissions();
+      const nextPermissions = await refreshPermissions();
+      if (permissionOnboardingOpen && readMissingPermissionRows(nextPermissions).length === 0) {
+        setPermissionOnboardingOpen(false);
+      }
     } catch {
       setTask({
         status: "failed",
         message: "打开系统设置失败."
+      });
+    }
+  }
+
+  async function refreshPermissionOnboarding() {
+    const nextPermissions = await refreshPermissions();
+    if (readMissingPermissionRows(nextPermissions).length === 0) {
+      setPermissionOnboardingOpen(false);
+      setTask({
+        status: "idle",
+        message: "权限已就绪，再次左键开始语音."
       });
     }
   }
@@ -1144,7 +1172,30 @@ export default function App() {
       return;
     }
 
-    void startDictation();
+    void startDictationAfterPermissionCheck();
+  }
+
+  async function startDictationAfterPermissionCheck() {
+    const nextPermissions = await refreshPermissions();
+    const missingPermissions = readMissingPermissionRows(nextPermissions);
+
+    if (missingPermissions.length > 0) {
+      lastDictationSubmitRef.current = "";
+      setDictationText("");
+      stopBrowserSpeechRecognition();
+      nativeDictationActiveRef.current = false;
+      setListening(false);
+      setDetailsOpen(false);
+      setPermissionOnboardingOpen(true);
+      setTask({
+        status: "idle",
+        message: "需要授权后才能开始."
+      });
+      return;
+    }
+
+    setPermissionOnboardingOpen(false);
+    await startDictation();
   }
 
   function toggleDetailsFromPet(event: ReactMouseEvent<HTMLDivElement>) {
@@ -1152,6 +1203,7 @@ export default function App() {
     lastDictationSubmitRef.current = "";
     setDictationText("");
     stopBrowserSpeechRecognition();
+    setPermissionOnboardingOpen(false);
     if (nativeDictationActiveRef.current) {
       nativeDictationActiveRef.current = false;
       void api.stopDictation();
@@ -1167,13 +1219,21 @@ export default function App() {
   const showStartupWarning = Boolean(startupWarning)
     && !listening
     && !detailsOpen
+    && !permissionOnboardingOpen
     && task.status === "idle";
   const showProviderStatus = Boolean(dictationProvider)
     && !listening
     && !detailsOpen
+    && !permissionOnboardingOpen
     && task.status === "idle";
   const showPanel =
-    listening || detailsOpen || task.status !== "idle" || showStartupWarning || showProviderStatus;
+    listening
+    || detailsOpen
+    || permissionOnboardingOpen
+    || task.status !== "idle"
+    || showStartupWarning
+    || showProviderStatus;
+  const permissionOnboardingRows = readMissingPermissionRows(permissions);
 
   useEffect(() => {
     api.setWindowMode(showPanel ? "expanded" : "compact");
@@ -1191,8 +1251,14 @@ export default function App() {
 
       {showPanel ? (
         <section
-          className={`voice-bubble${detailsOpen ? " settings-bubble" : ""}`}
-          aria-label={detailsOpen ? "skfiy settings" : "skfiy voice status"}
+          className={`voice-bubble${detailsOpen || permissionOnboardingOpen ? " settings-bubble" : ""}`}
+          aria-label={
+            detailsOpen
+              ? "skfiy settings"
+              : permissionOnboardingOpen
+                ? "权限引导"
+                : "skfiy voice status"
+          }
         >
           {detailsOpen ? (
             <>
@@ -1298,6 +1364,42 @@ export default function App() {
                 </div>
                 <div className="permissions-list">
                   {PERMISSION_ROWS.map((permission) => {
+                    const state = permissions[permission.key].state;
+                    return (
+                      <div className="permission-row" key={permission.key}>
+                        <span>{permission.label}</span>
+                        <strong data-state={state}>
+                          {permissionsLoading ? "检查中" : PERMISSION_STATE_COPY[state]}
+                        </strong>
+                        <button
+                          type="button"
+                          aria-label={`打开${permission.label}设置`}
+                          onClick={() => void openPermissionSettings(permission.settingsTarget)}
+                        >
+                          <ExternalLink size={12} aria-hidden="true" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : permissionOnboardingOpen ? (
+            <>
+              <p>需要授权</p>
+              <div className="permissions-panel" aria-label="缺失权限">
+                <div className="permissions-heading">
+                  <strong>权限</strong>
+                  <button
+                    type="button"
+                    aria-label="刷新权限状态"
+                    onClick={() => void refreshPermissionOnboarding()}
+                  >
+                    <RefreshCw size={12} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="permissions-list">
+                  {permissionOnboardingRows.map((permission) => {
                     const state = permissions[permission.key].state;
                     return (
                       <div className="permission-row" key={permission.key}>
