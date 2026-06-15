@@ -253,6 +253,12 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
   );
   check(
     checks,
+    "voice.speechStatus",
+    isNativeSpeechStatus(artifact.speechStatus),
+    "voice smoke must include structured native speech status"
+  );
+  check(
+    checks,
     "voice.processesAfterCleanup",
     isEmptyArray(artifact.processesAfterCleanup),
     "voice smoke must clean up skfiy app processes"
@@ -344,6 +350,26 @@ function readString(value) {
 
 function isEmptyArray(value) {
   return Array.isArray(value) && value.length === 0;
+}
+
+function isNativeSpeechStatus(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && typeof value.locale === "string"
+    && typeof value.recognizerAvailable === "boolean"
+    && isPermissionStatus(value.speechRecognition)
+    && isPermissionStatus(value.microphone);
+}
+
+function isPermissionStatus(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && (
+      value.state === "granted"
+      || value.state === "denied"
+      || value.state === "not-determined"
+      || value.state === "unknown"
+    );
 }
 
 function readValue(argv, index, name) {

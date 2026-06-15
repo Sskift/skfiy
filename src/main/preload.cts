@@ -186,6 +186,13 @@ interface PermissionSummary {
   microphone: { state: PermissionState };
 }
 
+interface NativeSpeechStatus {
+  locale: string;
+  recognizerAvailable: boolean;
+  speechRecognition: { state: PermissionState };
+  microphone: { state: PermissionState };
+}
+
 interface StartupWarning {
   id: StartupWarningId;
   title: string;
@@ -218,6 +225,7 @@ interface DesktopApi {
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
   getPermissions: () => Promise<PermissionSummary>;
+  getNativeSpeechStatus: (locale: string) => Promise<NativeSpeechStatus>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
   getDictationSettings: () => Promise<DictationSettings>;
@@ -291,6 +299,10 @@ const api: DesktopApi = {
   async getPermissions() {
     const payload = await ipcRenderer.invoke("skfiy:get-permissions");
     return isPermissionSummary(payload) ? payload : createUnknownPermissionSummary();
+  },
+  async getNativeSpeechStatus(locale) {
+    const payload = await ipcRenderer.invoke("skfiy:get-native-speech-status", locale);
+    return isNativeSpeechStatus(payload) ? payload : createUnknownNativeSpeechStatus(locale);
   },
   async openPermissionSettings(permission) {
     if (!isPermissionSettingsTarget(permission)) {
@@ -723,6 +735,20 @@ function isPermissionSummary(value: unknown): value is PermissionSummary {
   );
 }
 
+function isNativeSpeechStatus(value: unknown): value is NativeSpeechStatus {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const status = value as Partial<NativeSpeechStatus>;
+  return (
+    typeof status.locale === "string"
+    && typeof status.recognizerAvailable === "boolean"
+    && isPermissionStatus(status.speechRecognition)
+    && isPermissionStatus(status.microphone)
+  );
+}
+
 function isPermissionStatus(value: unknown): value is { state: PermissionState } {
   if (!value || typeof value !== "object") {
     return false;
@@ -786,6 +812,15 @@ function createUnknownPermissionSummary(): PermissionSummary {
   return {
     screenRecording: { state: "unknown" },
     accessibility: { state: "unknown" },
+    microphone: { state: "unknown" }
+  };
+}
+
+function createUnknownNativeSpeechStatus(locale: string): NativeSpeechStatus {
+  return {
+    locale,
+    recognizerAvailable: false,
+    speechRecognition: { state: "unknown" },
     microphone: { state: "unknown" }
   };
 }

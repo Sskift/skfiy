@@ -897,6 +897,14 @@ ipcMain.handle("skfiy:get-permissions", async (event) => {
   return readPermissionsForRenderer({ helper: createDesktopHelper() });
 });
 
+ipcMain.handle("skfiy:get-native-speech-status", async (_event, locale: unknown) => {
+  const requestedLocale = typeof locale === "string" && locale.trim()
+    ? locale.trim()
+    : "zh-CN";
+
+  return createDesktopHelper().getSpeechStatus(requestedLocale);
+});
+
 ipcMain.handle("skfiy:open-permission-settings", async (event, permission: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const target = readPermissionSettingsTarget(permission);

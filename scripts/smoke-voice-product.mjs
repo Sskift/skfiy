@@ -40,6 +40,7 @@ async function main() {
     artifactPath: options.outputPath,
     preparation: undefined,
     permissions: undefined,
+    speechStatus: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
     dictationSettingsBefore: undefined,
@@ -83,6 +84,10 @@ async function main() {
         "window.skfiy.getDictationSettings()"
       );
       evidence.permissions = await evaluateValue(cdp, "window.skfiy.getPermissions()");
+      evidence.speechStatus = await evaluateValue(
+        cdp,
+        `window.skfiy.getNativeSpeechStatus("zh-CN")`
+      );
       evidence.runtimeStatus = await evaluateValue(cdp, "window.skfiy.getRuntimeStatus()");
       evidence.startupWarnings = await evaluateValue(cdp, "window.skfiy.getStartupWarnings()");
 

@@ -155,7 +155,7 @@ Use the packaged app path and record provider, permission, transcript, and stop 
 npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
 ```
 
-Use `npm run smoke:voice -- --require-passed` only after Microphone and Speech Recognition are granted to `dist/skfiy.app`; otherwise the expected result is `blocked` or `no-transcript` with fail-closed evidence. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> native macOS Speech`, provider events showing listening and stopped, and a final non-empty transcript event.
+Use `npm run smoke:voice -- --require-passed` only after Microphone and Speech Recognition are granted to `dist/skfiy.app`; otherwise the expected result is `blocked` or `no-transcript` with fail-closed evidence. The voice artifact must include structured `speechStatus` from the packaged app product path, including Speech Recognition and Microphone states. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> native macOS Speech`, provider events showing listening and stopped, and a final non-empty transcript event.
 
 ### Dogfood Evidence Gate
 
