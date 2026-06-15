@@ -9,10 +9,13 @@ import { promisify } from "node:util";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const execFileAsync = promisify(execFile);
+const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
+const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_VOICE_RESULTS = new Set(["passed", "blocked", "no-transcript"]);
+const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
 
 export function createDefaultDogfoodVerifyOptions(rootDir) {
   return {
@@ -61,6 +64,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   const manifestDir = path.dirname(manifestPath);
 
   const zipPath = readString(manifest?.zip?.path);
+  const uiSmokeArtifactPath = readString(manifest?.uiSmokeArtifactPath);
   const smokeArtifactPath = readString(manifest?.smokeArtifactPath);
   const voiceSmokeArtifactPath = readString(manifest?.voiceSmokeArtifactPath);
 
@@ -79,6 +83,12 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.uiSmokeArtifactPath",
+    typeof uiSmokeArtifactPath === "string",
+    "manifest uiSmokeArtifactPath is required"
+  );
+  check(
+    checks,
     "manifest.smokeArtifactPath",
     typeof smokeArtifactPath === "string",
     "manifest smokeArtifactPath is required"
@@ -88,6 +98,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     "manifest.voiceSmokeArtifactPath",
     typeof voiceSmokeArtifactPath === "string",
     "manifest voiceSmokeArtifactPath is required"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.ui",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("npm run smoke:ui -- --output <path>"),
+    "manifest must require UI smoke evidence"
   );
   check(
     checks,
@@ -109,12 +126,19 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     await verifyZip(zipPath, manifest, io, checks);
   }
 
+  const ui = uiSmokeArtifactPath
+    ? await readArtifactJson(uiSmokeArtifactPath, "ui", io, checks)
+    : undefined;
   const ghostty = smokeArtifactPath
     ? await readArtifactJson(smokeArtifactPath, "ghostty", io, checks)
     : undefined;
   const voice = voiceSmokeArtifactPath
     ? await readArtifactJson(voiceSmokeArtifactPath, "voice", io, checks)
     : undefined;
+
+  if (ui) {
+    verifyUiSmoke(ui, uiSmokeArtifactPath, options, checks);
+  }
 
   if (ghostty) {
     verifyGhosttySmoke(ghostty, smokeArtifactPath, options, checks);
@@ -129,6 +153,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     "manifest.paths.absolute",
     path.isAbsolute(manifestPath)
       && (!zipPath || path.isAbsolute(zipPath))
+      && (!uiSmokeArtifactPath || path.isAbsolute(uiSmokeArtifactPath))
       && (!smokeArtifactPath || path.isAbsolute(smokeArtifactPath))
       && (!voiceSmokeArtifactPath || path.isAbsolute(voiceSmokeArtifactPath)),
     `manifest and artifact paths should be absolute; manifest is in ${manifestDir}`
@@ -144,6 +169,80 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     errors,
     checks
   };
+}
+
+function verifyUiSmoke(artifact, expectedPath, options, checks) {
+  check(
+    checks,
+    "ui.artifactPath",
+    samePath(artifact.artifactPath, expectedPath),
+    "UI artifactPath must match manifest uiSmokeArtifactPath"
+  );
+  check(
+    checks,
+    "ui.result",
+    ACCEPTED_UI_RESULTS.has(artifact.result),
+    "UI smoke result must be passed or no-onboarding"
+  );
+  check(
+    checks,
+    "ui.requirePassed",
+    !options.requirePassed || ACCEPTED_UI_RESULTS.has(artifact.result),
+    "UI smoke must be passed or no-onboarding when --require-passed is used"
+  );
+  check(
+    checks,
+    "ui.appLaunchViaOpen",
+    artifact.appLaunchViaOpen === true,
+    "UI smoke must launch skfiy through open/LaunchServices"
+  );
+  check(
+    checks,
+    "ui.runnerHasTmux",
+    artifact.runnerHasTmux === false,
+    "UI smoke must not run under tmux"
+  );
+  check(
+    checks,
+    "ui.productPath",
+    artifact.productPath === UI_PRODUCT_PATH,
+    `UI smoke productPath must be ${UI_PRODUCT_PATH}`
+  );
+  check(
+    checks,
+    "ui.petClicked",
+    artifact.petClicked === true,
+    "UI smoke must click the real desktop pet"
+  );
+
+  if (artifact.result === "passed") {
+    check(
+      checks,
+      "ui.onboardingVisible",
+      artifact.onboardingVisible === true,
+      "UI smoke passed result must show permission onboarding"
+    );
+    check(
+      checks,
+      "ui.permissionRows",
+      hasRequiredPermissionRows(artifact.permissionRows),
+      "UI smoke must include Screen Recording, Accessibility, Microphone, and Speech Recognition rows"
+    );
+  } else {
+    check(
+      checks,
+      "ui.noOnboardingPermissions",
+      !hasBlockingPermission(artifact.permissions),
+      "UI smoke no-onboarding result requires all permission states to be non-blocking"
+    );
+  }
+
+  check(
+    checks,
+    "ui.processesAfterCleanup",
+    isEmptyArray(artifact.processesAfterCleanup),
+    "UI smoke must clean up skfiy app processes"
+  );
 }
 
 async function verifyCurrentHead(manifest, options, io, checks) {
@@ -359,6 +458,25 @@ function isNativeSpeechStatus(value) {
     && typeof value.recognizerAvailable === "boolean"
     && isPermissionStatus(value.speechRecognition)
     && isPermissionStatus(value.microphone);
+}
+
+function hasRequiredPermissionRows(value) {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  const labels = new Set(value.map((row) => row?.label).filter(Boolean));
+  return REQUIRED_UI_PERMISSION_LABELS.every((label) => labels.has(label));
+}
+
+function hasBlockingPermission(permissions) {
+  if (!permissions || typeof permissions !== "object") {
+    return true;
+  }
+
+  return Object.values(permissions).some((status) =>
+    status?.state === "denied" || status?.state === "not-determined"
+  );
 }
 
 function isPermissionStatus(value) {

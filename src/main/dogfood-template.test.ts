@@ -18,6 +18,7 @@ describe("skfiy dogfood issue template", () => {
       "alpha manifest",
       "alpha zip",
       "commit sha",
+      "UI smoke artifact",
       "smoke artifact",
       "voice smoke artifact",
       "runnerHasTmux",

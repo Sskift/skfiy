@@ -167,7 +167,7 @@ Use `npm run smoke:voice -- --require-passed` only after Microphone and Speech R
 
 ### Dogfood Evidence Gate
 
-After creating an alpha manifest, verify that the manifest, zip, Ghostty smoke artifact, and native voice smoke artifact form one coherent evidence chain:
+After creating an alpha manifest, verify that the manifest, zip, UI smoke artifact, Ghostty smoke artifact, and native voice smoke artifact form one coherent evidence chain:
 
 ```bash
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json

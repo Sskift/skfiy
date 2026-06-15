@@ -75,6 +75,7 @@ describe("alpha artifact packaging", () => {
         createdAt: string;
         sha256: string;
         zipBytes: number;
+        uiSmokeArtifactPath?: string;
         smokeArtifactPath?: string;
         voiceSmokeArtifactPath?: string;
       }) => Record<string, unknown>;
@@ -85,6 +86,8 @@ describe("alpha artifact packaging", () => {
     };
 
     expect(parseAlphaArtifactArgs([
+      "--ui-smoke-artifact",
+      ".skfiy-smoke/ui-permission-onboarding.json",
       "--smoke-artifact",
       ".skfiy-smoke/ghostty-matrix.json",
       "--voice-smoke-artifact",
@@ -92,10 +95,12 @@ describe("alpha artifact packaging", () => {
     ], {
       appPath: "/repo/dist/skfiy.app",
       outputDir: "/repo/.skfiy-alpha",
+      uiSmokeArtifactPath: undefined,
       smokeArtifactPath: undefined,
       voiceSmokeArtifactPath: undefined,
       help: false
     })).toMatchObject({
+      uiSmokeArtifactPath: path.resolve(".skfiy-smoke/ui-permission-onboarding.json"),
       smokeArtifactPath: path.resolve(".skfiy-smoke/ghostty-matrix.json"),
       voiceSmokeArtifactPath: path.resolve(".skfiy-smoke/voice-native.json")
     });
@@ -113,6 +118,7 @@ describe("alpha artifact packaging", () => {
       createdAt: "2026-06-16T00:00:00.000Z",
       sha256: "f".repeat(64),
       zipBytes: 4096,
+      uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-permission-onboarding.json",
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
       voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json"
     })).toMatchObject({
@@ -128,9 +134,11 @@ describe("alpha artifact packaging", () => {
         bytes: 4096,
         sha256: "f".repeat(64)
       },
+      uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-permission-onboarding.json",
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
       voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json",
       requiredDogfoodEvidence: [
+        "npm run smoke:ui -- --output <path>",
         "npm run smoke:ghostty -- --output <path>",
         "npm run smoke:voice -- --output <path>",
         "Screen Recording permission state",

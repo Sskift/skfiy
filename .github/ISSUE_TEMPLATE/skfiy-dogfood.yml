@@ -38,6 +38,15 @@ body:
       required: true
 
   - type: input
+    id: ui_smoke_artifact
+    attributes:
+      label: UI smoke artifact
+      description: Path or attachment name for `npm run smoke:ui -- --output <path>` JSON evidence.
+      placeholder: .skfiy-smoke/ui-permission-onboarding.json
+    validations:
+      required: true
+
+  - type: input
     id: smoke_artifact
     attributes:
       label: smoke artifact
@@ -177,9 +186,10 @@ body:
       description: Include the exact launch, smoke, and alpha artifact commands used.
       placeholder: |
         npm run build
+        npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
         npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
         npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
-        npm run alpha:artifact -- --smoke-artifact .skfiy-smoke/ghostty-matrix.json
+        npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json --smoke-artifact .skfiy-smoke/ghostty-matrix.json --voice-smoke-artifact .skfiy-smoke/voice-native.json
     validations:
       required: true
 

@@ -51,6 +51,7 @@ describe("dogfood artifact verifier", () => {
       ) => Promise<Record<string, unknown>>;
     };
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -65,14 +66,32 @@ describe("dogfood artifact verifier", () => {
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: [
+          "npm run smoke:ui -- --output <path>",
           "npm run smoke:ghostty -- --output <path>",
           "npm run smoke:voice -- --output <path>"
         ]
       },
       [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
+        artifactPath: uiSmokePath,
+        petClicked: true,
+        onboardingVisible: true,
+        permissionRows: [
+          { label: "屏幕录制", state: "denied", stateText: "未授权" },
+          { label: "辅助功能", state: "denied", stateText: "未授权" },
+          { label: "麦克风", state: "not-determined", stateText: "待授权" },
+          { label: "语音识别", state: "not-determined", stateText: "待授权" }
+        ],
+        processesAfterCleanup: []
+      },
       [ghosttySmokePath]: {
         result: "blocked",
         appLaunchViaOpen: true,
@@ -107,8 +126,10 @@ describe("dogfood artifact verifier", () => {
       result: "passed",
       manifestPath,
       checks: expect.arrayContaining([
+        expect.objectContaining({ id: "manifest.uiSmokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "manifest.smokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "manifest.voiceSmokeArtifactPath", ok: true }),
+        expect.objectContaining({ id: "ui.productPath", ok: true }),
         expect.objectContaining({ id: "ghostty.productPath", ok: true }),
         expect.objectContaining({ id: "voice.productPath", ok: true })
       ])
@@ -125,6 +146,7 @@ describe("dogfood artifact verifier", () => {
       ) => Promise<Record<string, unknown>>;
     };
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -139,11 +161,23 @@ describe("dogfood artifact verifier", () => {
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: []
       },
       [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: true,
+        productPath: "preload-only",
+        artifactPath: uiSmokePath,
+        petClicked: false,
+        onboardingVisible: false,
+        permissionRows: [],
+        processesAfterCleanup: ["123 skfiy.app"]
+      },
       [ghosttySmokePath]: {
         result: "blocked",
         appLaunchViaOpen: true,
@@ -164,6 +198,12 @@ describe("dogfood artifact verifier", () => {
     }))).resolves.toMatchObject({
       result: "failed",
       errors: expect.arrayContaining([
+        expect.stringContaining("manifest.requiredDogfoodEvidence.ui"),
+        expect.stringContaining("ui.runnerHasTmux"),
+        expect.stringContaining("ui.productPath"),
+        expect.stringContaining("ui.petClicked"),
+        expect.stringContaining("ui.permissionRows"),
+        expect.stringContaining("ui.processesAfterCleanup"),
         expect.stringContaining("ghostty.runnerHasTmux"),
         expect.stringContaining("ghostty.productPath"),
         expect.stringContaining("ghostty.processesAfterCleanup"),
@@ -182,6 +222,7 @@ describe("dogfood artifact verifier", () => {
       ) => Promise<Record<string, unknown>>;
     };
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -198,14 +239,32 @@ describe("dogfood artifact verifier", () => {
         commitSha: "stale-head",
         bundleIdentifier: "com.sskift.skfiy",
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: [
+          "npm run smoke:ui -- --output <path>",
           "npm run smoke:ghostty -- --output <path>",
           "npm run smoke:voice -- --output <path>"
         ]
       },
       [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
+        artifactPath: uiSmokePath,
+        petClicked: true,
+        onboardingVisible: true,
+        permissionRows: [
+          { label: "屏幕录制" },
+          { label: "辅助功能" },
+          { label: "麦克风" },
+          { label: "语音识别" }
+        ],
+        processesAfterCleanup: []
+      },
       [ghosttySmokePath]: {
         result: "blocked",
         appLaunchViaOpen: true,
@@ -247,6 +306,7 @@ describe("dogfood artifact verifier", () => {
       ) => Promise<Record<string, unknown>>;
     };
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -261,14 +321,32 @@ describe("dogfood artifact verifier", () => {
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: [
+          "npm run smoke:ui -- --output <path>",
           "npm run smoke:ghostty -- --output <path>",
           "npm run smoke:voice -- --output <path>"
         ]
       },
       [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
+        artifactPath: uiSmokePath,
+        petClicked: true,
+        onboardingVisible: true,
+        permissionRows: [
+          { label: "屏幕录制" },
+          { label: "辅助功能" },
+          { label: "麦克风" },
+          { label: "语音识别" }
+        ],
+        processesAfterCleanup: []
+      },
       [ghosttySmokePath]: {
         result: "blocked",
         appLaunchViaOpen: true,

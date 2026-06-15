@@ -88,7 +88,11 @@ npm run typecheck
 npm run build
 npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
 npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
-npm run alpha:artifact -- --smoke-artifact .skfiy-smoke/ghostty-smoke.json
+npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
+npm run alpha:artifact -- \
+  --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json \
+  --smoke-artifact .skfiy-smoke/ghostty-smoke.json \
+  --voice-smoke-artifact .skfiy-smoke/voice-native.json
 ```
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main

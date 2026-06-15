@@ -12,6 +12,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
 const DOGFOOD_EVIDENCE = [
+  "npm run smoke:ui -- --output <path>",
   "npm run smoke:ghostty -- --output <path>",
   "npm run smoke:voice -- --output <path>",
   "Screen Recording permission state",
@@ -54,6 +55,7 @@ export function createAlphaManifest({
   createdAt,
   sha256,
   zipBytes,
+  uiSmokeArtifactPath,
   smokeArtifactPath,
   voiceSmokeArtifactPath
 }) {
@@ -74,6 +76,7 @@ export function createAlphaManifest({
       bytes: zipBytes,
       sha256
     },
+    uiSmokeArtifactPath,
     smokeArtifactPath,
     voiceSmokeArtifactPath,
     requiredDogfoodEvidence: DOGFOOD_EVIDENCE
@@ -97,6 +100,10 @@ export function parseAlphaArtifactArgs(argv, defaults) {
         break;
       case "--smoke-artifact":
         options.smokeArtifactPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--ui-smoke-artifact":
+        options.uiSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--voice-smoke-artifact":
@@ -123,6 +130,8 @@ Creates an unsigned local dogfood artifact from the packaged skfiy.app.
 Options:
   --app <path>              App bundle path. Default: ${defaults.appPath}
   --output-dir <path>       Artifact directory. Default: ${defaults.outputDir}
+  --ui-smoke-artifact <path>
+                            UI permission onboarding smoke JSON artifact to reference in the manifest.
   --smoke-artifact <path>   Smoke JSON artifact to reference in the manifest.
   --voice-smoke-artifact <path>
                             Native voice smoke JSON artifact to reference in the manifest.
@@ -141,6 +150,7 @@ export async function createAlphaArtifact({
   const options = parseAlphaArtifactArgs(process.argv.slice(2), {
     appPath: defaults.appPath,
     outputDir: defaults.outputDir,
+    uiSmokeArtifactPath: undefined,
     smokeArtifactPath: undefined,
     voiceSmokeArtifactPath: undefined,
     help: false
@@ -175,6 +185,7 @@ export async function createAlphaArtifact({
     createdAt: now(),
     sha256,
     zipBytes: zipStats.size,
+    uiSmokeArtifactPath: options.uiSmokeArtifactPath,
     smokeArtifactPath: options.smokeArtifactPath,
     voiceSmokeArtifactPath: options.voiceSmokeArtifactPath
   });
