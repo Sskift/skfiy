@@ -3,6 +3,7 @@ import ApplicationServices
 import AVFoundation
 import Carbon
 import CoreGraphics
+import Dispatch
 import Foundation
 
 /*
@@ -36,8 +37,18 @@ import Foundation
      isActive: Boolean,
      activationPolicy: "regular" | "accessory" | "prohibited" | "unknown"
    }
- - activate-app --bundle-id <id>:
+ - activate-app --bundle-id <id> [--pid <process-id>]:
    data = { bundleId: String, activated: Boolean }
+ - open-ghostty-session --title <title> [--working-directory <path>]:
+   data = {
+     bundleId: "com.mitchellh.ghostty",
+     title: String,
+     workingDirectory: String | null,
+     appURL: String,
+     arguments: [String],
+     processIdentifier: Number,
+     opened: Boolean
+   }
  - screenshot --output <path>:
    data = { output: String }
  - click --x <n> --y <n>:
@@ -52,7 +63,7 @@ import Foundation
    data = { sourceId: String }
  - double-tap-fn:
    data = { key: "fn", taps: 2 }
- - get-app-state --bundle-id <id> --screenshot-output <path>:
+ - get-app-state --bundle-id <id> [--pid <process-id>] --screenshot-output <path>:
    data = {
      app: <same shape as list-apps item>,
      frontmostBundleId: String | null,
@@ -75,6 +86,7 @@ import Foundation
 
  Security contract:
  - This helper never executes shell commands.
+ - Application launch is allowlisted; it only opens Ghostty through NSWorkspace.
  - The only subprocess it starts is /usr/sbin/screencapture, and only for
    screenshot capture.
  */
@@ -82,6 +94,7 @@ import Foundation
 let supportedCommands = [
     "list-apps",
     "activate-app",
+    "open-ghostty-session",
     "screenshot",
     "click",
     "type-text",
@@ -164,6 +177,16 @@ struct ListAppsPayload: Encodable {
 struct ActivateAppPayload: Encodable {
     let bundleId: String
     let activated: Bool
+}
+
+struct OpenGhosttySessionPayload: Encodable {
+    let bundleId: String
+    let title: String
+    let workingDirectory: String?
+    let appURL: String
+    let arguments: [String]
+    let processIdentifier: Int
+    let opened: Bool
 }
 
 struct ScreenshotPayload: Encodable {
@@ -310,6 +333,22 @@ func requiredDoubleOption(_ name: String, in options: [String: String]) throws -
     return value
 }
 
+func optionalPositiveIntOption(_ name: String, in options: [String: String]) throws -> Int? {
+    guard let rawValue = options[name] else {
+        return nil
+    }
+
+    guard let value = Int(rawValue), value > 0 else {
+        throw HelperFailure(
+            "invalid_integer",
+            "Expected a positive integer option value.",
+            details: ["option": .string(name), "value": .string(rawValue)]
+        )
+    }
+
+    return value
+}
+
 func absolutePath(_ path: String) -> String {
     let expanded = (path as NSString).expandingTildeInPath
     if expanded.hasPrefix("/") {
@@ -345,12 +384,20 @@ func appInfo(_ app: NSRunningApplication) -> AppInfo {
     )
 }
 
-func findRunningApp(bundleId: String) throws -> NSRunningApplication {
-    if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleId }) {
+func findRunningApp(bundleId: String, processIdentifier: Int? = nil) throws -> NSRunningApplication {
+    if let app = NSWorkspace.shared.runningApplications.first(where: {
+        $0.bundleIdentifier == bundleId
+            && (processIdentifier == nil || Int($0.processIdentifier) == processIdentifier)
+    }) {
         return app
     }
 
-    throw HelperFailure("app_not_found", "No running application found for bundle id.", details: ["bundleId": .string(bundleId)])
+    var details: [String: JSONValue] = ["bundleId": .string(bundleId)]
+    if let processIdentifier {
+        details["processIdentifier"] = .int(processIdentifier)
+    }
+
+    throw HelperFailure("app_not_found", "No running application found for bundle id.", details: details)
 }
 
 func requireAccessibilityTrust(for action: String) throws {
@@ -762,13 +809,115 @@ func handleListApps(_ arguments: ArraySlice<String>) throws -> ListAppsPayload {
 }
 
 func handleActivateApp(_ arguments: ArraySlice<String>) throws -> ActivateAppPayload {
-    let options = try parseOptions(arguments, allowed: ["--bundle-id"])
+    let options = try parseOptions(arguments, allowed: ["--bundle-id", "--pid"])
     let bundleId = try requiredOption("--bundle-id", in: options)
-    let app = try findRunningApp(bundleId: bundleId)
+    let pid = try optionalPositiveIntOption("--pid", in: options)
+    let app = try findRunningApp(bundleId: bundleId, processIdentifier: pid)
     let requested = app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
     try focusAppWindows(app)
     let activated = requested && waitForFrontmost(bundleId: bundleId)
     return ActivateAppPayload(bundleId: bundleId, activated: activated)
+}
+
+func ghosttyApplicationURL() throws -> URL {
+    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.mitchellh.ghostty") {
+        return url
+    }
+
+    let fallback = URL(fileURLWithPath: "/Applications/Ghostty.app")
+    if FileManager.default.fileExists(atPath: fallback.path) {
+        return fallback
+    }
+
+    throw HelperFailure(
+        "ghostty_not_found",
+        "Ghostty.app could not be found.",
+        details: ["bundleId": .string("com.mitchellh.ghostty")]
+    )
+}
+
+func existingDirectoryPath(_ rawPath: String) throws -> String {
+    let resolvedPath = absolutePath(rawPath)
+    var isDirectory = ObjCBool(false)
+
+    guard FileManager.default.fileExists(atPath: resolvedPath, isDirectory: &isDirectory), isDirectory.boolValue else {
+        throw HelperFailure(
+            "working_directory_not_found",
+            "Working directory does not exist or is not a directory.",
+            details: ["workingDirectory": .string(resolvedPath)]
+        )
+    }
+
+    return resolvedPath
+}
+
+func handleOpenGhosttySession(_ arguments: ArraySlice<String>) throws -> OpenGhosttySessionPayload {
+    try requireAccessibilityTrust(for: "open-ghostty-session")
+
+    let options = try parseOptions(arguments, allowed: ["--title", "--working-directory"])
+    let title = try requiredOption("--title", in: options)
+    let workingDirectory = try options["--working-directory"].map(existingDirectoryPath)
+    let appURL = try ghosttyApplicationURL()
+    var ghosttyArguments = [
+        "--title=\(title)",
+        "--shell-integration-features=no-title"
+    ]
+
+    if let workingDirectory {
+        ghosttyArguments.append("--working-directory=\(workingDirectory)")
+    }
+
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    configuration.arguments = ghosttyArguments
+    configuration.createsNewApplicationInstance = true
+
+    let semaphore = DispatchSemaphore(value: 0)
+    var openedApplication: NSRunningApplication?
+    var launchError: Error?
+
+    NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { app, error in
+        openedApplication = app
+        launchError = error
+        semaphore.signal()
+    }
+
+    if semaphore.wait(timeout: .now() + 5) == .timedOut {
+        throw HelperFailure(
+            "ghostty_launch_timeout",
+            "Timed out while opening Ghostty.",
+            details: ["appURL": .string(appURL.path)]
+        )
+    }
+
+    if let launchError {
+        throw HelperFailure(
+            "ghostty_launch_failed",
+            "Failed to open Ghostty.",
+            details: [
+                "appURL": .string(appURL.path),
+                "underlyingError": .string(String(describing: launchError))
+            ]
+        )
+    }
+
+    guard let openedApplication else {
+        throw HelperFailure(
+            "ghostty_launch_failed",
+            "Ghostty launch completed without a running application.",
+            details: ["appURL": .string(appURL.path)]
+        )
+    }
+
+    return OpenGhosttySessionPayload(
+        bundleId: "com.mitchellh.ghostty",
+        title: title,
+        workingDirectory: workingDirectory,
+        appURL: appURL.path,
+        arguments: ghosttyArguments,
+        processIdentifier: Int(openedApplication.processIdentifier),
+        opened: true
+    )
 }
 
 func handleScreenshot(_ arguments: ArraySlice<String>) throws -> ScreenshotPayload {
@@ -821,10 +970,11 @@ func handleDoubleTapFunctionKey(_ arguments: ArraySlice<String>) throws -> Doubl
 }
 
 func handleGetAppState(_ arguments: ArraySlice<String>) throws -> AppStatePayload {
-    let options = try parseOptions(arguments, allowed: ["--bundle-id", "--screenshot-output"])
+    let options = try parseOptions(arguments, allowed: ["--bundle-id", "--pid", "--screenshot-output"])
     let bundleId = try requiredOption("--bundle-id", in: options)
+    let pid = try optionalPositiveIntOption("--pid", in: options)
     let screenshotOutput = try requiredOption("--screenshot-output", in: options)
-    let app = try findRunningApp(bundleId: bundleId)
+    let app = try findRunningApp(bundleId: bundleId, processIdentifier: pid)
     let output = try captureScreenshot(outputPath: screenshotOutput)
 
     return AppStatePayload(
@@ -881,6 +1031,8 @@ do {
         succeed(command: commandName, data: try handleListApps(arguments))
     case "activate-app":
         succeed(command: commandName, data: try handleActivateApp(arguments))
+    case "open-ghostty-session":
+        succeed(command: commandName, data: try handleOpenGhosttySession(arguments))
     case "screenshot":
         succeed(command: commandName, data: try handleScreenshot(arguments))
     case "click":

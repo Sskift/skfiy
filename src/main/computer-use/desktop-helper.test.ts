@@ -98,6 +98,20 @@ describe("DesktopHelperClient", () => {
 
   it("dispatches desktop actions through safe helper commands", async () => {
     const { calls, client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "open-ghostty-session",
+          data: {
+            bundleId: "com.mitchellh.ghostty",
+            title: "skfiy-shell",
+            processIdentifier: 54502,
+            opened: true
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      },
       { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 },
       { stdout: "{\"outputPath\":\"/tmp/action-shot.png\"}", stderr: "", exitCode: 0 },
       { stdout: "{\"ok\":true,\"message\":\"clicked\"}", stderr: "", exitCode: 0 },
@@ -105,6 +119,18 @@ describe("DesktopHelperClient", () => {
       { stdout: "{\"ok\":true}", stderr: "", exitCode: 0 }
     ]);
 
+    await expect(
+      client.executeAction({
+        type: "open_ghostty_session",
+        title: "skfiy-shell",
+        workingDirectory: "/Users/bytedance"
+      })
+    ).resolves.toEqual({
+      bundleId: "com.mitchellh.ghostty",
+      title: "skfiy-shell",
+      pid: 54502,
+      opened: true
+    });
     await expect(
       client.executeAction({ type: "activate_app", bundleId: "com.mitchellh.ghostty" })
     ).resolves.toEqual({ ok: true });
@@ -123,6 +149,16 @@ describe("DesktopHelperClient", () => {
     });
 
     expect(calls).toEqual([
+      {
+        command: "/tmp/skfiy-helper",
+        args: [
+          "open-ghostty-session",
+          "--title",
+          "skfiy-shell",
+          "--working-directory",
+          "/Users/bytedance"
+        ]
+      },
       { command: "/tmp/skfiy-helper", args: ["activate-app", "--bundle-id", "com.mitchellh.ghostty"] },
       { command: "/tmp/skfiy-helper", args: ["screenshot", "--output", "/tmp/action-shot.png"] },
       { command: "/tmp/skfiy-helper", args: ["click", "--x", "12", "--y", "34"] },
@@ -221,6 +257,7 @@ describe("DesktopHelperClient", () => {
       client.executeAction({
         type: "observe_app",
         bundleId: "com.mitchellh.ghostty",
+        pid: 54502,
         screenshotOutputPath: "/tmp/observed.png"
       })
     ).resolves.toEqual({
@@ -237,6 +274,8 @@ describe("DesktopHelperClient", () => {
           "get-app-state",
           "--bundle-id",
           "com.mitchellh.ghostty",
+          "--pid",
+          "54502",
           "--screenshot-output",
           "/tmp/observed.png"
         ]
@@ -319,6 +358,7 @@ describe("DesktopHelperClient", () => {
     });
     await expect(client.getAppState("com.mitchellh.ghostty", "/tmp/state.png")).resolves.toEqual({
       bundleId: "com.mitchellh.ghostty",
+      pid: 4312,
       isRunning: true,
       isActive: false,
       screenshotPath: "/tmp/state.png",

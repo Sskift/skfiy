@@ -17,9 +17,16 @@ export type GhosttyTaskEvent =
       appName: string;
     }
   | {
+      type: "session_opened";
+      appName: string;
+      title: string;
+      pid: number;
+    }
+  | {
       type: "app_activated";
       appName: string;
       bundleId: string;
+      pid?: number;
     }
   | {
       type: "screenshot_before";

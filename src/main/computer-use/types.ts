@@ -25,8 +25,9 @@ export type DesktopExecutableAction =
   | { type: "click"; x: number; y: number }
   | { type: "type_text"; text: string }
   | { type: "press_key"; key: string }
-  | { type: "activate_app"; bundleId: string }
-  | { type: "observe_app"; bundleId: string; screenshotOutputPath: string };
+  | { type: "activate_app"; bundleId: string; pid?: number }
+  | { type: "open_ghostty_session"; title: string; workingDirectory?: string }
+  | { type: "observe_app"; bundleId: string; pid?: number; screenshotOutputPath: string };
 
 export interface WaitAction {
   type: "wait";
@@ -42,6 +43,16 @@ export interface ScreenshotResult {
 export interface DesktopHelperActionResult {
   ok: boolean;
   message?: string;
+}
+
+export interface OpenGhosttySessionResult {
+  bundleId: string;
+  title: string;
+  pid: number;
+  opened: true;
+  workingDirectory?: string;
+  appURL?: string;
+  arguments?: string[];
 }
 
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
@@ -63,6 +74,7 @@ export interface PermissionSummary {
 
 export interface DesktopAppState {
   bundleId: string;
+  pid?: number;
   isRunning: boolean;
   isActive: boolean;
   screenshotPath: string;
@@ -92,5 +104,6 @@ export interface WaitResult {
 export type DesktopActionResult =
   | ScreenshotResult
   | DesktopHelperActionResult
+  | OpenGhosttySessionResult
   | DesktopAppState
   | WaitResult;

@@ -140,6 +140,11 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
         status: "observing",
         message: `${prefix}Finding ${event.appName}.`
       };
+    case "session_opened":
+      return {
+        status: "observing",
+        message: `${prefix}Opened ${event.appName} session: ${event.title}.`
+      };
     case "app_activated":
       return {
         status: "executing",

@@ -8,12 +8,14 @@ import type {
   DesktopAction,
   DesktopActionResult,
   DesktopAppState,
+  OpenGhosttySessionResult,
 } from "../computer-use/types.js";
 import type { GhosttyTaskEvent } from "./events.js";
 
 const GHOSTTY_APP_NAME = "Ghostty";
 const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";
 const SKFIY_GHOSTTY_SESSION_MARKER = "skfiy";
+const SKFIY_GHOSTTY_SESSION_TITLE = "skfiy-shell";
 const TYPE_SETTLE_WAIT_MS = 90;
 const SUBMIT_SETTLE_WAIT_MS = 300;
 
@@ -70,12 +72,15 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  const apps = await client.listApps();
-  const ghostty = apps.find((app) => app.bundleId === GHOSTTY_BUNDLE_ID);
-
-  if (!ghostty) {
-    throw new Error("Ghostty is not running or could not be found.");
-  }
+  const session = readOpenGhosttySessionResult(
+    await client.executeAction({ type: "open_ghostty_session", title: SKFIY_GHOSTTY_SESSION_TITLE })
+  );
+  yield {
+    type: "session_opened",
+    appName: GHOSTTY_APP_NAME,
+    title: session.title,
+    pid: session.pid
+  };
 
   if (isAborted(options.signal)) {
     return;
@@ -83,13 +88,14 @@ export async function* runGhosttyCommandTask(
 
   assertPlanSucceeded(await runDesktopActionPlan(
     client,
-    [{ type: "activate_app", bundleId: ghostty.bundleId }],
+    [{ type: "activate_app", bundleId: session.bundleId, pid: session.pid }],
     { signal: options.signal }
   ));
   yield {
     type: "app_activated",
-    appName: ghostty.name,
-    bundleId: ghostty.bundleId
+    appName: GHOSTTY_APP_NAME,
+    bundleId: session.bundleId,
+    pid: session.pid
   };
 
   if (isAborted(options.signal)) {
@@ -98,9 +104,11 @@ export async function* runGhosttyCommandTask(
 
   const before = await observeApp(
     client,
-    ghostty.bundleId,
+    session.bundleId,
     createScreenshotPath("before", options),
-    options.signal
+    options.signal,
+    0,
+    session.pid
   );
   yield {
     type: "screenshot_before",
@@ -112,7 +120,7 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  assertOwnedGhosttySession(before);
+  assertOwnedGhosttySession(before, session.pid);
 
   assertPlanSucceeded(await runDesktopActionPlan(
     client,
@@ -147,10 +155,11 @@ export async function* runGhosttyCommandTask(
 
   const after = await observeApp(
     client,
-    ghostty.bundleId,
+    session.bundleId,
     createScreenshotPath("after", options),
     options.signal,
-    SUBMIT_SETTLE_WAIT_MS
+    SUBMIT_SETTLE_WAIT_MS,
+    session.pid
   );
   yield {
     type: "screenshot_after",
@@ -170,7 +179,8 @@ async function observeApp(
   bundleId: string,
   screenshotOutputPath: string,
   signal: AbortSignal | undefined,
-  waitMs = 0
+  waitMs = 0,
+  pid?: number
 ): Promise<DesktopAppState> {
   const actions: DesktopAction[] = [];
 
@@ -181,6 +191,7 @@ async function observeApp(
   actions.push({
     type: "observe_app",
     bundleId,
+    pid,
     screenshotOutputPath
   });
 
@@ -204,6 +215,22 @@ function readAppStateResult(step: DesktopActionPlanStepResult): DesktopAppState 
   throw new Error("Desktop observe action returned an invalid app state.");
 }
 
+function readOpenGhosttySessionResult(result: DesktopActionResult): OpenGhosttySessionResult {
+  if (isOpenGhosttySessionResult(result)) {
+    if (result.bundleId !== GHOSTTY_BUNDLE_ID) {
+      throw new Error("Opened Ghostty session reported an unexpected bundle id.");
+    }
+
+    return result;
+  }
+
+  if (isFailedActionResult(result)) {
+    throw new Error(result.message ?? "Could not open a skfiy Ghostty session.");
+  }
+
+  throw new Error("Desktop open Ghostty action returned an invalid session.");
+}
+
 function assertPlanSucceeded(results: readonly DesktopActionPlanStepResult[]): void {
   for (const step of results) {
     if (isFailedActionResult(step.result)) {
@@ -212,12 +239,42 @@ function assertPlanSucceeded(results: readonly DesktopActionPlanStepResult[]): v
   }
 }
 
-function assertOwnedGhosttySession(observation: DesktopAppState): void {
+function isOpenGhosttySessionResult(
+  result: DesktopActionResult
+): result is OpenGhosttySessionResult {
+  return (
+    typeof result === "object"
+    && result !== null
+    && "opened" in result
+    && result.opened === true
+    && "bundleId" in result
+    && typeof result.bundleId === "string"
+    && "title" in result
+    && typeof result.title === "string"
+    && "pid" in result
+    && typeof result.pid === "number"
+  );
+}
+
+function assertOwnedGhosttySession(observation: DesktopAppState, expectedPid: number): void {
   if (observation.frontmostBundleId && observation.frontmostBundleId !== GHOSTTY_BUNDLE_ID) {
     throw new Error("Observed Ghostty window is not frontmost.");
   }
 
   const windows = observation.windows ?? [];
+  const hasUnsafeWindow = windows.some((window) => {
+    const title = window.title?.toLowerCase() ?? "";
+    return title.includes("codex");
+  });
+
+  if (hasUnsafeWindow) {
+    throw new Error("Observed Ghostty window is not a skfiy-owned session.");
+  }
+
+  if (observation.pid === expectedPid) {
+    return;
+  }
+
   const hasMarkedWindow = windows.some((window) => {
     const title = window.title?.toLowerCase() ?? "";
     return title.includes(SKFIY_GHOSTTY_SESSION_MARKER);

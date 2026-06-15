@@ -8,6 +8,7 @@ import type {
   DesktopHelperClientOptions,
   DesktopHelperProcessResult,
   DesktopWindowInfo,
+  OpenGhosttySessionResult,
   PermissionSettingsTarget,
   PermissionState,
   PermissionSummary,
@@ -41,7 +42,7 @@ export class DesktopHelperClient {
 
     switch (action.type) {
       case "activate_app":
-        return this.activateApp(action.bundleId);
+        return this.activateApp(action.bundleId, action.pid);
       case "screenshot":
         return this.screenshot(action.outputPath);
       case "click":
@@ -50,8 +51,10 @@ export class DesktopHelperClient {
         return this.typeText(action.text);
       case "press_key":
         return this.pressKey(action.key);
+      case "open_ghostty_session":
+        return this.openGhosttySession(action.title, action.workingDirectory);
       case "observe_app":
-        return this.getAppState(action.bundleId, action.screenshotOutputPath);
+        return this.getAppState(action.bundleId, action.screenshotOutputPath, action.pid);
       default: {
         const unsupportedAction = action as { type: string };
         throw new Error(`Unsupported desktop action type: ${unsupportedAction.type}`);
@@ -64,12 +67,14 @@ export class DesktopHelperClient {
     return response.apps;
   }
 
-  async activateApp(bundleId: string): Promise<DesktopHelperActionResult> {
+  async activateApp(bundleId: string, pid?: number): Promise<DesktopHelperActionResult> {
     const checkedBundleId = requireNonEmptyString(bundleId, "bundleId");
+    const args = ["activate-app", "--bundle-id", checkedBundleId];
+    appendOptionalPid(args, pid);
 
     return this.runJson(
       "activate-app",
-      ["activate-app", "--bundle-id", checkedBundleId],
+      args,
       readActionResult
     );
   }
@@ -117,6 +122,20 @@ export class DesktopHelperClient {
     );
   }
 
+  async openGhosttySession(
+    title: string,
+    workingDirectory?: string
+  ): Promise<OpenGhosttySessionResult> {
+    const checkedTitle = requireNonEmptyString(title, "title");
+    const args = ["open-ghostty-session", "--title", checkedTitle];
+
+    if (workingDirectory !== undefined) {
+      args.push("--working-directory", requireNonEmptyString(workingDirectory, "workingDirectory"));
+    }
+
+    return this.runJson("open-ghostty-session", args, readOpenGhosttySessionResult);
+  }
+
   async selectInputSource(sourceId: string): Promise<DesktopHelperActionResult> {
     const checkedSourceId = requireNonEmptyString(sourceId, "sourceId");
     return this.runJson(
@@ -130,22 +149,27 @@ export class DesktopHelperClient {
     return this.runJson("double-tap-fn", ["double-tap-fn"], readActionResult);
   }
 
-  async getAppState(bundleId: string, screenshotOutputPath: string): Promise<DesktopAppState> {
+  async getAppState(
+    bundleId: string,
+    screenshotOutputPath: string,
+    pid?: number
+  ): Promise<DesktopAppState> {
     const checkedBundleId = requireNonEmptyString(bundleId, "bundleId");
     const checkedScreenshotOutputPath = requireNonEmptyString(
       screenshotOutputPath,
       "screenshotOutputPath"
     );
+    const args = [
+      "get-app-state",
+      "--bundle-id",
+      checkedBundleId
+    ];
+    appendOptionalPid(args, pid);
+    args.push("--screenshot-output", checkedScreenshotOutputPath);
 
     return this.runJson(
       "get-app-state",
-      [
-        "get-app-state",
-        "--bundle-id",
-        checkedBundleId,
-        "--screenshot-output",
-        checkedScreenshotOutputPath
-      ],
+      args,
       readAppState
     );
   }
@@ -332,7 +356,47 @@ function readActionResult(payload: unknown, commandName: string): DesktopHelperA
     return message === undefined ? { ok: record.activated } : { ok: record.activated, message };
   }
 
+  if (typeof record.opened === "boolean") {
+    return message === undefined ? { ok: record.opened } : { ok: record.opened, message };
+  }
+
   return message === undefined ? { ok: true } : { ok: true, message };
+}
+
+function readOpenGhosttySessionResult(
+  payload: unknown,
+  commandName: string
+): OpenGhosttySessionResult {
+  const record = readRecord(payload, commandName);
+  const opened = readBoolean(record, "opened", commandName);
+
+  if (!opened) {
+    throw invalidShape(commandName, "expected opened to be true");
+  }
+
+  const result: OpenGhosttySessionResult = {
+    bundleId: readString(record, "bundleId", commandName),
+    title: readString(record, "title", commandName),
+    pid: readProcessIdentifier(record, commandName),
+    opened: true
+  };
+  const workingDirectory = readOptionalString(record, "workingDirectory", commandName);
+  const appURL = readOptionalString(record, "appURL", commandName);
+  const args = readOptionalStringArray(record, "arguments", commandName);
+
+  if (workingDirectory !== undefined) {
+    result.workingDirectory = workingDirectory;
+  }
+
+  if (appURL !== undefined) {
+    result.appURL = appURL;
+  }
+
+  if (args !== undefined) {
+    result.arguments = args;
+  }
+
+  return result;
 }
 
 function readAppState(payload: unknown, commandName: string): DesktopAppState {
@@ -343,6 +407,7 @@ function readAppState(payload: unknown, commandName: string): DesktopAppState {
 
     return {
       bundleId: readString(record.app, "bundleId", commandName),
+      pid: readProcessIdentifier(record.app, commandName),
       isRunning: true,
       isActive: readBoolean(record.app, "isActive", commandName),
       screenshotPath:
@@ -356,6 +421,7 @@ function readAppState(payload: unknown, commandName: string): DesktopAppState {
 
   return {
     bundleId: readString(record, "bundleId", commandName),
+    pid: readOptionalProcessIdentifier(record, commandName),
     isRunning: readBoolean(record, "isRunning", commandName),
     isActive: readBoolean(record, "isActive", commandName),
     screenshotPath: readString(record, "screenshotPath", commandName),
@@ -482,6 +548,24 @@ function requireFiniteNumber(value: unknown, label: string): number {
   return value;
 }
 
+function requirePositiveInteger(value: unknown, label: string): number {
+  const number = requireFiniteNumber(value, label);
+
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+
+  return number;
+}
+
+function appendOptionalPid(args: string[], pid: number | undefined): void {
+  if (pid === undefined) {
+    return;
+  }
+
+  args.push("--pid", String(requirePositiveInteger(pid, "pid")));
+}
+
 function requirePermissionSettingsTarget(value: unknown): PermissionSettingsTarget {
   if (
     value === "screen-recording"
@@ -535,6 +619,24 @@ function readOptionalString(
   return value;
 }
 
+function readOptionalStringArray(
+  record: Record<string, unknown>,
+  key: string,
+  commandName: string
+): string[] | undefined {
+  const value = record[key];
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    throw invalidShape(commandName, `expected ${key} to be an array of strings when provided`);
+  }
+
+  return value;
+}
+
 function readBoolean(
   record: Record<string, unknown>,
   key: string,
@@ -576,6 +678,36 @@ function readNumber(
 
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw invalidShape(commandName, `expected ${key} to be a finite number`);
+  }
+
+  return value;
+}
+
+function readProcessIdentifier(
+  record: Record<string, unknown>,
+  commandName: string
+): number {
+  const value = record.pid ?? record.processIdentifier;
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw invalidShape(commandName, "expected pid/processIdentifier to be a positive integer");
+  }
+
+  return value;
+}
+
+function readOptionalProcessIdentifier(
+  record: Record<string, unknown>,
+  commandName: string
+): number | undefined {
+  const value = record.pid ?? record.processIdentifier;
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw invalidShape(commandName, "expected pid/processIdentifier to be a positive integer when provided");
   }
 
   return value;

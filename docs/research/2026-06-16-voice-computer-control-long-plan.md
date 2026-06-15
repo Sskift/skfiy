@@ -171,27 +171,38 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
 
 Goal: make the first native app scenario reliable enough to demo without embarrassing blind typing.
 
-- Create a dedicated Ghostty session strategy:
-  - [ ] open new Ghostty window/tab for skfiy
-  - [ ] label prompt with a marker
+- [ ] Create a dedicated Ghostty session strategy:
+  - [x] open new Ghostty window/tab/process for skfiy
+  - [ ] label skfiy Ghostty context with marker title/status/prompt state
+  - [x] scope activate/observe to the opened Ghostty process id
   - [x] refuse to type into Codex TUI/editor/unknown state
-- Add `observe_app` replay records with screenshot paths and accessibility trust.
-- Implement action verification:
+- [ ] Add product-path `observe_app` replay records with screenshot paths and accessibility trust.
+- [ ] Implement action verification:
   - after activate, confirm frontmost bundle
   - after type/enter, capture after screenshot
   - if verification fails, ask user instead of continuing
-- Add a primitive planner loop for terminal tasks:
+- [ ] Add a primitive planner loop for terminal tasks:
   - parse command intent
   - classify risk
   - prepare session
   - execute
   - verify
   - summarize
-- Add tests and real task scripts:
+- [ ] Add tests and real task scripts:
   - `pwd`
   - `date`
   - `mkdir skfiy-demo` requires approval
   - `rm -rf` requires approval and defaults to deny
+- Week-2 acceptance evidence:
+  - launch command: `open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app`
+  - trigger path: packaged app product path, not direct helper
+  - product path: renderer -> preload -> main -> helper -> Ghostty
+  - Ghostty context: skfiy-owned window/tab/process plus marker title/status/prompt state
+  - task: "打开 Ghostty 执行 pwd 并截图"
+  - replay: `observe_app` record path with accessibility trust state
+  - screenshots: before and after absolute paths
+  - events: observing -> executing -> submitted -> completed
+  - result: passed, blocked, or needs-user-confirmation
 - Week-2 demo criteria:
   - user says "打开 Ghostty 执行 pwd 并截图"
   - skfiy opens/uses its own Ghostty context

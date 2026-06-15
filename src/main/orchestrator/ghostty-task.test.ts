@@ -21,6 +21,13 @@ function createDesktopClient(): DesktopClient & { executeAction: ReturnType<type
     ]),
     executeAction: vi.fn(async (action: DesktopExecutableAction): Promise<DesktopActionResult> => {
       switch (action.type) {
+        case "open_ghostty_session":
+          return {
+            bundleId: "com.mitchellh.ghostty",
+            title: "skfiy-shell",
+            pid: 54502,
+            opened: true
+          };
         case "activate_app":
         case "type_text":
         case "press_key":
@@ -28,6 +35,7 @@ function createDesktopClient(): DesktopClient & { executeAction: ReturnType<type
         case "observe_app":
           return {
             bundleId: action.bundleId,
+            pid: action.pid,
             isRunning: true,
             isActive: true,
             screenshotPath: action.screenshotOutputPath,
@@ -67,6 +75,7 @@ describe("runGhosttyCommandTask", () => {
     expect(events.map((event) => event.type)).toEqual([
       "started",
       "locating_app",
+      "session_opened",
       "app_activated",
       "screenshot_before",
       "typing",
@@ -79,6 +88,7 @@ describe("runGhosttyCommandTask", () => {
       path: "/tmp/before.png",
       observation: {
         screenshotPath: "/tmp/before.png",
+        pid: 54502,
         frontmostBundleId: "com.mitchellh.ghostty",
         accessibilityTrusted: true,
         windows: [
@@ -98,27 +108,34 @@ describe("runGhosttyCommandTask", () => {
         accessibilityTrusted: true
       }
     });
-    expect(client.listApps).toHaveBeenCalledTimes(1);
+    expect(client.listApps).not.toHaveBeenCalled();
     expect(client.executeAction).toHaveBeenNthCalledWith(1, {
-      type: "activate_app",
-      bundleId: "com.mitchellh.ghostty"
+      type: "open_ghostty_session",
+      title: "skfiy-shell"
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(2, {
-      type: "observe_app",
+      type: "activate_app",
       bundleId: "com.mitchellh.ghostty",
-      screenshotOutputPath: "/tmp/before.png"
+      pid: 54502
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(3, {
+      type: "observe_app",
+      bundleId: "com.mitchellh.ghostty",
+      pid: 54502,
+      screenshotOutputPath: "/tmp/before.png"
+    });
+    expect(client.executeAction).toHaveBeenNthCalledWith(4, {
       type: "type_text",
       text: "pwd"
     });
-    expect(client.executeAction).toHaveBeenNthCalledWith(4, {
+    expect(client.executeAction).toHaveBeenNthCalledWith(5, {
       type: "press_key",
       key: "enter"
     });
-    expect(client.executeAction).toHaveBeenNthCalledWith(5, {
+    expect(client.executeAction).toHaveBeenNthCalledWith(6, {
       type: "observe_app",
       bundleId: "com.mitchellh.ghostty",
+      pid: 54502,
       screenshotOutputPath: "/tmp/after.png"
     });
   });
@@ -140,10 +157,20 @@ describe("runGhosttyCommandTask", () => {
     const client = createDesktopClient();
     const controller = new AbortController();
     client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
+      if (action.type === "open_ghostty_session") {
+        return {
+          bundleId: "com.mitchellh.ghostty",
+          title: "skfiy-shell",
+          pid: 54502,
+          opened: true
+        };
+      }
+
       if (action.type === "observe_app") {
         controller.abort();
         return {
           bundleId: action.bundleId,
+          pid: action.pid,
           isRunning: true,
           isActive: true,
           screenshotPath: action.screenshotOutputPath
@@ -163,18 +190,29 @@ describe("runGhosttyCommandTask", () => {
     expect(events.map((event) => event.type)).toEqual([
       "started",
       "locating_app",
+      "session_opened",
       "app_activated",
       "screenshot_before"
     ]);
-    expect(client.executeAction).toHaveBeenCalledTimes(2);
+    expect(client.executeAction).toHaveBeenCalledTimes(3);
   });
 
   it("refuses to type when the observed Ghostty window is not a skfiy session", async () => {
     const client = createDesktopClient();
     client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
+      if (action.type === "open_ghostty_session") {
+        return {
+          bundleId: "com.mitchellh.ghostty",
+          title: "skfiy-shell",
+          pid: 54502,
+          opened: true
+        };
+      }
+
       if (action.type === "observe_app") {
         return {
           bundleId: action.bundleId,
+          pid: action.pid,
           isRunning: true,
           isActive: true,
           screenshotPath: action.screenshotOutputPath,
@@ -202,29 +240,43 @@ describe("runGhosttyCommandTask", () => {
     });
   });
 
-  it("fails closed when the running app is not the exact Ghostty bundle id", async () => {
+  it("fails closed when the opened session is not the exact Ghostty bundle id", async () => {
     const client = createDesktopClient();
-    vi.mocked(client.listApps).mockResolvedValueOnce([
-      { name: "Ghostty", bundleId: "com.example.fakeghostty" }
-    ]);
+    client.executeAction.mockResolvedValueOnce({
+      bundleId: "com.example.fakeghostty",
+      title: "skfiy-shell",
+      pid: 54502,
+      opened: true
+    });
 
     await expect(collectEvents(runGhosttyCommandTask(client, "pwd"))).rejects.toThrow(
-      "Ghostty is not running or could not be found."
+      "Opened Ghostty session reported an unexpected bundle id."
     );
-    expect(client.executeAction).not.toHaveBeenCalled();
+    expect(client.executeAction).toHaveBeenCalledTimes(1);
+    expect(client.executeAction).not.toHaveBeenCalledWith({
+      type: "type_text",
+      text: "pwd"
+    });
   });
 
   it("fails closed when Ghostty cannot become the focused app", async () => {
     const client = createDesktopClient();
-    client.executeAction.mockResolvedValueOnce({
-      ok: false,
-      message: "Ghostty did not become frontmost."
-    });
+    client.executeAction
+      .mockResolvedValueOnce({
+        bundleId: "com.mitchellh.ghostty",
+        title: "skfiy-shell",
+        pid: 54502,
+        opened: true
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        message: "Ghostty did not become frontmost."
+      });
 
     await expect(
       collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }))
     ).rejects.toThrow("Ghostty did not become frontmost.");
-    expect(client.executeAction).toHaveBeenCalledTimes(1);
+    expect(client.executeAction).toHaveBeenCalledTimes(2);
   });
 
   it("runs an approved high-risk command after emitting approval context", async () => {
@@ -241,6 +293,7 @@ describe("runGhosttyCommandTask", () => {
       "started",
       "approval_required",
       "locating_app",
+      "session_opened",
       "app_activated",
       "screenshot_before",
       "typing",
