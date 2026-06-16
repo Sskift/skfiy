@@ -54,6 +54,7 @@ describe("dogfood tester runner", () => {
       "~/Desktop/skfiy-finder-dogfood",
       "--chrome-current-page-endpoint",
       "http://127.0.0.1:9222",
+      "--file-issue",
       "--require-passed",
       "--allow-synthetic-tester-id"
     ], defaults)).toMatchObject({
@@ -67,14 +68,17 @@ describe("dogfood tester runner", () => {
       appPath: "/Applications/skfiy.app",
       finderTargetDir: path.join(os.homedir(), "Desktop/skfiy-finder-dogfood"),
       chromeCurrentPageEndpoint: "http://127.0.0.1:9222",
+      fileIssue: true,
       requirePassed: true,
       allowSyntheticTesterId: true
     });
     expect(createDogfoodTesterHelpText()).toContain("dogfood:tester");
     expect(createDogfoodTesterHelpText()).toContain("packaged-app smokes sequentially");
     expect(createDogfoodTesterHelpText()).toContain("does not fabricate tester reports");
+    expect(createDogfoodTesterHelpText()).toContain("By default it does not file GitHub issues");
     expect(createDogfoodTesterHelpText()).toContain("app bundle identity preflight");
     expect(createDogfoodTesterHelpText()).toContain("strict permission preflight");
+    expect(createDogfoodTesterHelpText()).toContain("--file-issue");
     expect(createDogfoodTesterHelpText()).toContain("Reserved tester id prefixes");
   });
 
@@ -274,6 +278,58 @@ describe("dogfood tester runner", () => {
     );
     expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
       "Do not add `dogfood:accepted` or `workflow:*` labels yourself."
+    );
+  });
+
+  it("optionally files the generated report issue without accepting it", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      "create": {
+        stdout: "https://github.com/Sskift/skfiy/issues/211\n",
+        exitCode: 0
+      }
+    });
+
+    await expect(runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      issueOutputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
+      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
+      fileIssue: true,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "completed",
+      filedIssue: {
+        issueUrl: "https://github.com/Sskift/skfiy/issues/211"
+      }
+    });
+
+    expect(io.commands.at(-1)).toMatchObject({
+      command: "gh",
+      args: [
+        "issue",
+        "create",
+        "--repo",
+        "Sskift/skfiy",
+        "--title",
+        "skfiy dogfood report: tester-a",
+        "--body-file",
+        "/repo/.skfiy-dogfood/issues/tester-a.md"
+      ]
+    });
+    expect(io.commands.at(-1)?.args).not.toContain("--label");
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "Filed GitHub report: https://github.com/Sskift/skfiy/issues/211"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "This runner did not accept the report, add labels, edit the tracking issue, or count it toward the cohort."
     );
   });
 
