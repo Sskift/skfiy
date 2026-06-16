@@ -1,4 +1,8 @@
 import type { DesktopAppState, DesktopWindowInfo, OcrLabelObservation } from "./types.js";
+import {
+  createSensitiveTextPatterns,
+  createSensitiveTitlePatterns
+} from "./sensitive-ui-policy.js";
 
 export type AppRecoveryDecision =
   | { type: "continue" }
@@ -19,15 +23,17 @@ export function decideAppRecovery(
   target: AppRecoveryTarget
 ): AppRecoveryDecision {
   const windows = observation.windows ?? [];
+  const sensitiveTitlePatterns = createSensitiveTitlePatterns(target.sensitiveTitlePatterns);
+  const sensitiveTextPatterns = createSensitiveTextPatterns(target.sensitiveTextPatterns);
 
-  if (hasSensitiveWindow(windows, target.sensitiveTitlePatterns ?? [])) {
+  if (hasSensitiveWindow(windows, sensitiveTitlePatterns)) {
     return {
       type: "pause",
       reason: "Sensitive UI is visible."
     };
   }
 
-  if (hasSensitiveText(observation.ocrLabels ?? [], target.sensitiveTextPatterns ?? [])) {
+  if (hasSensitiveText(observation.ocrLabels ?? [], sensitiveTextPatterns)) {
     return {
       type: "pause",
       reason: "Sensitive UI text is visible."

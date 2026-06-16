@@ -76,6 +76,36 @@ describe("decideAppRecovery", () => {
     });
   });
 
+  it("pauses on common sensitive window titles by default", () => {
+    expect(decideAppRecovery(createState({
+      windows: [
+        {
+          title: "Keychain Access wants to use your confidential information",
+          layer: 0,
+          bounds: { x: 10, y: 20, width: 640, height: 480 }
+        }
+      ]
+    }), TARGET)).toEqual({
+      type: "pause",
+      reason: "Sensitive UI is visible."
+    });
+  });
+
+  it("pauses on common sensitive OCR labels by default", () => {
+    expect(decideAppRecovery(createState({
+      ocrLabels: [
+        {
+          text: "Enter credit card CVV",
+          confidence: 0.94,
+          bounds: { x: 40, y: 180, width: 220, height: 24 }
+        }
+      ]
+    }), TARGET)).toEqual({
+      type: "pause",
+      reason: "Sensitive UI text is visible."
+    });
+  });
+
   it("pauses when a sensitive window title is visible", () => {
     expect(decideAppRecovery(createState({
       windows: [

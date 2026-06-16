@@ -284,16 +284,19 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] if duplicate target, ask user
   - [x] if sensitive UI appears, pause
     - Ghostty recovery now checks both sensitive window titles and OCR text such as passwords, API tokens, access tokens, private keys, secrets, credentials, and recovery keys before typing; it repeats the sensitive check after a one-shot activate/open recovery before any user command is entered
+    - common Computer Use recovery now pauses by default on sensitive window titles and OCR labels across app targets, including password/passkey/keychain/security prompts, token/key/credential text, verification codes, payment/card/CVV, and recovery/seed phrases
 - Add Chrome proof of concept:
   - [x] prefer CDP/extension-like structured control
     - CDP mode selection plus navigate, click-selector, and extract-text command builders exist
   - [x] use screenshot fallback for non-structured pages
     - fallback mode is explicit when no CDP endpoint is available
+  - remaining product evidence gap: Chrome is still a pure-function POC; it needs a product-path browser smoke artifact, alpha manifest field, dogfood verifier gate, and issue-template evidence before it counts as dogfood coverage
 - Add Finder proof of concept:
   - [x] organize a test folder
     - safe planner groups files into Images/Documents/Code/Archives/Other folders
   - [x] no destructive delete without approval
     - planner emits only create-folder and move-file operations, and local mutation requires approval
+  - remaining product evidence gap: Finder is still a safe planner POC; it needs a product-path test-folder organizer task, smoke artifact, alpha manifest field, dogfood verifier gate, and issue-template evidence before it counts as dogfood coverage
 - Start evaluation scorecard:
   - [x] task success rate
   - [x] number of manual interventions
