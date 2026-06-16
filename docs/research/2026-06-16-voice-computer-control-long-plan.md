@@ -222,6 +222,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - [x] `pwd`
   - [x] `date`
   - [x] `mkdir skfiy-demo` requires approval
+  - [x] `pbpaste` and `pbcopy` clipboard read/write commands require approval
   - [x] `rm -rf` requires approval and defaults to deny
   - [x] packaged product-path smoke script: `npm run smoke:ghostty`
   - [x] packaged product-path smoke matrix: `npm run smoke:ghostty -- --matrix`

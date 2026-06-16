@@ -36,10 +36,12 @@ describe("Ghostty product smoke script", () => {
 
     const {
       buildSmokeRunPlan,
-      createDefaultSmokeOptions
+      createDefaultSmokeOptions,
+      createHelpText
     } = await import(pathToFileURL(modulePath).href) as {
       buildSmokeRunPlan: (options: Record<string, unknown>) => unknown;
       createDefaultSmokeOptions: (rootDir: string) => Record<string, unknown>;
+      createHelpText: (defaults: Record<string, unknown>) => string;
     };
     const options = {
       ...createDefaultSmokeOptions(process.cwd()),
@@ -63,12 +65,23 @@ describe("Ghostty product smoke script", () => {
         expectedResults: ["needs-user-confirmation"]
       },
       {
+        id: "clipboard-read-approval",
+        command: "pbpaste",
+        expectedResults: ["needs-user-confirmation"]
+      },
+      {
+        id: "clipboard-write-approval",
+        command: "echo skfiy | pbcopy",
+        expectedResults: ["needs-user-confirmation"]
+      },
+      {
         id: "rm-rf-deny",
         command: "rm -rf ~/Desktop",
         approvalAction: "deny",
         expectedResults: ["denied"]
       }
     ]);
+    expect(createHelpText(createDefaultSmokeOptions("/repo"))).toContain("clipboard approvals");
   });
 
   it("parses an output artifact path for persistent smoke evidence", async () => {

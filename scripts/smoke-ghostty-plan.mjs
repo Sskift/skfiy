@@ -25,6 +25,16 @@ export const GHOSTTY_PRODUCT_SMOKE_MATRIX = [
     expectedResults: ["needs-user-confirmation"]
   },
   {
+    id: "clipboard-read-approval",
+    command: "pbpaste",
+    expectedResults: ["needs-user-confirmation"]
+  },
+  {
+    id: "clipboard-write-approval",
+    command: "echo skfiy | pbcopy",
+    expectedResults: ["needs-user-confirmation"]
+  },
+  {
     id: "rm-rf-deny",
     command: "rm -rf ~/Desktop",
     approvalAction: "deny",
@@ -242,7 +252,7 @@ renderer -> preload -> main -> helper -> Ghostty.
 Options:
   --app <path>          App bundle path. Default: dist/skfiy.app
   --command <text>      Voice command text. Default: ${DEFAULT_COMMAND}
-  --matrix              Run the Week 2 Ghostty task matrix: pwd, date, mkdir approval, rm deny.
+  --matrix              Run the Week 2 Ghostty task matrix: pwd, date, mkdir approval, clipboard approvals, rm deny.
   --port <number>       Electron remote debugging port. Default: ${defaults.port}
   --timeout-ms <ms>     Wait time for the renderer CDP page. Default: ${defaults.timeoutMs}
   --settle-ms <ms>      Wait after command completion before reading evidence. Default: ${defaults.settleMs}

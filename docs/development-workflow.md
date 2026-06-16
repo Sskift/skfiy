@@ -154,6 +154,7 @@ The smoke output is JSON and includes launch identity, task events, permissions,
 
 - Read-only command runs without extra approval.
 - Local mutation asks for approval.
+- Clipboard read/write commands ask for approval.
 - Destructive command asks for approval and defaults to deny.
 - Stop/panic cancels the active turn.
 
