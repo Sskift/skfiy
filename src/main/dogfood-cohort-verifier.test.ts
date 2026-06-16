@@ -88,7 +88,8 @@ describe("dogfood cohort verifier", () => {
         expect.objectContaining({ id: "report.tester-a.manifestPath", ok: true }),
         expect.objectContaining({ id: "report.tester-a.artifacts", ok: true }),
         expect.objectContaining({ id: "report.tester-a.permissionStates", ok: true }),
-        expect.objectContaining({ id: "report.tester-a.runnerHasTmux", ok: true })
+        expect.objectContaining({ id: "report.tester-a.runnerHasTmux", ok: true }),
+        expect.objectContaining({ id: "report.tester-a.source", ok: true })
       ])
     });
   });
@@ -136,6 +137,32 @@ describe("dogfood cohort verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("cohort.workflowCoverage.browser-fallback")
+      ])
+    });
+  });
+
+  it("fails reports without accepted GitHub issue source metadata", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const noSourceReport = createReport("tester-a", ["coding-terminal", "screenshot-inspection"]);
+    delete (noSourceReport as { source?: unknown }).source;
+
+    await expect(verifyDogfoodCohort({
+      cohortPath
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        noSourceReport,
+        createReport("tester-b", ["finder-file"]),
+        createReport("tester-c", ["browser-fallback"])
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("report.tester-a.source")
       ])
     });
   });
@@ -235,8 +262,8 @@ describe("dogfood cohort verifier", () => {
     expect(io.files[summaryPath]).toContain("Result: failed");
     expect(io.files[summaryPath]).toContain("Distinct testers: 2/3-5");
     expect(io.files[summaryPath]).toContain("- browser-fallback");
-    expect(io.files[summaryPath]).toContain("| tester-a | blocked | coding-terminal, screenshot-inspection | yes |");
-    expect(io.files[summaryPath]).toContain("| tester-b | blocked | finder-file | yes |");
+    expect(io.files[summaryPath]).toContain("| tester-a | blocked | coding-terminal, screenshot-inspection | yes | https://github.com/Sskift/skfiy/issues/a |");
+    expect(io.files[summaryPath]).toContain("| tester-b | blocked | finder-file | yes | https://github.com/Sskift/skfiy/issues/b |");
   });
 
   function createCohort(reports: unknown[]) {
@@ -261,6 +288,13 @@ describe("dogfood cohort verifier", () => {
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       workflows,
+      source: {
+        type: "github-issue",
+        issueUrl: `https://github.com/Sskift/skfiy/issues/${testerId.replace("tester-", "")}`,
+        collectedAt: "2026-06-16T12:00:00.000Z",
+        generatedBy: "dogfood:report",
+        artifactSource: "alpha-manifest-smoke-artifacts"
+      },
       permissionStates: {
         screenRecording: { state: result === "passed" ? "granted" : "denied" },
         accessibility: { state: result === "passed" ? "granted" : "denied" },

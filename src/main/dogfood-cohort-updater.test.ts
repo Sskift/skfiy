@@ -44,16 +44,20 @@ describe("dogfood cohort updater", () => {
       "--tester-id",
       "tester-a",
       "--workflows",
-      "coding-terminal,screenshot-inspection"
+      "coding-terminal,screenshot-inspection",
+      "--issue-url",
+      "https://github.com/Sskift/skfiy/issues/123"
     ], defaults)).toMatchObject({
       reportPath: path.resolve(".skfiy-dogfood/reports/tester-a.json"),
       cohortPath: path.resolve(".skfiy-dogfood/internal-alpha-cohort.json"),
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
       testerId: "tester-a",
-      workflows: ["coding-terminal", "screenshot-inspection"]
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123"
     });
     expect(createDogfoodReportHelpText()).toContain("dogfood:report");
     expect(createDogfoodReportHelpText()).toContain("--manifest");
+    expect(createDogfoodReportHelpText()).toContain("--issue-url");
     expect(createDogfoodReportHelpText()).toContain("3-5 distinct testers");
   });
 
@@ -91,6 +95,7 @@ describe("dogfood cohort updater", () => {
       manifestPath,
       testerId: "tester-a",
       workflows: ["coding-terminal", "screenshot-inspection"],
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
       reportPath,
       cohortPath,
       now: () => "2026-06-16T12:00:00.000Z"
@@ -112,6 +117,13 @@ describe("dogfood cohort updater", () => {
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       workflows: ["coding-terminal", "screenshot-inspection"],
+      source: {
+        type: "github-issue",
+        issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+        collectedAt: "2026-06-16T12:00:00.000Z",
+        generatedBy: "dogfood:report",
+        artifactSource: "alpha-manifest-smoke-artifacts"
+      },
       permissionStates: {
         screenRecording: { state: "denied" },
         accessibility: { state: "denied" },
@@ -139,6 +151,30 @@ describe("dogfood cohort updater", () => {
         expect.objectContaining({ testerId: "tester-a", result: "blocked" })
       ]
     });
+  });
+
+  it("requires a GitHub issue URL when generating a real dogfood report from a manifest", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123"
+      }
+    });
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal"],
+      reportPath,
+      cohortPath
+    }, io)).rejects.toThrow("Missing --issue-url <url>");
   });
 
   it("creates a cohort file from a single report without pretending the cohort is complete", async () => {
@@ -282,6 +318,13 @@ describe("dogfood cohort updater", () => {
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       workflows,
+      source: {
+        type: "github-issue",
+        issueUrl: `https://github.com/Sskift/skfiy/issues/${testerId.replace("tester-", "")}`,
+        collectedAt: "2026-06-16T12:00:00.000Z",
+        generatedBy: "dogfood:report",
+        artifactSource: "alpha-manifest-smoke-artifacts"
+      },
       permissionStates: {
         screenRecording: { state: result === "passed" ? "granted" : "denied" },
         accessibility: { state: result === "passed" ? "granted" : "denied" },

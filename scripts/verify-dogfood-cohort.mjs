@@ -162,7 +162,8 @@ export function createDogfoodCohortHelpText() {
     "",
     "Each report must include testerId, manifestPath, appLaunchViaOpen=true, runnerHasTmux=false,",
     "permissionStates for Screen Recording, Accessibility, Microphone, and Speech Recognition,",
-    "and UI/Ghostty/Chrome/Finder/voice smoke artifact paths from the packaged app.",
+    "UI/Ghostty/Chrome/Finder/voice smoke artifact paths from the packaged app,",
+    "and source.issueUrl/source.collectedAt linking back to an accepted GitHub dogfood issue.",
     "",
     "Use --summary to write a short Markdown readiness report for maintainers."
   ].join("\n");
@@ -213,8 +214,8 @@ export function createDogfoodCohortMarkdown({
     "",
     "## Reports",
     "",
-    "| testerId | result | workflows | permission-blocked |",
-    "| --- | --- | --- | --- |"
+    "| testerId | result | workflows | permission-blocked | issue |",
+    "| --- | --- | --- | --- | --- |"
   );
 
   for (const report of reports) {
@@ -223,8 +224,11 @@ export function createDogfoodCohortMarkdown({
     const workflows = Array.isArray(report?.workflows) && report.workflows.length > 0
       ? report.workflows.join(", ")
       : "none";
+    const issueUrl = typeof report?.source?.issueUrl === "string"
+      ? report.source.issueUrl
+      : "missing";
     lines.push(
-      `| ${escapeMarkdownTableCell(testerId)} | ${escapeMarkdownTableCell(reportResult)} | ${escapeMarkdownTableCell(workflows)} | ${hasBlockingPermissionState(report?.permissionStates) ? "yes" : "no"} |`
+      `| ${escapeMarkdownTableCell(testerId)} | ${escapeMarkdownTableCell(reportResult)} | ${escapeMarkdownTableCell(workflows)} | ${hasBlockingPermissionState(report?.permissionStates) ? "yes" : "no"} | ${escapeMarkdownTableCell(issueUrl)} |`
     );
   }
 
@@ -288,6 +292,12 @@ function verifyReport(report, index, cohortManifestPath, checks) {
     hasRequiredPermissionStates(report?.permissionStates),
     "report permissionStates must include Screen Recording, Accessibility, Microphone, and Speech Recognition states"
   );
+  check(
+    checks,
+    `${checkId}.source`,
+    hasRequiredSource(report?.source),
+    "report source must include type=github-issue, source.issueUrl, collectedAt, and generatedBy=dogfood:report"
+  );
 }
 
 function createCohortSummary(reports, testerIds, requiredWorkflowCoverage) {
@@ -299,6 +309,7 @@ function createCohortSummary(reports, testerIds, requiredWorkflowCoverage) {
     permissionBlockedReports: reports.filter((report) =>
       hasBlockingPermissionState(report?.permissionStates)
     ).length,
+    sourceLinkedReports: reports.filter((report) => hasRequiredSource(report?.source)).length,
     requiredWorkflowCoverage
   };
 }
@@ -356,6 +367,27 @@ function hasRequiredPermissionStates(value) {
   return REQUIRED_PERMISSION_KEYS.every((key) =>
     typeof value[key]?.state === "string" && value[key].state.length > 0
   );
+}
+
+function hasRequiredSource(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && value.type === "github-issue"
+    && typeof value.issueUrl === "string"
+    && isAcceptedIssueUrl(value.issueUrl)
+    && typeof value.collectedAt === "string"
+    && !Number.isNaN(Date.parse(value.collectedAt))
+    && value.generatedBy === "dogfood:report";
+}
+
+function isAcceptedIssueUrl(value) {
+  try {
+    const url = new URL(value.trim());
+    return (url.protocol === "https:" || url.protocol === "http:")
+      && url.pathname.includes("/issues/");
+  } catch {
+    return false;
+  }
 }
 
 function hasBlockingPermissionState(value) {

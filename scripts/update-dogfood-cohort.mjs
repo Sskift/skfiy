@@ -15,6 +15,7 @@ export function createDefaultDogfoodReportOptions(rootDir = DEFAULT_ROOT_DIR) {
     reportPath: undefined,
     manifestPath: undefined,
     testerId: undefined,
+    issueUrl: undefined,
     workflows: [],
     cohortPath: path.join(rootDir, ".skfiy-dogfood", "internal-alpha-cohort.json"),
     cohortName: DEFAULT_COHORT_NAME,
@@ -39,6 +40,10 @@ export function parseDogfoodReportArgs(argv, defaults) {
         break;
       case "--tester-id":
         options.testerId = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--issue-url":
+        options.issueUrl = readValue(argv, index, arg);
         index += 1;
         break;
       case "--workflows":
@@ -136,6 +141,12 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
   if (!Array.isArray(options.workflows) || options.workflows.length === 0) {
     throw new Error("Missing --workflows <workflow[,workflow]>.");
   }
+  if (typeof options.issueUrl !== "string" || options.issueUrl.trim().length === 0) {
+    throw new Error("Missing --issue-url <url>.");
+  }
+  if (!isAcceptedIssueUrl(options.issueUrl)) {
+    throw new Error("--issue-url must be an http(s) GitHub issue URL.");
+  }
 
   const manifest = await io.readJson(options.manifestPath);
   const smokePaths = readManifestSmokePaths(manifest);
@@ -158,6 +169,13 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
     appLaunchViaOpen: Object.values(smokeArtifacts).every((artifact) => artifact?.appLaunchViaOpen === true),
     runnerHasTmux: Object.values(smokeArtifacts).some((artifact) => artifact?.runnerHasTmux === true),
     workflows: options.workflows,
+    source: {
+      type: "github-issue",
+      issueUrl: options.issueUrl.trim(),
+      collectedAt: typeof options.now === "function" ? options.now() : new Date().toISOString(),
+      generatedBy: "dogfood:report",
+      artifactSource: "alpha-manifest-smoke-artifacts"
+    },
     permissionStates: readPermissionStates(smokeArtifacts),
     artifacts: smokePaths,
     artifactResults
@@ -167,10 +185,11 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
 export function createDogfoodReportHelpText() {
   return [
     "Usage: npm run dogfood:report -- --report <path> [--cohort <path>]",
-    "       npm run dogfood:report -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> --report <path> [--cohort <path>]",
+    "       npm run dogfood:report -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> --issue-url <accepted-issue-url> --report <path> [--cohort <path>]",
     "",
     "Adds or replaces one real single-user dogfood report in a cohort JSON file.",
     "With --manifest, generates the single-user report from the alpha manifest and referenced smoke artifacts first.",
+    "Use --issue-url to link the generated report to the accepted GitHub dogfood issue.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
     "",
     "After collecting 3-5 distinct testers and all required workflows, run:",
@@ -327,6 +346,16 @@ function readWorkflowList(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function isAcceptedIssueUrl(value) {
+  try {
+    const url = new URL(value.trim());
+    return (url.protocol === "https:" || url.protocol === "http:")
+      && url.pathname.includes("/issues/");
+  } catch {
+    return false;
+  }
 }
 
 async function runCli() {
