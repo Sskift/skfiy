@@ -245,11 +245,12 @@ npm run dogfood:report -- \
   --tester-id tester-a \
   --workflows coding-terminal,screenshot-inspection \
   --issue-url https://github.com/Sskift/skfiy/issues/<accepted-dogfood-issue> \
+  --issue-labels dogfood:accepted,workflow:coding-terminal,workflow:screenshot-inspection \
   --report .skfiy-dogfood/reports/tester-a.json \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json
 ```
 
-The report helper is incremental. It reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, derives `result`, `appLaunchViaOpen`, `runnerHasTmux`, permission states, artifact paths, and `source.issueUrl` into a single report JSON, writes `.skfiy-dogfood/internal-alpha-cohort.json`, replaces an existing report with the same `testerId`, rejects mixed alpha manifest paths, and reports whether the cohort is ready; it does not claim dogfood completion before the verifier passes. Keep `.skfiy-dogfood/` local because it can contain tester-specific evidence.
+The report helper is incremental. It reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, validates that `--issue-labels` includes `dogfood:accepted` plus workflow labels matching `--workflows`, derives `result`, `appLaunchViaOpen`, `runnerHasTmux`, permission states, artifact paths, `source.issueUrl`, and `source.issueLabels` into a single report JSON, writes `.skfiy-dogfood/internal-alpha-cohort.json`, replaces an existing report with the same `testerId`, rejects mixed alpha manifest paths, and reports whether the cohort is ready; it does not claim dogfood completion before the verifier passes. Keep `.skfiy-dogfood/` local because it can contain tester-specific evidence.
 
 After aggregating 3-5 single-user reports, run:
 
@@ -259,7 +260,7 @@ npm run dogfood:cohort -- \
   --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-The cohort gate checks distinct testers, required workflow coverage (`coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`), `appLaunchViaOpen=true`, `runnerHasTmux=false`, absolute alpha manifest and smoke artifact paths, Screen Recording, Accessibility, Microphone, and Speech Recognition states, and accepted GitHub issue source metadata for every report. `--summary` writes a short local Markdown readiness report showing missing workflows, blocking checks, per-tester status, and issue links. This gate proves report quality and coverage; it does not mark the real dogfood complete until the cohort file contains reports from actual testers.
+The cohort gate checks distinct testers, required workflow coverage (`coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`), `appLaunchViaOpen=true`, `runnerHasTmux=false`, absolute alpha manifest and smoke artifact paths, Screen Recording, Accessibility, Microphone, and Speech Recognition states, and accepted GitHub issue source metadata with matching `dogfood:accepted` and `workflow:*` labels for every report. `--summary` writes a short local Markdown readiness report showing missing workflows, blocking checks, per-tester status, and issue links. This gate proves report quality and coverage; it does not mark the real dogfood complete until the cohort file contains reports from actual testers.
 
 ### macOS Release Signing
 

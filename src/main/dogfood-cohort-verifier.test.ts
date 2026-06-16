@@ -167,6 +167,38 @@ describe("dogfood cohort verifier", () => {
     });
   });
 
+  it("fails reports whose GitHub issue source lacks accepted or matching workflow labels", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const badSourceReport = createReport("tester-a", [
+      "coding-terminal",
+      "screenshot-inspection"
+    ]);
+    badSourceReport.source.issueLabels = [
+      "dogfood",
+      "workflow:coding-terminal"
+    ];
+
+    await expect(verifyDogfoodCohort({
+      cohortPath
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        badSourceReport,
+        createReport("tester-b", ["finder-file"]),
+        createReport("tester-c", ["browser-fallback"])
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("report.tester-a.source")
+      ])
+    });
+  });
+
   it("fails reports that were captured through tmux or lack product evidence", async () => {
     const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       verifyDogfoodCohort: (
@@ -291,6 +323,10 @@ describe("dogfood cohort verifier", () => {
       source: {
         type: "github-issue",
         issueUrl: `https://github.com/Sskift/skfiy/issues/${testerId.replace("tester-", "")}`,
+        issueLabels: [
+          "dogfood:accepted",
+          ...workflows.map((workflow) => `workflow:${workflow}`)
+        ],
         collectedAt: "2026-06-16T12:00:00.000Z",
         generatedBy: "dogfood:report",
         artifactSource: "alpha-manifest-smoke-artifacts"

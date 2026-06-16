@@ -43,6 +43,9 @@ const BLOCKING_PERMISSION_STATES = new Set([
   "unavailable"
 ]);
 
+const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
+const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
+
 export function createDefaultDogfoodCohortOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     cohortPath: undefined,
@@ -295,8 +298,8 @@ function verifyReport(report, index, cohortManifestPath, checks) {
   check(
     checks,
     `${checkId}.source`,
-    hasRequiredSource(report?.source),
-    "report source must include type=github-issue, source.issueUrl, collectedAt, and generatedBy=dogfood:report"
+    hasRequiredSource(report?.source, report?.workflows),
+    "report source must include type=github-issue, source.issueUrl, collectedAt, generatedBy=dogfood:report, dogfood:accepted, and matching workflow:* issue labels"
   );
 }
 
@@ -309,7 +312,9 @@ function createCohortSummary(reports, testerIds, requiredWorkflowCoverage) {
     permissionBlockedReports: reports.filter((report) =>
       hasBlockingPermissionState(report?.permissionStates)
     ).length,
-    sourceLinkedReports: reports.filter((report) => hasRequiredSource(report?.source)).length,
+    sourceLinkedReports: reports.filter((report) =>
+      hasRequiredSource(report?.source, report?.workflows)
+    ).length,
     requiredWorkflowCoverage
   };
 }
@@ -369,15 +374,47 @@ function hasRequiredPermissionStates(value) {
   );
 }
 
-function hasRequiredSource(value) {
+function hasRequiredSource(value, workflows) {
   return Boolean(value)
     && typeof value === "object"
     && value.type === "github-issue"
     && typeof value.issueUrl === "string"
     && isAcceptedIssueUrl(value.issueUrl)
+    && hasAcceptedIssueLabels(value.issueLabels, workflows)
     && typeof value.collectedAt === "string"
     && !Number.isNaN(Date.parse(value.collectedAt))
     && value.generatedBy === "dogfood:report";
+}
+
+function hasAcceptedIssueLabels(issueLabels, workflows) {
+  if (!Array.isArray(issueLabels)) {
+    return false;
+  }
+
+  const labels = issueLabels
+    .map((label) => typeof label === "string" ? label.trim() : "")
+    .filter(Boolean);
+  if (!labels.includes(ACCEPTED_DOGFOOD_LABEL)) {
+    return false;
+  }
+
+  const expectedWorkflowLabels = Array.isArray(workflows)
+    ? workflows
+      .filter((workflow) => REQUIRED_DOGFOOD_WORKFLOWS.includes(workflow))
+      .map((workflow) => `${DOGFOOD_WORKFLOW_LABEL_PREFIX}${workflow}`)
+    : [];
+
+  if (expectedWorkflowLabels.length === 0) {
+    return false;
+  }
+
+  const expectedWorkflowLabelSet = new Set(expectedWorkflowLabels);
+  const hasEveryWorkflowLabel = expectedWorkflowLabels.every((label) => labels.includes(label));
+  const hasUnexpectedWorkflowLabel = labels.some((label) =>
+    label.startsWith(DOGFOOD_WORKFLOW_LABEL_PREFIX) && !expectedWorkflowLabelSet.has(label)
+  );
+
+  return hasEveryWorkflowLabel && !hasUnexpectedWorkflowLabel;
 }
 
 function isAcceptedIssueUrl(value) {

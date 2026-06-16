@@ -66,11 +66,12 @@ npm run dogfood:report -- \
   --tester-id tester-a \
   --workflows coding-terminal,screenshot-inspection \
   --issue-url https://github.com/Sskift/skfiy/issues/<accepted-dogfood-issue> \
+  --issue-labels dogfood:accepted,workflow:coding-terminal,workflow:screenshot-inspection \
   --report .skfiy-dogfood/reports/tester-a.json \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json
 ```
 
-`dogfood:report` reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, derives one report object with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths, preserves one report per tester, rejects reports from a different alpha manifest, and prints readiness without treating an incomplete cohort as complete. Keep `.skfiy-dogfood/` local; it can contain tester-specific evidence and is ignored by git.
+`dogfood:report` reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, validates that `--issue-labels` includes `dogfood:accepted` plus workflow labels matching `--workflows`, derives one report object with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching `source.issueLabels`, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths, preserves one report per tester, rejects reports from a different alpha manifest, and prints readiness without treating an incomplete cohort as complete. Keep `.skfiy-dogfood/` local; it can contain tester-specific evidence and is ignored by git.
 
 After 3-5 single-user dogfood reports are collected, verify cross-user coverage:
 
@@ -80,7 +81,7 @@ npm run dogfood:cohort -- \
   --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers and coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, and issue links without replacing the JSON verifier.
+The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers and coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, and issue links without replacing the JSON verifier.
 
 Check Developer ID signing and notarization readiness:
 

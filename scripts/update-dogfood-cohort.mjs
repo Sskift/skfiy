@@ -8,6 +8,8 @@ import { REQUIRED_DOGFOOD_WORKFLOWS } from "./verify-dogfood-cohort.mjs";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_COHORT_NAME = "internal-alpha";
+const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
+const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
 
 export function createDefaultDogfoodReportOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -16,6 +18,7 @@ export function createDefaultDogfoodReportOptions(rootDir = DEFAULT_ROOT_DIR) {
     manifestPath: undefined,
     testerId: undefined,
     issueUrl: undefined,
+    issueLabels: [],
     workflows: [],
     cohortPath: path.join(rootDir, ".skfiy-dogfood", "internal-alpha-cohort.json"),
     cohortName: DEFAULT_COHORT_NAME,
@@ -44,6 +47,10 @@ export function parseDogfoodReportArgs(argv, defaults) {
         break;
       case "--issue-url":
         options.issueUrl = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--issue-labels":
+        options.issueLabels = readLabelList(readValue(argv, index, arg));
         index += 1;
         break;
       case "--workflows":
@@ -147,6 +154,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
   if (!isAcceptedIssueUrl(options.issueUrl)) {
     throw new Error("--issue-url must be an http(s) GitHub issue URL.");
   }
+  const issueLabels = validateAcceptedIssueLabels(options.issueLabels, options.workflows);
 
   const manifest = await io.readJson(options.manifestPath);
   const smokePaths = readManifestSmokePaths(manifest);
@@ -172,6 +180,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
     source: {
       type: "github-issue",
       issueUrl: options.issueUrl.trim(),
+      issueLabels,
       collectedAt: typeof options.now === "function" ? options.now() : new Date().toISOString(),
       generatedBy: "dogfood:report",
       artifactSource: "alpha-manifest-smoke-artifacts"
@@ -185,11 +194,12 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
 export function createDogfoodReportHelpText() {
   return [
     "Usage: npm run dogfood:report -- --report <path> [--cohort <path>]",
-    "       npm run dogfood:report -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> --issue-url <accepted-issue-url> --report <path> [--cohort <path>]",
+    "       npm run dogfood:report -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> --issue-url <accepted-issue-url> --issue-labels <labels> --report <path> [--cohort <path>]",
     "",
     "Adds or replaces one real single-user dogfood report in a cohort JSON file.",
     "With --manifest, generates the single-user report from the alpha manifest and referenced smoke artifacts first.",
     "Use --issue-url to link the generated report to the accepted GitHub dogfood issue.",
+    "Use --issue-labels to prove that issue carries dogfood:accepted plus matching workflow:* labels.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
     "",
     "After collecting 3-5 distinct testers and all required workflows, run:",
@@ -346,6 +356,63 @@ function readWorkflowList(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function readLabelList(value) {
+  return [...new Set(
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  )];
+}
+
+function validateAcceptedIssueLabels(issueLabels, workflows) {
+  if (!Array.isArray(issueLabels) || issueLabels.length === 0) {
+    throw new Error("Missing --issue-labels <label[,label]>.");
+  }
+
+  const normalizedLabels = issueLabels
+    .map((label) => typeof label === "string" ? label.trim() : "")
+    .filter(Boolean);
+
+  if (!normalizedLabels.includes(ACCEPTED_DOGFOOD_LABEL)) {
+    throw new Error(`--issue-labels must include ${ACCEPTED_DOGFOOD_LABEL}.`);
+  }
+
+  const normalizedWorkflows = Array.isArray(workflows)
+    ? workflows.map((workflow) => typeof workflow === "string" ? workflow.trim() : "").filter(Boolean)
+    : [];
+  const unknownWorkflow = normalizedWorkflows.find((workflow) =>
+    !REQUIRED_DOGFOOD_WORKFLOWS.includes(workflow)
+  );
+  if (unknownWorkflow) {
+    throw new Error(`Unknown dogfood workflow: ${unknownWorkflow}.`);
+  }
+
+  const expectedWorkflowLabels = normalizedWorkflows.map(createWorkflowLabel);
+  const missingWorkflowLabel = expectedWorkflowLabels.find((label) =>
+    !normalizedLabels.includes(label)
+  );
+  if (missingWorkflowLabel) {
+    throw new Error(`--issue-labels must include ${missingWorkflowLabel}.`);
+  }
+
+  const expectedWorkflowLabelSet = new Set(expectedWorkflowLabels);
+  const unexpectedWorkflowLabel = normalizedLabels.find((label) =>
+    label.startsWith(DOGFOOD_WORKFLOW_LABEL_PREFIX) && !expectedWorkflowLabelSet.has(label)
+  );
+  if (unexpectedWorkflowLabel) {
+    throw new Error(
+      `--issue-labels workflow labels must match --workflows; unexpected ${unexpectedWorkflowLabel}.`
+    );
+  }
+
+  return normalizedLabels;
+}
+
+function createWorkflowLabel(workflow) {
+  return `${DOGFOOD_WORKFLOW_LABEL_PREFIX}${workflow}`;
 }
 
 function isAcceptedIssueUrl(value) {
