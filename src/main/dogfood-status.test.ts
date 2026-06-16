@@ -180,9 +180,17 @@ describe("dogfood status reporter", () => {
         body: createTrackingIssueBody(reportUrls),
         labels: ["skfiy", "dogfood"]
       },
-      [reportUrls[0]]: createAcceptedReportIssue("tester-1", ["coding-terminal", "screenshot-inspection"]),
-      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["finder-file"]),
-      [reportUrls[2]]: createAcceptedReportIssue("tester-3", ["browser-fallback"])
+      [reportUrls[0]]: createAcceptedReportIssue(
+        "tester-1",
+        ["coding-terminal", "screenshot-inspection"],
+        { result: "passed" }
+      ),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["finder-file"], {
+        result: "blocked"
+      }),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-3", ["browser-fallback"], {
+        result: "blocked"
+      })
     });
 
     await expect(createDogfoodStatus({
@@ -204,6 +212,16 @@ describe("dogfood status reporter", () => {
             "browser-fallback"
           ],
           missing: []
+        },
+        passedWorkflowCoverage: {
+          covered: [
+            "coding-terminal",
+            "screenshot-inspection"
+          ],
+          missing: [
+            "finder-file",
+            "browser-fallback"
+          ]
         }
       },
       localSmoke: {
@@ -214,7 +232,8 @@ describe("dogfood status reporter", () => {
         cohortReady: false
       },
       nextActions: expect.arrayContaining([
-        "Run npm run dogfood:collect with the current manifest and tracking issue."
+        "Run npm run dogfood:collect with the current manifest and tracking issue.",
+        "Collect passed product-path evidence for workflows: finder-file, browser-fallback."
       ])
     });
   });
@@ -365,6 +384,8 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("## Workflow Coverage");
     expect(io.textFiles[summaryPath]).toContain("- coding-terminal: covered");
     expect(io.textFiles[summaryPath]).toContain("- finder-file: missing");
+    expect(io.textFiles[summaryPath]).toContain("## Passed Workflow Coverage");
+    expect(io.textFiles[summaryPath]).toContain("- finder-file: blocked-or-missing");
   });
 
   it("rejects listed report issues with no checked workflows or extra workflow labels", async () => {
@@ -547,7 +568,7 @@ function createTrackingIssueBody(
 function createAcceptedReportIssue(
   testerId: string,
   workflows: string[],
-  options: { commitSha?: string; labels?: string[] } = {}
+  options: { commitSha?: string; labels?: string[]; result?: string } = {}
 ) {
   return {
     body: [
@@ -572,7 +593,11 @@ function createAcceptedReportIssue(
       `- [${workflows.includes("coding-terminal") ? "x" : " "}] coding-terminal`,
       `- [${workflows.includes("screenshot-inspection") ? "x" : " "}] screenshot-inspection`,
       `- [${workflows.includes("finder-file") ? "x" : " "}] finder-file`,
-      `- [${workflows.includes("browser-fallback") ? "x" : " "}] browser-fallback`
+      `- [${workflows.includes("browser-fallback") ? "x" : " "}] browser-fallback`,
+      "",
+      "### Computer Use result",
+      "",
+      options.result ?? "blocked"
     ].join("\n"),
     labels: options.labels ?? [
       "dogfood:accepted",

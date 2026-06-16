@@ -93,6 +93,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     .filter((issue) => issue.ok)
     .map((issue) => issue.issueUrl);
   const workflowCoverage = readVerifiedReportWorkflowCoverage(reportIssueValidation);
+  const passedWorkflowCoverage = readPassedReportWorkflowCoverage(reportIssueValidation);
   const smokeArtifacts = await readSmokeArtifacts(manifest, io);
   const artifactResults = readArtifactResults(smokeArtifacts);
   const permissionBlockers = readPermissionBlockers(smokeArtifacts);
@@ -110,6 +111,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     missingRequiredReports,
     manifestChecks,
     workflowCoverage,
+    passedWorkflowCoverage,
     invalidReportIssueCount
   });
 
@@ -133,7 +135,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
       verifiedAcceptedReportCount: verifiedAcceptedReportIssueUrls.length,
       reportIssueValidation,
       missingRequiredReports,
-      workflowCoverage
+      workflowCoverage,
+      passedWorkflowCoverage
     },
     localSmoke: {
       artifactResults,
@@ -160,6 +163,7 @@ export function createDogfoodStatusHelpText() {
     "Creates a non-mutating dogfood readiness status report.",
     "It summarizes the alpha manifest, local smoke artifact results, permission blockers,",
     "and accepted report URLs recorded in the tracking issue.",
+    "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
   ].join("\n");
 }
@@ -216,6 +220,14 @@ export function createDogfoodStatusMarkdown(status) {
     const state = status.trackingIssue.workflowCoverage.covered.includes(workflow)
       ? "covered"
       : "missing";
+    lines.push(`- ${workflow}: ${state}`);
+  }
+
+  lines.push("", "## Passed Workflow Coverage", "");
+  for (const workflow of REQUIRED_WORKFLOW_IDS) {
+    const state = status.trackingIssue.passedWorkflowCoverage.covered.includes(workflow)
+      ? "passed"
+      : "blocked-or-missing";
     lines.push(`- ${workflow}: ${state}`);
   }
 
@@ -332,6 +344,7 @@ function createNextActions({
   missingRequiredReports,
   manifestChecks,
   workflowCoverage,
+  passedWorkflowCoverage,
   invalidReportIssueCount
 }) {
   const actions = [];
@@ -344,6 +357,9 @@ function createNextActions({
   }
   if (workflowCoverage.missing.length > 0) {
     actions.push(`Collect accepted reports covering missing workflows: ${workflowCoverage.missing.join(", ")}.`);
+  }
+  if (passedWorkflowCoverage.missing.length > 0) {
+    actions.push(`Collect passed product-path evidence for workflows: ${passedWorkflowCoverage.missing.join(", ")}.`);
   }
   if (permissionBlockers.some((item) => item.permission === "screenRecording")) {
     actions.push("Grant Screen Recording to dist/skfiy.app or the alpha app bundle before requiring passed Computer Use evidence.");
@@ -385,14 +401,16 @@ async function validateAcceptedReportIssues({ manifest, manifestPath, issueUrls,
         issueUrl,
         ok: validation.reasons.length === 0,
         reasons: validation.reasons,
-        workflows: validation.workflows
+        workflows: validation.workflows,
+        result: validation.result
       });
     } catch (error) {
       results.push({
         issueUrl,
         ok: false,
         reasons: [error instanceof Error ? error.message : "failed to read issue"],
-        workflows: []
+        workflows: [],
+        result: "unknown"
       });
     }
   }
@@ -404,6 +422,7 @@ function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
   const reasons = [];
   const labels = new Set(issue.labels);
   const workflows = readIssueWorkflows(issue.body);
+  const result = readIssueResult(issue.body);
 
   if (!labels.has("dogfood:accepted")) {
     reasons.push("missing dogfood:accepted label");
@@ -454,7 +473,8 @@ function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
 
   return {
     reasons,
-    workflows
+    workflows,
+    result
   };
 }
 
@@ -477,6 +497,33 @@ function readVerifiedReportWorkflowCoverage(reportIssueValidation) {
     covered,
     missing: REQUIRED_WORKFLOW_IDS.filter((workflow) => !covered.includes(workflow))
   };
+}
+
+function readPassedReportWorkflowCoverage(reportIssueValidation) {
+  const covered = [];
+
+  for (const issue of reportIssueValidation) {
+    if (!issue.ok || issue.result !== "passed") {
+      continue;
+    }
+    for (const workflow of issue.workflows) {
+      if (!covered.includes(workflow)) {
+        covered.push(workflow);
+      }
+    }
+  }
+
+  return {
+    required: [...REQUIRED_WORKFLOW_IDS],
+    covered,
+    missing: REQUIRED_WORKFLOW_IDS.filter((workflow) => !covered.includes(workflow))
+  };
+}
+
+function readIssueResult(body) {
+  const value = readIssueSection(body, "Computer Use result")
+    || readIssueSection(body, "computer use result");
+  return value.trim().split(/\s+/)[0] || "unknown";
 }
 
 function readIssueWorkflows(body) {

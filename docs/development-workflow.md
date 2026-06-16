@@ -256,7 +256,7 @@ npm run dogfood:status -- \
 ```
 
 `dogfood:status` reports local smoke results, permission blockers, manifest/current-head state, accepted report URLs already filled into the tracking issue, and a non-mutating validation of each linked report issue. The linked issue validation checks `dogfood:accepted`, matching alpha manifest/zip/commit identity, at least one checked cohort workflow, and exact `workflow:*` labels before it counts the issue as a verified accepted report. It does not create reports, edit GitHub, or mark the cohort ready; use it to decide whether the next step is granting permissions, replacing stale issue links, collecting tester reports, or running `dogfood:collect`.
-Workflow coverage in `dogfood:status` comes only from verified accepted report issues, not from the tracking issue checklist. This keeps the checklist useful for coordination without letting it stand in for real linked report evidence.
+Workflow coverage in `dogfood:status` comes only from verified accepted report issues, not from the tracking issue checklist. Passed Workflow Coverage is separate and only counts linked report issues whose `Computer Use result` is `passed`, so blocked permission evidence cannot be mistaken for passed product-path evidence.
 
 Generate a copyable handoff for each real tester before asking them to run the packaged app:
 
