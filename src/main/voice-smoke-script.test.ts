@@ -42,10 +42,13 @@ describe("native voice product smoke script", () => {
       "artifacts/voice.json",
       "--listen-ms",
       "1234",
+      "--locale",
+      "en-US",
       "--require-passed"
     ], defaults)).toMatchObject({
       outputPath: path.resolve("artifacts/voice.json"),
       listenMs: 1234,
+      locale: "en-US",
       requirePassed: true
     });
   });
@@ -162,8 +165,10 @@ describe("native voice product smoke script", () => {
 
     expect(source).toContain("acquireSmokeLock");
     expect(source).toContain("speechStatus");
-    expect(source).toContain("window.skfiy.getNativeSpeechStatus(\"zh-CN\")");
-    expect(source).toContain("window.skfiy.setDictationSettings({ provider: \"native-macos\" })");
+    expect(source).toContain("window.skfiy.getNativeSpeechStatus(${JSON.stringify(options.locale)})");
+    expect(source).toContain(
+      "window.skfiy.setDictationSettings({ provider: \"native-macos\", nativeSpeechLocale: ${JSON.stringify(options.locale)} })"
+    );
     expect(source).toContain("window.skfiy.prepareDictation()");
     expect(source).toContain("window.skfiy.stopDictation(");
     expect(source).toContain("window.skfiy.onDictationProviderEvent");

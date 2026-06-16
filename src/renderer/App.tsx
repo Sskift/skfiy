@@ -78,6 +78,7 @@ export interface DictationSettings {
   provider: DictationProviderSelection;
   doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
   doubaoShortcutLabel: string;
+  nativeSpeechLocale: string;
   nativeSpeechMaxDurationMs: number;
   nativeSpeechSilenceTimeoutMs: number;
 }
@@ -272,7 +273,10 @@ export interface DesktopApi {
     update: Partial<
       Pick<
         DictationSettings,
-        "provider" | "nativeSpeechMaxDurationMs" | "nativeSpeechSilenceTimeoutMs"
+        | "provider"
+        | "nativeSpeechLocale"
+        | "nativeSpeechMaxDurationMs"
+        | "nativeSpeechSilenceTimeoutMs"
       >
     >
   ) => Promise<DictationSettings>;
@@ -438,6 +442,7 @@ const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
   provider: "doubao",
   doubaoVoiceTrigger: "skfiy-shortcut",
   doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+  nativeSpeechLocale: "zh-CN",
   nativeSpeechMaxDurationMs: 7000,
   nativeSpeechSilenceTimeoutMs: 900
 };
@@ -473,7 +478,11 @@ const fallbackApi: DesktopApi = {
   getDictationSettings: async () => DEFAULT_DICTATION_SETTINGS,
   setDictationSettings: async (update) => ({
     ...DEFAULT_DICTATION_SETTINGS,
-    provider: isDictationProviderSelection(update.provider) ? update.provider : "doubao"
+    provider: isDictationProviderSelection(update.provider) ? update.provider : "doubao",
+    nativeSpeechLocale:
+      typeof update.nativeSpeechLocale === "string" && update.nativeSpeechLocale.trim()
+        ? update.nativeSpeechLocale.trim()
+        : DEFAULT_DICTATION_SETTINGS.nativeSpeechLocale
   }),
   getAppPolicySettings: async () => DEFAULT_APP_POLICY_SETTINGS,
   setAppPolicy: async (update) => ({
@@ -1519,6 +1528,8 @@ export default function App() {
                 <strong>左键</strong>
                 <span>豆包输入法语音快捷键</span>
                 <strong>{dictationSettings.doubaoShortcutLabel}</strong>
+                <span>macOS 语音 locale</span>
+                <strong>{dictationSettings.nativeSpeechLocale}</strong>
               </div>
               <div className="app-policy-panel" aria-label="应用策略">
                 <div className="app-policy-heading">

@@ -13,6 +13,7 @@ describe("dictation settings", () => {
       provider: "doubao",
       doubaoVoiceTrigger: "skfiy-shortcut",
       doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+      nativeSpeechLocale: "zh-CN",
       nativeSpeechMaxDurationMs: 7000,
       nativeSpeechSilenceTimeoutMs: 900
     });
@@ -66,25 +67,47 @@ describe("dictation settings", () => {
     });
   });
 
+  it("lets native macOS speech locale be tuned from the environment", () => {
+    expect(
+      readInitialDictationSettings({
+        SKFIY_NATIVE_SPEECH_LOCALE: " en-US "
+      })
+    ).toMatchObject({
+      nativeSpeechLocale: "en-US"
+    });
+
+    expect(
+      readInitialDictationSettings({
+        SKFIY_NATIVE_SPEECH_LOCALE: "   "
+      })
+    ).toMatchObject({
+      nativeSpeechLocale: "zh-CN"
+    });
+  });
+
   it("lets runtime settings tune native macOS speech timeouts", () => {
     const store = createDictationSettingsStore(readInitialDictationSettings({}));
 
     expect(
       store.set({
+        nativeSpeechLocale: "en-US",
         nativeSpeechMaxDurationMs: 11000,
         nativeSpeechSilenceTimeoutMs: 1400
       })
     ).toMatchObject({
+      nativeSpeechLocale: "en-US",
       nativeSpeechMaxDurationMs: 11000,
       nativeSpeechSilenceTimeoutMs: 1400
     });
 
     expect(
       store.set({
+        nativeSpeechLocale: "   ",
         nativeSpeechMaxDurationMs: 0,
         nativeSpeechSilenceTimeoutMs: Number.NaN
       })
     ).toMatchObject({
+      nativeSpeechLocale: "en-US",
       nativeSpeechMaxDurationMs: 11000,
       nativeSpeechSilenceTimeoutMs: 1400
     });

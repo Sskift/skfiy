@@ -129,6 +129,7 @@ interface DictationSettings {
   provider: DictationProviderSelection;
   doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
   doubaoShortcutLabel: string;
+  nativeSpeechLocale: string;
   nativeSpeechMaxDurationMs: number;
   nativeSpeechSilenceTimeoutMs: number;
 }
@@ -266,7 +267,10 @@ interface DesktopApi {
     update: Partial<
       Pick<
         DictationSettings,
-        "provider" | "nativeSpeechMaxDurationMs" | "nativeSpeechSilenceTimeoutMs"
+        | "provider"
+        | "nativeSpeechLocale"
+        | "nativeSpeechMaxDurationMs"
+        | "nativeSpeechSilenceTimeoutMs"
       >
     >
   ) => Promise<DictationSettings>;
@@ -362,6 +366,10 @@ const api: DesktopApi = {
       update && typeof update === "object" && "provider" in update
         ? update.provider
         : undefined;
+    const nativeSpeechLocale =
+      update && typeof update === "object" && "nativeSpeechLocale" in update
+        ? update.nativeSpeechLocale
+        : undefined;
     const nativeSpeechMaxDurationMs =
       update && typeof update === "object" && "nativeSpeechMaxDurationMs" in update
         ? update.nativeSpeechMaxDurationMs
@@ -372,6 +380,7 @@ const api: DesktopApi = {
         : undefined;
     const payload = await ipcRenderer.invoke("skfiy:set-dictation-settings", {
       provider: isDictationProviderSelection(provider) ? provider : undefined,
+      nativeSpeechLocale: readNonEmptyString(nativeSpeechLocale),
       nativeSpeechMaxDurationMs: isPositiveInteger(nativeSpeechMaxDurationMs)
         ? nativeSpeechMaxDurationMs
         : undefined,
@@ -534,9 +543,20 @@ function isDictationSettings(value: unknown): value is DictationSettings {
     && (settings.doubaoVoiceTrigger === "skfiy-shortcut"
       || settings.doubaoVoiceTrigger === "fn-double-tap")
     && typeof settings.doubaoShortcutLabel === "string"
+    && typeof settings.nativeSpeechLocale === "string"
+    && settings.nativeSpeechLocale.trim().length > 0
     && isPositiveInteger(settings.nativeSpeechMaxDurationMs)
     && isPositiveInteger(settings.nativeSpeechSilenceTimeoutMs)
   );
+}
+
+function readNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function isDictationProviderSelection(value: unknown): value is DictationProviderSelection {
@@ -893,6 +913,7 @@ function createDefaultDictationSettings(): DictationSettings {
     provider: "doubao",
     doubaoVoiceTrigger: "skfiy-shortcut",
     doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+    nativeSpeechLocale: "zh-CN",
     nativeSpeechMaxDurationMs: 7000,
     nativeSpeechSilenceTimeoutMs: 900
   };

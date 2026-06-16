@@ -87,14 +87,14 @@ async function main() {
       evidence.permissions = await evaluateValue(cdp, "window.skfiy.getPermissions()");
       evidence.speechStatus = await evaluateValue(
         cdp,
-        `window.skfiy.getNativeSpeechStatus("zh-CN")`
+        `window.skfiy.getNativeSpeechStatus(${JSON.stringify(options.locale)})`
       );
       evidence.runtimeStatus = await evaluateValue(cdp, "window.skfiy.getRuntimeStatus()");
       evidence.startupWarnings = await evaluateValue(cdp, "window.skfiy.getStartupWarnings()");
 
       evidence.dictationSettingsAfter = await evaluateValue(
         cdp,
-        `window.skfiy.setDictationSettings({ provider: "native-macos" })`
+        `window.skfiy.setDictationSettings({ provider: "native-macos", nativeSpeechLocale: ${JSON.stringify(options.locale)} })`
       );
       evidence.preparation = await evaluateValue(cdp, "window.skfiy.prepareDictation()");
 

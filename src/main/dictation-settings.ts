@@ -9,17 +9,20 @@ export interface DictationSettings {
   provider: DictationProviderSelection;
   doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
   doubaoShortcutLabel: string;
+  nativeSpeechLocale: string;
   nativeSpeechMaxDurationMs: number;
   nativeSpeechSilenceTimeoutMs: number;
 }
 
 export interface DictationSettingsUpdate {
   provider?: DictationProviderSelection;
+  nativeSpeechLocale?: string;
   nativeSpeechMaxDurationMs?: number;
   nativeSpeechSilenceTimeoutMs?: number;
 }
 
 export const DOUBAO_SHORTCUT_LABEL = "Ctrl Opt Cmd Shift Space";
+export const NATIVE_SPEECH_DEFAULT_LOCALE = "zh-CN";
 export const NATIVE_SPEECH_DEFAULT_MAX_DURATION_MS = 7_000;
 export const NATIVE_SPEECH_DEFAULT_SILENCE_TIMEOUT_MS = 900;
 
@@ -27,6 +30,7 @@ export function readInitialDictationSettings(
   env: {
     SKFIY_DICTATION_PROVIDER?: string;
     SKFIY_DOUBAO_VOICE_TRIGGER?: string;
+    SKFIY_NATIVE_SPEECH_LOCALE?: string;
     SKFIY_NATIVE_SPEECH_MAX_DURATION_MS?: string;
     SKFIY_NATIVE_SPEECH_SILENCE_TIMEOUT_MS?: string;
   }
@@ -38,6 +42,10 @@ export function readInitialDictationSettings(
     provider: configuredProvider ?? (voiceTrigger === "none" ? "browser" : "doubao"),
     doubaoVoiceTrigger: voiceTrigger === "fn-double-tap" ? "fn-double-tap" : "skfiy-shortcut",
     doubaoShortcutLabel: DOUBAO_SHORTCUT_LABEL,
+    nativeSpeechLocale: readNonEmptyString(
+      env.SKFIY_NATIVE_SPEECH_LOCALE,
+      NATIVE_SPEECH_DEFAULT_LOCALE
+    ),
     nativeSpeechMaxDurationMs: readPositiveInteger(
       env.SKFIY_NATIVE_SPEECH_MAX_DURATION_MS,
       NATIVE_SPEECH_DEFAULT_MAX_DURATION_MS
@@ -66,6 +74,10 @@ export function createDictationSettingsStore(initialSettings: DictationSettings)
         provider: isDictationProviderSelection(update.provider)
           ? update.provider
           : settings.provider,
+        nativeSpeechLocale: readNonEmptyString(
+          update.nativeSpeechLocale,
+          settings.nativeSpeechLocale
+        ),
         nativeSpeechMaxDurationMs: isPositiveInteger(update.nativeSpeechMaxDurationMs)
           ? update.nativeSpeechMaxDurationMs
           : settings.nativeSpeechMaxDurationMs,
@@ -81,6 +93,15 @@ export function createDictationSettingsStore(initialSettings: DictationSettings)
 
 function readDictationProviderSelection(value: unknown): DictationProviderSelection | undefined {
   return isDictationProviderSelection(value) ? value : undefined;
+}
+
+function readNonEmptyString(value: unknown, fallback: string): string {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : fallback;
 }
 
 function isDictationProviderSelection(value: unknown): value is DictationProviderSelection {

@@ -20,6 +20,18 @@ describe("native speech status product API", () => {
     expect(preloadSource).toContain("createUnknownNativeSpeechStatus");
   });
 
+  it("uses the configured native speech locale for status and provider preparation", () => {
+    const mainPath = path.join(process.cwd(), "src", "main", "main.ts");
+    const preloadPath = path.join(process.cwd(), "src", "main", "preload.cts");
+
+    const mainSource = readFileSync(mainPath, "utf8");
+    const preloadSource = readFileSync(preloadPath, "utf8");
+
+    expect(mainSource).toContain("locale: dictationSettings.nativeSpeechLocale");
+    expect(mainSource).toContain(": dictationSettingsStore.get().nativeSpeechLocale");
+    expect(preloadSource).toContain("nativeSpeechLocale");
+  });
+
   it("wires Speech Recognition as a first-class macOS permission settings target", () => {
     const mainPath = path.join(process.cwd(), "src", "main", "main.ts");
     const preloadPath = path.join(process.cwd(), "src", "main", "preload.cts");

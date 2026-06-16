@@ -835,7 +835,7 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
   if (dictationSettings.provider === "native-macos") {
     const provider = createNativeMacOSDictationProvider({
       helper: createDesktopHelper(),
-      locale: "zh-CN",
+      locale: dictationSettings.nativeSpeechLocale,
       maxDurationMs: dictationSettings.nativeSpeechMaxDurationMs,
       silenceTimeoutMs: dictationSettings.nativeSpeechSilenceTimeoutMs,
       emit: (providerEvent) => {
@@ -1067,7 +1067,7 @@ ipcMain.handle("skfiy:get-permissions", async (event) => {
 ipcMain.handle("skfiy:get-native-speech-status", async (_event, locale: unknown) => {
   const requestedLocale = typeof locale === "string" && locale.trim()
     ? locale.trim()
-    : "zh-CN";
+    : dictationSettingsStore.get().nativeSpeechLocale;
 
   return createDesktopHelper().getSpeechStatus(requestedLocale);
 });

@@ -105,6 +105,7 @@ beforeEach(() => {
       provider: "doubao",
       doubaoVoiceTrigger: "skfiy-shortcut",
       doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+      nativeSpeechLocale: "zh-CN",
       nativeSpeechMaxDurationMs: 7000,
       nativeSpeechSilenceTimeoutMs: 900
     }),
@@ -112,6 +113,7 @@ beforeEach(() => {
       provider: "browser",
       doubaoVoiceTrigger: "skfiy-shortcut",
       doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+      nativeSpeechLocale: "zh-CN",
       nativeSpeechMaxDurationMs: 7000,
       nativeSpeechSilenceTimeoutMs: 900
     }),
