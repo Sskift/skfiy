@@ -104,12 +104,16 @@ beforeEach(() => {
     getDictationSettings: vi.fn<DesktopApi["getDictationSettings"]>().mockResolvedValue({
       provider: "doubao",
       doubaoVoiceTrigger: "skfiy-shortcut",
-      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+      nativeSpeechMaxDurationMs: 7000,
+      nativeSpeechSilenceTimeoutMs: 900
     }),
     setDictationSettings: vi.fn<DesktopApi["setDictationSettings"]>().mockResolvedValue({
       provider: "browser",
       doubaoVoiceTrigger: "skfiy-shortcut",
-      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+      nativeSpeechMaxDurationMs: 7000,
+      nativeSpeechSilenceTimeoutMs: 900
     }),
     getAppPolicySettings: vi.fn<DesktopApi["getAppPolicySettings"]>().mockResolvedValue(
       appPolicySettings

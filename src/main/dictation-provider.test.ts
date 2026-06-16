@@ -194,6 +194,7 @@ describe("createNativeMacOSDictationProvider", () => {
   it("starts native speech recognition and streams the final transcript candidate", async () => {
     const events: DictationProviderEvent[] = [];
     const transcripts: NativeSpeechTranscriptionResult[] = [];
+    const transcriptionOptions: Array<{ maxDurationMs: number; silenceTimeoutMs: number }> = [];
     const provider = createNativeMacOSDictationProvider({
       helper: {
         async getSpeechStatus(): Promise<SpeechStatusResult> {
@@ -204,7 +205,11 @@ describe("createNativeMacOSDictationProvider", () => {
             microphone: { state: "granted" }
           };
         },
-        async transcribeSpeech(): Promise<NativeSpeechTranscriptionResult> {
+        async transcribeSpeech(options): Promise<NativeSpeechTranscriptionResult> {
+          transcriptionOptions.push({
+            maxDurationMs: options.maxDurationMs,
+            silenceTimeoutMs: options.silenceTimeoutMs
+          });
           return {
             text: "打开 Ghostty 执行 pwd",
             isFinal: true,
@@ -216,7 +221,9 @@ describe("createNativeMacOSDictationProvider", () => {
       },
       locale: "zh-CN",
       emit: (event) => events.push(event),
-      emitTranscript: (transcript) => transcripts.push(transcript)
+      emitTranscript: (transcript) => transcripts.push(transcript),
+      maxDurationMs: 12000,
+      silenceTimeoutMs: 1500
     });
 
     await expect(provider.prepare()).resolves.toEqual({
@@ -233,6 +240,12 @@ describe("createNativeMacOSDictationProvider", () => {
         confidence: 0.83,
         durationMs: 1400,
         silenceTimedOut: true
+      }
+    ]);
+    expect(transcriptionOptions).toEqual([
+      {
+        maxDurationMs: 12000,
+        silenceTimeoutMs: 1500
       }
     ]);
     expect(events).toEqual([

@@ -78,6 +78,8 @@ export interface DictationSettings {
   provider: DictationProviderSelection;
   doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
   doubaoShortcutLabel: string;
+  nativeSpeechMaxDurationMs: number;
+  nativeSpeechSilenceTimeoutMs: number;
 }
 
 export interface ControlledAppPolicyEntry {
@@ -267,7 +269,12 @@ export interface DesktopApi {
   getStartupWarnings: () => Promise<StartupWarning[]>;
   getDictationSettings: () => Promise<DictationSettings>;
   setDictationSettings: (
-    update: Partial<Pick<DictationSettings, "provider">>
+    update: Partial<
+      Pick<
+        DictationSettings,
+        "provider" | "nativeSpeechMaxDurationMs" | "nativeSpeechSilenceTimeoutMs"
+      >
+    >
   ) => Promise<DictationSettings>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
@@ -430,7 +437,9 @@ const UNKNOWN_PERMISSIONS: PermissionSummary = {
 const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
   provider: "doubao",
   doubaoVoiceTrigger: "skfiy-shortcut",
-  doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+  doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+  nativeSpeechMaxDurationMs: 7000,
+  nativeSpeechSilenceTimeoutMs: 900
 };
 
 const DEFAULT_APP_POLICY_SETTINGS: AppPolicySettings = {

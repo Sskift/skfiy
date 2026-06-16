@@ -811,6 +811,8 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
     const provider = createNativeMacOSDictationProvider({
       helper: createDesktopHelper(),
       locale: "zh-CN",
+      maxDurationMs: dictationSettings.nativeSpeechMaxDurationMs,
+      silenceTimeoutMs: dictationSettings.nativeSpeechSilenceTimeoutMs,
       emit: (providerEvent) => {
         lastProviderState = providerEvent.state;
         emitDictationProviderEvent(window, providerEvent);

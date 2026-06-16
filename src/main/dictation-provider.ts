@@ -5,6 +5,10 @@ import type {
   SpeechStatusResult
 } from "./computer-use/types.js";
 import {
+  NATIVE_SPEECH_DEFAULT_MAX_DURATION_MS,
+  NATIVE_SPEECH_DEFAULT_SILENCE_TIMEOUT_MS
+} from "./dictation-settings.js";
+import {
   DOUBAO_INPUT_SOURCE_ID,
   SKFIY_DOUBAO_SHORTCUT_KEY,
   SKFIY_DOUBAO_SHORTCUT_MODIFIERS,
@@ -135,16 +139,17 @@ export function createDoubaoDictationProvider({
 interface NativeMacOSDictationProviderOptions {
   helper: NativeMacOSDictationProviderHelper;
   locale: string;
+  maxDurationMs?: number;
+  silenceTimeoutMs?: number;
   emit: (event: DictationProviderEvent) => void;
   emitTranscript: (transcript: NativeSpeechTranscriptionResult) => void;
 }
 
-const NATIVE_MACOS_MAX_DURATION_MS = 7_000;
-const NATIVE_MACOS_SILENCE_TIMEOUT_MS = 900;
-
 export function createNativeMacOSDictationProvider({
   helper,
   locale,
+  maxDurationMs = NATIVE_SPEECH_DEFAULT_MAX_DURATION_MS,
+  silenceTimeoutMs = NATIVE_SPEECH_DEFAULT_SILENCE_TIMEOUT_MS,
   emit,
   emitTranscript
 }: NativeMacOSDictationProviderOptions): DictationProvider {
@@ -197,8 +202,8 @@ export function createNativeMacOSDictationProvider({
 
       void helper.transcribeSpeech({
         locale,
-        maxDurationMs: NATIVE_MACOS_MAX_DURATION_MS,
-        silenceTimeoutMs: NATIVE_MACOS_SILENCE_TIMEOUT_MS,
+        maxDurationMs,
+        silenceTimeoutMs,
         signal: transcriptionAbortController.signal
       }).then((transcript) => {
         if (!isCurrentListeningTurn(generation)) {

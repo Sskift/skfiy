@@ -249,7 +249,7 @@ When either required Computer Use permission is missing, skfiy preflights the tu
 
 Left-clicking the pet also opens a permission onboarding panel before dictation when Screen Recording, Accessibility, Microphone, or Speech Recognition is denied or not determined. The UI smoke artifact must include direct setting targets for Screen Recording, Accessibility, Microphone, and Speech Recognition.
 
-The native macOS speech provider is a one-shot local Speech framework prototype. It uses `speech-status` for readiness checks and `transcribe-speech` for a bounded recording turn with silence timeout. Before Speech Recognition is granted, status is expected to report `speechRecognition: notDetermined` or `denied` and native transcription must fail closed.
+The native macOS speech provider is a one-shot local Speech framework prototype. It uses `speech-status` for readiness checks and `transcribe-speech` for a bounded recording turn with silence timeout. Tune the packaged app's native speech run with `SKFIY_NATIVE_SPEECH_MAX_DURATION_MS` and `SKFIY_NATIVE_SPEECH_SILENCE_TIMEOUT_MS` when a dogfood machine needs a longer listening window; defaults are `7000` and `900`. Before Speech Recognition is granted, status is expected to report `speechRecognition: notDetermined` or `denied` and native transcription must fail closed.
 
 ## Smoke Test
 

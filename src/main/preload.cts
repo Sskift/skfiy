@@ -129,6 +129,8 @@ interface DictationSettings {
   provider: DictationProviderSelection;
   doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
   doubaoShortcutLabel: string;
+  nativeSpeechMaxDurationMs: number;
+  nativeSpeechSilenceTimeoutMs: number;
 }
 
 interface ControlledAppPolicyEntry {
@@ -261,7 +263,12 @@ interface DesktopApi {
   getStartupWarnings: () => Promise<StartupWarning[]>;
   getDictationSettings: () => Promise<DictationSettings>;
   setDictationSettings: (
-    update: Partial<Pick<DictationSettings, "provider">>
+    update: Partial<
+      Pick<
+        DictationSettings,
+        "provider" | "nativeSpeechMaxDurationMs" | "nativeSpeechSilenceTimeoutMs"
+      >
+    >
   ) => Promise<DictationSettings>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
@@ -355,8 +362,22 @@ const api: DesktopApi = {
       update && typeof update === "object" && "provider" in update
         ? update.provider
         : undefined;
+    const nativeSpeechMaxDurationMs =
+      update && typeof update === "object" && "nativeSpeechMaxDurationMs" in update
+        ? update.nativeSpeechMaxDurationMs
+        : undefined;
+    const nativeSpeechSilenceTimeoutMs =
+      update && typeof update === "object" && "nativeSpeechSilenceTimeoutMs" in update
+        ? update.nativeSpeechSilenceTimeoutMs
+        : undefined;
     const payload = await ipcRenderer.invoke("skfiy:set-dictation-settings", {
-      provider: isDictationProviderSelection(provider) ? provider : undefined
+      provider: isDictationProviderSelection(provider) ? provider : undefined,
+      nativeSpeechMaxDurationMs: isPositiveInteger(nativeSpeechMaxDurationMs)
+        ? nativeSpeechMaxDurationMs
+        : undefined,
+      nativeSpeechSilenceTimeoutMs: isPositiveInteger(nativeSpeechSilenceTimeoutMs)
+        ? nativeSpeechSilenceTimeoutMs
+        : undefined
     });
     return isDictationSettings(payload) ? payload : createDefaultDictationSettings();
   },
@@ -513,11 +534,17 @@ function isDictationSettings(value: unknown): value is DictationSettings {
     && (settings.doubaoVoiceTrigger === "skfiy-shortcut"
       || settings.doubaoVoiceTrigger === "fn-double-tap")
     && typeof settings.doubaoShortcutLabel === "string"
+    && isPositiveInteger(settings.nativeSpeechMaxDurationMs)
+    && isPositiveInteger(settings.nativeSpeechSilenceTimeoutMs)
   );
 }
 
 function isDictationProviderSelection(value: unknown): value is DictationProviderSelection {
   return value === "doubao" || value === "browser" || value === "native-macos";
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
 function isAppPolicySettings(value: unknown): value is AppPolicySettings {
@@ -865,7 +892,9 @@ function createDefaultDictationSettings(): DictationSettings {
   return {
     provider: "doubao",
     doubaoVoiceTrigger: "skfiy-shortcut",
-    doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+    doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+    nativeSpeechMaxDurationMs: 7000,
+    nativeSpeechSilenceTimeoutMs: 900
   };
 }
 

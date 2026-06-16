@@ -12,7 +12,9 @@ describe("dictation settings", () => {
     expect(settings).toEqual({
       provider: "doubao",
       doubaoVoiceTrigger: "skfiy-shortcut",
-      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+      nativeSpeechMaxDurationMs: 7000,
+      nativeSpeechSilenceTimeoutMs: 900
     });
     expect(resolveDictationVoiceTrigger(settings)).toBe("skfiy-shortcut");
   });
@@ -50,5 +52,41 @@ describe("dictation settings", () => {
       provider: "native-macos"
     });
     expect(resolveDictationVoiceTrigger(store.get())).toBe("none");
+  });
+
+  it("lets native macOS speech timeouts be tuned from the environment", () => {
+    const settings = readInitialDictationSettings({
+      SKFIY_NATIVE_SPEECH_MAX_DURATION_MS: "12000",
+      SKFIY_NATIVE_SPEECH_SILENCE_TIMEOUT_MS: "1500"
+    });
+
+    expect(settings).toMatchObject({
+      nativeSpeechMaxDurationMs: 12000,
+      nativeSpeechSilenceTimeoutMs: 1500
+    });
+  });
+
+  it("lets runtime settings tune native macOS speech timeouts", () => {
+    const store = createDictationSettingsStore(readInitialDictationSettings({}));
+
+    expect(
+      store.set({
+        nativeSpeechMaxDurationMs: 11000,
+        nativeSpeechSilenceTimeoutMs: 1400
+      })
+    ).toMatchObject({
+      nativeSpeechMaxDurationMs: 11000,
+      nativeSpeechSilenceTimeoutMs: 1400
+    });
+
+    expect(
+      store.set({
+        nativeSpeechMaxDurationMs: 0,
+        nativeSpeechSilenceTimeoutMs: Number.NaN
+      })
+    ).toMatchObject({
+      nativeSpeechMaxDurationMs: 11000,
+      nativeSpeechSilenceTimeoutMs: 1400
+    });
   });
 });

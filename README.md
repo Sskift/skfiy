@@ -50,6 +50,10 @@ to use skfiy's local one-shot Speech framework prototype; it listens until a
 short silence timeout or a maximum duration, then streams the final transcript
 back into the same Computer Use path.
 
+For native macOS speech dogfood, tune the bounded listening turn with
+`SKFIY_NATIVE_SPEECH_MAX_DURATION_MS` and
+`SKFIY_NATIVE_SPEECH_SILENCE_TIMEOUT_MS`. The defaults are `7000` and `900`.
+
 Press `Escape` while the pet has focus, or `Control+Option+Shift+Escape`
 globally, to stop the current voice or task turn.
 
