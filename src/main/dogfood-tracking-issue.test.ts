@@ -127,6 +127,9 @@ describe("dogfood tracking issue sync", () => {
     expect(body).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
     expect(body).toContain("npm run dogfood:review -- --manifest <path-to-downloaded-alpha-manifest.json> --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md");
     expect(body).toContain("Replace `<path-to-downloaded-alpha-manifest.json>` with the manifest path printed by `dogfood:prepare-alpha` on the tester machine.");
+    expect(body).toContain("After `dogfood:prepare-alpha --execute` finishes, copy `nextCommands.tester` from its JSON output for the tester run.");
+    expect(body).toContain("After the dogfood issue is filed, copy `nextCommands.review` from the same prepare output and replace `<filed-dogfood-issue-url>`.");
+    expect(body).not.toContain("--app /Applications/skfiy.app");
     expect(body).not.toContain("--require-current-head");
     expect(body).toContain("--release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1");
     expect(body).toContain("No accepted real tester report is linked yet for this alpha");

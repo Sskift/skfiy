@@ -169,6 +169,10 @@ inference and accepted-report linking stay attached to the intended cohort.
 Those GitHub commands also use the prepared-alpha manifest placeholder for
 tester/review steps, keeping the coordination issue portable across tester
 machines.
+The tracking issue and status summaries explicitly tell testers to copy
+`nextCommands.tester` and `nextCommands.review` from `dogfood:prepare-alpha`
+after the alpha is downloaded, so the app bundle path also comes from the
+prepared alpha instead of a guessed `/Applications/skfiy.app` install.
 `dogfood:prepare-alpha` can infer `--workflows` from the tracking issue when a
 tester id appears in that section, so copied prepare commands and generated
 handoffs stay aligned.

@@ -235,11 +235,13 @@ export function createDogfoodTrackingIssueBody({
     "For one real tester machine, collect all five packaged-app smoke artifacts and generate a checked issue body from the exact artifacts written by the run:",
     "",
     `Replace \`${PREPARED_ALPHA_MANIFEST_PLACEHOLDER}\` with the manifest path printed by \`dogfood:prepare-alpha\` on the tester machine.`,
+    "After `dogfood:prepare-alpha --execute` finishes, copy `nextCommands.tester` from its JSON output for the tester run.",
+    "After the dogfood issue is filed, copy `nextCommands.review` from the same prepare output and replace `<filed-dogfood-issue-url>`.",
     "",
     "```bash",
     formatMultilineCommand("npm run dogfood:tester --", [
       ["--manifest", PREPARED_ALPHA_MANIFEST_PLACEHOLDER],
-      ["--app", "/Applications/skfiy.app"],
+      ["--app", "<path-to-unzipped-skfiy.app>"],
       ["--tester-id", "<stable-real-tester-id>"],
       ["--workflows", "<comma-separated-workflow-ids>"],
       ["--artifacts-dir", ".skfiy-smoke/dogfood/<stable-real-tester-id>"],
@@ -389,6 +391,7 @@ function createRecommendedTesterAssignmentLines({
         ["--tracking-issue-url", trackingIssueUrl],
         ["--execute"]
       ])}\``,
+      "  - After Prepare: copy `nextCommands.tester` from the prepare-alpha JSON output.",
       `  - Run: \`${formatSingleLineCommand("npm run dogfood:tester --", [
         ["--manifest", PREPARED_ALPHA_MANIFEST_PLACEHOLDER],
         ["--app", "<path-to-unzipped-skfiy.app>"],
@@ -403,7 +406,8 @@ function createRecommendedTesterAssignmentLines({
         ["--issue-url", "<filed-dogfood-issue-url>"],
         ["--tracking-issue-url", trackingIssueUrl],
         ["--summary", `.skfiy-dogfood/reviews/${testerId}.md`]
-      ])}\``
+      ])}\``,
+      "  - After filing: copy `nextCommands.review` from the same prepare-alpha JSON output and replace `<filed-dogfood-issue-url>`."
     ];
   });
 }

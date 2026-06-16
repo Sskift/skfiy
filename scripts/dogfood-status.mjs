@@ -321,10 +321,12 @@ export function createDogfoodStatusMarkdown(status) {
       lines.push(`  - Purpose: ${assignment.purpose}`);
       lines.push("  - Prepare:");
       lines.push(`    \`${assignment.commands.prepareAlpha}\``);
+      lines.push("  - After Prepare finishes, copy `nextCommands.tester` from the prepare-alpha JSON output.");
       lines.push("  - Run:");
       lines.push(`    \`${assignment.commands.tester}\``);
       lines.push("  - Review:");
       lines.push(`    \`${assignment.commands.review}\``);
+      lines.push("  - After filing the dogfood issue, copy `nextCommands.review` from the same prepare-alpha JSON output and replace `<filed-dogfood-issue-url>`.");
     }
   }
 
