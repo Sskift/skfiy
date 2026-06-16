@@ -242,6 +242,7 @@ function createDogfoodHandoffMarkdown({
     formatMultilineCommand("npm run dogfood:review --", [
       ["--manifest", relativeManifestPath],
       ["--issue-url", "<filed-dogfood-issue-url>"],
+      ["--tracking-issue-url", trackingIssueUrl],
       ["--summary", reviewSummaryPath]
     ]),
     "```",

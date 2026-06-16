@@ -123,6 +123,7 @@ npm run dogfood:handoff -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --app <path-to-unzipped-skfiy.app> \
   --tester-id tester-a \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
   --output .skfiy-dogfood/handoffs/tester-a.md
 npm run dogfood:tester -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
@@ -132,6 +133,7 @@ npm run dogfood:tester -- \
 npm run dogfood:review -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue> \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
   --summary .skfiy-dogfood/reviews/tester-a.md
 npm run dogfood:collect -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
@@ -152,7 +154,9 @@ npm run dogfood:cohort -- \
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
 The tracking issue body includes a `Recommended Tester Assignments` section too,
-so the GitHub coordination page carries the same suggested split.
+so the GitHub coordination page carries the same suggested split. Its copied
+prepare and review commands keep the same tracking issue URL, so workflow
+inference and accepted-report linking stay attached to the intended cohort.
 `dogfood:prepare-alpha` can infer `--workflows` from the tracking issue when a
 tester id appears in that section, so copied prepare commands and generated
 handoffs stay aligned.

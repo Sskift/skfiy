@@ -255,7 +255,7 @@ npm run dogfood:tracking-issue -- \
   --output .skfiy-dogfood/tracking-issue-<commit>.md
 ```
 
-The default mode is a dry-run that writes the issue body locally. Review it, then add `--execute` to run `gh issue edit` for the tracking issue. The generated body preserves existing accepted report issue URLs in the required real-tester slots while refreshing current alpha release/manifest/zip/SHA/commit identity, synthetic local preflight evidence, and the exact status, prepare, tester, review, and cohort commands for that alpha.
+The default mode is a dry-run that writes the issue body locally. Review it, then add `--execute` to run `gh issue edit` for the tracking issue. The generated body preserves existing accepted report issue URLs in the required real-tester slots while refreshing current alpha release/manifest/zip/SHA/commit identity, synthetic local preflight evidence, and the exact status, prepare, tester, review, and cohort commands for that alpha. The generated prepare and review commands carry the same `--tracking-issue-url`, so workflow inference and accepted-report tracking stay attached to the intended cohort issue.
 The generated workflow coverage section is intentionally neutral: it lists required workflows but does not check them off. `dogfood:status` and `dogfood:cohort` compute real coverage from verified accepted report issue labels.
 
 To get a non-mutating readiness snapshot before filing or collecting dogfood reports:
@@ -290,10 +290,11 @@ npm run dogfood:handoff -- \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --app <path-to-unzipped-skfiy.app> \
   --tester-id tester-b \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
   --output .skfiy-dogfood/handoffs/tester-b.md
 ```
 
-`dogfood:handoff` writes alpha identity, zip SHA256, no-tmux rules, permission setup, the explicit app bundle path that `dogfood:tester` should launch, filing instructions, and maintainer review commands. It is intentionally non-mutating: it does not create GitHub issues, accept reports, or update the cohort.
+`dogfood:handoff` writes alpha identity, zip SHA256, no-tmux rules, permission setup, the explicit app bundle path that `dogfood:tester` should launch, filing instructions, and maintainer review commands. Its maintainer review command carries the configured `--tracking-issue-url` so accepted real tester reports get a tracking-slot update command for the intended cohort issue. It is intentionally non-mutating: it does not create GitHub issues, accept reports, or update the cohort.
 
 For one real tester machine, collect the five packaged-app smoke artifacts and a checked issue body with:
 

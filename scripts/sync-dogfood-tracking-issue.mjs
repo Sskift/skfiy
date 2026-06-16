@@ -225,6 +225,7 @@ export function createDogfoodTrackingIssueBody({
     formatMultilineCommand("npm run dogfood:prepare-alpha --", [
       ["--release-url", releaseUrl],
       ["--tester-id", "<stable-real-tester-id>"],
+      ["--tracking-issue-url", trackingIssueUrl],
       ["--execute"]
     ]),
     "```",
@@ -251,6 +252,7 @@ export function createDogfoodTrackingIssueBody({
     formatMultilineCommand("npm run dogfood:review --", [
       ["--manifest", relativeManifestPath],
       ["--issue-url", "<filed-dogfood-issue-url>"],
+      ["--tracking-issue-url", trackingIssueUrl],
       ["--summary", ".skfiy-dogfood/reviews/<stable-real-tester-id>.md"]
     ]),
     "```",
@@ -396,6 +398,7 @@ function createRecommendedTesterAssignmentLines({
       `  - Review: \`${formatSingleLineCommand("npm run dogfood:review --", [
         ["--manifest", relativeManifestPath],
         ["--issue-url", "<filed-dogfood-issue-url>"],
+        ["--tracking-issue-url", trackingIssueUrl],
         ["--summary", `.skfiy-dogfood/reviews/${testerId}.md`]
       ])}\``
     ];

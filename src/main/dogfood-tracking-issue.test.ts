@@ -119,10 +119,13 @@ describe("dogfood tracking issue sync", () => {
     expect(body).toContain("- `tester-1`: `coding-terminal,screenshot-inspection`");
     expect(body).toContain("- `tester-2`: `finder-file`");
     expect(body).toContain("- `tester-3`: `browser-fallback`");
+    expect(body).toContain("--tester-id <stable-real-tester-id> \\\n  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
     expect(body).toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute");
     expect(body).not.toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1 --tester-id tester-1 --workflows coding-terminal,screenshot-inspection --execute");
     expect(body).toContain("npm run dogfood:tester -- --manifest .skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection");
     expect(body).toContain("npm run dogfood:review -- \\");
+    expect(body).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
+    expect(body).toContain("npm run dogfood:review -- --manifest .skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md");
     expect(body).not.toContain("--require-current-head");
     expect(body).toContain("--release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1");
     expect(body).toContain("No accepted real tester report is linked yet for this alpha");
