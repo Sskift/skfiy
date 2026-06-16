@@ -58,6 +58,8 @@ This gate checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke 
 
 After each single-user dogfood report is accepted, generate a report JSON from the alpha manifest and referenced smoke artifacts, then add or replace it in the local cohort file:
 
+Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issues/1. Each accepted single-user dogfood issue should be linked there before being converted into local `.skfiy-dogfood/` JSON.
+
 ```bash
 npm run dogfood:report -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \

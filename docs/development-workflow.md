@@ -237,6 +237,8 @@ Use `--require-current-head` when validating a local alpha before sharing it; th
 
 For internal dogfood, generate each accepted single-user dogfood report from the alpha manifest and referenced smoke artifacts, then add or replace it in the local cohort file:
 
+Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issues/1. Each accepted single-user dogfood issue should be linked there before being converted into local `.skfiy-dogfood/` JSON.
+
 ```bash
 npm run dogfood:report -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
