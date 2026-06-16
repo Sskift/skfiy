@@ -542,11 +542,23 @@ describe("dogfood status reporter", () => {
       })
     });
 
-    await expect(createDogfoodStatus({
+    const status = await createDogfoodStatus({
       manifestPath,
       trackingIssueUrl,
       now: () => "2026-06-16T12:00:00.000Z"
-    }, io)).resolves.toMatchObject({
+    }, io) as {
+      testerAssignments: Array<{
+        testerId: string;
+        workflows: string[];
+        purpose: string;
+        commands: {
+          prepareAlpha: string;
+          tester: string;
+        };
+      }>;
+    };
+
+    expect(status).toMatchObject({
       result: "ready-to-collect",
       trackingIssue: {
         acceptedReportIssueUrls: reportUrls,
@@ -587,6 +599,15 @@ describe("dogfood status reporter", () => {
         "Collect passed product-path evidence for workflows: finder-file, browser-fallback."
       ])
     });
+    expect(status.testerAssignments).toMatchObject([
+      {
+        testerId: "tester-4",
+        workflows: ["finder-file", "browser-fallback"],
+        purpose: "passed-workflow-evidence"
+      }
+    ]);
+    expect(status.testerAssignments[0].commands.prepareAlpha).toContain("--require-passed");
+    expect(status.testerAssignments[0].commands.tester).toContain("--require-passed");
   });
 
   it("marks the strict passed cohort gate ready only after all required workflows have passed evidence", async () => {

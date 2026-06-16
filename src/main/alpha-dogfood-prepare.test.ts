@@ -49,6 +49,7 @@ describe("alpha dogfood preparation", () => {
       ".skfiy-dogfood/downloads/tester-a",
       "--handoff-output",
       ".skfiy-dogfood/handoffs/tester-a.md",
+      "--require-passed",
       "--replace-existing",
       "--execute"
     ], defaults)).toMatchObject({
@@ -61,6 +62,7 @@ describe("alpha dogfood preparation", () => {
       appPath: path.join(process.env.HOME ?? "", "Applications/skfiy.app"),
       downloadDir: path.resolve(".skfiy-dogfood/downloads/tester-a"),
       handoffOutputPath: path.resolve(".skfiy-dogfood/handoffs/tester-a.md"),
+      requirePassed: true,
       replaceExisting: true,
       dryRun: false
     });
@@ -69,6 +71,32 @@ describe("alpha dogfood preparation", () => {
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--execute");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--workflows");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--tracking-issue-url");
+    expect(createPrepareAlphaDogfoodHelpText()).toContain("--require-passed");
+  });
+
+  it("passes strict passed evidence mode into handoff and next tester command", async () => {
+    const { createPrepareAlphaDogfoodPlan } = await import(pathToFileURL(modulePath).href) as {
+      createPrepareAlphaDogfoodPlan: (input: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const plan = createPrepareAlphaDogfoodPlan({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "tester-a",
+      workflows: ["finder-file", "browser-fallback"],
+      requirePassed: true
+    }) as {
+      commands: Array<{ id: string; command: string; args: string[] }>;
+      nextCommands: {
+        tester: string;
+      };
+    };
+
+    expect(plan.commands.find((command) => command.id === "handoff:create")?.args).toEqual(
+      expect.arrayContaining(["--require-passed"])
+    );
+    expect(plan.nextCommands.tester).toContain("--require-passed");
   });
 
   it("dry-runs a release download, checksum verification, app extraction, and handoff command", async () => {

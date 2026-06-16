@@ -35,6 +35,7 @@ export function createDefaultPrepareAlphaDogfoodOptions(rootDir = DEFAULT_ROOT_D
     handoffOutputPath: undefined,
     dryRun: true,
     replaceExisting: false,
+    requirePassed: false,
     help: false
   };
 }
@@ -98,6 +99,9 @@ export function parsePrepareAlphaDogfoodArgs(argv, defaults) {
       case "--replace-existing":
         options.replaceExisting = true;
         break;
+      case "--require-passed":
+        options.requirePassed = true;
+        break;
       case "--dry-run":
         options.dryRun = true;
         break;
@@ -149,7 +153,8 @@ export function createPrepareAlphaDogfoodPlan(options) {
     appPath,
     testerId,
     workflows: options.workflows,
-    trackingIssueUrl: options.trackingIssueUrl
+    trackingIssueUrl: options.trackingIssueUrl,
+    requirePassed: options.requirePassed
   });
 
   return {
@@ -219,6 +224,7 @@ export function createPrepareAlphaDogfoodPlan(options) {
           ...workflowArgs,
           "--output",
           handoffOutputPath,
+          ...(options.requirePassed === true ? ["--require-passed"] : []),
           ...readSyntheticTesterHandoffArgs(testerId)
         ]
       }
@@ -298,7 +304,8 @@ export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
       appPath: plan.appPath,
       testerId: plan.testerId,
       workflows: resolvedOptions.workflows,
-      trackingIssueUrl: resolvedOptions.trackingIssueUrl
+      trackingIssueUrl: resolvedOptions.trackingIssueUrl,
+      requirePassed: resolvedOptions.requirePassed
     })
   };
 }
@@ -328,6 +335,7 @@ export function createPrepareAlphaDogfoodHelpText() {
     "  --extract-dir <path>      Temporary extraction directory.",
     "  --handoff-output <path>   Generated handoff Markdown path.",
     "  --replace-existing        Allow overwriting an existing app bundle destination.",
+    "  --require-passed          Pass strict passed evidence mode into the handoff and tester command.",
     "  --execute                 Actually download, verify, extract, install, and create handoff.",
     "  --dry-run                 Force dry-run planning mode.",
     "  -h, --help                Show this help."
@@ -339,7 +347,8 @@ function createPrepareAlphaNextCommands({
   appPath,
   testerId,
   workflows,
-  trackingIssueUrl
+  trackingIssueUrl,
+  requirePassed = false
 }) {
   const workflowList = Array.isArray(workflows) && workflows.length > 0
     ? workflows.join(",")
@@ -365,7 +374,8 @@ function createPrepareAlphaNextCommands({
       `.skfiy-dogfood/issues/${testerId}.md`,
       "--summary",
       `.skfiy-dogfood/${testerId}-summary.md`,
-      "--file-issue"
+      "--file-issue",
+      ...(requirePassed ? ["--require-passed"] : [])
     ].join(" "),
     review: [
       "npm run dogfood:review --",

@@ -225,6 +225,7 @@ export function createDogfoodStatusHelpText() {
     "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
     "It warns when app-build inputs changed after the selected alpha manifest commit.",
     "It also emits recommended tester assignments with prepare/tester/review commands.",
+    "Assignments whose purpose is passed-workflow-evidence include --require-passed.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
   ].join("\n");
 }
@@ -663,7 +664,8 @@ function createTesterAssignments({
         manifestPath,
         trackingIssueUrl,
         trackingIssueFile,
-        releaseUrl: currentAlpha.fields.release
+        releaseUrl: currentAlpha.fields.release,
+        requirePassed: purpose === "passed-workflow-evidence"
       })
     };
   });
@@ -720,7 +722,8 @@ function createTesterAssignmentCommands({
   workflows,
   trackingIssueUrl,
   trackingIssueFile,
-  releaseUrl
+  releaseUrl,
+  requirePassed = false
 }) {
   const workflowList = workflows.join(",");
   const trackingIssueArgs = readPrepareAlphaTrackingIssueArgs({
@@ -738,6 +741,7 @@ function createTesterAssignmentCommands({
       "--tester-id",
       testerId,
       ...trackingIssueArgs,
+      ...(requirePassed ? ["--require-passed"] : []),
       "--execute"
     ].join(" "),
     tester: [
@@ -756,7 +760,8 @@ function createTesterAssignmentCommands({
       `.skfiy-dogfood/issues/${testerId}.md`,
       "--summary",
       `.skfiy-dogfood/${testerId}-summary.md`,
-      "--file-issue"
+      "--file-issue",
+      ...(requirePassed ? ["--require-passed"] : [])
     ].join(" "),
     review: [
       "npm run dogfood:review --",

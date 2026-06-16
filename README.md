@@ -192,7 +192,10 @@ and cannot close required workflow coverage.
 `dogfood:status` also exposes `readiness.canRunPassedCohort` and a `Passed
 cohort gate ready` summary line, so maintainers can distinguish "ready to
 collect accepted reports" from "ready to run the final `--require-passed`
-cohort verifier".
+cohort verifier". When accepted report coverage is complete but passed workflow
+coverage is still missing, its recommended tester assignment purpose becomes
+`passed-workflow-evidence`, and the generated prepare/tester commands include
+`--require-passed`.
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main
 process in another terminal with `npm run dev:electron`.
