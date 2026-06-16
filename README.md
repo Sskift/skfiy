@@ -153,6 +153,8 @@ npm run dogfood:cohort -- \
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
+Suggested `tester-N` ids avoid tester ids already parsed from linked reports, so
+new artifacts do not overwrite an existing tester's local evidence by accident.
 The tracking issue body includes a `Recommended Tester Assignments` section too,
 so the GitHub coordination page carries the same suggested split. Its copied
 prepare and review commands keep the same tracking issue URL, so workflow

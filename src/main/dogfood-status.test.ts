@@ -717,10 +717,18 @@ describe("dogfood status reporter", () => {
         canRunCollect: false,
         cohortReady: false
       },
+      testerAssignments: [
+        {
+          testerId: "tester-1",
+          purpose: "real-tester-count-and-workflow-coverage"
+        }
+      ],
       nextActions: expect.arrayContaining([
         "Collect at least 3 accepted real tester report issue URLs in GitHub issue #1."
       ])
     });
+    expect(io.textFiles[summaryPath]).toContain("- tester-1:");
+    expect(io.textFiles[summaryPath]).not.toContain("- tester-3: coding-terminal");
     expect(io.textFiles[summaryPath]).toContain("Verified real accepted report URLs: 2/3 minimum");
     expect(io.textFiles[summaryPath]).toContain("synthetic: tester id Local-abc123 is reserved for local synthetic runs");
     expect(io.textFiles[summaryPath]).toContain("synthetic: tester id PREflight-abc123 is reserved for local synthetic runs");

@@ -138,6 +138,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     trackingIssueFile: options.trackingIssueFile,
     currentAlpha,
     verifiedRealAcceptedReportCount: verifiedRealAcceptedReportIssueUrls.length,
+    usedTesterIds: readUsedTesterIds(reportIssueValidation),
     missingRequiredReports,
     workflowCoverage,
     passedWorkflowCoverage
@@ -501,6 +502,7 @@ function createTesterAssignments({
   trackingIssueFile,
   currentAlpha,
   verifiedRealAcceptedReportCount,
+  usedTesterIds = [],
   missingRequiredReports,
   workflowCoverage,
   passedWorkflowCoverage
@@ -531,8 +533,13 @@ function createTesterAssignments({
     return [];
   }
 
+  const testerIds = createSuggestedTesterIds({
+    assignmentCount,
+    usedTesterIds
+  });
+
   return distributeWorkflows(sourceWorkflows, assignmentCount).map((workflows, index) => {
-    const testerId = `tester-${verifiedRealAcceptedReportCount + index + 1}`;
+    const testerId = testerIds[index];
 
     return {
       testerId,
@@ -548,6 +555,38 @@ function createTesterAssignments({
       })
     };
   });
+}
+
+function readUsedTesterIds(reportIssueValidation) {
+  if (!Array.isArray(reportIssueValidation)) {
+    return [];
+  }
+
+  return reportIssueValidation
+    .map((issue) => typeof issue?.testerId === "string" ? issue.testerId.trim() : "")
+    .filter(Boolean);
+}
+
+function createSuggestedTesterIds({ assignmentCount, usedTesterIds }) {
+  const used = new Set(
+    (Array.isArray(usedTesterIds) ? usedTesterIds : [])
+      .map((testerId) => String(testerId).trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const testerIds = [];
+  let candidate = 1;
+
+  while (testerIds.length < assignmentCount) {
+    const testerId = `tester-${candidate}`;
+    const normalizedTesterId = testerId.toLowerCase();
+    if (!used.has(normalizedTesterId)) {
+      testerIds.push(testerId);
+      used.add(normalizedTesterId);
+    }
+    candidate += 1;
+  }
+
+  return testerIds;
 }
 
 function distributeWorkflows(workflows, assignmentCount) {
