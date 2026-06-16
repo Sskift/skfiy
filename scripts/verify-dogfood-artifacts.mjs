@@ -178,6 +178,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.issueSource",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Accepted GitHub dogfood issue source"),
+    "manifest must require accepted GitHub dogfood issue source evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.chrome",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:chrome -- --output <path>"),
