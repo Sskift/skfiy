@@ -88,11 +88,19 @@ npm run typecheck
 npm run build
 npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
 npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
+npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json
+npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-item-drag-drop.json
 npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
 npm run alpha:artifact -- \
   --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json \
   --smoke-artifact .skfiy-smoke/ghostty-smoke.json \
+  --chrome-smoke-artifact .skfiy-smoke/chrome-page.json \
+  --finder-smoke-artifact .skfiy-smoke/finder-item-drag-drop.json \
   --voice-smoke-artifact .skfiy-smoke/voice-native.json
+npm run dogfood:tester -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tester-id tester-a \
+  --workflows coding-terminal,screenshot-inspection
 ```
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main

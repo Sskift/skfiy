@@ -68,7 +68,21 @@ npm run dogfood:status -- \
 
 `dogfood:status` summarizes the alpha manifest, local smoke artifact results, current permission blockers, and accepted report issue URLs already filled into the tracking issue. It is intentionally non-mutating: it does not create reports, update the tracking issue, or claim cohort readiness.
 
-After a tester runs the packaged-app smokes, generate a GitHub dogfood issue body draft from the same manifest and smoke artifact paths instead of copying fields by hand:
+For a single tester, prefer the one-command runner so all packaged-app smokes run sequentially and the checked GitHub issue body is generated from the exact artifacts it just wrote:
+
+```bash
+npm run dogfood:tester -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tester-id tester-a \
+  --workflows coding-terminal,screenshot-inspection \
+  --artifacts-dir .skfiy-smoke/dogfood/tester-a \
+  --issue-output .skfiy-dogfood/issues/tester-a.md \
+  --summary .skfiy-dogfood/tester-a-summary.md
+```
+
+`dogfood:tester` refuses to run from tmux, runs `smoke:ui`, `smoke:ghostty -- --matrix`, `smoke:chrome`, `smoke:finder -- --item-drag-drop`, and `smoke:voice` through the packaged app path, then runs `dogfood:issue -- --check-report` with those five artifact paths. It does not file or accept GitHub reports. A maintainer must still review the generated issue and add `dogfood:accepted` plus workflow labels before the report can count toward the cohort. Use `--finder-target-dir ~/Desktop/skfiy-finder-dogfood` to place Finder fixtures under a real tester-owned parent directory, `--chrome-current-page-endpoint http://127.0.0.1:9222` for consenting logged-in current-page Chrome evidence, and `--require-passed` only when the tester machine has granted the permissions needed for passed Ghostty, Chrome, Finder, and voice smokes.
+
+After a tester runs the packaged-app smokes manually, generate a GitHub dogfood issue body draft from the same manifest and smoke artifact paths instead of copying fields by hand:
 
 ```bash
 npm run dogfood:issue -- \

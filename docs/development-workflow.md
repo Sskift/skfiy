@@ -247,6 +247,20 @@ npm run dogfood:status -- \
 
 `dogfood:status` reports local smoke results, permission blockers, manifest/current-head state, and accepted report URLs already filled into the tracking issue. It does not create reports, edit GitHub, or mark the cohort ready; use it to decide whether the next step is granting permissions, collecting tester reports, or running `dogfood:collect`.
 
+For one real tester machine, collect the five packaged-app smoke artifacts and a checked issue body with:
+
+```bash
+npm run dogfood:tester -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tester-id tester-a \
+  --workflows coding-terminal,screenshot-inspection \
+  --artifacts-dir .skfiy-smoke/dogfood/tester-a \
+  --issue-output .skfiy-dogfood/issues/tester-a.md \
+  --summary .skfiy-dogfood/tester-a-summary.md
+```
+
+This runner is only a local evidence collector. It refuses tmux, runs product smokes sequentially, generates the `dogfood:issue -- --check-report` draft from the artifacts it just wrote, and leaves GitHub filing plus `dogfood:accepted` label review to maintainers.
+
 For internal dogfood, each tester should generate a GitHub dogfood issue body draft from the same alpha manifest and smoke artifacts used for local verification:
 
 ```bash
