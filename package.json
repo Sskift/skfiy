@@ -28,6 +28,7 @@
     "dogfood:verify": "node scripts/verify-dogfood-artifacts.mjs",
     "dogfood:issue": "node scripts/create-dogfood-issue-draft.mjs",
     "dogfood:report": "node scripts/update-dogfood-cohort.mjs",
+    "dogfood:collect": "node scripts/collect-dogfood-cohort.mjs",
     "dogfood:cohort": "node scripts/verify-dogfood-cohort.mjs"
   },
   "dependencies": {

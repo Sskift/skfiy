@@ -260,6 +260,19 @@ npm run dogfood:report -- \
 
 The report helper is incremental. It reads the alpha identity from the manifest, requires a readable accepted issue body from `gh issue view`, derives `testerId` from the issue `tester id` field, derives `workflows` from checked `cohort workflows`, requires the issue `alpha manifest`, `alpha zip`, and `commit sha` fields to match the manifest passed with `--manifest`, requires all five UI/Ghostty/Chrome/Finder/voice smoke artifact paths from the issue body, requires each smoke JSON `artifactPath` to match the issue-listed path it was read from, validates `dogfood:accepted` plus workflow labels matching the derived workflows, derives `result`, `appLaunchViaOpen`, `runnerHasTmux`, permission states, artifact paths, `source.issueUrl`, and `source.issueLabels` into a single report JSON, writes `.skfiy-dogfood/internal-alpha-cohort.json`, replaces an existing report with the same `testerId`, rejects mixed alpha manifest paths, and reports whether the cohort is ready; `summary.cohortReady` requires 3-5 testers, full workflow coverage, and `sourceEligibleReports=totalReports`, but it does not claim dogfood completion before the verifier passes. Use `--tester-id`, `--workflows`, or `--issue-labels dogfood:accepted,workflow:coding-terminal,...` only as explicit overrides for tester/workflow/label fields; they cannot replace issue artifact or alpha identity evidence. Keep `.skfiy-dogfood/` local because it can contain tester-specific evidence.
 
+Maintainers can also collect all accepted report URLs linked in the tracking issue into local report JSON and a cohort in one pass:
+
+```bash
+npm run dogfood:collect -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --reports-dir .skfiy-dogfood/reports \
+  --cohort .skfiy-dogfood/internal-alpha-cohort.json \
+  --summary .skfiy-dogfood/internal-alpha-summary.md
+```
+
+`dogfood:collect` only discovers accepted report issue URLs from the tracking issue and then reuses the same manifest-backed `dogfood:report` parser for each issue. It still requires `dogfood:accepted`, matching `workflow:*` labels, issue alpha manifest/zip/commit identity, all five smoke artifact paths, and smoke JSON `artifactPath` identity. It immediately runs `dogfood:cohort`; a failed cohort verification keeps the command from being release evidence.
+
 After aggregating 3-5 single-user reports, run:
 
 ```bash
