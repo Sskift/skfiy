@@ -273,6 +273,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - helper commands `scroll`, `drag`, and `press-shortcut` return structured JSON and route through Accessibility-gated HID events
   - [x] post-action verification hook
     - generic action plans can now run a verifier after each executable desktop action, record passed verification decisions, and fail closed before later actions when the verifier reports `failed` or `needs_user_confirmation`
+    - Ghostty typing and submit helper actions now emit structured `action_verified` events, so local replay/transcript evidence shows which actions were accepted before later observation checks continue
 - Add recovery policies:
   - [x] if app hidden, activate
     - Ghostty before-observe now performs one-shot activate recovery before typing
@@ -314,6 +315,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] what screenshots
   - [x] what actions
   - [x] what risk level
+  - [x] action verification decisions
   - transcript aggregation exists for Computer Use turn events; UI/replay viewer can consume the model next
 - [x] Add local replay viewer for debugging.
   - main process stores the latest Computer Use turn transcript plus renderer-visible timeline; right-click settings exposes command, risk, action list, screenshot paths, and event timeline for local debugging

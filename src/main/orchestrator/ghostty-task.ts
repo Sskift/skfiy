@@ -4,7 +4,8 @@ import { parseTerminalIntent } from "../../shared/terminal-intent.js";
 import {
   runDesktopActionPlan,
   type DesktopActionExecutor,
-  type DesktopActionPlanStepResult
+  type DesktopActionPlanStepResult,
+  type DesktopActionVerification
 } from "../computer-use/action-runner.js";
 import { decideAppRecovery } from "../computer-use/recovery-policy.js";
 import type {
@@ -286,14 +287,19 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  assertPlanSucceeded(await runDesktopActionPlan(
+  const typingResults = await runDesktopActionPlan(
     client,
     [
       { type: "type_text", text: executableCommand },
       { type: "wait", ms: TYPE_SETTLE_WAIT_MS }
     ],
-    { signal: options.signal }
-  ));
+    {
+      signal: options.signal,
+      verifyStep: verifyHelperAcceptedAction
+    }
+  );
+  assertPlanSucceeded(typingResults);
+  yield* readActionVerifiedEvents(typingResults);
   yield {
     type: "typing",
     command
@@ -303,11 +309,16 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  assertPlanSucceeded(await runDesktopActionPlan(
+  const submitResults = await runDesktopActionPlan(
     client,
     [{ type: "press_key", key: "enter" }],
-    { signal: options.signal }
-  ));
+    {
+      signal: options.signal,
+      verifyStep: verifyHelperAcceptedAction
+    }
+  );
+  assertPlanSucceeded(submitResults);
+  yield* readActionVerifiedEvents(submitResults);
   yield {
     type: "submitted",
     key: "enter"
@@ -486,6 +497,44 @@ function readPlanFailure(results: readonly DesktopActionPlanStepResult[]): strin
   }
 
   return undefined;
+}
+
+function verifyHelperAcceptedAction({
+  action,
+  result
+}: {
+  action: DesktopAction;
+  result: DesktopActionResult;
+}): DesktopActionVerification {
+  if (isFailedActionResult(result)) {
+    return {
+      status: "failed",
+      reason: result.message ?? `Desktop action failed: ${action.type}`
+    };
+  }
+
+  return {
+    status: "passed",
+    message: `${action.type} helper result accepted.`
+  };
+}
+
+function readActionVerifiedEvents(
+  results: readonly DesktopActionPlanStepResult[]
+): GhosttyTaskEvent[] {
+  return results.flatMap((step) => {
+    if (!step.verification || step.action.type === "wait") {
+      return [];
+    }
+
+    return [{
+      type: "action_verified",
+      actionType: step.action.type,
+      status: step.verification.status,
+      message: step.verification.status === "passed" ? step.verification.message : undefined,
+      reason: step.verification.status === "passed" ? undefined : step.verification.reason
+    }];
+  });
 }
 
 function isOpenGhosttySessionResult(

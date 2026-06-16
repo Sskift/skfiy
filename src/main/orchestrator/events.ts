@@ -34,6 +34,13 @@ export type GhosttyTaskEvent =
       marker: string;
     }
   | {
+      type: "action_verified";
+      actionType: string;
+      status: "passed" | "failed" | "needs_user_confirmation";
+      message?: string;
+      reason?: string;
+    }
+  | {
       type: "verification_failed";
       stage: "permissions" | "activate" | "initialize" | "before" | "after";
       reason: string;

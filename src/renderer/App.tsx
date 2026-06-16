@@ -139,7 +139,10 @@ export interface TurnTranscript {
     text?: string;
     key?: string;
     action?: string;
+    actionType?: string;
+    status?: string;
     stage?: string;
+    message?: string;
     reason?: string;
     providerLabel?: string;
     command?: string;
@@ -664,6 +667,11 @@ function formatReplayAction(action: TurnTranscript["actions"][number]): string {
 
   if (action.type === "recover") {
     return `${action.type}: ${action.action ?? ""} ${action.stage ?? ""}`.trim();
+  }
+
+  if (action.type === "verify") {
+    const detail = action.reason ?? action.message ?? "";
+    return `${action.type}: ${action.actionType ?? ""} ${action.status ?? ""} ${detail}`.trim();
   }
 
   return action.type;

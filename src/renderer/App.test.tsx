@@ -579,7 +579,14 @@ describe("App", () => {
           approvalRequired: boolean;
           apps: Array<{ name: string; bundleId?: string; pid?: number }>;
           screenshots: Array<{ stage: "before" | "after"; path: string }>;
-          actions: Array<{ type: string; text?: string; key?: string }>;
+          actions: Array<{
+            type: string;
+            text?: string;
+            key?: string;
+            actionType?: string;
+            status?: string;
+            message?: string;
+          }>;
           outcome: string;
         };
         timeline: Array<{ status: string; message?: string }>;
@@ -637,7 +644,13 @@ describe("App", () => {
         ],
         actions: [
           { type: "type_text", text: "pwd" },
-          { type: "press_key", key: "enter" }
+          { type: "press_key", key: "enter" },
+          {
+            type: "verify",
+            actionType: "press_key",
+            status: "passed",
+            message: "press_key helper result accepted."
+          }
         ],
         outcome: "completed"
       },
@@ -662,6 +675,7 @@ describe("App", () => {
     expect(replay.getByText(/Read the current working directory/)).toBeInTheDocument();
     expect(replay.getByText("low")).toBeInTheDocument();
     expect(replay.getByText(/type_text/)).toBeInTheDocument();
+    expect(replay.getByText(/verify: press_key passed/)).toBeInTheDocument();
     expect(replay.getByText(/\/tmp\/after\.png/)).toBeInTheDocument();
     expect(replay.getAllByText(/structured_first/).length).toBeGreaterThan(0);
     expect(replay.getByText(/Command submitted to Ghostty/)).toBeInTheDocument();

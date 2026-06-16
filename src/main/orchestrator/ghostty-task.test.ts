@@ -128,7 +128,9 @@ describe("runGhosttyCommandTask", () => {
       "app_activated",
       "session_initialized",
       "screenshot_before",
+      "action_verified",
       "typing",
+      "action_verified",
       "submitted",
       "screenshot_after",
       "completed"
@@ -238,6 +240,32 @@ describe("runGhosttyCommandTask", () => {
     });
   });
 
+  it("emits structured action verification events for helper-accepted typing and submit actions", async () => {
+    const client = createDesktopClient();
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
+    );
+
+    expect(events).toEqual(expect.arrayContaining([
+      {
+        type: "action_verified",
+        actionType: "type_text",
+        status: "passed",
+        message: "type_text helper result accepted."
+      },
+      {
+        type: "action_verified",
+        actionType: "press_key",
+        status: "passed",
+        message: "press_key helper result accepted."
+      }
+    ]));
+    expect(events.findIndex((event) => event.type === "action_verified")).toBeGreaterThan(
+      events.findIndex((event) => event.type === "screenshot_before")
+    );
+  });
+
   it("initializes the skfiy shell marker before observing or typing the user command", async () => {
     const client = createDesktopClient();
 
@@ -295,7 +323,9 @@ describe("runGhosttyCommandTask", () => {
       "app_activated",
       "session_initialized",
       "screenshot_before",
+      "action_verified",
       "typing",
+      "action_verified",
       "submitted",
       "screenshot_after",
       "verification_failed"
@@ -593,7 +623,9 @@ describe("runGhosttyCommandTask", () => {
       "screenshot_before",
       "recovery_attempted",
       "screenshot_before",
+      "action_verified",
       "typing",
+      "action_verified",
       "submitted",
       "screenshot_after",
       "completed"
@@ -680,7 +712,9 @@ describe("runGhosttyCommandTask", () => {
       "app_activated",
       "session_initialized",
       "screenshot_before",
+      "action_verified",
       "typing",
+      "action_verified",
       "submitted",
       "screenshot_after",
       "completed"
@@ -768,7 +802,9 @@ describe("runGhosttyCommandTask", () => {
       "app_activated",
       "session_initialized",
       "screenshot_before",
+      "action_verified",
       "typing",
+      "action_verified",
       "submitted",
       "screenshot_after",
       "verification_failed"
@@ -798,7 +834,9 @@ describe("runGhosttyCommandTask", () => {
       "app_activated",
       "session_initialized",
       "screenshot_before",
+      "action_verified",
       "typing",
+      "action_verified",
       "submitted",
       "screenshot_after",
       "completed"

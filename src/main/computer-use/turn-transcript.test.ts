@@ -209,6 +209,39 @@ describe("createTurnTranscript", () => {
     });
   });
 
+  it("records action verification decisions as replay actions", () => {
+    expect(createTurnTranscript([
+      {
+        type: "action_verified",
+        actionType: "type_text",
+        status: "passed",
+        message: "type_text helper result accepted."
+      },
+      {
+        type: "action_verified",
+        actionType: "press_key",
+        status: "needs_user_confirmation",
+        reason: "Completion marker was not observed."
+      }
+    ])).toMatchObject({
+      actions: [
+        {
+          type: "verify",
+          actionType: "type_text",
+          status: "passed",
+          message: "type_text helper result accepted."
+        },
+        {
+          type: "verify",
+          actionType: "press_key",
+          status: "needs_user_confirmation",
+          reason: "Completion marker was not observed."
+        }
+      ],
+      outcome: "verification_failed"
+    });
+  });
+
   it("uses OCR labels as screenshot grounding when accessibility is blocked", () => {
     expect(createTurnTranscript([
       {

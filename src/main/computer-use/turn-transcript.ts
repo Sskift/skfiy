@@ -20,6 +20,13 @@ export type ComputerUseTurnEvent =
   | { type: "session_opened"; appName: string; title: string; pid: number }
   | { type: "app_activated"; appName: string; bundleId: string; pid?: number }
   | { type: "session_initialized"; title: string; marker: string }
+  | {
+    type: "action_verified";
+    actionType: string;
+    status: "passed" | "failed" | "needs_user_confirmation";
+    message?: string;
+    reason?: string;
+  }
   | { type: "verification_failed"; stage: string; reason: string }
   | { type: "recovery_attempted"; stage: string; action: "activate" | "open"; reason: string }
   | { type: "screenshot_before"; path: string; observation: DesktopAppState }
@@ -56,7 +63,14 @@ export type TurnTranscriptAction =
   | { type: "activate_app"; appName: string; bundleId: string; pid?: number }
   | { type: "type_text"; text: string }
   | { type: "press_key"; key: "enter" }
-  | { type: "recover"; action: "activate" | "open"; stage: string; reason: string };
+  | { type: "recover"; action: "activate" | "open"; stage: string; reason: string }
+  | {
+    type: "verify";
+    actionType: string;
+    status: "passed" | "failed" | "needs_user_confirmation";
+    message?: string;
+    reason?: string;
+  };
 
 export type TurnTranscriptOutcome =
   | "completed"
@@ -148,6 +162,19 @@ export function createTurnTranscript(
         break;
       case "submitted":
         actions.push({ type: "press_key", key: event.key });
+        break;
+      case "action_verified":
+        actions.push({
+          type: "verify",
+          actionType: event.actionType,
+          status: event.status,
+          message: event.message,
+          reason: event.reason
+        });
+
+        if (event.status !== "passed") {
+          outcome = "verification_failed";
+        }
         break;
       case "verification_failed":
         outcome = "verification_failed";

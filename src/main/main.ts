@@ -303,6 +303,13 @@ function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
         status: "executing",
         message: `${prefix}Initialized Ghostty session marker: ${event.title}.`
       };
+    case "action_verified":
+      return {
+        status: event.status === "passed" ? "executing" : "needs_confirmation",
+        message: event.status === "passed"
+          ? `${prefix}Verified ${event.actionType}: ${event.message ?? "passed."}`
+          : `${prefix}Verification needs confirmation for ${event.actionType}: ${event.reason ?? event.status}`
+      };
     case "verification_failed":
       if (event.stage === "permissions") {
         return {
