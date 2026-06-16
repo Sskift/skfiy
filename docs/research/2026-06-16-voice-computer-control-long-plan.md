@@ -155,6 +155,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] "Open System Settings" actions.
   - [x] Computer Use preflight blocks before opening Ghostty when Screen Recording or Accessibility is not granted, while keeping approval-first behavior for medium/high risk commands.
   - [x] Left-click voice entry opens a permission onboarding panel before dictation when required permissions are denied or not determined.
+  - [x] UI smoke and dogfood verifier require direct permission setting targets for Screen Recording, Accessibility, Microphone, and Speech Recognition.
 - [x] Refactor dictation into a provider interface.
 - [x] Keep Doubao as a provider, but add provider state events:
   - [x] unavailable

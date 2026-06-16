@@ -43,6 +43,7 @@ async function main() {
     petClicked: false,
     onboardingVisible: false,
     permissionRows: [],
+    permissionSettingTargets: [],
     result: "not-run"
   };
   let smokeLock;
@@ -236,6 +237,12 @@ async function readProcessLines(pattern) {
 }
 
 function inspectPermissionOnboardingExpression(settleMs) {
+  const permissionTargets = {
+    "屏幕录制": "screen-recording",
+    "辅助功能": "accessibility",
+    "麦克风": "microphone",
+    "语音识别": "speech-recognition"
+  };
   const pet = Array.from(document.querySelectorAll("[aria-label]")).find((element) =>
     /skfiy codex-style pet/i.test(element.getAttribute("aria-label") ?? "")
   );
@@ -266,11 +273,19 @@ function inspectPermissionOnboardingExpression(settleMs) {
             };
           })
         : [];
+      const permissionSettingTargets = permissionRows
+        .filter((row) => row.buttonLabel)
+        .map((row) => ({
+          label: row.label,
+          target: permissionTargets[row.label] ?? "unknown",
+          buttonLabel: row.buttonLabel
+        }));
 
       resolve({
         petClicked: Boolean(pet),
         onboardingVisible: Boolean(onboarding),
         permissionRows,
+        permissionSettingTargets,
         visibleText: document.body.innerText.slice(0, 2_000)
       });
     }, settleMs);

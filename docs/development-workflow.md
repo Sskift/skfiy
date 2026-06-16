@@ -128,6 +128,8 @@ npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
 
 This launches `dist/skfiy.app` via LaunchServices, clicks the pet, waits for the React permission onboarding state, and records the visible permission rows. A `passed` result requires `runnerHasTmux=false`, the product path `LaunchServices -> renderer DOM -> React permission onboarding`, `petClicked=true`, `onboardingVisible=true`, and Screen Recording, Accessibility, Microphone, and Speech Recognition rows in the overlay. If all permissions are already granted, the expected result is `no-onboarding`.
 
+When onboarding is visible, the UI smoke artifact must also include `permissionSettingTargets` for Screen Recording, Accessibility, Microphone, and Speech Recognition. These targets prove the overlay exposes direct macOS System Settings entries rather than a generic help message.
+
 ### Ghostty Computer Use Smoke
 
 Use only a skfiy-owned Ghostty context.

@@ -20,6 +20,12 @@ const ACCEPTED_CHROME_RESULTS = new Set(["passed", "blocked", "sensitive-paused"
 const ACCEPTED_FINDER_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_VOICE_RESULTS = new Set(["passed", "blocked", "no-transcript"]);
 const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
+const REQUIRED_UI_PERMISSION_SETTING_TARGETS = [
+  { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
+  { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" },
+  { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
+  { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
+];
 const REQUIRED_CHROME_TEXT = "skfiy chrome smoke ready";
 const REQUIRED_CHROME_FORM_TEXT = "skfiy agent@skfiy.test operator form submitted";
 const REQUIRED_CHROME_FORM_SELECTORS = ["#name", "#email", "#role"];
@@ -132,6 +138,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:ui -- --output <path>"),
     "manifest must require UI smoke evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.permissionSettings",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Permission settings direct links"),
+    "manifest must require permission settings direct-link evidence"
   );
   check(
     checks,
@@ -375,6 +388,12 @@ function verifyUiSmoke(artifact, expectedPath, options, checks) {
       "ui.permissionRows",
       hasRequiredPermissionRows(artifact.permissionRows),
       "UI smoke must include Screen Recording, Accessibility, Microphone, and Speech Recognition rows"
+    );
+    check(
+      checks,
+      "ui.permissionSettings",
+      hasRequiredPermissionSettingTargets(artifact.permissionSettingTargets),
+      "UI smoke must include direct System Settings targets for Screen Recording, Accessibility, Microphone, and Speech Recognition"
     );
   } else {
     check(
@@ -844,6 +863,20 @@ function hasRequiredPermissionRows(value) {
 
   const labels = new Set(value.map((row) => row?.label).filter(Boolean));
   return REQUIRED_UI_PERMISSION_LABELS.every((label) => labels.has(label));
+}
+
+function hasRequiredPermissionSettingTargets(value) {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  return REQUIRED_UI_PERMISSION_SETTING_TARGETS.every((required) =>
+    value.some((target) =>
+      target?.label === required.label
+      && target?.target === required.target
+      && target?.buttonLabel === required.buttonLabel
+    )
+  );
 }
 
 function hasBlockingPermission(permissions) {

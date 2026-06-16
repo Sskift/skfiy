@@ -68,6 +68,12 @@ describe("packaged UI product smoke script", () => {
         { label: "麦克风", stateText: "待授权" },
         { label: "语音识别", stateText: "待授权" }
       ],
+      permissionSettingTargets: [
+        { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
+        { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" },
+        { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
+        { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
+      ],
       requiredPermissionLabels: ["屏幕录制", "辅助功能", "麦克风", "语音识别"]
     };
 
@@ -82,6 +88,12 @@ describe("packaged UI product smoke script", () => {
         { label: "屏幕录制", stateText: "未授权" }
       ]
     })).toBe("missing-permission-rows");
+    expect(classifyUiSmokeEvidence({
+      ...passedEvidence,
+      permissionSettingTargets: [
+        { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" }
+      ]
+    })).toBe("missing-permission-settings");
   });
 
   it("drives the permission onboarding through the real renderer DOM rather than preload APIs alone", () => {
@@ -94,6 +106,7 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("acquireSmokeLock");
     expect(source).toContain("dispatchEvent(new MouseEvent(\"click\"");
     expect(source).toContain("aria-label=\"权限引导\"");
+    expect(source).toContain("permissionSettingTargets");
     expect(source).toContain("window.skfiy.getPermissions()");
   });
 });

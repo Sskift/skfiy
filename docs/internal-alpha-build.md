@@ -46,7 +46,7 @@ This writes a versioned zip and manifest to `.skfiy-alpha/`, for example:
 .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-The manifest records the exact commit SHA, bundle identifier, unsigned/notarized state, zip byte size, SHA256 checksum, the UI smoke artifact path, the Ghostty smoke artifact path, the Chrome smoke artifact path, the Finder smoke artifact path, the native voice smoke artifact path, and required app policy, observe, and semantic Finder evidence used for dogfood.
+The manifest records the exact commit SHA, bundle identifier, unsigned/notarized state, zip byte size, SHA256 checksum, the UI smoke artifact path, the Ghostty smoke artifact path, the Chrome smoke artifact path, the Finder smoke artifact path, the native voice smoke artifact path, permission setting direct-link evidence, and required app policy, observe, and semantic Finder evidence used for dogfood.
 
 Verify the evidence chain before sharing an alpha:
 
@@ -54,7 +54,7 @@ Verify the evidence chain before sharing an alpha:
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-This gate checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, Chrome safe-page extraction, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder item drag/drop evidence, Finder organization evidence, and process cleanup. Add `--require-current-head` before sharing a local alpha so stale manifests from older commits fail. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and the product smokes are expected to pass.
+This gate checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, permission setting direct-link targets, Chrome safe-page extraction, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder item drag/drop evidence, Finder organization evidence, and process cleanup. Add `--require-current-head` before sharing a local alpha so stale manifests from older commits fail. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and the product smokes are expected to pass.
 
 Check Developer ID signing and notarization readiness:
 
@@ -99,7 +99,7 @@ Computer Use tasks cannot be reported as passing until Screen Recording and Acce
 
 When either required Computer Use permission is missing, skfiy preflights the turn and stops before opening Ghostty or sending helper actions. The smoke event should name the missing Screen Recording and/or Accessibility grant.
 
-Left-clicking the pet also opens a permission onboarding panel before dictation when Screen Recording, Accessibility, or Microphone is denied or not determined.
+Left-clicking the pet also opens a permission onboarding panel before dictation when Screen Recording, Accessibility, Microphone, or Speech Recognition is denied or not determined. The UI smoke artifact must include direct setting targets for Screen Recording, Accessibility, Microphone, and Speech Recognition.
 
 The native macOS speech provider is a one-shot local Speech framework prototype. It uses `speech-status` for readiness checks and `transcribe-speech` for a bounded recording turn with silence timeout. Before Speech Recognition is granted, status is expected to report `speechRecognition: notDetermined` or `denied` and native transcription must fail closed.
 
@@ -213,4 +213,4 @@ Before any broader internal release:
 
 - Run `npm run release:mac:check` and resolve missing Developer ID or Apple notary credentials.
 - Run `npm run release:mac:notarize` successfully on the final artifact.
-- Add a permission onboarding screen that links directly to macOS settings.
+- Keep `npm run smoke:ui -- --output <path>` and `npm run dogfood:verify -- --manifest <path>` passing with permission setting direct-link evidence.

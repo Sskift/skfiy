@@ -11,6 +11,7 @@ describe("dogfood artifact verifier", () => {
     "npm run smoke:chrome -- --output <path>",
     "npm run smoke:finder -- --output <path>",
     "npm run smoke:voice -- --output <path>",
+    "Permission settings direct links",
     "action verification events when Computer Use passes",
     "Ghostty app policy settings",
     "clipboard read/write approval runs",
@@ -368,6 +369,12 @@ describe("dogfood artifact verifier", () => {
           { label: "辅助功能", state: "denied", stateText: "未授权" },
           { label: "麦克风", state: "not-determined", stateText: "待授权" },
           { label: "语音识别", state: "not-determined", stateText: "待授权" }
+        ],
+        permissionSettingTargets: [
+          { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
+          { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" },
+          { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
+          { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
         ],
         processesAfterCleanup: []
       },
@@ -939,6 +946,102 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("finder.afterTree"),
         expect.stringContaining("finder.processesAfterCleanup"),
         expect.stringContaining("voice.productPath")
+      ])
+    });
+  });
+
+  it("fails when permission onboarding lacks direct System Settings targets", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
+        artifactPath: uiSmokePath,
+        petClicked: true,
+        onboardingVisible: true,
+        permissionRows: [
+          { label: "屏幕录制", state: "denied", stateText: "未授权" },
+          { label: "辅助功能", state: "denied", stateText: "未授权" },
+          { label: "麦克风", state: "not-determined", stateText: "待授权" },
+          { label: "语音识别", state: "not-determined", stateText: "待授权" }
+        ],
+        permissionSettingTargets: [
+          { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" }
+        ],
+        processesAfterCleanup: []
+      },
+      [ghosttySmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> Ghostty",
+        artifactPath: ghosttySmokePath,
+        appPolicySettings: ghosttyAppPolicySettings,
+        permissions: {
+          screenRecording: { state: "denied" },
+          accessibility: { state: "denied" }
+        },
+        runs: clipboardApprovalRuns,
+        processesAfterCleanup: []
+      },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+        artifactPath: voiceSmokePath,
+        provider: "native-macos",
+        speechStatus: {
+          locale: "zh-CN",
+          recognizerAvailable: true,
+          speechRecognition: { state: "not-determined" },
+          microphone: { state: "not-determined" }
+        },
+        dictationSettings: { provider: "native-macos" },
+        events: [{ status: "failed", message: "Microphone permission is not-determined." }],
+        providerEvents: [{ providerId: "native-macos", state: "unavailable" }],
+        processesAfterCleanup: []
+      }
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("ui.permissionSettings")
       ])
     });
   });

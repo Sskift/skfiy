@@ -17,6 +17,7 @@ const DOGFOOD_EVIDENCE = [
   "npm run smoke:chrome -- --output <path>",
   "npm run smoke:finder -- --output <path>",
   "npm run smoke:voice -- --output <path>",
+  "Permission settings direct links",
   "Screen Recording permission state",
   "Accessibility permission state",
   "Microphone or ASR provider state",

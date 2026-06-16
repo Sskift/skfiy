@@ -3,6 +3,12 @@ import path from "node:path";
 
 export const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 export const REQUIRED_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
+export const REQUIRED_PERMISSION_SETTING_TARGETS = [
+  { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
+  { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" },
+  { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
+  { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
+];
 
 export function createDefaultUiSmokeOptions(rootDir) {
   return {
@@ -90,7 +96,13 @@ export function classifyUiSmokeEvidence(evidence) {
     : REQUIRED_PERMISSION_LABELS;
   const missingLabels = requiredLabels.filter((label) => !rowLabels.has(label));
 
-  return missingLabels.length === 0 ? "passed" : "missing-permission-rows";
+  if (missingLabels.length > 0) {
+    return "missing-permission-rows";
+  }
+
+  return hasRequiredPermissionSettingTargets(evidence.permissionSettingTargets)
+    ? "passed"
+    : "missing-permission-settings";
 }
 
 export async function writeUiSmokeEvidence(outputPath, evidence, io = fs) {
@@ -148,5 +160,19 @@ function hasBlockingPermission(permissions) {
 
   return Object.values(permissions).some((status) =>
     status?.state === "denied" || status?.state === "not-determined"
+  );
+}
+
+function hasRequiredPermissionSettingTargets(permissionSettingTargets) {
+  if (!Array.isArray(permissionSettingTargets)) {
+    return false;
+  }
+
+  return REQUIRED_PERMISSION_SETTING_TARGETS.every((required) =>
+    permissionSettingTargets.some((target) =>
+      target?.label === required.label
+      && target?.target === required.target
+      && target?.buttonLabel === required.buttonLabel
+    )
   );
 }
