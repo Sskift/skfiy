@@ -39,6 +39,18 @@ export const GHOSTTY_PRODUCT_SMOKE_MATRIX = [
     command: "rm -rf ~/Desktop",
     approvalAction: "deny",
     expectedResults: ["denied"]
+  },
+  {
+    id: "chat-question-route-guard",
+    command: "你是谁，能做什么",
+    requiresComputerUseEvidence: false,
+    expectedResults: ["answered-without-computer-use"]
+  },
+  {
+    id: "unsupported-desktop-route-guard",
+    command: "帮我整理一下桌面",
+    requiresComputerUseEvidence: false,
+    expectedResults: ["needs-user-confirmation"]
   }
 ];
 
@@ -171,12 +183,17 @@ export function classifySmokeRunEvidence({
   screenshots = [],
   runnerHasTmux = false,
   appLaunchViaOpen = false,
-  productPath
+  productPath,
+  requiresComputerUseEvidence = true
 }) {
   const eventResult = classifySmokeResult(events);
 
   if (eventResult !== "passed") {
     return eventResult;
+  }
+
+  if (!requiresComputerUseEvidence) {
+    return "answered-without-computer-use";
   }
 
   if (
@@ -252,7 +269,7 @@ renderer -> preload -> main -> helper -> Ghostty.
 Options:
   --app <path>          App bundle path. Default: dist/skfiy.app
   --command <text>      Voice command text. Default: ${DEFAULT_COMMAND}
-  --matrix              Run the Week 2 Ghostty task matrix: pwd, date, mkdir approval, clipboard approvals, rm deny.
+  --matrix              Run the Week 2 Ghostty task matrix: pwd, date, mkdir approval, clipboard approvals, rm deny, and non-terminal route guards.
   --port <number>       Electron remote debugging port. Default: ${defaults.port}
   --timeout-ms <ms>     Wait time for the renderer CDP page. Default: ${defaults.timeoutMs}
   --settle-ms <ms>      Wait after command completion before reading evidence. Default: ${defaults.settleMs}

@@ -102,6 +102,18 @@ describe("dogfood issue draft generator", () => {
           { type: "verified", message: "Verified type_text: type_text helper result accepted." },
           { type: "verified", message: "Verified press_key: press_key helper result accepted." }
         ],
+        runs: [
+          {
+            id: "chat-question-route-guard",
+            result: "answered-without-computer-use",
+            events: [{ status: "completed", message: "我是 skfiy。" }]
+          },
+          {
+            id: "unsupported-desktop-route-guard",
+            result: "needs-user-confirmation",
+            events: [{ status: "needs_confirmation", message: "No supported desktop control route matched this request." }]
+          }
+        ],
         appPolicySettings: [
           { name: "Ghostty", bundleId: "com.mitchellh.ghostty", policy: "allow" }
         ]
@@ -178,6 +190,9 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("### action verification events");
     expect(body).toContain("Verified type_text");
     expect(body).toContain("Verified press_key");
+    expect(body).toContain("### non-terminal voice route guards");
+    expect(body).toContain("chat-question-route-guard");
+    expect(body).toContain("unsupported-desktop-route-guard");
     expect(body).toContain("### Chrome extracted text");
     expect(body).toContain("skfiy chrome smoke ready");
     expect(body).toContain("### Finder plan preview");

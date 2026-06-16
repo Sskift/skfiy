@@ -372,6 +372,10 @@ function createDogfoodIssueBody({
     "",
     createActionVerificationEvidence(smokeArtifacts),
     "",
+    "### non-terminal voice route guards",
+    "",
+    createNonComputerUseRouteGuardEvidence(smokeArtifacts.ghostty),
+    "",
     "### app policy settings",
     "",
     createAppPolicyEvidence(smokeArtifacts),
@@ -505,6 +509,16 @@ function createActionVerificationEvidence(smokeArtifacts) {
   ].filter((message) => message.startsWith("Verified "));
 
   return messages.length > 0 ? messages.join("\n") : "not available";
+}
+
+function createNonComputerUseRouteGuardEvidence(ghosttyArtifact) {
+  const runs = Array.isArray(ghosttyArtifact?.runs) ? ghosttyArtifact.runs : [];
+  const routeGuardRuns = runs.filter((run) =>
+    run?.id === "chat-question-route-guard"
+      || run?.id === "unsupported-desktop-route-guard"
+  );
+
+  return routeGuardRuns.length > 0 ? createJsonEvidence(routeGuardRuns) : "not available";
 }
 
 function readTaskMessages(artifact) {

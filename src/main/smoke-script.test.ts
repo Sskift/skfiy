@@ -79,9 +79,21 @@ describe("Ghostty product smoke script", () => {
         command: "rm -rf ~/Desktop",
         approvalAction: "deny",
         expectedResults: ["denied"]
+      },
+      {
+        id: "chat-question-route-guard",
+        command: "你是谁，能做什么",
+        requiresComputerUseEvidence: false,
+        expectedResults: ["answered-without-computer-use"]
+      },
+      {
+        id: "unsupported-desktop-route-guard",
+        command: "帮我整理一下桌面",
+        requiresComputerUseEvidence: false,
+        expectedResults: ["needs-user-confirmation"]
       }
     ]);
-    expect(createHelpText(createDefaultSmokeOptions("/repo"))).toContain("clipboard approvals");
+    expect(createHelpText(createDefaultSmokeOptions("/repo"))).toContain("route guards");
   });
 
   it("parses an output artifact path for persistent smoke evidence", async () => {
@@ -242,5 +254,27 @@ describe("Ghostty product smoke script", () => {
         { stage: "after", exists: true, nonEmpty: true, bytes: 4096 }
       ]
     })).toBe("passed");
+  });
+
+  it("classifies completed non-Computer-Use route guards without requiring screenshots", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      classifySmokeRunEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifySmokeRunEvidence: (input: {
+        events: Array<{ status: string; message?: string }>;
+        requiresComputerUseEvidence?: boolean;
+      }) => string;
+    };
+
+    expect(classifySmokeRunEvidence({
+      requiresComputerUseEvidence: false,
+      events: [
+        {
+          status: "completed",
+          message: "我是 skfiy，可以帮你把明确的语音意图转成受控的桌面操作。"
+        }
+      ]
+    })).toBe("answered-without-computer-use");
   });
 });

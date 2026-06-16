@@ -254,6 +254,7 @@ async function runSmokeCommand(cdp, options, run, context) {
     result: classifySmokeRunEvidence({
       events,
       screenshots,
+      requiresComputerUseEvidence: run.requiresComputerUseEvidence,
       ...context
     })
   };

@@ -168,6 +168,7 @@ describe("alpha artifact packaging", () => {
         "action verification events when Computer Use passes",
         "Ghostty app policy settings",
         "clipboard read/write approval runs",
+        "non-terminal voice route guard runs",
         "Chrome app policy settings",
         "Chrome test-page extraction evidence",
         "Chrome current-page observation evidence",

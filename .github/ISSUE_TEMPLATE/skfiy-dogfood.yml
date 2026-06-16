@@ -223,6 +223,17 @@ body:
       required: true
 
   - type: textarea
+    id: non_terminal_route_guards
+    attributes:
+      label: non-terminal voice route guards
+      description: Paste the `chat-question-route-guard` and `unsupported-desktop-route-guard` runs from the Ghostty matrix smoke artifact; they prove conversational or unclear voice turns did not enter Ghostty Computer Use.
+      placeholder: |
+        chat-question-route-guard: answered-without-computer-use
+        unsupported-desktop-route-guard: needs-user-confirmation
+    validations:
+      required: true
+
+  - type: textarea
     id: app_policy_settings
     attributes:
       label: app policy settings

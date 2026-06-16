@@ -37,6 +37,20 @@ const CLIPBOARD_APPROVAL_RUNS = [
   { id: "clipboard-write-approval", command: "echo skfiy | pbcopy" }
 ];
 const CLIPBOARD_RISK_MESSAGE = "Command can read or overwrite clipboard contents.";
+const NON_COMPUTER_USE_ROUTE_GUARD_RUNS = [
+  {
+    id: "chat-question-route-guard",
+    result: "answered-without-computer-use",
+    eventStatus: "completed",
+    messageIncludes: "skfiy"
+  },
+  {
+    id: "unsupported-desktop-route-guard",
+    result: "needs-user-confirmation",
+    eventStatus: "needs_confirmation",
+    messageIncludes: "No supported desktop control route matched"
+  }
+];
 
 export function createDefaultDogfoodVerifyOptions(rootDir) {
   return {
@@ -217,6 +231,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("clipboard read/write approval runs"),
     "manifest must require clipboard read/write approval evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.nonComputerUseRouteGuards",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("non-terminal voice route guard runs"),
+    "manifest must require non-terminal voice route guard evidence"
   );
   check(
     checks,
@@ -528,6 +549,12 @@ function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
     "ghostty.clipboardApprovalRuns",
     hasRequiredGhosttyClipboardApprovalRuns(artifact.runs),
     "Ghostty matrix smoke must include pbpaste and pbcopy high-risk approval runs"
+  );
+  check(
+    checks,
+    "ghostty.nonComputerUseRouteGuards",
+    hasRequiredGhosttyNonComputerUseRouteGuardRuns(artifact.runs),
+    "Ghostty matrix smoke must include non-terminal voice route guard runs"
   );
   check(
     checks,
@@ -1601,6 +1628,27 @@ function isClipboardApprovalRun(run, requiredRun) {
       event?.status === "executing"
       && typeof event.message === "string"
       && event.message.includes(`Risk high: ${CLIPBOARD_RISK_MESSAGE}`)
+    );
+}
+
+function hasRequiredGhosttyNonComputerUseRouteGuardRuns(runs) {
+  if (!Array.isArray(runs)) {
+    return false;
+  }
+
+  return NON_COMPUTER_USE_ROUTE_GUARD_RUNS.every((requiredRun) =>
+    runs.some((run) => isNonComputerUseRouteGuardRun(run, requiredRun))
+  );
+}
+
+function isNonComputerUseRouteGuardRun(run, requiredRun) {
+  return run?.id === requiredRun.id
+    && run.result === requiredRun.result
+    && Array.isArray(run.events)
+    && run.events.some((event) =>
+      event?.status === requiredRun.eventStatus
+      && typeof event.message === "string"
+      && event.message.includes(requiredRun.messageIncludes)
     );
 }
 

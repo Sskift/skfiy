@@ -18,6 +18,7 @@ describe("dogfood artifact verifier", () => {
     "action verification events when Computer Use passes",
     "Ghostty app policy settings",
     "clipboard read/write approval runs",
+    "non-terminal voice route guard runs",
     "Chrome app policy settings",
     "Chrome test-page extraction evidence",
     "Chrome current-page observation evidence",
@@ -71,6 +72,32 @@ describe("dogfood artifact verifier", () => {
         }
       ]
     }
+  ];
+  const nonComputerUseRouteGuardRuns = [
+    {
+      id: "chat-question-route-guard",
+      result: "answered-without-computer-use",
+      events: [
+        {
+          status: "completed",
+          message: "我是 skfiy，可以帮你把明确的语音意图转成受控的桌面操作。"
+        }
+      ]
+    },
+    {
+      id: "unsupported-desktop-route-guard",
+      result: "needs-user-confirmation",
+      events: [
+        {
+          status: "needs_confirmation",
+          message: "No supported desktop control route matched this request. 请明确目标应用和动作。"
+        }
+      ]
+    }
+  ];
+  const ghosttyMatrixRuns = [
+    ...clipboardApprovalRuns,
+    ...nonComputerUseRouteGuardRuns
   ];
   const createFinderSmokeArtifact = (artifactPath: string) => ({
     result: "passed",
@@ -396,7 +423,7 @@ describe("dogfood artifact verifier", () => {
       screenRecording: { state: "denied" },
       accessibility: { state: "denied" }
     },
-    runs: clipboardApprovalRuns,
+    runs: ghosttyMatrixRuns,
     processesAfterCleanup: []
   });
   const createVoiceSmokeArtifact = (artifactPath: string) => ({
@@ -566,7 +593,7 @@ describe("dogfood artifact verifier", () => {
           screenRecording: { state: "denied" },
           accessibility: { state: "denied" }
         },
-        runs: clipboardApprovalRuns,
+        runs: ghosttyMatrixRuns,
         processesAfterCleanup: []
       },
       [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
@@ -682,7 +709,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
         appPolicySettings: ghosttyAppPolicySettings,
-        runs: clipboardApprovalRuns,
+        runs: ghosttyMatrixRuns,
         processesAfterCleanup: []
       },
       [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
@@ -854,6 +881,57 @@ describe("dogfood artifact verifier", () => {
     });
   });
 
+  it("fails Ghostty matrix evidence that omits non-terminal voice route guards", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: {
+        ...createGhosttySmokeArtifact(ghosttySmokePath),
+        runs: clipboardApprovalRuns
+      },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("ghostty.nonComputerUseRouteGuards")
+      ])
+    });
+  });
+
   it("fails current Finder folder evidence when semantic target does not match the fixture", async () => {
     const {
       verifyDogfoodArtifacts
@@ -924,7 +1002,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
         appPolicySettings: ghosttyAppPolicySettings,
-        runs: clipboardApprovalRuns,
+        runs: ghosttyMatrixRuns,
         processesAfterCleanup: []
       },
       [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
@@ -1091,7 +1169,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
         appPolicySettings: ghosttyAppPolicySettings,
-        runs: clipboardApprovalRuns,
+        runs: ghosttyMatrixRuns,
         processesAfterCleanup: []
       },
       [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
@@ -1191,6 +1269,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.actionVerification"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.appPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.clipboardApproval"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.nonComputerUseRouteGuards"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chrome"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.voiceTranscriptTask"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.voiceNoTranscriptCancellation"),
@@ -1219,6 +1298,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("ghostty.productPath"),
         expect.stringContaining("ghostty.appPolicySettings"),
         expect.stringContaining("ghostty.clipboardApprovalRuns"),
+        expect.stringContaining("ghostty.nonComputerUseRouteGuards"),
         expect.stringContaining("ghostty.processesAfterCleanup"),
         expect.stringContaining("chrome.runnerHasTmux"),
         expect.stringContaining("chrome.productPath"),
@@ -1415,7 +1495,7 @@ describe("dogfood artifact verifier", () => {
           screenRecording: { state: "denied" },
           accessibility: { state: "denied" }
         },
-        runs: clipboardApprovalRuns,
+        runs: ghosttyMatrixRuns,
         processesAfterCleanup: []
       },
       [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
@@ -1504,7 +1584,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
         appPolicySettings: ghosttyAppPolicySettings,
-        runs: clipboardApprovalRuns,
+        runs: ghosttyMatrixRuns,
         events: [
           { status: "completed", message: "Command completed in Ghostty." }
         ],
@@ -1595,7 +1675,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
         appPolicySettings: ghosttyAppPolicySettings,
-        runs: clipboardApprovalRuns,
+        runs: ghosttyMatrixRuns,
         processesAfterCleanup: []
       },
       [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
@@ -1681,7 +1761,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
         appPolicySettings: ghosttyAppPolicySettings,
-        runs: clipboardApprovalRuns,
+        runs: ghosttyMatrixRuns,
         processesAfterCleanup: []
       },
       [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
