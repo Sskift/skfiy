@@ -34,6 +34,7 @@ export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
     rootDir,
     manifestPath: undefined,
     trackingIssueUrl: undefined,
+    trackingIssueFile: undefined,
     summaryPath: undefined,
     requireCurrentHead: false,
     currentHeadSha: undefined,
@@ -54,6 +55,10 @@ export function parseDogfoodStatusArgs(argv, defaults) {
         break;
       case "--tracking-issue-url":
         options.trackingIssueUrl = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--tracking-issue-file":
+        options.trackingIssueFile = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--summary":
@@ -79,7 +84,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   validateStatusOptions(options);
 
   const manifest = await io.readJson(options.manifestPath);
-  const trackingIssue = normalizeIssueEvidence(await io.readIssue(options.trackingIssueUrl));
+  const trackingIssueUrl = readTrackingIssueUrl(options);
+  const trackingIssue = normalizeIssueEvidence(await readTrackingIssue(options, io));
   const currentAlpha = validateTrackingIssueCurrentAlpha({
     body: trackingIssue.body,
     manifest,
@@ -130,7 +136,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     result,
     generatedAt: typeof options.now === "function" ? options.now() : new Date().toISOString(),
     manifestPath: options.manifestPath,
-    trackingIssueUrl: options.trackingIssueUrl,
+    trackingIssueUrl,
+    trackingIssueFile: options.trackingIssueFile,
     manifest: {
       appName: manifest?.appName,
       commitSha: manifest?.commitSha,
@@ -172,11 +179,11 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
 
 export function createDogfoodStatusHelpText() {
   return [
-    "Usage: npm run dogfood:status -- --manifest <alpha-manifest> --tracking-issue-url <issue-url> [--summary <markdown-path>] [--require-current-head]",
+    "Usage: npm run dogfood:status -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--summary <markdown-path>] [--require-current-head]",
     "",
     "Creates a non-mutating dogfood readiness status report.",
     "It summarizes the alpha manifest, local smoke artifact results, permission blockers,",
-    "and accepted report URLs recorded in the tracking issue.",
+    "and accepted report URLs recorded in the tracking issue or local tracking issue markdown file.",
     "It separates real tester readiness from local synthetic reports such as local-* and preflight-* runs.",
     "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
@@ -269,12 +276,34 @@ function validateStatusOptions(options) {
   if (typeof options.manifestPath !== "string") {
     throw new Error("Missing --manifest <path>.");
   }
-  if (typeof options.trackingIssueUrl !== "string" || options.trackingIssueUrl.trim().length === 0) {
-    throw new Error("Missing --tracking-issue-url <url>.");
+  const hasTrackingIssueUrl =
+    typeof options.trackingIssueUrl === "string" && options.trackingIssueUrl.trim().length > 0;
+  const hasTrackingIssueFile =
+    typeof options.trackingIssueFile === "string" && options.trackingIssueFile.trim().length > 0;
+
+  if (!hasTrackingIssueUrl && !hasTrackingIssueFile) {
+    throw new Error("Missing --tracking-issue-url <url> or --tracking-issue-file <markdown-path>.");
   }
-  if (!isGitHubIssueUrl(options.trackingIssueUrl)) {
+  if (hasTrackingIssueUrl && !isGitHubIssueUrl(options.trackingIssueUrl)) {
     throw new Error("--tracking-issue-url must be a GitHub issue URL.");
   }
+}
+
+async function readTrackingIssue(options, io) {
+  if (typeof options.trackingIssueFile === "string" && options.trackingIssueFile.trim().length > 0) {
+    return {
+      body: await io.readText(options.trackingIssueFile),
+      labels: []
+    };
+  }
+
+  return await io.readIssue(options.trackingIssueUrl);
+}
+
+function readTrackingIssueUrl(options) {
+  return typeof options.trackingIssueUrl === "string" && options.trackingIssueUrl.trim().length > 0
+    ? options.trackingIssueUrl
+    : "local-tracking-issue";
 }
 
 async function readSmokeArtifacts(manifest, io) {
@@ -782,6 +811,9 @@ function createDefaultIo() {
   return {
     async readJson(filePath) {
       return JSON.parse(await readFile(filePath, "utf8"));
+    },
+    async readText(filePath) {
+      return await readFile(filePath, "utf8");
     },
     async statFile(filePath) {
       return await stat(filePath);

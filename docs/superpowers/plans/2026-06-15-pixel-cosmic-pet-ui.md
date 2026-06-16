@@ -1,6 +1,6 @@
 # Pixel Cosmic Pet UI Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
 **Goal:** Replace the current floating control card with an animated pixel-art cosmic robot desktop pet that opens controls only as a contextual bubble.
 
@@ -15,11 +15,15 @@
 **Files:**
 - Modify: `src/renderer/App.test.tsx`
 
-- [ ] Add tests that the default screen shows a cosmic pixel robot and hides command controls.
-- [ ] Add tests that clicking the robot opens command controls.
-- [ ] Add tests that task status events switch the robot animation state.
-- [ ] Add tests that approval events show Approve and Deny controls.
-- [ ] Run `npm test -- src/renderer/App.test.tsx --run` and verify the new tests fail before implementation.
+- [x] Add tests that the default screen shows a cosmic pixel robot and hides command controls.
+- [x] Add tests that clicking the robot opens command controls.
+- [x] Add tests that task status events switch the robot animation state.
+- [x] Add tests that approval events show Approve and Deny controls.
+- [x] Run `npm test -- src/renderer/App.test.tsx --run` and verify the new tests fail before implementation.
+
+Implemented evidence:
+- `src/renderer/App.test.tsx` covers the default Codex-style pet overlay, hidden command controls, left-click voice entry, right-click settings, approval controls, task-status-to-animation mapping, drag movement, focus-box removal, and compact/expanded window mode.
+- Current targeted renderer verification: `npm test -- src/renderer/App.test.tsx --run`.
 
 ### Task 2: Pixel Pet Renderer
 
@@ -27,28 +31,40 @@
 - Modify: `src/renderer/App.tsx`
 - Modify: `src/renderer/styles.css`
 
-- [ ] Replace the card layout with a pet stage, pixel robot, status bubble, and contextual controls.
-- [ ] Implement state-to-animation mapping for idle, observing, executing, approval, completed, and failed.
-- [ ] Keep existing IPC calls for run, screenshot, stop, approve, and deny.
-- [ ] Add CSS keyframe animations for floating, antenna ping, eye blink, thruster flicker, thinking orbit, control pulse, success sparkle, and error shake.
-- [ ] Run renderer tests until they pass.
+- [x] Replace the card layout with a pet stage, pixel robot, status bubble, and contextual controls.
+- [x] Implement state-to-animation mapping for idle, observing, executing, approval, completed, and failed.
+- [x] Keep existing IPC calls for run, screenshot, stop, approve, and deny.
+- [x] Add CSS keyframe animations for floating, antenna ping, eye blink, thruster flicker, thinking orbit, control pulse, success sparkle, and error shake.
+- [x] Run renderer tests until they pass.
+
+Implemented evidence:
+- `src/renderer/App.tsx` renders the pet-first overlay with the atlas-backed pixel robot, contextual voice/settings/approval bubbles, and retained preload IPC calls for voice, approval, stop, screenshot, app policy, planner settings, replay, and window movement.
+- `src/renderer/styles.css` keeps the transparent pet stage, pixelated sprite atlas animation, bobbing motion, waiting/running/failed state styling, compact contextual bubbles, permission/settings panels, and no visible command input on the default screen.
 
 ### Task 3: Electron Overlay Tuning
 
 **Files:**
 - Modify: `src/main/main.ts`
 
-- [ ] Resize the Electron window to a pet-stage footprint instead of a panel footprint.
-- [ ] Keep the window transparent, frameless, always-on-top, and skip-taskbar.
-- [ ] Preserve drag support through CSS app regions for now.
-- [ ] Run `npm run typecheck`.
+- [x] Resize the Electron window to a pet-stage footprint instead of a panel footprint.
+- [x] Keep the window transparent, frameless, always-on-top, and skip-taskbar.
+- [x] Preserve drag support through CSS app regions for now.
+- [x] Run `npm run typecheck`.
+
+Implemented evidence:
+- `src/main/main.ts` defines compact and expanded pet window sizes, creates a transparent frameless always-on-top skip-taskbar `BrowserWindow`, and exposes `set-window-mode` plus `move-window-by` IPC for renderer-driven compact/expanded state and pointer drag movement.
+- Current TypeScript verification: `npm run typecheck`.
 
 ### Task 4: Verification And Commit
 
 **Files:**
 - No additional files expected.
 
-- [ ] Run `npm test -- --run`.
-- [ ] Run `npm run build`.
-- [ ] Open the local renderer in the in-app browser and verify the pet is visible, animated, and not a card UI.
-- [ ] Commit and push directly to `main`.
+- [x] Run `npm test -- --run`.
+- [x] Run `npm run build`.
+- [x] Open the local renderer in the in-app browser and verify the pet is visible, animated, and not a card UI.
+- [x] Commit and push directly to `main`.
+
+Implemented evidence:
+- Full verification is part of the release workflow; latest local release chain for `skfiy-alpha-9102f9a` ran full tests, typecheck, build, UI/Ghostty/Chrome/Finder/voice packaged smokes, dogfood verifier, GitHub release publishing, tracking issue sync, and tester handoff generation.
+- Product-path UI evidence: `npm run smoke:ui -- --output .skfiy-smoke/ui-9102f9a.json` launched `dist/skfiy.app` via LaunchServices, clicked the real renderer pet, recorded `petClicked=true`, permission onboarding rows, transparent pet product path, `runnerHasTmux=false`, and empty cleanup process lists.

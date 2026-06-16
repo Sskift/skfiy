@@ -55,6 +55,106 @@ describe("dogfood status reporter", () => {
     expect(createDogfoodStatusHelpText()).toContain("real tester");
   });
 
+  it("parses a local tracking issue file for offline status checks", async () => {
+    const {
+      createDefaultDogfoodStatusOptions,
+      createDogfoodStatusHelpText,
+      parseDogfoodStatusArgs
+    } = await import(pathToFileURL(modulePath).href) as {
+      createDefaultDogfoodStatusOptions: (rootDir: string) => Record<string, unknown>;
+      createDogfoodStatusHelpText: () => string;
+      parseDogfoodStatusArgs: (
+        argv: string[],
+        defaults: Record<string, unknown>
+      ) => Record<string, unknown>;
+    };
+    const defaults = createDefaultDogfoodStatusOptions("/repo");
+
+    expect(parseDogfoodStatusArgs([
+      "--manifest",
+      ".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json",
+      "--tracking-issue-file",
+      ".skfiy-dogfood/tracking-issue-abc123.md",
+      "--summary",
+      ".skfiy-dogfood/status.md"
+    ], defaults)).toMatchObject({
+      manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
+      trackingIssueFile: path.resolve(".skfiy-dogfood/tracking-issue-abc123.md"),
+      summaryPath: path.resolve(".skfiy-dogfood/status.md")
+    });
+    expect(createDogfoodStatusHelpText()).toContain("--tracking-issue-file");
+  });
+
+  it("reports waiting-for-dogfood from a local tracking issue body without reading GitHub", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const trackingIssueFile = "/repo/.skfiy-dogfood/tracking-issue-abc123.md";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [trackingIssueFile]: createTrackingIssueBody([]),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed", {
+        screenRecording: "denied",
+        accessibility: "denied",
+        microphone: "not-determined",
+        speechRecognition: "not-determined"
+      }),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: {
+        ...createSmokeArtifact(voiceSmokePath, "blocked"),
+        provider: "native-macos",
+        speechStatus: {
+          speechRecognition: { state: "not-determined" },
+          microphone: { state: "not-determined" }
+        }
+      }
+    }, {});
+
+    await expect(createDogfoodStatus({
+      manifestPath,
+      trackingIssueFile,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "waiting-for-dogfood",
+      trackingIssueUrl: "local-tracking-issue",
+      trackingIssueFile,
+      trackingIssue: {
+        acceptedReportCount: 0,
+        missingRequiredReports: 3
+      },
+      localSmoke: {
+        permissionBlockers: [
+          { permission: "screenRecording", state: "denied" },
+          { permission: "accessibility", state: "denied" },
+          { permission: "microphone", state: "not-determined" },
+          { permission: "speechRecognition", state: "not-determined" }
+        ]
+      },
+      nextActions: expect.arrayContaining([
+        "Collect at least 3 accepted real tester report issue URLs in GitHub issue #1."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("Result: waiting-for-dogfood");
+    expect(io.textFiles[summaryPath]).toContain("Accepted report URLs: 0/3 minimum");
+  });
+
   it("reports missing accepted report URLs and current permission blockers without claiming readiness", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
@@ -854,6 +954,14 @@ function createMemoryIo(
       const file = files[filePath];
       if (file === undefined) {
         throw new Error(`Missing JSON fixture: ${filePath}`);
+      }
+
+      return file;
+    },
+    async readText(filePath: string) {
+      const file = files[filePath];
+      if (typeof file !== "string") {
+        throw new Error(`Missing text fixture: ${filePath}`);
       }
 
       return file;
