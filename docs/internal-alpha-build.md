@@ -68,11 +68,22 @@ npm run dogfood:status -- \
 
 `dogfood:status` summarizes the alpha manifest, local smoke artifact results, current permission blockers, accepted report issue URLs already filled into the tracking issue, and the Required Workflow Coverage checklist. It is intentionally non-mutating: it does not create reports, update the tracking issue, or claim cohort readiness.
 
+To make the unsigned alpha downloadable by remote testers, publish it as a GitHub pre-release after a dry-run:
+
+```bash
+npm run alpha:github-release -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --require-current-head
+```
+
+Add `--execute` only after checking the generated release notes and confirming the manifest belongs to the current HEAD. The release uploads the alpha zip and manifest; it does not sign, notarize, or claim cohort readiness.
+
 Before asking a tester to run the alpha, generate a handoff note with the exact package identity and commands:
 
 ```bash
 npm run dogfood:handoff -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --tester-id tester-a \
   --output .skfiy-dogfood/handoffs/tester-a.md
 ```

@@ -235,6 +235,16 @@ npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-uns
 
 Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, native voice transcript-to-task evidence for passed voice runs, native voice no-transcript/cancellation lifecycle evidence for no-transcript runs, accepted GitHub dogfood issue source evidence, Chrome extraction evidence, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence for current/selected folder runs, Finder item drag/drop evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
 
+To prepare a GitHub pre-release that remote testers can download, first dry-run the release plan:
+
+```bash
+npm run alpha:github-release -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --require-current-head
+```
+
+The dry-run validates the alpha zip and manifest, writes release notes beside the manifest, and prints the `gh release create` command without uploading. Use `--execute` only when the manifest is current and the unsigned internal build is ready to share.
+
 To get a non-mutating readiness snapshot before filing or collecting dogfood reports:
 
 ```bash
@@ -253,6 +263,7 @@ Generate a copyable handoff for each real tester before asking them to run the p
 ```bash
 npm run dogfood:handoff -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --tester-id tester-b \
   --output .skfiy-dogfood/handoffs/tester-b.md
 ```

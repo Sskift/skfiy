@@ -97,6 +97,9 @@ npm run alpha:artifact -- \
   --chrome-smoke-artifact .skfiy-smoke/chrome-page.json \
   --finder-smoke-artifact .skfiy-smoke/finder-item-drag-drop.json \
   --voice-smoke-artifact .skfiy-smoke/voice-native.json
+npm run alpha:github-release -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --require-current-head
 npm run dogfood:handoff -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tester-id tester-a \

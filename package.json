@@ -17,6 +17,7 @@
     "build:helper": "bash scripts/build-helper.sh",
     "package:mac": "node scripts/package-macos-app.mjs",
     "alpha:artifact": "node scripts/create-alpha-artifact.mjs",
+    "alpha:github-release": "node scripts/publish-alpha-github-release.mjs",
     "release:mac:check": "node scripts/sign-notarize-macos.mjs --dry-run",
     "release:mac:sign": "node scripts/sign-notarize-macos.mjs --sign --execute",
     "release:mac:notarize": "node scripts/sign-notarize-macos.mjs --sign --notarize --execute",

@@ -44,6 +44,8 @@ describe("dogfood handoff generator", () => {
       "coding-terminal,browser-fallback",
       "--tracking-issue-url",
       trackingIssueUrl,
+      "--release-url",
+      "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123",
       "--output",
       ".skfiy-dogfood/handoffs/tester-b.md",
       "--finder-target-dir",
@@ -56,6 +58,7 @@ describe("dogfood handoff generator", () => {
       testerId: "tester-b",
       workflows: ["coding-terminal", "browser-fallback"],
       trackingIssueUrl,
+      releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123",
       outputPath: path.resolve(".skfiy-dogfood/handoffs/tester-b.md"),
       finderTargetDir: path.join(process.env.HOME ?? "", "Desktop/skfiy-finder-dogfood"),
       chromeCurrentPageEndpoint: "http://127.0.0.1:9222",
@@ -86,6 +89,7 @@ describe("dogfood handoff generator", () => {
         "browser-fallback"
       ],
       trackingIssueUrl,
+      releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123",
       outputPath,
       now: () => "2026-06-16T12:00:00.000Z"
     }, io)).resolves.toMatchObject({
@@ -103,6 +107,7 @@ describe("dogfood handoff generator", () => {
     expect(handoff).toContain("skfiy-0.1.0-abc123-macos-unsigned.json");
     expect(handoff).toContain("skfiy-0.1.0-abc123-macos-unsigned.zip");
     expect(handoff).toContain("Zip SHA256: `feedface`");
+    expect(handoff).toContain("Release: https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123");
     expect(handoff).toContain("Commit: `abc123`");
     expect(handoff).toContain("Do not run this from tmux");
     expect(handoff).toContain("Screen Recording");

@@ -16,6 +16,7 @@ export function createDefaultDogfoodHandoffOptions(rootDir = DEFAULT_ROOT_DIR) {
     testerId: undefined,
     workflows: [...REQUIRED_DOGFOOD_WORKFLOWS],
     trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
+    releaseUrl: undefined,
     outputPath: undefined,
     finderTargetDir: undefined,
     chromeCurrentPageEndpoint: undefined,
@@ -45,6 +46,10 @@ export function parseDogfoodHandoffArgs(argv, defaults) {
         break;
       case "--tracking-issue-url":
         options.trackingIssueUrl = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--release-url":
+        options.releaseUrl = readValue(argv, index, arg);
         index += 1;
         break;
       case "--output":
@@ -90,6 +95,7 @@ export async function createDogfoodHandoff(options, io = createDefaultIo()) {
     testerId,
     workflows: options.workflows,
     trackingIssueUrl: options.trackingIssueUrl,
+    releaseUrl: options.releaseUrl,
     finderTargetDir: options.finderTargetDir,
     chromeCurrentPageEndpoint: options.chromeCurrentPageEndpoint,
     requirePassed: options.requirePassed,
@@ -124,6 +130,7 @@ export function createDogfoodHandoffHelpText() {
     "Options:",
     "  --workflows <ids>                      Comma-separated workflow ids. Defaults to all required workflows.",
     "  --tracking-issue-url <url>             Dogfood tracking issue URL.",
+    "  --release-url <url>                    Optional GitHub release URL for remote testers.",
     "  --finder-target-dir <path>             Optional real Finder parent directory for the tester run.",
     "  --chrome-current-page-endpoint <url>   Optional consenting Chrome CDP endpoint for real-page evidence.",
     "  --require-passed                       Include strict passed smoke flags for permission-ready testers.",
@@ -140,6 +147,7 @@ function createDogfoodHandoffMarkdown({
   testerId,
   workflows,
   trackingIssueUrl,
+  releaseUrl,
   finderTargetDir,
   chromeCurrentPageEndpoint,
   requirePassed,
@@ -173,6 +181,7 @@ function createDogfoodHandoffMarkdown({
     `- Bundle id: \`${manifest?.bundleIdentifier ?? "com.sskift.skfiy"}\``,
     `- Manifest: \`${path.basename(manifestPath)}\``,
     `- Alpha zip: \`${path.basename(String(manifest?.zip?.path ?? ""))}\``,
+    ...(releaseUrl ? [`- Release: ${releaseUrl}`] : []),
     `- Zip path to share: \`${manifest?.zip?.path ?? "missing"}\``,
     `- Zip SHA256: \`${manifest?.zip?.sha256 ?? "missing"}\``,
     `- Commit: \`${manifest?.commitSha ?? "missing"}\``,
