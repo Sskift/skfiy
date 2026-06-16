@@ -66,6 +66,7 @@ describe("dogfood cohort updater", () => {
     expect(createDogfoodReportHelpText()).toContain("--manifest");
     expect(createDogfoodReportHelpText()).toContain("--issue-url");
     expect(createDogfoodReportHelpText()).toContain("--issue-labels");
+    expect(createDogfoodReportHelpText()).toContain("requires all five issue smoke artifact paths");
     expect(createDogfoodReportHelpText()).toContain("3-5 distinct testers");
   });
 
@@ -270,7 +271,27 @@ describe("dogfood cohort updater", () => {
       "- [x] coding-terminal",
       "- [ ] screenshot-inspection",
       "- [x] finder-file",
-      "- [ ] browser-fallback"
+      "- [ ] browser-fallback",
+      "",
+      "### UI smoke artifact",
+      "",
+      uiSmokePath,
+      "",
+      "### smoke artifact",
+      "",
+      ghosttySmokePath,
+      "",
+      "### Chrome smoke artifact",
+      "",
+      chromeSmokePath,
+      "",
+      "### Finder smoke artifact",
+      "",
+      finderSmokePath,
+      "",
+      "### voice smoke artifact",
+      "",
+      voiceSmokePath
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -419,6 +440,80 @@ describe("dogfood cohort updater", () => {
         voice: "passed"
       }
     });
+  });
+
+  it("rejects accepted issue bodies that do not list every tester smoke artifact path", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    });
+    const incompleteIssueBody = [
+      "### tester id",
+      "",
+      "tester-incomplete-artifacts",
+      "",
+      "### cohort workflows",
+      "",
+      "- [x] coding-terminal",
+      "",
+      "### UI smoke artifact",
+      "",
+      uiSmokePath,
+      "",
+      "### smoke artifact",
+      "",
+      ghosttySmokePath,
+      "",
+      "### Chrome smoke artifact",
+      "",
+      chromeSmokePath,
+      "",
+      "### voice smoke artifact",
+      "",
+      voiceSmokePath
+    ].join("\n");
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      reportPath,
+      cohortPath
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: incompleteIssueBody,
+          labels: [
+            "dogfood:accepted",
+            "workflow:coding-terminal"
+          ]
+        };
+      }
+    })).rejects.toThrow("Issue Finder smoke artifact must include an absolute path.");
   });
 
   it("requires a GitHub issue URL when generating a real dogfood report from a manifest", async () => {

@@ -13,6 +13,13 @@ const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_COHORT_NAME = "internal-alpha";
 const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
 const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
+const DOGFOOD_SMOKE_ARTIFACT_SECTIONS = [
+  ["uiSmokeArtifactPath", "UI smoke artifact"],
+  ["ghosttySmokeArtifactPath", "smoke artifact"],
+  ["chromeSmokeArtifactPath", "Chrome smoke artifact"],
+  ["finderSmokeArtifactPath", "Finder smoke artifact"],
+  ["voiceSmokeArtifactPath", "voice smoke artifact"]
+];
 
 export function createDefaultDogfoodReportOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -204,6 +211,7 @@ export function createDogfoodReportHelpText() {
     "With --manifest, generates the single-user report from the alpha manifest and tester issue artifacts first.",
     "Use --issue-url to link the generated report to the accepted GitHub dogfood issue.",
     "By default testerId, workflows, smoke artifact paths, and labels are read from GitHub with gh issue view.",
+    "When the issue body is readable, dogfood:report requires all five issue smoke artifact paths.",
     "Use --tester-id and --workflows as explicit overrides for the issue body fields.",
     "Use --issue-labels as an explicit/offline override proving dogfood:accepted plus matching workflow:* labels.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
@@ -228,31 +236,21 @@ function readManifestSmokePaths(manifest) {
 
 function readSmokeArtifactSelection(manifest, issue) {
   const manifestPaths = readManifestSmokePaths(manifest);
-  const issuePaths = {
-    uiSmokeArtifactPath: readIssueArtifactPath(issue, "UI smoke artifact"),
-    ghosttySmokeArtifactPath: readIssueArtifactPath(issue, "smoke artifact"),
-    chromeSmokeArtifactPath: readIssueArtifactPath(issue, "Chrome smoke artifact"),
-    finderSmokeArtifactPath: readIssueArtifactPath(issue, "Finder smoke artifact"),
-    voiceSmokeArtifactPath: readIssueArtifactPath(issue, "voice smoke artifact")
-  };
-  const hasIssueArtifactPath = Object.values(issuePaths).some((value) => typeof value === "string");
+  if (!hasIssueBody(issue)) {
+    return {
+      artifactSource: "alpha-manifest-smoke-artifacts",
+      paths: manifestPaths
+    };
+  }
 
   return {
-    artifactSource: hasIssueArtifactPath
-      ? "github-issue-smoke-artifacts"
-      : "alpha-manifest-smoke-artifacts",
-    paths: {
-      uiSmokeArtifactPath: issuePaths.uiSmokeArtifactPath
-        ?? manifestPaths.uiSmokeArtifactPath,
-      ghosttySmokeArtifactPath: issuePaths.ghosttySmokeArtifactPath
-        ?? manifestPaths.ghosttySmokeArtifactPath,
-      chromeSmokeArtifactPath: issuePaths.chromeSmokeArtifactPath
-        ?? manifestPaths.chromeSmokeArtifactPath,
-      finderSmokeArtifactPath: issuePaths.finderSmokeArtifactPath
-        ?? manifestPaths.finderSmokeArtifactPath,
-      voiceSmokeArtifactPath: issuePaths.voiceSmokeArtifactPath
-        ?? manifestPaths.voiceSmokeArtifactPath
-    }
+    artifactSource: "github-issue-smoke-artifacts",
+    paths: Object.fromEntries(
+      DOGFOOD_SMOKE_ARTIFACT_SECTIONS.map(([key, sectionTitle]) => [
+        key,
+        readRequiredIssueArtifactPath(issue, sectionTitle)
+      ])
+    )
   };
 }
 
@@ -510,6 +508,19 @@ function readIssueArtifactPath(issue, sectionTitle) {
   }
 
   return value;
+}
+
+function readRequiredIssueArtifactPath(issue, sectionTitle) {
+  const value = readIssueArtifactPath(issue, sectionTitle);
+  if (!value) {
+    throw new Error(`Issue ${sectionTitle} must include an absolute path.`);
+  }
+
+  return value;
+}
+
+function hasIssueBody(issue) {
+  return typeof issue?.body === "string" && issue.body.trim().length > 0;
 }
 
 function readIssueSection(body, title) {
