@@ -101,6 +101,9 @@ npm run dogfood:tester -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tester-id tester-a \
   --workflows coding-terminal,screenshot-inspection
+npm run dogfood:review -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue>
 ```
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main

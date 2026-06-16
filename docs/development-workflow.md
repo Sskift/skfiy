@@ -261,6 +261,18 @@ npm run dogfood:tester -- \
 
 This runner is only a local evidence collector. It refuses tmux, runs product smokes sequentially, generates the `dogfood:issue -- --check-report` draft from the artifacts it just wrote, and leaves GitHub filing plus `dogfood:accepted` label review to maintainers.
 
+Before adding `dogfood:accepted` to a filed tester issue, run:
+
+```bash
+npm run dogfood:review -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue> \
+  --summary .skfiy-dogfood/reviews/<stable-tester-id>.md \
+  --require-current-head
+```
+
+This preflight is non-mutating. It checks the filed issue body and artifact paths through the same manifest-backed parser used by `dogfood:report`, then prints suggested labels. Maintainers still apply labels and update the tracking issue manually after review.
+
 For internal dogfood, each tester should generate a GitHub dogfood issue body draft from the same alpha manifest and smoke artifacts used for local verification:
 
 ```bash

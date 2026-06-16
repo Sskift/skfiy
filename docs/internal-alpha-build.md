@@ -95,6 +95,18 @@ npm run dogfood:issue -- \
 
 The draft writes the alpha manifest basename, alpha zip basename, commit SHA, checked cohort workflows, all five absolute smoke artifact paths, permission states, ASR provider, Computer Use result, screenshots, action verification messages, app policy settings, and core Chrome/Finder/voice evidence into the same `###` sections parsed by `dogfood:report`. `--check-report` round-trips the draft through the same report parser with synthetic accepted labels, then prints `reportPreviewEligibility` from `dogfood:cohort` report-level checks. Incompatible headings, alpha identity, or artifact paths fail before the tester files the issue; `reportPreviewEligibility.eligible=false` means the report would not count toward cohort coverage until the listed blocking checks are fixed. Testers should paste the draft into a `skfiy dogfood report` issue and attach or otherwise preserve the referenced local smoke JSON files for maintainer review.
 
+Before applying accepted labels, maintainers should run a non-mutating review against the filed GitHub issue:
+
+```bash
+npm run dogfood:review -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue> \
+  --summary .skfiy-dogfood/reviews/<stable-tester-id>.md \
+  --require-current-head
+```
+
+`dogfood:review` reads the real issue body, synthesizes the labels that would be required for acceptance, reuses the same manifest-backed `dogfood:report` parser against the issue's smoke artifact paths, and writes a maintainer summary with suggested labels. It does not add labels, edit the tracking issue, or count the report toward the cohort.
+
 After each single-user dogfood report is accepted, generate a report JSON from the alpha manifest and the tester smoke artifact paths in the accepted issue body, then add or replace it in the local cohort file:
 
 Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issues/1. Each accepted single-user dogfood issue should be linked there before being converted into local `.skfiy-dogfood/` JSON. Accepted report issues should carry `dogfood:accepted` plus the covered workflow labels (`workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`) before maintainers run `dogfood:report`.
