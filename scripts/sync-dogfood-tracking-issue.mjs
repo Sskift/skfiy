@@ -25,6 +25,7 @@ export function createDefaultDogfoodTrackingIssueOptions(rootDir = DEFAULT_ROOT_
     manifestPath: undefined,
     releaseUrl: undefined,
     trackingIssueUrl: DEFAULT_TRACKING_ISSUE_URL,
+    acceptedReportIssueUrls: [],
     outputPath: undefined,
     dryRun: true,
     help: false
@@ -48,6 +49,13 @@ export function parseDogfoodTrackingIssueArgs(argv, defaults) {
         break;
       case "--tracking-issue-url":
         options.trackingIssueUrl = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--accepted-report-url":
+        options.acceptedReportIssueUrls = [
+          ...(Array.isArray(options.acceptedReportIssueUrls) ? options.acceptedReportIssueUrls : []),
+          readValue(argv, index, arg)
+        ];
         index += 1;
         break;
       case "--output":
@@ -93,6 +101,7 @@ export async function syncDogfoodTrackingIssue(options, io = createDefaultIo()) 
     manifest,
     releaseUrl,
     trackingIssueUrl: options.trackingIssueUrl,
+    acceptedReportIssueUrls: options.acceptedReportIssueUrls,
     existingBody: existingTrackingIssue?.body,
     uiSmokeArtifact
   });
@@ -138,6 +147,7 @@ export function createDogfoodTrackingIssueBody({
   manifest,
   releaseUrl,
   trackingIssueUrl,
+  acceptedReportIssueUrls,
   existingBody,
   uiSmokeArtifact
 }) {
@@ -150,7 +160,11 @@ export function createDogfoodTrackingIssueBody({
     derivePreflightSummaryPath(rootDir, manifest.uiSmokeArtifactPath, shortSha)
   );
   const permissionLine = createPermissionLine(readPermissionStates(uiSmokeArtifact));
-  const preservedReportIssueUrls = readAcceptedReportIssueUrls(existingBody, trackingIssueUrl);
+  const preservedReportIssueUrls = mergeAcceptedReportIssueUrls(
+    readAcceptedReportIssueUrls(existingBody, trackingIssueUrl),
+    acceptedReportIssueUrls,
+    trackingIssueUrl
+  );
   const testerSlotLines = createTesterSlotLines(preservedReportIssueUrls);
   const testerAssignmentLines = createRecommendedTesterAssignmentLines({
     acceptedReportCount: preservedReportIssueUrls.length,
@@ -281,6 +295,7 @@ export function createDogfoodTrackingIssueHelpText() {
     "Options:",
     "  --release-url <url>          GitHub alpha release URL. Defaults from the tracking issue repo and manifest commit.",
     "  --tracking-issue-url <url>   GitHub tracking issue URL. Defaults to https://github.com/Sskift/skfiy/issues/1.",
+    "  --accepted-report-url <url>  Accepted report issue URL to place in the next available tester slot. Repeatable.",
     "  --output <path>              Markdown body output path. Defaults to .skfiy-dogfood/tracking-issue-<commit>.md.",
     "  --execute                    Edit the GitHub issue after writing the local body.",
     "  --dry-run                    Write the local body without editing GitHub."
@@ -413,6 +428,26 @@ function readAcceptedReportIssueUrls(body, trackingIssueUrl) {
       && !urls.some((existing) => normalizeUrl(existing) === normalizeUrl(url))
     ) {
       urls.push(url);
+    }
+  }
+
+  return urls.slice(0, 5);
+}
+
+function mergeAcceptedReportIssueUrls(existingUrls, extraUrls, trackingIssueUrl) {
+  const urls = [];
+
+  for (const url of [
+    ...(Array.isArray(existingUrls) ? existingUrls : []),
+    ...(Array.isArray(extraUrls) ? extraUrls : [])
+  ]) {
+    if (
+      typeof url === "string"
+      && url.trim().length > 0
+      && normalizeUrl(url) !== normalizeUrl(trackingIssueUrl)
+      && !urls.some((existing) => normalizeUrl(existing) === normalizeUrl(url))
+    ) {
+      urls.push(url.trim());
     }
   }
 
