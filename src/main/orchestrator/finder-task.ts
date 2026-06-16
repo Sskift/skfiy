@@ -4,7 +4,8 @@ import { createFinderOrganizationPlan } from "../computer-use/finder-organizer.j
 import type {
   DesktopActionResult,
   DesktopExecutableAction,
-  DesktopAppState
+  DesktopAppState,
+  FinderSelectionResult
 } from "../computer-use/types.js";
 import type { RiskDecision } from "../../shared/types.js";
 
@@ -44,6 +45,10 @@ export type FinderTaskEvent =
       observation: DesktopAppState;
     }
   | {
+      type: "finder_selection_observed";
+      context: FinderSelectionResult;
+    }
+  | {
       type: "action_verified";
       actionType: "create_folder" | "move_file";
       status: "passed";
@@ -51,7 +56,7 @@ export type FinderTaskEvent =
     }
   | {
       type: "verification_failed";
-      stage: "input" | "file_operation" | "activate" | "observe";
+      stage: "input" | "file_operation" | "activate" | "observe" | "selection";
       reason: string;
     }
   | {
@@ -68,6 +73,7 @@ export interface FinderTaskOptions {
 
 export interface FinderDesktopClient {
   executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult>;
+  getFinderSelection?(): Promise<FinderSelectionResult>;
 }
 
 export async function* runFinderOrganizationTask(
@@ -225,6 +231,29 @@ async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<Finder
     path: observationResult.result.screenshotPath,
     observation: observationResult.result
   };
+
+  yield* observeFinderSelection(options.desktopClient);
+}
+
+async function* observeFinderSelection(
+  desktopClient: FinderDesktopClient
+): AsyncGenerator<FinderTaskEvent> {
+  if (!desktopClient.getFinderSelection) {
+    return;
+  }
+
+  try {
+    yield {
+      type: "finder_selection_observed",
+      context: await desktopClient.getFinderSelection()
+    };
+  } catch (error) {
+    yield {
+      type: "verification_failed",
+      stage: "selection",
+      reason: readErrorMessage(error)
+    };
+  }
 }
 
 async function executeFinderAction(

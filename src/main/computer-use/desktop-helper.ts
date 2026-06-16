@@ -4,6 +4,9 @@ import type {
   DesktopAppInfo,
   DesktopAppState,
   DesktopExecutableAction,
+  FinderSelectionItem,
+  FinderSelectionItemKind,
+  FinderSelectionResult,
   DesktopHelperActionResult,
   DesktopHelperClientOptions,
   DesktopHelperProcessResult,
@@ -106,6 +109,14 @@ export class DesktopHelperClient {
       "ocr-image",
       ["ocr-image", "--input", checkedInputPath],
       readOcrImageResult
+    );
+  }
+
+  async getFinderSelection(): Promise<FinderSelectionResult> {
+    return this.runJson(
+      "get-finder-selection",
+      ["get-finder-selection"],
+      readFinderSelectionResult
     );
   }
 
@@ -624,6 +635,62 @@ function readNativeSpeechTranscriptionResult(
   }
 
   return result;
+}
+
+function readFinderSelectionResult(
+  payload: unknown,
+  commandName: string
+): FinderSelectionResult {
+  const record = readRecord(payload, commandName);
+  const source = readString(record, "source", commandName);
+
+  if (source !== "finder-applescript") {
+    throw invalidShape(commandName, `expected known Finder selection source, got ${source}`);
+  }
+
+  const selection = record.selection;
+  if (!Array.isArray(selection)) {
+    throw invalidShape(commandName, "expected selection to be an array");
+  }
+
+  const result: FinderSelectionResult = {
+    source,
+    selection: selection.map((item) => readFinderSelectionItem(item, commandName))
+  };
+  const frontmostBundleId = readOptionalString(record, "frontmostBundleId", commandName);
+  const targetPath = readOptionalString(record, "targetPath", commandName);
+
+  if (frontmostBundleId !== undefined) {
+    result.frontmostBundleId = frontmostBundleId;
+  }
+
+  if (targetPath !== undefined) {
+    result.targetPath = targetPath;
+  }
+
+  return result;
+}
+
+function readFinderSelectionItem(
+  payload: unknown,
+  commandName: string
+): FinderSelectionItem {
+  const record = readRecord(payload, commandName);
+  const kind = readString(record, "kind", commandName);
+
+  if (!isFinderSelectionItemKind(kind)) {
+    throw invalidShape(commandName, `expected known Finder selection item kind, got ${kind}`);
+  }
+
+  return {
+    path: readString(record, "path", commandName),
+    name: readString(record, "name", commandName),
+    kind
+  };
+}
+
+function isFinderSelectionItemKind(value: string): value is FinderSelectionItemKind {
+  return value === "file" || value === "directory" || value === "other";
 }
 
 function readPermissionStatus(payload: unknown, commandName: string) {

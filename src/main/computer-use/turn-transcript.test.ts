@@ -242,6 +242,36 @@ describe("createTurnTranscript", () => {
     });
   });
 
+  it("records Finder semantic selection observations as replay actions", () => {
+    expect(createTurnTranscript([
+      {
+        type: "finder_selection_observed",
+        context: {
+          source: "finder-applescript",
+          frontmostBundleId: "com.apple.finder",
+          targetPath: "/tmp/skfiy-finder-smoke",
+          selection: [
+            {
+              path: "/tmp/skfiy-finder-smoke/photo.png",
+              name: "photo.png",
+              kind: "file"
+            }
+          ]
+        }
+      }
+    ])).toMatchObject({
+      actions: [
+        {
+          type: "observe_finder_selection",
+          source: "finder-applescript",
+          frontmostBundleId: "com.apple.finder",
+          targetPath: "/tmp/skfiy-finder-smoke",
+          selectedCount: 1
+        }
+      ]
+    });
+  });
+
   it("uses OCR labels as screenshot grounding when accessibility is blocked", () => {
     expect(createTurnTranscript([
       {

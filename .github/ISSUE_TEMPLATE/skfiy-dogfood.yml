@@ -243,6 +243,20 @@ body:
       required: true
 
   - type: textarea
+    id: finder_semantic_selection
+    attributes:
+      label: Finder semantic selection
+      description: Paste Finder `finderSemanticObservation` from the smoke artifact, including source/frontmost bundle/selected count when passed or the permission-blocked reason.
+      placeholder: |
+        finderSemanticObservation.result: passed
+        finderSemanticObservation.source: finder-applescript
+        finderSemanticObservation.frontmostBundleId: com.apple.finder
+        finderSemanticObservation.targetPath: /tmp/skfiy-finder-smoke
+        finderSemanticObservation.selectedCount: 1
+    validations:
+      required: true
+
+  - type: textarea
     id: finder_organization
     attributes:
       label: Finder before tree / after tree

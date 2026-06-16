@@ -43,6 +43,7 @@ describe("skfiy dogfood issue template", () => {
       "Chrome form action",
       "com.apple.finder",
       "Finder observe_app",
+      "Finder semantic selection",
       "Finder before tree / after tree",
       "Verified create_folder",
       "Verified move_file",

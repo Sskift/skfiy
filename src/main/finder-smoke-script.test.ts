@@ -69,6 +69,13 @@ describe("Finder product smoke script", () => {
         frontmostBundleId: "com.apple.finder",
         windowCount: 1
       },
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        targetPath: "/tmp/skfiy-finder-smoke",
+        selectedCount: 1
+      },
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [
         "Code/script.ts",
@@ -99,6 +106,32 @@ describe("Finder product smoke script", () => {
     })).toBe("failed");
   });
 
+  it("classifies a completed Finder organization without semantic selection evidence as failed", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      finderObservation: {
+        result: "passed",
+        screenshotPath: "/tmp/skfiy/finder-before.png",
+        frontmostBundleId: "com.apple.finder"
+      },
+      events: [{ status: "completed", message: "Finder test folder organized." }],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    })).toBe("failed");
+  });
+
   it("classifies a completed Finder organization with permission-blocked observation as blocked", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
     const {
@@ -114,6 +147,36 @@ describe("Finder product smoke script", () => {
       finderObservation: {
         result: "blocked",
         reason: "Screen Recording permission is required for skfiy."
+      },
+      events: [{ status: "completed", message: "Finder test folder organized." }],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    })).toBe("blocked");
+  });
+
+  it("classifies a completed Finder organization with Automation-blocked semantic observation as blocked", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      finderObservation: {
+        result: "passed",
+        screenshotPath: "/tmp/skfiy/finder-before.png",
+        frontmostBundleId: "com.apple.finder"
+      },
+      finderSemanticObservation: {
+        result: "blocked",
+        reason: "Automation permission is required to read Finder selection."
       },
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [

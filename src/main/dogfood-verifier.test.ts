@@ -20,6 +20,7 @@ describe("dogfood artifact verifier", () => {
     "Chrome form action evidence",
     "Finder app policy settings",
     "Finder observe_app screenshot or permission-blocked evidence",
+    "Finder semantic selection evidence",
     "Finder test-folder organization evidence"
   ];
   const ghosttyAppPolicySettings = {
@@ -72,6 +73,13 @@ describe("dogfood artifact verifier", () => {
       screenshotPath: "/tmp/skfiy/finder-before.png",
       frontmostBundleId: "com.apple.finder",
       windowCount: 1
+    },
+    finderSemanticObservation: {
+      result: "passed",
+      source: "finder-applescript",
+      frontmostBundleId: "com.apple.finder",
+      targetPath: "/tmp/skfiy-finder-smoke",
+      selectedCount: 1
     },
     appPolicySettings: ghosttyAppPolicySettings,
     beforeTree: ["notes.pdf", "photo.png", "script.ts"],
@@ -551,6 +559,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.finder"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderAppPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderObservation"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.finderSemanticObservation"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderOrganization"),
         expect.stringContaining("ui.runnerHasTmux"),
         expect.stringContaining("ui.productPath"),
@@ -577,6 +586,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("finder.appPolicySettings"),
         expect.stringContaining("finder.approval"),
         expect.stringContaining("finder.observation"),
+        expect.stringContaining("finder.semanticObservation"),
         expect.stringContaining("finder.actionVerification"),
         expect.stringContaining("finder.beforeTree"),
         expect.stringContaining("finder.afterTree"),

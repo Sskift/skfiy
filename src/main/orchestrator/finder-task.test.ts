@@ -148,6 +148,74 @@ describe("runFinderOrganizationTask", () => {
     }
   });
 
+  it("emits Finder semantic selection context when the desktop client can read it", async () => {
+    const rootPath = await createFixture();
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: "skfiy-finder-smoke",
+                layer: 0,
+                bounds: { x: 10, y: 20, width: 640, height: 480 }
+              }
+            ]
+          };
+        }
+
+        return { ok: true };
+      },
+      async getFinderSelection() {
+        return {
+          source: "finder-applescript" as const,
+          frontmostBundleId: "com.apple.finder",
+          targetPath: rootPath,
+          selection: [
+            {
+              path: path.join(rootPath, "photo.png"),
+              name: "photo.png",
+              kind: "file" as const
+            }
+          ]
+        };
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask(`整理 Finder 测试文件夹 ${rootPath}`, {
+          approved: true,
+          desktopClient,
+          createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
+        })
+      );
+
+      expect(events.find((event) => event.type === "finder_selection_observed")).toMatchObject({
+        type: "finder_selection_observed",
+        context: {
+          source: "finder-applescript",
+          frontmostBundleId: "com.apple.finder",
+          targetPath: rootPath,
+          selection: [
+            {
+              name: "photo.png",
+              kind: "file"
+            }
+          ]
+        }
+      });
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
   it("fails closed instead of overwriting an existing destination file", async () => {
     const rootPath = await createFixture();
 

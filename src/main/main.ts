@@ -10,6 +10,7 @@ import {
 import type {
   DesktopActionResult,
   DesktopAppState,
+  FinderSelectionResult,
   PermissionSettingsTarget
 } from "./computer-use/types.js";
 import {
@@ -86,6 +87,7 @@ interface TaskEvent {
   command?: string;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
+  finderSelection?: FinderSelectionResult;
 }
 
 interface PendingApproval {
@@ -276,7 +278,8 @@ function createGhosttyDesktopClient(helper: DesktopHelperClient): DesktopClient 
 
 function createFinderDesktopClient(helper: DesktopHelperClient): FinderDesktopClient {
   return {
-    executeAction: async (action) => helper.executeAction(action)
+    executeAction: async (action) => helper.executeAction(action),
+    getFinderSelection: async () => helper.getFinderSelection()
   };
 }
 
@@ -352,6 +355,12 @@ function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEve
         message: `${prefix}Captured before screenshot: ${event.path}`,
         replayRecord: createObserveAppReplayRecord("before", event.observation)
       };
+    case "finder_selection_observed":
+      return {
+        status: "observing",
+        message: `${prefix}Observed Finder selection: ${formatFinderSelectionSummary(event.context)}`,
+        finderSelection: event.context
+      };
     case "typing":
       return {
         status: "executing",
@@ -379,6 +388,12 @@ function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEve
     status: "failed",
     message: "Unknown task event."
   };
+}
+
+function formatFinderSelectionSummary(context: FinderSelectionResult): string {
+  const target = context.targetPath ?? "unknown folder";
+  const count = context.selection.length;
+  return `${count} selected item${count === 1 ? "" : "s"} in ${target}.`;
 }
 
 function createObserveAppReplayRecord(

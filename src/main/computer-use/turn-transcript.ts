@@ -4,7 +4,7 @@ import {
   type GroundingCoverageEvaluation
 } from "./grounding-evaluation.js";
 import { extractObservedElementsFromAppState } from "./observed-elements.js";
-import type { DesktopAppState } from "./types.js";
+import type { DesktopAppState, FinderSelectionResult } from "./types.js";
 
 export type ComputerUseTurnEvent =
   | { type: "started"; command: string; risk: RiskDecision }
@@ -30,6 +30,7 @@ export type ComputerUseTurnEvent =
   | { type: "verification_failed"; stage: string; reason: string }
   | { type: "recovery_attempted"; stage: string; action: "activate" | "open"; reason: string }
   | { type: "screenshot_before"; path: string; observation: DesktopAppState }
+  | { type: "finder_selection_observed"; context: FinderSelectionResult }
   | { type: "typing"; command: string }
   | { type: "submitted"; key: "enter" }
   | { type: "screenshot_after"; path: string; observation: DesktopAppState }
@@ -63,6 +64,13 @@ export type TurnTranscriptAction =
   | { type: "activate_app"; appName: string; bundleId: string; pid?: number }
   | { type: "type_text"; text: string }
   | { type: "press_key"; key: "enter" }
+  | {
+    type: "observe_finder_selection";
+    source: FinderSelectionResult["source"];
+    frontmostBundleId?: string;
+    targetPath?: string;
+    selectedCount: number;
+  }
   | { type: "recover"; action: "activate" | "open"; stage: string; reason: string }
   | {
     type: "verify";
@@ -156,6 +164,19 @@ export function createTurnTranscript(
       case "screenshot_before":
       case "screenshot_after":
         screenshots.push(createScreenshot(event));
+        break;
+      case "finder_selection_observed":
+        actions.push({
+          type: "observe_finder_selection",
+          source: event.context.source,
+          frontmostBundleId: event.context.frontmostBundleId,
+          targetPath: event.context.targetPath,
+          selectedCount: event.context.selection.length
+        });
+        mergeApp(apps, {
+          name: "Finder",
+          bundleId: "com.apple.finder"
+        });
         break;
       case "typing":
         actions.push({ type: "type_text", text: event.command });

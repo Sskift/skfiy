@@ -43,6 +43,18 @@ interface TaskEvent {
   command?: string;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
+  finderSelection?: FinderSelectionResult;
+}
+
+interface FinderSelectionResult {
+  source: "finder-applescript";
+  frontmostBundleId?: string;
+  targetPath?: string;
+  selection: Array<{
+    path: string;
+    name: string;
+    kind: "file" | "directory" | "other";
+  }>;
 }
 
 interface ObserveAppReplayRecord {

@@ -30,6 +30,7 @@ const DOGFOOD_EVIDENCE = [
   "Chrome form action evidence",
   "Finder app policy settings",
   "Finder observe_app screenshot or permission-blocked evidence",
+  "Finder semantic selection evidence",
   "Finder test-folder organization evidence"
 ];
 

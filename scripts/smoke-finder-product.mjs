@@ -44,6 +44,7 @@ async function main() {
     afterTree: [],
     events: [],
     finderObservation: undefined,
+    finderSemanticObservation: undefined,
     permissions: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
@@ -127,6 +128,10 @@ async function main() {
       evidence.appPolicySettings = appPolicySettings.result?.value;
       evidence.events = cdp.events;
       evidence.finderObservation = readFinderObservation(cdp.events);
+      evidence.finderSemanticObservation = readFinderSemanticObservation(
+        cdp.events,
+        evidence.finderObservation
+      );
       evidence.afterTree = await readDirectoryTree(evidence.fixtureRoot);
       evidence.result = classifyFinderSmokeEvidence(evidence);
     } finally {
@@ -322,7 +327,6 @@ async function waitForTerminalTaskEvent(cdp, timeoutMs) {
     if (
       status === "completed"
       || status === "failed"
-      || status === "needs_confirmation"
       || status === "idle"
     ) {
       return;
@@ -373,10 +377,61 @@ function readFinderObservation(events) {
   };
 }
 
+function readFinderSemanticObservation(events, finderObservation) {
+  const selectionEvent = events.find((event) => event?.finderSelection)?.finderSelection;
+
+  if (selectionEvent) {
+    return {
+      result: "passed",
+      source: selectionEvent.source,
+      frontmostBundleId: selectionEvent.frontmostBundleId,
+      targetPath: selectionEvent.targetPath,
+      selectedCount: Array.isArray(selectionEvent.selection)
+        ? selectionEvent.selection.length
+        : undefined,
+      selectedItems: Array.isArray(selectionEvent.selection)
+        ? selectionEvent.selection.map((item) => ({
+          path: item.path,
+          name: item.name,
+          kind: item.kind
+        }))
+        : []
+    };
+  }
+
+  const blockedEvent = events.find((event) => (
+    typeof event?.message === "string"
+    && event.message.includes("Verification failed (selection):")
+    && isPermissionBlockedMessage(event.message)
+  ));
+
+  if (blockedEvent) {
+    return {
+      result: "blocked",
+      reason: blockedEvent.message
+    };
+  }
+
+  if (finderObservation?.result === "blocked") {
+    return {
+      result: "blocked",
+      reason: `Skipped Finder semantic selection because Finder observe_app was blocked: ${finderObservation.reason}`
+    };
+  }
+
+  return {
+    result: "missing"
+  };
+}
+
 function isPermissionBlockedMessage(message) {
   const normalized = message.toLowerCase();
   return normalized.includes("permission")
-    && (normalized.includes("accessibility") || normalized.includes("screen recording"));
+    && (
+      normalized.includes("accessibility")
+      || normalized.includes("screen recording")
+      || normalized.includes("automation")
+    );
 }
 
 async function quitSkfiy() {

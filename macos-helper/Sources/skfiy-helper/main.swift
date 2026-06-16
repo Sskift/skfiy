@@ -61,6 +61,17 @@ import Vision
        bounds: { x: Number, y: Number, width: Number, height: Number }
      }]
    }
+ - get-finder-selection:
+   data = {
+     source: "finder-applescript",
+     frontmostBundleId: String | null,
+     targetPath: String | null,
+     selection: [{
+       path: String,
+       name: String,
+       kind: "file" | "directory" | "other"
+     }]
+   }
  - click --x <n> --y <n>:
    data = { x: Number, y: Number }
  - scroll --delta-x <n> --delta-y <n>:
@@ -119,6 +130,8 @@ import Vision
  - Application launch is allowlisted; it only opens Ghostty through NSWorkspace.
  - The only subprocess it starts is /usr/sbin/screencapture, and only for
    screenshot capture.
+ - Finder semantic observation uses in-process Apple Events and returns a
+   structured permission error if macOS Automation consent is missing.
  */
 
 let supportedCommands = [
@@ -127,6 +140,7 @@ let supportedCommands = [
     "open-ghostty-session",
     "screenshot",
     "ocr-image",
+    "get-finder-selection",
     "click",
     "scroll",
     "drag",
@@ -236,6 +250,19 @@ struct OcrLabelPayload: Encodable {
 
 struct OcrImagePayload: Encodable {
     let labels: [OcrLabelPayload]
+}
+
+struct FinderSelectionItemPayload: Encodable {
+    let path: String
+    let name: String
+    let kind: String
+}
+
+struct FinderSelectionPayload: Encodable {
+    let source: String
+    let frontmostBundleId: String?
+    let targetPath: String?
+    let selection: [FinderSelectionItemPayload]
 }
 
 struct ClickPayload: Encodable {
@@ -668,6 +695,143 @@ func recognizeTextLabels(inputPath: String) throws -> [OcrLabelPayload] {
             bounds: topLeftPixelBounds(for: observation.boundingBox, imageSize: size)
         )
     }
+}
+
+func finderSelectionScriptSource() -> String {
+    """
+    set outputLines to {}
+    tell application "Finder"
+        try
+            set targetAlias to target of front Finder window as alias
+            set end of outputLines to POSIX path of targetAlias
+        on error
+            set end of outputLines to ""
+        end try
+
+        set selectedItems to selection as list
+        repeat with finderItem in selectedItems
+            try
+                set end of outputLines to POSIX path of (finderItem as alias)
+            end try
+        end repeat
+    end tell
+
+    set AppleScript's text item delimiters to linefeed
+    set joinedOutput to outputLines as text
+    set AppleScript's text item delimiters to ""
+    return joinedOutput
+    """
+}
+
+func appleScriptErrorNumber(_ errorInfo: NSDictionary) -> Int? {
+    if let number = errorInfo[NSAppleScript.errorNumber] as? NSNumber {
+        return number.intValue
+    }
+
+    if let number = errorInfo["NSAppleScriptErrorNumber"] as? NSNumber {
+        return number.intValue
+    }
+
+    return nil
+}
+
+func appleScriptErrorMessage(_ errorInfo: NSDictionary) -> String {
+    if let message = errorInfo[NSAppleScript.errorMessage] as? String {
+        return message
+    }
+
+    if let message = errorInfo["NSAppleScriptErrorMessage"] as? String {
+        return message
+    }
+
+    return "Finder AppleScript failed."
+}
+
+func finderSelectionFailure(from errorInfo: NSDictionary) -> HelperFailure {
+    let number = appleScriptErrorNumber(errorInfo)
+    let message = appleScriptErrorMessage(errorInfo)
+    let lowercasedMessage = message.lowercased()
+    var details: [String: JSONValue] = ["message": .string(message)]
+
+    if let number {
+        details["errorNumber"] = .int(number)
+    }
+
+    if number == -1743
+        || lowercasedMessage.contains("not authorized")
+        || lowercasedMessage.contains("not permitted")
+        || lowercasedMessage.contains("automation") {
+        return HelperFailure(
+            "finder_automation_permission_required",
+            "Automation permission is required to read Finder selection. Grant skfiy permission to control Finder, then try again.",
+            details: details
+        )
+    }
+
+    return HelperFailure(
+        "finder_selection_failed",
+        "Failed to read Finder selection.",
+        details: details
+    )
+}
+
+func normalizedFinderPath(_ rawPath: String) -> String? {
+    let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+        return nil
+    }
+
+    return URL(fileURLWithPath: trimmed).standardizedFileURL.path
+}
+
+func finderSelectionItem(for rawPath: String) -> FinderSelectionItemPayload? {
+    guard let path = normalizedFinderPath(rawPath) else {
+        return nil
+    }
+
+    var isDirectory = ObjCBool(false)
+    let exists = FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
+    let kind: String
+
+    if exists {
+        kind = isDirectory.boolValue ? "directory" : "file"
+    } else {
+        kind = "other"
+    }
+
+    return FinderSelectionItemPayload(
+        path: path,
+        name: URL(fileURLWithPath: path).lastPathComponent,
+        kind: kind
+    )
+}
+
+func readFinderSelection() throws -> FinderSelectionPayload {
+    guard let script = NSAppleScript(source: finderSelectionScriptSource()) else {
+        throw HelperFailure(
+            "finder_selection_script_invalid",
+            "Failed to compile Finder selection AppleScript."
+        )
+    }
+
+    var errorInfo: NSDictionary?
+    let descriptor = script.executeAndReturnError(&errorInfo)
+
+    if let errorInfo {
+        throw finderSelectionFailure(from: errorInfo)
+    }
+
+    let lines = (descriptor.stringValue ?? "")
+        .components(separatedBy: .newlines)
+    let targetPath = lines.first.flatMap(normalizedFinderPath)
+    let selection = lines.dropFirst().compactMap(finderSelectionItem)
+
+    return FinderSelectionPayload(
+        source: "finder-applescript",
+        frontmostBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+        targetPath: targetPath,
+        selection: selection
+    )
 }
 
 func postMouseClick(x: Double, y: Double) throws {
@@ -1422,6 +1586,11 @@ func handleOcrImage(_ arguments: ArraySlice<String>) throws -> OcrImagePayload {
     return OcrImagePayload(labels: try recognizeTextLabels(inputPath: input))
 }
 
+func handleGetFinderSelection(_ arguments: ArraySlice<String>) throws -> FinderSelectionPayload {
+    _ = try parseOptions(arguments, allowed: [])
+    return try readFinderSelection()
+}
+
 func handleClick(_ arguments: ArraySlice<String>) throws -> ClickPayload {
     let options = try parseOptions(arguments, allowed: ["--x", "--y"])
     let x = try requiredDoubleOption("--x", in: options)
@@ -1598,6 +1767,8 @@ do {
         succeed(command: commandName, data: try handleScreenshot(arguments))
     case "ocr-image":
         succeed(command: commandName, data: try handleOcrImage(arguments))
+    case "get-finder-selection":
+        succeed(command: commandName, data: try handleGetFinderSelection(arguments))
     case "click":
         succeed(command: commandName, data: try handleClick(arguments))
     case "scroll":

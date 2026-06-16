@@ -94,6 +94,7 @@ export function classifyFinderSmokeEvidence({
   events = [],
   afterTree = [],
   finderObservation,
+  finderSemanticObservation,
   runnerHasTmux = false,
   appLaunchViaOpen = false,
   productPath
@@ -128,7 +129,15 @@ export function classifyFinderSmokeEvidence({
     return "blocked";
   }
 
-  if (!hasExpectedAfterTree(afterTree) || !hasPassedFinderObservation(finderObservation)) {
+  if (hasPermissionBlockedFinderSemanticObservation(finderSemanticObservation)) {
+    return "blocked";
+  }
+
+  if (
+    !hasExpectedAfterTree(afterTree)
+    || !hasPassedFinderObservation(finderObservation)
+    || !hasPassedFinderSemanticObservation(finderSemanticObservation)
+  ) {
     return "failed";
   }
 
@@ -153,10 +162,27 @@ function hasPermissionBlockedFinderObservation(finderObservation) {
     && isPermissionBlockedMessage(finderObservation.reason);
 }
 
+function hasPassedFinderSemanticObservation(finderSemanticObservation) {
+  return finderSemanticObservation?.result === "passed"
+    && finderSemanticObservation.source === "finder-applescript"
+    && finderSemanticObservation.frontmostBundleId === "com.apple.finder"
+    && Number.isFinite(finderSemanticObservation.selectedCount);
+}
+
+function hasPermissionBlockedFinderSemanticObservation(finderSemanticObservation) {
+  return finderSemanticObservation?.result === "blocked"
+    && typeof finderSemanticObservation.reason === "string"
+    && isPermissionBlockedMessage(finderSemanticObservation.reason);
+}
+
 function isPermissionBlockedMessage(message) {
   const normalized = message.toLowerCase();
   return normalized.includes("permission")
-    && (normalized.includes("accessibility") || normalized.includes("screen recording"));
+    && (
+      normalized.includes("accessibility")
+      || normalized.includes("screen recording")
+      || normalized.includes("automation")
+    );
 }
 
 function readPositiveInteger(value, name) {

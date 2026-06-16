@@ -74,6 +74,22 @@ export interface NativeSpeechTranscriptionResult {
   silenceTimedOut: boolean;
 }
 
+export type FinderSelectionSource = "finder-applescript";
+export type FinderSelectionItemKind = "file" | "directory" | "other";
+
+export interface FinderSelectionItem {
+  path: string;
+  name: string;
+  kind: FinderSelectionItemKind;
+}
+
+export interface FinderSelectionResult {
+  source: FinderSelectionSource;
+  frontmostBundleId?: string;
+  targetPath?: string;
+  selection: FinderSelectionItem[];
+}
+
 export interface DesktopHelperActionResult {
   ok: boolean;
   message?: string;

@@ -225,6 +225,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.finderSemanticObservation",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Finder semantic selection evidence"),
+    "manifest must require Finder semantic selection evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.finderOrganization",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Finder test-folder organization evidence"),
@@ -604,6 +611,12 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   );
   check(
     checks,
+    "finder.semanticObservation",
+    hasFinderSemanticObservationEvidence(artifact.finderSemanticObservation, artifact.result),
+    "Finder smoke must include Finder semantic selection evidence or a permission-blocked semantic observation"
+  );
+  check(
+    checks,
     "finder.actionVerification",
     hasFinderOrganizationActionVerification(artifact.events),
     "Finder smoke must include create_folder and move_file verification events"
@@ -905,12 +918,32 @@ function hasFinderObservationEvidence(value, result) {
   return false;
 }
 
+function hasFinderSemanticObservationEvidence(value, result) {
+  if (result === "passed") {
+    return hasPassedFinderSemanticObservation(value);
+  }
+
+  if (result === "blocked") {
+    return hasPassedFinderSemanticObservation(value) || hasPermissionBlockedFinderSemanticObservation(value);
+  }
+
+  return false;
+}
+
 function hasPassedFinderObservation(value) {
   return Boolean(value)
     && value.result === "passed"
     && typeof value.screenshotPath === "string"
     && value.screenshotPath.length > 0
     && value.frontmostBundleId === "com.apple.finder";
+}
+
+function hasPassedFinderSemanticObservation(value) {
+  return Boolean(value)
+    && value.result === "passed"
+    && value.source === "finder-applescript"
+    && value.frontmostBundleId === "com.apple.finder"
+    && Number.isFinite(value.selectedCount);
 }
 
 function hasPermissionBlockedFinderObservation(value) {
@@ -920,10 +953,21 @@ function hasPermissionBlockedFinderObservation(value) {
     && isPermissionBlockedMessage(value.reason);
 }
 
+function hasPermissionBlockedFinderSemanticObservation(value) {
+  return Boolean(value)
+    && value.result === "blocked"
+    && typeof value.reason === "string"
+    && isPermissionBlockedMessage(value.reason);
+}
+
 function isPermissionBlockedMessage(message) {
   const normalized = message.toLowerCase();
   return normalized.includes("permission")
-    && (normalized.includes("accessibility") || normalized.includes("screen recording"));
+    && (
+      normalized.includes("accessibility")
+      || normalized.includes("screen recording")
+      || normalized.includes("automation")
+    );
 }
 
 function hasFinderOrganizationActionVerification(events) {

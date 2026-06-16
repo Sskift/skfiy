@@ -176,7 +176,7 @@ Use the packaged app path and a throwaway test folder:
 npm run smoke:finder -- --require-passed --output .skfiy-smoke/finder-organize.json
 ```
 
-The Finder smoke script launches `dist/skfiy.app` through LaunchServices, sends `整理 Finder 测试文件夹 <tmpdir>` through the preload API, approves Finder app policy plus the medium-risk file move, activates Finder through `skfiy-helper`, captures a before `observe_app` record, and verifies the resulting directory tree. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> helper observe_app -> fs -> Finder`, Finder app policy settings, `finderObservation.result: passed`, `finderObservation.frontmostBundleId: com.apple.finder`, a Finder screenshot path, beforeTree entries `notes.pdf`, `photo.png`, and `script.ts`, afterTree entries `Documents/notes.pdf`, `Images/photo.png`, and `Code/script.ts`, `Verified create_folder` and `Verified move_file` events, and empty `processesAfterCleanup`. A permission-blocked observe step must produce `finderObservation.result: blocked` and keep the smoke result blocked until permissions are granted.
+The Finder smoke script launches `dist/skfiy.app` through LaunchServices, sends `整理 Finder 测试文件夹 <tmpdir>` through the preload API, approves Finder app policy plus the medium-risk file move, activates Finder through `skfiy-helper`, captures a before `observe_app` record, reads Finder semantic selection through Apple Events, and verifies the resulting directory tree. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> helper observe_app -> fs -> Finder`, Finder app policy settings, `finderObservation.result: passed`, `finderObservation.frontmostBundleId: com.apple.finder`, a Finder screenshot path, `finderSemanticObservation.result: passed`, `finderSemanticObservation.source: finder-applescript`, `finderSemanticObservation.frontmostBundleId: com.apple.finder`, beforeTree entries `notes.pdf`, `photo.png`, and `script.ts`, afterTree entries `Documents/notes.pdf`, `Images/photo.png`, and `Code/script.ts`, `Verified create_folder` and `Verified move_file` events, and empty `processesAfterCleanup`. A permission-blocked observe or semantic step must produce the matching blocked observation field and keep the smoke result blocked until permissions are granted.
 
 ### Native Voice Smoke
 
@@ -196,7 +196,7 @@ After creating an alpha manifest, verify that the manifest, zip, UI smoke artifa
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, Chrome extraction evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Finder observe_app evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
+Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, Chrome extraction evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
 
 ## Reporting Template
 
@@ -216,6 +216,7 @@ Chrome sensitive pause: sensitiveRun.result sensitive-paused
 Chrome form action: formRun.result passed, Verified fill_selector, Verified click_selector
 Finder: beforeTree notes.pdf/photo.png/script.ts -> afterTree Documents/notes.pdf/Images/photo.png/Code/script.ts
 Finder observe_app: finderObservation.result passed, frontmostBundleId com.apple.finder, screenshotPath /tmp/skfiy/finder-before-...
+Finder semantic selection: finderSemanticObservation.result passed, source finder-applescript, selectedCount 1
 Finder action verification: Verified create_folder, Verified move_file
 Screenshots:
 - before: /path/to/before.png

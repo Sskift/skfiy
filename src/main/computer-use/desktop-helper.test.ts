@@ -414,6 +414,51 @@ describe("DesktopHelperClient", () => {
     ]);
   });
 
+  it("reads semantic Finder selection context from the helper", async () => {
+    const { calls, client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "get-finder-selection",
+          data: {
+            source: "finder-applescript",
+            frontmostBundleId: "com.apple.finder",
+            targetPath: "/tmp/skfiy-finder-smoke",
+            selection: [
+              {
+                path: "/tmp/skfiy-finder-smoke/photo.png",
+                name: "photo.png",
+                kind: "file"
+              }
+            ]
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(client.getFinderSelection()).resolves.toEqual({
+      source: "finder-applescript",
+      frontmostBundleId: "com.apple.finder",
+      targetPath: "/tmp/skfiy-finder-smoke",
+      selection: [
+        {
+          path: "/tmp/skfiy-finder-smoke/photo.png",
+          name: "photo.png",
+          kind: "file"
+        }
+      ]
+    });
+
+    expect(calls).toEqual([
+      {
+        command: "/tmp/skfiy-helper",
+        args: ["get-finder-selection"]
+      }
+    ]);
+  });
+
   it("returns app state for observe_app desktop actions", async () => {
     const { calls, client } = createClientWithResponses([
       {
