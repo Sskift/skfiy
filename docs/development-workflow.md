@@ -390,7 +390,7 @@ Use the read-only release check before any broader internal package:
 npm run release:mac:check
 ```
 
-The check reports missing Developer ID or Apple notary credentials and prints the planned release commands without mutating the app bundle. Actual signing and notarization require a packaged app from `npm run build` plus `SKFIY_DEVELOPER_ID_APPLICATION` and either `APPLE_KEYCHAIN_PROFILE` or all of `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
+The check reports missing Developer ID or Apple notary credentials and prints the planned release commands without mutating the app bundle. The signing plan uses the hardened-runtime entitlements file at `release/skfiy.entitlements.plist`. Actual signing and notarization require a packaged app from `npm run build` plus `SKFIY_DEVELOPER_ID_APPLICATION` and either `APPLE_KEYCHAIN_PROFILE` or all of `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
 
 Run the mutating release steps only after the check is clean:
 

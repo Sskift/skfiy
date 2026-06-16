@@ -210,7 +210,7 @@ Check Developer ID signing and notarization readiness:
 npm run release:mac:check
 ```
 
-This command is read-only. It reports the packaged app path, the notary zip path, planned `codesign`, `ditto`, `notarytool`, and `stapler` steps when requested, and any missing credentials. A real signed release requires `SKFIY_DEVELOPER_ID_APPLICATION` plus either `APPLE_KEYCHAIN_PROFILE` or all of `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
+This command is read-only. It reports the packaged app path, the notary zip path, the hardened-runtime entitlements path (`release/skfiy.entitlements.plist`), planned `codesign`, `ditto`, `notarytool`, and `stapler` steps when requested, and any missing credentials. A real signed release requires `SKFIY_DEVELOPER_ID_APPLICATION` plus either `APPLE_KEYCHAIN_PROFILE` or all of `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
 
 Execute signing only after credentials are configured:
 
@@ -364,6 +364,7 @@ Dogfood reports should use the GitHub issue form at `.github/ISSUE_TEMPLATE/skfi
 Before any broader internal release:
 
 - Run `npm run release:mac:check` and resolve missing Developer ID or Apple notary credentials.
+- Keep `release/skfiy.entitlements.plist` in the planned `codesign --entitlements` command for the Electron runtime, native helper, and microphone-capable speech flow.
 - Run `npm run release:mac:notarize` successfully on the final artifact.
 - Keep `npm run smoke:ui -- --output <path>` and `npm run dogfood:verify -- --manifest <path>` passing with permission setting direct-link evidence.
 - Keep `npm run dogfood:cohort -- --cohort <path>` passing with 3-5 distinct real testers and all four required workflow ids covered by source/artifact/permission-eligible reports.

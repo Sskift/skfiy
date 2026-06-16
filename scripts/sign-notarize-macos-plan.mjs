@@ -7,12 +7,14 @@ export function createMacReleasePlan({
   rootDir,
   appPath = path.join(rootDir, "dist", "skfiy.app"),
   outputDir = path.join(rootDir, ".skfiy-alpha"),
-  zipPath = path.join(outputDir, DEFAULT_NOTARY_ZIP_NAME)
+  zipPath = path.join(outputDir, DEFAULT_NOTARY_ZIP_NAME),
+  entitlementsPath = path.join(rootDir, "release", "skfiy.entitlements.plist")
 }) {
   return {
     appPath,
     outputDir,
     zipPath,
+    entitlementsPath,
     bundleIdentifier: BUNDLE_IDENTIFIER
   };
 }
@@ -224,7 +226,8 @@ export function createMacReleaseSteps(options) {
       name: "codesign-app",
       command: createCodeSignCommand({
         appPath: options.plan.appPath,
-        identity: options.signingIdentity ?? "<SKFIY_DEVELOPER_ID_APPLICATION>"
+        identity: options.signingIdentity ?? "<SKFIY_DEVELOPER_ID_APPLICATION>",
+        entitlementsPath: options.plan.entitlementsPath
       })
     });
     for (const command of createSignatureVerificationCommands({ appPath: options.plan.appPath })) {

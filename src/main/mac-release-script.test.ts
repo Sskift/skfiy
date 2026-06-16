@@ -15,6 +15,7 @@ describe("mac release signing and notarization scripts", () => {
         appPath: string;
         outputDir: string;
         zipPath: string;
+        entitlementsPath: string;
         bundleIdentifier: string;
       };
       createDefaultMacReleaseOptions: (input: {
@@ -25,6 +26,7 @@ describe("mac release signing and notarization scripts", () => {
           appPath: string;
           outputDir: string;
           zipPath: string;
+          entitlementsPath: string;
           bundleIdentifier: string;
         };
         signingIdentity?: string;
@@ -65,6 +67,7 @@ describe("mac release signing and notarization scripts", () => {
           appPath: string;
           outputDir: string;
           zipPath: string;
+          entitlementsPath: string;
           bundleIdentifier: string;
         };
         signingIdentity?: string;
@@ -102,6 +105,7 @@ describe("mac release signing and notarization scripts", () => {
           appPath: string;
           outputDir: string;
           zipPath: string;
+          entitlementsPath: string;
           bundleIdentifier: string;
         };
         signingIdentity?: string;
@@ -123,6 +127,7 @@ describe("mac release signing and notarization scripts", () => {
       appPath: "/repo/dist/skfiy.app",
       outputDir: "/repo/.skfiy-alpha",
       zipPath: "/repo/.skfiy-alpha/skfiy-macos-notarization.zip",
+      entitlementsPath: "/repo/release/skfiy.entitlements.plist",
       bundleIdentifier: "com.sskift.skfiy"
     });
   });
@@ -293,6 +298,8 @@ describe("mac release signing and notarization scripts", () => {
         "--options",
         "runtime",
         "--timestamp",
+        "--entitlements",
+        "/repo/release/skfiy.entitlements.plist",
         "--sign",
         "<SKFIY_DEVELOPER_ID_APPLICATION>",
         "/repo/dist/skfiy.app"
