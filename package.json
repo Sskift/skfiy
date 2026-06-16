@@ -25,7 +25,8 @@
     "smoke:finder": "node scripts/smoke-finder-product.mjs",
     "smoke:ui": "node scripts/smoke-ui-product.mjs",
     "smoke:voice": "node scripts/smoke-voice-product.mjs",
-    "dogfood:verify": "node scripts/verify-dogfood-artifacts.mjs"
+    "dogfood:verify": "node scripts/verify-dogfood-artifacts.mjs",
+    "dogfood:cohort": "node scripts/verify-dogfood-cohort.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.2",

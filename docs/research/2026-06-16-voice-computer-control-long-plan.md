@@ -238,6 +238,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - product path: renderer -> preload -> main -> helper -> Ghostty
   - Ghostty context: skfiy-owned window/tab/process plus marker title/status/prompt state
   - task: "打开 Ghostty 执行 pwd 并截图"
+  - cohort workflow ids: `coding-terminal` and `screenshot-inspection`
   - replay: `observe_app` record path with accessibility trust state
   - screenshots: before and after absolute paths
   - events: observing -> executing -> submitted -> completed
@@ -308,7 +309,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - the Chrome smoke now relaunches `dist/skfiy.app` with a deliberately broken `--skfiy-chrome-cdp-endpoint`, records `fallbackSwitchRun.result: fallback-switched-observed` or `fallback-switched-blocked`, and verifies a `Switching Chrome control from CDP to screenshot_fallback` event before the helper observe_app fallback
   - [x] bring-your-own Chrome current-page dogfood mode
     - `npm run smoke:chrome -- --current-page-endpoint http://127.0.0.1:9222 --output .skfiy-smoke/chrome-real-page.json` attaches `dist/skfiy.app` to a user-provided Chrome CDP endpoint, does not launch a temporary Chrome profile, runs `观察 Chrome 当前页面并提取正文`, records `targetMode: bring-your-own-current-page`, `chromeLaunchViaOpen=false`, `realCurrentPageRun`, and rejects any `Verified navigate` event
-  - remaining product evidence gap: Chrome now counts as dogfood coverage for isolated safe-page CDP extraction, current-page DOM observation, sensitive-page pause, selector-based multi-field form fill/click, no-CDP screenshot fallback, configured-CDP failure switching, and BYO current-page observation wiring; the next gap is collecting passed evidence from real logged-in pages with consenting dogfood users
+  - remaining product evidence gap: Chrome now counts as dogfood coverage for isolated safe-page CDP extraction, current-page DOM observation, sensitive-page pause, selector-based multi-field form fill/click, no-CDP screenshot fallback, configured-CDP failure switching, and BYO current-page observation wiring; the next gap is collecting passed `browser-fallback` cohort evidence from real logged-in pages with consenting dogfood users
 - Add Finder proof of concept:
   - [x] organize a test folder
     - safe planner groups files into Images/Documents/Code/Archives/Other folders
@@ -332,7 +333,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - `npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-plan-preview.json` records `finderPlanPreview.result: passed`, `destructiveOperationCount: 0`, the planned `photo.png` / `notes.pdf` / `script.ts` moves, and the task event `Finder plan preview: 3 folders, 3 moves, 0 destructive operations.` before filesystem mutation
   - [x] second-stage confirmation for broad Finder targets
     - `整理 Finder 当前文件夹` and `整理 Finder 选中文件夹` now stop after `finderPlanPreview`, show an expanded plan preview in the approval panel, and require a second approval before filesystem operations; product smoke records `finderPlanConfirmation.confirmedAfterPreview: true` for passed current/selected folder runs
-  - remaining product evidence gap: Finder now counts as dogfood coverage for the safe test-folder organization path, current Finder window grounding path, selected Finder folder grounding path, native HID drag-probe, fixture-level file-icon drag/drop, packaged-app item-layout wiring, real-parent-directory fixture placement, pre-execution plan preview, and second-stage confirmation when observe_app, semantic selection, layout, and drag either pass or report concrete permission blocks; the next gap is dogfooding against real user directory contents after Screen Recording/Accessibility are granted, with multiple users and non-fixture directory shapes
+  - remaining product evidence gap: Finder now counts as dogfood coverage for the safe test-folder organization path, current Finder window grounding path, selected Finder folder grounding path, native HID drag-probe, fixture-level file-icon drag/drop, packaged-app item-layout wiring, real-parent-directory fixture placement, pre-execution plan preview, and second-stage confirmation when observe_app, semantic selection, layout, and drag either pass or report concrete permission blocks; the next gap is collecting passed `finder-file` cohort evidence against real user directory contents after Screen Recording/Accessibility are granted, with multiple users and non-fixture directory shapes
 - Start evaluation scorecard:
   - [x] task success rate
   - [x] number of manual interventions
@@ -350,6 +351,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - release scripts now expose `npm run release:mac:sign` and `npm run release:mac:notarize`, both gated behind explicit `--execute` and fail-closed when credentials or the packaged app are missing
   - unsigned local dogfood artifacts now use `npm run alpha:artifact`, producing a versioned `.zip` plus manifest with commit SHA, bundle id, signing/notarization state, SHA256 checksum, UI smoke artifact path, Ghostty smoke artifact path, Chrome smoke artifact path, Finder smoke artifact path, and native voice smoke artifact path
   - dogfood evidence verifier now runs as `npm run dogfood:verify -- --manifest <alpha-manifest>` and checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, native voice transcript-to-task evidence for passed voice runs, app policy settings, Chrome extracted text, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence for current/selected folder runs, Finder item drag/drop evidence, Finder before/after tree, clipboard read/write approval runs, and cleanup state
+  - cohort evidence verifier now runs as `npm run dogfood:cohort -- --cohort <path>` and checks 3-5 distinct testers, shared alpha manifest, `appLaunchViaOpen=true`, `runnerHasTmux=false`, UI/Ghostty/Chrome/Finder/voice artifact paths, macOS permission states, and coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`
   - GitHub dogfood issue form now requires alpha manifest, alpha zip, commit SHA, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, voice smoke artifact, `runnerHasTmux`, permission states, ASR provider, native voice transcript-to-task evidence, Computer Use result, screenshot paths, action verification events, app policy settings, Chrome extracted text, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence, Finder item drag/drop evidence, Finder before/after tree, clipboard approval runs, and panic stop notes
 - [x] Add app allowlist/denylist UI.
   - settings panel now exposes allow/ask/deny policies for Ghostty, Chrome, and Finder; Ghostty defaults to allow for the current product smoke path, while ask/deny can gate Computer Use before touching the app
@@ -383,11 +385,13 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - Option B: skfiy as AIME native Computer Use plugin.
   - Option C: skfiy only provides helper/runtime, AIME owns UX.
   - Refreshed internal search on 2026-06-16: AIME Desktop overlaps assistant/workflow/local file tasks, AIME Chrome Extension overlaps browser control, AIME Buddy overlaps desktop companion/task notification/status, and native macOS app Computer Use remains the skfiy validation gap unless AIME/AIOS exposes a stable native control plugin/runtime.
-- Internal dogfood with 3-5 users:
-  - coding terminal workflow
-  - screenshot inspection workflow
-  - Finder file workflow
-  - browser fallback workflow
+- [ ] Internal dogfood with 3-5 real users:
+  - [x] cohort verifier/report schema and issue-template fields
+  - [ ] `coding-terminal` workflow reports from actual testers
+  - [ ] `screenshot-inspection` workflow reports from actual testers
+  - [ ] `finder-file` workflow reports from actual testers
+  - [ ] `browser-fallback` workflow reports from actual testers
+  - [ ] `npm run dogfood:cohort -- --cohort <path>` passing on the collected cohort JSON
 
 ## Staffing and Workload Estimate
 

@@ -12,7 +12,7 @@ skfiy should continue as a standalone experimental shell until it proves native 
 
 Option A: skfiy as standalone experimental shell.
 
-This keeps the product surface, permissions, dogfood gates, and native macOS Computer Use loop under one repo while the risk is still high. It is the right current choice because the missing evidence is still skfiy-owned: `dogfood:verify`, Ghostty `require-passed`, native voice `require-passed`, and 3-5 user dogfood runs.
+This keeps the product surface, permissions, dogfood gates, and native macOS Computer Use loop under one repo while the risk is still high. It is the right current choice because the missing evidence is still skfiy-owned: `dogfood:verify`, `dogfood:cohort`, Ghostty `require-passed`, native voice `require-passed`, and 3-5 user dogfood runs.
 
 Option B: skfiy as AIME native Computer Use plugin.
 
@@ -44,7 +44,7 @@ Search limitations: Feishu drive/message sources returned partial authentication
 
 Revisit this decision when any of these become true:
 
-- `npm run dogfood:verify -- --manifest <alpha-manifest> --require-passed` passes on at least three internal dogfood machines.
+- Single-user `npm run dogfood:verify -- --manifest <alpha-manifest> --require-passed` reports are collected from 3-5 internal dogfood machines, and the aggregated cohort passes `npm run dogfood:cohort -- --cohort <path>`.
 - AIME Buddy exposes a supported plugin API for native macOS app observation/action, permission onboarding, and replay surfaces.
 - AIOS Computer Use exposes a stable native macOS runtime that covers screenshot, accessibility tree, click/type/scroll/drag, app activation, and action verification.
 - AIME product direction explicitly adopts native app Computer Use beyond browser control and task notification.
@@ -56,4 +56,4 @@ Revisit this decision when any of these become true:
 - Keep AIME integration boundaries explicit: planner/provider config, app adapter contracts, replay artifacts, and dogfood verifier outputs.
 - Do not block native Computer Use dogfood on AIME integration.
 - Do not position skfiy as competing with AIME's browser assistant or Lark/workflow automation. The wedge is native desktop control with voice-first, permissioned execution.
-- Prepare for Option B by keeping the runtime separable: helper commands, product-path smoke scripts, manifest artifacts, and verifier reports should be usable as plugin acceptance evidence.
+- Prepare for Option B by keeping the runtime separable: helper commands, product-path smoke scripts, manifest artifacts, single-user verifier reports, and cohort verifier reports should be usable as plugin acceptance evidence.

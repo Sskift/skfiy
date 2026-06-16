@@ -37,7 +37,7 @@ AIME remains the likely distribution and assistant workflow home after skfiy pro
 
 Trigger to promote external CUA from evaluation mode to candidate default only when all of these are true:
 
-- `npm run dogfood:verify -- --manifest <alpha-manifest> --require-passed` passes on at least three internal dogfood machines.
+- Each internal dogfood report first passes `npm run dogfood:verify -- --manifest <alpha-manifest> --require-passed` on its own machine, then the aggregated `.skfiy-dogfood/internal-alpha-cohort.json` passes `npm run dogfood:cohort -- --cohort <path>` with 3-5 distinct testers and all required workflow ids covered.
 - Ghostty and native voice product smokes both pass through `dist/skfiy.app`, LaunchServices `open`, and `runnerHasTmux=false`.
 - The provider returns an inspectable rationale plus a bounded action or command schema that skfiy can validate before execution.
 - External provider failures, timeouts, policy denials, malformed actions, and prompt-injection detections fail closed with replay evidence.
@@ -64,4 +64,4 @@ Trigger to promote external CUA from evaluation mode to candidate default only w
 - Internal AIOS/OSNative source: `topic_id=7651761166716242924`, `id=7641453941858929614`.
 - Internal OpenClaw/UI-TARS sources: https://bytetech.info/articles/7462432482143502351?from=skill and https://bytetech.info/articles/7612929796696932388?from=skill
 - Internal OpenClaw VM source: https://bytetech.info/articles/7611067042372059162?from=skill
-- Local implementation evidence: `src/main/planner-provider-settings.ts`, `src/main/planner-provider-runtime.ts`, `src/main/external-cua-planner.ts`, and `scripts/verify-dogfood-artifacts.mjs`.
+- Local implementation evidence: `src/main/planner-provider-settings.ts`, `src/main/planner-provider-runtime.ts`, `src/main/external-cua-planner.ts`, `scripts/verify-dogfood-artifacts.mjs`, and `scripts/verify-dogfood-cohort.mjs`.

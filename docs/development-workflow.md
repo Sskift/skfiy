@@ -235,6 +235,14 @@ npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-uns
 
 Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, native voice transcript-to-task evidence for passed voice runs, Chrome extraction evidence, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence for current/selected folder runs, Finder item drag/drop evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
 
+For internal dogfood, aggregate 3-5 single-user reports into a cohort file and run:
+
+```bash
+npm run dogfood:cohort -- --cohort .skfiy-dogfood/internal-alpha-cohort.json
+```
+
+The cohort gate checks distinct testers, required workflow coverage (`coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`), `appLaunchViaOpen=true`, `runnerHasTmux=false`, absolute alpha manifest and smoke artifact paths, and Screen Recording, Accessibility, Microphone, and Speech Recognition states for every report. This gate proves report quality and coverage; it does not mark the real dogfood complete until the cohort file contains reports from actual testers.
+
 ### macOS Release Signing
 
 Use the read-only release check before any broader internal package:
@@ -278,6 +286,7 @@ Finder plan preview: finderPlanPreview.result passed, destructiveOperationCount 
 Finder plan confirmation: finderPlanConfirmation.result passed, confirmedAfterPreview true
 Finder item drag/drop: finderItemDragDrop.result passed, source finder-applescript-layout+hid-drag, movedItem photo.png, targetItem Images
 Finder action verification: Verified item_drag_drop, Verified create_folder, Verified move_file
+Dogfood cohort: testerId tester-a, workflows coding-terminal/screenshot-inspection, manifestPath .skfiy-alpha/..., runnerHasTmux false, permissionStates screenRecording/accessibility/microphone/speechRecognition, artifacts ui/ghostty/chrome/finder/voice
 Screenshots:
 - before: /path/to/before.png
 - after: /path/to/after.png
