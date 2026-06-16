@@ -61,6 +61,7 @@ describe("dogfood tracking issue sync", () => {
     expect(createDogfoodTrackingIssueHelpText()).toContain("dogfood:tracking-issue");
     expect(createDogfoodTrackingIssueHelpText()).toContain("--execute");
     expect(createDogfoodTrackingIssueHelpText()).toContain("dry-run");
+    expect(createDogfoodTrackingIssueHelpText()).toContain("preserves existing accepted report issue URLs");
   });
 
   it("dry-runs by writing a current-alpha tracking issue body without editing GitHub", async () => {
@@ -111,6 +112,45 @@ describe("dogfood tracking issue sync", () => {
     expect(body).toContain("No accepted real tester report is linked yet for this alpha");
   });
 
+  it("preserves existing accepted tester report URLs while refreshing current alpha fields", async () => {
+    const { syncDogfoodTrackingIssue } = await import(pathToFileURL(modulePath).href) as {
+      syncDogfoodTrackingIssue: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      existingTrackingIssueBody: [
+        "## Current Alpha",
+        "- Release: https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-old",
+        "",
+        "## Required Real Tester Count",
+        "- [ ] Tester 1 accepted report issue URL: https://github.com/Sskift/skfiy/issues/101",
+        "- [ ] Tester 2 accepted report issue URL:",
+        "- [ ] Tester 3 accepted report issue URL: https://github.com/Sskift/skfiy/issues/103",
+        "- [ ] Optional tester 4 accepted report issue URL:",
+        "- [ ] Optional tester 5 accepted report issue URL:"
+      ].join("\n")
+    });
+
+    await syncDogfoodTrackingIssue({
+      rootDir: "/repo",
+      manifestPath,
+      releaseUrl,
+      trackingIssueUrl,
+      outputPath,
+      dryRun: true
+    }, io);
+
+    const body = io.textFiles[outputPath];
+    expect(body).toContain("- [ ] Tester 1 accepted report issue URL: https://github.com/Sskift/skfiy/issues/101");
+    expect(body).toContain("- [ ] Tester 2 accepted report issue URL: https://github.com/Sskift/skfiy/issues/103");
+    expect(body).toContain("- [ ] Tester 3 accepted report issue URL:");
+    expect(body).toContain("- Release: https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1");
+    expect(body).toContain("The cohort still needs at least 1 more distinct real tester report.");
+    expect(body).not.toContain("No accepted real tester report is linked yet for this alpha");
+  });
+
   it("executes by editing the GitHub tracking issue with the generated body", async () => {
     const { syncDogfoodTrackingIssue } = await import(pathToFileURL(modulePath).href) as {
       syncDogfoodTrackingIssue: (
@@ -151,7 +191,7 @@ describe("dogfood tracking issue sync", () => {
   });
 });
 
-function createMemoryIo() {
+function createMemoryIo(options: { existingTrackingIssueBody?: string } = {}) {
   const commands: Array<{ command: string; args: string[] }> = [];
   const textFiles: Record<string, string> = {};
 
@@ -194,6 +234,16 @@ function createMemoryIo() {
     async mkdir() {},
     async writeText(filePath: string, value: string) {
       textFiles[filePath] = value;
+    },
+    async readIssue(issueUrl: string) {
+      if (issueUrl !== trackingIssueUrl) {
+        throw new Error(`Unexpected issue URL: ${issueUrl}`);
+      }
+
+      return {
+        body: options.existingTrackingIssueBody ?? "",
+        labels: ["skfiy", "dogfood"]
+      };
     },
     async execFile(command: string, args: string[]) {
       commands.push({ command, args });

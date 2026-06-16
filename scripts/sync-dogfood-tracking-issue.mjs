@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_TRACKING_ISSUE_URL = "https://github.com/Sskift/skfiy/issues/1";
+const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/\d+/g;
 const PERMISSION_LABELS = {
   screenRecording: "Screen Recording",
   accessibility: "Accessibility",
@@ -85,12 +86,14 @@ export async function syncDogfoodTrackingIssue(options, io = createDefaultIo()) 
     ? options.releaseUrl.trim()
     : createReleaseUrlFromTrackingIssue(options.trackingIssueUrl, shortSha);
   const uiSmokeArtifact = await readOptionalJson(manifest.uiSmokeArtifactPath, io);
+  const existingTrackingIssue = await readOptionalIssue(options.trackingIssueUrl, io);
   const body = createDogfoodTrackingIssueBody({
     rootDir,
     manifestPath: options.manifestPath,
     manifest,
     releaseUrl,
     trackingIssueUrl: options.trackingIssueUrl,
+    existingBody: existingTrackingIssue?.body,
     uiSmokeArtifact
   });
 
@@ -135,6 +138,7 @@ export function createDogfoodTrackingIssueBody({
   manifest,
   releaseUrl,
   trackingIssueUrl,
+  existingBody,
   uiSmokeArtifact
 }) {
   validateManifest(manifest);
@@ -146,6 +150,9 @@ export function createDogfoodTrackingIssueBody({
     derivePreflightSummaryPath(rootDir, manifest.uiSmokeArtifactPath, shortSha)
   );
   const permissionLine = createPermissionLine(readPermissionStates(uiSmokeArtifact));
+  const preservedReportIssueUrls = readAcceptedReportIssueUrls(existingBody, trackingIssueUrl);
+  const testerSlotLines = createTesterSlotLines(preservedReportIssueUrls);
+  const missingRealTesterCount = Math.max(0, 3 - preservedReportIssueUrls.length);
 
   return [
     "## Goal",
@@ -169,11 +176,7 @@ export function createDogfoodTrackingIssueBody({
     ...REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => `- [x] \`${workflow}\``),
     "",
     "## Required Real Tester Count",
-    "- [ ] Tester 1 accepted report issue URL:",
-    "- [ ] Tester 2 accepted report issue URL:",
-    "- [ ] Tester 3 accepted report issue URL:",
-    "- [ ] Optional tester 4 accepted report issue URL:",
-    "- [ ] Optional tester 5 accepted report issue URL:",
+    ...testerSlotLines,
     "",
     "## Local Synthetic Evidence",
     `- Strict permission preflight summary: \`${preflightSummaryPath}\``,
@@ -248,7 +251,9 @@ export function createDogfoodTrackingIssueBody({
     "```",
     "",
     "## Current Known Gaps",
-    "- No accepted real tester report is linked yet for this alpha. The cohort still needs at least 3 distinct real tester reports.",
+    missingRealTesterCount >= 3
+      ? "- No accepted real tester report is linked yet for this alpha. The cohort still needs at least 3 distinct real tester reports."
+      : `- The cohort still needs at least ${missingRealTesterCount} more distinct real tester report${missingRealTesterCount === 1 ? "" : "s"}.`,
     "- Passed native voice, Finder, Ghostty, screenshot, and browser product-path evidence still depends on testers granting macOS Screen Recording, Accessibility, Microphone, and Speech Recognition permissions to the alpha `skfiy.app` bundle.",
     "- Signing and notarization still require configured Apple Developer ID/notary credentials before broader distribution.",
     ""
@@ -260,6 +265,7 @@ export function createDogfoodTrackingIssueHelpText() {
     "Usage: npm run dogfood:tracking-issue -- --manifest <alpha-manifest> [--release-url <url>] [--tracking-issue-url <url>] [--output <path>] [--execute]",
     "",
     "Generates the internal dogfood tracking issue body from the selected alpha manifest.",
+    "When the tracking issue is readable, it preserves existing accepted report issue URLs while refreshing the Current Alpha fields.",
     "By default this is a dry-run: it writes the body to a local Markdown file and does not edit GitHub.",
     "Pass --execute to run gh issue edit with the generated body.",
     "",
@@ -297,6 +303,79 @@ async function readOptionalJson(filePath, io) {
   } catch {
     return undefined;
   }
+}
+
+async function readOptionalIssue(issueUrl, io) {
+  if (typeof io.readIssue !== "function") {
+    return undefined;
+  }
+  try {
+    return await io.readIssue(issueUrl);
+  } catch {
+    return undefined;
+  }
+}
+
+function createTesterSlotLines(issueUrls) {
+  const urls = Array.isArray(issueUrls) ? issueUrls.slice(0, 5) : [];
+  const lines = [];
+
+  for (let index = 0; index < 3; index += 1) {
+    lines.push(`- [ ] Tester ${index + 1} accepted report issue URL:${formatOptionalUrl(urls[index])}`);
+  }
+  for (let index = 3; index < 5; index += 1) {
+    lines.push(`- [ ] Optional tester ${index + 1} accepted report issue URL:${formatOptionalUrl(urls[index])}`);
+  }
+
+  return lines;
+}
+
+function formatOptionalUrl(url) {
+  return typeof url === "string" && url.trim().length > 0 ? ` ${url.trim()}` : "";
+}
+
+function readAcceptedReportIssueUrls(body, trackingIssueUrl) {
+  const section = readMarkdownSection(body, "Required Real Tester Count")
+    || readMarkdownSection(body, "Required Tester Count");
+  const urls = [];
+
+  for (const match of section.matchAll(GITHUB_ISSUE_URL_PATTERN)) {
+    const url = match[0];
+    if (
+      normalizeUrl(url) !== normalizeUrl(trackingIssueUrl)
+      && !urls.some((existing) => normalizeUrl(existing) === normalizeUrl(url))
+    ) {
+      urls.push(url);
+    }
+  }
+
+  return urls.slice(0, 5);
+}
+
+function readMarkdownSection(body, title) {
+  if (typeof body !== "string" || body.length === 0) {
+    return "";
+  }
+
+  const headingPattern = new RegExp(`^##\\s+${escapeRegExp(title)}\\s*$`, "im");
+  const headingMatch = headingPattern.exec(body);
+  if (!headingMatch) {
+    return "";
+  }
+
+  const sectionStart = headingMatch.index + headingMatch[0].length;
+  const rest = body.slice(sectionStart);
+  const nextHeadingMatch = /^##\s+/m.exec(rest);
+
+  return (nextHeadingMatch ? rest.slice(0, nextHeadingMatch.index) : rest).trim();
+}
+
+function normalizeUrl(value) {
+  return String(value ?? "").trim().replace(/\/+$/, "");
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function readPermissionStates(artifact) {
@@ -433,6 +512,28 @@ function createDefaultIo() {
     },
     async execFile(command, args) {
       return await execFileAsync(command, args);
+    },
+    async readIssue(issueUrl) {
+      const issue = parseGitHubIssueUrl(issueUrl);
+      const { stdout } = await execFileAsync("gh", [
+        "issue",
+        "view",
+        issue.number,
+        "--repo",
+        issue.repository,
+        "--json",
+        "body,labels"
+      ]);
+      const payload = JSON.parse(stdout);
+
+      return {
+        body: typeof payload.body === "string" ? payload.body : "",
+        labels: Array.isArray(payload?.labels)
+          ? payload.labels
+            .map((label) => typeof label?.name === "string" ? label.name.trim() : "")
+            .filter(Boolean)
+          : []
+      };
     }
   };
 }

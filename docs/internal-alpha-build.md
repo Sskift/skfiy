@@ -88,7 +88,7 @@ npm run dogfood:tracking-issue -- \
   --output .skfiy-dogfood/tracking-issue-<commit>.md
 ```
 
-This is a dry-run by default. Add `--execute` only after reviewing the generated body; it runs `gh issue edit` and replaces the tracking issue with a body whose Current Alpha identity matches the selected manifest. Follow it with `dogfood:status --require-current-head` so stale release/hash links are caught before asking testers to run the alpha.
+This is a dry-run by default. Add `--execute` only after reviewing the generated body; it runs `gh issue edit` and replaces the tracking issue with a body whose Current Alpha identity matches the selected manifest while preserving existing accepted report issue URLs from the real-tester slots. Follow it with `dogfood:status --require-current-head` so stale release/hash links are caught before asking testers to run the alpha.
 
 For a tester machine, prepare the downloadable alpha before collecting evidence:
 

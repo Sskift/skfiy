@@ -69,6 +69,9 @@ describe("Electron build wiring", () => {
 
     expect(packageJson.name).toBe("skfiy");
     expect(packagingScript).toContain('setInfoPlistString(current, "CFBundleExecutable", "skfiy")');
+    expect(packagingScript).toContain('setInfoPlistString(withExecutable, "CFBundleIdentifier", BUNDLE_IDENTIFIER)');
+    expect(packagingScript).toContain('"CFBundleName",\n          "skfiy"');
+    expect(packagingScript).toContain('"CFBundleDisplayName",\n        "skfiy"');
     expect(packagingScript).toContain('name: "skfiy"');
     expect(packagingScript).toContain('path.join(plan.appBundlePath, "Contents", "MacOS", "Electron")');
     expect(packagingScript).toContain("await fs.rename(electronExecutablePath, plan.bundledExecutablePath)");

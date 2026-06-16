@@ -255,7 +255,7 @@ npm run dogfood:tracking-issue -- \
   --output .skfiy-dogfood/tracking-issue-<commit>.md
 ```
 
-The default mode is a dry-run that writes the issue body locally. Review it, then add `--execute` to run `gh issue edit` for the tracking issue. The generated body preserves the required real-tester slots, current alpha release/manifest/zip/SHA/commit identity, synthetic local preflight evidence, and the exact status, prepare, tester, review, and cohort commands for that alpha.
+The default mode is a dry-run that writes the issue body locally. Review it, then add `--execute` to run `gh issue edit` for the tracking issue. The generated body preserves existing accepted report issue URLs in the required real-tester slots while refreshing current alpha release/manifest/zip/SHA/commit identity, synthetic local preflight evidence, and the exact status, prepare, tester, review, and cohort commands for that alpha.
 
 To get a non-mutating readiness snapshot before filing or collecting dogfood reports:
 
