@@ -96,21 +96,38 @@ export async function reviewDogfoodReport(options, io = createDefaultIo()) {
   ];
   const currentLabels = issue.labels;
   const missingSuggestedLabels = suggestedLabels.filter((label) => !currentLabels.includes(label));
-  const reportPreview = await createDogfoodReportFromManifest({
-    manifestPath: options.manifestPath,
-    issueUrl: options.issueUrl,
-    issueLabels: suggestedLabels,
-    now: options.now
-  }, {
-    ...io,
-    async readIssue() {
-      return {
-        body: issue.body,
-        labels: suggestedLabels
-      };
-    }
-  });
-  const reportPreviewEligibility = await verifyReportPreviewEligibility(reportPreview, options);
+  let reportPreview;
+  let reportPreviewEligibility;
+
+  try {
+    reportPreview = await createDogfoodReportFromManifest({
+      manifestPath: options.manifestPath,
+      issueUrl: options.issueUrl,
+      issueLabels: suggestedLabels,
+      now: options.now
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: issue.body,
+          labels: suggestedLabels
+        };
+      }
+    });
+    reportPreviewEligibility = await verifyReportPreviewEligibility(reportPreview, options);
+  } catch (error) {
+    await writeReviewSummaryIfRequested(options, io, createRejectedDogfoodReview({
+      issueUrl: options.issueUrl,
+      testerId,
+      workflows,
+      suggestedLabels,
+      currentLabels,
+      missingSuggestedLabels,
+      error
+    }));
+    throw error;
+  }
+
   const eligibleForAcceptance = reportPreviewEligibility.eligible === true;
   const acceptanceCommand = eligibleForAcceptance && missingSuggestedLabels.length > 0
     ? createAcceptanceCommand(options.issueUrl, missingSuggestedLabels)
@@ -138,10 +155,7 @@ export async function reviewDogfoodReport(options, io = createDefaultIo()) {
     reportPreviewEligibility
   };
 
-  if (typeof options.summaryPath === "string") {
-    await io.mkdir(path.dirname(options.summaryPath), { recursive: true });
-    await io.writeText(options.summaryPath, createDogfoodReviewSummary(result));
-  }
+  await writeReviewSummaryIfRequested(options, io, result);
 
   return result;
 }
@@ -251,6 +265,48 @@ function createDogfoodReviewSummary(review) {
     "This review did not add labels, edit GitHub, or count the report toward the cohort.",
     ""
   ].join("\n");
+}
+
+async function writeReviewSummaryIfRequested(options, io, review) {
+  if (typeof options.summaryPath !== "string") {
+    return;
+  }
+
+  await io.mkdir(path.dirname(options.summaryPath), { recursive: true });
+  await io.writeText(options.summaryPath, createDogfoodReviewSummary(review));
+}
+
+function createRejectedDogfoodReview({
+  issueUrl,
+  testerId,
+  workflows,
+  suggestedLabels,
+  currentLabels,
+  missingSuggestedLabels,
+  error
+}) {
+  return {
+    result: "rejected",
+    eligibleForAcceptance: false,
+    issueUrl,
+    testerId,
+    workflows,
+    suggestedLabels,
+    currentLabels,
+    missingSuggestedLabels,
+    acceptanceCommand: undefined,
+    trackingIssueCommand: undefined,
+    reportPreview: undefined,
+    reportPreviewEligibility: {
+      eligible: false,
+      blockingChecks: [
+        {
+          id: "report.preview",
+          message: error instanceof Error ? error.message : String(error)
+        }
+      ]
+    }
+  };
 }
 
 function createAcceptanceCommand(issueUrl, labels) {

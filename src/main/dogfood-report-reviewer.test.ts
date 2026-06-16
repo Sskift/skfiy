@@ -213,6 +213,14 @@ describe("dogfood report reviewer", () => {
       issueUrl,
       summaryPath
     }, io)).rejects.toThrow("Issue commit sha must match manifest commitSha.");
+    expect(io.textFiles[summaryPath]).toContain("Result: rejected");
+    expect(io.textFiles[summaryPath]).toContain("Eligible for acceptance: no");
+    expect(io.textFiles[summaryPath]).toContain("Tester: tester-a");
+    expect(io.textFiles[summaryPath]).toContain("Workflows: coding-terminal");
+    expect(io.textFiles[summaryPath]).toContain("Issue commit sha must match manifest commitSha.");
+    expect(io.textFiles[summaryPath]).toContain("- unavailable until blocking checks are resolved");
+    expect(io.textFiles[summaryPath]).not.toContain("gh issue edit");
+    expect(io.textFiles[summaryPath]).not.toContain("dogfood:tracking-issue");
     expect(io.mutations).toEqual([]);
   });
 
