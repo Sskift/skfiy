@@ -78,6 +78,17 @@ npm run alpha:github-release -- \
 
 Add `--execute` only after checking the generated release notes and confirming the manifest belongs to the current HEAD. The release uploads the alpha zip and manifest; it does not sign, notarize, or claim cohort readiness.
 
+For a tester machine, prepare the downloadable alpha before collecting evidence:
+
+```bash
+npm run dogfood:prepare-alpha -- \
+  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
+  --tester-id tester-a \
+  --execute
+```
+
+`dogfood:prepare-alpha` defaults to dry-run. With `--execute`, it downloads the GitHub release zip and manifest, verifies the zip SHA256 against the manifest, extracts `skfiy.app` under `.skfiy-dogfood/apps/<tag>/`, and generates a handoff whose `dogfood:tester` command uses that extracted app bundle. Pass `--app /Applications/skfiy.app --replace-existing` only when the tester intentionally wants to install over an existing Applications copy.
+
 Before asking a tester to run the alpha, generate a handoff note with the exact package identity and commands:
 
 ```bash

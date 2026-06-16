@@ -116,6 +116,7 @@ describe("GitHub alpha release publisher", () => {
     expect(notes).toContain("Unsigned internal dogfood build.");
     expect(notes).toContain("Zip SHA256: `feedface`");
     expect(notes).toContain(trackingIssueUrl);
+    expect(notes).toContain("npm run dogfood:prepare-alpha");
     expect(notes).toContain("npm run dogfood:handoff");
     expect(notes).toContain("--release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1");
     expect(notes).toContain("--app <path-to-unzipped-skfiy.app>");

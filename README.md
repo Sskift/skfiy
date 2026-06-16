@@ -100,6 +100,10 @@ npm run alpha:artifact -- \
 npm run alpha:github-release -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --require-current-head
+npm run dogfood:prepare-alpha -- \
+  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
+  --tester-id tester-a \
+  --execute
 npm run dogfood:handoff -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --app <path-to-unzipped-skfiy.app> \

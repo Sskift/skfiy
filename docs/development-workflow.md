@@ -261,6 +261,17 @@ It also reads the tracking issue's Required Workflow Coverage checklist and repo
 Generate a copyable handoff for each real tester before asking them to run the packaged app:
 
 ```bash
+npm run dogfood:prepare-alpha -- \
+  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
+  --tester-id tester-b \
+  --execute
+```
+
+`dogfood:prepare-alpha` downloads the release zip and manifest, verifies the zip SHA256 against the manifest, extracts `skfiy.app` under `.skfiy-dogfood/apps/<tag>/`, and creates a handoff whose `dogfood:tester` command points at that extracted app bundle. It defaults to dry-run; `--execute` is required before it downloads or writes local files.
+
+Maintainers can still generate a handoff manually when the tester has already unpacked the app:
+
+```bash
 npm run dogfood:handoff -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \

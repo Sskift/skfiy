@@ -33,6 +33,7 @@
     "dogfood:status": "node scripts/dogfood-status.mjs",
     "dogfood:tester": "node scripts/run-dogfood-tester.mjs",
     "dogfood:handoff": "node scripts/create-dogfood-handoff.mjs",
+    "dogfood:prepare-alpha": "node scripts/prepare-alpha-dogfood.mjs",
     "dogfood:review": "node scripts/review-dogfood-report.mjs",
     "dogfood:cohort": "node scripts/verify-dogfood-cohort.mjs"
   },
