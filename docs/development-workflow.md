@@ -235,7 +235,15 @@ npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-uns
 
 Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, native voice transcript-to-task evidence for passed voice runs, native voice no-transcript/cancellation lifecycle evidence for no-transcript runs, Chrome extraction evidence, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence for current/selected folder runs, Finder item drag/drop evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
 
-For internal dogfood, aggregate 3-5 single-user reports into a cohort file and run:
+For internal dogfood, convert each accepted single-user dogfood report into JSON and add or replace it in the local cohort file:
+
+```bash
+npm run dogfood:report -- --report .skfiy-dogfood/reports/tester-a.json --cohort .skfiy-dogfood/internal-alpha-cohort.json
+```
+
+The report helper is incremental. It writes `.skfiy-dogfood/internal-alpha-cohort.json`, replaces an existing report with the same `testerId`, rejects mixed alpha manifest paths, and reports whether the cohort is ready; it does not claim dogfood completion before the verifier passes. Keep `.skfiy-dogfood/` local because it can contain tester-specific evidence.
+
+After aggregating 3-5 single-user reports, run:
 
 ```bash
 npm run dogfood:cohort -- --cohort .skfiy-dogfood/internal-alpha-cohort.json

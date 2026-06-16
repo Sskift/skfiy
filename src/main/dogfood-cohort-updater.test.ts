@@ -1,0 +1,229 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { describe, expect, it } from "vitest";
+
+describe("dogfood cohort updater", () => {
+  const modulePath = path.join(process.cwd(), "scripts", "update-dogfood-cohort.mjs");
+  const cohortPath = "/repo/.skfiy-dogfood/internal-alpha-cohort.json";
+  const reportPath = "/repo/.skfiy-dogfood/reports/tester-a.json";
+  const manifestPath = "/repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json";
+
+  it("is exposed as an npm script for accumulating single-user dogfood reports", () => {
+    const packageJson = JSON.parse(
+      readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+    ) as { scripts?: Record<string, string> };
+
+    expect(packageJson.scripts).toMatchObject({
+      "dogfood:report": "node scripts/update-dogfood-cohort.mjs"
+    });
+  });
+
+  it("parses report and cohort paths and documents incremental collection", async () => {
+    const {
+      createDefaultDogfoodReportOptions,
+      createDogfoodReportHelpText,
+      parseDogfoodReportArgs
+    } = await import(pathToFileURL(modulePath).href) as {
+      createDefaultDogfoodReportOptions: (rootDir: string) => Record<string, unknown>;
+      createDogfoodReportHelpText: () => string;
+      parseDogfoodReportArgs: (
+        argv: string[],
+        defaults: Record<string, unknown>
+      ) => Record<string, unknown>;
+    };
+    const defaults = createDefaultDogfoodReportOptions("/repo");
+
+    expect(parseDogfoodReportArgs([
+      "--report",
+      ".skfiy-dogfood/reports/tester-a.json",
+      "--cohort",
+      ".skfiy-dogfood/internal-alpha-cohort.json"
+    ], defaults)).toMatchObject({
+      reportPath: path.resolve(".skfiy-dogfood/reports/tester-a.json"),
+      cohortPath: path.resolve(".skfiy-dogfood/internal-alpha-cohort.json")
+    });
+    expect(createDogfoodReportHelpText()).toContain("dogfood:report");
+    expect(createDogfoodReportHelpText()).toContain("3-5 distinct testers");
+  });
+
+  it("creates a cohort file from a single report without pretending the cohort is complete", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [reportPath]: createReport("tester-a", ["coding-terminal", "screenshot-inspection"])
+    });
+
+    await expect(updateDogfoodCohort({
+      reportPath,
+      cohortPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "updated",
+      action: "appended",
+      cohortPath,
+      summary: {
+        totalReports: 1,
+        distinctTesters: 1,
+        cohortReady: false,
+        requiredWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": false,
+          "browser-fallback": false
+        }
+      }
+    });
+    expect(io.files[cohortPath]).toMatchObject({
+      schemaVersion: 1,
+      cohortName: "internal-alpha",
+      generatedAt: "2026-06-16T12:00:00.000Z",
+      manifestPath,
+      reports: [
+        expect.objectContaining({ testerId: "tester-a" })
+      ]
+    });
+  });
+
+  it("replaces an existing tester report instead of duplicating tester ids", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const updatedReport = {
+      ...createReport("tester-a", ["coding-terminal", "browser-fallback"], "passed"),
+      artifacts: {
+        ...createReport("tester-a", ["coding-terminal"]).artifacts,
+        chromeSmokeArtifactPath: "/repo/.skfiy-smoke/tester-a-updated-chrome.json"
+      }
+    };
+    const io = createMemoryIo({
+      [reportPath]: updatedReport,
+      [cohortPath]: createCohort([
+        createReport("tester-a", ["coding-terminal"]),
+        createReport("tester-b", ["finder-file"])
+      ])
+    });
+
+    await expect(updateDogfoodCohort({
+      reportPath,
+      cohortPath,
+      now: () => "2026-06-16T13:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "updated",
+      action: "replaced",
+      summary: {
+        totalReports: 2,
+        distinctTesters: 2,
+        requiredWorkflowCoverage: {
+          "coding-terminal": true,
+          "finder-file": true,
+          "browser-fallback": true
+        }
+      }
+    });
+    expect(io.files[cohortPath]).toMatchObject({
+      reports: [
+        expect.objectContaining({
+          testerId: "tester-a",
+          result: "passed",
+          artifacts: expect.objectContaining({
+            chromeSmokeArtifactPath: "/repo/.skfiy-smoke/tester-a-updated-chrome.json"
+          })
+        }),
+        expect.objectContaining({ testerId: "tester-b" })
+      ]
+    });
+  });
+
+  it("rejects a report from a different alpha manifest", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [reportPath]: {
+        ...createReport("tester-c", ["browser-fallback"]),
+        manifestPath: "/repo/.skfiy-alpha/skfiy-0.1.0-other-macos-unsigned.json"
+      },
+      [cohortPath]: createCohort([
+        createReport("tester-a", ["coding-terminal"]),
+        createReport("tester-b", ["finder-file"])
+      ])
+    });
+
+    await expect(updateDogfoodCohort({
+      reportPath,
+      cohortPath
+    }, io)).rejects.toThrow("Report manifestPath must match cohort manifestPath");
+  });
+
+  function createCohort(reports: unknown[]) {
+    return {
+      schemaVersion: 1,
+      cohortName: "internal-alpha",
+      generatedAt: "2026-06-16T12:00:00.000Z",
+      manifestPath,
+      reports
+    };
+  }
+
+  function createReport(
+    testerId: string,
+    workflows: string[],
+    result: "passed" | "blocked" = "blocked"
+  ) {
+    return {
+      testerId,
+      result,
+      manifestPath,
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      workflows,
+      permissionStates: {
+        screenRecording: { state: result === "passed" ? "granted" : "denied" },
+        accessibility: { state: result === "passed" ? "granted" : "denied" },
+        microphone: { state: result === "passed" ? "granted" : "not-determined" },
+        speechRecognition: { state: result === "passed" ? "granted" : "not-determined" }
+      },
+      artifacts: {
+        uiSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-ui.json`,
+        ghosttySmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-ghostty.json`,
+        chromeSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-chrome.json`,
+        finderSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-finder.json`,
+        voiceSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-voice.json`
+      }
+    };
+  }
+});
+
+function createMemoryIo(files: Record<string, unknown>) {
+  return {
+    files,
+    async exists(filePath: string) {
+      return Object.prototype.hasOwnProperty.call(files, filePath);
+    },
+    async mkdir() {
+      return undefined;
+    },
+    async readJson(filePath: string) {
+      const value = files[filePath];
+      if (value === undefined) {
+        throw new Error(`Missing JSON: ${filePath}`);
+      }
+
+      return value;
+    },
+    async writeJson(filePath: string, value: unknown) {
+      files[filePath] = value;
+    }
+  };
+}

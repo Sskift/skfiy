@@ -20,6 +20,7 @@ describe("skfiy dogfood issue template", () => {
       "commit sha",
       "tester id",
       "cohort workflows",
+      "dogfood:report",
       "coding-terminal",
       "screenshot-inspection",
       "finder-file",

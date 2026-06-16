@@ -3,6 +3,7 @@ dist/
 macos-helper/.build/
 .skfiy-smoke/
 .skfiy-alpha/
+.skfiy-dogfood/
 .DS_Store
 *.log
 .env
