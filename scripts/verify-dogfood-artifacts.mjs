@@ -305,6 +305,15 @@ function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
     isEmptyArray(artifact.processesAfterCleanup),
     "Ghostty smoke must clean up skfiy app processes"
   );
+
+  if (artifact.result === "passed") {
+    check(
+      checks,
+      "ghostty.actionVerification",
+      hasRequiredGhosttyActionVerification(artifact.events),
+      "passed Ghostty smoke must include type_text and press_key action verification events"
+    );
+  }
 }
 
 function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
@@ -477,6 +486,24 @@ function hasBlockingPermission(permissions) {
   return Object.values(permissions).some((status) =>
     status?.state === "denied" || status?.state === "not-determined"
   );
+}
+
+function hasRequiredGhosttyActionVerification(events) {
+  return hasVerifiedGhosttyAction(events, "type_text")
+    && hasVerifiedGhosttyAction(events, "press_key");
+}
+
+function hasVerifiedGhosttyAction(events, actionType) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) => {
+    const message = typeof event?.message === "string" ? event.message : "";
+    return event?.status === "executing"
+      && message.includes(`Verified ${actionType}:`)
+      && message.toLowerCase().includes("accepted");
+  });
 }
 
 function isPermissionStatus(value) {

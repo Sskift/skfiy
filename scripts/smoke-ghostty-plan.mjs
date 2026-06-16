@@ -175,6 +175,7 @@ export function classifySmokeRunEvidence({
     || productPath !== PRODUCT_PATH
     || !hasNonEmptyScreenshotStage(screenshots, "before")
     || !hasNonEmptyScreenshotStage(screenshots, "after")
+    || !hasRequiredActionVerification(events)
   ) {
     return "failed";
   }
@@ -201,6 +202,19 @@ function hasNonEmptyScreenshotStage(screenshots, stage) {
     && Number.isFinite(screenshot.bytes)
     && screenshot.bytes > 0
   );
+}
+
+function hasRequiredActionVerification(events) {
+  return hasVerifiedAction(events, "type_text") && hasVerifiedAction(events, "press_key");
+}
+
+function hasVerifiedAction(events, actionType) {
+  return events.some((event) => {
+    const message = typeof event?.message === "string" ? event.message : "";
+    return event?.status === "executing"
+      && message.includes(`Verified ${actionType}:`)
+      && message.toLowerCase().includes("accepted");
+  });
 }
 
 export function classifyMatrixResult(runs) {

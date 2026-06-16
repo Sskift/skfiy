@@ -212,6 +212,91 @@ describe("dogfood artifact verifier", () => {
     });
   });
 
+  it("fails passed Ghostty evidence that lacks action verification events", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: true
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: [
+          "npm run smoke:ui -- --output <path>",
+          "npm run smoke:ghostty -- --output <path>",
+          "npm run smoke:voice -- --output <path>"
+        ]
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
+        artifactPath: uiSmokePath,
+        petClicked: true,
+        onboardingVisible: true,
+        permissionRows: [
+          { label: "屏幕录制" },
+          { label: "辅助功能" },
+          { label: "麦克风" },
+          { label: "语音识别" }
+        ],
+        processesAfterCleanup: []
+      },
+      [ghosttySmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> Ghostty",
+        artifactPath: ghosttySmokePath,
+        events: [
+          { status: "completed", message: "Command completed in Ghostty." }
+        ],
+        processesAfterCleanup: []
+      },
+      [voiceSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+        artifactPath: voiceSmokePath,
+        provider: "native-macos",
+        speechStatus: {
+          locale: "zh-CN",
+          recognizerAvailable: true,
+          speechRecognition: { state: "granted" },
+          microphone: { state: "granted" }
+        },
+        processesAfterCleanup: []
+      }
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("ghostty.actionVerification")
+      ])
+    });
+  });
+
   it("fails when current-head evidence is required but the manifest commit is stale", async () => {
     const {
       verifyDogfoodArtifacts

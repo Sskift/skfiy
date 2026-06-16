@@ -243,6 +243,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - repeat command: `npm run smoke:ghostty`
   - repeat matrix command: `npm run smoke:ghostty -- --matrix`
   - repeat persisted-evidence command: `npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json`
+  - passed Ghostty smoke classification and dogfood verification now require `Verified type_text` and `Verified press_key` action verification events in addition to LaunchServices/product-path/screenshot evidence
 - Week-2 demo criteria:
   - user says "打开 Ghostty 执行 pwd 并截图"
   - skfiy opens/uses its own Ghostty context
