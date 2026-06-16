@@ -135,6 +135,7 @@ describe("dogfood handoff generator", () => {
     expect(handoff).toContain("--body-file .skfiy-dogfood/issues/tester-b.md");
     expect(handoff).toContain("Do not add `dogfood:accepted` or `workflow:*` labels yourself.");
     expect(handoff).toContain("npm run dogfood:review -- \\");
+    expect(handoff).not.toContain("--require-current-head");
     expect(handoff).toContain("dogfood:accepted");
     expect(handoff).toContain(trackingIssueUrl);
     expect(handoff).toContain("Blocked evidence is acceptable when it records the real permission state");

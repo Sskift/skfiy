@@ -123,6 +123,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
   const nextActions = createNextActions({
     canRunCollect,
+    trackingIssueTarget: readTrackingIssueTarget(options),
     permissionBlockers,
     missingRequiredReports,
     manifestChecks,
@@ -306,6 +307,26 @@ function readTrackingIssueUrl(options) {
     : "local-tracking-issue";
 }
 
+function readTrackingIssueTarget(options) {
+  if (typeof options.trackingIssueFile === "string" && options.trackingIssueFile.trim().length > 0) {
+    return `local tracking issue file ${options.trackingIssueFile}`;
+  }
+
+  const issueNumber = readGitHubIssueNumber(options.trackingIssueUrl);
+  return issueNumber.length > 0 ? `GitHub issue #${issueNumber}` : "the tracking issue";
+}
+
+function readGitHubIssueNumber(issueUrl) {
+  if (typeof issueUrl !== "string" || issueUrl.trim().length === 0) {
+    return "";
+  }
+  try {
+    return parseGitHubIssueUrl(issueUrl).number;
+  } catch {
+    return "";
+  }
+}
+
 async function readSmokeArtifacts(manifest, io) {
   return {
     ui: await readOptionalJson(manifest?.uiSmokeArtifactPath, io),
@@ -395,6 +416,7 @@ async function readManifestChecks(manifest, options, io) {
 
 function createNextActions({
   canRunCollect,
+  trackingIssueTarget,
   permissionBlockers,
   missingRequiredReports,
   manifestChecks,
@@ -406,10 +428,10 @@ function createNextActions({
   const actions = [];
 
   if (currentAlpha.ok !== true) {
-    actions.push("Update GitHub issue #1 Current Alpha section to match the selected manifest before collecting reports.");
+    actions.push(`Update ${trackingIssueTarget} Current Alpha section to match the selected manifest before collecting reports.`);
   }
   if (missingRequiredReports > 0) {
-    actions.push("Collect at least 3 accepted real tester report issue URLs in GitHub issue #1.");
+    actions.push(`Collect at least 3 accepted real tester report issue URLs in ${trackingIssueTarget}.`);
   }
   if (invalidReportIssueCount > 0) {
     actions.push("Review or replace stale/invalid dogfood report issue URLs before collecting the cohort.");
@@ -759,7 +781,8 @@ function readWorkflowCoverage(body) {
 }
 
 function readAcceptedReportIssueUrls(body, trackingIssueUrl) {
-  const testerSection = readMarkdownSection(body, "Required Tester Count");
+  const testerSection = readMarkdownSection(body, "Required Real Tester Count")
+    || readMarkdownSection(body, "Required Tester Count");
   if (testerSection.length === 0) {
     return [];
   }

@@ -126,12 +126,14 @@ describe("dogfood status reporter", () => {
       }
     }, {});
 
-    await expect(createDogfoodStatus({
+    const status = await createDogfoodStatus({
       manifestPath,
       trackingIssueFile,
       summaryPath,
       now: () => "2026-06-16T12:00:00.000Z"
-    }, io)).resolves.toMatchObject({
+    }, io);
+
+    expect(status).toMatchObject({
       result: "waiting-for-dogfood",
       trackingIssueUrl: "local-tracking-issue",
       trackingIssueFile,
@@ -148,9 +150,12 @@ describe("dogfood status reporter", () => {
         ]
       },
       nextActions: expect.arrayContaining([
-        "Collect at least 3 accepted real tester report issue URLs in GitHub issue #1."
+        "Collect at least 3 accepted real tester report issue URLs in local tracking issue file /repo/.skfiy-dogfood/tracking-issue-abc123.md."
       ])
     });
+    expect(status.nextActions).not.toContain(
+      "Collect at least 3 accepted real tester report issue URLs in GitHub issue #1."
+    );
     expect(io.textFiles[summaryPath]).toContain("Result: waiting-for-dogfood");
     expect(io.textFiles[summaryPath]).toContain("Accepted report URLs: 0/3 minimum");
   });
@@ -278,7 +283,9 @@ describe("dogfood status reporter", () => {
       [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
-        body: createTrackingIssueBody(reportUrls),
+        body: createTrackingIssueBody(reportUrls, {
+          testerSectionTitle: "Required Real Tester Count"
+        }),
         labels: ["skfiy", "dogfood"]
       },
       [reportUrls[0]]: createAcceptedReportIssue(
@@ -835,6 +842,7 @@ function createTrackingIssueBody(
   issueUrls: string[],
   options: {
     coveredWorkflows?: string[];
+    testerSectionTitle?: string;
     currentAlpha?: {
       release?: string;
       manifest?: string;
@@ -891,7 +899,7 @@ function createTrackingIssueBody(
     "## Required Workflow Coverage",
     ...workflowLines,
     "",
-    "## Required Tester Count",
+    `## ${options.testerSectionTitle ?? "Required Tester Count"}`,
     ...testerLines,
     "",
     "## Cohort Gate",
