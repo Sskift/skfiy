@@ -69,6 +69,7 @@ describe("dogfood cohort updater", () => {
     expect(createDogfoodReportHelpText()).toContain("--issue-labels");
     expect(createDogfoodReportHelpText()).toContain("requires a readable accepted issue body");
     expect(createDogfoodReportHelpText()).toContain("must include all five issue smoke artifact paths");
+    expect(createDogfoodReportHelpText()).toContain("must include app bundle preflight evidence");
     expect(createDogfoodReportHelpText()).toContain("requires the issue alpha manifest, zip, and commit sha to match --manifest");
     expect(createDogfoodReportHelpText()).toContain("sourceEligibleReports");
     expect(createDogfoodReportHelpText()).toContain("3-5 distinct testers");
@@ -315,6 +316,71 @@ describe("dogfood cohort updater", () => {
     });
   });
 
+  it("rejects manifest report generation when the issue body omits app bundle preflight evidence", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        zip: { path: alphaZipPath },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    });
+    const issueBody = createIssueBody("tester-a", ["coding-terminal", "browser-fallback"], {
+      uiSmokePath,
+      ghosttySmokePath,
+      chromeSmokePath,
+      finderSmokePath,
+      voiceSmokePath
+    }, "abc123", { includeAppBundlePreflight: false });
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "browser-fallback"],
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      issueLabels: [
+        "dogfood:accepted",
+        "workflow:coding-terminal",
+        "workflow:browser-fallback"
+      ],
+      reportPath,
+      cohortPath
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: issueBody,
+          labels: [
+            "dogfood:accepted",
+            "workflow:coding-terminal",
+            "workflow:browser-fallback"
+          ]
+        };
+      }
+    })).rejects.toThrow("Issue app bundle preflight must include appPath.");
+  });
+
   it("derives tester id and workflows from the accepted GitHub issue body", async () => {
     const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       updateDogfoodCohort: (
@@ -387,7 +453,9 @@ describe("dogfood cohort updater", () => {
       "",
       "### voice smoke artifact",
       "",
-      voiceSmokePath
+      voiceSmokePath,
+      "",
+      ...createAppBundlePreflightLines()
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -504,7 +572,9 @@ describe("dogfood cohort updater", () => {
       "",
       "### voice smoke artifact",
       "",
-      testerVoiceSmokePath
+      testerVoiceSmokePath,
+      "",
+      ...createAppBundlePreflightLines()
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -1103,9 +1173,16 @@ describe("dogfood cohort updater", () => {
       finderSmokePath: string;
       voiceSmokePath: string;
     },
-    commitSha = "abc123"
+    commitSha = "abc123",
+    options: {
+      includeAppBundlePreflight?: boolean;
+      appPath?: string;
+      launch?: string;
+      productPath?: string;
+    } = {}
   ) {
-    return [
+    const appPath = options.appPath ?? "/repo/dist/skfiy.app";
+    const issueBody = [
       "### alpha manifest",
       "",
       path.basename(manifestPath),
@@ -1148,7 +1225,37 @@ describe("dogfood cohort updater", () => {
       "### voice smoke artifact",
       "",
       paths.voiceSmokePath
-    ].join("\n");
+    ];
+
+    if (options.includeAppBundlePreflight !== false) {
+      issueBody.push(
+        "",
+        "### app bundle preflight",
+        "",
+        `appPath: ${appPath}`,
+        `launch: ${options.launch ?? `open -na ${appPath} --args --remote-debugging-port=9310`}`,
+        "appLaunchViaOpen: true",
+        "runnerHasTmux: false",
+        `productPath: ${options.productPath ?? "LaunchServices -> renderer DOM -> React permission onboarding"}`
+      );
+    }
+
+    return issueBody.join("\n");
+  }
+
+  function createAppBundlePreflightLines(
+    appPath = "/repo/dist/skfiy.app",
+    productPath = "LaunchServices -> renderer DOM -> React permission onboarding"
+  ) {
+    return [
+      "### app bundle preflight",
+      "",
+      `appPath: ${appPath}`,
+      `launch: open -na ${appPath} --args --remote-debugging-port=9310`,
+      "appLaunchViaOpen: true",
+      "runnerHasTmux: false",
+      `productPath: ${productPath}`
+    ];
   }
 
   function createReport(
@@ -1197,6 +1304,9 @@ describe("dogfood cohort updater", () => {
     return {
       result,
       artifactPath,
+      appPath: "/repo/dist/skfiy.app",
+      launch: "open -na /repo/dist/skfiy.app --args --remote-debugging-port=9310",
+      productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       permissions: {

@@ -335,18 +335,7 @@ describe("dogfood issue draft generator", () => {
       outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
       checkReport: true,
       now: () => "2026-06-16T12:00:00.000Z"
-    }, io)).resolves.toMatchObject({
-      result: "created",
-      reportPreview: {
-        appLaunchViaOpen: false
-      },
-      reportPreviewEligibility: {
-        eligible: false,
-        blockingChecks: expect.arrayContaining([
-          expect.objectContaining({ id: "report.tester-a.appLaunchViaOpen" })
-        ])
-      }
-    });
+    }, io)).rejects.toThrow("Issue app bundle preflight appLaunchViaOpen must be true and match the UI smoke artifact.");
   });
 
   function createManifest() {
@@ -371,6 +360,8 @@ describe("dogfood issue draft generator", () => {
     return {
       artifactPath,
       result,
+      appPath: "/repo/dist/skfiy.app",
+      launch: "open -na /repo/dist/skfiy.app --args --remote-debugging-port=9310",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main",

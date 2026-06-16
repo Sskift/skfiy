@@ -247,6 +247,9 @@ describe("dogfood report reviewer", () => {
     return {
       artifactPath,
       result,
+      appPath: "/repo/dist/skfiy.app",
+      launch: "open -na /repo/dist/skfiy.app --args --remote-debugging-port=9310",
+      productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       permissions: {
@@ -304,7 +307,15 @@ describe("dogfood report reviewer", () => {
       "",
       "### voice smoke artifact",
       "",
-      paths.voice
+      paths.voice,
+      "",
+      "### app bundle preflight",
+      "",
+      "appPath: /repo/dist/skfiy.app",
+      "launch: open -na /repo/dist/skfiy.app --args --remote-debugging-port=9310",
+      "appLaunchViaOpen: true",
+      "runnerHasTmux: false",
+      "productPath: LaunchServices -> renderer DOM -> React permission onboarding"
     ].join("\n");
   }
 

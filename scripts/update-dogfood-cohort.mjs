@@ -179,6 +179,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
     voice: await io.readJson(smokePaths.voiceSmokeArtifactPath)
   };
   validateSmokeArtifactPaths(smokeArtifacts, smokePaths);
+  validateIssueAppBundlePreflight(issue, smokeArtifacts.ui);
   const artifactResults = Object.fromEntries(
     Object.entries(smokeArtifacts).map(([key, artifact]) => [key, readSmokeResult(artifact)])
   );
@@ -217,6 +218,7 @@ export function createDogfoodReportHelpText() {
     "dogfood:report requires a readable accepted issue body from gh issue view.",
     "testerId, workflows, smoke artifact paths, alpha identity, and labels are read from GitHub by default.",
     "The issue body must include all five issue smoke artifact paths.",
+    "The issue body must include app bundle preflight evidence matching the UI smoke artifact appPath, launch, appLaunchViaOpen, runnerHasTmux, and productPath.",
     "It also requires the issue alpha manifest, zip, and commit sha to match --manifest.",
     "Every smoke artifact JSON artifactPath must match the issue artifact path it was read from.",
     "Use --tester-id and --workflows only as explicit overrides for tester/workflow body fields.",
@@ -261,6 +263,80 @@ function validateSmokeArtifactPath(label, artifact, expectedPath) {
   if (!samePath(artifact?.artifactPath, expectedPath)) {
     throw new Error(`${label} artifactPath must match the issue artifact path.`);
   }
+}
+
+function validateIssueAppBundlePreflight(issue, uiArtifact) {
+  const preflight = readIssueAppBundlePreflight(issue);
+  const appPath = readRequiredAppBundlePreflightValue(preflight, "appPath");
+  const launch = readRequiredAppBundlePreflightValue(preflight, "launch");
+  const appLaunchViaOpen = readRequiredAppBundlePreflightValue(preflight, "appLaunchViaOpen");
+  const runnerHasTmux = readRequiredAppBundlePreflightValue(preflight, "runnerHasTmux");
+  const productPath = readRequiredAppBundlePreflightValue(preflight, "productPath");
+
+  if (!path.isAbsolute(appPath)) {
+    throw new Error("Issue app bundle preflight appPath must be an absolute path.");
+  }
+  if (path.basename(appPath) !== "skfiy.app") {
+    throw new Error("Issue app bundle preflight appPath must point to lowercase skfiy.app.");
+  }
+  if (!samePath(uiArtifact?.appPath, appPath)) {
+    throw new Error("Issue app bundle preflight appPath must match the UI smoke artifact appPath.");
+  }
+  if (typeof uiArtifact?.launch !== "string" || uiArtifact.launch.trim().length === 0) {
+    throw new Error("UI smoke artifact launch must be recorded for app bundle preflight.");
+  }
+  if (launch !== uiArtifact.launch.trim()) {
+    throw new Error("Issue app bundle preflight launch must match the UI smoke artifact launch.");
+  }
+  if (!launch.includes("open -na")) {
+    throw new Error("Issue app bundle preflight launch must use LaunchServices open -na.");
+  }
+  if (!launch.includes(appPath)) {
+    throw new Error("Issue app bundle preflight launch must include appPath.");
+  }
+  if (appLaunchViaOpen !== "true" || uiArtifact?.appLaunchViaOpen !== true) {
+    throw new Error("Issue app bundle preflight appLaunchViaOpen must be true and match the UI smoke artifact.");
+  }
+  if (runnerHasTmux !== "false" || uiArtifact?.runnerHasTmux !== false) {
+    throw new Error("Issue app bundle preflight runnerHasTmux must be false and match the UI smoke artifact.");
+  }
+  if (productPath === "not available") {
+    throw new Error("Issue app bundle preflight productPath must be recorded.");
+  }
+  if (typeof uiArtifact?.productPath !== "string" || uiArtifact.productPath.trim().length === 0) {
+    throw new Error("UI smoke artifact productPath must be recorded for app bundle preflight.");
+  }
+  if (productPath !== uiArtifact.productPath.trim()) {
+    throw new Error("Issue app bundle preflight productPath must match the UI smoke artifact productPath.");
+  }
+}
+
+function readIssueAppBundlePreflight(issue) {
+  const section = readIssueSection(issue.body, "app bundle preflight");
+  const values = new Map();
+
+  for (const line of section.split(/\r?\n/)) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+    if (key.length > 0 && value.length > 0 && value !== "_No response_") {
+      values.set(key, value);
+    }
+  }
+
+  return values;
+}
+
+function readRequiredAppBundlePreflightValue(preflight, key) {
+  const value = preflight.get(key);
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Issue app bundle preflight must include ${key}.`);
+  }
+
+  return value.trim();
 }
 
 function validateIssueAlphaIdentity(manifest, manifestPath, issue) {
