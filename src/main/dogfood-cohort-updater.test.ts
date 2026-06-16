@@ -38,13 +38,107 @@ describe("dogfood cohort updater", () => {
       "--report",
       ".skfiy-dogfood/reports/tester-a.json",
       "--cohort",
-      ".skfiy-dogfood/internal-alpha-cohort.json"
+      ".skfiy-dogfood/internal-alpha-cohort.json",
+      "--manifest",
+      ".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json",
+      "--tester-id",
+      "tester-a",
+      "--workflows",
+      "coding-terminal,screenshot-inspection"
     ], defaults)).toMatchObject({
       reportPath: path.resolve(".skfiy-dogfood/reports/tester-a.json"),
-      cohortPath: path.resolve(".skfiy-dogfood/internal-alpha-cohort.json")
+      cohortPath: path.resolve(".skfiy-dogfood/internal-alpha-cohort.json"),
+      manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"]
     });
     expect(createDogfoodReportHelpText()).toContain("dogfood:report");
+    expect(createDogfoodReportHelpText()).toContain("--manifest");
     expect(createDogfoodReportHelpText()).toContain("3-5 distinct testers");
+  });
+
+  it("generates a single-user report from an alpha manifest and referenced smoke artifacts", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+    });
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      reportPath,
+      cohortPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "updated",
+      action: "appended",
+      reportPath,
+      summary: {
+        totalReports: 1,
+        distinctTesters: 1,
+        cohortReady: false
+      }
+    });
+    expect(io.files[reportPath]).toMatchObject({
+      testerId: "tester-a",
+      result: "blocked",
+      manifestPath,
+      commitSha: "abc123",
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      permissionStates: {
+        screenRecording: { state: "denied" },
+        accessibility: { state: "denied" },
+        microphone: { state: "not-determined" },
+        speechRecognition: { state: "not-determined" }
+      },
+      artifacts: {
+        uiSmokeArtifactPath: uiSmokePath,
+        ghosttySmokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      artifactResults: {
+        ui: "passed",
+        ghostty: "blocked",
+        chrome: "passed",
+        finder: "blocked",
+        voice: "blocked"
+      }
+    });
+    expect(io.files[cohortPath]).toMatchObject({
+      manifestPath,
+      reports: [
+        expect.objectContaining({ testerId: "tester-a", result: "blocked" })
+      ]
+    });
   });
 
   it("creates a cohort file from a single report without pretending the cohort is complete", async () => {
@@ -200,6 +294,24 @@ describe("dogfood cohort updater", () => {
         chromeSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-chrome.json`,
         finderSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-finder.json`,
         voiceSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-voice.json`
+      }
+    };
+  }
+
+  function createSmokeArtifact(
+    artifactPath: string,
+    result: "passed" | "blocked" | "no-transcript" | "sensitive-paused"
+  ) {
+    return {
+      result,
+      artifactPath,
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      permissions: {
+        screenRecording: { state: "denied" },
+        accessibility: { state: "denied" },
+        microphone: { state: "not-determined" },
+        speechRecognition: { state: "not-determined" }
       }
     };
   }

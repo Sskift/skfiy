@@ -21,6 +21,7 @@ describe("skfiy dogfood issue template", () => {
       "tester id",
       "cohort workflows",
       "dogfood:report",
+      "--manifest",
       "coding-terminal",
       "screenshot-inspection",
       "finder-file",

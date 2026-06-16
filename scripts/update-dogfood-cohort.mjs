@@ -13,6 +13,9 @@ export function createDefaultDogfoodReportOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     rootDir,
     reportPath: undefined,
+    manifestPath: undefined,
+    testerId: undefined,
+    workflows: [],
     cohortPath: path.join(rootDir, ".skfiy-dogfood", "internal-alpha-cohort.json"),
     cohortName: DEFAULT_COHORT_NAME,
     help: false
@@ -28,6 +31,18 @@ export function parseDogfoodReportArgs(argv, defaults) {
     switch (arg) {
       case "--report":
         options.reportPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--manifest":
+        options.manifestPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--tester-id":
+        options.testerId = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--workflows":
+        options.workflows = readWorkflowList(readValue(argv, index, arg));
         index += 1;
         break;
       case "--cohort":
@@ -58,7 +73,14 @@ export async function updateDogfoodCohort(options, io = createDefaultIo()) {
     throw new Error("Missing --cohort <path>.");
   }
 
-  const report = await io.readJson(options.reportPath);
+  const report = typeof options.manifestPath === "string"
+    ? await createDogfoodReportFromManifest(options, io)
+    : await io.readJson(options.reportPath);
+  if (typeof options.manifestPath === "string") {
+    await io.mkdir(path.dirname(options.reportPath), { recursive: true });
+    await io.writeJson(options.reportPath, report);
+  }
+
   const reportTesterId = readTesterId(report);
   const reportManifestPath = readManifestPath(report);
   const cohortExists = await io.exists(options.cohortPath);
@@ -97,17 +119,58 @@ export async function updateDogfoodCohort(options, io = createDefaultIo()) {
   return {
     result: "updated",
     action,
+    reportPath: options.reportPath,
     cohortPath: options.cohortPath,
     reportTesterId,
     summary: createCollectionSummary(reports)
   };
 }
 
+export async function createDogfoodReportFromManifest(options, io = createDefaultIo()) {
+  if (typeof options.manifestPath !== "string") {
+    throw new Error("Missing --manifest <path>.");
+  }
+  if (typeof options.testerId !== "string" || options.testerId.trim().length === 0) {
+    throw new Error("Missing --tester-id <id>.");
+  }
+  if (!Array.isArray(options.workflows) || options.workflows.length === 0) {
+    throw new Error("Missing --workflows <workflow[,workflow]>.");
+  }
+
+  const manifest = await io.readJson(options.manifestPath);
+  const smokePaths = readManifestSmokePaths(manifest);
+  const smokeArtifacts = {
+    ui: await io.readJson(smokePaths.uiSmokeArtifactPath),
+    ghostty: await io.readJson(smokePaths.ghosttySmokeArtifactPath),
+    chrome: await io.readJson(smokePaths.chromeSmokeArtifactPath),
+    finder: await io.readJson(smokePaths.finderSmokeArtifactPath),
+    voice: await io.readJson(smokePaths.voiceSmokeArtifactPath)
+  };
+  const artifactResults = Object.fromEntries(
+    Object.entries(smokeArtifacts).map(([key, artifact]) => [key, readSmokeResult(artifact)])
+  );
+
+  return {
+    testerId: options.testerId.trim(),
+    result: chooseReportResult(Object.values(artifactResults)),
+    manifestPath: options.manifestPath,
+    commitSha: typeof manifest?.commitSha === "string" ? manifest.commitSha : undefined,
+    appLaunchViaOpen: Object.values(smokeArtifacts).every((artifact) => artifact?.appLaunchViaOpen === true),
+    runnerHasTmux: Object.values(smokeArtifacts).some((artifact) => artifact?.runnerHasTmux === true),
+    workflows: options.workflows,
+    permissionStates: readPermissionStates(smokeArtifacts),
+    artifacts: smokePaths,
+    artifactResults
+  };
+}
+
 export function createDogfoodReportHelpText() {
   return [
     "Usage: npm run dogfood:report -- --report <path> [--cohort <path>]",
+    "       npm run dogfood:report -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> --report <path> [--cohort <path>]",
     "",
     "Adds or replaces one real single-user dogfood report in a cohort JSON file.",
+    "With --manifest, generates the single-user report from the alpha manifest and referenced smoke artifacts first.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
     "",
     "After collecting 3-5 distinct testers and all required workflows, run:",
@@ -116,6 +179,75 @@ export function createDogfoodReportHelpText() {
     "Required workflows:",
     ...REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => `  - ${workflow}`)
   ].join("\n");
+}
+
+function readManifestSmokePaths(manifest) {
+  return {
+    uiSmokeArtifactPath: readAbsoluteManifestPath(manifest, "uiSmokeArtifactPath"),
+    ghosttySmokeArtifactPath: readAbsoluteManifestPath(manifest, "smokeArtifactPath"),
+    chromeSmokeArtifactPath: readAbsoluteManifestPath(manifest, "chromeSmokeArtifactPath"),
+    finderSmokeArtifactPath: readAbsoluteManifestPath(manifest, "finderSmokeArtifactPath"),
+    voiceSmokeArtifactPath: readAbsoluteManifestPath(manifest, "voiceSmokeArtifactPath")
+  };
+}
+
+function readAbsoluteManifestPath(manifest, field) {
+  const value = manifest?.[field];
+  if (typeof value !== "string" || !path.isAbsolute(value)) {
+    throw new Error(`Manifest ${field} must be an absolute path.`);
+  }
+
+  return value;
+}
+
+function readSmokeResult(artifact) {
+  return typeof artifact?.result === "string" ? artifact.result : "blocked";
+}
+
+function chooseReportResult(results) {
+  if (results.includes("blocked")) {
+    return "blocked";
+  }
+  if (results.includes("needs-user-confirmation")) {
+    return "needs-user-confirmation";
+  }
+  if (results.includes("no-transcript")) {
+    return "no-transcript";
+  }
+  if (results.includes("sensitive-paused")) {
+    return "sensitive-paused";
+  }
+
+  return "passed";
+}
+
+function readPermissionStates(smokeArtifacts) {
+  const candidates = Object.values(smokeArtifacts).map((artifact) => artifact?.permissions);
+  const permissions = candidates.find(hasPermissionStateObject);
+
+  if (permissions) {
+    return permissions;
+  }
+
+  return {
+    screenRecording: { state: "unknown" },
+    accessibility: { state: "unknown" },
+    microphone: readSpeechPermission(smokeArtifacts.voice?.speechStatus?.microphone),
+    speechRecognition: readSpeechPermission(smokeArtifacts.voice?.speechStatus?.speechRecognition)
+  };
+}
+
+function readSpeechPermission(status) {
+  return typeof status?.state === "string" ? { state: status.state } : { state: "unknown" };
+}
+
+function hasPermissionStateObject(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && typeof value.screenRecording?.state === "string"
+    && typeof value.accessibility?.state === "string"
+    && typeof value.microphone?.state === "string"
+    && typeof value.speechRecognition?.state === "string";
 }
 
 function createCollectionSummary(reports) {
@@ -188,6 +320,13 @@ function readValue(argv, index, arg) {
   }
 
   return value;
+}
+
+function readWorkflowList(value) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 async function runCli() {

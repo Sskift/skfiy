@@ -56,13 +56,18 @@ npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-uns
 
 This gate checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, permission setting direct-link targets, native voice transcript-to-task evidence for passed voice runs, native voice no-transcript/cancellation lifecycle evidence for no-transcript runs, Chrome safe-page extraction, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence for current/selected folder runs, Finder item drag/drop evidence, Finder organization evidence, and process cleanup. Add `--require-current-head` before sharing a local alpha so stale manifests from older commits fail. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and the product smokes are expected to pass.
 
-After each single-user dogfood report is accepted, convert it to JSON and add or replace it in the local cohort file:
+After each single-user dogfood report is accepted, generate a report JSON from the alpha manifest and referenced smoke artifacts, then add or replace it in the local cohort file:
 
 ```bash
-npm run dogfood:report -- --report .skfiy-dogfood/reports/tester-a.json --cohort .skfiy-dogfood/internal-alpha-cohort.json
+npm run dogfood:report -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tester-id tester-a \
+  --workflows coding-terminal,screenshot-inspection \
+  --report .skfiy-dogfood/reports/tester-a.json \
+  --cohort .skfiy-dogfood/internal-alpha-cohort.json
 ```
 
-The report JSON should contain one report object with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. `dogfood:report` preserves one report per tester, rejects reports from a different alpha manifest, and prints readiness without treating an incomplete cohort as complete. Keep `.skfiy-dogfood/` local; it can contain tester-specific evidence and is ignored by git.
+`dogfood:report` reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, derives one report object with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths, preserves one report per tester, rejects reports from a different alpha manifest, and prints readiness without treating an incomplete cohort as complete. Keep `.skfiy-dogfood/` local; it can contain tester-specific evidence and is ignored by git.
 
 After 3-5 single-user dogfood reports are collected, verify cross-user coverage:
 
