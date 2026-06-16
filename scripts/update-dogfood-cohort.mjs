@@ -160,7 +160,8 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
   );
 
   const manifest = await io.readJson(options.manifestPath);
-  const smokePaths = readManifestSmokePaths(manifest);
+  const smokeArtifactSelection = readSmokeArtifactSelection(manifest, issue);
+  const smokePaths = smokeArtifactSelection.paths;
   const smokeArtifacts = {
     ui: await io.readJson(smokePaths.uiSmokeArtifactPath),
     ghostty: await io.readJson(smokePaths.ghosttySmokeArtifactPath),
@@ -186,7 +187,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
       issueLabels,
       collectedAt: typeof options.now === "function" ? options.now() : new Date().toISOString(),
       generatedBy: "dogfood:report",
-      artifactSource: "alpha-manifest-smoke-artifacts"
+      artifactSource: smokeArtifactSelection.artifactSource
     },
     permissionStates: readPermissionStates(smokeArtifacts),
     artifacts: smokePaths,
@@ -200,9 +201,9 @@ export function createDogfoodReportHelpText() {
     "       npm run dogfood:report -- --manifest <alpha-manifest> --issue-url <accepted-issue-url> --report <path> [--cohort <path>] [--tester-id <id>] [--workflows <ids>] [--issue-labels <labels>]",
     "",
     "Adds or replaces one real single-user dogfood report in a cohort JSON file.",
-    "With --manifest, generates the single-user report from the alpha manifest and referenced smoke artifacts first.",
+    "With --manifest, generates the single-user report from the alpha manifest and tester issue artifacts first.",
     "Use --issue-url to link the generated report to the accepted GitHub dogfood issue.",
-    "By default testerId, workflows, and labels are read from GitHub with gh issue view.",
+    "By default testerId, workflows, smoke artifact paths, and labels are read from GitHub with gh issue view.",
     "Use --tester-id and --workflows as explicit overrides for the issue body fields.",
     "Use --issue-labels as an explicit/offline override proving dogfood:accepted plus matching workflow:* labels.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
@@ -222,6 +223,36 @@ function readManifestSmokePaths(manifest) {
     chromeSmokeArtifactPath: readAbsoluteManifestPath(manifest, "chromeSmokeArtifactPath"),
     finderSmokeArtifactPath: readAbsoluteManifestPath(manifest, "finderSmokeArtifactPath"),
     voiceSmokeArtifactPath: readAbsoluteManifestPath(manifest, "voiceSmokeArtifactPath")
+  };
+}
+
+function readSmokeArtifactSelection(manifest, issue) {
+  const manifestPaths = readManifestSmokePaths(manifest);
+  const issuePaths = {
+    uiSmokeArtifactPath: readIssueArtifactPath(issue, "UI smoke artifact"),
+    ghosttySmokeArtifactPath: readIssueArtifactPath(issue, "smoke artifact"),
+    chromeSmokeArtifactPath: readIssueArtifactPath(issue, "Chrome smoke artifact"),
+    finderSmokeArtifactPath: readIssueArtifactPath(issue, "Finder smoke artifact"),
+    voiceSmokeArtifactPath: readIssueArtifactPath(issue, "voice smoke artifact")
+  };
+  const hasIssueArtifactPath = Object.values(issuePaths).some((value) => typeof value === "string");
+
+  return {
+    artifactSource: hasIssueArtifactPath
+      ? "github-issue-smoke-artifacts"
+      : "alpha-manifest-smoke-artifacts",
+    paths: {
+      uiSmokeArtifactPath: issuePaths.uiSmokeArtifactPath
+        ?? manifestPaths.uiSmokeArtifactPath,
+      ghosttySmokeArtifactPath: issuePaths.ghosttySmokeArtifactPath
+        ?? manifestPaths.ghosttySmokeArtifactPath,
+      chromeSmokeArtifactPath: issuePaths.chromeSmokeArtifactPath
+        ?? manifestPaths.chromeSmokeArtifactPath,
+      finderSmokeArtifactPath: issuePaths.finderSmokeArtifactPath
+        ?? manifestPaths.finderSmokeArtifactPath,
+      voiceSmokeArtifactPath: issuePaths.voiceSmokeArtifactPath
+        ?? manifestPaths.voiceSmokeArtifactPath
+    }
   };
 }
 
@@ -463,6 +494,22 @@ function readWorkflowsFromIssueBody(body) {
   }
 
   return checkedWorkflows;
+}
+
+function readIssueArtifactPath(issue, sectionTitle) {
+  const value = readIssueSection(issue.body, sectionTitle)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && line !== "_No response_");
+
+  if (!value) {
+    return undefined;
+  }
+  if (!path.isAbsolute(value)) {
+    throw new Error(`Issue ${sectionTitle} must be an absolute path.`);
+  }
+
+  return value;
 }
 
 function readIssueSection(body, title) {

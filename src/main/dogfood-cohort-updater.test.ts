@@ -310,6 +310,117 @@ describe("dogfood cohort updater", () => {
     });
   });
 
+  it("uses tester smoke artifact paths from the accepted GitHub issue body", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestUiSmokePath = "/repo/.skfiy-smoke/manifest-ui.json";
+    const manifestGhosttySmokePath = "/repo/.skfiy-smoke/manifest-ghostty.json";
+    const manifestChromeSmokePath = "/repo/.skfiy-smoke/manifest-chrome.json";
+    const manifestFinderSmokePath = "/repo/.skfiy-smoke/manifest-finder.json";
+    const manifestVoiceSmokePath = "/repo/.skfiy-smoke/manifest-voice.json";
+    const testerUiSmokePath = "/repo/.skfiy-smoke/tester-issue-ui.json";
+    const testerGhosttySmokePath = "/repo/.skfiy-smoke/tester-issue-ghostty.json";
+    const testerChromeSmokePath = "/repo/.skfiy-smoke/tester-issue-chrome.json";
+    const testerFinderSmokePath = "/repo/.skfiy-smoke/tester-issue-finder.json";
+    const testerVoiceSmokePath = "/repo/.skfiy-smoke/tester-issue-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        uiSmokeArtifactPath: manifestUiSmokePath,
+        smokeArtifactPath: manifestGhosttySmokePath,
+        chromeSmokeArtifactPath: manifestChromeSmokePath,
+        finderSmokeArtifactPath: manifestFinderSmokePath,
+        voiceSmokeArtifactPath: manifestVoiceSmokePath
+      },
+      [testerUiSmokePath]: createSmokeArtifact(testerUiSmokePath, "passed"),
+      [testerGhosttySmokePath]: createSmokeArtifact(testerGhosttySmokePath, "passed"),
+      [testerChromeSmokePath]: createSmokeArtifact(testerChromeSmokePath, "passed"),
+      [testerFinderSmokePath]: createSmokeArtifact(testerFinderSmokePath, "passed"),
+      [testerVoiceSmokePath]: createSmokeArtifact(testerVoiceSmokePath, "passed")
+    });
+    const issueBody = [
+      "### tester id",
+      "",
+      "tester-artifact-paths",
+      "",
+      "### cohort workflows",
+      "",
+      "- [x] coding-terminal",
+      "- [ ] screenshot-inspection",
+      "- [x] finder-file",
+      "- [ ] browser-fallback",
+      "",
+      "### UI smoke artifact",
+      "",
+      testerUiSmokePath,
+      "",
+      "### smoke artifact",
+      "",
+      testerGhosttySmokePath,
+      "",
+      "### Chrome smoke artifact",
+      "",
+      testerChromeSmokePath,
+      "",
+      "### Finder smoke artifact",
+      "",
+      testerFinderSmokePath,
+      "",
+      "### voice smoke artifact",
+      "",
+      testerVoiceSmokePath
+    ].join("\n");
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      reportPath,
+      cohortPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: issueBody,
+          labels: [
+            "dogfood:accepted",
+            "workflow:coding-terminal",
+            "workflow:finder-file"
+          ]
+        };
+      }
+    })).resolves.toMatchObject({
+      result: "updated",
+      action: "appended"
+    });
+    expect(io.files[reportPath]).toMatchObject({
+      testerId: "tester-artifact-paths",
+      source: {
+        artifactSource: "github-issue-smoke-artifacts"
+      },
+      artifacts: {
+        uiSmokeArtifactPath: testerUiSmokePath,
+        ghosttySmokeArtifactPath: testerGhosttySmokePath,
+        chromeSmokeArtifactPath: testerChromeSmokePath,
+        finderSmokeArtifactPath: testerFinderSmokePath,
+        voiceSmokeArtifactPath: testerVoiceSmokePath
+      },
+      artifactResults: {
+        ui: "passed",
+        ghostty: "passed",
+        chrome: "passed",
+        finder: "passed",
+        voice: "passed"
+      }
+    });
+  });
+
   it("requires a GitHub issue URL when generating a real dogfood report from a manifest", async () => {
     const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       updateDogfoodCohort: (
