@@ -3,7 +3,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDogfoodReportFromManifest } from "./update-dogfood-cohort.mjs";
-import { REQUIRED_DOGFOOD_WORKFLOWS } from "./verify-dogfood-cohort.mjs";
+import {
+  REQUIRED_DOGFOOD_WORKFLOWS,
+  verifyDogfoodCohort
+} from "./verify-dogfood-cohort.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
@@ -123,12 +126,16 @@ export async function createDogfoodIssueDraft(options, io = createDefaultIo()) {
   const reportPreview = options.checkReport === true
     ? await createReportPreview(options, io, body)
     : undefined;
+  const reportPreviewEligibility = reportPreview
+    ? await verifyReportPreviewEligibility(reportPreview, options)
+    : undefined;
 
   return {
     result: "created",
     outputPath,
     summary,
-    ...(reportPreview ? { reportPreview } : {})
+    ...(reportPreview ? { reportPreview } : {}),
+    ...(reportPreviewEligibility ? { reportPreviewEligibility } : {})
   };
 }
 
@@ -141,6 +148,7 @@ export function createDogfoodIssueDraftHelpText() {
     "from the manifest and smoke JSON files so maintainers can file an accepted GitHub dogfood issue",
     "without manually retyping fields that dogfood:report later verifies.",
     "Use --check-report to round-trip the generated draft through dogfood:report's parser locally.",
+    "--check-report also prints reportPreviewEligibility, using dogfood:cohort report-level checks.",
     "",
     "Required smoke artifact arguments default to the paths recorded in the alpha manifest, but can be overridden:",
     ...SMOKE_ARTIFACT_OPTIONS.map(([, , label, cli]) => `  ${cli} <path>  ${label}`),
@@ -188,6 +196,44 @@ async function createReportPreview(options, io, body) {
       };
     }
   });
+}
+
+async function verifyReportPreviewEligibility(reportPreview, options) {
+  const cohortPath = path.join(
+    options.rootDir ?? DEFAULT_ROOT_DIR,
+    ".skfiy-dogfood",
+    "issue-draft-report-preview-cohort.json"
+  );
+  const cohort = {
+    schemaVersion: 1,
+    cohortName: "issue-draft-report-preview",
+    generatedAt: typeof options.now === "function" ? options.now() : new Date().toISOString(),
+    manifestPath: reportPreview.manifestPath,
+    reports: [reportPreview]
+  };
+  const result = await verifyDogfoodCohort({
+    cohortPath
+  }, {
+    async readJson(filePath) {
+      if (filePath !== cohortPath) {
+        throw new Error(`Unexpected synthetic cohort path: ${filePath}`);
+      }
+
+      return cohort;
+    }
+  });
+  const blockingChecks = result.checks.filter((check) =>
+    check.ok !== true
+      && (
+        check.id === "cohort.manifestPath"
+        || check.id.startsWith("report.")
+      )
+  );
+
+  return {
+    eligible: blockingChecks.length === 0,
+    blockingChecks
+  };
 }
 
 function resolveSmokePaths(options, manifest) {

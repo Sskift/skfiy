@@ -74,6 +74,7 @@ describe("dogfood issue draft generator", () => {
     expect(createDogfoodIssueDraftHelpText()).toContain("--tester-id");
     expect(createDogfoodIssueDraftHelpText()).toContain("--workflows");
     expect(createDogfoodIssueDraftHelpText()).toContain("--check-report");
+    expect(createDogfoodIssueDraftHelpText()).toContain("reportPreviewEligibility");
     expect(createDogfoodIssueDraftHelpText()).toContain("accepted GitHub dogfood issue");
   });
 
@@ -276,6 +277,52 @@ describe("dogfood issue draft generator", () => {
           finder: "passed",
           voice: "passed"
         }
+      },
+      reportPreviewEligibility: {
+        eligible: true,
+        blockingChecks: []
+      }
+    });
+  });
+
+  it("reports verifier blocking checks when the generated draft is not cohort-report eligible", async () => {
+    const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodIssueDraft: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [manifestPath]: createManifest(),
+      [uiSmokePath]: createSmoke(uiSmokePath, "passed", { appLaunchViaOpen: false }),
+      [ghosttySmokePath]: createSmoke(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmoke(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed")
+    });
+
+    await expect(createDogfoodIssueDraft({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal"],
+      uiSmokeArtifactPath: uiSmokePath,
+      smokeArtifactPath: ghosttySmokePath,
+      chromeSmokeArtifactPath: chromeSmokePath,
+      finderSmokeArtifactPath: finderSmokePath,
+      voiceSmokeArtifactPath: voiceSmokePath,
+      outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
+      checkReport: true,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "created",
+      reportPreview: {
+        appLaunchViaOpen: false
+      },
+      reportPreviewEligibility: {
+        eligible: false,
+        blockingChecks: expect.arrayContaining([
+          expect.objectContaining({ id: "report.tester-a.appLaunchViaOpen" })
+        ])
       }
     });
   });
