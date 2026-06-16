@@ -44,7 +44,11 @@ import {
   type VoiceTurnTranscriptCandidateInput
 } from "./voice-turn-session.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
-import { runChromePageTask, type ChromeTaskEvent } from "./orchestrator/chrome-task.js";
+import {
+  runChromePageTask,
+  type ChromeDesktopClient,
+  type ChromeTaskEvent
+} from "./orchestrator/chrome-task.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import {
   runFinderOrganizationTask,
@@ -280,6 +284,12 @@ function createFinderDesktopClient(helper: DesktopHelperClient): FinderDesktopCl
   return {
     executeAction: async (action) => helper.executeAction(action),
     getFinderSelection: async () => helper.getFinderSelection()
+  };
+}
+
+function createChromeDesktopClient(helper: DesktopHelperClient): ChromeDesktopClient {
+  return {
+    executeAction: async (action) => helper.executeAction(action)
   };
 }
 
@@ -540,8 +550,14 @@ async function runCommandTask(
       const chromeClient = chromeCdpEndpoint
         ? createChromeCdpClient({ endpoint: chromeCdpEndpoint })
         : undefined;
+      const helper = createDesktopHelper();
+      const desktopClient = createChromeDesktopClient(helper);
 
-      for await (const taskEvent of runChromePageTask(command, chromeClient, { approved })) {
+      for await (const taskEvent of runChromePageTask(command, chromeClient, {
+        approved,
+        desktopClient,
+        createScreenshotPath: () => createScreenshotPath("chrome-fallback")
+      })) {
         if (controller.signal.aborted || taskId !== currentTaskId) {
           return;
         }

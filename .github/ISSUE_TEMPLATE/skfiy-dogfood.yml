@@ -229,6 +229,10 @@ body:
         Verified fill_selector: Filled #email.
         Verified fill_selector: Filled #role.
         Verified click_selector: Clicked #submit.
+        Chrome screenshot fallback:
+        fallbackRun.result: fallback-observed or fallback-blocked
+        fallbackRun.productPath: renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback
+        Captured before screenshot: ... or screenshot fallback failed: Screen Recording permission is required
     validations:
       required: true
 

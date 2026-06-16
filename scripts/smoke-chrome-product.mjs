@@ -7,6 +7,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import {
+  FALLBACK_PRODUCT_PATH,
+  classifyChromeFallbackSmokeEvidence,
   classifyChromeSmokeEvidence,
   createDefaultChromeSmokeOptions,
   createHelpText,
@@ -43,11 +45,13 @@ async function main() {
     appPath: options.appPath,
     chromeAppName: options.chromeAppName,
     launch: formatLaunchCommand(options, chromeEndpoint),
+    fallbackLaunch: formatFallbackLaunchCommand(options),
     chromeLaunch: formatChromeLaunchCommand(options),
     appLaunchViaOpen: true,
     chromeLaunchViaOpen: true,
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
+    fallbackProductPath: FALLBACK_PRODUCT_PATH,
     artifactPath: options.outputPath,
     fixtureRoot: undefined,
     pageUrl: undefined,
@@ -61,6 +65,7 @@ async function main() {
     events: [],
     sensitiveRun: undefined,
     formRun: undefined,
+    fallbackRun: undefined,
     permissions: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
@@ -188,6 +193,32 @@ async function main() {
       if (evidence.result === "passed" && evidence.formRun.result !== "passed") {
         evidence.result = "failed";
       }
+
+      const fallback = await runChromeFallbackProductCommand(
+        options,
+        evidence.command
+      );
+      evidence.fallbackRun = {
+        command: evidence.command,
+        productPath: FALLBACK_PRODUCT_PATH,
+        appLaunchViaOpen: true,
+        runnerHasTmux: Boolean(process.env.TMUX),
+        events: fallback.events,
+        processesAfterLaunch: fallback.processesAfterLaunch,
+        result: classifyChromeFallbackSmokeEvidence({
+          events: fallback.events,
+          appLaunchViaOpen: true,
+          runnerHasTmux: Boolean(process.env.TMUX),
+          productPath: FALLBACK_PRODUCT_PATH
+        })
+      };
+
+      if (
+        evidence.result === "passed"
+        && !["fallback-observed", "fallback-blocked"].includes(evidence.fallbackRun.result)
+      ) {
+        evidence.result = "failed";
+      }
     } finally {
       cdp.close();
     }
@@ -240,6 +271,10 @@ function assertChromeSmokeReady(options) {
 
 function formatLaunchCommand(options, chromeEndpoint) {
   return `open -na ${options.appPath} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${chromeEndpoint}`;
+}
+
+function formatFallbackLaunchCommand(options) {
+  return `open -na ${options.appPath} --args --remote-debugging-port=${options.port}`;
 }
 
 function formatChromeLaunchCommand(options) {
@@ -325,6 +360,42 @@ async function launchSkfiy(options, chromeEndpoint) {
     `--remote-debugging-port=${options.port}`,
     `--skfiy-chrome-cdp-endpoint=${chromeEndpoint}`
   ]);
+}
+
+async function launchSkfiyWithoutChromeEndpoint(options) {
+  await execFileAsync("open", [
+    "-n",
+    "-a",
+    options.appPath,
+    "--args",
+    `--remote-debugging-port=${options.port}`
+  ]);
+}
+
+async function runChromeFallbackProductCommand(options, command) {
+  await quitSkfiy();
+  await sleep(500);
+  await launchSkfiyWithoutChromeEndpoint(options);
+  const processesAfterLaunch = await readSkfiyProcesses();
+  const page = await waitForRendererPage(options.port, options.timeoutMs);
+  const cdp = await createCdpClient(page.webSocketDebuggerUrl);
+
+  try {
+    await cdp.send("Runtime.enable");
+    await cdp.send("Runtime.addBinding", { name: "skfiyChromeSmokeEvent" });
+    await cdp.send("Runtime.evaluate", {
+      expression: installEventSinkExpression(),
+      awaitPromise: true,
+      returnByValue: true
+    });
+
+    return {
+      events: await runChromeProductCommand(cdp, command, options),
+      processesAfterLaunch
+    };
+  } finally {
+    cdp.close();
+  }
 }
 
 async function waitForChromeEndpoint(port, timeoutMs) {

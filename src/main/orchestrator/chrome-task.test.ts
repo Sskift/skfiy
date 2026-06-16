@@ -38,6 +38,37 @@ function createChromeClient(): ChromeTaskClient & {
   };
 }
 
+function createChromeDesktopClient() {
+  return {
+    executeAction: vi.fn(async (action) => {
+      if (action.type === "activate_app") {
+        return { ok: true };
+      }
+
+      if (action.type === "observe_app") {
+        return {
+          bundleId: "com.google.Chrome",
+          pid: 234,
+          isRunning: true,
+          isActive: true,
+          screenshotPath: "/tmp/chrome-fallback.png",
+          frontmostBundleId: "com.google.Chrome",
+          accessibilityTrusted: true,
+          windows: [
+            {
+              title: "skfiy chrome smoke",
+              layer: 0,
+              bounds: { x: 10, y: 20, width: 800, height: 600 }
+            }
+          ]
+        };
+      }
+
+      throw new Error(`Unexpected action: ${action.type}`);
+    })
+  };
+}
+
 describe("parseChromePageIntent", () => {
   it("accepts a constrained Chrome test-page command with an absolute URL", () => {
     expect(
@@ -99,6 +130,82 @@ describe("runChromePageTask", () => {
 
     expect(events.map((event) => event.type)).toEqual(["started", "approval_required"]);
     expect(client.sendCdpCommand).not.toHaveBeenCalled();
+  });
+
+  it("captures a screenshot fallback observation when CDP is unavailable", async () => {
+    const desktopClient = createChromeDesktopClient();
+
+    const events = await collectEvents(
+      runChromePageTask(
+        "打开 Chrome 测试页面 file:///tmp/skfiy-chrome.html 并提取正文",
+        undefined,
+        {
+          approved: true,
+          desktopClient,
+          createScreenshotPath: () => "/tmp/chrome-fallback.png"
+        }
+      )
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "approval_required",
+      "locating_app",
+      "app_activated",
+      "screenshot_before",
+      "verification_failed"
+    ]);
+    expect(desktopClient.executeAction).toHaveBeenNthCalledWith(1, {
+      type: "activate_app",
+      bundleId: "com.google.Chrome"
+    });
+    expect(desktopClient.executeAction).toHaveBeenNthCalledWith(2, {
+      type: "observe_app",
+      bundleId: "com.google.Chrome",
+      screenshotOutputPath: "/tmp/chrome-fallback.png"
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "connection",
+      reason: expect.stringContaining("screenshot fallback observation captured")
+    });
+  });
+
+  it("captures a screenshot fallback observation when the configured CDP endpoint fails", async () => {
+    const client = createChromeClient();
+    const desktopClient = createChromeDesktopClient();
+    client.sendCdpCommand.mockRejectedValueOnce(
+      new Error("Chrome CDP endpoint has no controllable page target.")
+    );
+
+    const events = await collectEvents(
+      runChromePageTask(
+        "打开 Chrome 测试页面 file:///tmp/skfiy-chrome.html 并提取正文",
+        client,
+        {
+          approved: true,
+          desktopClient,
+          createScreenshotPath: () => "/tmp/chrome-fallback.png"
+        }
+      )
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "approval_required",
+      "locating_app",
+      "app_activated",
+      "screenshot_before",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "navigation",
+      reason: expect.stringContaining("Chrome CDP navigation failed")
+    });
+    expect(events.at(-1)).toMatchObject({
+      reason: expect.stringContaining("screenshot fallback observation captured")
+    });
   });
 
   it("navigates to the test page and extracts text after approval", async () => {

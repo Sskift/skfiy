@@ -8,6 +8,8 @@ export const EXPECTED_TEXT = "skfiy chrome smoke ready";
 export const FORM_EXPECTED_TEXT = "skfiy agent@skfiy.test operator form submitted";
 export const SENSITIVE_EXPECTED_RESULT = "sensitive-paused";
 export const PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
+export const FALLBACK_PRODUCT_PATH =
+  "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback";
 
 export function createDefaultChromeSmokeOptions(rootDir) {
   return {
@@ -143,6 +145,68 @@ export function classifyChromeSmokeEvidence({
   }
 
   return "passed";
+}
+
+export function classifyChromeFallbackSmokeEvidence({
+  events = [],
+  runnerHasTmux = false,
+  appLaunchViaOpen = false,
+  productPath
+}) {
+  const last = events.at(-1);
+
+  if (!last) {
+    return "no-events";
+  }
+
+  if (last.status === "approval_required") {
+    return "needs-user-confirmation";
+  }
+
+  if (
+    runnerHasTmux
+    || appLaunchViaOpen !== true
+    || productPath !== FALLBACK_PRODUCT_PATH
+  ) {
+    return "failed";
+  }
+
+  if (
+    last.status === "needs_confirmation"
+    && typeof last.message === "string"
+    && last.message.includes("screenshot fallback observation captured")
+    && hasChromeFallbackScreenshotEvidence(events)
+  ) {
+    return "fallback-observed";
+  }
+
+  if (
+    (last.status === "needs_confirmation" || last.status === "failed")
+    && typeof last.message === "string"
+    && (
+      last.message.includes("screenshot fallback failed")
+      || last.message.includes("screenshot fallback activation failed")
+      || last.message.includes("screenshot fallback did not return app state")
+      || last.message.includes("screenshot fallback is unavailable")
+      || last.message.includes("Screen Recording permission is required")
+      || last.message.includes("Accessibility permission is required")
+    )
+  ) {
+    return "fallback-blocked";
+  }
+
+  return last.status ?? "failed";
+}
+
+function hasChromeFallbackScreenshotEvidence(events) {
+  return Array.isArray(events)
+    && events.some((event) =>
+      event?.status === "observing"
+        && event?.replayRecord?.stage === "before"
+        && event.replayRecord.bundleId === "com.google.Chrome"
+        && typeof event.replayRecord.screenshotPath === "string"
+        && event.replayRecord.screenshotPath.length > 0
+    );
 }
 
 function isChromeSensitivePauseMessage(message) {

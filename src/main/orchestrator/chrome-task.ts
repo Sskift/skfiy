@@ -1,8 +1,16 @@
+import os from "node:os";
+import path from "node:path";
 import { buildCdpCommand, type CdpCommand } from "../computer-use/browser-control.js";
 import { createSensitiveTextPatterns } from "../computer-use/sensitive-ui-policy.js";
+import type {
+  DesktopActionResult,
+  DesktopAppState,
+  DesktopExecutableAction
+} from "../computer-use/types.js";
 import type { RiskDecision } from "../../shared/types.js";
 
 const CHROME_APP_NAME = "Chrome";
+const CHROME_BUNDLE_ID = "com.google.Chrome";
 const CHROME_PAGE_PREFIX = "打开 Chrome 测试页面 ";
 const CHROME_PAGE_SUFFIX = " 并提取正文";
 const CHROME_FORM_PREFIX = "填写 Chrome 测试表单 ";
@@ -20,6 +28,10 @@ const SENSITIVE_CHROME_TEXT_PATTERNS = createSensitiveTextPatterns();
 export interface ChromeTaskClient {
   sendCdpCommand(command: CdpCommand): Promise<unknown>;
   waitForPageReady?: () => Promise<void>;
+}
+
+export interface ChromeDesktopClient {
+  executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult>;
 }
 
 export interface ChromeFormField {
@@ -54,6 +66,16 @@ export type ChromeTaskEvent =
       appName: string;
     }
   | {
+      type: "app_activated";
+      appName: string;
+      bundleId: string;
+    }
+  | {
+      type: "screenshot_before";
+      path: string;
+      observation: DesktopAppState;
+    }
+  | {
       type: "action_verified";
       actionType: "navigate" | "fill_selector" | "click_selector" | "extract_text";
       status: "passed";
@@ -72,6 +94,8 @@ export type ChromeTaskEvent =
 
 export interface ChromeTaskOptions {
   approved?: boolean;
+  desktopClient?: ChromeDesktopClient;
+  createScreenshotPath?: (stage: "fallback") => string;
 }
 
 export async function* runChromePageTask(
@@ -107,28 +131,23 @@ export async function* runChromePageTask(
     return;
   }
 
-  if (!client) {
-    yield {
-      type: "verification_failed",
-      stage: "connection",
-      reason: "Chrome CDP endpoint is not configured."
-    };
-    return;
-  }
-
   yield {
     type: "locating_app",
     appName: CHROME_APP_NAME
   };
 
+  if (!client) {
+    yield* captureChromeScreenshotFallback(options);
+    return;
+  }
+
   try {
     await client.sendCdpCommand(buildCdpCommand({ type: "navigate", url: parsed.url }));
   } catch (error) {
-    yield {
-      type: "verification_failed",
+    yield* captureChromeScreenshotFallback(options, {
       stage: "navigation",
-      reason: readErrorMessage(error, "Chrome navigation failed.")
-    };
+      reason: `Chrome CDP navigation failed: ${readErrorMessage(error, "Chrome navigation failed.")}`
+    });
     return;
   }
 
@@ -204,16 +223,134 @@ export async function* runChromePageTask(
       summary: `Chrome test page extracted: ${extractedText}`
     };
   } catch (error) {
-    yield {
-      type: "verification_failed",
+    yield* captureChromeScreenshotFallback(options, {
       stage: "extraction",
-      reason: readErrorMessage(error, "Chrome text extraction failed.")
-    };
+      reason: `Chrome CDP extraction failed: ${readErrorMessage(error, "Chrome text extraction failed.")}`
+    });
   }
 }
 
 function hasSensitiveText(value: string): boolean {
   return SENSITIVE_CHROME_TEXT_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+async function* captureChromeScreenshotFallback(
+  options: ChromeTaskOptions,
+  failure: {
+    stage: Extract<ChromeTaskEvent, { type: "verification_failed" }>["stage"];
+    reason: string;
+  } = {
+    stage: "connection",
+    reason: "Chrome CDP endpoint is not configured."
+  }
+): AsyncGenerator<ChromeTaskEvent> {
+  if (!options.desktopClient) {
+    yield {
+      type: "verification_failed",
+      stage: failure.stage,
+      reason: `${failure.reason} screenshot fallback is unavailable.`
+    };
+    return;
+  }
+
+  const activation = await executeChromeDesktopAction(
+    options.desktopClient,
+    { type: "activate_app", bundleId: CHROME_BUNDLE_ID }
+  );
+  if (!activation.ok) {
+    yield {
+      type: "verification_failed",
+      stage: failure.stage,
+      reason: `${failure.reason} screenshot fallback activation failed: ${activation.reason}`
+    };
+    return;
+  }
+
+  yield {
+    type: "app_activated",
+    appName: CHROME_APP_NAME,
+    bundleId: CHROME_BUNDLE_ID
+  };
+
+  const screenshotOutputPath = options.createScreenshotPath?.("fallback")
+    ?? defaultChromeFallbackScreenshotPath();
+  const observation = await executeChromeDesktopAction(
+    options.desktopClient,
+    {
+      type: "observe_app",
+      bundleId: CHROME_BUNDLE_ID,
+      screenshotOutputPath
+    }
+  );
+
+  if (!observation.ok) {
+    yield {
+      type: "verification_failed",
+      stage: failure.stage,
+      reason: `${failure.reason} screenshot fallback failed: ${observation.reason}`
+    };
+    return;
+  }
+
+  if (!isDesktopAppState(observation.result)) {
+    yield {
+      type: "verification_failed",
+      stage: failure.stage,
+      reason: `${failure.reason} screenshot fallback did not return app state.`
+    };
+    return;
+  }
+
+  yield {
+    type: "screenshot_before",
+    path: observation.result.screenshotPath,
+    observation: observation.result
+  };
+
+  yield {
+    type: "verification_failed",
+    stage: failure.stage,
+    reason: `${failure.reason} screenshot fallback observation captured: ${observation.result.screenshotPath}`
+  };
+}
+
+async function executeChromeDesktopAction(
+  desktopClient: ChromeDesktopClient,
+  action: DesktopExecutableAction
+): Promise<{ ok: true; result: DesktopActionResult } | { ok: false; reason: string }> {
+  try {
+    const result = await desktopClient.executeAction(action);
+    if (isActionResult(result) && !result.ok) {
+      return {
+        ok: false,
+        reason: result.message ?? `Desktop helper could not ${action.type}.`
+      };
+    }
+
+    return { ok: true, result };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: readErrorMessage(error, `Desktop helper could not ${action.type}.`)
+    };
+  }
+}
+
+function isActionResult(value: DesktopActionResult): value is { ok: boolean; message?: string } {
+  return typeof value === "object" && value !== null && "ok" in value;
+}
+
+function isDesktopAppState(value: DesktopActionResult): value is DesktopAppState {
+  return Boolean(value)
+    && typeof value === "object"
+    && "bundleId" in value
+    && "isRunning" in value
+    && "isActive" in value
+    && "screenshotPath" in value;
+}
+
+function defaultChromeFallbackScreenshotPath(): string {
+  return path.join(os.tmpdir(), "skfiy", `chrome-fallback-${Date.now()}.png`);
 }
 
 export function parseChromePageIntent(input: string): ChromePageIntent {

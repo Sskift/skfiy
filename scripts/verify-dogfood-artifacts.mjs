@@ -212,6 +212,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.chromeFallback",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Chrome screenshot fallback evidence"),
+    "manifest must require Chrome screenshot fallback evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.finderAppPolicy",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Finder app policy settings"),
@@ -547,6 +554,12 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
     "chrome.formAction",
     hasChromeFormActionEvidence(artifact.formRun),
     "Chrome smoke must include a form fill/click run with action verification"
+  );
+  check(
+    checks,
+    "chrome.fallback",
+    hasChromeFallbackEvidence(artifact.fallbackRun),
+    "Chrome smoke must include screenshot fallback evidence for no-CDP mode"
   );
   check(
     checks,
@@ -912,6 +925,52 @@ function hasChromeFormActionEvidence(value) {
     )
     && hasTaskEventMessage(value.events, "Verified click_selector:")
     && hasTaskEventMessage(value.events, "Verified extract_text:");
+}
+
+function hasChromeFallbackEvidence(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  if (
+    value.productPath !== "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback"
+    || value.appLaunchViaOpen !== true
+    || value.runnerHasTmux !== false
+    || !Array.isArray(value.events)
+  ) {
+    return false;
+  }
+
+  if (value.result === "fallback-observed") {
+    return value.events.some((event) =>
+      event?.status === "observing"
+        && event?.replayRecord?.stage === "before"
+        && event.replayRecord.bundleId === "com.google.Chrome"
+        && typeof event.replayRecord.screenshotPath === "string"
+        && event.replayRecord.screenshotPath.length > 0
+    ) && value.events.some((event) =>
+      event?.status === "needs_confirmation"
+        && typeof event.message === "string"
+        && event.message.includes("screenshot fallback observation captured")
+    );
+  }
+
+  if (value.result === "fallback-blocked") {
+    return value.events.some((event) =>
+      (event?.status === "needs_confirmation" || event?.status === "failed")
+        && typeof event.message === "string"
+        && (
+          event.message.includes("screenshot fallback failed")
+          || event.message.includes("screenshot fallback activation failed")
+          || event.message.includes("screenshot fallback did not return app state")
+          || event.message.includes("screenshot fallback is unavailable")
+          || event.message.includes("Screen Recording permission is required")
+          || event.message.includes("Accessibility permission is required")
+        )
+    );
+  }
+
+  return false;
 }
 
 function hasChromeFormFieldEvidence(value) {

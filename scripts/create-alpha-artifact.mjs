@@ -28,6 +28,7 @@ const DOGFOOD_EVIDENCE = [
   "Chrome test-page extraction evidence",
   "Chrome sensitive-page pause evidence",
   "Chrome form action evidence",
+  "Chrome screenshot fallback evidence",
   "Finder app policy settings",
   "Finder observe_app screenshot or permission-blocked evidence",
   "Finder semantic selection evidence",

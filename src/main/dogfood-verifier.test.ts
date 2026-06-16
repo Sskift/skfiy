@@ -18,6 +18,7 @@ describe("dogfood artifact verifier", () => {
     "Chrome test-page extraction evidence",
     "Chrome sensitive-page pause evidence",
     "Chrome form action evidence",
+    "Chrome screenshot fallback evidence",
     "Finder app policy settings",
     "Finder observe_app screenshot or permission-blocked evidence",
     "Finder semantic selection evidence",
@@ -188,6 +189,19 @@ describe("dogfood artifact verifier", () => {
         {
           status: "completed",
           message: "Chrome test page extracted: skfiy agent@skfiy.test operator form submitted"
+        }
+      ]
+    },
+    fallbackRun: {
+      result: "fallback-blocked",
+      command: "打开 Chrome 测试页面 file:///tmp/skfiy-chrome.html 并提取正文",
+      productPath: "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback",
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      events: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (connection): Chrome CDP endpoint is not configured; screenshot fallback failed: Screen Recording permission is required"
         }
       ]
     },
@@ -406,6 +420,7 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "chrome.actionVerification", ok: true }),
         expect.objectContaining({ id: "chrome.sensitivePause", ok: true }),
         expect.objectContaining({ id: "chrome.formAction", ok: true }),
+        expect.objectContaining({ id: "chrome.fallback", ok: true }),
         expect.objectContaining({ id: "finder.productPath", ok: true }),
         expect.objectContaining({ id: "finder.actionVerification", ok: true }),
         expect.objectContaining({ id: "finder.itemDragDrop", ok: true }),
@@ -884,6 +899,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeExtraction"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeSensitivePause"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeFormAction"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.chromeFallback"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finder"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderAppPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderObservation"),
@@ -908,6 +924,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("chrome.extractedText"),
         expect.stringContaining("chrome.sensitivePause"),
         expect.stringContaining("chrome.formAction"),
+        expect.stringContaining("chrome.fallback"),
         expect.stringContaining("chrome.chromeProcessesAfterCleanup"),
         expect.stringContaining("chrome.processesAfterCleanup"),
         expect.stringContaining("finder.runnerHasTmux"),

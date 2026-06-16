@@ -27,11 +27,15 @@ describe("Chrome product smoke script", () => {
     expect(existsSync(modulePath)).toBe(true);
 
     const {
+      FALLBACK_PRODUCT_PATH,
+      classifyChromeFallbackSmokeEvidence,
       PRODUCT_PATH,
       createDefaultChromeSmokeOptions,
       createHelpText,
       parseChromeSmokeArgs
     } = await import(pathToFileURL(modulePath).href) as {
+      FALLBACK_PRODUCT_PATH: string;
+      classifyChromeFallbackSmokeEvidence: (input: Record<string, unknown>) => string;
       PRODUCT_PATH: string;
       createDefaultChromeSmokeOptions: (rootDir: string) => Record<string, unknown>;
       createHelpText: (defaults: Record<string, unknown>) => string;
@@ -42,6 +46,9 @@ describe("Chrome product smoke script", () => {
     };
 
     expect(PRODUCT_PATH).toBe("renderer -> preload -> main -> CDP -> Chrome");
+    expect(FALLBACK_PRODUCT_PATH).toBe(
+      "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback"
+    );
     expect(parseChromeSmokeArgs(
       ["--output", ".skfiy-smoke/chrome.json", "--chrome-port", "9444"],
       createDefaultChromeSmokeOptions("/repo")
@@ -50,6 +57,40 @@ describe("Chrome product smoke script", () => {
       chromePort: 9444
     });
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain("smoke:chrome");
+    expect(classifyChromeFallbackSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: FALLBACK_PRODUCT_PATH,
+      events: [
+        { status: "executing", message: "Verified app_activated: Activated Chrome." },
+        {
+          status: "observing",
+          message: "Captured before screenshot: /tmp/chrome-fallback.png",
+          replayRecord: {
+            stage: "before",
+            bundleId: "com.google.Chrome",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: "/tmp/chrome-fallback.png"
+          }
+        },
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (connection): Chrome CDP endpoint is not configured; screenshot fallback observation captured: /tmp/chrome-fallback.png"
+        }
+      ]
+    })).toBe("fallback-observed");
+    expect(classifyChromeFallbackSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: FALLBACK_PRODUCT_PATH,
+      events: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (connection): Chrome CDP endpoint is not configured; screenshot fallback failed: Screen Recording permission is required"
+        }
+      ]
+    })).toBe("fallback-blocked");
   });
 
   it("classifies a completed Chrome extraction with expected text as passed", async () => {

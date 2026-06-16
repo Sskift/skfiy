@@ -44,6 +44,8 @@ describe("skfiy dogfood issue template", () => {
       "formRun.fields: #name, #email, #role",
       "Verified fill_selector: Filled #email.",
       "Verified fill_selector: Filled #role.",
+      "Chrome screenshot fallback",
+      "fallbackRun.result: fallback-observed or fallback-blocked",
       "com.apple.finder",
       "Finder observe_app",
       "Finder semantic selection",
