@@ -179,6 +179,16 @@ body:
       required: true
 
   - type: textarea
+    id: app_policy_settings
+    attributes:
+      label: app policy settings
+      description: Paste the Ghostty entry from `appPolicySettings` in the Ghostty smoke artifact.
+      placeholder: |
+        { "name": "Ghostty", "bundleId": "com.mitchellh.ghostty", "policy": "allow" }
+    validations:
+      required: true
+
+  - type: textarea
     id: voice_and_stop
     attributes:
       label: Voice and panic stop notes

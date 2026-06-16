@@ -33,6 +33,8 @@ describe("skfiy dogfood issue template", () => {
       "action verification events",
       "Verified type_text",
       "Verified press_key",
+      "app policy settings",
+      "com.mitchellh.ghostty",
       "panic stop"
     ];
 

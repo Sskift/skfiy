@@ -148,7 +148,7 @@ npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
 Run product smoke commands sequentially. `smoke:ui`, `smoke:ghostty`, and `smoke:voice` share a `.skfiy-smoke/product-smoke.lock` guard so concurrent packaged-app runs fail instead of producing contaminated cleanup evidence.
 
 Use `npm run smoke:ghostty -- --require-passed` only when Screen Recording and Accessibility are already granted to `dist/skfiy.app`; otherwise the expected result is `blocked` with fail-closed evidence.
-The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, replay records, screenshot file sizes, and cleanup process checks. Use `--output <path>` to persist the exact JSON evidence for dogfood reports. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, a completed task event, `Verified type_text` and `Verified press_key` action verification events, and non-empty before/after screenshot files.
+The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, app policy settings, replay records, screenshot file sizes, and cleanup process checks. Use `--output <path>` to persist the exact JSON evidence for dogfood reports. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, visible Ghostty app policy settings, a completed task event, `Verified type_text` and `Verified press_key` action verification events, and non-empty before/after screenshot files.
 
 ### Safety Smoke
 

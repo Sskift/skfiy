@@ -25,6 +25,7 @@ describe("Ghostty product smoke script", () => {
       plannerMode: "disabled"
     });
     expect(source).toContain("window.skfiy.setPlannerProviderSettings");
+    expect(source).toContain("window.skfiy.getAppPolicySettings()");
     expect(source).toContain("acquireSmokeLock");
   });
 

@@ -48,6 +48,7 @@ async function main() {
     runtimeStatus: undefined,
     startupWarnings: undefined,
     plannerProviderSettings: undefined,
+    appPolicySettings: undefined,
     replayRecords: [],
     screenshots: [],
     result: "not-run"
@@ -119,11 +120,17 @@ async function main() {
         awaitPromise: true,
         returnByValue: true
       });
+      const appPolicySettings = await cdp.send("Runtime.evaluate", {
+        expression: "window.skfiy.getAppPolicySettings()",
+        awaitPromise: true,
+        returnByValue: true
+      });
 
       evidence.permissions = permissions.result?.value;
       evidence.runtimeStatus = runtimeStatus.result?.value;
       evidence.startupWarnings = startupWarnings.result?.value;
       evidence.plannerProviderSettings = plannerProviderSettings.result?.value;
+      evidence.appPolicySettings = appPolicySettings.result?.value;
       evidence.events = cdp.events;
       evidence.runs = options.matrix ? runs : undefined;
       evidence.replayRecords = readReplayRecords(cdp.events);

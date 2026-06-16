@@ -127,6 +127,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && manifest.requiredDogfoodEvidence.includes("action verification events when Computer Use passes"),
     "manifest must require Computer Use action verification evidence"
   );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.appPolicy",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Ghostty app policy settings"),
+    "manifest must require Ghostty app policy evidence"
+  );
   await verifyCurrentHead(manifest, options, io, checks);
 
   if (zipPath) {
@@ -305,6 +312,12 @@ function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
     "ghostty.productPath",
     artifact.productPath === GHOSTTY_PRODUCT_PATH,
     `Ghostty smoke productPath must be ${GHOSTTY_PRODUCT_PATH}`
+  );
+  check(
+    checks,
+    "ghostty.appPolicySettings",
+    hasGhosttyAppPolicyEvidence(artifact.appPolicySettings),
+    "Ghostty smoke must include Ghostty app policy settings evidence"
   );
   check(
     checks,
@@ -498,6 +511,19 @@ function hasBlockingPermission(permissions) {
 function hasRequiredGhosttyActionVerification(events) {
   return hasVerifiedGhosttyAction(events, "type_text")
     && hasVerifiedGhosttyAction(events, "press_key");
+}
+
+function hasGhosttyAppPolicyEvidence(value) {
+  if (!value || !Array.isArray(value.apps)) {
+    return false;
+  }
+
+  return value.apps.some((app) =>
+    app
+      && app.bundleId === "com.mitchellh.ghostty"
+      && typeof app.name === "string"
+      && (app.policy === "allow" || app.policy === "ask" || app.policy === "deny")
+  );
 }
 
 function hasVerifiedGhosttyAction(events, actionType) {

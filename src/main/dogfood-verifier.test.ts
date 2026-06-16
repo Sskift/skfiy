@@ -9,8 +9,16 @@ describe("dogfood artifact verifier", () => {
     "npm run smoke:ui -- --output <path>",
     "npm run smoke:ghostty -- --output <path>",
     "npm run smoke:voice -- --output <path>",
-    "action verification events when Computer Use passes"
+    "action verification events when Computer Use passes",
+    "Ghostty app policy settings"
   ];
+  const ghosttyAppPolicySettings = {
+    apps: [
+      { name: "Ghostty", bundleId: "com.mitchellh.ghostty", policy: "allow" },
+      { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" },
+      { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
+    ]
+  };
 
   it("is exposed as an npm script for dogfood evidence checks", () => {
     const packageJson = JSON.parse(
@@ -100,6 +108,7 @@ describe("dogfood artifact verifier", () => {
         runnerHasTmux: false,
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
+        appPolicySettings: ghosttyAppPolicySettings,
         permissions: {
           screenRecording: { state: "denied" },
           accessibility: { state: "denied" }
@@ -202,6 +211,7 @@ describe("dogfood artifact verifier", () => {
       errors: expect.arrayContaining([
         expect.stringContaining("manifest.requiredDogfoodEvidence.ui"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.actionVerification"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.appPolicy"),
         expect.stringContaining("ui.runnerHasTmux"),
         expect.stringContaining("ui.productPath"),
         expect.stringContaining("ui.petClicked"),
@@ -209,6 +219,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("ui.processesAfterCleanup"),
         expect.stringContaining("ghostty.runnerHasTmux"),
         expect.stringContaining("ghostty.productPath"),
+        expect.stringContaining("ghostty.appPolicySettings"),
         expect.stringContaining("ghostty.processesAfterCleanup"),
         expect.stringContaining("voice.productPath")
       ])
@@ -268,6 +279,7 @@ describe("dogfood artifact verifier", () => {
         runnerHasTmux: false,
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
+        appPolicySettings: ghosttyAppPolicySettings,
         events: [
           { status: "completed", message: "Command completed in Ghostty." }
         ],
@@ -351,6 +363,7 @@ describe("dogfood artifact verifier", () => {
         runnerHasTmux: false,
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
+        appPolicySettings: ghosttyAppPolicySettings,
         processesAfterCleanup: []
       },
       [voiceSmokePath]: {
@@ -429,6 +442,7 @@ describe("dogfood artifact verifier", () => {
         runnerHasTmux: false,
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
+        appPolicySettings: ghosttyAppPolicySettings,
         processesAfterCleanup: []
       },
       [voiceSmokePath]: {
