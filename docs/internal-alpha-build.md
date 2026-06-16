@@ -66,7 +66,7 @@ npm run dogfood:status -- \
   --require-current-head
 ```
 
-`dogfood:status` summarizes the alpha manifest, local smoke artifact results, current permission blockers, accepted report issue URLs already filled into the tracking issue, and the Required Workflow Coverage checklist. It is intentionally non-mutating: it does not create reports, update the tracking issue, or claim cohort readiness.
+`dogfood:status` summarizes the alpha manifest, local smoke artifact results, current permission blockers, accepted report issue URLs already filled into the tracking issue, per-issue validation for current-alpha identity and accepted/workflow labels, and the Required Workflow Coverage checklist. It is intentionally non-mutating: it does not create reports, update the tracking issue, or claim cohort readiness. Readiness is based on verified accepted report issue URLs, not merely the number of links present in the tracking issue.
 
 To make the unsigned alpha downloadable by remote testers, publish it as a GitHub pre-release after a dry-run:
 

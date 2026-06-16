@@ -179,7 +179,13 @@ describe("dogfood status reporter", () => {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls),
         labels: ["skfiy", "dogfood"]
-      }
+      },
+      ...Object.fromEntries(
+        reportUrls.map((url, index) => [
+          url,
+          createAcceptedReportIssue(`tester-${index + 1}`, ["coding-terminal"])
+        ])
+      )
     });
 
     await expect(createDogfoodStatus({
@@ -191,7 +197,8 @@ describe("dogfood status reporter", () => {
       trackingIssue: {
         acceptedReportIssueUrls: reportUrls,
         acceptedReportCount: 3,
-        missingRequiredReports: 0
+        missingRequiredReports: 0,
+        verifiedAcceptedReportCount: 3
       },
       localSmoke: {
         permissionBlockers: []
@@ -204,6 +211,93 @@ describe("dogfood status reporter", () => {
         "Run npm run dogfood:collect with the current manifest and tracking issue."
       ])
     });
+  });
+
+  it("does not mark status ready when listed report issues are stale or not accepted", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const reportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102",
+      "https://github.com/Sskift/skfiy/issues/103"
+    ];
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody(reportUrls),
+        labels: ["skfiy", "dogfood"]
+      },
+      [reportUrls[0]]: createAcceptedReportIssue("tester-a", ["coding-terminal"]),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-b", ["finder-file"], {
+        commitSha: "oldcommit"
+      }),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-c", ["browser-fallback"], {
+        labels: ["workflow:browser-fallback"]
+      })
+    });
+
+    await expect(createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "waiting-for-dogfood",
+      trackingIssue: {
+        acceptedReportIssueUrls: reportUrls,
+        acceptedReportCount: 3,
+        verifiedAcceptedReportCount: 1,
+        missingRequiredReports: 2,
+        reportIssueValidation: [
+          {
+            issueUrl: reportUrls[0],
+            ok: true,
+            reasons: []
+          },
+          {
+            issueUrl: reportUrls[1],
+            ok: false,
+            reasons: ["commit sha does not match manifest commitSha"]
+          },
+          {
+            issueUrl: reportUrls[2],
+            ok: false,
+            reasons: ["missing dogfood:accepted label"]
+          }
+        ]
+      },
+      readiness: {
+        canRunCollect: false,
+        cohortReady: false
+      },
+      nextActions: expect.arrayContaining([
+        "Review or replace stale/invalid dogfood report issue URLs before collecting the cohort."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("Verified accepted report URLs: 1/3 minimum");
+    expect(io.textFiles[summaryPath]).toContain("commit sha does not match manifest commitSha");
+    expect(io.textFiles[summaryPath]).toContain("missing dogfood:accepted label");
   });
 
   it("reports missing workflow coverage from the tracking issue checklist", async () => {
@@ -241,7 +335,13 @@ describe("dogfood status reporter", () => {
           coveredWorkflows: ["coding-terminal", "screenshot-inspection"]
         }),
         labels: ["skfiy", "dogfood"]
-      }
+      },
+      ...Object.fromEntries(
+        reportUrls.map((url, index) => [
+          url,
+          createAcceptedReportIssue(`tester-${index + 1}`, ["coding-terminal"])
+        ])
+      )
     });
 
     await expect(createDogfoodStatus({
@@ -353,6 +453,43 @@ function createTrackingIssueBody(
     "## Cohort Gate",
     "Run dogfood:cohort after collecting reports."
   ].join("\n");
+}
+
+function createAcceptedReportIssue(
+  testerId: string,
+  workflows: string[],
+  options: { commitSha?: string; labels?: string[] } = {}
+) {
+  return {
+    body: [
+      "### alpha manifest",
+      "",
+      path.basename(manifestPath),
+      "",
+      "### alpha zip",
+      "",
+      path.basename("/repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.zip"),
+      "",
+      "### commit sha",
+      "",
+      options.commitSha ?? "abc123",
+      "",
+      "### tester id",
+      "",
+      testerId,
+      "",
+      "### cohort workflows",
+      "",
+      `- [${workflows.includes("coding-terminal") ? "x" : " "}] coding-terminal`,
+      `- [${workflows.includes("screenshot-inspection") ? "x" : " "}] screenshot-inspection`,
+      `- [${workflows.includes("finder-file") ? "x" : " "}] finder-file`,
+      `- [${workflows.includes("browser-fallback") ? "x" : " "}] browser-fallback`
+    ].join("\n"),
+    labels: options.labels ?? [
+      "dogfood:accepted",
+      ...workflows.map((workflow) => `workflow:${workflow}`)
+    ]
+  };
 }
 
 function createMemoryIo(

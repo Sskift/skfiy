@@ -83,20 +83,33 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     trackingIssue.body,
     options.trackingIssueUrl
   );
+  const reportIssueValidation = await validateAcceptedReportIssues({
+    manifest,
+    manifestPath: options.manifestPath,
+    issueUrls: acceptedReportIssueUrls,
+    io
+  });
+  const verifiedAcceptedReportIssueUrls = reportIssueValidation
+    .filter((issue) => issue.ok)
+    .map((issue) => issue.issueUrl);
   const workflowCoverage = readWorkflowCoverage(trackingIssue.body);
   const smokeArtifacts = await readSmokeArtifacts(manifest, io);
   const artifactResults = readArtifactResults(smokeArtifacts);
   const permissionBlockers = readPermissionBlockers(smokeArtifacts);
   const manifestChecks = await readManifestChecks(manifest, options, io);
-  const missingRequiredReports = Math.max(0, 3 - acceptedReportIssueUrls.length);
-  const canRunCollect = acceptedReportIssueUrls.length >= 3 && acceptedReportIssueUrls.length <= 5;
+  const missingRequiredReports = Math.max(0, 3 - verifiedAcceptedReportIssueUrls.length);
+  const invalidReportIssueCount = reportIssueValidation.filter((issue) => !issue.ok).length;
+  const canRunCollect = verifiedAcceptedReportIssueUrls.length >= 3
+    && verifiedAcceptedReportIssueUrls.length <= 5
+    && invalidReportIssueCount === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
   const nextActions = createNextActions({
     canRunCollect,
     permissionBlockers,
     missingRequiredReports,
     manifestChecks,
-    workflowCoverage
+    workflowCoverage,
+    invalidReportIssueCount
   });
 
   const status = {
@@ -115,6 +128,9 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     trackingIssue: {
       acceptedReportIssueUrls,
       acceptedReportCount: acceptedReportIssueUrls.length,
+      verifiedAcceptedReportIssueUrls,
+      verifiedAcceptedReportCount: verifiedAcceptedReportIssueUrls.length,
+      reportIssueValidation,
       missingRequiredReports,
       workflowCoverage
     },
@@ -156,6 +172,7 @@ export function createDogfoodStatusMarkdown(status) {
     `Manifest: ${status.manifestPath}`,
     `Commit: ${status.manifest.commitSha ?? "unknown"}`,
     `Accepted report URLs: ${status.trackingIssue.acceptedReportCount}/3 minimum`,
+    `Verified accepted report URLs: ${status.trackingIssue.verifiedAcceptedReportCount}/3 minimum`,
     "",
     "## Local Smoke",
     ""
@@ -180,6 +197,16 @@ export function createDogfoodStatusMarkdown(status) {
   } else {
     for (const issueUrl of status.trackingIssue.acceptedReportIssueUrls) {
       lines.push(`- ${issueUrl}`);
+    }
+  }
+
+  lines.push("", "## Report Issue Validation", "");
+  if (status.trackingIssue.reportIssueValidation.length === 0) {
+    lines.push("- none");
+  } else {
+    for (const issue of status.trackingIssue.reportIssueValidation) {
+      const state = issue.ok ? "ok" : `invalid: ${issue.reasons.join("; ")}`;
+      lines.push(`- ${issue.issueUrl}: ${state}`);
     }
   }
 
@@ -303,12 +330,16 @@ function createNextActions({
   permissionBlockers,
   missingRequiredReports,
   manifestChecks,
-  workflowCoverage
+  workflowCoverage,
+  invalidReportIssueCount
 }) {
   const actions = [];
 
   if (missingRequiredReports > 0) {
     actions.push("Collect at least 3 accepted real tester report issue URLs in GitHub issue #1.");
+  }
+  if (invalidReportIssueCount > 0) {
+    actions.push("Review or replace stale/invalid dogfood report issue URLs before collecting the cohort.");
   }
   if (workflowCoverage.missing.length > 0) {
     actions.push(`Collect accepted reports covering missing workflows: ${workflowCoverage.missing.join(", ")}.`);
@@ -336,6 +367,115 @@ function createNextActions({
   }
 
   return actions;
+}
+
+async function validateAcceptedReportIssues({ manifest, manifestPath, issueUrls, io }) {
+  const results = [];
+
+  for (const issueUrl of issueUrls) {
+    try {
+      const issue = normalizeIssueEvidence(await io.readIssue(issueUrl));
+      const reasons = validateAcceptedReportIssue({
+        manifest,
+        manifestPath,
+        issue
+      });
+      results.push({
+        issueUrl,
+        ok: reasons.length === 0,
+        reasons
+      });
+    } catch (error) {
+      results.push({
+        issueUrl,
+        ok: false,
+        reasons: [error instanceof Error ? error.message : "failed to read issue"]
+      });
+    }
+  }
+
+  return results;
+}
+
+function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
+  const reasons = [];
+  const labels = new Set(issue.labels);
+
+  if (!labels.has("dogfood:accepted")) {
+    reasons.push("missing dogfood:accepted label");
+  }
+
+  const issueCommitSha = readIssueSection(issue.body, "commit sha");
+  const manifestCommitSha = typeof manifest?.commitSha === "string" ? manifest.commitSha.trim() : "";
+  if (issueCommitSha.length === 0) {
+    reasons.push("missing commit sha");
+  } else if (issueCommitSha !== manifestCommitSha) {
+    reasons.push("commit sha does not match manifest commitSha");
+  }
+
+  const issueAlphaManifest = readIssueSection(issue.body, "alpha manifest");
+  if (issueAlphaManifest.length === 0) {
+    reasons.push("missing alpha manifest");
+  } else if (!matchesIssuePathOrBasename(issueAlphaManifest, manifestPath)) {
+    reasons.push("alpha manifest does not match current manifest");
+  }
+
+  const issueAlphaZip = readIssueSection(issue.body, "alpha zip");
+  const manifestZipPath = typeof manifest?.zip?.path === "string" ? manifest.zip.path : "";
+  if (issueAlphaZip.length === 0) {
+    reasons.push("missing alpha zip");
+  } else if (!matchesIssuePathOrBasename(issueAlphaZip, manifestZipPath)) {
+    reasons.push("alpha zip does not match manifest zip.path");
+  }
+
+  for (const workflow of readIssueWorkflows(issue.body)) {
+    if (!labels.has(`workflow:${workflow}`)) {
+      reasons.push(`missing workflow:${workflow} label`);
+    }
+  }
+
+  return reasons;
+}
+
+function readIssueWorkflows(body) {
+  const section = readIssueSection(body, "cohort workflows");
+
+  return REQUIRED_WORKFLOW_IDS.filter((workflow) => {
+    const checkboxPattern = new RegExp(
+      `-\\s*\\[\\s*x\\s*\\]\\s*(?:\`${escapeRegExp(workflow)}\`|${escapeRegExp(workflow)})`,
+      "i"
+    );
+    return checkboxPattern.test(section);
+  });
+}
+
+function readIssueSection(body, title) {
+  if (typeof body !== "string" || body.length === 0) {
+    return "";
+  }
+
+  const headingPattern = new RegExp(`^###\\s+${escapeRegExp(title)}\\s*$`, "im");
+  const headingMatch = headingPattern.exec(body);
+  if (!headingMatch) {
+    return "";
+  }
+
+  const sectionStart = headingMatch.index + headingMatch[0].length;
+  const rest = body.slice(sectionStart);
+  const nextHeadingMatch = /^###\s+/m.exec(rest);
+
+  return (nextHeadingMatch ? rest.slice(0, nextHeadingMatch.index) : rest).trim();
+}
+
+function matchesIssuePathOrBasename(issueValue, expectedPath) {
+  if (typeof expectedPath !== "string" || expectedPath.trim().length === 0) {
+    return false;
+  }
+  const normalizedIssueValue = issueValue.trim();
+  const normalizedExpectedPath = expectedPath.trim();
+
+  return normalizedIssueValue === normalizedExpectedPath
+    || normalizedIssueValue === path.basename(normalizedExpectedPath);
 }
 
 function readWorkflowCoverage(body) {
