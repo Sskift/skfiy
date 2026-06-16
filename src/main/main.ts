@@ -514,6 +514,31 @@ async function runCommandTask(
   }
 
   const route = selectCommandRoute(command);
+
+  if (route.kind === "chat") {
+    pendingApproval = null;
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    emitTurnReplayTaskEvent(window, {
+      status: "completed",
+      message: "我是 skfiy，可以帮你把明确的语音意图转成受控的桌面操作。"
+    });
+    return;
+  }
+
+  if (route.kind === "needs_clarification") {
+    pendingApproval = null;
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    emitTurnReplayTaskEvent(window, {
+      status: "needs_confirmation",
+      message: `${route.reason} 请明确目标应用和动作。`
+    });
+    return;
+  }
+
   const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), route.bundleId);
 
   if (appPolicy.decision === "deny") {

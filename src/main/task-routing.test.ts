@@ -66,4 +66,32 @@ describe("selectCommandRoute", () => {
       bundleId: "com.mitchellh.ghostty"
     });
   });
+
+  it("keeps direct shell commands on the Ghostty route", () => {
+    expect(selectCommandRoute("pbpaste")).toEqual({
+      kind: "ghostty",
+      bundleId: "com.mitchellh.ghostty"
+    });
+  });
+
+  it("keeps narrow file-creation voice commands on the Ghostty route", () => {
+    expect(selectCommandRoute("创建 skfiy-demo 文件夹")).toEqual({
+      kind: "ghostty",
+      bundleId: "com.mitchellh.ghostty"
+    });
+  });
+
+  it("routes conversational questions away from Ghostty", () => {
+    expect(selectCommandRoute("你是谁，能做什么")).toEqual({
+      kind: "chat",
+      reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+    });
+  });
+
+  it("asks for clarification when the requested app or action is not supported yet", () => {
+    expect(selectCommandRoute("帮我整理一下桌面")).toEqual({
+      kind: "needs_clarification",
+      reason: "No supported desktop control route matched this request."
+    });
+  });
 });
