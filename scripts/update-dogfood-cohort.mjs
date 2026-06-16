@@ -177,6 +177,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
     finder: await io.readJson(smokePaths.finderSmokeArtifactPath),
     voice: await io.readJson(smokePaths.voiceSmokeArtifactPath)
   };
+  validateSmokeArtifactPaths(smokeArtifacts, smokePaths);
   const artifactResults = Object.fromEntries(
     Object.entries(smokeArtifacts).map(([key, artifact]) => [key, readSmokeResult(artifact)])
   );
@@ -215,6 +216,7 @@ export function createDogfoodReportHelpText() {
     "By default testerId, workflows, smoke artifact paths, and labels are read from GitHub with gh issue view.",
     "When the issue body is readable, dogfood:report requires all five issue smoke artifact paths.",
     "It also requires the issue alpha manifest, zip, and commit sha to match --manifest.",
+    "Every smoke artifact JSON artifactPath must match the issue artifact path it was read from.",
     "Use --tester-id and --workflows as explicit overrides for the issue body fields.",
     "Use --issue-labels as an explicit/offline override proving dogfood:accepted plus matching workflow:* labels.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
@@ -255,6 +257,20 @@ function readSmokeArtifactSelection(manifest, issue) {
       ])
     )
   };
+}
+
+function validateSmokeArtifactPaths(smokeArtifacts, smokePaths) {
+  validateSmokeArtifactPath("UI smoke artifact", smokeArtifacts.ui, smokePaths.uiSmokeArtifactPath);
+  validateSmokeArtifactPath("Ghostty smoke artifact", smokeArtifacts.ghostty, smokePaths.ghosttySmokeArtifactPath);
+  validateSmokeArtifactPath("Chrome smoke artifact", smokeArtifacts.chrome, smokePaths.chromeSmokeArtifactPath);
+  validateSmokeArtifactPath("Finder smoke artifact", smokeArtifacts.finder, smokePaths.finderSmokeArtifactPath);
+  validateSmokeArtifactPath("voice smoke artifact", smokeArtifacts.voice, smokePaths.voiceSmokeArtifactPath);
+}
+
+function validateSmokeArtifactPath(label, artifact, expectedPath) {
+  if (!samePath(artifact?.artifactPath, expectedPath)) {
+    throw new Error(`${label} artifactPath must match the issue artifact path.`);
+  }
 }
 
 function validateIssueAlphaIdentity(manifest, manifestPath, issue) {
@@ -588,6 +604,12 @@ function hasIssueBody(issue) {
 function matchesIssuePathOrBasename(issueValue, expectedPath) {
   return issueValue === expectedPath
     || path.basename(issueValue) === path.basename(expectedPath);
+}
+
+function samePath(actualPath, expectedPath) {
+  return typeof actualPath === "string"
+    && typeof expectedPath === "string"
+    && path.resolve(actualPath) === path.resolve(expectedPath);
 }
 
 function readIssueSection(body, title) {

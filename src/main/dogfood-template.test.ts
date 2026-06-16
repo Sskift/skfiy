@@ -34,6 +34,7 @@ describe("skfiy dogfood issue template", () => {
       "testerId, workflows, all five smoke artifact paths, and labels",
       "missing artifact paths are rejected",
       "must match the same alpha",
+      "artifactPath must match",
       "smoke artifact paths",
       "coding-terminal",
       "screenshot-inspection",

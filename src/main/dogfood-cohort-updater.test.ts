@@ -650,6 +650,99 @@ describe("dogfood cohort updater", () => {
     })).rejects.toThrow("Issue commit sha must match manifest commitSha.");
   });
 
+  it("rejects smoke artifact JSON whose internal artifactPath does not match the issue path", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        zip: { path: alphaZipPath },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: {
+        ...createSmokeArtifact("/repo/.skfiy-smoke/other-ui.json", "passed")
+      },
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    });
+    const issueBody = [
+      "### alpha manifest",
+      "",
+      path.basename(manifestPath),
+      "",
+      "### alpha zip",
+      "",
+      path.basename(alphaZipPath),
+      "",
+      "### commit sha",
+      "",
+      "abc123",
+      "",
+      "### tester id",
+      "",
+      "tester-artifact-mismatch",
+      "",
+      "### cohort workflows",
+      "",
+      "- [x] coding-terminal",
+      "",
+      "### UI smoke artifact",
+      "",
+      uiSmokePath,
+      "",
+      "### smoke artifact",
+      "",
+      ghosttySmokePath,
+      "",
+      "### Chrome smoke artifact",
+      "",
+      chromeSmokePath,
+      "",
+      "### Finder smoke artifact",
+      "",
+      finderSmokePath,
+      "",
+      "### voice smoke artifact",
+      "",
+      voiceSmokePath
+    ].join("\n");
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      reportPath,
+      cohortPath
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: issueBody,
+          labels: [
+            "dogfood:accepted",
+            "workflow:coding-terminal"
+          ]
+        };
+      }
+    })).rejects.toThrow("UI smoke artifact artifactPath must match the issue artifact path.");
+  });
+
   it("requires a GitHub issue URL when generating a real dogfood report from a manifest", async () => {
     const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       updateDogfoodCohort: (
