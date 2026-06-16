@@ -246,6 +246,7 @@ npm run dogfood:status -- \
 ```
 
 `dogfood:status` reports local smoke results, permission blockers, manifest/current-head state, and accepted report URLs already filled into the tracking issue. It does not create reports, edit GitHub, or mark the cohort ready; use it to decide whether the next step is granting permissions, collecting tester reports, or running `dogfood:collect`.
+It also reads the tracking issue's Required Workflow Coverage checklist and reports which of `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback` are still missing, so maintainers can steer the next tester before running the final cohort gate.
 
 For one real tester machine, collect the five packaged-app smoke artifacts and a checked issue body with:
 

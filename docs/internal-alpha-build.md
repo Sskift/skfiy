@@ -66,7 +66,7 @@ npm run dogfood:status -- \
   --require-current-head
 ```
 
-`dogfood:status` summarizes the alpha manifest, local smoke artifact results, current permission blockers, and accepted report issue URLs already filled into the tracking issue. It is intentionally non-mutating: it does not create reports, update the tracking issue, or claim cohort readiness.
+`dogfood:status` summarizes the alpha manifest, local smoke artifact results, current permission blockers, accepted report issue URLs already filled into the tracking issue, and the Required Workflow Coverage checklist. It is intentionally non-mutating: it does not create reports, update the tracking issue, or claim cohort readiness.
 
 For a single tester, prefer the one-command runner so all packaged-app smokes run sequentially and the checked GitHub issue body is generated from the exact artifacts it just wrote:
 

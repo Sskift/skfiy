@@ -205,6 +205,65 @@ describe("dogfood status reporter", () => {
       ])
     });
   });
+
+  it("reports missing workflow coverage from the tracking issue checklist", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const reportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102"
+    ];
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody(reportUrls, {
+          coveredWorkflows: ["coding-terminal", "screenshot-inspection"]
+        }),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    await expect(createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      trackingIssue: {
+        workflowCoverage: {
+          covered: ["coding-terminal", "screenshot-inspection"],
+          missing: ["finder-file", "browser-fallback"]
+        }
+      },
+      nextActions: expect.arrayContaining([
+        "Collect accepted reports covering missing workflows: finder-file, browser-fallback."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("## Workflow Coverage");
+    expect(io.textFiles[summaryPath]).toContain("- coding-terminal: covered");
+    expect(io.textFiles[summaryPath]).toContain("- finder-file: missing");
+  });
 });
 
 function createManifest({
@@ -257,7 +316,10 @@ function createSmokeArtifact(
   };
 }
 
-function createTrackingIssueBody(issueUrls: string[]) {
+function createTrackingIssueBody(
+  issueUrls: string[],
+  options: { coveredWorkflows?: string[] } = {}
+) {
   const testerLines = issueUrls.length > 0
     ? issueUrls.map((url, index) => `- [ ] Tester ${index + 1} accepted report issue URL: ${url}`)
     : [
@@ -265,10 +327,25 @@ function createTrackingIssueBody(issueUrls: string[]) {
       "- [ ] Tester 2 accepted report issue URL:",
       "- [ ] Tester 3 accepted report issue URL:"
     ];
+  const covered = new Set(options.coveredWorkflows ?? [
+    "coding-terminal",
+    "screenshot-inspection",
+    "finder-file",
+    "browser-fallback"
+  ]);
+  const workflowLines = [
+    "coding-terminal",
+    "screenshot-inspection",
+    "finder-file",
+    "browser-fallback"
+  ].map((workflow) => `- [${covered.has(workflow) ? "x" : " "}] \`${workflow}\``);
 
   return [
     "## Goal",
     "Collect real packaged-app dogfood reports.",
+    "",
+    "## Required Workflow Coverage",
+    ...workflowLines,
     "",
     "## Required Tester Count",
     ...testerLines,

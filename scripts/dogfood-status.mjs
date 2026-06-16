@@ -15,6 +15,12 @@ const REQUIRED_PERMISSION_KEYS = [
   "microphone",
   "speechRecognition"
 ];
+const REQUIRED_WORKFLOW_IDS = [
+  "coding-terminal",
+  "screenshot-inspection",
+  "finder-file",
+  "browser-fallback"
+];
 const BLOCKING_PERMISSION_STATES = new Set([
   "denied",
   "not-determined",
@@ -77,6 +83,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     trackingIssue.body,
     options.trackingIssueUrl
   );
+  const workflowCoverage = readWorkflowCoverage(trackingIssue.body);
   const smokeArtifacts = await readSmokeArtifacts(manifest, io);
   const artifactResults = readArtifactResults(smokeArtifacts);
   const permissionBlockers = readPermissionBlockers(smokeArtifacts);
@@ -88,7 +95,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     canRunCollect,
     permissionBlockers,
     missingRequiredReports,
-    manifestChecks
+    manifestChecks,
+    workflowCoverage
   });
 
   const status = {
@@ -107,7 +115,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     trackingIssue: {
       acceptedReportIssueUrls,
       acceptedReportCount: acceptedReportIssueUrls.length,
-      missingRequiredReports
+      missingRequiredReports,
+      workflowCoverage
     },
     localSmoke: {
       artifactResults,
@@ -172,6 +181,14 @@ export function createDogfoodStatusMarkdown(status) {
     for (const issueUrl of status.trackingIssue.acceptedReportIssueUrls) {
       lines.push(`- ${issueUrl}`);
     }
+  }
+
+  lines.push("", "## Workflow Coverage", "");
+  for (const workflow of REQUIRED_WORKFLOW_IDS) {
+    const state = status.trackingIssue.workflowCoverage.covered.includes(workflow)
+      ? "covered"
+      : "missing";
+    lines.push(`- ${workflow}: ${state}`);
   }
 
   lines.push("", "## Next Actions", "");
@@ -285,12 +302,16 @@ function createNextActions({
   canRunCollect,
   permissionBlockers,
   missingRequiredReports,
-  manifestChecks
+  manifestChecks,
+  workflowCoverage
 }) {
   const actions = [];
 
   if (missingRequiredReports > 0) {
     actions.push("Collect at least 3 accepted real tester report issue URLs in GitHub issue #1.");
+  }
+  if (workflowCoverage.missing.length > 0) {
+    actions.push(`Collect accepted reports covering missing workflows: ${workflowCoverage.missing.join(", ")}.`);
   }
   if (permissionBlockers.some((item) => item.permission === "screenRecording")) {
     actions.push("Grant Screen Recording to dist/skfiy.app or the alpha app bundle before requiring passed Computer Use evidence.");
@@ -315,6 +336,27 @@ function createNextActions({
   }
 
   return actions;
+}
+
+function readWorkflowCoverage(body) {
+  const workflowSection = readMarkdownSection(body, "Required Workflow Coverage");
+  const covered = [];
+
+  for (const workflow of REQUIRED_WORKFLOW_IDS) {
+    const checkboxPattern = new RegExp(
+      `-\\s*\\[\\s*x\\s*\\]\\s*(?:\`${escapeRegExp(workflow)}\`|${escapeRegExp(workflow)})`,
+      "i"
+    );
+    if (checkboxPattern.test(workflowSection)) {
+      covered.push(workflow);
+    }
+  }
+
+  return {
+    required: [...REQUIRED_WORKFLOW_IDS],
+    covered,
+    missing: REQUIRED_WORKFLOW_IDS.filter((workflow) => !covered.includes(workflow))
+  };
 }
 
 function readAcceptedReportIssueUrls(body, trackingIssueUrl) {
