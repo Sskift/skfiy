@@ -56,6 +56,18 @@ npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-uns
 
 This gate checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, permission setting direct-link targets, native voice transcript-to-task evidence for passed voice runs, native voice no-transcript/cancellation lifecycle evidence for no-transcript runs, accepted GitHub dogfood issue source evidence, Chrome safe-page extraction, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence for current/selected folder runs, Finder item drag/drop evidence, Finder organization evidence, and process cleanup. Add `--require-current-head` before sharing a local alpha so stale manifests from older commits fail. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and the product smokes are expected to pass.
 
+After a tester runs the packaged-app smokes, generate a GitHub dogfood issue body draft from the same manifest and smoke artifact paths instead of copying fields by hand:
+
+```bash
+npm run dogfood:issue -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tester-id tester-a \
+  --workflows coding-terminal,screenshot-inspection \
+  --output .skfiy-dogfood/issues/tester-a.md
+```
+
+The draft writes the alpha manifest basename, alpha zip basename, commit SHA, checked cohort workflows, all five absolute smoke artifact paths, permission states, ASR provider, Computer Use result, screenshots, action verification messages, app policy settings, and core Chrome/Finder/voice evidence into the same `###` sections parsed by `dogfood:report`. Testers should paste the draft into a `skfiy dogfood report` issue and attach or otherwise preserve the referenced local smoke JSON files for maintainer review.
+
 After each single-user dogfood report is accepted, generate a report JSON from the alpha manifest and the tester smoke artifact paths in the accepted issue body, then add or replace it in the local cohort file:
 
 Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issues/1. Each accepted single-user dogfood issue should be linked there before being converted into local `.skfiy-dogfood/` JSON. Accepted report issues should carry `dogfood:accepted` plus the covered workflow labels (`workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`) before maintainers run `dogfood:report`.
@@ -235,7 +247,7 @@ This build is unsigned and unnotarized unless `npm run release:mac:sign` or `npm
 
 For real logged-in browser coverage, testers can additionally start their own Chrome with a remote debugging port and run `npm run smoke:chrome -- --current-page-endpoint http://127.0.0.1:9222 --output .skfiy-smoke/chrome-real-page.json`. That mode must report `targetMode: bring-your-own-current-page`, `chromeLaunchViaOpen=false`, `realCurrentPageRun`, no `Verified navigate` event, and either a passed current-page snapshot or a concrete blocked reason.
 
-Dogfood reports should use the GitHub issue form at `.github/ISSUE_TEMPLATE/skfiy-dogfood.yml`. The form requires the alpha manifest, alpha zip, commit SHA, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, voice smoke artifact, `runnerHasTmux`, permission states, ASR provider, native voice transcript-to-task evidence, native voice no-transcript/cancellation evidence, Computer Use result, screenshot paths, action verification events, app policy settings, Chrome extracted text, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence, Finder item drag/drop evidence, Finder before/after tree, clipboard approval runs, and panic stop notes.
+Dogfood reports should use the GitHub issue form at `.github/ISSUE_TEMPLATE/skfiy-dogfood.yml`; testers can prepare its body with `npm run dogfood:issue`. The form requires the alpha manifest, alpha zip, commit SHA, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, voice smoke artifact, `runnerHasTmux`, permission states, ASR provider, native voice transcript-to-task evidence, native voice no-transcript/cancellation evidence, Computer Use result, screenshot paths, action verification events, app policy settings, Chrome extracted text, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence, Finder item drag/drop evidence, Finder before/after tree, clipboard approval runs, and panic stop notes.
 
 Before any broader internal release:
 

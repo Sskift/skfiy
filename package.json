@@ -26,6 +26,7 @@
     "smoke:ui": "node scripts/smoke-ui-product.mjs",
     "smoke:voice": "node scripts/smoke-voice-product.mjs",
     "dogfood:verify": "node scripts/verify-dogfood-artifacts.mjs",
+    "dogfood:issue": "node scripts/create-dogfood-issue-draft.mjs",
     "dogfood:report": "node scripts/update-dogfood-cohort.mjs",
     "dogfood:cohort": "node scripts/verify-dogfood-cohort.mjs"
   },

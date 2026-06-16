@@ -235,7 +235,17 @@ npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-uns
 
 Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, native voice transcript-to-task evidence for passed voice runs, native voice no-transcript/cancellation lifecycle evidence for no-transcript runs, accepted GitHub dogfood issue source evidence, Chrome extraction evidence, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence for current/selected folder runs, Finder item drag/drop evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
 
-For internal dogfood, generate each accepted single-user dogfood report from the alpha manifest and the tester smoke artifact paths in the accepted issue body, then add or replace it in the local cohort file:
+For internal dogfood, each tester should generate a GitHub dogfood issue body draft from the same alpha manifest and smoke artifacts used for local verification:
+
+```bash
+npm run dogfood:issue -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tester-id tester-a \
+  --workflows coding-terminal,screenshot-inspection \
+  --output .skfiy-dogfood/issues/tester-a.md
+```
+
+The draft fills the `###` sections parsed by `dogfood:report`, including alpha identity, all five smoke artifact paths, permission states, ASR provider, Computer Use result, screenshots, action verification messages, and core Chrome/Finder/voice evidence. After the drafted single-user report is reviewed and accepted, generate its cohort JSON from the accepted issue body:
 
 Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issues/1. Each accepted single-user dogfood issue should be linked there before being converted into local `.skfiy-dogfood/` JSON. Accepted report issues should carry `dogfood:accepted` plus the covered workflow labels (`workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`) before maintainers run `dogfood:report`.
 

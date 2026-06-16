@@ -26,6 +26,7 @@ describe("skfiy dogfood issue template", () => {
       "workflow:finder-file",
       "workflow:browser-fallback",
       "cohort workflows",
+      "dogfood:issue",
       "dogfood:report",
       "--manifest",
       "--issue-url",

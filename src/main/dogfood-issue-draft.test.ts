@@ -1,0 +1,279 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { describe, expect, it } from "vitest";
+
+describe("dogfood issue draft generator", () => {
+  const modulePath = path.join(process.cwd(), "scripts", "create-dogfood-issue-draft.mjs");
+  const manifestPath = "/repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json";
+  const alphaZipPath = "/repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.zip";
+  const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+  const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+  const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+  const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+  const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+
+  it("is exposed as an npm script for preparing real tester issue bodies", () => {
+    const packageJson = JSON.parse(
+      readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+    ) as { scripts?: Record<string, string> };
+
+    expect(packageJson.scripts).toMatchObject({
+      "dogfood:issue": "node scripts/create-dogfood-issue-draft.mjs"
+    });
+  });
+
+  it("parses manifest, tester, workflow, output, and smoke artifact arguments", async () => {
+    const {
+      createDefaultDogfoodIssueDraftOptions,
+      createDogfoodIssueDraftHelpText,
+      parseDogfoodIssueDraftArgs
+    } = await import(pathToFileURL(modulePath).href) as {
+      createDefaultDogfoodIssueDraftOptions: (rootDir: string) => Record<string, unknown>;
+      createDogfoodIssueDraftHelpText: () => string;
+      parseDogfoodIssueDraftArgs: (
+        argv: string[],
+        defaults: Record<string, unknown>
+      ) => Record<string, unknown>;
+    };
+    const defaults = createDefaultDogfoodIssueDraftOptions("/repo");
+
+    expect(parseDogfoodIssueDraftArgs([
+      "--manifest",
+      ".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json",
+      "--tester-id",
+      "tester-a",
+      "--workflows",
+      "coding-terminal,screenshot-inspection",
+      "--ui-smoke-artifact",
+      ".skfiy-smoke/tester-a-ui.json",
+      "--smoke-artifact",
+      ".skfiy-smoke/tester-a-ghostty.json",
+      "--chrome-smoke-artifact",
+      ".skfiy-smoke/tester-a-chrome.json",
+      "--finder-smoke-artifact",
+      ".skfiy-smoke/tester-a-finder.json",
+      "--voice-smoke-artifact",
+      ".skfiy-smoke/tester-a-voice.json",
+      "--output",
+      ".skfiy-dogfood/issues/tester-a.md"
+    ], defaults)).toMatchObject({
+      manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      uiSmokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-ui.json"),
+      smokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-ghostty.json"),
+      chromeSmokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-chrome.json"),
+      finderSmokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-finder.json"),
+      voiceSmokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-voice.json"),
+      outputPath: path.resolve(".skfiy-dogfood/issues/tester-a.md")
+    });
+    expect(createDogfoodIssueDraftHelpText()).toContain("dogfood:issue");
+    expect(createDogfoodIssueDraftHelpText()).toContain("--tester-id");
+    expect(createDogfoodIssueDraftHelpText()).toContain("--workflows");
+    expect(createDogfoodIssueDraftHelpText()).toContain("accepted GitHub dogfood issue");
+  });
+
+  it("creates a GitHub issue body that dogfood:report can parse without manual alpha or artifact copying", async () => {
+    const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodIssueDraft: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [manifestPath]: createManifest(),
+      [uiSmokePath]: createSmoke(uiSmokePath, "passed", {
+        permissionStates: {
+          screenRecording: { state: "granted" },
+          accessibility: { state: "granted" },
+          microphone: { state: "granted" },
+          speechRecognition: { state: "granted" }
+        }
+      }),
+      [ghosttySmokePath]: createSmoke(ghosttySmokePath, "passed", {
+        beforeScreenshotPath: "/tmp/skfiy/ghostty-before.png",
+        afterScreenshotPath: "/tmp/skfiy/ghostty-after.png",
+        taskEvents: [
+          { type: "verified", message: "Verified type_text: type_text helper result accepted." },
+          { type: "verified", message: "Verified press_key: press_key helper result accepted." }
+        ],
+        appPolicySettings: [
+          { name: "Ghostty", bundleId: "com.mitchellh.ghostty", policy: "allow" }
+        ]
+      }),
+      [chromeSmokePath]: createSmoke(chromeSmokePath, "passed", {
+        extractedText: "skfiy chrome smoke ready",
+        currentPageRun: { result: "passed" },
+        appPolicySettings: [
+          { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" }
+        ]
+      }),
+      [finderSmokePath]: createSmoke(finderSmokePath, "blocked", {
+        finderPlanPreview: { result: "passed", destructiveOperationCount: 0 },
+        appPolicySettings: [
+          { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
+        ]
+      }),
+      [voiceSmokePath]: createSmoke(voiceSmokePath, "no-transcript", {
+        provider: "native-macos",
+        transcriptEvents: [{ type: "no_transcript", reason: "silence timeout" }],
+        speechStatus: {
+          speechRecognition: { state: "granted" },
+          microphone: { state: "granted" }
+        }
+      })
+    });
+
+    const result = await createDogfoodIssueDraft({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      uiSmokeArtifactPath: uiSmokePath,
+      smokeArtifactPath: ghosttySmokePath,
+      chromeSmokeArtifactPath: chromeSmokePath,
+      finderSmokeArtifactPath: finderSmokePath,
+      voiceSmokeArtifactPath: voiceSmokePath,
+      outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md"
+    }, io);
+
+    expect(result).toMatchObject({
+      result: "created",
+      outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
+      summary: {
+        testerId: "tester-a",
+        workflows: ["coding-terminal", "screenshot-inspection"],
+        computerUseResult: "passed",
+        runnerHasTmux: false
+      }
+    });
+    const body = io.files["/repo/.skfiy-dogfood/issues/tester-a.md"] as string;
+    expect(body).toContain("### alpha manifest");
+    expect(body).toContain(path.basename(manifestPath));
+    expect(body).toContain("### alpha zip");
+    expect(body).toContain(path.basename(alphaZipPath));
+    expect(body).toContain("### commit sha");
+    expect(body).toContain("abc123");
+    expect(body).toContain("### tester id");
+    expect(body).toContain("tester-a");
+    expect(body).toContain("- [x] coding-terminal");
+    expect(body).toContain("- [x] screenshot-inspection");
+    expect(body).toContain("- [ ] finder-file");
+    expect(body).toContain("- [ ] browser-fallback");
+    expect(body).toContain(uiSmokePath);
+    expect(body).toContain(ghosttySmokePath);
+    expect(body).toContain(chromeSmokePath);
+    expect(body).toContain(finderSmokePath);
+    expect(body).toContain(voiceSmokePath);
+    expect(body).toContain("### runnerHasTmux");
+    expect(body).toContain("false");
+    expect(body).toContain("### Screen Recording");
+    expect(body).toContain("granted");
+    expect(body).toContain("### ASR provider");
+    expect(body).toContain("native-macos");
+    expect(body).toContain("### action verification events");
+    expect(body).toContain("Verified type_text");
+    expect(body).toContain("Verified press_key");
+    expect(body).toContain("### Chrome extracted text");
+    expect(body).toContain("skfiy chrome smoke ready");
+    expect(body).toContain("### Finder plan preview");
+    expect(body).toContain("destructiveOperationCount: 0");
+    expect(body).toContain("### Native voice no-transcript/cancellation evidence");
+    expect(body).toContain("no_transcript");
+  });
+
+  it("summarizes Computer Use result from the artifacts that match selected workflows", async () => {
+    const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodIssueDraft: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [manifestPath]: createManifest(),
+      [uiSmokePath]: createSmoke(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmoke(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmoke(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed")
+    });
+
+    const result = await createDogfoodIssueDraft({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      uiSmokeArtifactPath: uiSmokePath,
+      smokeArtifactPath: ghosttySmokePath,
+      chromeSmokeArtifactPath: chromeSmokePath,
+      finderSmokeArtifactPath: finderSmokePath,
+      voiceSmokeArtifactPath: voiceSmokePath,
+      outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md"
+    }, io);
+
+    expect(result).toMatchObject({
+      summary: {
+        computerUseResult: "blocked"
+      }
+    });
+    expect(io.files["/repo/.skfiy-dogfood/issues/tester-a.md"]).toContain([
+      "### Computer Use result",
+      "",
+      "blocked"
+    ].join("\n"));
+  });
+
+  function createManifest() {
+    return {
+      schemaVersion: 1,
+      appName: "skfiy",
+      commitSha: "abc123",
+      zip: { path: alphaZipPath },
+      uiSmokeArtifactPath: uiSmokePath,
+      smokeArtifactPath: ghosttySmokePath,
+      chromeSmokeArtifactPath: chromeSmokePath,
+      finderSmokeArtifactPath: finderSmokePath,
+      voiceSmokeArtifactPath: voiceSmokePath
+    };
+  }
+
+  function createSmoke(
+    artifactPath: string,
+    result: string,
+    overrides: Record<string, unknown> = {}
+  ) {
+    return {
+      artifactPath,
+      result,
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main",
+      permissionStates: {
+        screenRecording: { state: "unknown" },
+        accessibility: { state: "unknown" },
+        microphone: { state: "unknown" },
+        speechRecognition: { state: "unknown" }
+      },
+      ...overrides
+    };
+  }
+});
+
+function createMemoryIo(files: Record<string, unknown>) {
+  return {
+    files,
+    async readJson(filePath: string) {
+      const value = files[filePath];
+      if (value === undefined) {
+        throw new Error(`Missing JSON: ${filePath}`);
+      }
+
+      return value;
+    },
+    async writeText(filePath: string, value: string) {
+      files[filePath] = value;
+    },
+    async mkdir() {
+      return undefined;
+    }
+  };
+}
