@@ -126,6 +126,53 @@ describe("dogfood report reviewer", () => {
     expect(io.mutations).toEqual([]);
   });
 
+  it("allows local synthetic reports to be accepted as local evidence without making them real testers", async () => {
+    const { reviewDogfoodReport } = await import(pathToFileURL(modulePath).href) as {
+      reviewDogfoodReport: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const paths = createSmokePaths("local-abc123");
+    const io = createMemoryIo({
+      files: {
+        [manifestPath]: createManifest("abc123"),
+        [paths.ui]: createSmokeArtifact(paths.ui, "passed"),
+        [paths.ghostty]: createSmokeArtifact(paths.ghostty, "blocked"),
+        [paths.chrome]: createSmokeArtifact(paths.chrome, "passed"),
+        [paths.finder]: createSmokeArtifact(paths.finder, "blocked"),
+        [paths.voice]: createSmokeArtifact(paths.voice, "blocked")
+      },
+      issues: {
+        [issueUrl]: {
+          body: createIssueBody("local-abc123", [
+            "coding-terminal",
+            "screenshot-inspection",
+            "finder-file",
+            "browser-fallback"
+          ], paths),
+          labels: ["skfiy"]
+        }
+      }
+    });
+
+    await expect(reviewDogfoodReport({
+      manifestPath,
+      issueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "reviewed",
+      eligibleForAcceptance: true,
+      testerId: "local-abc123",
+      reportPreviewEligibility: {
+        eligible: true,
+        blockingChecks: []
+      }
+    });
+    expect(io.textFiles[summaryPath]).toContain("Eligible for acceptance: yes");
+  });
+
   it("rejects a filed report whose alpha identity does not match the selected manifest", async () => {
     const { reviewDogfoodReport } = await import(pathToFileURL(modulePath).href) as {
       reviewDogfoodReport: (

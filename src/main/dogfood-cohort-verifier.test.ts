@@ -166,7 +166,7 @@ describe("dogfood cohort verifier", () => {
         expect.objectContaining({ id: "cohort.distinctTesters", ok: true }),
         expect.objectContaining({ id: "cohort.distinctRealTesters", ok: false }),
         expect.objectContaining({ id: "cohort.workflowCoverage.browser-fallback", ok: true }),
-        expect.objectContaining({ id: "report.local-a.realTester", ok: false })
+        expect.objectContaining({ id: "report.local-a.source", ok: true })
       ])
     });
   });

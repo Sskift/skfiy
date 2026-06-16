@@ -354,13 +354,6 @@ function verifyReport(report, index, cohortManifestPath, checks) {
     }),
     "report source must include type=github-issue, source.issueUrl, collectedAt, generatedBy=dogfood:report, artifactSource=github-issue-smoke-artifacts, issue alpha manifest/zip/commit identity, dogfood:accepted, and matching workflow:* issue labels"
   );
-  const realTester = readRealTesterDecision(report?.testerId);
-  check(
-    checks,
-    `${checkId}.realTester`,
-    realTester.ok,
-    realTester.message
-  );
 }
 
 function createCohortSummary(reports, testerIds, requiredWorkflowCoverage, passedWorkflowCoverage) {
