@@ -144,7 +144,8 @@ describe("alpha artifact packaging", () => {
         "Screen Recording permission state",
         "Accessibility permission state",
         "Microphone or ASR provider state",
-        "before/after screenshot paths when Computer Use passes"
+        "before/after screenshot paths when Computer Use passes",
+        "action verification events when Computer Use passes"
       ]
     });
   });

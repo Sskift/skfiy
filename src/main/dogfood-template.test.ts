@@ -30,6 +30,9 @@ describe("skfiy dogfood issue template", () => {
       "Computer Use result",
       "before screenshot",
       "after screenshot",
+      "action verification events",
+      "Verified type_text",
+      "Verified press_key",
       "panic stop"
     ];
 

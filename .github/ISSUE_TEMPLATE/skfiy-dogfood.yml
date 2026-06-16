@@ -168,6 +168,17 @@ body:
       required: true
 
   - type: textarea
+    id: action_verification
+    attributes:
+      label: action verification events
+      description: Paste `Verified type_text` and `Verified press_key` event messages from Ghostty smoke when Computer Use passes; write `not available` when the run is permission-blocked before actions.
+      placeholder: |
+        Verified type_text: type_text helper result accepted.
+        Verified press_key: press_key helper result accepted.
+    validations:
+      required: true
+
+  - type: textarea
     id: voice_and_stop
     attributes:
       label: Voice and panic stop notes

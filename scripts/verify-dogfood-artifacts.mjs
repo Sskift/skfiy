@@ -120,6 +120,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:voice -- --output <path>"),
     "manifest must require native voice smoke evidence"
   );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.actionVerification",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("action verification events when Computer Use passes"),
+    "manifest must require Computer Use action verification evidence"
+  );
   await verifyCurrentHead(manifest, options, io, checks);
 
   if (zipPath) {

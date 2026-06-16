@@ -5,6 +5,12 @@ import { describe, expect, it } from "vitest";
 
 describe("dogfood artifact verifier", () => {
   const modulePath = path.join(process.cwd(), "scripts", "verify-dogfood-artifacts.mjs");
+  const requiredManifestEvidence = [
+    "npm run smoke:ui -- --output <path>",
+    "npm run smoke:ghostty -- --output <path>",
+    "npm run smoke:voice -- --output <path>",
+    "action verification events when Computer Use passes"
+  ];
 
   it("is exposed as an npm script for dogfood evidence checks", () => {
     const packageJson = JSON.parse(
@@ -69,11 +75,7 @@ describe("dogfood artifact verifier", () => {
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
-        requiredDogfoodEvidence: [
-          "npm run smoke:ui -- --output <path>",
-          "npm run smoke:ghostty -- --output <path>",
-          "npm run smoke:voice -- --output <path>"
-        ]
+        requiredDogfoodEvidence: requiredManifestEvidence
       },
       [zipPath]: Buffer.alloc(42),
       [uiSmokePath]: {
@@ -199,6 +201,7 @@ describe("dogfood artifact verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("manifest.requiredDogfoodEvidence.ui"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.actionVerification"),
         expect.stringContaining("ui.runnerHasTmux"),
         expect.stringContaining("ui.productPath"),
         expect.stringContaining("ui.petClicked"),
@@ -240,11 +243,7 @@ describe("dogfood artifact verifier", () => {
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
-        requiredDogfoodEvidence: [
-          "npm run smoke:ui -- --output <path>",
-          "npm run smoke:ghostty -- --output <path>",
-          "npm run smoke:voice -- --output <path>"
-        ]
+        requiredDogfoodEvidence: requiredManifestEvidence
       },
       [zipPath]: Buffer.alloc(42),
       [uiSmokePath]: {
@@ -327,11 +326,7 @@ describe("dogfood artifact verifier", () => {
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
-        requiredDogfoodEvidence: [
-          "npm run smoke:ui -- --output <path>",
-          "npm run smoke:ghostty -- --output <path>",
-          "npm run smoke:voice -- --output <path>"
-        ]
+        requiredDogfoodEvidence: requiredManifestEvidence
       },
       [zipPath]: Buffer.alloc(42),
       [uiSmokePath]: {
@@ -409,11 +404,7 @@ describe("dogfood artifact verifier", () => {
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
-        requiredDogfoodEvidence: [
-          "npm run smoke:ui -- --output <path>",
-          "npm run smoke:ghostty -- --output <path>",
-          "npm run smoke:voice -- --output <path>"
-        ]
+        requiredDogfoodEvidence: requiredManifestEvidence
       },
       [zipPath]: Buffer.alloc(42),
       [uiSmokePath]: {

@@ -17,6 +17,7 @@ This document is mandatory for all skfiy work. It exists because desktop agents 
    - command or interaction used
    - task event log
    - before/after screenshot paths when Computer Use is involved
+   - `Verified type_text` and `Verified press_key` events when Computer Use reaches action execution
    - observed failure or success state
 
 4. **The app must stay usable in the real scene while development continues.**
@@ -134,6 +135,7 @@ Use only a skfiy-owned Ghostty context.
 - Run a read-only command such as `pwd`.
 - Capture before and after screenshots.
 - Verify task event sequence includes observing, executing, submitted, completed.
+- Verify action execution includes `Verified type_text` and `Verified press_key` event messages.
 - Verify `completed` is emitted only after the after screenshot/OCR observes the per-command `SKFIY_DONE_*` completion marker.
 - Verify the command was not typed into Codex TUI, an editor, or an unrelated terminal.
 
@@ -146,7 +148,7 @@ npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
 Run product smoke commands sequentially. `smoke:ui`, `smoke:ghostty`, and `smoke:voice` share a `.skfiy-smoke/product-smoke.lock` guard so concurrent packaged-app runs fail instead of producing contaminated cleanup evidence.
 
 Use `npm run smoke:ghostty -- --require-passed` only when Screen Recording and Accessibility are already granted to `dist/skfiy.app`; otherwise the expected result is `blocked` with fail-closed evidence.
-The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, replay records, screenshot file sizes, and cleanup process checks. Use `--output <path>` to persist the exact JSON evidence for dogfood reports. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, a completed task event, and non-empty before/after screenshot files.
+The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, replay records, screenshot file sizes, and cleanup process checks. Use `--output <path>` to persist the exact JSON evidence for dogfood reports. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, a completed task event, `Verified type_text` and `Verified press_key` action verification events, and non-empty before/after screenshot files.
 
 ### Safety Smoke
 
@@ -185,6 +187,7 @@ Process: skfiy.app, not tmux
 Permissions: Screen Recording ok, Accessibility ok, Microphone ok
 Task: "open Ghostty, run pwd, screenshot"
 Events: observing -> executing -> submitted -> completed
+Action verification: Verified type_text, Verified press_key
 Screenshots:
 - before: /path/to/before.png
 - after: /path/to/after.png
