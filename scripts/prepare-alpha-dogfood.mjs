@@ -17,6 +17,7 @@ const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_REPO = "Sskift/skfiy";
 const ALPHA_ZIP_PATTERN = "skfiy-*-macos-unsigned.zip";
 const ALPHA_MANIFEST_PATTERN = "skfiy-*-macos-unsigned.json";
+const WORKFLOW_PLACEHOLDER = "<comma-separated-workflow-ids>";
 
 export function createDefaultPrepareAlphaDogfoodOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -143,6 +144,13 @@ export function createPrepareAlphaDogfoodPlan(options) {
     : [];
   const placeholderManifestPath = path.join(downloadDir, "<downloaded-alpha.json>");
   const placeholderZipPath = path.join(downloadDir, "<downloaded-alpha.zip>");
+  const nextCommands = createPrepareAlphaNextCommands({
+    manifestPath: placeholderManifestPath,
+    appPath,
+    testerId,
+    workflows: options.workflows,
+    trackingIssueUrl: options.trackingIssueUrl
+  });
 
   return {
     rootDir,
@@ -155,6 +163,7 @@ export function createPrepareAlphaDogfoodPlan(options) {
     appPath,
     handoffOutputPath,
     replaceExisting: options.replaceExisting === true,
+    nextCommands,
     commands: [
       {
         id: "release:download",
@@ -230,6 +239,7 @@ export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
       downloadDir: plan.downloadDir,
       extractDir: plan.extractDir,
       handoffOutputPath: plan.handoffOutputPath,
+      nextCommands: plan.nextCommands,
       plan
     };
   }
@@ -282,7 +292,14 @@ export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
     manifestPath: downloaded.manifestPath,
     zipPath: downloaded.zipPath,
     appPath: plan.appPath,
-    handoffOutputPath: plan.handoffOutputPath
+    handoffOutputPath: plan.handoffOutputPath,
+    nextCommands: createPrepareAlphaNextCommands({
+      manifestPath: downloaded.manifestPath,
+      appPath: plan.appPath,
+      testerId: plan.testerId,
+      workflows: resolvedOptions.workflows,
+      trackingIssueUrl: resolvedOptions.trackingIssueUrl
+    })
   };
 }
 
@@ -295,6 +312,8 @@ export function createPrepareAlphaDogfoodHelpText() {
     "app install, and handoff plan without mutating local files.",
     "Pass --execute to download the release assets, verify the zip SHA256 against",
     "the manifest, extract skfiy.app, and create the dogfood handoff.",
+    "The result includes nextCommands.tester and nextCommands.review with the",
+    "prepared manifest path and app bundle path filled in for copy/paste.",
     "",
     "Options:",
     "  --release-url <url>       GitHub release URL, for example https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-xxxxxxx.",
@@ -313,6 +332,51 @@ export function createPrepareAlphaDogfoodHelpText() {
     "  --dry-run                 Force dry-run planning mode.",
     "  -h, --help                Show this help."
   ].join("\n");
+}
+
+function createPrepareAlphaNextCommands({
+  manifestPath,
+  appPath,
+  testerId,
+  workflows,
+  trackingIssueUrl
+}) {
+  const workflowList = Array.isArray(workflows) && workflows.length > 0
+    ? workflows.join(",")
+    : WORKFLOW_PLACEHOLDER;
+  const reviewTrackingIssueArgs = typeof trackingIssueUrl === "string" && trackingIssueUrl.trim().length > 0
+    ? ["--tracking-issue-url", trackingIssueUrl.trim()]
+    : [];
+
+  return {
+    tester: [
+      "npm run dogfood:tester --",
+      "--manifest",
+      manifestPath,
+      "--app",
+      appPath,
+      "--tester-id",
+      testerId,
+      "--workflows",
+      workflowList,
+      "--artifacts-dir",
+      `.skfiy-smoke/dogfood/${testerId}`,
+      "--issue-output",
+      `.skfiy-dogfood/issues/${testerId}.md`,
+      "--summary",
+      `.skfiy-dogfood/${testerId}-summary.md`
+    ].join(" "),
+    review: [
+      "npm run dogfood:review --",
+      "--manifest",
+      manifestPath,
+      "--issue-url",
+      "<filed-dogfood-issue-url>",
+      ...reviewTrackingIssueArgs,
+      "--summary",
+      `.skfiy-dogfood/reviews/${testerId}.md`
+    ].join(" ")
+  };
 }
 
 async function resolvePrepareAlphaDogfoodOptions(options, io) {

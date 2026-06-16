@@ -172,6 +172,9 @@ machines.
 `dogfood:prepare-alpha` can infer `--workflows` from the tracking issue when a
 tester id appears in that section, so copied prepare commands and generated
 handoffs stay aligned.
+Its JSON result also includes `nextCommands.tester` and `nextCommands.review`
+with the prepared manifest path and app bundle path filled in, so testers can
+copy the next command without reconstructing paths by hand.
 Workflow and passed workflow coverage in `dogfood:status` and
 `dogfood:cohort` count only verified accepted reports from real tester ids;
 `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` remain local evidence

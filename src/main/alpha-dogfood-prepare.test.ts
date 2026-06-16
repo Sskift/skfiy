@@ -201,6 +201,10 @@ describe("alpha dogfood preparation", () => {
     }, io) as {
       plan: {
         commands: Array<{ id: string; command: string; args: string[] }>;
+        nextCommands: {
+          tester: string;
+          review: string;
+        };
       };
     };
 
@@ -210,6 +214,10 @@ describe("alpha dogfood preparation", () => {
         "finder-file,browser-fallback"
       ])
     );
+    expect(result.plan.nextCommands.tester).toContain("--manifest /repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/<downloaded-alpha.json>");
+    expect(result.plan.nextCommands.tester).toContain("--app /repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app");
+    expect(result.plan.nextCommands.tester).toContain("--workflows finder-file,browser-fallback");
+    expect(result.plan.nextCommands.review).toContain("--manifest /repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/<downloaded-alpha.json>");
   });
 
   it("allows synthetic prepare tester ids only for the generated maintainer handoff command", async () => {
@@ -246,6 +254,8 @@ describe("alpha dogfood preparation", () => {
       tagName: "skfiy-alpha-abc1234",
       repo: "Sskift/skfiy",
       testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
       dryRun: false
     }, io)).resolves.toMatchObject({
       status: "prepared",
@@ -253,7 +263,11 @@ describe("alpha dogfood preparation", () => {
       manifestPath: "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.json",
       zipPath: "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.zip",
       appPath: "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app",
-      handoffOutputPath: "/repo/.skfiy-dogfood/handoffs/tester-a.md"
+      handoffOutputPath: "/repo/.skfiy-dogfood/handoffs/tester-a.md",
+      nextCommands: {
+        tester: "npm run dogfood:tester -- --manifest /repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.json --app /repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app --tester-id tester-a --workflows coding-terminal,screenshot-inspection --artifacts-dir .skfiy-smoke/dogfood/tester-a --issue-output .skfiy-dogfood/issues/tester-a.md --summary .skfiy-dogfood/tester-a-summary.md",
+        review: "npm run dogfood:review -- --manifest /repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.json --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-a.md"
+      }
     });
     expect(io.commands.map((entry) => entry.id)).toEqual([
       "release:download",
