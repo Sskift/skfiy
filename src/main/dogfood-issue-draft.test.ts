@@ -45,6 +45,7 @@ describe("dogfood issue draft generator", () => {
       "tester-a",
       "--workflows",
       "coding-terminal,screenshot-inspection",
+      "--check-report",
       "--ui-smoke-artifact",
       ".skfiy-smoke/tester-a-ui.json",
       "--smoke-artifact",
@@ -61,6 +62,7 @@ describe("dogfood issue draft generator", () => {
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
       testerId: "tester-a",
       workflows: ["coding-terminal", "screenshot-inspection"],
+      checkReport: true,
       uiSmokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-ui.json"),
       smokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-ghostty.json"),
       chromeSmokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-chrome.json"),
@@ -71,6 +73,7 @@ describe("dogfood issue draft generator", () => {
     expect(createDogfoodIssueDraftHelpText()).toContain("dogfood:issue");
     expect(createDogfoodIssueDraftHelpText()).toContain("--tester-id");
     expect(createDogfoodIssueDraftHelpText()).toContain("--workflows");
+    expect(createDogfoodIssueDraftHelpText()).toContain("--check-report");
     expect(createDogfoodIssueDraftHelpText()).toContain("accepted GitHub dogfood issue");
   });
 
@@ -220,6 +223,61 @@ describe("dogfood issue draft generator", () => {
       "",
       "blocked"
     ].join("\n"));
+  });
+
+  it("round-trips generated drafts through the dogfood:report parser when requested", async () => {
+    const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodIssueDraft: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [manifestPath]: createManifest(),
+      [uiSmokePath]: createSmoke(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmoke(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmoke(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed")
+    });
+
+    await expect(createDogfoodIssueDraft({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      uiSmokeArtifactPath: uiSmokePath,
+      smokeArtifactPath: ghosttySmokePath,
+      chromeSmokeArtifactPath: chromeSmokePath,
+      finderSmokeArtifactPath: finderSmokePath,
+      voiceSmokeArtifactPath: voiceSmokePath,
+      outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
+      checkReport: true,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "created",
+      reportPreview: {
+        testerId: "tester-a",
+        result: "blocked",
+        manifestPath,
+        workflows: ["coding-terminal", "screenshot-inspection"],
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        source: {
+          generatedBy: "dogfood:report",
+          artifactSource: "github-issue-smoke-artifacts",
+          issueAlphaManifest: path.basename(manifestPath),
+          issueAlphaZip: path.basename(alphaZipPath),
+          issueCommitSha: "abc123"
+        },
+        artifactResults: {
+          ui: "passed",
+          ghostty: "blocked",
+          chrome: "passed",
+          finder: "passed",
+          voice: "passed"
+        }
+      }
+    });
   });
 
   function createManifest() {

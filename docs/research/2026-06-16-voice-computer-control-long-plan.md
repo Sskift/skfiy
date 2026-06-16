@@ -389,7 +389,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - Refreshed internal search on 2026-06-16: AIME Desktop overlaps assistant/workflow/local file tasks, AIME Chrome Extension overlaps browser control, AIME Buddy overlaps desktop companion/task notification/status, and native macOS app Computer Use remains the skfiy validation gap unless AIME/AIOS exposes a stable native control plugin/runtime.
 - [ ] Internal dogfood with 3-5 real users:
   - [x] cohort verifier/report schema and issue-template fields
-  - [x] tester-side GitHub issue body draft generator via `npm run dogfood:issue -- --manifest <path> --tester-id <id> --workflows <ids> --output <path>`, copying alpha identity, smoke artifact paths, permission states, and core evidence from local JSON artifacts before maintainers run `dogfood:report`
+  - [x] tester-side GitHub issue body draft generator via `npm run dogfood:issue -- --manifest <path> --tester-id <id> --workflows <ids> --check-report --output <path>`, copying alpha identity, smoke artifact paths, permission states, and core evidence from local JSON artifacts before round-tripping the draft through `dogfood:report`
   - [x] manifest-backed single-report generator and cohort updater via `npm run dogfood:report -- --manifest <path> --issue-url <accepted-issue-url> --report <path> --cohort <path>`
   - [x] report source metadata gate requiring accepted GitHub issue URL and collection timestamp for cohort verification
   - [x] cohort readiness Markdown summary via `npm run dogfood:cohort -- --cohort <path> --summary <path>`

@@ -2,6 +2,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createDogfoodReportFromManifest } from "./update-dogfood-cohort.mjs";
 import { REQUIRED_DOGFOOD_WORKFLOWS } from "./verify-dogfood-cohort.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -26,6 +27,7 @@ export function createDefaultDogfoodIssueDraftOptions(rootDir = DEFAULT_ROOT_DIR
     finderSmokeArtifactPath: undefined,
     voiceSmokeArtifactPath: undefined,
     outputPath: undefined,
+    checkReport: false,
     help: false
   };
 }
@@ -73,6 +75,9 @@ export function parseDogfoodIssueDraftArgs(argv, defaults) {
         options.outputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
+      case "--check-report":
+        options.checkReport = true;
+        break;
       case "--help":
       case "-h":
         options.help = true;
@@ -115,11 +120,15 @@ export async function createDogfoodIssueDraft(options, io = createDefaultIo()) {
 
   await io.mkdir(path.dirname(outputPath), { recursive: true });
   await io.writeText(outputPath, body);
+  const reportPreview = options.checkReport === true
+    ? await createReportPreview(options, io, body)
+    : undefined;
 
   return {
     result: "created",
     outputPath,
-    summary
+    summary,
+    ...(reportPreview ? { reportPreview } : {})
   };
 }
 
@@ -131,6 +140,7 @@ export function createDogfoodIssueDraftHelpText() {
     "The draft copies alpha identity, all five smoke artifact paths, permission states, and core evidence",
     "from the manifest and smoke JSON files so maintainers can file an accepted GitHub dogfood issue",
     "without manually retyping fields that dogfood:report later verifies.",
+    "Use --check-report to round-trip the generated draft through dogfood:report's parser locally.",
     "",
     "Required smoke artifact arguments default to the paths recorded in the alpha manifest, but can be overridden:",
     ...SMOKE_ARTIFACT_OPTIONS.map(([, , label, cli]) => `  ${cli} <path>  ${label}`),
@@ -156,6 +166,28 @@ function validateOptions(options) {
   if (unknownWorkflow) {
     throw new Error(`Unknown dogfood workflow: ${unknownWorkflow}.`);
   }
+}
+
+async function createReportPreview(options, io, body) {
+  const issueUrl = "https://github.com/Sskift/skfiy/issues/dogfood-issue-draft-preview";
+  const issueLabels = [
+    "dogfood:accepted",
+    ...options.workflows.map((workflow) => `workflow:${workflow}`)
+  ];
+
+  return await createDogfoodReportFromManifest({
+    manifestPath: options.manifestPath,
+    issueUrl,
+    now: options.now
+  }, {
+    ...io,
+    async readIssue() {
+      return {
+        body,
+        labels: issueLabels
+      };
+    }
+  });
 }
 
 function resolveSmokePaths(options, manifest) {

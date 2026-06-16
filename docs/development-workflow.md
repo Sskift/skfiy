@@ -242,10 +242,11 @@ npm run dogfood:issue -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tester-id tester-a \
   --workflows coding-terminal,screenshot-inspection \
+  --check-report \
   --output .skfiy-dogfood/issues/tester-a.md
 ```
 
-The draft fills the `###` sections parsed by `dogfood:report`, including alpha identity, all five smoke artifact paths, permission states, ASR provider, Computer Use result, screenshots, action verification messages, and core Chrome/Finder/voice evidence. After the drafted single-user report is reviewed and accepted, generate its cohort JSON from the accepted issue body:
+The draft fills the `###` sections parsed by `dogfood:report`, including alpha identity, all five smoke artifact paths, permission states, ASR provider, Computer Use result, screenshots, action verification messages, and core Chrome/Finder/voice evidence. `--check-report` round-trips the generated draft through the `dogfood:report` parser with synthetic accepted labels, so tester-side artifacts fail locally if a heading, manifest identity, or artifact path is incompatible. After the drafted single-user report is reviewed and accepted, generate its cohort JSON from the accepted issue body:
 
 Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issues/1. Each accepted single-user dogfood issue should be linked there before being converted into local `.skfiy-dogfood/` JSON. Accepted report issues should carry `dogfood:accepted` plus the covered workflow labels (`workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`) before maintainers run `dogfood:report`.
 
