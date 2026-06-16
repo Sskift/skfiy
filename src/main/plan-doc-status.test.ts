@@ -109,4 +109,14 @@ describe("implementation plan status docs", () => {
       expect(plan).not.toContain(".skfiy-smoke/ui-9102f9a.json");
     }
   });
+
+  it("documents the alpha workflow with Ghostty matrix evidence required by dogfood verification", () => {
+    const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
+
+    expect(readme).toContain(
+      "npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json"
+    );
+    expect(readme).toContain("--smoke-artifact .skfiy-smoke/ghostty-matrix.json");
+    expect(readme).not.toContain("--smoke-artifact .skfiy-smoke/ghostty-smoke.json");
+  });
 });

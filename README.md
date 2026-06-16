@@ -92,13 +92,13 @@ npm test -- --run
 npm run typecheck
 npm run build
 npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
-npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
+npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
 npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json
 npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-item-drag-drop.json
 npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
 npm run alpha:artifact -- \
   --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json \
-  --smoke-artifact .skfiy-smoke/ghostty-smoke.json \
+  --smoke-artifact .skfiy-smoke/ghostty-matrix.json \
   --chrome-smoke-artifact .skfiy-smoke/chrome-page.json \
   --finder-smoke-artifact .skfiy-smoke/finder-item-drag-drop.json \
   --voice-smoke-artifact .skfiy-smoke/voice-native.json
