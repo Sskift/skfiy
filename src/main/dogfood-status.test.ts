@@ -308,7 +308,7 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("Alpha is current HEAD: no");
   });
 
-  it("does not ask for a fresh alpha when only docs and evidence changed after the alpha commit", async () => {
+  it("does not ask for a fresh alpha when only non-app-build inputs changed after the alpha commit", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
         input: Record<string, unknown>,
@@ -348,7 +348,9 @@ describe("dogfood status reporter", () => {
           ? [
             "docs/release-evidence/latest-alpha.json",
             "docs/superpowers/plans/2026-06-15-skfiy-mvp.md",
-            ".skfiy-dogfood/status-abc123.md"
+            ".skfiy-dogfood/status-abc123.md",
+            "scripts/dogfood-status.mjs",
+            "src/main/dogfood-status.test.ts"
           ]
           : [];
       }
@@ -372,7 +374,9 @@ describe("dogfood status reporter", () => {
             changedFiles: [
               "docs/release-evidence/latest-alpha.json",
               "docs/superpowers/plans/2026-06-15-skfiy-mvp.md",
-              ".skfiy-dogfood/status-abc123.md"
+              ".skfiy-dogfood/status-abc123.md",
+              "scripts/dogfood-status.mjs",
+              "src/main/dogfood-status.test.ts"
             ],
             appRelevantChangedFiles: [],
             required: false

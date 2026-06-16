@@ -504,8 +504,16 @@ function normalizeRepoPath(filePath) {
 
 function isAppRelevantChangedPath(filePath) {
   const normalized = normalizeRepoPath(filePath);
+  if (isTestSourcePath(normalized)) {
+    return false;
+  }
   return APP_RELEVANT_PATHS.has(normalized)
     || APP_RELEVANT_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+function isTestSourcePath(filePath) {
+  return /\.(test|spec)\.[cm]?[jt]sx?$/.test(filePath)
+    || filePath.includes("/__tests__/");
 }
 
 function readCurrentHeadAppCodeLabel(currentHead) {
