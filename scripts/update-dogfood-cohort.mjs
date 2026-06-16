@@ -145,21 +145,18 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
   if (typeof options.manifestPath !== "string") {
     throw new Error("Missing --manifest <path>.");
   }
-  if (typeof options.testerId !== "string" || options.testerId.trim().length === 0) {
-    throw new Error("Missing --tester-id <id>.");
-  }
-  if (!Array.isArray(options.workflows) || options.workflows.length === 0) {
-    throw new Error("Missing --workflows <workflow[,workflow]>.");
-  }
   if (typeof options.issueUrl !== "string" || options.issueUrl.trim().length === 0) {
     throw new Error("Missing --issue-url <url>.");
   }
   if (!isAcceptedIssueUrl(options.issueUrl)) {
     throw new Error("--issue-url must be an http(s) GitHub issue URL.");
   }
+  const issue = await resolveAcceptedIssue(options, io);
+  const testerId = resolveTesterId(options, issue);
+  const workflows = resolveWorkflows(options, issue);
   const issueLabels = validateAcceptedIssueLabels(
-    await resolveAcceptedIssueLabels(options, io),
-    options.workflows
+    resolveAcceptedIssueLabels(options, issue),
+    workflows
   );
 
   const manifest = await io.readJson(options.manifestPath);
@@ -176,13 +173,13 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
   );
 
   return {
-    testerId: options.testerId.trim(),
+    testerId,
     result: chooseReportResult(Object.values(artifactResults)),
     manifestPath: options.manifestPath,
     commitSha: typeof manifest?.commitSha === "string" ? manifest.commitSha : undefined,
     appLaunchViaOpen: Object.values(smokeArtifacts).every((artifact) => artifact?.appLaunchViaOpen === true),
     runnerHasTmux: Object.values(smokeArtifacts).some((artifact) => artifact?.runnerHasTmux === true),
-    workflows: options.workflows,
+    workflows,
     source: {
       type: "github-issue",
       issueUrl: options.issueUrl.trim(),
@@ -200,12 +197,13 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
 export function createDogfoodReportHelpText() {
   return [
     "Usage: npm run dogfood:report -- --report <path> [--cohort <path>]",
-    "       npm run dogfood:report -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> --issue-url <accepted-issue-url> --report <path> [--cohort <path>] [--issue-labels <labels>]",
+    "       npm run dogfood:report -- --manifest <alpha-manifest> --issue-url <accepted-issue-url> --report <path> [--cohort <path>] [--tester-id <id>] [--workflows <ids>] [--issue-labels <labels>]",
     "",
     "Adds or replaces one real single-user dogfood report in a cohort JSON file.",
     "With --manifest, generates the single-user report from the alpha manifest and referenced smoke artifacts first.",
     "Use --issue-url to link the generated report to the accepted GitHub dogfood issue.",
-    "By default labels are read from GitHub with gh issue view.",
+    "By default testerId, workflows, and labels are read from GitHub with gh issue view.",
+    "Use --tester-id and --workflows as explicit overrides for the issue body fields.",
     "Use --issue-labels as an explicit/offline override proving dogfood:accepted plus matching workflow:* labels.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
     "",
@@ -346,8 +344,11 @@ function createDefaultIo() {
     async writeJson(filePath, value) {
       await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
     },
+    async readIssue(issueUrl) {
+      return await readIssueFromGitHub(issueUrl);
+    },
     async readIssueLabels(issueUrl) {
-      return await readIssueLabelsFromGitHub(issueUrl);
+      return (await readIssueFromGitHub(issueUrl)).labels;
     }
   };
 }
@@ -368,16 +369,123 @@ function readWorkflowList(value) {
     .filter(Boolean);
 }
 
-async function resolveAcceptedIssueLabels(options, io) {
+async function resolveAcceptedIssue(options, io) {
+  const needsIssueBody = !hasNonEmptyString(options.testerId)
+    || !Array.isArray(options.workflows)
+    || options.workflows.length === 0;
+
+  if ((needsIssueBody || !hasIssueLabels(options)) && typeof io.readIssue === "function") {
+    return normalizeIssueEvidence(await io.readIssue(options.issueUrl));
+  }
+
+  if (needsIssueBody) {
+    throw new Error("Missing --tester-id <id> or --workflows <workflow[,workflow]> and GitHub issue body reader is unavailable.");
+  }
+
+  if (!hasIssueLabels(options) && typeof io.readIssueLabels === "function") {
+    return normalizeIssueEvidence({ labels: await io.readIssueLabels(options.issueUrl) });
+  }
+
+  return normalizeIssueEvidence({ labels: options.issueLabels });
+}
+
+function resolveTesterId(options, issue) {
+  if (hasNonEmptyString(options.testerId)) {
+    return options.testerId.trim();
+  }
+
+  const testerId = readTesterIdFromIssueBody(issue.body);
+  if (!testerId) {
+    throw new Error("Missing --tester-id <id> and issue body tester id field is empty.");
+  }
+
+  return testerId;
+}
+
+function resolveWorkflows(options, issue) {
+  if (Array.isArray(options.workflows) && options.workflows.length > 0) {
+    return options.workflows;
+  }
+
+  const workflows = readWorkflowsFromIssueBody(issue.body);
+  if (workflows.length === 0) {
+    throw new Error("Missing --workflows <workflow[,workflow]> and issue body cohort workflows field is empty.");
+  }
+
+  return workflows;
+}
+
+function resolveAcceptedIssueLabels(options, issue) {
   if (Array.isArray(options.issueLabels) && options.issueLabels.length > 0) {
     return options.issueLabels;
   }
 
-  if (typeof io.readIssueLabels !== "function") {
+  if (!Array.isArray(issue.labels) || issue.labels.length === 0) {
     throw new Error("Missing --issue-labels <label[,label]> and GitHub label reader is unavailable.");
   }
 
-  return await io.readIssueLabels(options.issueUrl);
+  return issue.labels;
+}
+
+function normalizeIssueEvidence(issue) {
+  return {
+    body: typeof issue?.body === "string" ? issue.body : "",
+    labels: Array.isArray(issue?.labels)
+      ? issue.labels
+        .map((label) => typeof label === "string" ? label.trim() : "")
+        .filter(Boolean)
+      : []
+  };
+}
+
+function readTesterIdFromIssueBody(body) {
+  const value = readIssueSection(body, "tester id")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && line !== "_No response_");
+
+  return value ?? "";
+}
+
+function readWorkflowsFromIssueBody(body) {
+  const section = readIssueSection(body, "cohort workflows");
+  const checkedWorkflows = [];
+
+  for (const line of section.split(/\r?\n/)) {
+    const match = line.match(/^\s*-\s*\[[xX]\]\s*(.+?)\s*$/);
+    if (!match) {
+      continue;
+    }
+    const workflow = normalizeWorkflowLabel(match[1]);
+    if (REQUIRED_DOGFOOD_WORKFLOWS.includes(workflow) && !checkedWorkflows.includes(workflow)) {
+      checkedWorkflows.push(workflow);
+    }
+  }
+
+  return checkedWorkflows;
+}
+
+function readIssueSection(body, title) {
+  if (typeof body !== "string" || body.length === 0) {
+    return "";
+  }
+
+  const headingPattern = new RegExp(`^###\\s+${escapeRegExp(title)}\\s*$`, "im");
+  const headingMatch = headingPattern.exec(body);
+  if (!headingMatch) {
+    return "";
+  }
+
+  const sectionStart = headingMatch.index + headingMatch[0].length;
+  const rest = body.slice(sectionStart);
+  const nextHeadingMatch = /^###\s+/m.exec(rest);
+  const section = nextHeadingMatch ? rest.slice(0, nextHeadingMatch.index) : rest;
+
+  return section.trim();
+}
+
+function normalizeWorkflowLabel(value) {
+  return value.replace(/`/g, "").trim();
 }
 
 function readLabelList(value) {
@@ -437,7 +545,19 @@ function createWorkflowLabel(workflow) {
   return `${DOGFOOD_WORKFLOW_LABEL_PREFIX}${workflow}`;
 }
 
-async function readIssueLabelsFromGitHub(issueUrl) {
+function hasNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasIssueLabels(options) {
+  return Array.isArray(options.issueLabels) && options.issueLabels.length > 0;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function readIssueFromGitHub(issueUrl) {
   const issue = parseGitHubIssueUrl(issueUrl);
   const { stdout } = await execFileAsync("gh", [
     "issue",
@@ -446,7 +566,7 @@ async function readIssueLabelsFromGitHub(issueUrl) {
     "--repo",
     issue.repository,
     "--json",
-    "labels"
+    "body,labels"
   ]);
   const payload = JSON.parse(stdout);
 
@@ -454,9 +574,12 @@ async function readIssueLabelsFromGitHub(issueUrl) {
     throw new Error(`GitHub issue labels are missing for ${issueUrl}.`);
   }
 
-  return payload.labels
-    .map((label) => typeof label?.name === "string" ? label.name.trim() : "")
-    .filter(Boolean);
+  return {
+    body: typeof payload.body === "string" ? payload.body : "",
+    labels: payload.labels
+      .map((label) => typeof label?.name === "string" ? label.name.trim() : "")
+      .filter(Boolean)
+  };
 }
 
 function parseGitHubIssueUrl(value) {

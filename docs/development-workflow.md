@@ -242,14 +242,12 @@ Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issue
 ```bash
 npm run dogfood:report -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
-  --tester-id tester-a \
-  --workflows coding-terminal,screenshot-inspection \
   --issue-url https://github.com/Sskift/skfiy/issues/<accepted-dogfood-issue> \
   --report .skfiy-dogfood/reports/tester-a.json \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json
 ```
 
-The report helper is incremental. It reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, reads the accepted issue's real labels with `gh issue view`, validates `dogfood:accepted` plus workflow labels matching `--workflows`, derives `result`, `appLaunchViaOpen`, `runnerHasTmux`, permission states, artifact paths, `source.issueUrl`, and `source.issueLabels` into a single report JSON, writes `.skfiy-dogfood/internal-alpha-cohort.json`, replaces an existing report with the same `testerId`, rejects mixed alpha manifest paths, and reports whether the cohort is ready; it does not claim dogfood completion before the verifier passes. Use `--issue-labels dogfood:accepted,workflow:coding-terminal,...` only as an explicit/offline override when `gh issue view` is unavailable. Keep `.skfiy-dogfood/` local because it can contain tester-specific evidence.
+The report helper is incremental. It reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, reads the accepted issue body and real labels with `gh issue view`, derives `testerId` from the issue `tester id` field, derives `workflows` from checked `cohort workflows`, validates `dogfood:accepted` plus workflow labels matching the derived workflows, derives `result`, `appLaunchViaOpen`, `runnerHasTmux`, permission states, artifact paths, `source.issueUrl`, and `source.issueLabels` into a single report JSON, writes `.skfiy-dogfood/internal-alpha-cohort.json`, replaces an existing report with the same `testerId`, rejects mixed alpha manifest paths, and reports whether the cohort is ready; it does not claim dogfood completion before the verifier passes. Use `--tester-id`, `--workflows`, or `--issue-labels dogfood:accepted,workflow:coding-terminal,...` only as explicit/offline overrides when `gh issue view` is unavailable. Keep `.skfiy-dogfood/` local because it can contain tester-specific evidence.
 
 After aggregating 3-5 single-user reports, run:
 

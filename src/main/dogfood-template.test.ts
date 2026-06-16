@@ -31,6 +31,7 @@ describe("skfiy dogfood issue template", () => {
       "--issue-url",
       "--issue-labels",
       "gh issue view",
+      "testerId, workflows, and labels",
       "coding-terminal",
       "screenshot-inspection",
       "finder-file",
