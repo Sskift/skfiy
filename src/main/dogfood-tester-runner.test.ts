@@ -246,6 +246,54 @@ describe("dogfood tester runner", () => {
     );
   });
 
+  it("parses npm-wrapped UI smoke stdout for the strict permission preflight", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      "smoke:ui": {
+        stdout: [
+          "",
+          "> skfiy@0.1.0 smoke:ui",
+          "> node scripts/smoke-ui-product.mjs",
+          "",
+          JSON.stringify({
+            result: "passed",
+            permissions: {
+              screenRecording: { state: "denied" },
+              accessibility: { state: "denied" },
+              microphone: { state: "not-determined" },
+              speechRecognition: { state: "not-determined" }
+            }
+          }, null, 2)
+        ].join("\n"),
+        exitCode: 0
+      }
+    });
+
+    await expect(runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal"],
+      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
+      requirePassed: true
+    }, io)).rejects.toThrow("screenRecording=denied");
+
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "screenRecording: denied"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "accessibility: denied"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "speechRecognition: not-determined"
+    );
+  });
+
   it("refuses to collect product evidence from tmux", async () => {
     const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodTester: (

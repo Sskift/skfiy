@@ -474,11 +474,34 @@ function readPermissionState(permissions, permission) {
 }
 
 function parseJson(value) {
+  const text = String(value ?? "");
+
   try {
-    return JSON.parse(String(value ?? ""));
+    return JSON.parse(text);
   } catch {
+    return parseTrailingJsonObject(text);
+  }
+}
+
+function parseTrailingJsonObject(text) {
+  const end = text.lastIndexOf("}");
+  if (end < 0) {
     return undefined;
   }
+
+  for (
+    let index = text.indexOf("{");
+    index >= 0 && index < end;
+    index = text.indexOf("{", index + 1)
+  ) {
+    try {
+      return JSON.parse(text.slice(index, end + 1));
+    } catch {
+      // Try the next opening brace; npm output may prepend non-JSON lines.
+    }
+  }
+
+  return undefined;
 }
 
 function formatPermissionBlockers(blockers) {
