@@ -245,6 +245,18 @@ npm run alpha:github-release -- \
 
 The dry-run validates the alpha zip and manifest, writes release notes beside the manifest, and prints the `gh release create` command without uploading. Use `--execute` only when the manifest is current and the unsigned internal build is ready to share.
 
+After publishing or replacing a GitHub alpha release, generate the tracking issue body from the same manifest instead of editing the Current Alpha fields by hand:
+
+```bash
+npm run dogfood:tracking-issue -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --output .skfiy-dogfood/tracking-issue-<commit>.md
+```
+
+The default mode is a dry-run that writes the issue body locally. Review it, then add `--execute` to run `gh issue edit` for the tracking issue. The generated body preserves the required real-tester slots, current alpha release/manifest/zip/SHA/commit identity, synthetic local preflight evidence, and the exact status, prepare, tester, review, and cohort commands for that alpha.
+
 To get a non-mutating readiness snapshot before filing or collecting dogfood reports:
 
 ```bash

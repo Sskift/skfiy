@@ -78,6 +78,18 @@ npm run alpha:github-release -- \
 
 Add `--execute` only after checking the generated release notes and confirming the manifest belongs to the current HEAD. The release uploads the alpha zip and manifest; it does not sign, notarize, or claim cohort readiness.
 
+After the GitHub release is published, generate and optionally update the tracking issue from the same manifest:
+
+```bash
+npm run dogfood:tracking-issue -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --output .skfiy-dogfood/tracking-issue-<commit>.md
+```
+
+This is a dry-run by default. Add `--execute` only after reviewing the generated body; it runs `gh issue edit` and replaces the tracking issue with a body whose Current Alpha identity matches the selected manifest. Follow it with `dogfood:status --require-current-head` so stale release/hash links are caught before asking testers to run the alpha.
+
 For a tester machine, prepare the downloadable alpha before collecting evidence:
 
 ```bash

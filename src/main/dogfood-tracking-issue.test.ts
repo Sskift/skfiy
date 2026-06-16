@@ -1,0 +1,203 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { describe, expect, it } from "vitest";
+
+const manifestPath = "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json";
+const trackingIssueUrl = "https://github.com/Sskift/skfiy/issues/1";
+const releaseUrl = "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1";
+const outputPath = "/repo/.skfiy-dogfood/tracking-issue-abcdef1.md";
+const uiSmokePath = "/repo/.skfiy-smoke/dogfood/preflight-abcdef1/preflight-abcdef1-ui.json";
+
+describe("dogfood tracking issue sync", () => {
+  const modulePath = path.join(process.cwd(), "scripts", "sync-dogfood-tracking-issue.mjs");
+
+  it("is exposed as an npm script for updating the current dogfood tracking issue", () => {
+    const packageJson = JSON.parse(
+      readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+    ) as { scripts?: Record<string, string> };
+
+    expect(packageJson.scripts).toMatchObject({
+      "dogfood:tracking-issue": "node scripts/sync-dogfood-tracking-issue.mjs"
+    });
+  });
+
+  it("parses manifest, release, tracking issue, output, and execute flags", async () => {
+    const {
+      createDefaultDogfoodTrackingIssueOptions,
+      createDogfoodTrackingIssueHelpText,
+      parseDogfoodTrackingIssueArgs
+    } = await import(pathToFileURL(modulePath).href) as {
+      createDefaultDogfoodTrackingIssueOptions: (rootDir: string) => Record<string, unknown>;
+      createDogfoodTrackingIssueHelpText: () => string;
+      parseDogfoodTrackingIssueArgs: (
+        argv: string[],
+        defaults: Record<string, unknown>
+      ) => Record<string, unknown>;
+    };
+    const defaults = createDefaultDogfoodTrackingIssueOptions("/repo");
+
+    expect(parseDogfoodTrackingIssueArgs([
+      "--manifest",
+      ".skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json",
+      "--release-url",
+      releaseUrl,
+      "--tracking-issue-url",
+      trackingIssueUrl,
+      "--output",
+      ".skfiy-dogfood/tracking-issue-abcdef1.md",
+      "--execute"
+    ], defaults)).toMatchObject({
+      manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json"),
+      releaseUrl,
+      trackingIssueUrl,
+      outputPath: path.resolve(".skfiy-dogfood/tracking-issue-abcdef1.md"),
+      dryRun: false
+    });
+    expect(defaults).toMatchObject({
+      trackingIssueUrl,
+      dryRun: true
+    });
+    expect(createDogfoodTrackingIssueHelpText()).toContain("dogfood:tracking-issue");
+    expect(createDogfoodTrackingIssueHelpText()).toContain("--execute");
+    expect(createDogfoodTrackingIssueHelpText()).toContain("dry-run");
+  });
+
+  it("dry-runs by writing a current-alpha tracking issue body without editing GitHub", async () => {
+    const { syncDogfoodTrackingIssue } = await import(pathToFileURL(modulePath).href) as {
+      syncDogfoodTrackingIssue: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo();
+
+    await expect(syncDogfoodTrackingIssue({
+      rootDir: "/repo",
+      manifestPath,
+      releaseUrl,
+      trackingIssueUrl,
+      outputPath,
+      dryRun: true
+    }, io)).resolves.toMatchObject({
+      result: "planned",
+      dryRun: true,
+      trackingIssueUrl,
+      outputPath,
+      releaseUrl,
+      manifest: {
+        appName: "skfiy",
+        commitSha: "abcdef1234567890"
+      }
+    });
+
+    expect(io.commands).toEqual([]);
+    const body = io.textFiles[outputPath];
+    expect(body).toContain("## Current Alpha");
+    expect(body).toContain(`- Release: ${releaseUrl}`);
+    expect(body).toContain("- Manifest: `.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json`");
+    expect(body).toContain("- Zip: `skfiy-0.1.0-abcdef1-macos-unsigned.zip`");
+    expect(body).toContain("- Zip SHA256: `feedface`");
+    expect(body).toContain("- Commit: `abcdef1234567890`");
+    expect(body).toContain("- Bundle id: `com.sskift.skfiy`");
+    expect(body).toContain("- App name: `skfiy`");
+    expect(body).toContain("Real tester gate excludes tester ids beginning with `local-`, `prepare-`, `preflight-`, or `synthetic-`");
+    expect(body).toContain("- Strict permission preflight summary: `.skfiy-dogfood/preflight-abcdef1-summary.md`");
+    expect(body).toContain("- UI artifact: `.skfiy-smoke/dogfood/preflight-abcdef1/preflight-abcdef1-ui.json`");
+    expect(body).toContain("Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`, Speech Recognition `not-determined`");
+    expect(body).toContain("npm run dogfood:status -- \\");
+    expect(body).toContain("--manifest .skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json");
+    expect(body).toContain("--release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1");
+    expect(body).toContain("No accepted real tester report is linked yet for this alpha");
+  });
+
+  it("executes by editing the GitHub tracking issue with the generated body", async () => {
+    const { syncDogfoodTrackingIssue } = await import(pathToFileURL(modulePath).href) as {
+      syncDogfoodTrackingIssue: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo();
+
+    await expect(syncDogfoodTrackingIssue({
+      rootDir: "/repo",
+      manifestPath,
+      releaseUrl,
+      trackingIssueUrl,
+      outputPath,
+      dryRun: false
+    }, io)).resolves.toMatchObject({
+      result: "updated",
+      dryRun: false,
+      outputPath,
+      trackingIssueUrl
+    });
+
+    expect(io.commands).toEqual([
+      {
+        command: "gh",
+        args: [
+          "issue",
+          "edit",
+          "1",
+          "--repo",
+          "Sskift/skfiy",
+          "--body-file",
+          outputPath
+        ]
+      }
+    ]);
+  });
+});
+
+function createMemoryIo() {
+  const commands: Array<{ command: string; args: string[] }> = [];
+  const textFiles: Record<string, string> = {};
+
+  return {
+    commands,
+    textFiles,
+    async readJson(filePath: string) {
+      if (filePath === manifestPath) {
+        return {
+          schemaVersion: 1,
+          appName: "skfiy",
+          version: "0.1.0",
+          commitSha: "abcdef1234567890",
+          bundleIdentifier: "com.sskift.skfiy",
+          signed: false,
+          notarized: false,
+          artifactBaseName: "skfiy-0.1.0-abcdef1-macos-unsigned",
+          zip: {
+            path: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.zip",
+            bytes: 1234,
+            sha256: "feedface"
+          },
+          uiSmokeArtifactPath: uiSmokePath
+        };
+      }
+      if (filePath === uiSmokePath) {
+        return {
+          artifactPath: uiSmokePath,
+          result: "passed",
+          permissions: {
+            screenRecording: { state: "denied" },
+            accessibility: { state: "denied" },
+            microphone: { state: "not-determined" },
+            speechRecognition: { state: "not-determined" }
+          }
+        };
+      }
+      throw new Error(`Unexpected JSON path: ${filePath}`);
+    },
+    async mkdir() {},
+    async writeText(filePath: string, value: string) {
+      textFiles[filePath] = value;
+    },
+    async execFile(command: string, args: string[]) {
+      commands.push({ command, args });
+      return { stdout: "", stderr: "" };
+    }
+  };
+}

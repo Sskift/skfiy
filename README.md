@@ -100,6 +100,11 @@ npm run alpha:artifact -- \
 npm run alpha:github-release -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --require-current-head
+npm run dogfood:tracking-issue -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --output .skfiy-dogfood/tracking-issue-<commit>.md
 npm run dogfood:prepare-alpha -- \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --tester-id tester-a \
