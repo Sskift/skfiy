@@ -152,7 +152,7 @@ npm run dogfood:review -- \
   --summary .skfiy-dogfood/reviews/<stable-tester-id>.md
 ```
 
-`dogfood:review` reads the real issue body, synthesizes the labels that would be required for acceptance, reuses the same manifest-backed `dogfood:report` parser against the issue's smoke artifact paths, and writes a maintainer summary with suggested labels. It does not add labels, edit the tracking issue, or count the report toward the cohort.
+`dogfood:review` reads the real issue body, synthesizes the labels that would be required for acceptance, reuses the same manifest-backed `dogfood:report` parser against the issue's smoke artifact paths, and writes a maintainer summary with suggested labels plus a copy-safe `gh issue edit ... --add-label ...` acceptance command when the report is eligible. It does not add labels, edit the tracking issue, or count the report toward the cohort.
 
 After each single-user dogfood report is accepted, generate a report JSON from the alpha manifest and the tester smoke artifact paths in the accepted issue body, then add or replace it in the local cohort file:
 

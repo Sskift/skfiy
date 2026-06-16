@@ -101,6 +101,7 @@ describe("dogfood report reviewer", () => {
         "workflow:coding-terminal",
         "workflow:screenshot-inspection"
       ],
+      acceptanceCommand: "gh issue edit 123 --repo Sskift/skfiy --add-label dogfood:accepted --add-label workflow:coding-terminal --add-label workflow:screenshot-inspection",
       reportPreview: {
         testerId: "tester-a",
         result: "blocked",
@@ -123,6 +124,7 @@ describe("dogfood report reviewer", () => {
     expect(io.textFiles[summaryPath]).toContain("Result: reviewed");
     expect(io.textFiles[summaryPath]).toContain("Eligible for acceptance: yes");
     expect(io.textFiles[summaryPath]).toContain("dogfood:accepted");
+    expect(io.textFiles[summaryPath]).toContain("gh issue edit 123 --repo Sskift/skfiy --add-label dogfood:accepted --add-label workflow:coding-terminal --add-label workflow:screenshot-inspection");
     expect(io.mutations).toEqual([]);
   });
 
@@ -171,6 +173,7 @@ describe("dogfood report reviewer", () => {
       }
     });
     expect(io.textFiles[summaryPath]).toContain("Eligible for acceptance: yes");
+    expect(io.textFiles[summaryPath]).toContain("gh issue edit 123 --repo Sskift/skfiy");
   });
 
   it("rejects a filed report whose alpha identity does not match the selected manifest", async () => {

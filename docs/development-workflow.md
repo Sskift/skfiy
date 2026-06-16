@@ -320,7 +320,7 @@ npm run dogfood:review -- \
   --summary .skfiy-dogfood/reviews/<stable-tester-id>.md
 ```
 
-This preflight is non-mutating. It checks the filed issue body and artifact paths through the same manifest-backed parser used by `dogfood:report`, then prints suggested labels. Maintainers still apply labels and update the tracking issue manually after review.
+This preflight is non-mutating. It checks the filed issue body and artifact paths through the same manifest-backed parser used by `dogfood:report`, then prints suggested labels plus a copy-safe `gh issue edit ... --add-label ...` acceptance command when the report is eligible. Maintainers still apply labels and update the tracking issue manually after review.
 
 For internal dogfood, each tester should generate a GitHub dogfood issue body draft from the same alpha manifest and smoke artifacts used for local verification:
 

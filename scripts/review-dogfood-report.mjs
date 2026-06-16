@@ -105,6 +105,9 @@ export async function reviewDogfoodReport(options, io = createDefaultIo()) {
   });
   const reportPreviewEligibility = await verifyReportPreviewEligibility(reportPreview, options);
   const eligibleForAcceptance = reportPreviewEligibility.eligible === true;
+  const acceptanceCommand = eligibleForAcceptance && missingSuggestedLabels.length > 0
+    ? createAcceptanceCommand(options.issueUrl, missingSuggestedLabels)
+    : undefined;
   const result = {
     result: "reviewed",
     eligibleForAcceptance,
@@ -114,6 +117,7 @@ export async function reviewDogfoodReport(options, io = createDefaultIo()) {
     suggestedLabels,
     currentLabels,
     missingSuggestedLabels,
+    acceptanceCommand,
     reportPreview,
     reportPreviewEligibility
   };
@@ -132,7 +136,7 @@ export function createDogfoodReviewHelpText() {
     "",
     "Runs a non-mutating maintainer review for one filed skfiy dogfood report issue.",
     "It reads the real issue body, validates alpha identity and smoke artifact paths through dogfood:report,",
-    "then prints suggested labels for maintainers to apply after review.",
+    "then prints suggested labels and a copy-safe acceptance command for maintainers to apply after review.",
     "It does not add labels, edit the tracking issue, or count the report toward dogfood:cohort.",
     "",
     "Options:",
@@ -213,9 +217,31 @@ function createDogfoodReviewSummary(review) {
       )
       : ["- none"]),
     "",
+    "## Acceptance Command",
+    "",
+    ...(review.eligibleForAcceptance
+      ? [review.acceptanceCommand
+        ? `\`${review.acceptanceCommand}\``
+        : "- all suggested labels are already present"]
+      : ["- unavailable until blocking checks are resolved"]),
+    "",
     "This review did not add labels, edit GitHub, or count the report toward the cohort.",
     ""
   ].join("\n");
+}
+
+function createAcceptanceCommand(issueUrl, labels) {
+  const parsed = parseGitHubIssueUrl(issueUrl);
+
+  return [
+    "gh",
+    "issue",
+    "edit",
+    String(parsed.issueNumber),
+    "--repo",
+    parsed.repository,
+    ...labels.flatMap((label) => ["--add-label", label])
+  ].join(" ");
 }
 
 function validateOptions(options) {
@@ -378,6 +404,7 @@ async function main() {
     workflows: result.workflows,
     suggestedLabels: result.suggestedLabels,
     missingSuggestedLabels: result.missingSuggestedLabels,
+    acceptanceCommand: result.acceptanceCommand,
     reportPreviewEligibility: result.reportPreviewEligibility
   }, null, 2)}\n`);
 }
