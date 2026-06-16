@@ -5,12 +5,14 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
+import { isRealDogfoodTesterId } from "./dogfood-tester-id.mjs";
 import { createDogfoodReportFromManifest } from "./update-dogfood-cohort.mjs";
 import { REQUIRED_DOGFOOD_WORKFLOWS, verifyDogfoodCohort } from "./verify-dogfood-cohort.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
+const DEFAULT_TRACKING_ISSUE_URL = "https://github.com/Sskift/skfiy/issues/1";
 const ACCEPTED_LABEL = "dogfood:accepted";
 
 export function createDefaultDogfoodReviewOptions(rootDir = DEFAULT_ROOT_DIR) {
@@ -18,6 +20,7 @@ export function createDefaultDogfoodReviewOptions(rootDir = DEFAULT_ROOT_DIR) {
     rootDir,
     manifestPath: undefined,
     issueUrl: undefined,
+    trackingIssueUrl: DEFAULT_TRACKING_ISSUE_URL,
     summaryPath: undefined,
     requireCurrentHead: false,
     help: false
@@ -37,6 +40,10 @@ export function parseDogfoodReviewArgs(argv, defaults) {
         break;
       case "--issue-url":
         options.issueUrl = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--tracking-issue-url":
+        options.trackingIssueUrl = readValue(argv, index, arg);
         index += 1;
         break;
       case "--summary":
@@ -108,6 +115,14 @@ export async function reviewDogfoodReport(options, io = createDefaultIo()) {
   const acceptanceCommand = eligibleForAcceptance && missingSuggestedLabels.length > 0
     ? createAcceptanceCommand(options.issueUrl, missingSuggestedLabels)
     : undefined;
+  const trackingIssueCommand = eligibleForAcceptance && isRealDogfoodTesterId(testerId)
+    ? createTrackingIssueCommand({
+      manifestPath: options.manifestPath,
+      issueUrl: options.issueUrl,
+      trackingIssueUrl: readTrackingIssueUrl(options),
+      manifest
+    })
+    : undefined;
   const result = {
     result: "reviewed",
     eligibleForAcceptance,
@@ -118,6 +133,7 @@ export async function reviewDogfoodReport(options, io = createDefaultIo()) {
     currentLabels,
     missingSuggestedLabels,
     acceptanceCommand,
+    trackingIssueCommand,
     reportPreview,
     reportPreviewEligibility
   };
@@ -136,12 +152,13 @@ export function createDogfoodReviewHelpText() {
     "",
     "Runs a non-mutating maintainer review for one filed skfiy dogfood report issue.",
     "It reads the real issue body, validates alpha identity and smoke artifact paths through dogfood:report,",
-    "then prints suggested labels and a copy-safe acceptance command for maintainers to apply after review.",
+    "then prints suggested labels, a copy-safe acceptance command, and a real-tester tracking issue command.",
     "It does not add labels, edit the tracking issue, or count the report toward dogfood:cohort.",
     "",
     "Options:",
     "  --manifest <path>          Alpha manifest to compare against the report issue.",
     "  --issue-url <url>          Filed GitHub dogfood report issue URL.",
+    "  --tracking-issue-url <url> Internal dogfood tracking issue URL. Default: https://github.com/Sskift/skfiy/issues/1.",
     "  --summary <path>           Optional Markdown review summary.",
     "  --require-current-head     Fail when manifest commitSha does not match local HEAD.",
     "  -h, --help                 Show this help.",
@@ -225,6 +242,12 @@ function createDogfoodReviewSummary(review) {
         : "- all suggested labels are already present"]
       : ["- unavailable until blocking checks are resolved"]),
     "",
+    "## Tracking Issue Command",
+    "",
+    ...(review.trackingIssueCommand
+      ? [`\`${review.trackingIssueCommand}\``]
+      : ["- unavailable for synthetic tester ids or unresolved blocking checks"]),
+    "",
     "This review did not add labels, edit GitHub, or count the report toward the cohort.",
     ""
   ].join("\n");
@@ -244,6 +267,27 @@ function createAcceptanceCommand(issueUrl, labels) {
   ].join(" ");
 }
 
+function createTrackingIssueCommand({ manifestPath, issueUrl, trackingIssueUrl, manifest }) {
+  const shortSha = typeof manifest?.commitSha === "string"
+    ? manifest.commitSha.slice(0, 7)
+    : "alpha";
+
+  return [
+    "npm",
+    "run",
+    "dogfood:tracking-issue",
+    "--",
+    "--manifest",
+    manifestPath,
+    "--tracking-issue-url",
+    trackingIssueUrl,
+    "--accepted-report-url",
+    issueUrl,
+    "--output",
+    `.skfiy-dogfood/tracking-issue-${shortSha}.md`
+  ].join(" ");
+}
+
 function validateOptions(options) {
   if (typeof options.manifestPath !== "string") {
     throw new Error("Missing --manifest <path>.");
@@ -251,6 +295,15 @@ function validateOptions(options) {
   if (typeof options.issueUrl !== "string" || options.issueUrl.trim().length === 0) {
     throw new Error("Missing --issue-url <url>.");
   }
+  if (typeof options.trackingIssueUrl === "string" && options.trackingIssueUrl.trim().length === 0) {
+    throw new Error("Missing --tracking-issue-url <url>.");
+  }
+}
+
+function readTrackingIssueUrl(options) {
+  return typeof options.trackingIssueUrl === "string" && options.trackingIssueUrl.trim().length > 0
+    ? options.trackingIssueUrl.trim()
+    : DEFAULT_TRACKING_ISSUE_URL;
 }
 
 function normalizeIssue(issue) {
@@ -405,6 +458,7 @@ async function main() {
     suggestedLabels: result.suggestedLabels,
     missingSuggestedLabels: result.missingSuggestedLabels,
     acceptanceCommand: result.acceptanceCommand,
+    trackingIssueCommand: result.trackingIssueCommand,
     reportPreviewEligibility: result.reportPreviewEligibility
   }, null, 2)}\n`);
 }

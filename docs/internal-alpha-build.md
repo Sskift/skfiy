@@ -152,20 +152,7 @@ npm run dogfood:review -- \
   --summary .skfiy-dogfood/reviews/<stable-tester-id>.md
 ```
 
-`dogfood:review` reads the real issue body, synthesizes the labels that would be required for acceptance, reuses the same manifest-backed `dogfood:report` parser against the issue's smoke artifact paths, and writes a maintainer summary with suggested labels plus a copy-safe `gh issue edit ... --add-label ...` acceptance command when the report is eligible. It does not add labels, edit the tracking issue, or count the report toward the cohort.
-
-After accepting the report issue, refresh the tracking issue with the accepted report URL instead of editing tester slots by hand:
-
-```bash
-npm run dogfood:tracking-issue -- \
-  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
-  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
-  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
-  --accepted-report-url https://github.com/Sskift/skfiy/issues/<accepted-dogfood-issue> \
-  --output .skfiy-dogfood/tracking-issue-<commit>.md
-```
-
-Review the generated body, then add `--execute`.
+`dogfood:review` reads the real issue body, synthesizes the labels that would be required for acceptance, reuses the same manifest-backed `dogfood:report` parser against the issue's smoke artifact paths, and writes a maintainer summary with suggested labels, a copy-safe `gh issue edit ... --add-label ...` acceptance command, and a `dogfood:tracking-issue --accepted-report-url ...` command for eligible real tester reports. It does not add labels, edit the tracking issue, or count the report toward the cohort. Synthetic tester ids can still be reviewed as local evidence, but they do not get a real tracking-slot command.
 
 After each single-user dogfood report is accepted, generate a report JSON from the alpha manifest and the tester smoke artifact paths in the accepted issue body, then add or replace it in the local cohort file:
 

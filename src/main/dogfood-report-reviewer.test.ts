@@ -20,7 +20,7 @@ describe("dogfood report reviewer", () => {
     });
   });
 
-  it("parses manifest, issue URL, summary, and current-head arguments", async () => {
+  it("parses manifest, issue URL, summary, tracking issue, and current-head arguments", async () => {
     const {
       createDefaultDogfoodReviewOptions,
       createDogfoodReviewHelpText,
@@ -40,18 +40,22 @@ describe("dogfood report reviewer", () => {
       ".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json",
       "--issue-url",
       issueUrl,
+      "--tracking-issue-url",
+      "https://github.com/Sskift/skfiy/issues/1",
       "--summary",
       ".skfiy-dogfood/reviews/tester-a.md",
       "--require-current-head"
     ], defaults)).toMatchObject({
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
       issueUrl,
+      trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
       summaryPath: path.resolve(".skfiy-dogfood/reviews/tester-a.md"),
       requireCurrentHead: true
     });
     expect(createDogfoodReviewHelpText()).toContain("dogfood:review");
     expect(createDogfoodReviewHelpText()).toContain("non-mutating");
     expect(createDogfoodReviewHelpText()).toContain("suggested labels");
+    expect(createDogfoodReviewHelpText()).toContain("--tracking-issue-url");
   });
 
   it("reviews an unaccepted filed issue with synthetic acceptance labels without mutating GitHub", async () => {
@@ -102,6 +106,7 @@ describe("dogfood report reviewer", () => {
         "workflow:screenshot-inspection"
       ],
       acceptanceCommand: "gh issue edit 123 --repo Sskift/skfiy --add-label dogfood:accepted --add-label workflow:coding-terminal --add-label workflow:screenshot-inspection",
+      trackingIssueCommand: "npm run dogfood:tracking-issue -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --accepted-report-url https://github.com/Sskift/skfiy/issues/123 --output .skfiy-dogfood/tracking-issue-abc123.md",
       reportPreview: {
         testerId: "tester-a",
         result: "blocked",
@@ -125,6 +130,7 @@ describe("dogfood report reviewer", () => {
     expect(io.textFiles[summaryPath]).toContain("Eligible for acceptance: yes");
     expect(io.textFiles[summaryPath]).toContain("dogfood:accepted");
     expect(io.textFiles[summaryPath]).toContain("gh issue edit 123 --repo Sskift/skfiy --add-label dogfood:accepted --add-label workflow:coding-terminal --add-label workflow:screenshot-inspection");
+    expect(io.textFiles[summaryPath]).toContain("npm run dogfood:tracking-issue -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --accepted-report-url https://github.com/Sskift/skfiy/issues/123 --output .skfiy-dogfood/tracking-issue-abc123.md");
     expect(io.mutations).toEqual([]);
   });
 
@@ -174,6 +180,7 @@ describe("dogfood report reviewer", () => {
     });
     expect(io.textFiles[summaryPath]).toContain("Eligible for acceptance: yes");
     expect(io.textFiles[summaryPath]).toContain("gh issue edit 123 --repo Sskift/skfiy");
+    expect(io.textFiles[summaryPath]).not.toContain("dogfood:tracking-issue");
   });
 
   it("rejects a filed report whose alpha identity does not match the selected manifest", async () => {

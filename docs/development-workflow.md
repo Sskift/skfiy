@@ -320,20 +320,7 @@ npm run dogfood:review -- \
   --summary .skfiy-dogfood/reviews/<stable-tester-id>.md
 ```
 
-This preflight is non-mutating. It checks the filed issue body and artifact paths through the same manifest-backed parser used by `dogfood:report`, then prints suggested labels plus a copy-safe `gh issue edit ... --add-label ...` acceptance command when the report is eligible. Maintainers still apply labels manually after review.
-
-After accepting the filed report issue, add its URL to the next tracking issue slot with:
-
-```bash
-npm run dogfood:tracking-issue -- \
-  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
-  --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
-  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
-  --accepted-report-url https://github.com/Sskift/skfiy/issues/<accepted-dogfood-issue> \
-  --output .skfiy-dogfood/tracking-issue-<commit>.md
-```
-
-Review the generated body, then add `--execute` to edit the tracking issue.
+This preflight is non-mutating. It checks the filed issue body and artifact paths through the same manifest-backed parser used by `dogfood:report`, then prints suggested labels, a copy-safe `gh issue edit ... --add-label ...` acceptance command, and a `dogfood:tracking-issue --accepted-report-url ...` command for eligible real tester reports. Maintainers still apply labels manually after review and review the generated tracking issue body before adding `--execute`. Synthetic tester ids do not get a tracking-slot command.
 
 For internal dogfood, each tester should generate a GitHub dogfood issue body draft from the same alpha manifest and smoke artifacts used for local verification:
 
