@@ -123,6 +123,7 @@ describe("dogfood tracking issue sync", () => {
     expect(body).toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute");
     expect(body).not.toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1 --tester-id tester-1 --workflows coding-terminal,screenshot-inspection --execute");
     expect(body).toContain("npm run dogfood:tester -- --manifest <path-to-downloaded-alpha-manifest.json> --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection");
+    expect(body).toContain("--file-issue");
     expect(body).toContain("npm run dogfood:review -- \\");
     expect(body).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
     expect(body).toContain("npm run dogfood:review -- --manifest <path-to-downloaded-alpha-manifest.json> --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md");

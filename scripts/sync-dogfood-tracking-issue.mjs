@@ -246,7 +246,8 @@ export function createDogfoodTrackingIssueBody({
       ["--workflows", "<comma-separated-workflow-ids>"],
       ["--artifacts-dir", ".skfiy-smoke/dogfood/<stable-real-tester-id>"],
       ["--issue-output", ".skfiy-dogfood/issues/<stable-real-tester-id>.md"],
-      ["--summary", ".skfiy-dogfood/<stable-real-tester-id>-summary.md"]
+      ["--summary", ".skfiy-dogfood/<stable-real-tester-id>-summary.md"],
+      ["--file-issue"]
     ]),
     "```",
     "",
@@ -399,7 +400,8 @@ function createRecommendedTesterAssignmentLines({
         ["--workflows", workflowList],
         ["--artifacts-dir", `.skfiy-smoke/dogfood/${testerId}`],
         ["--issue-output", `.skfiy-dogfood/issues/${testerId}.md`],
-        ["--summary", `.skfiy-dogfood/${testerId}-summary.md`]
+        ["--summary", `.skfiy-dogfood/${testerId}-summary.md`],
+        ["--file-issue"]
       ])}\``,
       `  - Review: \`${formatSingleLineCommand("npm run dogfood:review --", [
         ["--manifest", PREPARED_ALPHA_MANIFEST_PLACEHOLDER],

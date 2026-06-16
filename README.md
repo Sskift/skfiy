@@ -179,7 +179,9 @@ tester id appears in that section, so copied prepare commands and generated
 handoffs stay aligned.
 Its JSON result also includes `nextCommands.tester` and `nextCommands.review`
 with the prepared manifest path and app bundle path filled in, so testers can
-copy the next command without reconstructing paths by hand.
+copy the next command without reconstructing paths by hand. The recommended
+tester command includes `--file-issue`, which creates only the dogfood report
+issue after local validation; maintainer acceptance still happens separately.
 Workflow and passed workflow coverage in `dogfood:status` and
 `dogfood:cohort` count only verified accepted reports from real tester ids;
 `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` remain local evidence

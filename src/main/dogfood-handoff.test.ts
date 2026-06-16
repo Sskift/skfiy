@@ -124,6 +124,7 @@ describe("dogfood handoff generator", () => {
     expect(handoff).toContain("Speech Recognition");
     expect(handoff).toContain("npm run dogfood:tester -- \\");
     expect(handoff).toContain("--app /Applications/skfiy.app");
+    expect(handoff).toContain("--file-issue");
     expect(handoff).toContain("--tester-id tester-b");
     expect(handoff).toContain("--workflows coding-terminal,screenshot-inspection,finder-file,browser-fallback");
     expect(handoff).toContain("--artifacts-dir .skfiy-smoke/dogfood/tester-b");

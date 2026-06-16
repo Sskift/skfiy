@@ -755,7 +755,8 @@ function createTesterAssignmentCommands({
       "--issue-output",
       `.skfiy-dogfood/issues/${testerId}.md`,
       "--summary",
-      `.skfiy-dogfood/${testerId}-summary.md`
+      `.skfiy-dogfood/${testerId}-summary.md`,
+      "--file-issue"
     ].join(" "),
     review: [
       "npm run dogfood:review --",
