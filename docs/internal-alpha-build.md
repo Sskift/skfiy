@@ -159,7 +159,7 @@ For product-path native speech evidence through the packaged app:
 npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
 ```
 
-This launches `dist/skfiy.app` via LaunchServices, switches the renderer settings to the native macOS provider through the preload API, records structured `speechStatus` for Speech Recognition and Microphone readiness, calls `prepareDictation`, records provider/transcript/task events, calls `stopDictation`, and writes JSON evidence. Before Microphone and Speech Recognition are granted, the expected result is `blocked` or `no-transcript`; `--require-passed` should only be used after those permissions are granted and a final transcript can be produced.
+This launches `dist/skfiy.app` via LaunchServices, switches the renderer settings to the native macOS provider through the preload API, records structured `speechStatus` for Speech Recognition and Microphone readiness, calls `prepareDictation`, records provider/transcript/task events, calls `stopDictation`, and writes JSON evidence. Before Microphone and Speech Recognition are granted, the expected result is `blocked`. If the native provider listens but Speech returns no text, the expected result is `no-transcript` with a `no_transcript` provider event rather than an empty transcript submission. `--require-passed` should only be used after those permissions are granted and a final transcript can be produced.
 
 ## External CUA Planner
 

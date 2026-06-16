@@ -44,6 +44,7 @@ export type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
   | "listening"
+  | "no_transcript"
   | "cancelled"
   | "stopped"
   | "failed";
@@ -876,7 +877,8 @@ export default function App() {
       if (event.state === "listening") {
         setListening(true);
       } else if (
-        event.state === "cancelled"
+        event.state === "no_transcript"
+        || event.state === "cancelled"
         || event.state === "stopped"
         || event.state === "failed"
         || event.state === "unavailable"

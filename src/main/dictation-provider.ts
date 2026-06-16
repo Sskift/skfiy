@@ -17,6 +17,7 @@ export type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
   | "listening"
+  | "no_transcript"
   | "cancelled"
   | "stopped"
   | "failed";
@@ -150,7 +151,7 @@ export function createNativeMacOSDictationProvider({
   let providerTask: Promise<void> = Promise.resolve();
   let settleProviderTask: (() => void) | undefined;
   let turnGeneration = 0;
-  let lifecycleState: "idle" | "listening" | "cancelled" | "stopped" | "failed" = "idle";
+  let lifecycleState: "idle" | "listening" | "no_transcript" | "cancelled" | "stopped" | "failed" = "idle";
 
   function beginProviderTask(): void {
     providerTask = new Promise((resolve) => {
@@ -198,6 +199,17 @@ export function createNativeMacOSDictationProvider({
         silenceTimeoutMs: NATIVE_MACOS_SILENCE_TIMEOUT_MS
       }).then((transcript) => {
         if (!isCurrentListeningTurn(generation)) {
+          return;
+        }
+
+        if (!transcript.text.trim()) {
+          lifecycleState = "no_transcript";
+          emit({
+            providerId: "native-macos",
+            state: "no_transcript",
+            message: "没有识别到语音内容，请重试或检查麦克风输入."
+          });
+          settleProviderLifecycle();
           return;
         }
 

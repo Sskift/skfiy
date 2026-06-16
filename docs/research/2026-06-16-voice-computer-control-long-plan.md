@@ -35,7 +35,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
    Development launch through tmux caused macOS Accessibility prompts to be attributed to tw-dashboard. Product launch must be a real app bundle with stable identity, signing, and permission onboarding.
 
 2. **Voice is not a fully proven voice stack yet.**
-   Current implementation has Doubao shortcut bridging, Chromium Web Speech fallback, and a native macOS Speech framework one-shot prototype with silence timeout. It still needs native provider dogfood after Speech Recognition permission is granted, long-running VAD polish, cancellation of in-flight native helper recording, and broader failure-state testing.
+   Current implementation has Doubao shortcut bridging, Chromium Web Speech fallback, and a native macOS Speech framework one-shot prototype with silence timeout. It still needs native provider dogfood after Speech Recognition permission is granted, long-running VAD polish, cancellation of in-flight native helper recording, and broader real-audio failure-state testing.
 
 3. **Ghostty control is not context-aware.**
    The helper can activate Ghostty, screenshot, type, and press keys, but it typed `pwd` into a Codex TUI during real testing. The agent needs a clean shell/session strategy and state detection before any command execution.
@@ -167,6 +167,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] helper command `transcribe-speech --locale zh-CN --max-duration-ms <n> --silence-timeout-ms <n>` performs a bounded one-shot Speech framework recognition turn
   - [x] native provider streams the final transcript event back through main -> preload -> renderer without starting Chromium Web Speech
   - [x] native provider fails closed when Speech Recognition or Microphone is not granted
+  - [x] native provider emits `no_transcript` and does not submit an empty transcript when Speech returns no recognized text
   - [ ] product-path native speech turn after Speech Recognition permission is granted
 - [x] Add a main-process voice turn session model:
   - [x] `prepare-dictation` creates a session id for Doubao or browser speech turns
@@ -188,6 +189,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - native macOS speech status check on 2026-06-16: `./dist/skfiy-helper speech-status --locale zh-CN` returned Microphone `authorized`, Speech Recognition `notDetermined`, and recognizerAvailable `true`
   - product-path native voice smoke harness now exists: `npm run smoke:voice -- --output .skfiy-smoke/voice-native.json`; it launches `dist/skfiy.app`, selects the native provider through preload, records provider/transcript/task events, stops dictation, and fails closed until Microphone/Speech Recognition permission plus a final transcript are available
   - product-path native voice smoke now records structured `speechStatus` through `window.skfiy.getNativeSpeechStatus("zh-CN")`, so Speech Recognition and Microphone readiness are machine-checkable in dogfood evidence
+  - native macOS no-transcript handling now keeps an explicit `no_transcript` provider event visible in the renderer and prevents empty transcript submission
   - renderer permissions summary and settings now treat Speech Recognition as a first-class permission row, including a direct System Settings jump to `Privacy_SpeechRecognition`
   - current product-path native voice smoke on 2026-06-16: `npm run smoke:voice -- --output .skfiy-smoke/voice-native.json --listen-ms 1200` launched `dist/skfiy.app` via `open`, used `runnerHasTmux=false`, selected `native-macos` through preload, emitted provider `unavailable`, emitted task `failed`, and persisted result `blocked` because Speech Recognition was `not-determined` and Microphone was `not-determined`
   - UI, Ghostty, and voice product smoke scripts now share `.skfiy-smoke/product-smoke.lock` so dogfood evidence is not contaminated by concurrent packaged-app runs

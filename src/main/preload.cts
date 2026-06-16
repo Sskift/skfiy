@@ -33,6 +33,7 @@ type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
   | "listening"
+  | "no_transcript"
   | "cancelled"
   | "stopped"
   | "failed";
@@ -482,6 +483,7 @@ function isDictationProviderState(value: unknown): value is DictationProviderSta
     value === "unavailable"
     || value === "waiting_for_shortcut_configuration"
     || value === "listening"
+    || value === "no_transcript"
     || value === "cancelled"
     || value === "stopped"
     || value === "failed"

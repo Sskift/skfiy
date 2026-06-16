@@ -128,6 +128,16 @@ describe("native voice product smoke script", () => {
       providerEvents,
       transcriptEvents: []
     })).toBe("no-transcript");
+    expect(classifyVoiceSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+      providerEvents: [
+        { state: "listening", message: "macOS system speech is listening." },
+        { state: "no_transcript", message: "没有识别到语音内容，请重试或检查麦克风输入." }
+      ],
+      transcriptEvents: []
+    })).toBe("no-transcript");
   });
 
   it("drives native voice through the preload API rather than the helper directly", () => {

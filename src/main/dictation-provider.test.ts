@@ -249,6 +249,46 @@ describe("createNativeMacOSDictationProvider", () => {
     ]);
   });
 
+  it("emits no_transcript when native speech finishes without recognized text", async () => {
+    const events: DictationProviderEvent[] = [];
+    const transcripts: NativeSpeechTranscriptionResult[] = [];
+    const provider = createNativeMacOSDictationProvider({
+      helper: {
+        async getSpeechStatus(): Promise<SpeechStatusResult> {
+          return createGrantedSpeechStatus();
+        },
+        async transcribeSpeech(): Promise<NativeSpeechTranscriptionResult> {
+          return {
+            text: "",
+            isFinal: true,
+            durationMs: 1200,
+            silenceTimedOut: true
+          };
+        }
+      },
+      locale: "zh-CN",
+      emit: (event) => events.push(event),
+      emitTranscript: (transcript) => transcripts.push(transcript)
+    });
+
+    await provider.prepare();
+    await provider.waitForTranscript?.();
+
+    expect(transcripts).toEqual([]);
+    expect(events).toEqual([
+      {
+        providerId: "native-macos",
+        state: "listening",
+        message: "macOS 系统语音正在听."
+      },
+      {
+        providerId: "native-macos",
+        state: "no_transcript",
+        message: "没有识别到语音内容，请重试或检查麦克风输入."
+      }
+    ]);
+  });
+
   it("cancels pending native speech promptly and ignores late helper transcripts", async () => {
     const deferredTranscript = createDeferred<NativeSpeechTranscriptionResult>();
     const events: DictationProviderEvent[] = [];

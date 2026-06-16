@@ -383,6 +383,27 @@ describe("App", () => {
     expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
   });
 
+  it("shows a no-transcript native voice result without submitting a command", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    await waitFor(() => {
+      expect(screen.getByLabelText("语音转写")).toHaveFocus();
+    });
+
+    act(() => emitDictationProviderEvent({
+      providerId: "native-macos",
+      state: "no_transcript",
+      message: "没有识别到语音内容，请重试或检查麦克风输入."
+    }));
+
+    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/skfiy voice status/i)).toHaveTextContent(
+      "没有识别到语音内容，请重试或检查麦克风输入."
+    );
+    expect((window.skfiy as TestDesktopApi).submitDictation).not.toHaveBeenCalled();
+  });
+
   it("opens settings details from a right click on the pet without starting dictation", () => {
     render(<App />);
 
