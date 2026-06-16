@@ -151,10 +151,18 @@ describe("runChromePageTask", () => {
       "started",
       "approval_required",
       "locating_app",
+      "fallback_switch",
       "app_activated",
       "screenshot_before",
       "verification_failed"
     ]);
+    expect(events[3]).toMatchObject({
+      type: "fallback_switch",
+      from: "cdp",
+      to: "screenshot_fallback",
+      stage: "connection",
+      reason: "Chrome CDP endpoint is not configured."
+    });
     expect(desktopClient.executeAction).toHaveBeenNthCalledWith(1, {
       type: "activate_app",
       bundleId: "com.google.Chrome"
@@ -194,10 +202,18 @@ describe("runChromePageTask", () => {
       "started",
       "approval_required",
       "locating_app",
+      "fallback_switch",
       "app_activated",
       "screenshot_before",
       "verification_failed"
     ]);
+    expect(events[3]).toMatchObject({
+      type: "fallback_switch",
+      from: "cdp",
+      to: "screenshot_fallback",
+      stage: "navigation",
+      reason: expect.stringContaining("Chrome CDP navigation failed")
+    });
     expect(events.at(-1)).toMatchObject({
       type: "verification_failed",
       stage: "navigation",

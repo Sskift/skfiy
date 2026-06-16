@@ -232,6 +232,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.chromeFallbackSwitch",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Chrome fallback switching evidence"),
+    "manifest must require Chrome fallback switching evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.finderAppPolicy",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Finder app policy settings"),
@@ -579,6 +586,12 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
     "chrome.fallback",
     hasChromeFallbackEvidence(artifact.fallbackRun),
     "Chrome smoke must include screenshot fallback evidence for no-CDP mode"
+  );
+  check(
+    checks,
+    "chrome.fallbackSwitch",
+    hasChromeFallbackSwitchEvidence(artifact.fallbackSwitchRun),
+    "Chrome smoke must include configured-CDP failure switching evidence for screenshot fallback mode"
   );
   check(
     checks,
@@ -989,6 +1002,59 @@ function hasChromeFallbackEvidence(value) {
   }
 
   if (value.result === "fallback-blocked") {
+    return value.events.some((event) =>
+      (event?.status === "needs_confirmation" || event?.status === "failed")
+        && typeof event.message === "string"
+        && (
+          event.message.includes("screenshot fallback failed")
+          || event.message.includes("screenshot fallback activation failed")
+          || event.message.includes("screenshot fallback did not return app state")
+          || event.message.includes("screenshot fallback is unavailable")
+          || event.message.includes("Screen Recording permission is required")
+          || event.message.includes("Accessibility permission is required")
+        )
+    );
+  }
+
+  return false;
+}
+
+function hasChromeFallbackSwitchEvidence(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  if (
+    value.productPath !== "renderer -> preload -> main -> CDP failure -> helper observe_app -> Chrome screenshot fallback"
+    || value.appLaunchViaOpen !== true
+    || value.runnerHasTmux !== false
+    || typeof value.configuredEndpoint !== "string"
+    || value.configuredEndpoint.length === 0
+    || !Array.isArray(value.events)
+    || !value.events.some((event) =>
+      event?.status === "executing"
+        && typeof event.message === "string"
+        && /Switching Chrome control from cdp to screenshot_fallback/i.test(event.message)
+    )
+  ) {
+    return false;
+  }
+
+  if (value.result === "fallback-switched-observed") {
+    return value.events.some((event) =>
+      event?.status === "observing"
+        && event?.replayRecord?.stage === "before"
+        && event.replayRecord.bundleId === "com.google.Chrome"
+        && typeof event.replayRecord.screenshotPath === "string"
+        && event.replayRecord.screenshotPath.length > 0
+    ) && value.events.some((event) =>
+      event?.status === "needs_confirmation"
+        && typeof event.message === "string"
+        && event.message.includes("screenshot fallback observation captured")
+    );
+  }
+
+  if (value.result === "fallback-switched-blocked") {
     return value.events.some((event) =>
       (event?.status === "needs_confirmation" || event?.status === "failed")
         && typeof event.message === "string"

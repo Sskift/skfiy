@@ -212,7 +212,7 @@ body:
     id: chrome_extraction
     attributes:
       label: Chrome extracted text
-      description: Paste Chrome smoke product path, extractedText, navigate/extract verification events, and sensitive-page pause evidence.
+      description: Paste Chrome smoke product path, extractedText, navigate/extract verification events, sensitive-page pause evidence, and screenshot fallback switching evidence.
       placeholder: |
         productPath: renderer -> preload -> main -> CDP -> Chrome
         extractedText: skfiy chrome smoke ready
@@ -233,6 +233,10 @@ body:
         fallbackRun.result: fallback-observed or fallback-blocked
         fallbackRun.productPath: renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback
         Captured before screenshot: ... or screenshot fallback failed: Screen Recording permission is required
+        Chrome fallback switching:
+        fallbackSwitchRun.result: fallback-switched-observed or fallback-switched-blocked
+        fallbackSwitchRun.productPath: renderer -> preload -> main -> CDP failure -> helper observe_app -> Chrome screenshot fallback
+        Switching Chrome control from CDP to screenshot_fallback
     validations:
       required: true
 

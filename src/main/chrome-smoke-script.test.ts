@@ -28,14 +28,18 @@ describe("Chrome product smoke script", () => {
 
     const {
       FALLBACK_PRODUCT_PATH,
+      FALLBACK_SWITCH_PRODUCT_PATH,
       classifyChromeFallbackSmokeEvidence,
+      classifyChromeFallbackSwitchEvidence,
       PRODUCT_PATH,
       createDefaultChromeSmokeOptions,
       createHelpText,
       parseChromeSmokeArgs
     } = await import(pathToFileURL(modulePath).href) as {
       FALLBACK_PRODUCT_PATH: string;
+      FALLBACK_SWITCH_PRODUCT_PATH: string;
       classifyChromeFallbackSmokeEvidence: (input: Record<string, unknown>) => string;
+      classifyChromeFallbackSwitchEvidence: (input: Record<string, unknown>) => string;
       PRODUCT_PATH: string;
       createDefaultChromeSmokeOptions: (rootDir: string) => Record<string, unknown>;
       createHelpText: (defaults: Record<string, unknown>) => string;
@@ -48,6 +52,9 @@ describe("Chrome product smoke script", () => {
     expect(PRODUCT_PATH).toBe("renderer -> preload -> main -> CDP -> Chrome");
     expect(FALLBACK_PRODUCT_PATH).toBe(
       "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback"
+    );
+    expect(FALLBACK_SWITCH_PRODUCT_PATH).toBe(
+      "renderer -> preload -> main -> CDP failure -> helper observe_app -> Chrome screenshot fallback"
     );
     expect(parseChromeSmokeArgs(
       ["--output", ".skfiy-smoke/chrome.json", "--chrome-port", "9444"],
@@ -91,6 +98,49 @@ describe("Chrome product smoke script", () => {
         }
       ]
     })).toBe("fallback-blocked");
+    expect(classifyChromeFallbackSwitchEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: FALLBACK_SWITCH_PRODUCT_PATH,
+      configuredEndpoint: "http://127.0.0.1:65530",
+      events: [
+        {
+          status: "executing",
+          message: "Switching Chrome control from CDP to screenshot_fallback (navigation): Chrome CDP navigation failed: fetch failed"
+        },
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (navigation): Chrome CDP navigation failed: fetch failed screenshot fallback failed: Screen Recording permission is required"
+        }
+      ]
+    })).toBe("fallback-switched-blocked");
+    expect(classifyChromeFallbackSwitchEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: FALLBACK_SWITCH_PRODUCT_PATH,
+      configuredEndpoint: "http://127.0.0.1:65530",
+      events: [
+        {
+          status: "executing",
+          message: "Switching Chrome control from cdp to screenshot_fallback (navigation): Chrome CDP navigation failed: fetch failed"
+        },
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (navigation): Chrome CDP navigation failed: fetch failed screenshot fallback activation failed: Accessibility permission is required"
+        }
+      ]
+    })).toBe("fallback-switched-blocked");
+  });
+
+  it("records a configured-CDP failure switch run in the product smoke source", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
+      "utf8"
+    );
+
+    expect(source).toContain("fallbackSwitchRun");
+    expect(source).toContain("runChromeFallbackSwitchProductCommand");
+    expect(source).toContain("classifyChromeFallbackSwitchEvidence");
   });
 
   it("classifies a completed Chrome extraction with expected text as passed", async () => {

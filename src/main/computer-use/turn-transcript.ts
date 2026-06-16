@@ -19,6 +19,13 @@ export type ComputerUseTurnEvent =
   | { type: "locating_app"; appName: string }
   | { type: "session_opened"; appName: string; title: string; pid: number }
   | { type: "app_activated"; appName: string; bundleId: string; pid?: number }
+  | {
+    type: "fallback_switch";
+    from: string;
+    to: string;
+    stage: string;
+    reason: string;
+  }
   | { type: "session_initialized"; title: string; marker: string }
   | {
     type: "action_verified";
@@ -78,7 +85,8 @@ export type TurnTranscriptAction =
     status: "passed" | "failed" | "needs_user_confirmation";
     message?: string;
     reason?: string;
-  };
+  }
+  | { type: "switch_control"; from: string; to: string; stage: string; reason: string };
 
 export type TurnTranscriptOutcome =
   | "completed"
@@ -157,6 +165,15 @@ export function createTurnTranscript(
         actions.push({
           type: "recover",
           action: event.action,
+          stage: event.stage,
+          reason: event.reason
+        });
+        break;
+      case "fallback_switch":
+        actions.push({
+          type: "switch_control",
+          from: event.from,
+          to: event.to,
           stage: event.stage,
           reason: event.reason
         });

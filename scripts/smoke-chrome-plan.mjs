@@ -10,6 +10,8 @@ export const SENSITIVE_EXPECTED_RESULT = "sensitive-paused";
 export const PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
 export const FALLBACK_PRODUCT_PATH =
   "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback";
+export const FALLBACK_SWITCH_PRODUCT_PATH =
+  "renderer -> preload -> main -> CDP failure -> helper observe_app -> Chrome screenshot fallback";
 
 export function createDefaultChromeSmokeOptions(rootDir) {
   return {
@@ -198,6 +200,57 @@ export function classifyChromeFallbackSmokeEvidence({
   return last.status ?? "failed";
 }
 
+export function classifyChromeFallbackSwitchEvidence({
+  events = [],
+  runnerHasTmux = false,
+  appLaunchViaOpen = false,
+  productPath,
+  configuredEndpoint
+}) {
+  const last = events.at(-1);
+
+  if (!last) {
+    return "no-events";
+  }
+
+  if (
+    runnerHasTmux
+    || appLaunchViaOpen !== true
+    || productPath !== FALLBACK_SWITCH_PRODUCT_PATH
+    || typeof configuredEndpoint !== "string"
+    || configuredEndpoint.length === 0
+    || !hasChromeFallbackSwitchEvent(events)
+  ) {
+    return "failed";
+  }
+
+  if (
+    last.status === "needs_confirmation"
+    && typeof last.message === "string"
+    && last.message.includes("screenshot fallback observation captured")
+    && hasChromeFallbackScreenshotEvidence(events)
+  ) {
+    return "fallback-switched-observed";
+  }
+
+  if (
+    (last.status === "needs_confirmation" || last.status === "failed")
+    && typeof last.message === "string"
+    && (
+      last.message.includes("screenshot fallback failed")
+      || last.message.includes("screenshot fallback activation failed")
+      || last.message.includes("screenshot fallback did not return app state")
+      || last.message.includes("screenshot fallback is unavailable")
+      || last.message.includes("Screen Recording permission is required")
+      || last.message.includes("Accessibility permission is required")
+    )
+  ) {
+    return "fallback-switched-blocked";
+  }
+
+  return last.status ?? "failed";
+}
+
 function hasChromeFallbackScreenshotEvidence(events) {
   return Array.isArray(events)
     && events.some((event) =>
@@ -206,6 +259,15 @@ function hasChromeFallbackScreenshotEvidence(events) {
         && event.replayRecord.bundleId === "com.google.Chrome"
         && typeof event.replayRecord.screenshotPath === "string"
         && event.replayRecord.screenshotPath.length > 0
+    );
+}
+
+function hasChromeFallbackSwitchEvent(events) {
+  return Array.isArray(events)
+    && events.some((event) =>
+      event?.status === "executing"
+        && typeof event.message === "string"
+        && /Switching Chrome control from cdp to screenshot_fallback/i.test(event.message)
     );
 }
 

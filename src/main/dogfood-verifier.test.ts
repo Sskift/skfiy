@@ -20,6 +20,7 @@ describe("dogfood artifact verifier", () => {
     "Chrome sensitive-page pause evidence",
     "Chrome form action evidence",
     "Chrome screenshot fallback evidence",
+    "Chrome fallback switching evidence",
     "Finder app policy settings",
     "Finder observe_app screenshot or permission-blocked evidence",
     "Finder semantic selection evidence",
@@ -206,6 +207,24 @@ describe("dogfood artifact verifier", () => {
         }
       ]
     },
+    fallbackSwitchRun: {
+      result: "fallback-switched-blocked",
+      command: "打开 Chrome 测试页面 file:///tmp/skfiy-chrome.html 并提取正文",
+      productPath: "renderer -> preload -> main -> CDP failure -> helper observe_app -> Chrome screenshot fallback",
+      configuredEndpoint: "http://127.0.0.1:65530",
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      events: [
+        {
+          status: "executing",
+          message: "Switching Chrome control from CDP to screenshot_fallback (navigation): Chrome CDP navigation failed: fetch failed"
+        },
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (navigation): Chrome CDP navigation failed: fetch failed screenshot fallback failed: Screen Recording permission is required"
+        }
+      ]
+    },
     events: [
       {
         status: "approval_required",
@@ -284,6 +303,60 @@ describe("dogfood artifact verifier", () => {
       }
     ],
     processesAfterCleanup: ["123 skfiy.app"]
+  });
+  const createUiSmokeArtifact = (artifactPath: string) => ({
+    result: "passed",
+    appLaunchViaOpen: true,
+    runnerHasTmux: false,
+    productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
+    artifactPath,
+    petClicked: true,
+    onboardingVisible: true,
+    permissionRows: [
+      { label: "屏幕录制", state: "denied", stateText: "未授权" },
+      { label: "辅助功能", state: "denied", stateText: "未授权" },
+      { label: "麦克风", state: "not-determined", stateText: "待授权" },
+      { label: "语音识别", state: "not-determined", stateText: "待授权" }
+    ],
+    permissionSettingTargets: [
+      { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
+      { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" },
+      { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
+      { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
+    ],
+    processesAfterCleanup: []
+  });
+  const createGhosttySmokeArtifact = (artifactPath: string) => ({
+    result: "blocked",
+    appLaunchViaOpen: true,
+    runnerHasTmux: false,
+    productPath: "renderer -> preload -> main -> helper -> Ghostty",
+    artifactPath,
+    appPolicySettings: ghosttyAppPolicySettings,
+    permissions: {
+      screenRecording: { state: "denied" },
+      accessibility: { state: "denied" }
+    },
+    runs: clipboardApprovalRuns,
+    processesAfterCleanup: []
+  });
+  const createVoiceSmokeArtifact = (artifactPath: string) => ({
+    result: "blocked",
+    appLaunchViaOpen: true,
+    runnerHasTmux: false,
+    productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+    artifactPath,
+    provider: "native-macos",
+    speechStatus: {
+      locale: "zh-CN",
+      recognizerAvailable: true,
+      speechRecognition: { state: "not-determined" },
+      microphone: { state: "granted" }
+    },
+    providerEvents: [
+      { providerId: "native-macos", state: "unavailable" }
+    ],
+    processesAfterCleanup: []
   });
 
   it("is exposed as an npm script for dogfood evidence checks", () => {
@@ -907,6 +980,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeSensitivePause"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeFormAction"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeFallback"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.chromeFallbackSwitch"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finder"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderAppPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderObservation"),
@@ -932,6 +1006,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("chrome.sensitivePause"),
         expect.stringContaining("chrome.formAction"),
         expect.stringContaining("chrome.fallback"),
+        expect.stringContaining("chrome.fallbackSwitch"),
         expect.stringContaining("chrome.chromeProcessesAfterCleanup"),
         expect.stringContaining("chrome.processesAfterCleanup"),
         expect.stringContaining("finder.runnerHasTmux"),
@@ -946,6 +1021,56 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("finder.afterTree"),
         expect.stringContaining("finder.processesAfterCleanup"),
         expect.stringContaining("voice.productPath")
+      ])
+    });
+  });
+
+  it("fails when Chrome smoke lacks configured-CDP fallback switch evidence", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const chromeArtifact = createChromeSmokeArtifact(chromeSmokePath);
+    delete (chromeArtifact as { fallbackSwitchRun?: unknown }).fallbackSwitchRun;
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: chromeArtifact,
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("chrome.fallbackSwitch")
       ])
     });
   });

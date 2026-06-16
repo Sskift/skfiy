@@ -330,6 +330,11 @@ function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEve
         status: "executing",
         message: `${prefix}Activated ${event.appName}.`
       };
+    case "fallback_switch":
+      return {
+        status: "executing",
+        message: `${prefix}Switching Chrome control from ${formatControlChannel(event.from)} to ${event.to} (${event.stage}): ${event.reason}`
+      };
     case "session_initialized":
       return {
         status: "executing",
@@ -404,6 +409,10 @@ function formatFinderSelectionSummary(context: FinderSelectionResult): string {
   const target = context.targetPath ?? "unknown folder";
   const count = context.selection.length;
   return `${count} selected item${count === 1 ? "" : "s"} in ${target}.`;
+}
+
+function formatControlChannel(channel: string): string {
+  return channel.toLowerCase() === "cdp" ? "CDP" : channel;
 }
 
 function createObserveAppReplayRecord(

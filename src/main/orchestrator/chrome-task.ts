@@ -71,6 +71,13 @@ export type ChromeTaskEvent =
       bundleId: string;
     }
   | {
+      type: "fallback_switch";
+      from: "cdp";
+      to: "screenshot_fallback";
+      stage: "connection" | "navigation" | "extraction";
+      reason: string;
+    }
+  | {
       type: "screenshot_before";
       path: string;
       observation: DesktopAppState;
@@ -237,13 +244,21 @@ function hasSensitiveText(value: string): boolean {
 async function* captureChromeScreenshotFallback(
   options: ChromeTaskOptions,
   failure: {
-    stage: Extract<ChromeTaskEvent, { type: "verification_failed" }>["stage"];
+    stage: "connection" | "navigation" | "extraction";
     reason: string;
   } = {
     stage: "connection",
     reason: "Chrome CDP endpoint is not configured."
   }
 ): AsyncGenerator<ChromeTaskEvent> {
+  yield {
+    type: "fallback_switch",
+    from: "cdp",
+    to: "screenshot_fallback",
+    stage: failure.stage,
+    reason: failure.reason
+  };
+
   if (!options.desktopClient) {
     yield {
       type: "verification_failed",
