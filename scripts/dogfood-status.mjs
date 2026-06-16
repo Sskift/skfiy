@@ -115,10 +115,13 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const manifestChecks = await readManifestChecks(manifest, options, io);
   const missingRequiredReports = Math.max(0, 3 - verifiedRealAcceptedReportIssueUrls.length);
   const invalidReportIssueCount = reportIssueValidation.filter((issue) => !issue.ok).length;
+  const currentHeadGateOk = !manifestChecks.currentHead?.required
+    || manifestChecks.currentHead.ok === true;
   const canRunCollect = verifiedRealAcceptedReportIssueUrls.length >= 3
     && verifiedRealAcceptedReportIssueUrls.length <= 5
     && invalidReportIssueCount === 0
     && currentAlpha.ok
+    && currentHeadGateOk
     && workflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
   const nextActions = createNextActions({
@@ -199,6 +202,7 @@ export function createDogfoodStatusHelpText() {
     "and accepted report URLs recorded in the tracking issue or local tracking issue markdown file.",
     "It separates real tester readiness from local synthetic reports such as local-* and preflight-* runs.",
     "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
+    "It warns when the selected alpha manifest is older than the current git HEAD.",
     "It also emits recommended tester assignments with prepare/tester/review commands.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
   ].join("\n");
@@ -212,6 +216,12 @@ export function createDogfoodStatusMarkdown(status) {
     `Generated: ${status.generatedAt}`,
     `Manifest: ${status.manifestPath}`,
     `Commit: ${status.manifest.commitSha ?? "unknown"}`,
+    ...(status.manifest.checks.currentHead
+      ? [
+        `Current HEAD: ${status.manifest.checks.currentHead.expected}`,
+        `Alpha is current HEAD: ${status.manifest.checks.currentHead.ok ? "yes" : "no"}`
+      ]
+      : []),
     `Accepted report URLs: ${status.trackingIssue.acceptedReportCount}/3 minimum`,
     `Verified accepted report URLs: ${status.trackingIssue.verifiedAcceptedReportCount}/3 minimum`,
     `Verified real accepted report URLs: ${status.trackingIssue.verifiedRealAcceptedReportCount}/3 minimum`,
@@ -421,13 +431,15 @@ async function readManifestChecks(manifest, options, io) {
     zipReadable: false
   };
 
-  if (options.requireCurrentHead) {
+  if (options.requireCurrentHead || typeof io.readCurrentHead === "function") {
     const currentHeadSha = typeof options.currentHeadSha === "string"
       ? options.currentHeadSha
-      : await io.readCurrentHead(options.rootDir ?? DEFAULT_ROOT_DIR);
+      : await readOptionalCurrentHead(options, io);
     checks.currentHead = {
       expected: currentHeadSha,
-      ok: manifest?.commitSha === currentHeadSha
+      actual: typeof manifest?.commitSha === "string" ? manifest.commitSha : undefined,
+      ok: manifest?.commitSha === currentHeadSha,
+      required: options.requireCurrentHead === true
     };
   }
 
@@ -441,6 +453,14 @@ async function readManifestChecks(manifest, options, io) {
   }
 
   return checks;
+}
+
+async function readOptionalCurrentHead(options, io) {
+  if (typeof io.readCurrentHead !== "function") {
+    return undefined;
+  }
+
+  return await io.readCurrentHead(options.rootDir ?? DEFAULT_ROOT_DIR);
 }
 
 function createNextActions({
@@ -484,7 +504,11 @@ function createNextActions({
     actions.push("Grant Speech Recognition to dist/skfiy.app or the alpha app bundle before requiring passed native speech evidence.");
   }
   if (manifestChecks.currentHead && manifestChecks.currentHead.ok !== true) {
-    actions.push("Regenerate the alpha artifact so manifest commitSha matches the current HEAD.");
+    actions.push(
+      manifestChecks.currentHead.required === true
+        ? "Regenerate the alpha artifact so manifest commitSha matches the current HEAD."
+        : "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha."
+    );
   }
   if (canRunCollect) {
     actions.push("Run npm run dogfood:collect with the current manifest and tracking issue.");

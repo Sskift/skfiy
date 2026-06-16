@@ -247,6 +247,67 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("screenRecording: denied");
   });
 
+  it("warns when the selected alpha manifest is older than the current HEAD", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = {
+      ...createMemoryIo({
+        [manifestPath]: createManifest({
+          uiSmokePath,
+          ghosttySmokePath,
+          chromeSmokePath,
+          finderSmokePath,
+          voiceSmokePath
+        }),
+        [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+        [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+        [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+        [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+        [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+      }, {
+        [trackingIssueUrl]: {
+          body: createTrackingIssueBody([]),
+          labels: ["skfiy", "dogfood"]
+        }
+      }),
+      async readCurrentHead() {
+        return "newhead";
+      }
+    };
+
+    await expect(createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      manifest: {
+        checks: {
+          currentHead: {
+            expected: "newhead",
+            actual: "abc123",
+            ok: false,
+            required: false
+          }
+        }
+      },
+      nextActions: expect.arrayContaining([
+        "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("Current HEAD: newhead");
+    expect(io.textFiles[summaryPath]).toContain("Alpha is current HEAD: no");
+  });
+
   it("recommends concrete tester assignments for missing real reports and workflow coverage", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

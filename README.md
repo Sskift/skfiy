@@ -153,6 +153,9 @@ npm run dogfood:cohort -- \
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
+It also compares the selected alpha manifest commit with the current git HEAD
+when available; a mismatch is a warning by default and a strict gate only when
+`--require-current-head` is used for pre-publication checks.
 Suggested `tester-N` ids avoid tester ids already parsed from linked reports, so
 new artifacts do not overwrite an existing tester's local evidence by accident.
 The tracking issue body includes a `Recommended Tester Assignments` section too,
