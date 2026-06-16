@@ -59,12 +59,17 @@ describe("Electron build wiring", () => {
   });
 
   it("keeps the packaged app identity lowercase across bundle metadata and executable name", () => {
+    const packageJson = JSON.parse(
+      readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+    ) as { name: string };
     const packagingScript = readFileSync(
       path.join(process.cwd(), "scripts/package-macos-app.mjs"),
       "utf8"
     );
 
+    expect(packageJson.name).toBe("skfiy");
     expect(packagingScript).toContain('setInfoPlistString(current, "CFBundleExecutable", "skfiy")');
+    expect(packagingScript).toContain('name: "skfiy"');
     expect(packagingScript).toContain('path.join(plan.appBundlePath, "Contents", "MacOS", "Electron")');
     expect(packagingScript).toContain("await fs.rename(electronExecutablePath, plan.bundledExecutablePath)");
   });
