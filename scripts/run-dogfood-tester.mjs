@@ -13,6 +13,12 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_LISTEN_MS = 9_000;
 const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
+const REQUIRED_STRICT_PERMISSION_KEYS = [
+  "screenRecording",
+  "accessibility",
+  "microphone",
+  "speechRecognition"
+];
 
 export function createDefaultDogfoodTesterOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -240,6 +246,36 @@ export async function runDogfoodTester(options, io = createDefaultIo()) {
       };
       throw error;
     }
+
+    const permissionPreflight = createStrictPermissionPreflight(
+      command.id,
+      normalizedResult,
+      options
+    );
+    if (permissionPreflight.blockers.length > 0) {
+      result = "failed";
+      const summary = createDogfoodTesterSummary({
+        plan,
+        result,
+        commandResults,
+        generatedAt: readNow(options),
+        permissionPreflight
+      });
+      await io.writeText(plan.summaryPath, summary);
+      const error = new Error(
+        "dogfood:tester permission preflight failed before strict passed smokes: "
+          + `${formatPermissionBlockers(permissionPreflight.blockers)}. See ${plan.summaryPath}.`
+      );
+      error.result = {
+        result,
+        plan,
+        commandResults,
+        issueOutputPath: plan.issueOutputPath,
+        summaryPath: plan.summaryPath,
+        permissionPreflight
+      };
+      throw error;
+    }
   }
 
   await io.writeText(plan.summaryPath, createDogfoodTesterSummary({
@@ -281,6 +317,7 @@ export function createDogfoodTesterHelpText() {
     "  --chrome-current-page-endpoint <url>",
     "                                Attach Chrome BYO current-page mode to a consenting tester page.",
     "  --require-passed               Require Ghostty, Chrome, Finder, and voice smokes to pass.",
+    "                                Runs a strict permission preflight after UI smoke and stops early when any required permission is missing.",
     "  -h, --help                     Show this help.",
     "",
     "Required workflows:",
@@ -334,7 +371,8 @@ function createDogfoodTesterSummary({
   plan,
   result,
   commandResults,
-  generatedAt
+  generatedAt,
+  permissionPreflight
 }) {
   const lines = [
     "# skfiy dogfood tester run",
@@ -360,10 +398,33 @@ function createDogfoodTesterSummary({
     ...commandResults.map((commandResult) =>
       `| ${escapeMarkdownTableCell(commandResult.id)} | ${commandResult.exitCode} | ${escapeMarkdownTableCell(formatCommand(commandResult.command, commandResult.args))} |`
     ),
-    "",
-    "This runner did not file or accept a GitHub report. File the generated issue body manually, then maintainers must review it and add dogfood:accepted plus workflow labels before dogfood:collect can count it.",
     ""
   ];
+
+  if (permissionPreflight) {
+    lines.push(
+      "## Permission Preflight",
+      "",
+      `Result: ${permissionPreflight.blockers.length === 0 ? "passed" : "failed"}`,
+      ""
+    );
+
+    if (permissionPreflight.blockers.length > 0) {
+      lines.push(
+        "Missing permissions for strict passed evidence:",
+        "",
+        ...permissionPreflight.blockers.map((blocker) =>
+          `- ${blocker.permission}: ${blocker.state}`
+        ),
+        ""
+      );
+    }
+  }
+
+  lines.push(
+    "This runner did not file or accept a GitHub report. File the generated issue body manually, then maintainers must review it and add dogfood:accepted plus workflow labels before dogfood:collect can count it.",
+    ""
+  );
 
   return lines.join("\n");
 }
@@ -381,6 +442,47 @@ function shellQuote(value) {
 
 function escapeMarkdownTableCell(value) {
   return String(value).replaceAll("|", "\\|").replaceAll("\n", " ");
+}
+
+function createStrictPermissionPreflight(commandId, commandResult, options) {
+  if (options.requirePassed !== true || commandId !== "smoke:ui") {
+    return { blockers: [] };
+  }
+
+  return {
+    blockers: readStrictPermissionBlockers(commandResult.stdout)
+  };
+}
+
+function readStrictPermissionBlockers(stdout) {
+  const evidence = parseJson(stdout);
+  const permissions = evidence && typeof evidence.permissions === "object" && evidence.permissions
+    ? evidence.permissions
+    : undefined;
+
+  return REQUIRED_STRICT_PERMISSION_KEYS
+    .map((permission) => ({
+      permission,
+      state: readPermissionState(permissions, permission)
+    }))
+    .filter((blocker) => blocker.state !== "granted");
+}
+
+function readPermissionState(permissions, permission) {
+  const state = permissions?.[permission]?.state;
+  return typeof state === "string" && state.trim().length > 0 ? state : "unknown";
+}
+
+function parseJson(value) {
+  try {
+    return JSON.parse(String(value ?? ""));
+  } catch {
+    return undefined;
+  }
+}
+
+function formatPermissionBlockers(blockers) {
+  return blockers.map((blocker) => `${blocker.permission}=${blocker.state}`).join(", ");
 }
 
 function readWorkflowList(value) {

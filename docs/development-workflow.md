@@ -295,7 +295,7 @@ npm run dogfood:tester -- \
   --summary .skfiy-dogfood/tester-a-summary.md
 ```
 
-This runner is only a local evidence collector. It refuses tmux, runs product smokes sequentially, generates the `dogfood:issue -- --check-report` draft from the artifacts it just wrote, and leaves GitHub filing plus `dogfood:accepted` label review to maintainers.
+This runner is only a local evidence collector. It refuses tmux, runs product smokes sequentially, generates the `dogfood:issue -- --check-report` draft from the artifacts it just wrote, and leaves GitHub filing plus `dogfood:accepted` label review to maintainers. When `--require-passed` is used, the runner treats the first UI smoke as a strict permission preflight and stops before Ghostty/Chrome/Finder/voice if Screen Recording, Accessibility, Microphone, or Speech Recognition is still missing.
 
 Before adding `dogfood:accepted` to a filed tester issue, run:
 

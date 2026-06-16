@@ -71,6 +71,7 @@ describe("dogfood tester runner", () => {
     expect(createDogfoodTesterHelpText()).toContain("dogfood:tester");
     expect(createDogfoodTesterHelpText()).toContain("packaged-app smokes sequentially");
     expect(createDogfoodTesterHelpText()).toContain("does not fabricate tester reports");
+    expect(createDogfoodTesterHelpText()).toContain("strict permission preflight");
   });
 
   it("plans sequential packaged-app smokes and a checked dogfood issue draft", async () => {
@@ -192,6 +193,59 @@ describe("dogfood tester runner", () => {
     );
   });
 
+  it("stops after UI preflight when strict passed evidence is missing required permissions", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      "smoke:ui": {
+        stdout: JSON.stringify({
+          result: "passed",
+          permissions: {
+            screenRecording: { state: "denied" },
+            accessibility: { state: "granted" },
+            microphone: { state: "not-determined" },
+            speechRecognition: { state: "unknown" }
+          }
+        }),
+        exitCode: 0
+      }
+    });
+
+    await expect(runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      artifactsDir: "/repo/.skfiy-smoke/dogfood/tester-a",
+      issueOutputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
+      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
+      requirePassed: true,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).rejects.toThrow(
+      "dogfood:tester permission preflight failed before strict passed smokes"
+    );
+
+    expect(io.commands.map((command) => command.args.slice(0, 2).join(" "))).toEqual([
+      "run smoke:ui"
+    ]);
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "Result: failed"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "screenRecording: denied"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "microphone: not-determined"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "speechRecognition: unknown"
+    );
+  });
+
   it("refuses to collect product evidence from tmux", async () => {
     const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodTester: (
@@ -210,7 +264,9 @@ describe("dogfood tester runner", () => {
   });
 });
 
-function createMemoryIo() {
+function createMemoryIo(
+  commandOverrides: Record<string, { stdout?: string; stderr?: string; exitCode?: number }> = {}
+) {
   const commands: Array<{ command: string; args: string[]; options?: unknown }> = [];
   const textFiles: Record<string, string> = {};
 
@@ -223,6 +279,14 @@ function createMemoryIo() {
     },
     async runCommand(command: string, args: string[], options?: unknown) {
       commands.push({ command, args, options });
+      const override = commandOverrides[String(args[1])];
+      if (override) {
+        return {
+          stdout: override.stdout ?? "",
+          stderr: override.stderr ?? "",
+          exitCode: override.exitCode ?? 0
+        };
+      }
       return {
         stdout: JSON.stringify({ result: args[1] === "smoke:voice" ? "blocked" : "passed" }),
         stderr: "",
