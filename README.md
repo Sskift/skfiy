@@ -126,7 +126,21 @@ npm run dogfood:tester -- \
   --workflows coding-terminal,screenshot-inspection
 npm run dogfood:review -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
-  --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue>
+  --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue> \
+  --summary .skfiy-dogfood/reviews/tester-a.md
+npm run dogfood:collect -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --reports-dir .skfiy-dogfood/reports \
+  --cohort .skfiy-dogfood/internal-alpha-cohort.json \
+  --summary .skfiy-dogfood/internal-alpha-summary.md
+npm run dogfood:cohort -- \
+  --cohort .skfiy-dogfood/internal-alpha-cohort.json \
+  --summary .skfiy-dogfood/internal-alpha-summary.md
+npm run dogfood:cohort -- \
+  --cohort .skfiy-dogfood/internal-alpha-cohort.json \
+  --summary .skfiy-dogfood/internal-alpha-summary-strict.md \
+  --require-passed
 ```
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main

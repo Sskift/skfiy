@@ -119,4 +119,16 @@ describe("implementation plan status docs", () => {
     expect(readme).toContain("--smoke-artifact .skfiy-smoke/ghostty-matrix.json");
     expect(readme).not.toContain("--smoke-artifact .skfiy-smoke/ghostty-smoke.json");
   });
+
+  it("documents the maintainer dogfood collection and cohort verification loop", () => {
+    const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
+
+    expect(readme).toContain("npm run dogfood:collect -- \\");
+    expect(readme).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
+    expect(readme).toContain("--reports-dir .skfiy-dogfood/reports");
+    expect(readme).toContain("--cohort .skfiy-dogfood/internal-alpha-cohort.json");
+    expect(readme).toContain("--summary .skfiy-dogfood/internal-alpha-summary.md");
+    expect(readme).toContain("npm run dogfood:cohort -- \\");
+    expect(readme).toContain("--require-passed");
+  });
 });
