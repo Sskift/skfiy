@@ -393,6 +393,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] report source metadata gate requiring accepted GitHub issue URL and collection timestamp for cohort verification
   - [x] cohort readiness Markdown summary via `npm run dogfood:cohort -- --cohort <path> --summary <path>`
   - [x] GitHub tracking issue for real internal alpha cohort collection: https://github.com/Sskift/skfiy/issues/1
+  - [x] GitHub dogfood labels for accepted reports and workflow coverage (`dogfood:accepted`, `workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`)
   - [ ] `coding-terminal` workflow reports from actual testers
   - [ ] `screenshot-inspection` workflow reports from actual testers
   - [ ] `finder-file` workflow reports from actual testers
