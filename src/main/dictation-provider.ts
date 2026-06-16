@@ -17,6 +17,7 @@ export type DictationProviderState =
   | "unavailable"
   | "waiting_for_shortcut_configuration"
   | "listening"
+  | "cancelled"
   | "stopped"
   | "failed";
 
@@ -146,8 +147,25 @@ export function createNativeMacOSDictationProvider({
   emit,
   emitTranscript
 }: NativeMacOSDictationProviderOptions): DictationProvider {
-  let transcriptTask: Promise<void> | undefined;
-  let stopped = false;
+  let providerTask: Promise<void> = Promise.resolve();
+  let settleProviderTask: (() => void) | undefined;
+  let turnGeneration = 0;
+  let lifecycleState: "idle" | "listening" | "cancelled" | "stopped" | "failed" = "idle";
+
+  function beginProviderTask(): void {
+    providerTask = new Promise((resolve) => {
+      settleProviderTask = resolve;
+    });
+  }
+
+  function settleProviderLifecycle(): void {
+    settleProviderTask?.();
+    settleProviderTask = undefined;
+  }
+
+  function isCurrentListeningTurn(generation: number): boolean {
+    return turnGeneration === generation && lifecycleState === "listening";
+  }
 
   return {
     id: "native-macos",
@@ -164,38 +182,45 @@ export function createNativeMacOSDictationProvider({
         throw new Error(unavailableMessage);
       }
 
-      stopped = false;
+      turnGeneration += 1;
+      const generation = turnGeneration;
+      lifecycleState = "listening";
+      beginProviderTask();
       emit({
         providerId: "native-macos",
         state: "listening",
         message: "macOS 系统语音正在听."
       });
 
-      transcriptTask = helper.transcribeSpeech({
+      void helper.transcribeSpeech({
         locale,
         maxDurationMs: NATIVE_MACOS_MAX_DURATION_MS,
         silenceTimeoutMs: NATIVE_MACOS_SILENCE_TIMEOUT_MS
       }).then((transcript) => {
-        if (stopped) {
+        if (!isCurrentListeningTurn(generation)) {
           return;
         }
 
+        lifecycleState = "stopped";
         emitTranscript(transcript);
         emit({
           providerId: "native-macos",
           state: "stopped",
           message: "macOS 系统语音已完成."
         });
+        settleProviderLifecycle();
       }).catch((error: unknown) => {
-        if (stopped) {
+        if (!isCurrentListeningTurn(generation)) {
           return;
         }
 
+        lifecycleState = "failed";
         emit({
           providerId: "native-macos",
           state: "failed",
           message: readErrorMessage(error)
         });
+        settleProviderLifecycle();
       });
 
       return {
@@ -205,15 +230,21 @@ export function createNativeMacOSDictationProvider({
       };
     },
     async stop() {
-      stopped = true;
+      if (lifecycleState !== "listening") {
+        return;
+      }
+
+      turnGeneration += 1;
+      lifecycleState = "cancelled";
       emit({
         providerId: "native-macos",
-        state: "stopped",
-        message: "macOS 系统语音已停止."
+        state: "cancelled",
+        message: "macOS 系统语音已取消."
       });
+      settleProviderLifecycle();
     },
     waitForTranscript() {
-      return transcriptTask ?? Promise.resolve();
+      return providerTask;
     }
   };
 }

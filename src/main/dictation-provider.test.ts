@@ -58,6 +58,26 @@ function createHelper(options: {
   };
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
+function createGrantedSpeechStatus(locale = "zh-CN"): SpeechStatusResult {
+  return {
+    locale,
+    recognizerAvailable: true,
+    speechRecognition: { state: "granted" },
+    microphone: { state: "granted" }
+  };
+}
+
 describe("createDoubaoDictationProvider", () => {
   it("emits listening when the skfiy-owned shortcut starts Doubao dictation", async () => {
     const { calls, helper } = createHelper();
@@ -227,6 +247,62 @@ describe("createNativeMacOSDictationProvider", () => {
         message: "macOS 系统语音已完成."
       }
     ]);
+  });
+
+  it("cancels pending native speech promptly and ignores late helper transcripts", async () => {
+    const deferredTranscript = createDeferred<NativeSpeechTranscriptionResult>();
+    const events: DictationProviderEvent[] = [];
+    const transcripts: NativeSpeechTranscriptionResult[] = [];
+    const provider = createNativeMacOSDictationProvider({
+      helper: {
+        async getSpeechStatus(): Promise<SpeechStatusResult> {
+          return createGrantedSpeechStatus();
+        },
+        transcribeSpeech(): Promise<NativeSpeechTranscriptionResult> {
+          return deferredTranscript.promise;
+        }
+      },
+      locale: "zh-CN",
+      emit: (event) => events.push(event),
+      emitTranscript: (transcript) => transcripts.push(transcript)
+    });
+
+    await provider.prepare();
+    const transcriptWait = provider.waitForTranscript?.() ?? Promise.resolve();
+    let transcriptWaitSettled = false;
+    transcriptWait.then(() => {
+      transcriptWaitSettled = true;
+    });
+
+    await provider.stop();
+    await Promise.resolve();
+
+    expect(transcriptWaitSettled).toBe(true);
+    expect(transcripts).toEqual([]);
+    expect(events).toEqual([
+      {
+        providerId: "native-macos",
+        state: "listening",
+        message: "macOS 系统语音正在听."
+      },
+      {
+        providerId: "native-macos",
+        state: "cancelled",
+        message: "macOS 系统语音已取消."
+      }
+    ]);
+
+    deferredTranscript.resolve({
+      text: "late transcript should not submit",
+      isFinal: true,
+      confidence: 0.99,
+      durationMs: 7000,
+      silenceTimedOut: false
+    });
+    await Promise.resolve();
+
+    expect(transcripts).toEqual([]);
+    expect(events).toHaveLength(2);
   });
 
   it("fails closed when native speech or microphone permission is missing", async () => {
