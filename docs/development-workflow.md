@@ -251,10 +251,12 @@ The report helper is incremental. It reads the manifest's UI/Ghostty/Chrome/Find
 After aggregating 3-5 single-user reports, run:
 
 ```bash
-npm run dogfood:cohort -- --cohort .skfiy-dogfood/internal-alpha-cohort.json
+npm run dogfood:cohort -- \
+  --cohort .skfiy-dogfood/internal-alpha-cohort.json \
+  --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-The cohort gate checks distinct testers, required workflow coverage (`coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`), `appLaunchViaOpen=true`, `runnerHasTmux=false`, absolute alpha manifest and smoke artifact paths, and Screen Recording, Accessibility, Microphone, and Speech Recognition states for every report. This gate proves report quality and coverage; it does not mark the real dogfood complete until the cohort file contains reports from actual testers.
+The cohort gate checks distinct testers, required workflow coverage (`coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`), `appLaunchViaOpen=true`, `runnerHasTmux=false`, absolute alpha manifest and smoke artifact paths, and Screen Recording, Accessibility, Microphone, and Speech Recognition states for every report. `--summary` writes a short local Markdown readiness report showing missing workflows, blocking checks, and per-tester status. This gate proves report quality and coverage; it does not mark the real dogfood complete until the cohort file contains reports from actual testers.
 
 ### macOS Release Signing
 

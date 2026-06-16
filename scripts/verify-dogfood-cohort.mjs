@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -46,6 +46,7 @@ const BLOCKING_PERMISSION_STATES = new Set([
 export function createDefaultDogfoodCohortOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     cohortPath: undefined,
+    summaryPath: undefined,
     rootDir,
     help: false
   };
@@ -60,6 +61,10 @@ export function parseDogfoodCohortArgs(argv, defaults) {
     switch (arg) {
       case "--cohort":
         options.cohortPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--summary":
+        options.summaryPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--help":
@@ -124,18 +129,31 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
     .filter((item) => !item.ok)
     .map((item) => `${item.id}: ${item.message}`);
 
-  return {
+  const result = {
     result: errors.length === 0 ? "passed" : "failed",
     cohortPath,
+    summaryPath: typeof options.summaryPath === "string" ? options.summaryPath : undefined,
     errors,
     summary: createCohortSummary(reports, testerIds, requiredWorkflowCoverage),
     checks
   };
+
+  if (typeof options.summaryPath === "string") {
+    const markdown = createDogfoodCohortMarkdown({
+      result,
+      reports,
+      requiredWorkflowCoverage,
+      testerIds
+    });
+    await io.writeText(options.summaryPath, markdown);
+  }
+
+  return result;
 }
 
 export function createDogfoodCohortHelpText() {
   return [
-    "Usage: npm run dogfood:cohort -- --cohort <path>",
+    "Usage: npm run dogfood:cohort -- --cohort <path> [--summary <markdown-path>]",
     "",
     "Verifies a skfiy internal dogfood cohort report.",
     "",
@@ -144,8 +162,73 @@ export function createDogfoodCohortHelpText() {
     "",
     "Each report must include testerId, manifestPath, appLaunchViaOpen=true, runnerHasTmux=false,",
     "permissionStates for Screen Recording, Accessibility, Microphone, and Speech Recognition,",
-    "and UI/Ghostty/Chrome/Finder/voice smoke artifact paths from the packaged app."
+    "and UI/Ghostty/Chrome/Finder/voice smoke artifact paths from the packaged app.",
+    "",
+    "Use --summary to write a short Markdown readiness report for maintainers."
   ].join("\n");
+}
+
+export function createDogfoodCohortMarkdown({
+  result,
+  reports,
+  requiredWorkflowCoverage,
+  testerIds
+}) {
+  const missingWorkflows = REQUIRED_DOGFOOD_WORKFLOWS.filter((workflow) =>
+    requiredWorkflowCoverage[workflow] !== true
+  );
+  const lines = [
+    "# skfiy dogfood cohort summary",
+    "",
+    `Result: ${result.result}`,
+    `Cohort: ${result.cohortPath}`,
+    `Distinct testers: ${testerIds.size}/3-5`,
+    `Total reports: ${reports.length}`,
+    `Passed reports: ${result.summary.passedReports}`,
+    `Permission-blocked reports: ${result.summary.permissionBlockedReports}`,
+    "",
+    "## Workflow Coverage",
+    ""
+  ];
+
+  for (const workflow of REQUIRED_DOGFOOD_WORKFLOWS) {
+    lines.push(`- ${workflow}: ${requiredWorkflowCoverage[workflow] === true ? "covered" : "missing"}`);
+  }
+
+  if (missingWorkflows.length > 0) {
+    lines.push("", "## Missing Workflows", "");
+    for (const workflow of missingWorkflows) {
+      lines.push(`- ${workflow}`);
+    }
+  }
+
+  if (result.errors.length > 0) {
+    lines.push("", "## Blocking Checks", "");
+    for (const error of result.errors) {
+      lines.push(`- ${error}`);
+    }
+  }
+
+  lines.push(
+    "",
+    "## Reports",
+    "",
+    "| testerId | result | workflows | permission-blocked |",
+    "| --- | --- | --- | --- |"
+  );
+
+  for (const report of reports) {
+    const testerId = typeof report?.testerId === "string" ? report.testerId : "unknown";
+    const reportResult = typeof report?.result === "string" ? report.result : "unknown";
+    const workflows = Array.isArray(report?.workflows) && report.workflows.length > 0
+      ? report.workflows.join(", ")
+      : "none";
+    lines.push(
+      `| ${escapeMarkdownTableCell(testerId)} | ${escapeMarkdownTableCell(reportResult)} | ${escapeMarkdownTableCell(workflows)} | ${hasBlockingPermissionState(report?.permissionStates) ? "yes" : "no"} |`
+    );
+  }
+
+  return `${lines.join("\n")}\n`;
 }
 
 function verifyReport(report, index, cohortManifestPath, checks) {
@@ -319,6 +402,10 @@ function createDefaultIo() {
   return {
     async readJson(filePath) {
       return JSON.parse(await readFile(filePath, "utf8"));
+    },
+    async writeText(filePath, value) {
+      await mkdir(path.dirname(filePath), { recursive: true });
+      await writeFile(filePath, value);
     }
   };
 }
@@ -334,6 +421,10 @@ function readValue(argv, index, arg) {
 
 function check(checks, id, ok, message) {
   checks.push({ id, ok: Boolean(ok), message });
+}
+
+function escapeMarkdownTableCell(value) {
+  return String(value).replaceAll("|", "\\|").replace(/\s+/g, " ").trim();
 }
 
 async function runCli() {

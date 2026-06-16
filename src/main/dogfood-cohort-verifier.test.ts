@@ -35,11 +35,15 @@ describe("dogfood cohort verifier", () => {
 
     expect(parseDogfoodCohortArgs([
       "--cohort",
-      ".skfiy-dogfood/internal-alpha-cohort.json"
+      ".skfiy-dogfood/internal-alpha-cohort.json",
+      "--summary",
+      ".skfiy-dogfood/internal-alpha-summary.md"
     ], defaults)).toMatchObject({
-      cohortPath: path.resolve(".skfiy-dogfood/internal-alpha-cohort.json")
+      cohortPath: path.resolve(".skfiy-dogfood/internal-alpha-cohort.json"),
+      summaryPath: path.resolve(".skfiy-dogfood/internal-alpha-summary.md")
     });
     expect(createDogfoodCohortHelpText()).toContain("coding-terminal");
+    expect(createDogfoodCohortHelpText()).toContain("--summary");
     expect(createDogfoodCohortHelpText()).toContain("browser-fallback");
   });
 
@@ -201,6 +205,40 @@ describe("dogfood cohort verifier", () => {
     });
   });
 
+  it("writes a concise markdown summary for incomplete cohorts", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const summaryPath = "/repo/.skfiy-dogfood/internal-alpha-summary.md";
+    const io = createMemoryIo({
+      [cohortPath]: createCohort([
+        createReport("tester-a", ["coding-terminal", "screenshot-inspection"]),
+        createReport("tester-b", ["finder-file"])
+      ])
+    });
+
+    await expect(verifyDogfoodCohort({
+      cohortPath,
+      summaryPath
+    }, io)).resolves.toMatchObject({
+      result: "failed",
+      summaryPath,
+      errors: expect.arrayContaining([
+        expect.stringContaining("cohort.distinctTesters"),
+        expect.stringContaining("cohort.workflowCoverage.browser-fallback")
+      ])
+    });
+    expect(io.files[summaryPath]).toContain("# skfiy dogfood cohort summary");
+    expect(io.files[summaryPath]).toContain("Result: failed");
+    expect(io.files[summaryPath]).toContain("Distinct testers: 2/3-5");
+    expect(io.files[summaryPath]).toContain("- browser-fallback");
+    expect(io.files[summaryPath]).toContain("| tester-a | blocked | coding-terminal, screenshot-inspection | yes |");
+    expect(io.files[summaryPath]).toContain("| tester-b | blocked | finder-file | yes |");
+  });
+
   function createCohort(reports: unknown[]) {
     return {
       schemaVersion: 1,
@@ -242,6 +280,7 @@ describe("dogfood cohort verifier", () => {
 
 function createMemoryIo(files: Record<string, unknown>) {
   return {
+    files,
     async readJson(filePath: string) {
       const value = files[filePath];
       if (value === undefined) {
@@ -249,6 +288,9 @@ function createMemoryIo(files: Record<string, unknown>) {
       }
 
       return value;
+    },
+    async writeText(filePath: string, value: string) {
+      files[filePath] = value;
     }
   };
 }

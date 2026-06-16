@@ -72,10 +72,12 @@ npm run dogfood:report -- \
 After 3-5 single-user dogfood reports are collected, verify cross-user coverage:
 
 ```bash
-npm run dogfood:cohort -- --cohort .skfiy-dogfood/internal-alpha-cohort.json
+npm run dogfood:cohort -- \
+  --cohort .skfiy-dogfood/internal-alpha-cohort.json \
+  --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers and coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`.
+The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers and coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, and per-tester status without replacing the JSON verifier.
 
 Check Developer ID signing and notarization readiness:
 
