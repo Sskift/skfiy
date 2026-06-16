@@ -39,6 +39,19 @@ describe("classifyTerminalCommand", () => {
   });
 
   it.each([
+    "pbpaste",
+    "pbpaste > clipboard.txt",
+    "echo secret | pbcopy",
+    "cat token.txt | pbcopy"
+  ])("classifies clipboard command %s as high risk", (command) => {
+    expect(classifyTerminalCommand(command)).toMatchObject({
+      level: "high",
+      reason: "Command can read or overwrite clipboard contents.",
+      requiresApproval: true
+    });
+  });
+
+  it.each([
     "curl https://example.com",
     "wget https://example.com/file.txt",
     "open https://example.com",

@@ -2,6 +2,7 @@ import type { RiskDecision, RiskLevel } from "./types.js";
 
 const LOW_RISK_COMMANDS = new Set(["pwd", "ls", "date", "whoami"]);
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/;
+const CLIPBOARD_COMMAND_PATTERN = /\bpb(copy|paste)\b/i;
 
 const HIGH_RISK_PATTERNS: RegExp[] = [
   /\brm\s+-[^\n;|&]*r/i,
@@ -45,6 +46,10 @@ export function classifyTerminalCommand(command: string): RiskDecision {
 
   if (CONTROL_CHARACTER_PATTERN.test(normalized)) {
     return decision("blocked", "Control characters are not allowed in terminal commands.", true);
+  }
+
+  if (CLIPBOARD_COMMAND_PATTERN.test(normalized)) {
+    return decision("high", "Command can read or overwrite clipboard contents.", true);
   }
 
   if (HIGH_RISK_PATTERNS.some((pattern) => pattern.test(normalized))) {
