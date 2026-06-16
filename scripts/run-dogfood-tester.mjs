@@ -130,6 +130,9 @@ export function createDogfoodTesterPlan(options) {
   const summaryPath = typeof options.summaryPath === "string"
     ? options.summaryPath
     : path.join(rootDir, ".skfiy-dogfood", `${testerId}-summary.md`);
+  const appPath = typeof options.appPath === "string" && options.appPath.trim().length > 0
+    ? options.appPath
+    : path.join(rootDir, "dist", "skfiy.app");
   const artifacts = {
     ui: path.join(artifactsDir, `${testerId}-ui.json`),
     ghostty: path.join(artifactsDir, `${testerId}-ghostty.json`),
@@ -137,7 +140,7 @@ export function createDogfoodTesterPlan(options) {
     finder: path.join(artifactsDir, `${testerId}-finder.json`),
     voice: path.join(artifactsDir, `${testerId}-voice.json`)
   };
-  const appArgs = readOptionalPair("--app", options.appPath);
+  const appArgs = ["--app", appPath];
   const commands = [
     createNpmCommand("smoke:ui", [
       ...appArgs,
@@ -201,7 +204,7 @@ export function createDogfoodTesterPlan(options) {
     rootDir,
     testerId,
     workflows: [...options.workflows],
-    appPath: options.appPath,
+    appPath,
     artifactsDir,
     artifacts,
     issueOutputPath,
@@ -357,7 +360,8 @@ export function createDogfoodTesterHelpText() {
     "  --issue-output <path>          Markdown issue body path.",
     "  --summary <path>               Local run summary path.",
     `  --listen-ms <number>           Native voice listen window. Default: ${DEFAULT_LISTEN_MS}.`,
-    "  --app <path>                   App bundle to test. Use the alpha zip's skfiy.app when dogfooding a release.",
+    "  --app <path>                   App bundle to test. Defaults to dist/skfiy.app.",
+    "                                Use the alpha zip's skfiy.app when dogfooding a release.",
     "                                Runs an app bundle identity preflight before any product smoke.",
     "  --finder-target-dir <path>     Parent directory for the isolated Finder fixture.",
     "  --chrome-current-page-endpoint <url>",

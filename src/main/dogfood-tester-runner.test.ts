@@ -150,6 +150,27 @@ describe("dogfood tester runner", () => {
     });
   });
 
+  it("defaults to an explicit dist app bundle for product smokes", async () => {
+    const { createDogfoodTesterPlan } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodTesterPlan: (input: Record<string, unknown>) => Record<string, unknown>;
+    };
+
+    const plan = createDogfoodTesterPlan({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal"]
+    }) as {
+      appPath: string;
+      commands: Array<{ id: string; command: string; args: string[] }>;
+    };
+
+    expect(plan.appPath).toBe("/repo/dist/skfiy.app");
+    expect(plan.commands.slice(0, 5).every((command) =>
+      command.args.includes("--app") && command.args.includes("/repo/dist/skfiy.app")
+    )).toBe(true);
+  });
+
   it("rejects a mismatched app bundle identity before running product smokes", async () => {
     const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodTester: (
@@ -504,6 +525,18 @@ function createMemoryIo(
     async mkdir() {},
     async writeText(filePath: string, text: string) {
       textFiles[filePath] = text;
+    },
+    async readText() {
+      return [
+        "<plist>",
+        "<dict>",
+        "<key>CFBundleIdentifier</key><string>com.sskift.skfiy</string>",
+        "<key>CFBundleName</key><string>skfiy</string>",
+        "<key>CFBundleDisplayName</key><string>skfiy</string>",
+        "<key>CFBundleExecutable</key><string>skfiy</string>",
+        "</dict>",
+        "</plist>"
+      ].join("\n");
     },
     async runCommand(command: string, args: string[], options?: unknown) {
       commands.push({ command, args, options });
