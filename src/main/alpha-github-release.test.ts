@@ -157,6 +157,52 @@ describe("GitHub alpha release publisher", () => {
     expect(io.textFiles["/repo/.skfiy-alpha/skfiy-alpha-abcdef1-notes.md"]).toContain(
       `Zip SHA256: \`${empty1234ByteZipSha256}\``
     );
+    expect(io.textFiles["/repo/docs/release-evidence/latest-alpha.json"]).toBeUndefined();
+  });
+
+  it("writes latest alpha release evidence after an executed publish succeeds", async () => {
+    const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
+      runGitHubAlphaRelease: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo();
+
+    await expect(runGitHubAlphaRelease({
+      rootDir: "/repo",
+      manifestPath,
+      repo: "Sskift/skfiy",
+      trackingIssueUrl,
+      dryRun: false,
+      now: () => "2026-06-16T19:20:23.000Z"
+    }, io)).resolves.toMatchObject({
+      status: "published",
+      dryRun: false,
+      releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1"
+    });
+
+    expect(io.commands).toHaveLength(1);
+    expect(JSON.parse(io.textFiles["/repo/docs/release-evidence/latest-alpha.json"])).toEqual({
+      schemaVersion: 1,
+      appName: "skfiy",
+      tagName: "skfiy-alpha-abcdef1",
+      releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1",
+      commitSha: "abcdef1234567890",
+      artifactBaseName: "skfiy-0.1.0-abcdef1-macos-unsigned",
+      manifestPath: ".skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json",
+      zipPath: ".skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.zip",
+      zipSha256: empty1234ByteZipSha256,
+      smokeArtifacts: {
+        ui: ".skfiy-smoke/ui-abcdef1.json",
+        ghostty: ".skfiy-smoke/ghostty-abcdef1.json",
+        chrome: ".skfiy-smoke/chrome-abcdef1.json",
+        finder: ".skfiy-smoke/finder-abcdef1.json",
+        voice: ".skfiy-smoke/voice-abcdef1.json"
+      },
+      dogfoodStatus: "waiting-for-dogfood",
+      publishedAt: "2026-06-16T19:20:23.000Z"
+    });
   });
 
   it("rejects a dry-run release when the zip bytes match but the SHA256 differs", async () => {
@@ -200,6 +246,11 @@ function createManifest() {
     signed: false,
     notarized: false,
     artifactBaseName: "skfiy-0.1.0-abcdef1-macos-unsigned",
+    uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-abcdef1.json",
+    smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abcdef1.json",
+    chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abcdef1.json",
+    finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
+    voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-abcdef1.json",
     zip: {
       path: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.zip",
       bytes: 1234,

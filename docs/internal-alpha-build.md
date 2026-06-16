@@ -76,6 +76,7 @@ npm run alpha:github-release -- \
 ```
 
 Add `--execute` only after checking the generated release notes and confirming the manifest belongs to the current HEAD. The release uploads the alpha zip and manifest; it does not sign, notarize, or claim cohort readiness.
+When `--execute` succeeds, it also refreshes `docs/release-evidence/latest-alpha.json` from the same manifest and release URL so plan evidence stays attached to the published alpha. Dry-runs do not modify that evidence file.
 
 After the GitHub release is published, generate and optionally update the tracking issue from the same manifest:
 

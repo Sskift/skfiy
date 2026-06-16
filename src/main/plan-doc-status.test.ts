@@ -107,6 +107,14 @@ describe("implementation plan status docs", () => {
       expect(plan).toContain(evidence.smokeArtifacts.voice);
       expect(plan).not.toContain("skfiy-alpha-9102f9a");
       expect(plan).not.toContain(".skfiy-smoke/ui-9102f9a.json");
+
+      const alphaTags = [...plan.matchAll(/skfiy-alpha-([a-f0-9]{7})/g)]
+        .map((match) => match[0]);
+      expect(new Set(alphaTags)).toEqual(new Set([evidence.tagName]));
+
+      const smokeArtifactShas = [...plan.matchAll(/\.skfiy-smoke\/(?:ui|ghostty|chrome|finder|voice)-([a-f0-9]{7})\.json/g)]
+        .map((match) => match[1]);
+      expect(new Set(smokeArtifactShas)).toEqual(new Set([shortSha]));
     }
   });
 

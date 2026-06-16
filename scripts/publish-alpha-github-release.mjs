@@ -118,6 +118,13 @@ export async function runGitHubAlphaRelease(options, io = createDefaultIo()) {
 
   if (!options.dryRun) {
     await io.execFile(plan.command.command, plan.command.args);
+    await writeLatestAlphaEvidence({
+      manifest,
+      manifestPath: options.manifestPath,
+      releaseUrl: plan.releaseUrl,
+      rootDir: options.rootDir ?? DEFAULT_ROOT_DIR,
+      publishedAt: typeof options.now === "function" ? options.now() : new Date().toISOString()
+    }, io);
   }
 
   return report;
@@ -277,6 +284,45 @@ export function createGitHubAlphaReleaseHelpText() {
   ].join("\n");
 }
 
+export function createLatestAlphaEvidence({
+  manifest,
+  manifestPath,
+  releaseUrl,
+  rootDir = DEFAULT_ROOT_DIR,
+  publishedAt
+}) {
+  validateManifest(manifest);
+  const shortSha = manifest.commitSha.slice(0, 7);
+
+  return {
+    schemaVersion: 1,
+    appName: manifest.appName,
+    tagName: `skfiy-alpha-${shortSha}`,
+    releaseUrl,
+    commitSha: manifest.commitSha,
+    artifactBaseName: manifest.artifactBaseName,
+    manifestPath: toRepoRelativePath(rootDir, manifestPath),
+    zipPath: toRepoRelativePath(rootDir, manifest.zip.path),
+    zipSha256: manifest.zip.sha256,
+    smokeArtifacts: {
+      ui: toRepoRelativePath(rootDir, manifest.uiSmokeArtifactPath),
+      ghostty: toRepoRelativePath(rootDir, manifest.smokeArtifactPath),
+      chrome: toRepoRelativePath(rootDir, manifest.chromeSmokeArtifactPath),
+      finder: toRepoRelativePath(rootDir, manifest.finderSmokeArtifactPath),
+      voice: toRepoRelativePath(rootDir, manifest.voiceSmokeArtifactPath)
+    },
+    dogfoodStatus: "waiting-for-dogfood",
+    publishedAt
+  };
+}
+
+async function writeLatestAlphaEvidence(input, io) {
+  const evidencePath = path.join(input.rootDir, "docs", "release-evidence", "latest-alpha.json");
+  const evidence = createLatestAlphaEvidence(input);
+  await io.mkdir(path.dirname(evidencePath), { recursive: true });
+  await io.writeText(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+}
+
 function validateOptions(options) {
   if (typeof options.manifestPath !== "string") {
     throw new Error("Missing --manifest <path>.");
@@ -307,6 +353,17 @@ function validateManifest(manifest) {
   }
   if (typeof manifest.zip?.sha256 !== "string" || manifest.zip.sha256.trim().length === 0) {
     throw new Error("alpha manifest zip.sha256 is required.");
+  }
+  for (const key of [
+    "uiSmokeArtifactPath",
+    "smokeArtifactPath",
+    "chromeSmokeArtifactPath",
+    "finderSmokeArtifactPath",
+    "voiceSmokeArtifactPath"
+  ]) {
+    if (typeof manifest[key] !== "string" || manifest[key].trim().length === 0) {
+      throw new Error(`alpha manifest ${key} is required.`);
+    }
   }
 }
 
@@ -350,6 +407,17 @@ function redactPlan(plan) {
     uploadAssets: plan.uploadAssets,
     command: plan.command
   };
+}
+
+function toRepoRelativePath(rootDir, filePath) {
+  const relativePath = path.relative(rootDir, filePath);
+  return relativePath.startsWith(".")
+    ? normalizePath(relativePath)
+    : normalizePath(path.join(".", relativePath));
+}
+
+function normalizePath(filePath) {
+  return filePath.split(path.sep).join("/");
 }
 
 function readValue(argv, index, arg) {
