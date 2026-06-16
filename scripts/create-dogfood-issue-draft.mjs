@@ -340,6 +340,10 @@ function createDogfoodIssueBody({
     "",
     String(summary.runnerHasTmux),
     "",
+    "### app bundle preflight",
+    "",
+    createAppBundlePreflightEvidence(smokeArtifacts),
+    "",
     "### Screen Recording",
     "",
     permissionStates.screenRecording,
@@ -540,6 +544,19 @@ function createAppPolicyEvidence(smokeArtifacts) {
   }
 
   return entries.map((entry) => JSON.stringify(entry)).join("\n");
+}
+
+function createAppBundlePreflightEvidence(smokeArtifacts) {
+  const appArtifact = smokeArtifacts.ui ?? smokeArtifacts.ghostty ?? smokeArtifacts.chrome
+    ?? smokeArtifacts.finder ?? smokeArtifacts.voice;
+
+  return [
+    `appPath: ${readFirstString([appArtifact?.appPath], "not available")}`,
+    `launch: ${readFirstString([appArtifact?.launch], "not available")}`,
+    `appLaunchViaOpen: ${String(appArtifact?.appLaunchViaOpen === true)}`,
+    `runnerHasTmux: ${String(appArtifact?.runnerHasTmux === true)}`,
+    `productPath: ${readFirstString([appArtifact?.productPath], "not available")}`
+  ].join("\n");
 }
 
 function createChromeEvidence(chromeArtifact) {

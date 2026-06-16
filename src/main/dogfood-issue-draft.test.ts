@@ -88,6 +88,8 @@ describe("dogfood issue draft generator", () => {
     const io = createMemoryIo({
       [manifestPath]: createManifest(),
       [uiSmokePath]: createSmoke(uiSmokePath, "passed", {
+        appPath: "/repo/dist/skfiy.app",
+        productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         permissionStates: {
           screenRecording: { state: "granted" },
           accessibility: { state: "granted" },
@@ -183,6 +185,11 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain(voiceSmokePath);
     expect(body).toContain("### runnerHasTmux");
     expect(body).toContain("false");
+    expect(body).toContain("### app bundle preflight");
+    expect(body).toContain("appPath: /repo/dist/skfiy.app");
+    expect(body).toContain("appLaunchViaOpen: true");
+    expect(body).toContain("runnerHasTmux: false");
+    expect(body).toContain("productPath: LaunchServices -> renderer DOM -> React permission onboarding");
     expect(body).toContain("### Screen Recording");
     expect(body).toContain("granted");
     expect(body).toContain("### ASR provider");

@@ -119,6 +119,20 @@ body:
     validations:
       required: true
 
+  - type: textarea
+    id: app_bundle_preflight
+    attributes:
+      label: app bundle preflight
+      description: Copy this from the generated dogfood issue body or selected smoke artifact. It proves the lowercase skfiy.app bundle was the launched product path.
+      placeholder: |
+        appPath: /absolute/path/to/skfiy.app
+        launch: open -na /absolute/path/to/skfiy.app ...
+        appLaunchViaOpen: true
+        runnerHasTmux: false
+        productPath: LaunchServices -> renderer DOM -> React permission onboarding
+    validations:
+      required: true
+
   - type: dropdown
     id: screen_recording
     attributes:
