@@ -137,6 +137,14 @@ npm run smoke:finder -- --current-folder --require-passed --output .skfiy-smoke/
 
 This opens the temporary fixture folder in Finder, sends `整理 Finder 当前文件夹`, and requires `finderSemanticObservation.targetPath` to match `fixtureRoot` before the result can be classified as `passed`. Without Screen Recording, Accessibility, or Automation permission, the expected evidence remains `blocked`.
 
+To prove a selected Finder folder target, run:
+
+```bash
+npm run smoke:finder -- --selected-folder --require-passed --output .skfiy-smoke/finder-selected-folder.json
+```
+
+This reveals and selects the temporary fixture folder in Finder, sends `整理 Finder 选中文件夹`, and requires `finderSemanticObservation.selectedItems` to include the fixture directory before the result can be classified as `passed`.
+
 For a low-level native speech readiness check after building the helper:
 
 ```bash

@@ -61,13 +61,16 @@ async function main() {
       scriptName: "smoke:finder"
     });
     evidence.fixtureRoot = await createFinderFixture();
-    evidence.command = options.targetMode === "current-finder-folder"
-      ? "整理 Finder 当前文件夹"
-      : `整理 Finder 测试文件夹 ${evidence.fixtureRoot}`;
+    evidence.command = readFinderSmokeCommand(options.targetMode, evidence.fixtureRoot);
     evidence.beforeTree = await readDirectoryTree(evidence.fixtureRoot);
 
     if (options.targetMode === "current-finder-folder") {
       await openFinderFolder(evidence.fixtureRoot);
+      await sleep(700);
+    }
+
+    if (options.targetMode === "selected-finder-folder") {
+      await selectFinderFolder(evidence.fixtureRoot);
       await sleep(700);
     }
 
@@ -232,6 +235,22 @@ async function launchSkfiy(options) {
 
 async function openFinderFolder(folderPath) {
   await execFileAsync("open", [folderPath]);
+}
+
+async function selectFinderFolder(folderPath) {
+  await execFileAsync("open", ["-R", folderPath]);
+}
+
+function readFinderSmokeCommand(targetMode, fixtureRoot) {
+  if (targetMode === "current-finder-folder") {
+    return "整理 Finder 当前文件夹";
+  }
+
+  if (targetMode === "selected-finder-folder") {
+    return "整理 Finder 选中文件夹";
+  }
+
+  return `整理 Finder 测试文件夹 ${fixtureRoot}`;
 }
 
 async function waitForRendererPage(port, timeoutMs) {

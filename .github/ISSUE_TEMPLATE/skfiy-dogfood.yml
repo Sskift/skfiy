@@ -246,15 +246,17 @@ body:
     id: finder_semantic_selection
     attributes:
       label: Finder semantic selection
-      description: Paste Finder `finderSemanticObservation` from the smoke artifact, including source/frontmost bundle/selected count when passed or the permission-blocked reason. For `--current-folder` runs, include `targetMode`, `fixtureRoot`, and the semantic `targetPath`.
+      description: Paste Finder `finderSemanticObservation` from the smoke artifact, including source/frontmost bundle/selected count when passed or the permission-blocked reason. For `--current-folder` runs, include `targetPath`; for `--selected-folder` runs, include the selected directory item.
       placeholder: |
-        targetMode: current-finder-folder
+        targetMode: selected-finder-folder
         fixtureRoot: /tmp/skfiy-finder-smoke
         finderSemanticObservation.result: passed
         finderSemanticObservation.source: finder-applescript
         finderSemanticObservation.frontmostBundleId: com.apple.finder
-        finderSemanticObservation.targetPath: /tmp/skfiy-finder-smoke
+        finderSemanticObservation.targetPath: /tmp
         finderSemanticObservation.selectedCount: 1
+        finderSemanticObservation.selectedItems[0].path: /tmp/skfiy-finder-smoke
+        finderSemanticObservation.selectedItems[0].kind: directory
     validations:
       required: true
 

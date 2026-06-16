@@ -4,7 +4,11 @@ export const DEFAULT_PORT = 9244;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
 export const PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
-export const FINDER_TARGET_MODES = new Set(["explicit-path", "current-finder-folder"]);
+export const FINDER_TARGET_MODES = new Set([
+  "explicit-path",
+  "current-finder-folder",
+  "selected-finder-folder"
+]);
 export const EXPECTED_AFTER_TREE = [
   "Code/script.ts",
   "Documents/notes.pdf",
@@ -61,6 +65,9 @@ export function parseFinderSmokeArgs(argv, defaults) {
       case "--current-folder":
         options.targetMode = "current-finder-folder";
         break;
+      case "--selected-folder":
+        options.targetMode = "selected-finder-folder";
+        break;
       case "--output":
         options.outputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
@@ -90,6 +97,7 @@ Options:
   --output <path>       Persist smoke evidence JSON.
   --require-passed      Exit non-zero unless the smoke result is passed.
   --current-folder      Open the fixture in Finder and run "整理 Finder 当前文件夹".
+  --selected-folder     Select the fixture in Finder and run "整理 Finder 选中文件夹".
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   -h, --help            Show this help.
@@ -183,6 +191,16 @@ function hasPassedFinderSemanticObservation(finderSemanticObservation, options =
   if (options.targetMode === "current-finder-folder") {
     return typeof options.fixtureRoot === "string"
       && path.resolve(finderSemanticObservation.targetPath ?? "") === path.resolve(options.fixtureRoot);
+  }
+
+  if (options.targetMode === "selected-finder-folder") {
+    return typeof options.fixtureRoot === "string"
+      && Array.isArray(finderSemanticObservation.selectedItems)
+      && finderSemanticObservation.selectedItems.some((item) => (
+        item?.kind === "directory"
+        && typeof item.path === "string"
+        && path.resolve(item.path) === path.resolve(options.fixtureRoot)
+      ));
   }
 
   return true;

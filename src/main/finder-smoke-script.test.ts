@@ -20,7 +20,9 @@ describe("Finder product smoke script", () => {
     expect(source).toContain("window.skfiy.approveTask()");
     expect(source).toContain("window.skfiy.getAppPolicySettings()");
     expect(source).toContain("整理 Finder 当前文件夹");
+    expect(source).toContain("整理 Finder 选中文件夹");
     expect(source).toContain("openFinderFolder");
+    expect(source).toContain("selectFinderFolder");
   });
 
   it("defines a Finder product path and output option", async () => {
@@ -56,6 +58,12 @@ describe("Finder product smoke script", () => {
       createDefaultFinderSmokeOptions("/repo")
     )).toMatchObject({
       targetMode: "current-finder-folder"
+    });
+    expect(parseFinderSmokeArgs(
+      ["--selected-folder"],
+      createDefaultFinderSmokeOptions("/repo")
+    )).toMatchObject({
+      targetMode: "selected-finder-folder"
     });
     expect(createHelpText(createDefaultFinderSmokeOptions("/repo"))).toContain("smoke:finder");
   });
@@ -141,6 +149,71 @@ describe("Finder product smoke script", () => {
         frontmostBundleId: "com.apple.finder",
         targetPath: "/tmp/other-folder",
         selectedCount: 0
+      }
+    })).toBe("failed");
+  });
+
+  it("classifies a selected Finder folder organization only when semantic selection contains the fixture directory", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    const baseEvidence = {
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      targetMode: "selected-finder-folder",
+      fixtureRoot: "/tmp/skfiy-finder-smoke",
+      finderObservation: {
+        result: "passed",
+        screenshotPath: "/tmp/skfiy/finder-before.png",
+        frontmostBundleId: "com.apple.finder",
+        windowCount: 1
+      },
+      events: [{ status: "completed", message: "Finder test folder organized." }],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      ...baseEvidence,
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        targetPath: "/tmp",
+        selectedCount: 1,
+        selectedItems: [
+          {
+            path: "/tmp/skfiy-finder-smoke",
+            name: "skfiy-finder-smoke",
+            kind: "directory"
+          }
+        ]
+      }
+    })).toBe("passed");
+
+    expect(classifyFinderSmokeEvidence({
+      ...baseEvidence,
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        targetPath: "/tmp",
+        selectedCount: 1,
+        selectedItems: [
+          {
+            path: "/tmp/other-folder",
+            name: "other-folder",
+            kind: "directory"
+          }
+        ]
       }
     })).toBe("failed");
   });

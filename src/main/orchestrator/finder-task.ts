@@ -13,7 +13,9 @@ const FINDER_APP_NAME = "Finder";
 const FINDER_BUNDLE_ID = "com.apple.finder";
 const FINDER_ORGANIZE_PREFIX = "整理 Finder 测试文件夹 ";
 const FINDER_ORGANIZE_CURRENT_FOLDER = "整理 Finder 当前文件夹";
+const FINDER_ORGANIZE_SELECTED_FOLDER = "整理 Finder 选中文件夹";
 const FINDER_CURRENT_FOLDER_COMMAND = "Finder current folder";
+const FINDER_SELECTED_FOLDER_COMMAND = "Finder selected folder";
 
 const FINDER_ORGANIZATION_RISK: RiskDecision = {
   level: "medium",
@@ -23,7 +25,8 @@ const FINDER_ORGANIZATION_RISK: RiskDecision = {
 
 type FinderOrganizationTarget =
   | { kind: "absolute_path"; rootPath: string }
-  | { kind: "current_finder_folder" };
+  | { kind: "current_finder_folder" }
+  | { kind: "selected_finder_folder" };
 
 type FinderObservationOutcome =
   | { ok: true; selection?: FinderSelectionResult }
@@ -120,7 +123,7 @@ export async function* runFinderOrganizationTask(
 
   let rootPath: string;
 
-  if (parsed.target.kind === "current_finder_folder") {
+  if (parsed.target.kind === "current_finder_folder" || parsed.target.kind === "selected_finder_folder") {
     yield {
       type: "locating_app",
       appName: FINDER_APP_NAME
@@ -131,17 +134,17 @@ export async function* runFinderOrganizationTask(
       return;
     }
 
-    const currentFolder = resolveCurrentFinderFolder(observation.selection);
-    if (!currentFolder.ok) {
+    const semanticFolder = resolveSemanticFinderFolder(parsed.target.kind, observation.selection);
+    if (!semanticFolder.ok) {
       yield {
         type: "verification_failed",
         stage: "selection",
-        reason: currentFolder.reason
+        reason: semanticFolder.reason
       };
       return;
     }
 
-    rootPath = currentFolder.rootPath;
+    rootPath = semanticFolder.rootPath;
   } else {
     rootPath = parsed.target.rootPath;
   }
@@ -358,10 +361,18 @@ export function parseFinderOrganizationIntent(input: string):
     };
   }
 
+  if (trimmed === FINDER_ORGANIZE_SELECTED_FOLDER) {
+    return {
+      ok: true,
+      command: FINDER_SELECTED_FOLDER_COMMAND,
+      target: { kind: "selected_finder_folder" }
+    };
+  }
+
   if (!trimmed.startsWith(FINDER_ORGANIZE_PREFIX)) {
     return {
       ok: false,
-      reason: "Finder organization requires: 整理 Finder 测试文件夹 <absolute-path> or 整理 Finder 当前文件夹"
+      reason: "Finder organization requires: 整理 Finder 测试文件夹 <absolute-path>, 整理 Finder 当前文件夹, or 整理 Finder 选中文件夹"
     };
   }
 
@@ -383,6 +394,39 @@ export function parseFinderOrganizationIntent(input: string):
   };
 }
 
+function resolveSemanticFinderFolder(
+  kind: "current_finder_folder" | "selected_finder_folder",
+  selection: FinderSelectionResult | undefined
+):
+  | { ok: true; rootPath: string }
+  | { ok: false; reason: string } {
+  if (kind === "current_finder_folder") {
+    return resolveCurrentFinderFolder(selection);
+  }
+
+  return resolveSelectedFinderFolder(selection);
+}
+
+function resolveSelectedFinderFolder(selection: FinderSelectionResult | undefined):
+  | { ok: true; rootPath: string }
+  | { ok: false; reason: string } {
+  const selectedFolders = selection?.selection
+    .filter((item) => item.kind === "directory" && path.isAbsolute(item.path))
+    ?? [];
+
+  if (selectedFolders.length === 1) {
+    return {
+      ok: true,
+      rootPath: path.resolve(selectedFolders[0].path)
+    };
+  }
+
+  return {
+    ok: false,
+    reason: "Finder selected-folder organization needs exactly one selected folder."
+  };
+}
+
 function resolveCurrentFinderFolder(selection: FinderSelectionResult | undefined):
   | { ok: true; rootPath: string }
   | { ok: false; reason: string } {
@@ -393,15 +437,10 @@ function resolveCurrentFinderFolder(selection: FinderSelectionResult | undefined
     };
   }
 
-  const selectedFolders = selection?.selection
-    .filter((item) => item.kind === "directory" && path.isAbsolute(item.path))
-    ?? [];
+  const selectedFolder = resolveSelectedFinderFolder(selection);
 
-  if (selectedFolders.length === 1) {
-    return {
-      ok: true,
-      rootPath: path.resolve(selectedFolders[0].path)
-    };
+  if (selectedFolder.ok) {
+    return selectedFolder;
   }
 
   return {

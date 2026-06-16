@@ -623,6 +623,12 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   );
   check(
     checks,
+    "finder.selectedFolderTarget",
+    hasSelectedFinderFolderTargetEvidence(artifact),
+    "Finder selected-folder smoke must prove semantic selectedItems contains the prepared fixture root"
+  );
+  check(
+    checks,
     "finder.actionVerification",
     hasFinderOrganizationActionVerification(artifact.events),
     "Finder smoke must include create_folder and move_file verification events"
@@ -964,6 +970,24 @@ function hasCurrentFinderFolderTargetEvidence(artifact) {
   return typeof artifact.fixtureRoot === "string"
     && typeof artifact.finderSemanticObservation?.targetPath === "string"
     && path.resolve(artifact.finderSemanticObservation.targetPath) === path.resolve(artifact.fixtureRoot);
+}
+
+function hasSelectedFinderFolderTargetEvidence(artifact) {
+  if (artifact?.targetMode !== "selected-finder-folder") {
+    return true;
+  }
+
+  if (artifact.result === "blocked") {
+    return true;
+  }
+
+  return typeof artifact.fixtureRoot === "string"
+    && Array.isArray(artifact.finderSemanticObservation?.selectedItems)
+    && artifact.finderSemanticObservation.selectedItems.some((item) => (
+      item?.kind === "directory"
+      && typeof item.path === "string"
+      && path.resolve(item.path) === path.resolve(artifact.fixtureRoot)
+    ));
 }
 
 function hasPermissionBlockedFinderObservation(value) {

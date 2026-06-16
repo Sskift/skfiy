@@ -186,6 +186,14 @@ npm run smoke:finder -- --current-folder --require-passed --output .skfiy-smoke/
 
 This mode opens the fixture folder in Finder, sends `整理 Finder 当前文件夹`, and only passes when `finderSemanticObservation.targetPath` resolves to the same path as `fixtureRoot`. Permission-blocked runs should remain blocked with the concrete Screen Recording, Accessibility, or Automation reason.
 
+To verify selected Finder folder grounding, run:
+
+```bash
+npm run smoke:finder -- --selected-folder --require-passed --output .skfiy-smoke/finder-selected-folder.json
+```
+
+This mode reveals and selects the fixture folder in Finder, sends `整理 Finder 选中文件夹`, and only passes when `finderSemanticObservation.selectedItems` contains the fixture directory. Permission-blocked runs should remain blocked with the concrete Screen Recording, Accessibility, or Automation reason.
+
 ### Native Voice Smoke
 
 Use the packaged app path and record provider, permission, transcript, and stop evidence:
