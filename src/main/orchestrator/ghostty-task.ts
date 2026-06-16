@@ -31,6 +31,17 @@ const SKFIY_GHOSTTY_INIT_COMMAND = [
 const SESSION_INIT_SETTLE_WAIT_MS = 90;
 const TYPE_SETTLE_WAIT_MS = 90;
 const SUBMIT_SETTLE_WAIT_MS = 300;
+const SENSITIVE_GHOSTTY_TITLE_PATTERNS = [/password/i, /keychain/i];
+const SENSITIVE_GHOSTTY_TEXT_PATTERNS = [
+  /password/i,
+  /passphrase/i,
+  /api\s+token/i,
+  /access\s+token/i,
+  /private\s+key/i,
+  /secret/i,
+  /credential/i,
+  /recovery\s+key/i
+];
 let completionMarkerSerial = 0;
 
 export interface DesktopApp {
@@ -178,12 +189,7 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  const beforeRecovery = decideAppRecovery(before, {
-    bundleId: GHOSTTY_BUNDLE_ID,
-    pid: session.pid,
-    marker: SKFIY_GHOSTTY_SESSION_MARKER,
-    sensitiveTitlePatterns: [/password/i, /keychain/i]
-  });
+  const beforeRecovery = decideAppRecovery(before, createGhosttyRecoveryTarget(session.pid));
   if (beforeRecovery.type === "recover") {
     yield {
       type: "recovery_attempted",
@@ -264,6 +270,16 @@ export async function* runGhosttyCommandTask(
       path: before.screenshotPath,
       observation: before
     };
+
+    const postRecovery = decideAppRecovery(before, createGhosttyRecoveryTarget(session.pid));
+    if (postRecovery.type !== "continue") {
+      yield {
+        type: "verification_failed",
+        stage: "before",
+        reason: postRecovery.reason
+      };
+      return;
+    }
   } else if (beforeRecovery.type !== "continue") {
     yield {
       type: "verification_failed",
@@ -628,6 +644,16 @@ function isDesktopAppState(result: DesktopActionResult): result is DesktopAppSta
     && "isActive" in result
     && "screenshotPath" in result
   );
+}
+
+function createGhosttyRecoveryTarget(pid: number | undefined) {
+  return {
+    bundleId: GHOSTTY_BUNDLE_ID,
+    pid,
+    marker: SKFIY_GHOSTTY_SESSION_MARKER,
+    sensitiveTitlePatterns: SENSITIVE_GHOSTTY_TITLE_PATTERNS,
+    sensitiveTextPatterns: SENSITIVE_GHOSTTY_TEXT_PATTERNS
+  };
 }
 
 function createScreenshotPath(stage: "before" | "after", options: GhosttyTaskOptions): string {

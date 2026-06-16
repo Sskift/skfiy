@@ -41,7 +41,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
    The helper can activate Ghostty, screenshot, type, and press keys, but it typed `pwd` into a Codex TUI during real testing. The agent needs a clean shell/session strategy and state detection before any command execution.
 
 4. **Computer Use core is still short of a full agent loop.**
-   We have actions, screenshots, risk classification, OCR grounding, action verification, replay logs, and an initial app policy, but still need broader app adapters, sensitive-screen handling, credential rules, richer recovery, and real dogfood passes after permissions are granted.
+   We have actions, screenshots, risk classification, OCR grounding, action verification, replay logs, an initial app policy, and Ghostty sensitive-screen pauses, but still need broader app adapters, cross-app sensitive-screen handling, credential rules, richer recovery, and real dogfood passes after permissions are granted.
 
 5. **The pet UI is not yet a trustworthy control surface.**
    It has improved from a window to a pet, but it still lacks strong affordances for listening/thinking/acting/needs-approval, durable drag behavior across spaces/screens, and a permission/status center that users can understand.
@@ -282,6 +282,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - Ghostty before-observe now performs one-shot open recovery by creating a fresh `skfiy-shell`, reinitializing the marker, and reobserving before typing
   - [x] if duplicate target, ask user
   - [x] if sensitive UI appears, pause
+    - Ghostty recovery now checks both sensitive window titles and OCR text such as passwords, API tokens, access tokens, private keys, secrets, credentials, and recovery keys before typing; it repeats the sensitive check after a one-shot activate/open recovery before any user command is entered
 - Add Chrome proof of concept:
   - [x] prefer CDP/extension-like structured control
     - CDP mode selection plus navigate, click-selector, and extract-text command builders exist

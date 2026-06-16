@@ -93,4 +93,22 @@ describe("decideAppRecovery", () => {
       reason: "Sensitive UI is visible."
     });
   });
+
+  it("pauses when OCR labels reveal sensitive UI content", () => {
+    expect(decideAppRecovery(createState({
+      ocrLabels: [
+        {
+          text: "Enter API token",
+          confidence: 0.91,
+          bounds: { x: 40, y: 180, width: 220, height: 24 }
+        }
+      ]
+    }), {
+      ...TARGET,
+      sensitiveTextPatterns: [/api token/i]
+    })).toEqual({
+      type: "pause",
+      reason: "Sensitive UI text is visible."
+    });
+  });
 });

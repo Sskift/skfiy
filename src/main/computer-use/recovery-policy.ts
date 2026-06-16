@@ -1,4 +1,4 @@
-import type { DesktopAppState, DesktopWindowInfo } from "./types.js";
+import type { DesktopAppState, DesktopWindowInfo, OcrLabelObservation } from "./types.js";
 
 export type AppRecoveryDecision =
   | { type: "continue" }
@@ -11,6 +11,7 @@ export interface AppRecoveryTarget {
   pid?: number;
   marker?: string;
   sensitiveTitlePatterns?: RegExp[];
+  sensitiveTextPatterns?: RegExp[];
 }
 
 export function decideAppRecovery(
@@ -23,6 +24,13 @@ export function decideAppRecovery(
     return {
       type: "pause",
       reason: "Sensitive UI is visible."
+    };
+  }
+
+  if (hasSensitiveText(observation.ocrLabels ?? [], target.sensitiveTextPatterns ?? [])) {
+    return {
+      type: "pause",
+      reason: "Sensitive UI text is visible."
     };
   }
 
@@ -64,6 +72,15 @@ function hasSensitiveWindow(
     const title = window.title ?? "";
     return patterns.some((pattern) => pattern.test(title));
   });
+}
+
+function hasSensitiveText(
+  labels: readonly OcrLabelObservation[],
+  patterns: readonly RegExp[]
+): boolean {
+  return labels.some((label) =>
+    patterns.some((pattern) => pattern.test(label.text))
+  );
 }
 
 function countMarkedWindows(

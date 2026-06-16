@@ -337,6 +337,113 @@ describe("runGhosttyCommandTask", () => {
     });
   });
 
+  it("pauses before typing when OCR reveals sensitive terminal content", async () => {
+    const client = createDesktopClient();
+    client.ocrImage.mockImplementation(async (inputPath: string) => ({
+      labels: inputPath.includes("before")
+        ? [{
+            text: "Enter API token",
+            confidence: 0.91,
+            bounds: { x: 36, y: 160, width: 180, height: 18 }
+          }]
+        : []
+    }));
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "locating_app",
+      "session_opened",
+      "app_activated",
+      "session_initialized",
+      "screenshot_before",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "before",
+      reason: "Sensitive UI text is visible."
+    });
+    expect(client.executeAction).not.toHaveBeenCalledWith({
+      type: "type_text",
+      text: expect.stringMatching(/^pwd; printf/)
+    });
+  });
+
+  it("rechecks sensitive OCR content after recovering the target app", async () => {
+    const client = createDesktopClient();
+    let observeCount = 0;
+    client.executeAction.mockImplementation(async (action: DesktopExecutableAction): Promise<DesktopActionResult> => {
+      if (action.type === "open_ghostty_session") {
+        return {
+          bundleId: "com.mitchellh.ghostty",
+          title: "skfiy-shell",
+          pid: 54502,
+          opened: true
+        };
+      }
+
+      if (action.type === "observe_app") {
+        observeCount += 1;
+        return {
+          bundleId: action.bundleId,
+          pid: action.pid,
+          isRunning: true,
+          isActive: observeCount > 1,
+          screenshotPath: action.screenshotOutputPath,
+          frontmostBundleId: observeCount > 1 ? "com.mitchellh.ghostty" : "com.apple.finder",
+          accessibilityTrusted: true,
+          windows: [
+            {
+              title: "skfiy-shell",
+              layer: 0,
+              bounds: { x: 10, y: 20, width: 640, height: 480 }
+            }
+          ]
+        };
+      }
+
+      return { ok: true };
+    });
+    client.ocrImage.mockImplementation(async () => ({
+      labels: observeCount > 1
+        ? [{
+            text: "Private key passphrase",
+            confidence: 0.91,
+            bounds: { x: 36, y: 160, width: 220, height: 18 }
+          }]
+        : []
+    }));
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "locating_app",
+      "session_opened",
+      "app_activated",
+      "session_initialized",
+      "screenshot_before",
+      "recovery_attempted",
+      "screenshot_before",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "before",
+      reason: "Sensitive UI text is visible."
+    });
+    expect(client.executeAction).not.toHaveBeenCalledWith({
+      type: "type_text",
+      text: expect.stringMatching(/^pwd; printf/)
+    });
+  });
+
   it("blocks unrecognized natural language before opening Ghostty", async () => {
     const client = createDesktopClient();
 
