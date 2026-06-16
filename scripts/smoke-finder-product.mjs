@@ -47,6 +47,7 @@ async function main() {
     finderObservation: undefined,
     finderSemanticObservation: undefined,
     finderDragProbe: undefined,
+    finderItemDragDrop: undefined,
     permissions: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
@@ -65,7 +66,11 @@ async function main() {
     evidence.command = readFinderSmokeCommand(options.targetMode, evidence.fixtureRoot);
     evidence.beforeTree = await readDirectoryTree(evidence.fixtureRoot);
 
-    if (options.targetMode === "current-finder-folder" || options.targetMode === "drag-probe") {
+    if (
+      options.targetMode === "current-finder-folder"
+      || options.targetMode === "drag-probe"
+      || options.targetMode === "item-drag-drop"
+    ) {
       await openFinderFolder(evidence.fixtureRoot);
       await sleep(700);
     }
@@ -145,6 +150,11 @@ async function main() {
         evidence.finderObservation
       );
       evidence.finderDragProbe = readFinderDragProbe(cdp.events, evidence.finderObservation);
+      evidence.finderItemDragDrop = readFinderItemDragDrop(
+        cdp.events,
+        evidence.finderObservation,
+        evidence.fixtureRoot
+      );
       evidence.afterTree = await readDirectoryTree(evidence.fixtureRoot);
       evidence.result = classifyFinderSmokeEvidence(evidence);
     } finally {
@@ -254,6 +264,10 @@ function readFinderSmokeCommand(targetMode, fixtureRoot) {
 
   if (targetMode === "drag-probe") {
     return `探测 Finder 拖拽测试文件夹 ${fixtureRoot}`;
+  }
+
+  if (targetMode === "item-drag-drop") {
+    return `拖放 Finder 测试文件夹 ${fixtureRoot}`;
   }
 
   return `整理 Finder 测试文件夹 ${fixtureRoot}`;
@@ -493,6 +507,52 @@ function readFinderDragProbe(events, finderObservation) {
     return {
       result: "blocked",
       reason: `Skipped Finder drag probe because Finder observe_app was blocked: ${finderObservation.reason}`
+    };
+  }
+
+  return {
+    result: "missing"
+  };
+}
+
+function readFinderItemDragDrop(events, finderObservation, fixtureRoot) {
+  const passedEvent = events.find((event) => (
+    typeof event?.message === "string"
+    && event.message.startsWith("Verified item_drag_drop:")
+  ));
+
+  if (passedEvent) {
+    return {
+      result: "passed",
+      source: "finder-applescript-layout+hid-drag",
+      frontmostBundleId: "com.apple.finder",
+      folderPath: fixtureRoot,
+      movedItem: "photo.png",
+      targetItem: "Images",
+      message: passedEvent.message
+    };
+  }
+
+  const blockedEvent = events.find((event) => (
+    typeof event?.message === "string"
+    && (
+      event.message.includes("Verification failed (layout):")
+      || event.message.includes("Verification failed (drag):")
+    )
+    && isPermissionBlockedMessage(event.message)
+  ));
+
+  if (blockedEvent) {
+    return {
+      result: "blocked",
+      reason: blockedEvent.message
+    };
+  }
+
+  if (finderObservation?.result === "blocked") {
+    return {
+      result: "blocked",
+      reason: `Skipped Finder item drag/drop because Finder observe_app was blocked: ${finderObservation.reason}`
     };
   }
 

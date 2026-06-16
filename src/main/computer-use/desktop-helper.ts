@@ -12,6 +12,8 @@ import type {
   DesktopHelperProcessResult,
   DesktopPoint,
   DesktopWindowInfo,
+  FinderItemLayoutItem,
+  FinderItemLayoutResult,
   NativeSpeechTranscriptionOptions,
   NativeSpeechTranscriptionResult,
   OpenGhosttySessionResult,
@@ -117,6 +119,25 @@ export class DesktopHelperClient {
       "get-finder-selection",
       ["get-finder-selection"],
       readFinderSelectionResult
+    );
+  }
+
+  async getFinderItemLayout(
+    folderPath: string,
+    itemNames: readonly string[]
+  ): Promise<FinderItemLayoutResult> {
+    const checkedFolderPath = requireNonEmptyString(folderPath, "folderPath");
+    const checkedItemNames = requireFinderItemNames(itemNames);
+    return this.runJson(
+      "get-finder-item-layout",
+      [
+        "get-finder-item-layout",
+        "--folder",
+        checkedFolderPath,
+        "--items",
+        checkedItemNames.join(",")
+      ],
+      readFinderItemLayoutResult
     );
   }
 
@@ -689,6 +710,66 @@ function readFinderSelectionItem(
   };
 }
 
+function readFinderItemLayoutResult(
+  payload: unknown,
+  commandName: string
+): FinderItemLayoutResult {
+  const record = readRecord(payload, commandName);
+  const source = readString(record, "source", commandName);
+
+  if (source !== "finder-applescript-layout") {
+    throw invalidShape(commandName, `expected known Finder item layout source, got ${source}`);
+  }
+
+  const items = record.items;
+  if (!Array.isArray(items)) {
+    throw invalidShape(commandName, "expected items to be an array");
+  }
+
+  const result: FinderItemLayoutResult = {
+    source,
+    folderPath: readString(record, "folderPath", commandName),
+    items: items.map((item) => readFinderItemLayoutItem(item, commandName))
+  };
+  const frontmostBundleId = readOptionalString(record, "frontmostBundleId", commandName);
+
+  if (frontmostBundleId !== undefined) {
+    result.frontmostBundleId = frontmostBundleId;
+  }
+
+  return result;
+}
+
+function readFinderItemLayoutItem(
+  payload: unknown,
+  commandName: string
+): FinderItemLayoutItem {
+  const record = readRecord(payload, commandName);
+  const kind = readString(record, "kind", commandName);
+  const center = readRecord(record.center, commandName);
+  const bounds = readRecord(record.bounds, commandName);
+
+  if (!isFinderSelectionItemKind(kind)) {
+    throw invalidShape(commandName, `expected known Finder item kind, got ${kind}`);
+  }
+
+  return {
+    path: readString(record, "path", commandName),
+    name: readString(record, "name", commandName),
+    kind,
+    center: {
+      x: readNumber(center, "x", commandName),
+      y: readNumber(center, "y", commandName)
+    },
+    bounds: {
+      x: readNumber(bounds, "x", commandName),
+      y: readNumber(bounds, "y", commandName),
+      width: readNumber(bounds, "width", commandName),
+      height: readNumber(bounds, "height", commandName)
+    }
+  };
+}
+
 function isFinderSelectionItemKind(value: string): value is FinderSelectionItemKind {
   return value === "file" || value === "directory" || value === "other";
 }
@@ -757,6 +838,17 @@ function requireNonEmptyStringArray(
   }
 
   return value.map((item) => requireNonEmptyString(item, itemLabel));
+}
+
+function requireFinderItemNames(value: readonly string[]): string[] {
+  const names = requireNonEmptyStringArray(value, "itemNames", "item name");
+  const invalidName = names.find((name) => name.includes(","));
+
+  if (invalidName !== undefined) {
+    throw new Error(`Finder item names cannot include commas: ${invalidName}`);
+  }
+
+  return names;
 }
 
 function requireFiniteNumber(value: unknown, label: string): number {

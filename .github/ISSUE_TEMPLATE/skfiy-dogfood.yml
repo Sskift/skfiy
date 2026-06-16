@@ -69,7 +69,7 @@ body:
     attributes:
       label: Finder smoke artifact
       description: Path or attachment name for `npm run smoke:finder -- --output <path>` JSON evidence.
-      placeholder: .skfiy-smoke/finder-drag-probe.json
+      placeholder: .skfiy-smoke/finder-item-drag-drop.json
     validations:
       required: true
 
@@ -264,13 +264,15 @@ body:
     id: finder_organization
     attributes:
       label: Finder before tree / after tree
-      description: Paste Finder smoke beforeTree, afterTree, drag probe evidence, and create/move verification events.
+      description: Paste Finder smoke beforeTree, afterTree, item drag/drop evidence, and create/move verification events.
       placeholder: |
         beforeTree: notes.pdf, photo.png, script.ts
         afterTree: Documents/notes.pdf, Images/photo.png, Code/script.ts
-        finderDragProbe.result: passed
-        finderDragProbe.source: finder-hid-drag
-        Verified drag: Finder drag probe from ...
+        finderItemDragDrop.result: passed
+        finderItemDragDrop.source: finder-applescript-layout+hid-drag
+        finderItemDragDrop.movedItem: photo.png
+        finderItemDragDrop.targetItem: Images
+        Verified item_drag_drop: Dragged Finder item: ...
         Verified create_folder: Created folder: ...
         Verified move_file: Moved file: ...
     validations:
@@ -309,9 +311,9 @@ body:
         npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
         npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
         npm run smoke:chrome -- --require-passed --output .skfiy-smoke/chrome-page.json
-        npm run smoke:finder -- --drag-probe --require-passed --output .skfiy-smoke/finder-drag-probe.json
+        npm run smoke:finder -- --item-drag-drop --require-passed --output .skfiy-smoke/finder-item-drag-drop.json
         npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
-        npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json --smoke-artifact .skfiy-smoke/ghostty-matrix.json --chrome-smoke-artifact .skfiy-smoke/chrome-page.json --finder-smoke-artifact .skfiy-smoke/finder-drag-probe.json --voice-smoke-artifact .skfiy-smoke/voice-native.json
+        npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json --smoke-artifact .skfiy-smoke/ghostty-matrix.json --chrome-smoke-artifact .skfiy-smoke/chrome-page.json --finder-smoke-artifact .skfiy-smoke/finder-item-drag-drop.json --voice-smoke-artifact .skfiy-smoke/voice-native.json
     validations:
       required: true
 

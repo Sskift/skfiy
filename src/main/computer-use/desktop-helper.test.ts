@@ -459,6 +459,77 @@ describe("DesktopHelperClient", () => {
     ]);
   });
 
+  it("reads Finder item layout coordinates from the helper", async () => {
+    const { calls, client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "get-finder-item-layout",
+          data: {
+            source: "finder-applescript-layout",
+            frontmostBundleId: "com.apple.finder",
+            folderPath: "/tmp/skfiy-finder-smoke",
+            items: [
+              {
+                path: "/tmp/skfiy-finder-smoke/photo.png",
+                name: "photo.png",
+                kind: "file",
+                center: { x: 160, y: 220 },
+                bounds: { x: 128, y: 188, width: 64, height: 64 }
+              },
+              {
+                path: "/tmp/skfiy-finder-smoke/Images",
+                name: "Images",
+                kind: "directory",
+                center: { x: 360, y: 220 },
+                bounds: { x: 328, y: 188, width: 64, height: 64 }
+              }
+            ]
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(
+      client.getFinderItemLayout("/tmp/skfiy-finder-smoke", ["photo.png", "Images"])
+    ).resolves.toEqual({
+      source: "finder-applescript-layout",
+      frontmostBundleId: "com.apple.finder",
+      folderPath: "/tmp/skfiy-finder-smoke",
+      items: [
+        {
+          path: "/tmp/skfiy-finder-smoke/photo.png",
+          name: "photo.png",
+          kind: "file",
+          center: { x: 160, y: 220 },
+          bounds: { x: 128, y: 188, width: 64, height: 64 }
+        },
+        {
+          path: "/tmp/skfiy-finder-smoke/Images",
+          name: "Images",
+          kind: "directory",
+          center: { x: 360, y: 220 },
+          bounds: { x: 328, y: 188, width: 64, height: 64 }
+        }
+      ]
+    });
+
+    expect(calls).toEqual([
+      {
+        command: "/tmp/skfiy-helper",
+        args: [
+          "get-finder-item-layout",
+          "--folder",
+          "/tmp/skfiy-finder-smoke",
+          "--items",
+          "photo.png,Images"
+        ]
+      }
+    ]);
+  });
+
   it("returns app state for observe_app desktop actions", async () => {
     const { calls, client } = createClientWithResponses([
       {

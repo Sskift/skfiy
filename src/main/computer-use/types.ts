@@ -75,6 +75,7 @@ export interface NativeSpeechTranscriptionResult {
 }
 
 export type FinderSelectionSource = "finder-applescript";
+export type FinderItemLayoutSource = "finder-applescript-layout";
 export type FinderSelectionItemKind = "file" | "directory" | "other";
 
 export interface FinderSelectionItem {
@@ -88,6 +89,21 @@ export interface FinderSelectionResult {
   frontmostBundleId?: string;
   targetPath?: string;
   selection: FinderSelectionItem[];
+}
+
+export interface FinderItemLayoutItem {
+  path: string;
+  name: string;
+  kind: FinderSelectionItemKind;
+  center: DesktopPoint;
+  bounds: DesktopWindowBounds;
+}
+
+export interface FinderItemLayoutResult {
+  source: FinderItemLayoutSource;
+  frontmostBundleId?: string;
+  folderPath: string;
+  items: FinderItemLayoutItem[];
 }
 
 export interface DesktopHelperActionResult {

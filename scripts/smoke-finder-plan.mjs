@@ -5,11 +5,13 @@ export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
 export const PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
 export const DRAG_PROBE_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
+export const ITEM_DRAG_DROP_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder";
 export const FINDER_TARGET_MODES = new Set([
   "explicit-path",
   "current-finder-folder",
   "selected-finder-folder",
-  "drag-probe"
+  "drag-probe",
+  "item-drag-drop"
 ]);
 export const EXPECTED_AFTER_TREE = [
   "Code/script.ts",
@@ -73,6 +75,9 @@ export function parseFinderSmokeArgs(argv, defaults) {
       case "--drag-probe":
         options.targetMode = "drag-probe";
         break;
+      case "--item-drag-drop":
+        options.targetMode = "item-drag-drop";
+        break;
       case "--output":
         options.outputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
@@ -104,6 +109,7 @@ Options:
   --current-folder      Open the fixture in Finder and run "整理 Finder 当前文件夹".
   --selected-folder     Select the fixture in Finder and run "整理 Finder 选中文件夹".
   --drag-probe          Open the fixture in Finder, run a helper drag probe, then organize it.
+  --item-drag-drop      Open the fixture in Finder, drag photo.png into Images, then organize it.
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   -h, --help            Show this help.
@@ -116,6 +122,7 @@ export function classifyFinderSmokeEvidence({
   finderObservation,
   finderSemanticObservation,
   finderDragProbe,
+  finderItemDragDrop,
   targetMode = "explicit-path",
   fixtureRoot,
   runnerHasTmux = false,
@@ -144,6 +151,10 @@ export function classifyFinderSmokeEvidence({
     return "blocked";
   }
 
+  if (hasPermissionBlockedFinderItemDragDrop(finderItemDragDrop)) {
+    return "blocked";
+  }
+
   if (
     last.status === "failed"
     && typeof last.message === "string"
@@ -169,6 +180,7 @@ export function classifyFinderSmokeEvidence({
     || !hasPassedFinderObservation(finderObservation)
     || !hasPassedFinderSemanticObservation(finderSemanticObservation, { targetMode, fixtureRoot })
     || !hasExpectedFinderDragProbe(finderDragProbe, targetMode)
+    || !hasExpectedFinderItemDragDrop(finderItemDragDrop, targetMode)
   ) {
     return "failed";
   }
@@ -177,9 +189,15 @@ export function classifyFinderSmokeEvidence({
 }
 
 export function readFinderProductPath(targetMode) {
-  return targetMode === "drag-probe"
-    ? DRAG_PROBE_PRODUCT_PATH
-    : PRODUCT_PATH;
+  if (targetMode === "drag-probe") {
+    return DRAG_PROBE_PRODUCT_PATH;
+  }
+
+  if (targetMode === "item-drag-drop") {
+    return ITEM_DRAG_DROP_PRODUCT_PATH;
+  }
+
+  return PRODUCT_PATH;
 }
 
 function hasExpectedAfterTree(afterTree) {
@@ -225,7 +243,7 @@ function hasPassedFinderSemanticObservation(finderSemanticObservation, options =
       ));
   }
 
-  if (options.targetMode === "drag-probe") {
+  if (options.targetMode === "drag-probe" || options.targetMode === "item-drag-drop") {
     return typeof options.fixtureRoot !== "string"
       || typeof finderSemanticObservation.targetPath !== "string"
       || path.resolve(finderSemanticObservation.targetPath) === path.resolve(options.fixtureRoot);
@@ -254,6 +272,24 @@ function hasPermissionBlockedFinderDragProbe(finderDragProbe) {
   return finderDragProbe?.result === "blocked"
     && typeof finderDragProbe.reason === "string"
     && isPermissionBlockedMessage(finderDragProbe.reason);
+}
+
+function hasExpectedFinderItemDragDrop(finderItemDragDrop, targetMode) {
+  if (targetMode !== "item-drag-drop") {
+    return true;
+  }
+
+  return finderItemDragDrop?.result === "passed"
+    && finderItemDragDrop.source === "finder-applescript-layout+hid-drag"
+    && finderItemDragDrop.frontmostBundleId === "com.apple.finder"
+    && finderItemDragDrop.movedItem === "photo.png"
+    && finderItemDragDrop.targetItem === "Images";
+}
+
+function hasPermissionBlockedFinderItemDragDrop(finderItemDragDrop) {
+  return finderItemDragDrop?.result === "blocked"
+    && typeof finderItemDragDrop.reason === "string"
+    && isPermissionBlockedMessage(finderItemDragDrop.reason);
 }
 
 function isPermissionBlockedMessage(message) {

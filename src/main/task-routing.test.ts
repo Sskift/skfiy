@@ -46,6 +46,13 @@ describe("selectCommandRoute", () => {
     });
   });
 
+  it("routes Finder item drag/drop commands to Finder", () => {
+    expect(selectCommandRoute("拖放 Finder 测试文件夹 /tmp/skfiy-demo")).toEqual({
+      kind: "finder",
+      bundleId: "com.apple.finder"
+    });
+  });
+
   it("keeps terminal commands on the Ghostty route", () => {
     expect(selectCommandRoute("打开 Ghostty 执行 pwd 并截图")).toEqual({
       kind: "ghostty",

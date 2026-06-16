@@ -1,10 +1,14 @@
 import { mkdir, readdir, rename, stat } from "node:fs/promises";
 import path from "node:path";
-import { createFinderOrganizationPlan } from "../computer-use/finder-organizer.js";
+import {
+  createFinderOrganizationPlan,
+  type FinderOrganizationOperation
+} from "../computer-use/finder-organizer.js";
 import type {
   DesktopActionResult,
   DesktopExecutableAction,
   DesktopAppState,
+  FinderItemLayoutResult,
   FinderSelectionResult
 } from "../computer-use/types.js";
 import type { RiskDecision } from "../../shared/types.js";
@@ -15,10 +19,15 @@ const FINDER_ORGANIZE_PREFIX = "整理 Finder 测试文件夹 ";
 const FINDER_ORGANIZE_CURRENT_FOLDER = "整理 Finder 当前文件夹";
 const FINDER_ORGANIZE_SELECTED_FOLDER = "整理 Finder 选中文件夹";
 const FINDER_DRAG_PROBE_PREFIX = "探测 Finder 拖拽测试文件夹 ";
+const FINDER_ITEM_DRAG_DROP_PREFIX = "拖放 Finder 测试文件夹 ";
 const FINDER_CURRENT_FOLDER_COMMAND = "Finder current folder";
 const FINDER_SELECTED_FOLDER_COMMAND = "Finder selected folder";
 const FINDER_DRAG_PROBE_COMMAND = "Finder drag probe";
+const FINDER_ITEM_DRAG_DROP_COMMAND = "Finder item drag/drop";
 const FINDER_DRAG_PROBE_DURATION_MS = 300;
+const FINDER_ITEM_DRAG_DROP_DURATION_MS = 300;
+const FINDER_ITEM_DRAG_DROP_SOURCE_ITEM = "photo.png";
+const FINDER_ITEM_DRAG_DROP_TARGET_ITEM = "Images";
 
 const FINDER_ORGANIZATION_RISK: RiskDecision = {
   level: "medium",
@@ -30,7 +39,8 @@ type FinderOrganizationTarget =
   | { kind: "absolute_path"; rootPath: string }
   | { kind: "current_finder_folder" }
   | { kind: "selected_finder_folder" }
-  | { kind: "drag_probe"; rootPath: string };
+  | { kind: "drag_probe"; rootPath: string }
+  | { kind: "item_drag_drop"; rootPath: string };
 
 type FinderObservationOutcome =
   | { ok: true; appState?: DesktopAppState; selection?: FinderSelectionResult }
@@ -67,13 +77,13 @@ export type FinderTaskEvent =
     }
   | {
       type: "action_verified";
-      actionType: "create_folder" | "move_file" | "drag";
+      actionType: "create_folder" | "move_file" | "drag" | "item_drag_drop";
       status: "passed";
       message: string;
     }
   | {
       type: "verification_failed";
-      stage: "input" | "file_operation" | "activate" | "observe" | "selection" | "drag";
+      stage: "input" | "file_operation" | "activate" | "observe" | "selection" | "layout" | "drag";
       reason: string;
     }
   | {
@@ -91,6 +101,7 @@ export interface FinderTaskOptions {
 export interface FinderDesktopClient {
   executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult>;
   getFinderSelection?(): Promise<FinderSelectionResult>;
+  getFinderItemLayout?(folderPath: string, itemNames: readonly string[]): Promise<FinderItemLayoutResult>;
 }
 
 export async function* runFinderOrganizationTask(
@@ -175,7 +186,11 @@ export async function* runFinderOrganizationTask(
     }))
   });
 
-  if (parsed.target.kind === "absolute_path" || parsed.target.kind === "drag_probe") {
+  if (
+    parsed.target.kind === "absolute_path"
+    || parsed.target.kind === "drag_probe"
+    || parsed.target.kind === "item_drag_drop"
+  ) {
     yield {
       type: "locating_app",
       appName: FINDER_APP_NAME
@@ -188,8 +203,24 @@ export async function* runFinderOrganizationTask(
     yield* performFinderDragProbe(options, observation);
   }
 
+  const precreatedFolders = new Set<string>();
+  const draggedMoveSources = new Set<string>();
+  if (parsed.target.kind === "item_drag_drop") {
+    const itemDragDrop = yield* performFinderItemDragDrop(rootPath, plan.operations, options, observation);
+    for (const folderPath of itemDragDrop.precreatedFolders) {
+      precreatedFolders.add(path.resolve(folderPath));
+    }
+    if (itemDragDrop.ok) {
+      draggedMoveSources.add(path.resolve(itemDragDrop.skippedMoveFrom));
+    }
+  }
+
   for (const operation of plan.operations) {
     if (operation.type === "create_folder") {
+      if (precreatedFolders.has(path.resolve(operation.path))) {
+        continue;
+      }
+
       await mkdir(operation.path, { recursive: true });
       yield {
         type: "action_verified",
@@ -197,6 +228,10 @@ export async function* runFinderOrganizationTask(
         status: "passed",
         message: `Created folder: ${operation.path}`
       };
+      continue;
+    }
+
+    if (draggedMoveSources.has(path.resolve(operation.from))) {
       continue;
     }
 
@@ -376,6 +411,207 @@ function createFinderDragProbeAction(appState: DesktopAppState):
   };
 }
 
+async function* performFinderItemDragDrop(
+  rootPath: string,
+  operations: FinderOrganizationOperation[],
+  options: FinderTaskOptions,
+  observation: FinderObservationOutcome | undefined
+): AsyncGenerator<
+  FinderTaskEvent,
+  { ok: true; skippedMoveFrom: string; precreatedFolders: string[] } | { ok: false; precreatedFolders: string[] }
+> {
+  const move = findFinderItemDragDropMove(rootPath, operations);
+  const precreatedFolders: string[] = [];
+
+  if (!move) {
+    yield {
+      type: "verification_failed",
+      stage: "file_operation",
+      reason: "Finder item drag/drop requires a photo.png -> Images/photo.png fixture move."
+    };
+    return { ok: false, precreatedFolders };
+  }
+
+  await mkdir(move.targetFolderPath, { recursive: true });
+  precreatedFolders.push(move.targetFolderPath);
+  yield {
+    type: "action_verified",
+    actionType: "create_folder",
+    status: "passed",
+    message: `Created folder: ${move.targetFolderPath}`
+  };
+
+  if (!options.desktopClient) {
+    yield {
+      type: "verification_failed",
+      stage: "drag",
+      reason: "Finder item drag/drop requires a desktop client."
+    };
+    return { ok: false, precreatedFolders };
+  }
+
+  if (!observation?.ok || !observation.appState) {
+    yield {
+      type: "verification_failed",
+      stage: "drag",
+      reason: "Finder item drag/drop needs a passed Finder observation."
+    };
+    return { ok: false, precreatedFolders };
+  }
+
+  if (!options.desktopClient.getFinderItemLayout) {
+    yield {
+      type: "verification_failed",
+      stage: "layout",
+      reason: "Finder item drag/drop requires Finder item layout coordinates."
+    };
+    return { ok: false, precreatedFolders };
+  }
+
+  let layout: FinderItemLayoutResult;
+  try {
+    layout = await options.desktopClient.getFinderItemLayout(rootPath, [
+      FINDER_ITEM_DRAG_DROP_SOURCE_ITEM,
+      FINDER_ITEM_DRAG_DROP_TARGET_ITEM
+    ]);
+  } catch (error) {
+    yield {
+      type: "verification_failed",
+      stage: "layout",
+      reason: readErrorMessage(error)
+    };
+    return { ok: false, precreatedFolders };
+  }
+
+  const layoutAction = createFinderItemDragDropAction(layout);
+  if (!layoutAction.ok) {
+    yield {
+      type: "verification_failed",
+      stage: "layout",
+      reason: layoutAction.reason
+    };
+    return { ok: false, precreatedFolders };
+  }
+
+  const dragResult = await executeFinderAction(options.desktopClient, layoutAction.action);
+  if (!dragResult.ok) {
+    yield {
+      type: "verification_failed",
+      stage: "drag",
+      reason: dragResult.reason
+    };
+    return { ok: false, precreatedFolders };
+  }
+
+  const moveVerified = await verifyFinderItemDragDropMove(move);
+  if (!moveVerified.ok) {
+    yield {
+      type: "verification_failed",
+      stage: "file_operation",
+      reason: moveVerified.reason
+    };
+    return { ok: false, precreatedFolders };
+  }
+
+  yield {
+    type: "action_verified",
+    actionType: "item_drag_drop",
+    status: "passed",
+    message: `Dragged Finder item: ${move.from} -> ${move.to}`
+  };
+
+  return {
+    ok: true,
+    skippedMoveFrom: move.from,
+    precreatedFolders
+  };
+}
+
+function findFinderItemDragDropMove(
+  rootPath: string,
+  operations: FinderOrganizationOperation[]
+):
+  | { from: string; to: string; targetFolderPath: string }
+  | undefined {
+  const expectedFrom = path.resolve(rootPath, FINDER_ITEM_DRAG_DROP_SOURCE_ITEM);
+  const expectedTo = path.resolve(
+    rootPath,
+    FINDER_ITEM_DRAG_DROP_TARGET_ITEM,
+    FINDER_ITEM_DRAG_DROP_SOURCE_ITEM
+  );
+
+  return operations
+    .filter((operation): operation is Extract<FinderOrganizationOperation, { type: "move_file" }> => (
+      operation.type === "move_file"
+    ))
+    .map((operation) => ({
+      from: operation.from,
+      to: operation.to,
+      targetFolderPath: path.dirname(operation.to)
+    }))
+    .find((operation) => (
+      path.resolve(operation.from) === expectedFrom
+      && path.resolve(operation.to) === expectedTo
+    ));
+}
+
+function createFinderItemDragDropAction(layout: FinderItemLayoutResult):
+  | { ok: true; action: Extract<DesktopExecutableAction, { type: "drag" }> }
+  | { ok: false; reason: string } {
+  const source = layout.items.find((item) => (
+    item.name === FINDER_ITEM_DRAG_DROP_SOURCE_ITEM
+    && item.kind === "file"
+  ));
+  const target = layout.items.find((item) => (
+    item.name === FINDER_ITEM_DRAG_DROP_TARGET_ITEM
+    && item.kind === "directory"
+  ));
+
+  if (!source) {
+    return {
+      ok: false,
+      reason: `Finder item layout did not include ${FINDER_ITEM_DRAG_DROP_SOURCE_ITEM}.`
+    };
+  }
+
+  if (!target) {
+    return {
+      ok: false,
+      reason: `Finder item layout did not include ${FINDER_ITEM_DRAG_DROP_TARGET_ITEM}.`
+    };
+  }
+
+  return {
+    ok: true,
+    action: {
+      type: "drag",
+      from: source.center,
+      to: target.center,
+      durationMs: FINDER_ITEM_DRAG_DROP_DURATION_MS
+    }
+  };
+}
+
+async function verifyFinderItemDragDropMove(
+  move: { from: string; to: string }
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!await pathExists(move.to)) {
+    return {
+      ok: false,
+      reason: `Finder item drag/drop did not create destination: ${move.to}`
+    };
+  }
+
+  if (await pathExists(move.from)) {
+    return {
+      ok: false,
+      reason: `Finder item drag/drop left source in place: ${move.from}`
+    };
+  }
+
+  return { ok: true };
+}
+
 function formatFinderDragProbeMessage(
   action: Extract<DesktopExecutableAction, { type: "drag" }>
 ): string {
@@ -492,10 +728,29 @@ export function parseFinderOrganizationIntent(input: string):
     };
   }
 
+  if (trimmed.startsWith(FINDER_ITEM_DRAG_DROP_PREFIX)) {
+    const rootPath = trimmed.slice(FINDER_ITEM_DRAG_DROP_PREFIX.length).trim();
+    if (!path.isAbsolute(rootPath)) {
+      return {
+        ok: false,
+        reason: "Finder item drag/drop requires an absolute folder path."
+      };
+    }
+
+    return {
+      ok: true,
+      command: FINDER_ITEM_DRAG_DROP_COMMAND,
+      target: {
+        kind: "item_drag_drop",
+        rootPath: path.resolve(rootPath)
+      }
+    };
+  }
+
   if (!trimmed.startsWith(FINDER_ORGANIZE_PREFIX)) {
     return {
       ok: false,
-      reason: "Finder organization requires: 整理 Finder 测试文件夹 <absolute-path>, 整理 Finder 当前文件夹, 整理 Finder 选中文件夹, or 探测 Finder 拖拽测试文件夹 <absolute-path>"
+      reason: "Finder organization requires: 整理 Finder 测试文件夹 <absolute-path>, 整理 Finder 当前文件夹, 整理 Finder 选中文件夹, 探测 Finder 拖拽测试文件夹 <absolute-path>, or 拖放 Finder 测试文件夹 <absolute-path>"
     };
   }
 

@@ -32,7 +32,7 @@ const DOGFOOD_EVIDENCE = [
   "Finder observe_app screenshot or permission-blocked evidence",
   "Finder semantic selection evidence",
   "Finder test-folder organization evidence",
-  "Finder drag probe evidence"
+  "Finder item drag/drop evidence"
 ];
 
 export function createAlphaArtifactPlan({

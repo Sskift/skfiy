@@ -60,19 +60,32 @@ import Vision
        confidence: Number,
        bounds: { x: Number, y: Number, width: Number, height: Number }
      }]
-   }
- - get-finder-selection:
-   data = {
-     source: "finder-applescript",
+	   }
+	 - get-finder-selection:
+	   data = {
+	     source: "finder-applescript",
      frontmostBundleId: String | null,
      targetPath: String | null,
      selection: [{
        path: String,
        name: String,
        kind: "file" | "directory" | "other"
-     }]
-   }
- - click --x <n> --y <n>:
+	     }]
+	   }
+	 - get-finder-item-layout --folder <path> --items <comma-separated names>:
+	   data = {
+	     source: "finder-applescript-layout",
+	     frontmostBundleId: String | null,
+	     folderPath: String,
+	     items: [{
+	       path: String,
+	       name: String,
+	       kind: "file" | "directory" | "other",
+	       center: { x: Number, y: Number },
+	       bounds: { x: Number, y: Number, width: Number, height: Number }
+	     }]
+	   }
+	 - click --x <n> --y <n>:
    data = { x: Number, y: Number }
  - scroll --delta-x <n> --delta-y <n>:
    data = { deltaX: Number, deltaY: Number }
@@ -141,6 +154,7 @@ let supportedCommands = [
     "screenshot",
     "ocr-image",
     "get-finder-selection",
+    "get-finder-item-layout",
     "click",
     "scroll",
     "drag",
@@ -263,6 +277,21 @@ struct FinderSelectionPayload: Encodable {
     let frontmostBundleId: String?
     let targetPath: String?
     let selection: [FinderSelectionItemPayload]
+}
+
+struct FinderItemLayoutItemPayload: Encodable {
+    let path: String
+    let name: String
+    let kind: String
+    let center: PointPayload
+    let bounds: WindowBounds
+}
+
+struct FinderItemLayoutPayload: Encodable {
+    let source: String
+    let frontmostBundleId: String?
+    let folderPath: String
+    let items: [FinderItemLayoutItemPayload]
 }
 
 struct ClickPayload: Encodable {
@@ -723,6 +752,64 @@ func finderSelectionScriptSource() -> String {
     """
 }
 
+func appleScriptQuotedString(_ value: String) -> String {
+    let escaped = value
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\"", with: "\\\"")
+    return "\"\(escaped)\""
+}
+
+func appleScriptListLiteral(_ values: [String]) -> String {
+    "{" + values.map(appleScriptQuotedString).joined(separator: ", ") + "}"
+}
+
+func finderItemLayoutScriptSource(folderPath: String, itemNames: [String]) -> String {
+    let quotedFolderPath = appleScriptQuotedString(folderPath)
+    let itemList = appleScriptListLiteral(itemNames)
+
+    return """
+    set outputLines to {}
+    set requestedItemNames to \(itemList)
+    tell application "Finder"
+        set folderAlias to POSIX file \(quotedFolderPath) as alias
+        open folderAlias
+        delay 0.2
+        set target of front Finder window to folderAlias
+        set current view of front Finder window to icon view
+        set bounds of front Finder window to {100, 100, 780, 560}
+        try
+            set icon size of icon view options of front Finder window to 64
+            set arrangement of icon view options of front Finder window to not arranged
+        end try
+
+        set windowBounds to bounds of front Finder window
+        set baseX to 120
+        set baseY to 160
+        set stepX to 200
+
+        repeat with itemIndex from 1 to count of requestedItemNames
+            set itemName to item itemIndex of requestedItemNames
+            set finderItem to item itemName of front Finder window
+            set itemX to baseX + ((itemIndex - 1) * stepX)
+            set position of finderItem to {itemX, baseY}
+            delay 0.05
+            set itemPosition to position of finderItem
+            set itemPath to POSIX path of (finderItem as alias)
+            set screenX to (item 1 of windowBounds) + (item 1 of itemPosition) + 32
+            set screenY to (item 2 of windowBounds) + (item 2 of itemPosition) + 96
+            set boundX to screenX - 32
+            set boundY to screenY - 32
+            set end of outputLines to itemName & tab & itemPath & tab & screenX & tab & screenY & tab & boundX & tab & boundY & tab & 64 & tab & 64
+        end repeat
+    end tell
+
+    set AppleScript's text item delimiters to linefeed
+    set joinedOutput to outputLines as text
+    set AppleScript's text item delimiters to ""
+    return joinedOutput
+    """
+}
+
 func appleScriptErrorNumber(_ errorInfo: NSDictionary) -> Int? {
     if let number = errorInfo[NSAppleScript.errorNumber] as? NSNumber {
         return number.intValue
@@ -775,6 +862,34 @@ func finderSelectionFailure(from errorInfo: NSDictionary) -> HelperFailure {
     )
 }
 
+func finderItemLayoutFailure(from errorInfo: NSDictionary) -> HelperFailure {
+    let number = appleScriptErrorNumber(errorInfo)
+    let message = appleScriptErrorMessage(errorInfo)
+    let lowercasedMessage = message.lowercased()
+    var details: [String: JSONValue] = ["message": .string(message)]
+
+    if let number {
+        details["errorNumber"] = .int(number)
+    }
+
+    if number == -1743
+        || lowercasedMessage.contains("not authorized")
+        || lowercasedMessage.contains("not permitted")
+        || lowercasedMessage.contains("automation") {
+        return HelperFailure(
+            "finder_automation_permission_required",
+            "Automation permission is required to read Finder item layout. Grant skfiy permission to control Finder, then try again.",
+            details: details
+        )
+    }
+
+    return HelperFailure(
+        "finder_item_layout_failed",
+        "Failed to read Finder item layout.",
+        details: details
+    )
+}
+
 func normalizedFinderPath(_ rawPath: String) -> String? {
     let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -806,6 +921,86 @@ func finderSelectionItem(for rawPath: String) -> FinderSelectionItemPayload? {
     )
 }
 
+func finderItemKind(for path: String) -> String {
+    var isDirectory = ObjCBool(false)
+    let exists = FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
+
+    if !exists {
+        return "other"
+    }
+
+    return isDirectory.boolValue ? "directory" : "file"
+}
+
+func readFinderItemNames(_ rawValue: String) throws -> [String] {
+    let names = rawValue
+        .split(separator: ",")
+        .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+
+    guard !names.isEmpty else {
+        throw HelperFailure(
+            "missing_finder_item_names",
+            "Finder item layout requires at least one item name."
+        )
+    }
+
+    for name in names {
+        if name == "." || name == ".." || name.contains("/") || name.contains("\\") {
+            throw HelperFailure(
+                "invalid_finder_item_name",
+                "Finder item names must be simple file names.",
+                details: ["itemName": .string(name)]
+            )
+        }
+    }
+
+    return names
+}
+
+func readFinderItemLayoutLine(_ rawLine: String) throws -> FinderItemLayoutItemPayload? {
+    let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+        return nil
+    }
+
+    let fields = trimmed.components(separatedBy: "\t")
+    guard fields.count == 8 else {
+        throw HelperFailure(
+            "finder_item_layout_parse_failed",
+            "Finder item layout returned an unexpected line shape.",
+            details: ["line": .string(rawLine)]
+        )
+    }
+
+    guard
+        let centerX = Double(fields[2]),
+        let centerY = Double(fields[3]),
+        let boundsX = Double(fields[4]),
+        let boundsY = Double(fields[5]),
+        let boundsWidth = Double(fields[6]),
+        let boundsHeight = Double(fields[7])
+    else {
+        throw HelperFailure(
+            "finder_item_layout_parse_failed",
+            "Finder item layout returned non-numeric coordinates.",
+            details: ["line": .string(rawLine)]
+        )
+    }
+
+    guard let normalizedPath = normalizedFinderPath(fields[1]) else {
+        return nil
+    }
+
+    return FinderItemLayoutItemPayload(
+        path: normalizedPath,
+        name: fields[0],
+        kind: finderItemKind(for: normalizedPath),
+        center: PointPayload(x: centerX, y: centerY),
+        bounds: WindowBounds(x: boundsX, y: boundsY, width: boundsWidth, height: boundsHeight)
+    )
+}
+
 func readFinderSelection() throws -> FinderSelectionPayload {
     guard let script = NSAppleScript(source: finderSelectionScriptSource()) else {
         throw HelperFailure(
@@ -831,6 +1026,52 @@ func readFinderSelection() throws -> FinderSelectionPayload {
         frontmostBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
         targetPath: targetPath,
         selection: selection
+    )
+}
+
+func readFinderItemLayout(folderPath: String, itemNames: [String]) throws -> FinderItemLayoutPayload {
+    guard let normalizedFolderPath = normalizedFinderPath(folderPath) else {
+        throw HelperFailure(
+            "invalid_finder_folder",
+            "Finder item layout requires a non-empty folder path."
+        )
+    }
+
+    var isDirectory = ObjCBool(false)
+    guard FileManager.default.fileExists(atPath: normalizedFolderPath, isDirectory: &isDirectory),
+          isDirectory.boolValue else {
+        throw HelperFailure(
+            "finder_folder_not_found",
+            "Finder item layout requires an existing folder.",
+            details: ["folderPath": .string(normalizedFolderPath)]
+        )
+    }
+
+    guard let script = NSAppleScript(
+        source: finderItemLayoutScriptSource(folderPath: normalizedFolderPath, itemNames: itemNames)
+    ) else {
+        throw HelperFailure(
+            "finder_item_layout_script_invalid",
+            "Failed to compile Finder item layout AppleScript."
+        )
+    }
+
+    var errorInfo: NSDictionary?
+    let descriptor = script.executeAndReturnError(&errorInfo)
+
+    if let errorInfo {
+        throw finderItemLayoutFailure(from: errorInfo)
+    }
+
+    let items = try (descriptor.stringValue ?? "")
+        .components(separatedBy: .newlines)
+        .compactMap { try readFinderItemLayoutLine($0) }
+
+    return FinderItemLayoutPayload(
+        source: "finder-applescript-layout",
+        frontmostBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+        folderPath: normalizedFolderPath,
+        items: items
     )
 }
 
@@ -1591,6 +1832,13 @@ func handleGetFinderSelection(_ arguments: ArraySlice<String>) throws -> FinderS
     return try readFinderSelection()
 }
 
+func handleGetFinderItemLayout(_ arguments: ArraySlice<String>) throws -> FinderItemLayoutPayload {
+    let options = try parseOptions(arguments, allowed: ["--folder", "--items"])
+    let folderPath = try requiredOption("--folder", in: options)
+    let itemNames = try readFinderItemNames(requiredOption("--items", in: options))
+    return try readFinderItemLayout(folderPath: folderPath, itemNames: itemNames)
+}
+
 func handleClick(_ arguments: ArraySlice<String>) throws -> ClickPayload {
     let options = try parseOptions(arguments, allowed: ["--x", "--y"])
     let x = try requiredDoubleOption("--x", in: options)
@@ -1769,6 +2017,8 @@ do {
         succeed(command: commandName, data: try handleOcrImage(arguments))
     case "get-finder-selection":
         succeed(command: commandName, data: try handleGetFinderSelection(arguments))
+    case "get-finder-item-layout":
+        succeed(command: commandName, data: try handleGetFinderItemLayout(arguments))
     case "click":
         succeed(command: commandName, data: try handleClick(arguments))
     case "scroll":

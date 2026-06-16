@@ -22,9 +22,11 @@ describe("Finder product smoke script", () => {
     expect(source).toContain("整理 Finder 当前文件夹");
     expect(source).toContain("整理 Finder 选中文件夹");
     expect(source).toContain("探测 Finder 拖拽测试文件夹");
+    expect(source).toContain("拖放 Finder 测试文件夹");
     expect(source).toContain("openFinderFolder");
     expect(source).toContain("selectFinderFolder");
     expect(source).toContain("readFinderDragProbe");
+    expect(source).toContain("readFinderItemDragDrop");
   });
 
   it("defines Finder product paths and output options", async () => {
@@ -34,12 +36,14 @@ describe("Finder product smoke script", () => {
 
     const {
       DRAG_PROBE_PRODUCT_PATH,
+      ITEM_DRAG_DROP_PRODUCT_PATH,
       PRODUCT_PATH,
       createDefaultFinderSmokeOptions,
       createHelpText,
       parseFinderSmokeArgs
     } = await import(pathToFileURL(modulePath).href) as {
       DRAG_PROBE_PRODUCT_PATH: string;
+      ITEM_DRAG_DROP_PRODUCT_PATH: string;
       PRODUCT_PATH: string;
       createDefaultFinderSmokeOptions: (rootDir: string) => Record<string, unknown>;
       createHelpText: (defaults: Record<string, unknown>) => string;
@@ -52,6 +56,8 @@ describe("Finder product smoke script", () => {
     expect(PRODUCT_PATH).toBe("renderer -> preload -> main -> helper observe_app -> fs -> Finder");
     expect(DRAG_PROBE_PRODUCT_PATH)
       .toBe("renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder");
+    expect(ITEM_DRAG_DROP_PRODUCT_PATH)
+      .toBe("renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder");
     expect(parseFinderSmokeArgs(
       ["--output", ".skfiy-smoke/finder.json"],
       createDefaultFinderSmokeOptions("/repo")
@@ -76,6 +82,12 @@ describe("Finder product smoke script", () => {
       createDefaultFinderSmokeOptions("/repo")
     )).toMatchObject({
       targetMode: "drag-probe"
+    });
+    expect(parseFinderSmokeArgs(
+      ["--item-drag-drop"],
+      createDefaultFinderSmokeOptions("/repo")
+    )).toMatchObject({
+      targetMode: "item-drag-drop"
     });
     expect(createHelpText(createDefaultFinderSmokeOptions("/repo"))).toContain("smoke:finder");
   });
@@ -313,6 +325,103 @@ describe("Finder product smoke script", () => {
         "Images/photo.png"
       ]
     })).toBe("failed");
+  });
+
+  it("classifies a Finder item drag/drop with layout and filesystem evidence as passed", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder",
+      targetMode: "item-drag-drop",
+      fixtureRoot: "/tmp/skfiy-finder-smoke",
+      finderObservation: {
+        result: "passed",
+        screenshotPath: "/tmp/skfiy/finder-before.png",
+        frontmostBundleId: "com.apple.finder",
+        windowCount: 1
+      },
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        targetPath: "/tmp/skfiy-finder-smoke",
+        selectedCount: 0
+      },
+      finderItemDragDrop: {
+        result: "passed",
+        source: "finder-applescript-layout+hid-drag",
+        frontmostBundleId: "com.apple.finder",
+        folderPath: "/tmp/skfiy-finder-smoke",
+        movedItem: "photo.png",
+        targetItem: "Images",
+        from: { x: 160, y: 220 },
+        to: { x: 360, y: 220 }
+      },
+      events: [
+        {
+          status: "executing",
+          message: "Verified item_drag_drop: Dragged Finder item: /tmp/skfiy-finder-smoke/photo.png -> /tmp/skfiy-finder-smoke/Images/photo.png"
+        },
+        { status: "completed", message: "Finder test folder organized." }
+      ],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    })).toBe("passed");
+  });
+
+  it("classifies a permission-blocked Finder item drag/drop as blocked", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder",
+      targetMode: "item-drag-drop",
+      fixtureRoot: "/tmp/skfiy-finder-smoke",
+      finderObservation: {
+        result: "passed",
+        screenshotPath: "/tmp/skfiy/finder-before.png",
+        frontmostBundleId: "com.apple.finder",
+        windowCount: 1
+      },
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        selectedCount: 0
+      },
+      finderItemDragDrop: {
+        result: "blocked",
+        reason: "Verification failed (drag): Accessibility permission is required for skfiy."
+      },
+      events: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (drag): Accessibility permission is required for skfiy."
+        },
+        { status: "completed", message: "Finder test folder organized." }
+      ],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    })).toBe("blocked");
   });
 
   it("classifies an Accessibility-blocked Finder drag probe as blocked", async () => {

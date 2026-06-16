@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -567,6 +567,113 @@ describe("runFinderOrganizationTask", () => {
       });
       await expect(readFile(path.join(rootPath, "Images", "photo.png"), "utf8"))
         .resolves.toBe("image");
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
+  it("performs a Finder item drag/drop and verifies the file moved before organizing the rest", async () => {
+    const rootPath = await createFixture();
+    const actions: DesktopExecutableAction[] = [];
+    const layoutRequests: Array<{ folderPath: string; itemNames: readonly string[] }> = [];
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        actions.push(action);
+
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: path.basename(rootPath),
+                layer: 0,
+                bounds: { x: 100, y: 120, width: 640, height: 480 }
+              }
+            ]
+          };
+        }
+
+        if (action.type === "drag") {
+          await rename(path.join(rootPath, "photo.png"), path.join(rootPath, "Images", "photo.png"));
+          return { ok: true };
+        }
+
+        return { ok: true };
+      },
+      async getFinderSelection() {
+        return {
+          source: "finder-applescript" as const,
+          frontmostBundleId: "com.apple.finder",
+          targetPath: rootPath,
+          selection: []
+        };
+      },
+      async getFinderItemLayout(folderPath: string, itemNames: readonly string[]) {
+        layoutRequests.push({ folderPath, itemNames: [...itemNames] });
+        await expect(stat(path.join(rootPath, "Images"))).resolves.toMatchObject({
+          isDirectory: expect.any(Function)
+        });
+
+        return {
+          source: "finder-applescript-layout" as const,
+          frontmostBundleId: "com.apple.finder",
+          folderPath,
+          items: [
+            {
+              path: path.join(rootPath, "photo.png"),
+              name: "photo.png",
+              kind: "file" as const,
+              center: { x: 160, y: 220 },
+              bounds: { x: 128, y: 188, width: 64, height: 64 }
+            },
+            {
+              path: path.join(rootPath, "Images"),
+              name: "Images",
+              kind: "directory" as const,
+              center: { x: 360, y: 220 },
+              bounds: { x: 328, y: 188, width: 64, height: 64 }
+            }
+          ]
+        };
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask(`拖放 Finder 测试文件夹 ${rootPath}`, {
+          approved: true,
+          desktopClient,
+          createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
+        })
+      );
+
+      expect(layoutRequests).toEqual([
+        { folderPath: rootPath, itemNames: ["photo.png", "Images"] }
+      ]);
+      expect(actions).toContainEqual({
+        type: "drag",
+        from: { x: 160, y: 220 },
+        to: { x: 360, y: 220 },
+        durationMs: 300
+      });
+      expect(events).toContainEqual({
+        type: "action_verified",
+        actionType: "item_drag_drop",
+        status: "passed",
+        message: `Dragged Finder item: ${path.join(rootPath, "photo.png")} -> ${path.join(rootPath, "Images", "photo.png")}`
+      });
+      await expect(readFile(path.join(rootPath, "Images", "photo.png"), "utf8"))
+        .resolves.toBe("image");
+      await expect(readFile(path.join(rootPath, "Documents", "notes.pdf"), "utf8"))
+        .resolves.toBe("document");
+      await expect(readFile(path.join(rootPath, "Code", "script.ts"), "utf8"))
+        .resolves.toBe("code");
+      await expect(stat(path.join(rootPath, "photo.png"))).rejects.toThrow();
     } finally {
       await rm(rootPath, { recursive: true, force: true });
     }

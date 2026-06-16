@@ -95,7 +95,7 @@ describe("alpha artifact packaging", () => {
       "--chrome-smoke-artifact",
       ".skfiy-smoke/chrome-page.json",
       "--finder-smoke-artifact",
-      ".skfiy-smoke/finder-drag-probe.json",
+      ".skfiy-smoke/finder-item-drag-drop.json",
       "--voice-smoke-artifact",
       ".skfiy-smoke/voice-native.json"
     ], {
@@ -111,7 +111,7 @@ describe("alpha artifact packaging", () => {
       uiSmokeArtifactPath: path.resolve(".skfiy-smoke/ui-permission-onboarding.json"),
       smokeArtifactPath: path.resolve(".skfiy-smoke/ghostty-matrix.json"),
       chromeSmokeArtifactPath: path.resolve(".skfiy-smoke/chrome-page.json"),
-      finderSmokeArtifactPath: path.resolve(".skfiy-smoke/finder-drag-probe.json"),
+      finderSmokeArtifactPath: path.resolve(".skfiy-smoke/finder-item-drag-drop.json"),
       voiceSmokeArtifactPath: path.resolve(".skfiy-smoke/voice-native.json")
     });
 
@@ -131,7 +131,7 @@ describe("alpha artifact packaging", () => {
       uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-permission-onboarding.json",
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
       chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-page.json",
-      finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-drag-probe.json",
+      finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-item-drag-drop.json",
       voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json"
     })).toMatchObject({
       schemaVersion: 1,
@@ -149,7 +149,7 @@ describe("alpha artifact packaging", () => {
       uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-permission-onboarding.json",
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
       chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-page.json",
-      finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-drag-probe.json",
+      finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-item-drag-drop.json",
       voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json",
       requiredDogfoodEvidence: [
         "npm run smoke:ui -- --output <path>",
@@ -172,7 +172,7 @@ describe("alpha artifact packaging", () => {
         "Finder observe_app screenshot or permission-blocked evidence",
         "Finder semantic selection evidence",
         "Finder test-folder organization evidence",
-        "Finder drag probe evidence"
+        "Finder item drag/drop evidence"
       ]
     });
   });

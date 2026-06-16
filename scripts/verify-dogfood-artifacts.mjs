@@ -12,7 +12,7 @@ const execFileAsync = promisify(execFile);
 const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 const CHROME_PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
-const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
+const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder";
 const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
 const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
@@ -239,10 +239,10 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
-    "manifest.requiredDogfoodEvidence.finderDragProbe",
+    "manifest.requiredDogfoodEvidence.finderItemDragDrop",
     Array.isArray(manifest?.requiredDogfoodEvidence)
-      && manifest.requiredDogfoodEvidence.includes("Finder drag probe evidence"),
-    "manifest must require Finder drag probe evidence"
+      && manifest.requiredDogfoodEvidence.includes("Finder item drag/drop evidence"),
+    "manifest must require Finder item drag/drop evidence"
   );
   await verifyCurrentHead(manifest, options, io, checks);
 
@@ -642,13 +642,13 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   );
   check(
     checks,
-    "finder.dragProbe",
-    hasFinderDragProbeEvidence(artifact.finderDragProbe, artifact.result)
+    "finder.itemDragDrop",
+    hasFinderItemDragDropEvidence(artifact.finderItemDragDrop, artifact.result)
       && (
-        artifact.finderDragProbe?.result === "blocked"
-        || hasFinderDragProbeActionEvidence(artifact.events, artifact.result)
+        artifact.finderItemDragDrop?.result === "blocked"
+        || hasFinderItemDragDropActionEvidence(artifact.events, artifact.result)
       ),
-    "Finder smoke must include drag-probe evidence or a permission-blocked drag reason"
+    "Finder smoke must include item drag/drop evidence or a permission-blocked layout/drag reason"
   );
   check(
     checks,
@@ -1062,6 +1062,34 @@ function hasPermissionBlockedFinderDragProbe(value) {
     && isPermissionBlockedMessage(value.reason);
 }
 
+function hasFinderItemDragDropEvidence(value, result) {
+  if (result === "passed") {
+    return hasPassedFinderItemDragDrop(value);
+  }
+
+  if (result === "blocked") {
+    return hasPassedFinderItemDragDrop(value) || hasPermissionBlockedFinderItemDragDrop(value);
+  }
+
+  return false;
+}
+
+function hasPassedFinderItemDragDrop(value) {
+  return Boolean(value)
+    && value.result === "passed"
+    && value.source === "finder-applescript-layout+hid-drag"
+    && value.frontmostBundleId === "com.apple.finder"
+    && value.movedItem === "photo.png"
+    && value.targetItem === "Images";
+}
+
+function hasPermissionBlockedFinderItemDragDrop(value) {
+  return Boolean(value)
+    && value.result === "blocked"
+    && typeof value.reason === "string"
+    && isPermissionBlockedMessage(value.reason);
+}
+
 function hasFinderDragProbeActionEvidence(events, result) {
   if (hasTaskEventMessage(events, "Verified drag:")) {
     return true;
@@ -1072,6 +1100,23 @@ function hasFinderDragProbeActionEvidence(events, result) {
     && events.some((event) => (
       typeof event?.message === "string"
       && event.message.includes("Verification failed (drag):")
+      && isPermissionBlockedMessage(event.message)
+    ));
+}
+
+function hasFinderItemDragDropActionEvidence(events, result) {
+  if (hasTaskEventMessage(events, "Verified item_drag_drop:")) {
+    return true;
+  }
+
+  return result === "blocked"
+    && Array.isArray(events)
+    && events.some((event) => (
+      typeof event?.message === "string"
+      && (
+        event.message.includes("Verification failed (layout):")
+        || event.message.includes("Verification failed (drag):")
+      )
       && isPermissionBlockedMessage(event.message)
     ));
 }
