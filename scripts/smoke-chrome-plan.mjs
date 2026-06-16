@@ -5,6 +5,7 @@ export const DEFAULT_CHROME_PORT = 9444;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
 export const EXPECTED_TEXT = "skfiy chrome smoke ready";
+export const FORM_EXPECTED_TEXT = "skfiy form submitted";
 export const SENSITIVE_EXPECTED_RESULT = "sensitive-paused";
 export const PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
 
@@ -103,6 +104,7 @@ Options:
 export function classifyChromeSmokeEvidence({
   events = [],
   extractedText = "",
+  expectedText = EXPECTED_TEXT,
   runnerHasTmux = false,
   appLaunchViaOpen = false,
   chromeLaunchViaOpen = false,
@@ -135,7 +137,7 @@ export function classifyChromeSmokeEvidence({
     || appLaunchViaOpen !== true
     || chromeLaunchViaOpen !== true
     || productPath !== PRODUCT_PATH
-    || !String(extractedText).includes(EXPECTED_TEXT)
+    || !String(extractedText).includes(expectedText)
   ) {
     return "failed";
   }

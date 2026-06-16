@@ -54,6 +54,19 @@ describe("parseChromePageIntent", () => {
       reason: expect.stringContaining("打开 Chrome 测试页面")
     });
   });
+
+  it("accepts a constrained Chrome test-form command", () => {
+    expect(parseChromePageIntent(
+      "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #name=skfiy 点击 #submit 并提取正文"
+    )).toEqual({
+      ok: true,
+      kind: "form",
+      url: "file:///tmp/skfiy-form.html",
+      fieldSelector: "#name",
+      value: "skfiy",
+      submitSelector: "#submit"
+    });
+  });
 });
 
 describe("runChromePageTask", () => {
@@ -142,6 +155,88 @@ describe("runChromePageTask", () => {
       type: "verification_failed",
       stage: "sensitive",
       reason: "Sensitive UI text is visible."
+    });
+  });
+
+  it("fills and submits a test form before extracting text", async () => {
+    const client = createChromeClient();
+
+    const events = await collectEvents(
+      runChromePageTask(
+        "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #name=skfiy 点击 #submit 并提取正文",
+        client,
+        { approved: true }
+      )
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "approval_required",
+      "locating_app",
+      "action_verified",
+      "action_verified",
+      "action_verified",
+      "action_verified",
+      "completed"
+    ]);
+    expect(client.sendCdpCommand).toHaveBeenNthCalledWith(1, {
+      method: "Page.navigate",
+      params: { url: "file:///tmp/skfiy-form.html" }
+    });
+    expect(client.sendCdpCommand).toHaveBeenNthCalledWith(2, {
+      method: "Runtime.evaluate",
+      params: expect.objectContaining({
+        expression: expect.stringContaining("#name")
+      })
+    });
+    expect(client.sendCdpCommand).toHaveBeenNthCalledWith(3, {
+      method: "Runtime.evaluate",
+      params: expect.objectContaining({
+        expression: expect.stringContaining("#submit")
+      })
+    });
+    expect(client.sendCdpCommand).toHaveBeenNthCalledWith(4, {
+      method: "Runtime.evaluate",
+      params: expect.objectContaining({
+        expression: expect.stringContaining("document.body")
+      })
+    });
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "action_verified",
+        actionType: "fill_selector",
+        message: "Filled #name."
+      }),
+      expect.objectContaining({
+        type: "action_verified",
+        actionType: "click_selector",
+        message: "Clicked #submit."
+      })
+    ]));
+  });
+
+  it("reports form fill failures as interaction verification failures", async () => {
+    const client = createChromeClient();
+    client.sendCdpCommand.mockImplementation(async (command) => {
+      if (command.method === "Page.navigate") {
+        return { frameId: "frame-1" };
+      }
+
+      throw new Error("Selector not found: #name");
+    });
+
+    const events = await collectEvents(
+      runChromePageTask(
+        "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #name=skfiy 点击 #submit 并提取正文",
+        client,
+        { approved: true }
+      )
+    );
+
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "interaction",
+      reason: "Selector not found: #name"
     });
   });
 });

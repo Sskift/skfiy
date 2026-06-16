@@ -15,6 +15,7 @@ export interface BrowserControlModeDecision {
 
 export type BrowserStructuredAction =
   | { type: "navigate"; url: string }
+  | { type: "fill_selector"; selector: string; value: string }
   | { type: "click_selector"; selector: string }
   | { type: "extract_text"; selector?: string };
 
@@ -53,6 +54,10 @@ export function buildCdpCommand(action: BrowserStructuredAction): CdpCommand {
         method: "Page.navigate",
         params: { url: action.url }
       };
+    case "fill_selector":
+      return createRuntimeEvaluateCommand(
+        createFillSelectorExpression(action.selector, action.value)
+      );
     case "click_selector":
       return createRuntimeEvaluateCommand(createClickSelectorExpression(action.selector));
     case "extract_text":
@@ -69,6 +74,27 @@ function createRuntimeEvaluateCommand(expression: string): CdpCommand {
       returnByValue: true
     }
   };
+}
+
+function createFillSelectorExpression(selector: string, value: string): string {
+  return `(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    if (!element) {
+      throw new Error("Selector not found: ${escapeForTemplate(selector)}");
+    }
+    if (!("value" in element)) {
+      throw new Error("Element is not fillable: ${escapeForTemplate(selector)}");
+    }
+    element.focus();
+    element.value = ${JSON.stringify(value)};
+    element.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      inputType: "insertText",
+      data: ${JSON.stringify(value)}
+    }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  })()`;
 }
 
 function createClickSelectorExpression(selector: string): string {

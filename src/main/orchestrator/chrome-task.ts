@@ -5,6 +5,10 @@ import type { RiskDecision } from "../../shared/types.js";
 const CHROME_APP_NAME = "Chrome";
 const CHROME_PAGE_PREFIX = "打开 Chrome 测试页面 ";
 const CHROME_PAGE_SUFFIX = " 并提取正文";
+const CHROME_FORM_PREFIX = "填写 Chrome 测试表单 ";
+const CHROME_FORM_SUFFIX = " 并提取正文";
+const CHROME_FORM_FIELD_MARKER = " 字段 ";
+const CHROME_FORM_CLICK_MARKER = " 点击 ";
 
 const CHROME_PAGE_RISK: RiskDecision = {
   level: "medium",
@@ -35,13 +39,13 @@ export type ChromeTaskEvent =
     }
   | {
       type: "action_verified";
-      actionType: "navigate" | "extract_text";
+      actionType: "navigate" | "fill_selector" | "click_selector" | "extract_text";
       status: "passed";
       message: string;
     }
   | {
       type: "verification_failed";
-      stage: "input" | "connection" | "navigation" | "extraction" | "sensitive";
+      stage: "input" | "connection" | "navigation" | "interaction" | "extraction" | "sensitive";
       reason: string;
     }
   | {
@@ -121,6 +125,43 @@ export async function* runChromePageTask(
 
   try {
     await client.waitForPageReady?.();
+
+    if (isChromeFormIntent(parsed)) {
+      try {
+        await client.sendCdpCommand(buildCdpCommand({
+          type: "fill_selector",
+          selector: parsed.fieldSelector,
+          value: parsed.value
+        }));
+        yield {
+          type: "action_verified",
+          actionType: "fill_selector",
+          status: "passed",
+          message: `Filled ${parsed.fieldSelector}.`
+        };
+
+        await client.sendCdpCommand(buildCdpCommand({
+          type: "click_selector",
+          selector: parsed.submitSelector
+        }));
+        yield {
+          type: "action_verified",
+          actionType: "click_selector",
+          status: "passed",
+          message: `Clicked ${parsed.submitSelector}.`
+        };
+      } catch (error) {
+        yield {
+          type: "verification_failed",
+          stage: "interaction",
+          reason: readErrorMessage(error, "Chrome form interaction failed.")
+        };
+        return;
+      }
+
+      await client.waitForPageReady?.();
+    }
+
     const result = await client.sendCdpCommand(buildCdpCommand({ type: "extract_text" }));
     const extractedText = readRuntimeStringResult(result);
 
@@ -159,8 +200,21 @@ function hasSensitiveText(value: string): boolean {
 
 export function parseChromePageIntent(input: string):
   | { ok: true; url: string }
+  | {
+      ok: true;
+      kind: "form";
+      url: string;
+      fieldSelector: string;
+      value: string;
+      submitSelector: string;
+    }
   | { ok: false; reason: string } {
   const trimmed = input.trim();
+
+  const formIntent = parseChromeFormIntent(trimmed);
+  if (formIntent.ok) {
+    return formIntent;
+  }
 
   if (!trimmed.startsWith(CHROME_PAGE_PREFIX) || !trimmed.endsWith(CHROME_PAGE_SUFFIX)) {
     return {
@@ -184,6 +238,80 @@ export function parseChromePageIntent(input: string):
     ok: true,
     url
   };
+}
+
+function parseChromeFormIntent(input: string):
+  | {
+      ok: true;
+      kind: "form";
+      url: string;
+      fieldSelector: string;
+      value: string;
+      submitSelector: string;
+    }
+  | { ok: false } {
+  if (!input.startsWith(CHROME_FORM_PREFIX) || !input.endsWith(CHROME_FORM_SUFFIX)) {
+    return { ok: false };
+  }
+
+  const body = input
+    .slice(CHROME_FORM_PREFIX.length, input.length - CHROME_FORM_SUFFIX.length)
+    .trim();
+  const fieldIndex = body.indexOf(CHROME_FORM_FIELD_MARKER);
+  const clickIndex = body.indexOf(CHROME_FORM_CLICK_MARKER);
+
+  if (fieldIndex <= 0 || clickIndex <= fieldIndex) {
+    return { ok: false };
+  }
+
+  const url = body.slice(0, fieldIndex).trim();
+  const assignment = body
+    .slice(fieldIndex + CHROME_FORM_FIELD_MARKER.length, clickIndex)
+    .trim();
+  const submitSelector = body
+    .slice(clickIndex + CHROME_FORM_CLICK_MARKER.length)
+    .trim();
+  const equalsIndex = assignment.indexOf("=");
+
+  if (equalsIndex <= 0 || !submitSelector) {
+    return { ok: false };
+  }
+
+  const fieldSelector = assignment.slice(0, equalsIndex).trim();
+  const value = assignment.slice(equalsIndex + 1).trim();
+
+  if (!isSupportedUrl(url) || !fieldSelector || !value) {
+    return { ok: false };
+  }
+
+  return {
+    ok: true,
+    kind: "form",
+    url,
+    fieldSelector,
+    value,
+    submitSelector
+  };
+}
+
+function isChromeFormIntent(
+  intent: { ok: true; url: string } | {
+    ok: true;
+    kind: "form";
+    url: string;
+    fieldSelector: string;
+    value: string;
+    submitSelector: string;
+  }
+): intent is {
+  ok: true;
+  kind: "form";
+  url: string;
+  fieldSelector: string;
+  value: string;
+  submitSelector: string;
+} {
+  return "kind" in intent && intent.kind === "form";
 }
 
 function blockedDecision(reason: string): RiskDecision {

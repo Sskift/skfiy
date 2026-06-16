@@ -11,6 +11,7 @@ import {
   createDefaultChromeSmokeOptions,
   createHelpText,
   EXPECTED_TEXT,
+  FORM_EXPECTED_TEXT,
   parseChromeSmokeArgs,
   PRODUCT_PATH
 } from "./smoke-chrome-plan.mjs";
@@ -46,12 +47,15 @@ async function main() {
     fixtureRoot: undefined,
     pageUrl: undefined,
     sensitivePageUrl: undefined,
+    formPageUrl: undefined,
     chromeEndpoint,
     command: undefined,
     sensitiveCommand: undefined,
+    formCommand: undefined,
     extractedText: "",
     events: [],
     sensitiveRun: undefined,
+    formRun: undefined,
     permissions: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
@@ -71,8 +75,10 @@ async function main() {
     evidence.fixtureRoot = fixture.rootPath;
     evidence.pageUrl = fixture.url;
     evidence.sensitivePageUrl = fixture.sensitiveUrl;
+    evidence.formPageUrl = fixture.formUrl;
     evidence.command = `打开 Chrome 测试页面 ${fixture.url} 并提取正文`;
     evidence.sensitiveCommand = `打开 Chrome 测试页面 ${fixture.sensitiveUrl} 并提取正文`;
+    evidence.formCommand = `填写 Chrome 测试表单 ${fixture.formUrl} 字段 #name=skfiy 点击 #submit 并提取正文`;
 
     if (!options.keepExisting) {
       await quitSkfiy();
@@ -153,6 +159,29 @@ async function main() {
       if (evidence.result === "passed" && evidence.sensitiveRun.result !== "sensitive-paused") {
         evidence.result = "failed";
       }
+
+      const formEvents = await runChromeProductCommand(
+        cdp,
+        evidence.formCommand,
+        options
+      );
+      const formText = extractCompletedChromeText(formEvents);
+      evidence.formRun = {
+        pageUrl: evidence.formPageUrl,
+        command: evidence.formCommand,
+        events: formEvents,
+        extractedText: formText,
+        result: classifyChromeSmokeEvidence({
+          ...evidence,
+          events: formEvents,
+          extractedText: formText,
+          expectedText: FORM_EXPECTED_TEXT
+        })
+      };
+
+      if (evidence.result === "passed" && evidence.formRun.result !== "passed") {
+        evidence.result = "failed";
+      }
     } finally {
       cdp.close();
     }
@@ -216,6 +245,7 @@ async function createChromeFixture() {
   const chromeUserDataDir = path.join(rootPath, "chrome-profile");
   const pagePath = path.join(rootPath, "index.html");
   const sensitivePagePath = path.join(rootPath, "sensitive.html");
+  const formPagePath = path.join(rootPath, "form.html");
   await writeFile(pagePath, `<!doctype html>
 <html>
   <head><title>skfiy chrome smoke</title></head>
@@ -228,11 +258,33 @@ async function createChromeFixture() {
   <body><main>Enter password and one-time code</main></body>
 </html>
 `);
+  await writeFile(formPagePath, `<!doctype html>
+<html>
+  <head><title>skfiy form smoke</title></head>
+  <body>
+    <main>
+      <form id="profile">
+        <label>Name <input id="name" name="name" /></label>
+        <button id="submit" type="submit">Submit</button>
+      </form>
+      <p id="result">waiting for input</p>
+    </main>
+    <script>
+      document.querySelector("#profile").addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.querySelector("#result").textContent =
+          document.querySelector("#name").value + " form submitted";
+      });
+    </script>
+  </body>
+</html>
+`);
   return {
     rootPath,
     chromeUserDataDir,
     url: pathToFileURL(pagePath).href,
-    sensitiveUrl: pathToFileURL(sensitivePagePath).href
+    sensitiveUrl: pathToFileURL(sensitivePagePath).href,
+    formUrl: pathToFileURL(formPagePath).href
   };
 }
 

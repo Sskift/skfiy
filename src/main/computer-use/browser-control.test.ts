@@ -61,6 +61,26 @@ describe("buildCdpCommand", () => {
     });
   });
 
+  it("builds a selector fill command with input and change events", () => {
+    expect(buildCdpCommand({
+      type: "fill_selector",
+      selector: "input[name='query']",
+      value: "skfiy"
+    })).toEqual({
+      method: "Runtime.evaluate",
+      params: {
+        awaitPromise: true,
+        returnByValue: true,
+        expression: expect.stringContaining("input[name='query']")
+      }
+    });
+    expect(buildCdpCommand({
+      type: "fill_selector",
+      selector: "input[name='query']",
+      value: "skfiy"
+    }).params.expression).toEqual(expect.stringContaining("dispatchEvent"));
+  });
+
   it("builds a text extraction command", () => {
     expect(buildCdpCommand({
       type: "extract_text",

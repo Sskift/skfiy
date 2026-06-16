@@ -17,6 +17,7 @@ describe("dogfood artifact verifier", () => {
     "Chrome app policy settings",
     "Chrome test-page extraction evidence",
     "Chrome sensitive-page pause evidence",
+    "Chrome form action evidence",
     "Finder app policy settings",
     "Finder test-folder organization evidence"
   ];
@@ -116,6 +117,37 @@ describe("dogfood artifact verifier", () => {
         }
       ]
     },
+    formRun: {
+      result: "passed",
+      pageUrl: "file:///tmp/skfiy-form.html",
+      extractedText: "skfiy form submitted",
+      events: [
+        {
+          status: "approval_required",
+          message: "Approval required (app policy): Chrome requires approval by app policy."
+        },
+        {
+          status: "executing",
+          message: "Verified navigate: Navigated to: file:///tmp/skfiy-form.html"
+        },
+        {
+          status: "executing",
+          message: "Verified fill_selector: Filled #name."
+        },
+        {
+          status: "executing",
+          message: "Verified click_selector: Clicked #submit."
+        },
+        {
+          status: "executing",
+          message: "Verified extract_text: Extracted text: skfiy form submitted"
+        },
+        {
+          status: "completed",
+          message: "Chrome test page extracted: skfiy form submitted"
+        }
+      ]
+    },
     events: [
       {
         status: "approval_required",
@@ -160,6 +192,16 @@ describe("dogfood artifact verifier", () => {
         {
           status: "completed",
           message: "Chrome test page extracted: password"
+        }
+      ]
+    },
+    formRun: {
+      result: "failed",
+      extractedText: "",
+      events: [
+        {
+          status: "completed",
+          message: "Chrome test page extracted:"
         }
       ]
     },
@@ -320,6 +362,7 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "chrome.productPath", ok: true }),
         expect.objectContaining({ id: "chrome.actionVerification", ok: true }),
         expect.objectContaining({ id: "chrome.sensitivePause", ok: true }),
+        expect.objectContaining({ id: "chrome.formAction", ok: true }),
         expect.objectContaining({ id: "finder.productPath", ok: true }),
         expect.objectContaining({ id: "finder.actionVerification", ok: true }),
         expect.objectContaining({ id: "voice.productPath", ok: true })
@@ -497,6 +540,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeAppPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeExtraction"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeSensitivePause"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.chromeFormAction"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finder"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderAppPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderOrganization"),
@@ -517,6 +561,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("chrome.actionVerification"),
         expect.stringContaining("chrome.extractedText"),
         expect.stringContaining("chrome.sensitivePause"),
+        expect.stringContaining("chrome.formAction"),
         expect.stringContaining("chrome.chromeProcessesAfterCleanup"),
         expect.stringContaining("chrome.processesAfterCleanup"),
         expect.stringContaining("finder.runnerHasTmux"),

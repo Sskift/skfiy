@@ -221,6 +221,11 @@ body:
         Chrome sensitive-page pause:
         result: sensitive-paused
         Verification failed (sensitive): Sensitive UI text is visible.
+        Chrome form action:
+        formRun.result: passed
+        formRun.extractedText: skfiy form submitted
+        Verified fill_selector: Filled #name.
+        Verified click_selector: Clicked #submit.
     validations:
       required: true
 

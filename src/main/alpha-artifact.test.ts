@@ -167,6 +167,7 @@ describe("alpha artifact packaging", () => {
         "Chrome app policy settings",
         "Chrome test-page extraction evidence",
         "Chrome sensitive-page pause evidence",
+        "Chrome form action evidence",
         "Finder app policy settings",
         "Finder test-folder organization evidence"
       ]

@@ -166,7 +166,7 @@ Use the packaged app path and an isolated Chrome CDP profile:
 npm run smoke:chrome -- --require-passed --output .skfiy-smoke/chrome-page.json
 ```
 
-The Chrome smoke script launches a temporary Chrome profile through LaunchServices, passes its CDP endpoint into `dist/skfiy.app`, sends `打开 Chrome 测试页面 <file-url> 并提取正文` through the preload API, approves Chrome app policy plus the medium-risk browser action, and verifies extracted page text. It then runs a second sensitive-page fixture and requires skfiy to pause instead of completing when page text contains password or one-time-code language. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> CDP -> Chrome`, Chrome app policy settings, `extractedText: skfiy chrome smoke ready`, `Verified navigate` and `Verified extract_text` events for the safe page, a `sensitiveRun.result: sensitive-paused` record with `Verification failed (sensitive): Sensitive UI text is visible.`, and empty skfiy/Chrome cleanup process lists.
+The Chrome smoke script launches a temporary Chrome profile through LaunchServices, passes its CDP endpoint into `dist/skfiy.app`, sends `打开 Chrome 测试页面 <file-url> 并提取正文` through the preload API, approves Chrome app policy plus the medium-risk browser action, and verifies extracted page text. It then runs a second sensitive-page fixture and requires skfiy to pause instead of completing when page text contains password or one-time-code language. It also runs a form fixture using `填写 Chrome 测试表单 <file-url> 字段 #name=skfiy 点击 #submit 并提取正文`, which proves selector fill, selector click, and post-click extraction. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> CDP -> Chrome`, Chrome app policy settings, `extractedText: skfiy chrome smoke ready`, `Verified navigate` and `Verified extract_text` events for the safe page, a `sensitiveRun.result: sensitive-paused` record with `Verification failed (sensitive): Sensitive UI text is visible.`, a `formRun.result: passed` record with `Verified fill_selector`, `Verified click_selector`, and `formRun.extractedText: skfiy form submitted`, and empty skfiy/Chrome cleanup process lists.
 
 ### Finder Computer Use Smoke
 
@@ -196,7 +196,7 @@ After creating an alpha manifest, verify that the manifest, zip, UI smoke artifa
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, Chrome extraction evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
+Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, Chrome extraction evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
 
 ## Reporting Template
 
@@ -213,6 +213,7 @@ Clipboard approvals: clipboard-read-approval needs-user-confirmation, clipboard-
 Chrome: extractedText skfiy chrome smoke ready
 Chrome action verification: Verified navigate, Verified extract_text
 Chrome sensitive pause: sensitiveRun.result sensitive-paused
+Chrome form action: formRun.result passed, Verified fill_selector, Verified click_selector
 Finder: beforeTree notes.pdf/photo.png/script.ts -> afterTree Documents/notes.pdf/Images/photo.png/Code/script.ts
 Finder action verification: Verified create_folder, Verified move_file
 Screenshots:

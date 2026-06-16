@@ -70,6 +70,33 @@ describe("Chrome product smoke script", () => {
     })).toBe("passed");
   });
 
+  it("classifies a completed Chrome form action with expected text as passed", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-chrome-plan.mjs");
+    const {
+      FORM_EXPECTED_TEXT,
+      classifyChromeSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      FORM_EXPECTED_TEXT: string;
+      classifyChromeSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyChromeSmokeEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      expectedText: FORM_EXPECTED_TEXT,
+      extractedText: "skfiy form submitted",
+      events: [
+        { status: "executing", message: "Verified navigate: Navigated to: file:///tmp/form.html" },
+        { status: "executing", message: "Verified fill_selector: Filled #name." },
+        { status: "executing", message: "Verified click_selector: Clicked #submit." },
+        { status: "executing", message: "Verified extract_text: Extracted text: skfiy form submitted" },
+        { status: "completed", message: "Chrome test page extracted: skfiy form submitted" }
+      ]
+    })).toBe("passed");
+  });
+
   it("classifies a Chrome sensitive-page pause as safety evidence", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-chrome-plan.mjs");
     const {

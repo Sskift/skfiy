@@ -21,6 +21,7 @@ const ACCEPTED_FINDER_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_VOICE_RESULTS = new Set(["passed", "blocked", "no-transcript"]);
 const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
 const REQUIRED_CHROME_TEXT = "skfiy chrome smoke ready";
+const REQUIRED_CHROME_FORM_TEXT = "skfiy form submitted";
 const REQUIRED_FINDER_AFTER_TREE = ["Code/script.ts", "Documents/notes.pdf", "Images/photo.png"];
 const CLIPBOARD_APPROVAL_RUNS = [
   { id: "clipboard-read-approval", command: "pbpaste" },
@@ -200,6 +201,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Chrome sensitive-page pause evidence"),
     "manifest must require Chrome sensitive-page pause evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.chromeFormAction",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Chrome form action evidence"),
+    "manifest must require Chrome form action evidence"
   );
   check(
     checks,
@@ -450,7 +458,7 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
     checks,
     "chrome.result",
     ACCEPTED_CHROME_RESULTS.has(artifact.result),
-    "Chrome smoke result must be passed or blocked"
+    "Chrome smoke result must be passed, blocked, or sensitive-paused"
   );
   check(
     checks,
@@ -511,6 +519,12 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
     "chrome.sensitivePause",
     hasChromeSensitivePauseEvidence(artifact.sensitiveRun),
     "Chrome smoke must include a sensitive-page run that pauses before completion"
+  );
+  check(
+    checks,
+    "chrome.formAction",
+    hasChromeFormActionEvidence(artifact.formRun),
+    "Chrome smoke must include a form fill/click run with action verification"
   );
   check(
     checks,
@@ -827,6 +841,18 @@ function hasChromeSensitivePauseEvidence(value) {
     && Array.isArray(value.events)
     && hasTaskEventMessage(value.events, "Verified navigate:")
     && hasTaskEventMessage(value.events, "Verification failed (sensitive): Sensitive UI text is visible.");
+}
+
+function hasChromeFormActionEvidence(value) {
+  return Boolean(value)
+    && value.result === "passed"
+    && typeof value.extractedText === "string"
+    && value.extractedText.includes(REQUIRED_CHROME_FORM_TEXT)
+    && Array.isArray(value.events)
+    && hasTaskEventMessage(value.events, "Verified navigate:")
+    && hasTaskEventMessage(value.events, "Verified fill_selector:")
+    && hasTaskEventMessage(value.events, "Verified click_selector:")
+    && hasTaskEventMessage(value.events, "Verified extract_text:");
 }
 
 function hasFinderAppPolicyEvidence(value) {

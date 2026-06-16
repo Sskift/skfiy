@@ -9,6 +9,15 @@ describe("selectCommandRoute", () => {
     });
   });
 
+  it("routes explicit Chrome test-form commands to Chrome", () => {
+    expect(selectCommandRoute(
+      "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #name=skfiy 点击 #submit 并提取正文"
+    )).toEqual({
+      kind: "chrome",
+      bundleId: "com.google.Chrome"
+    });
+  });
+
   it("routes explicit Finder test-folder organization commands to Finder", () => {
     expect(selectCommandRoute("整理 Finder 测试文件夹 /tmp/skfiy-demo")).toEqual({
       kind: "finder",
