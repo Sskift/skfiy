@@ -99,6 +99,7 @@ describe("dogfood artifact verifier", () => {
     ...clipboardApprovalRuns,
     ...nonComputerUseRouteGuardRuns
   ];
+  const empty42ByteZipSha256 = "094c4931fdb2f2af417c9e0322a9716006e8211fe9017f671ac6e3251300acca";
   const createFinderSmokeArtifact = (artifactPath: string) => ({
     result: "passed",
     appLaunchViaOpen: true,
@@ -551,7 +552,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -642,6 +643,65 @@ describe("dogfood artifact verifier", () => {
     });
   });
 
+  it("fails when the alpha zip bytes match but the SHA256 does not", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "b".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("zip.sha256")
+      ]),
+      checks: expect.arrayContaining([
+        expect.objectContaining({
+          id: "zip.bytes",
+          ok: true
+        }),
+        expect.objectContaining({
+          id: "zip.sha256",
+          ok: false,
+          message: `zip sha256 must match manifest zip.sha256 (${empty42ByteZipSha256})`
+        })
+      ])
+    });
+  });
+
   it("fails Finder evidence that omits item drag/drop evidence", async () => {
     const {
       verifyDogfoodArtifacts
@@ -677,7 +737,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -765,7 +825,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -813,7 +873,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -907,7 +967,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -970,7 +1030,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1070,7 +1130,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1137,7 +1197,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1223,7 +1283,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1358,7 +1418,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1408,7 +1468,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1456,7 +1516,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1552,7 +1612,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1615,6 +1675,69 @@ describe("dogfood artifact verifier", () => {
     });
   });
 
+  it("fails passed Ghostty evidence that lacks before and after screenshot proof", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> Ghostty",
+        artifactPath: ghosttySmokePath,
+        appPolicySettings: ghosttyAppPolicySettings,
+        runs: ghosttyMatrixRuns,
+        screenshots: [],
+        events: [
+          { status: "executing", message: "Verified type_text: Helper accepted type_text." },
+          { status: "executing", message: "Verified press_key: Helper accepted press_key." },
+          { status: "completed", message: "Command completed in Ghostty." }
+        ],
+        processesAfterCleanup: []
+      },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createPassedVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("ghostty.screenshots")
+      ])
+    });
+  });
+
   it("fails when current-head evidence is required but the manifest commit is stale", async () => {
     const {
       verifyDogfoodArtifacts
@@ -1643,7 +1766,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "stale-head",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1729,7 +1852,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1809,7 +1932,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1877,7 +2000,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1948,7 +2071,7 @@ describe("dogfood artifact verifier", () => {
         appName: "skfiy",
         commitSha: "abc123",
         bundleIdentifier: "com.sskift.skfiy",
-        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -1989,6 +2112,14 @@ function createMemoryIo(files: Record<string, unknown>) {
       }
 
       return { size: value.byteLength };
+    },
+    async readFile(filePath: string) {
+      const value = files[filePath];
+      if (!Buffer.isBuffer(value)) {
+        throw new Error(`Missing file: ${filePath}`);
+      }
+
+      return value;
     }
   };
 }

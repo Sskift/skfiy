@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -88,6 +89,7 @@ export async function runGitHubAlphaRelease(options, io = createDefaultIo()) {
 
   await assertReadableFile(options.manifestPath, "alpha manifest", io);
   await assertReadableFile(manifest.zip.path, "alpha zip", io);
+  await assertZipIntegrity(manifest, io);
 
   const plan = createGitHubAlphaReleasePlan({
     manifest,
@@ -288,6 +290,29 @@ async function assertReadableFile(filePath, label, io) {
   }
 }
 
+async function assertZipIntegrity(manifest, io) {
+  const zipStat = await io.statFile(manifest.zip.path);
+  if (Number.isFinite(manifest.zip.bytes) && zipStat.size !== manifest.zip.bytes) {
+    throw new Error(
+      `alpha zip size mismatch: expected ${manifest.zip.bytes}, got ${zipStat.size}.`
+    );
+  }
+
+  const actualSha256 = await sha256File(manifest.zip.path, io);
+  if (actualSha256 !== manifest.zip.sha256) {
+    throw new Error(
+      `alpha zip SHA256 mismatch: expected ${manifest.zip.sha256}, got ${actualSha256}.`
+    );
+  }
+}
+
+async function sha256File(filePath, io) {
+  const bytes = typeof io.readFile === "function"
+    ? await io.readFile(filePath)
+    : await readFile(filePath);
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 function redactPlan(plan) {
   return {
     tagName: plan.tagName,
@@ -317,6 +342,7 @@ function createDefaultIo() {
     async statFile(filePath) {
       return await stat(filePath);
     },
+    readFile,
     async mkdir(dirPath, options) {
       await mkdir(dirPath, options);
     },

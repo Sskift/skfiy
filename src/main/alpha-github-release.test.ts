@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const manifestPath = "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json";
 const trackingIssueUrl = "https://github.com/Sskift/skfiy/issues/1";
+const empty1234ByteZipSha256 = "ad47fd9e87159d651a53b3dfba3ef200684a9ed88c2528b62e18f3881fe203b0";
 
 describe("GitHub alpha release publisher", () => {
   const modulePath = path.join(process.cwd(), "scripts", "publish-alpha-github-release.mjs");
@@ -114,7 +115,7 @@ describe("GitHub alpha release publisher", () => {
     });
     expect(notes).toContain("# skfiy alpha 0.1.0 abcdef1");
     expect(notes).toContain("Unsigned internal dogfood build.");
-    expect(notes).toContain("Zip SHA256: `feedface`");
+    expect(notes).toContain(`Zip SHA256: \`${empty1234ByteZipSha256}\``);
     expect(notes).toContain(trackingIssueUrl);
     expect(notes).toContain("npm run dogfood:prepare-alpha");
     expect(notes).toContain("npm run dogfood:handoff");
@@ -144,7 +145,39 @@ describe("GitHub alpha release publisher", () => {
       releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1"
     });
     expect(io.commands).toEqual([]);
-    expect(io.textFiles["/repo/.skfiy-alpha/skfiy-alpha-abcdef1-notes.md"]).toContain("Zip SHA256: `feedface`");
+    expect(io.textFiles["/repo/.skfiy-alpha/skfiy-alpha-abcdef1-notes.md"]).toContain(
+      `Zip SHA256: \`${empty1234ByteZipSha256}\``
+    );
+  });
+
+  it("rejects a dry-run release when the zip bytes match but the SHA256 differs", async () => {
+    const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
+      runGitHubAlphaRelease: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      manifest: {
+        ...createManifest(),
+        zip: {
+          path: createManifest().zip.path,
+          bytes: 1234,
+          sha256: "b".repeat(64)
+        }
+      }
+    });
+
+    await expect(runGitHubAlphaRelease({
+      rootDir: "/repo",
+      manifestPath,
+      repo: "Sskift/skfiy",
+      trackingIssueUrl,
+      dryRun: true
+    }, io)).rejects.toThrow(
+      `alpha zip SHA256 mismatch: expected ${"b".repeat(64)}, got ${empty1234ByteZipSha256}.`
+    );
+    expect(io.commands).toEqual([]);
   });
 });
 
@@ -161,14 +194,15 @@ function createManifest() {
     zip: {
       path: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.zip",
       bytes: 1234,
-      sha256: "feedface"
+      sha256: empty1234ByteZipSha256
     }
   };
 }
 
-function createMemoryIo() {
+function createMemoryIo(options: { manifest?: ReturnType<typeof createManifest> } = {}) {
   const commands: Array<{ command: string; args: string[] }> = [];
   const textFiles: Record<string, string> = {};
+  const manifest = options.manifest ?? createManifest();
 
   return {
     commands,
@@ -177,13 +211,19 @@ function createMemoryIo() {
       if (filePath !== manifestPath) {
         throw new Error(`Unexpected JSON path: ${filePath}`);
       }
-      return createManifest();
+      return manifest;
     },
     async statFile(filePath: string) {
-      if (filePath !== manifestPath && filePath !== createManifest().zip.path) {
+      if (filePath !== manifestPath && filePath !== manifest.zip.path) {
         throw new Error(`Unexpected stat path: ${filePath}`);
       }
-      return { size: 1234 };
+      return { size: filePath === manifestPath ? 512 : 1234 };
+    },
+    async readFile(filePath: string) {
+      if (filePath !== manifest.zip.path) {
+        throw new Error(`Unexpected file read path: ${filePath}`);
+      }
+      return Buffer.alloc(1234);
     },
     async mkdir() {},
     async writeText(filePath: string, value: string) {

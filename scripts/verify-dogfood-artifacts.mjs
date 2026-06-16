@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
@@ -566,6 +567,12 @@ function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
   if (artifact.result === "passed") {
     check(
       checks,
+      "ghostty.screenshots",
+      hasRequiredGhosttyScreenshots(artifact.screenshots),
+      "passed Ghostty smoke must include non-empty before and after screenshot evidence"
+    );
+    check(
+      checks,
       "ghostty.actionVerification",
       hasRequiredGhosttyActionVerification(artifact.events),
       "passed Ghostty smoke must include type_text and press_key action verification events"
@@ -908,6 +915,16 @@ async function verifyZip(zipPath, manifest, io, checks) {
       Number.isFinite(manifest?.zip?.bytes) && stats.size === manifest.zip.bytes,
       "zip file size must match manifest zip.bytes"
     );
+    const expectedSha256 = readString(manifest?.zip?.sha256);
+    if (expectedSha256) {
+      const actualSha256 = await sha256File(zipPath, io);
+      check(
+        checks,
+        "zip.sha256",
+        actualSha256 === expectedSha256,
+        `zip sha256 must match manifest zip.sha256 (${actualSha256})`
+      );
+    }
   } catch (error) {
     check(
       checks,
@@ -916,6 +933,13 @@ async function verifyZip(zipPath, manifest, io, checks) {
       error instanceof Error ? error.message : `zip does not exist: ${zipPath}`
     );
   }
+}
+
+async function sha256File(filePath, io) {
+  const bytes = typeof io.readFile === "function"
+    ? await io.readFile(filePath)
+    : await readFile(filePath);
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 async function readArtifactJson(filePath, label, io, checks) {
@@ -953,6 +977,7 @@ function createDefaultIo() {
       return JSON.parse(await readFile(filePath, "utf8"));
     },
     stat,
+    readFile,
     async readCurrentHead(rootDir) {
       const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: rootDir });
       return String(stdout).trim();
@@ -1031,6 +1056,25 @@ function hasBlockingPermission(permissions) {
 function hasRequiredGhosttyActionVerification(events) {
   return hasVerifiedGhosttyAction(events, "type_text")
     && hasVerifiedGhosttyAction(events, "press_key");
+}
+
+function hasRequiredGhosttyScreenshots(screenshots) {
+  return hasNonEmptyScreenshotStage(screenshots, "before")
+    && hasNonEmptyScreenshotStage(screenshots, "after");
+}
+
+function hasNonEmptyScreenshotStage(screenshots, stage) {
+  if (!Array.isArray(screenshots)) {
+    return false;
+  }
+
+  return screenshots.some((screenshot) =>
+    screenshot?.stage === stage
+      && screenshot.exists === true
+      && screenshot.nonEmpty === true
+      && Number.isFinite(screenshot.bytes)
+      && screenshot.bytes > 0
+  );
 }
 
 function hasGhosttyAppPolicyEvidence(value) {

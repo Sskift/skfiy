@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "appName": "skfiy",
+  "tagName": "skfiy-alpha-2c95c59",
+  "releaseUrl": "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-2c95c59",
+  "commitSha": "2c95c594ab1946cf277578e9a477412fa3795222",
+  "artifactBaseName": "skfiy-0.1.0-2c95c59-macos-unsigned",
+  "manifestPath": ".skfiy-alpha/skfiy-0.1.0-2c95c59-macos-unsigned.json",
+  "zipPath": ".skfiy-alpha/skfiy-0.1.0-2c95c59-macos-unsigned.zip",
+  "zipSha256": "028052ece5ceab2211e2d49883dc80058fd029b513af5e62e889c95557b88e0d",
+  "smokeArtifacts": {
+    "ui": ".skfiy-smoke/ui-2c95c59.json",
+    "ghostty": ".skfiy-smoke/ghostty-2c95c59.json",
+    "chrome": ".skfiy-smoke/chrome-2c95c59.json",
+    "finder": ".skfiy-smoke/finder-2c95c59.json",
+    "voice": ".skfiy-smoke/voice-2c95c59.json"
+  },
+  "dogfoodStatus": "waiting-for-dogfood",
+  "publishedAt": "2026-06-16T15:06:35Z"
+}
