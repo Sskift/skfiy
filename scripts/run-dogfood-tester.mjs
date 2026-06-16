@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -24,6 +24,13 @@ const REQUIRED_STRICT_PERMISSION_KEYS = [
   "microphone",
   "speechRecognition"
 ];
+const EXPECTED_APP_BUNDLE_BASENAME = "skfiy.app";
+const EXPECTED_APP_BUNDLE_IDENTITY = {
+  CFBundleIdentifier: "com.sskift.skfiy",
+  CFBundleName: "skfiy",
+  CFBundleDisplayName: "skfiy",
+  CFBundleExecutable: "skfiy"
+};
 
 export function createDefaultDogfoodTesterOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -218,6 +225,31 @@ export async function runDogfoodTester(options, io = createDefaultIo()) {
 
   const commandResults = [];
   let result = "completed";
+  const appBundlePreflight = await createAppBundlePreflight(plan, io);
+  if (appBundlePreflight.blockers.length > 0) {
+    result = "failed";
+    const summary = createDogfoodTesterSummary({
+      plan,
+      result,
+      commandResults,
+      generatedAt: readNow(options),
+      appBundlePreflight
+    });
+    await io.writeText(plan.summaryPath, summary);
+    const error = new Error(
+      "dogfood:tester app bundle preflight failed before product smokes: "
+        + `${formatAppBundleBlockers(appBundlePreflight.blockers)}. See ${plan.summaryPath}.`
+    );
+    error.result = {
+      result,
+      plan,
+      commandResults,
+      issueOutputPath: plan.issueOutputPath,
+      summaryPath: plan.summaryPath,
+      appBundlePreflight
+    };
+    throw error;
+  }
 
   for (const command of plan.commands) {
     const commandResult = await io.runCommand(command.command, command.args, {
@@ -240,7 +272,8 @@ export async function runDogfoodTester(options, io = createDefaultIo()) {
         plan,
         result,
         commandResults,
-        generatedAt: readNow(options)
+        generatedAt: readNow(options),
+        appBundlePreflight
       });
       await io.writeText(plan.summaryPath, summary);
       const error = new Error(
@@ -268,6 +301,7 @@ export async function runDogfoodTester(options, io = createDefaultIo()) {
         result,
         commandResults,
         generatedAt: readNow(options),
+        appBundlePreflight,
         permissionPreflight
       });
       await io.writeText(plan.summaryPath, summary);
@@ -291,7 +325,8 @@ export async function runDogfoodTester(options, io = createDefaultIo()) {
     plan,
     result,
     commandResults,
-    generatedAt: readNow(options)
+    generatedAt: readNow(options),
+    appBundlePreflight
   }));
 
   return {
@@ -323,6 +358,7 @@ export function createDogfoodTesterHelpText() {
     "  --summary <path>               Local run summary path.",
     `  --listen-ms <number>           Native voice listen window. Default: ${DEFAULT_LISTEN_MS}.`,
     "  --app <path>                   App bundle to test. Use the alpha zip's skfiy.app when dogfooding a release.",
+    "                                Runs an app bundle identity preflight before any product smoke.",
     "  --finder-target-dir <path>     Parent directory for the isolated Finder fixture.",
     "  --chrome-current-page-endpoint <url>",
     "                                Attach Chrome BYO current-page mode to a consenting tester page.",
@@ -386,6 +422,7 @@ function createDogfoodTesterSummary({
   result,
   commandResults,
   generatedAt,
+  appBundlePreflight,
   permissionPreflight
 }) {
   const lines = [
@@ -414,6 +451,27 @@ function createDogfoodTesterSummary({
     ),
     ""
   ];
+
+  if (appBundlePreflight) {
+    lines.push(
+      "## App Bundle Preflight",
+      "",
+      `Result: ${appBundlePreflight.blockers.length === 0 ? "passed" : "failed"}`,
+      `App: ${appBundlePreflight.appPath ?? "default"}`,
+      ""
+    );
+
+    if (appBundlePreflight.blockers.length > 0) {
+      lines.push(
+        "App bundle identity blockers:",
+        "",
+        ...appBundlePreflight.blockers.map((blocker) =>
+          `- ${blocker.field}: ${blocker.actual} (expected ${blocker.expected})`
+        ),
+        ""
+      );
+    }
+  }
 
   if (permissionPreflight) {
     lines.push(
@@ -473,6 +531,56 @@ function shellQuote(value) {
 
 function escapeMarkdownTableCell(value) {
   return String(value).replaceAll("|", "\\|").replaceAll("\n", " ");
+}
+
+async function createAppBundlePreflight(plan, io) {
+  if (typeof plan.appPath !== "string" || plan.appPath.trim().length === 0) {
+    return { appPath: undefined, blockers: [] };
+  }
+
+  const appPath = plan.appPath;
+  const blockers = [];
+  const basename = path.basename(appPath);
+  if (basename !== EXPECTED_APP_BUNDLE_BASENAME) {
+    blockers.push({
+      field: "appPath.basename",
+      actual: basename,
+      expected: EXPECTED_APP_BUNDLE_BASENAME
+    });
+  }
+
+  const infoPlistPath = path.join(appPath, "Contents", "Info.plist");
+  let infoPlist;
+  try {
+    infoPlist = await io.readText(infoPlistPath);
+  } catch (error) {
+    blockers.push({
+      field: "Info.plist",
+      actual: error instanceof Error ? error.message : "unreadable",
+      expected: "readable Contents/Info.plist"
+    });
+    return { appPath, blockers };
+  }
+
+  for (const [field, expected] of Object.entries(EXPECTED_APP_BUNDLE_IDENTITY)) {
+    const actual = readInfoPlistString(infoPlist, field) ?? "missing";
+    if (actual !== expected) {
+      blockers.push({ field, actual, expected });
+    }
+  }
+
+  return { appPath, blockers };
+}
+
+function readInfoPlistString(infoPlist, key) {
+  const pattern = new RegExp(`<key>${escapeRegExp(key)}</key>\\s*<string>([^<]*)</string>`);
+  return pattern.exec(String(infoPlist ?? ""))?.[1];
+}
+
+function formatAppBundleBlockers(blockers) {
+  return blockers.map((blocker) =>
+    `${blocker.field}=${blocker.actual} expected ${blocker.expected}`
+  ).join(", ");
 }
 
 function createStrictPermissionPreflight(commandId, commandResult, options) {
@@ -539,6 +647,10 @@ function formatPermissionBlockers(blockers) {
   return blockers.map((blocker) => `${blocker.permission}=${blocker.state}`).join(", ");
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function readWorkflowList(value) {
   return value.split(",")
     .map((workflow) => workflow.trim())
@@ -583,6 +695,9 @@ function normalizeExitCode(exitCode) {
 function createDefaultIo() {
   return {
     mkdir,
+    async readText(filePath) {
+      return readFile(filePath, "utf8");
+    },
     async writeText(filePath, text) {
       await writeFile(filePath, text);
     },

@@ -73,6 +73,7 @@ describe("dogfood tester runner", () => {
     expect(createDogfoodTesterHelpText()).toContain("dogfood:tester");
     expect(createDogfoodTesterHelpText()).toContain("packaged-app smokes sequentially");
     expect(createDogfoodTesterHelpText()).toContain("does not fabricate tester reports");
+    expect(createDogfoodTesterHelpText()).toContain("app bundle identity preflight");
     expect(createDogfoodTesterHelpText()).toContain("strict permission preflight");
     expect(createDogfoodTesterHelpText()).toContain("Reserved tester id prefixes");
   });
@@ -147,6 +148,59 @@ describe("dogfood tester runner", () => {
         "/repo/.skfiy-dogfood/issues/tester-a.md"
       ])
     });
+  });
+
+  it("rejects a mismatched app bundle identity before running product smokes", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = {
+      ...createMemoryIo(),
+      async readText(filePath: string) {
+        if (filePath !== "/Applications/Wrong.app/Contents/Info.plist") {
+          throw new Error(`Unexpected read: ${filePath}`);
+        }
+        return [
+          "<plist>",
+          "<dict>",
+          "<key>CFBundleIdentifier</key><string>com.example.wrong</string>",
+          "<key>CFBundleName</key><string>Wrong</string>",
+          "<key>CFBundleDisplayName</key><string>Wrong</string>",
+          "<key>CFBundleExecutable</key><string>Wrong</string>",
+          "</dict>",
+          "</plist>"
+        ].join("\n");
+      }
+    };
+
+    await expect(runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      appPath: "/Applications/Wrong.app",
+      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).rejects.toThrow(
+      "dogfood:tester app bundle preflight failed before product smokes"
+    );
+
+    expect(io.commands).toEqual([]);
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "Result: failed"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "## App Bundle Preflight"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "CFBundleIdentifier: com.example.wrong"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "expected com.sskift.skfiy"
+    );
   });
 
   it("runs planned commands, writes a local summary, and keeps blocked evidence explicit", async () => {
@@ -252,6 +306,63 @@ describe("dogfood tester runner", () => {
     );
     expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
       "speechRecognition: unknown"
+    );
+  });
+
+  it("records a passed app bundle preflight when strict permission preflight fails", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = {
+      ...createMemoryIo({
+        "smoke:ui": {
+          stdout: JSON.stringify({
+            result: "passed",
+            permissions: {
+              screenRecording: { state: "denied" },
+              accessibility: { state: "granted" },
+              microphone: { state: "granted" },
+              speechRecognition: { state: "granted" }
+            }
+          }),
+          exitCode: 0
+        }
+      }),
+      async readText() {
+        return [
+          "<plist>",
+          "<dict>",
+          "<key>CFBundleIdentifier</key><string>com.sskift.skfiy</string>",
+          "<key>CFBundleName</key><string>skfiy</string>",
+          "<key>CFBundleDisplayName</key><string>skfiy</string>",
+          "<key>CFBundleExecutable</key><string>skfiy</string>",
+          "</dict>",
+          "</plist>"
+        ].join("\n");
+      }
+    };
+
+    await expect(runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal"],
+      appPath: "/Applications/skfiy.app",
+      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
+      requirePassed: true
+    }, io)).rejects.toThrow("permission preflight failed");
+
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "## App Bundle Preflight"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "Result: passed"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "App: /Applications/skfiy.app"
     );
   });
 
