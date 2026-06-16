@@ -11,6 +11,8 @@ const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/\d+/g;
+const ASSIGNMENT_PACKET_HEADING = "# skfiy dogfood tester assignments";
+const ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING = "## Permission Preflight";
 const REQUIRED_PERMISSION_KEYS = [
   "screenRecording",
   "accessibility",
@@ -109,6 +111,11 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     manifest,
     manifestPath: options.manifestPath
   });
+  const assignmentComment = validateTrackingIssueAssignmentComment({
+    comments: trackingIssue.comments,
+    commentsAvailable: trackingIssue.commentsAvailable,
+    manifest
+  });
   const acceptedReportIssueUrls = readAcceptedReportIssueUrls(
     trackingIssue.body,
     options.trackingIssueUrl
@@ -143,18 +150,6 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     && workflowCoverage.missing.length === 0;
   const canRunPassedCohort = canRunCollect && passedWorkflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
-  const nextActions = createNextActions({
-    canRunCollect,
-    canRunPassedCohort,
-    trackingIssueTarget: readTrackingIssueTarget(options),
-    permissionBlockers,
-    missingRequiredReports,
-    manifestChecks,
-    currentAlpha,
-    workflowCoverage,
-    passedWorkflowCoverage,
-    invalidReportIssueCount
-  });
   const testerAssignments = createTesterAssignments({
     manifestPath: options.manifestPath,
     trackingIssueUrl: options.trackingIssueUrl,
@@ -165,6 +160,20 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     missingRequiredReports,
     workflowCoverage,
     passedWorkflowCoverage
+  });
+  const nextActions = createNextActions({
+    canRunCollect,
+    canRunPassedCohort,
+    trackingIssueTarget: readTrackingIssueTarget(options),
+    permissionBlockers,
+    missingRequiredReports,
+    manifestChecks,
+    currentAlpha,
+    workflowCoverage,
+    passedWorkflowCoverage,
+    invalidReportIssueCount,
+    assignmentComment,
+    testerAssignmentCount: testerAssignments.length
   });
 
   const status = {
@@ -183,6 +192,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     },
     trackingIssue: {
       currentAlpha,
+      assignmentComment,
       acceptedReportIssueUrls,
       acceptedReportCount: acceptedReportIssueUrls.length,
       verifiedAcceptedReportIssueUrls,
@@ -224,6 +234,7 @@ export function createDogfoodStatusHelpText() {
     "It separates real tester readiness from local synthetic reports such as local-* and preflight-* runs.",
     "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
     "It warns when app-build inputs changed after the selected alpha manifest commit.",
+    "It reports whether the current alpha tester assignment packet is already posted as a tracking issue comment.",
     "It also emits recommended tester assignments with prepare/tester/review commands.",
     "Assignments whose purpose is passed-workflow-evidence include --require-passed.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
@@ -255,6 +266,10 @@ export function createDogfoodStatusMarkdown(status) {
     ...(status.trackingIssue.currentAlpha.ok
       ? ["- ok"]
       : status.trackingIssue.currentAlpha.reasons.map((reason) => `- invalid: ${reason}`)),
+    "",
+    "## Assignment Comment",
+    "",
+    ...formatAssignmentCommentMarkdown(status.trackingIssue.assignmentComment),
     "",
     "## Local Smoke",
     ""
@@ -359,7 +374,8 @@ async function readTrackingIssue(options, io) {
   if (typeof options.trackingIssueFile === "string" && options.trackingIssueFile.trim().length > 0) {
     return {
       body: await io.readText(options.trackingIssueFile),
-      labels: []
+      labels: [],
+      comments: undefined
     };
   }
 
@@ -605,7 +621,9 @@ function createNextActions({
   currentAlpha,
   workflowCoverage,
   passedWorkflowCoverage,
-  invalidReportIssueCount
+  invalidReportIssueCount,
+  assignmentComment,
+  testerAssignmentCount
 }) {
   const actions = [];
 
@@ -614,6 +632,13 @@ function createNextActions({
   }
   if (missingRequiredReports > 0) {
     actions.push(`Collect at least 3 accepted real tester report issue URLs in ${trackingIssueTarget}.`);
+  }
+  if (
+    assignmentComment?.available === true
+    && assignmentComment.ok !== true
+    && testerAssignmentCount > 0
+  ) {
+    actions.push(`Post the current ${assignmentComment.currentAlphaTag} tester assignment packet to ${trackingIssueTarget} before asking more testers to run it.`);
   }
   if (invalidReportIssueCount > 0) {
     actions.push("Review or replace stale/invalid dogfood report issue URLs before collecting the cohort.");
@@ -913,6 +938,85 @@ function validateTrackingIssueCurrentAlpha({ body, manifest, manifestPath }) {
   };
 }
 
+function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, manifest }) {
+  const normalizedComments = Array.isArray(comments)
+    ? comments.map(normalizeIssueComment).filter((comment) => comment.body.length > 0)
+    : [];
+  const currentAlphaTag = readManifestAlphaTag(manifest);
+  const matchingComments = normalizedComments.filter((comment) =>
+    isCurrentAlphaAssignmentComment(comment.body, currentAlphaTag)
+  );
+  const completeComments = matchingComments.filter((comment) =>
+    comment.body.includes(ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING)
+  );
+  const reasons = [];
+  const latestComment = completeComments.at(-1) ?? matchingComments.at(-1);
+
+  if (commentsAvailable !== true) {
+    reasons.push("tracking issue comments were not loaded");
+  } else if (matchingComments.length === 0) {
+    reasons.push(`tracking issue does not have a current ${currentAlphaTag} tester assignment packet comment`);
+  } else if (completeComments.length === 0) {
+    reasons.push(`current ${currentAlphaTag} tester assignment packet comment is missing Permission Preflight`);
+  }
+
+  return {
+    available: commentsAvailable === true,
+    ok: commentsAvailable === true && reasons.length === 0,
+    currentAlphaTag,
+    commentCount: normalizedComments.length,
+    matchingCommentCount: matchingComments.length,
+    latestCommentUrl: latestComment?.url,
+    latestCommentCreatedAt: latestComment?.createdAt,
+    reasons
+  };
+}
+
+function normalizeIssueComment(comment) {
+  return {
+    body: typeof comment?.body === "string" ? comment.body : "",
+    url: typeof comment?.url === "string" ? comment.url : undefined,
+    createdAt: typeof comment?.createdAt === "string" ? comment.createdAt : undefined
+  };
+}
+
+function isCurrentAlphaAssignmentComment(body, currentAlphaTag) {
+  const alphaLinePattern = new RegExp(
+    `^Alpha:\\s*${escapeRegExp(currentAlphaTag)}\\s*$`,
+    "im"
+  );
+
+  return typeof body === "string"
+    && body.includes(ASSIGNMENT_PACKET_HEADING)
+    && currentAlphaTag.length > 0
+    && alphaLinePattern.test(body);
+}
+
+function readManifestAlphaTag(manifest) {
+  const commitSha = typeof manifest?.commitSha === "string" ? manifest.commitSha.trim() : "";
+  return commitSha.length > 0 ? `skfiy-alpha-${commitSha.slice(0, 7)}` : "skfiy-alpha-unknown";
+}
+
+function formatAssignmentCommentMarkdown(assignmentComment) {
+  if (!assignmentComment || assignmentComment.available !== true) {
+    return ["- unavailable: tracking issue comments were not loaded"];
+  }
+
+  const lines = assignmentComment.ok
+    ? [`- ok: current ${assignmentComment.currentAlphaTag} packet is posted`]
+    : assignmentComment.reasons.map((reason) => `- invalid: ${reason}`);
+
+  lines.push(`- matching comments: ${assignmentComment.matchingCommentCount}/${assignmentComment.commentCount}`);
+  if (typeof assignmentComment.latestCommentUrl === "string") {
+    lines.push(`- latest: ${assignmentComment.latestCommentUrl}`);
+  }
+  if (typeof assignmentComment.latestCommentCreatedAt === "string") {
+    lines.push(`- latest created: ${assignmentComment.latestCommentCreatedAt}`);
+  }
+
+  return lines;
+}
+
 function readCurrentAlphaFields(section) {
   return {
     release: readBulletField(section, "Release"),
@@ -1200,13 +1304,19 @@ function readMarkdownSection(body, title) {
 }
 
 function normalizeIssueEvidence(issue) {
+  const hasComments = Array.isArray(issue?.comments);
+
   return {
     body: typeof issue?.body === "string" ? issue.body : "",
     labels: Array.isArray(issue?.labels)
       ? issue.labels
         .map((label) => typeof label === "string" ? label.trim() : "")
         .filter(Boolean)
-      : []
+      : [],
+    commentsAvailable: hasComments,
+    comments: hasComments
+      ? issue.comments.map(normalizeIssueComment)
+      : undefined
   };
 }
 
@@ -1261,7 +1371,7 @@ async function readIssueFromGitHub(issueUrl) {
     "--repo",
     issue.repository,
     "--json",
-    "body,labels"
+    "body,labels,comments"
   ]);
   const payload = JSON.parse(stdout);
 
@@ -1271,6 +1381,13 @@ async function readIssueFromGitHub(issueUrl) {
       ? payload.labels
         .map((label) => typeof label?.name === "string" ? label.name.trim() : "")
         .filter(Boolean)
+      : [],
+    comments: Array.isArray(payload?.comments)
+      ? payload.comments.map((comment) => ({
+        body: typeof comment?.body === "string" ? comment.body : "",
+        url: typeof comment?.url === "string" ? comment.url : undefined,
+        createdAt: typeof comment?.createdAt === "string" ? comment.createdAt : undefined
+      }))
       : []
   };
 }

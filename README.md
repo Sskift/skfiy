@@ -166,6 +166,9 @@ npm run dogfood:cohort -- \
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
+When it can read GitHub comments, it also reports whether the current
+`skfiy-alpha-<commit>` assignment packet has already been posted to the tracking
+issue and adds a next action when that comment is missing.
 `dogfood:assignments` is also non-mutating. It packages those assignments into a
 copy-safe Markdown handoff for real testers without creating reports, adding
 labels, updating cohort JSON, or marking evidence accepted.
