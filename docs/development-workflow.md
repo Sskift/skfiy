@@ -248,6 +248,17 @@ npm run dogfood:status -- \
 `dogfood:status` reports local smoke results, permission blockers, manifest/current-head state, and accepted report URLs already filled into the tracking issue. It does not create reports, edit GitHub, or mark the cohort ready; use it to decide whether the next step is granting permissions, collecting tester reports, or running `dogfood:collect`.
 It also reads the tracking issue's Required Workflow Coverage checklist and reports which of `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback` are still missing, so maintainers can steer the next tester before running the final cohort gate.
 
+Generate a copyable handoff for each real tester before asking them to run the packaged app:
+
+```bash
+npm run dogfood:handoff -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tester-id tester-b \
+  --output .skfiy-dogfood/handoffs/tester-b.md
+```
+
+`dogfood:handoff` writes alpha identity, zip SHA256, no-tmux rules, permission setup, the exact `dogfood:tester` command, filing instructions, and maintainer review commands. It is intentionally non-mutating: it does not create GitHub issues, accept reports, or update the cohort.
+
 For one real tester machine, collect the five packaged-app smoke artifacts and a checked issue body with:
 
 ```bash

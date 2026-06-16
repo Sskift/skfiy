@@ -68,6 +68,17 @@ npm run dogfood:status -- \
 
 `dogfood:status` summarizes the alpha manifest, local smoke artifact results, current permission blockers, accepted report issue URLs already filled into the tracking issue, and the Required Workflow Coverage checklist. It is intentionally non-mutating: it does not create reports, update the tracking issue, or claim cohort readiness.
 
+Before asking a tester to run the alpha, generate a handoff note with the exact package identity and commands:
+
+```bash
+npm run dogfood:handoff -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tester-id tester-a \
+  --output .skfiy-dogfood/handoffs/tester-a.md
+```
+
+`dogfood:handoff` writes a copyable tester packet with the alpha zip path, SHA256, no-tmux warning, permission checklist, `dogfood:tester` command, issue filing instructions, and maintainer review commands. It does not create or accept GitHub reports.
+
 For a single tester, prefer the one-command runner so all packaged-app smokes run sequentially and the checked GitHub issue body is generated from the exact artifacts it just wrote:
 
 ```bash

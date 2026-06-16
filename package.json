@@ -31,6 +31,7 @@
     "dogfood:collect": "node scripts/collect-dogfood-cohort.mjs",
     "dogfood:status": "node scripts/dogfood-status.mjs",
     "dogfood:tester": "node scripts/run-dogfood-tester.mjs",
+    "dogfood:handoff": "node scripts/create-dogfood-handoff.mjs",
     "dogfood:review": "node scripts/review-dogfood-report.mjs",
     "dogfood:cohort": "node scripts/verify-dogfood-cohort.mjs"
   },
