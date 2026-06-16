@@ -399,6 +399,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] `dogfood:report` readiness now exposes `sourceEligibleReports` and only marks `summary.cohortReady=true` when every report already has final source/artifact identity, 3-5 testers, and full workflow coverage
   - [x] `dogfood:cohort` workflow coverage now counts only source/artifact/permission/identity-eligible reports
   - [x] maintainer-side tracking issue collector via `npm run dogfood:collect -- --manifest <path> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --reports-dir .skfiy-dogfood/reports --cohort .skfiy-dogfood/internal-alpha-cohort.json --summary .skfiy-dogfood/internal-alpha-summary.md`, which discovers accepted report issue URLs from the tracking issue, converts each issue through the existing `dogfood:report` gates, writes deterministic per-tester report JSON, and immediately runs `dogfood:cohort`
+  - [x] non-mutating dogfood readiness status via `npm run dogfood:status -- --manifest <path> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/status.md --require-current-head`, summarizing local smoke results, permission blockers, manifest/current-head state, and accepted report URL count without creating evidence or claiming cohort readiness
   - [ ] `coding-terminal` workflow reports from actual testers
   - [ ] `screenshot-inspection` workflow reports from actual testers
   - [ ] `finder-file` workflow reports from actual testers

@@ -56,6 +56,18 @@ npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-uns
 
 This gate checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, permission setting direct-link targets, native voice transcript-to-task evidence for passed voice runs, native voice no-transcript/cancellation lifecycle evidence for no-transcript runs, accepted GitHub dogfood issue source evidence, Chrome safe-page extraction, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence for current/selected folder runs, Finder item drag/drop evidence, Finder organization evidence, and process cleanup. Add `--require-current-head` before sharing a local alpha so stale manifests from older commits fail. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and the product smokes are expected to pass.
 
+For a read-only status snapshot of the same alpha plus the current GitHub tracking issue:
+
+```bash
+npm run dogfood:status -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --summary .skfiy-dogfood/status.md \
+  --require-current-head
+```
+
+`dogfood:status` summarizes the alpha manifest, local smoke artifact results, current permission blockers, and accepted report issue URLs already filled into the tracking issue. It is intentionally non-mutating: it does not create reports, update the tracking issue, or claim cohort readiness.
+
 After a tester runs the packaged-app smokes, generate a GitHub dogfood issue body draft from the same manifest and smoke artifact paths instead of copying fields by hand:
 
 ```bash
