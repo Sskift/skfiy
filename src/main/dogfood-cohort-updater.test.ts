@@ -8,6 +8,7 @@ describe("dogfood cohort updater", () => {
   const cohortPath = "/repo/.skfiy-dogfood/internal-alpha-cohort.json";
   const reportPath = "/repo/.skfiy-dogfood/reports/tester-a.json";
   const manifestPath = "/repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json";
+  const alphaZipPath = "/repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.zip";
 
   it("is exposed as an npm script for accumulating single-user dogfood reports", () => {
     const packageJson = JSON.parse(
@@ -67,6 +68,7 @@ describe("dogfood cohort updater", () => {
     expect(createDogfoodReportHelpText()).toContain("--issue-url");
     expect(createDogfoodReportHelpText()).toContain("--issue-labels");
     expect(createDogfoodReportHelpText()).toContain("requires all five issue smoke artifact paths");
+    expect(createDogfoodReportHelpText()).toContain("requires the issue alpha manifest, zip, and commit sha to match --manifest");
     expect(createDogfoodReportHelpText()).toContain("3-5 distinct testers");
   });
 
@@ -87,6 +89,7 @@ describe("dogfood cohort updater", () => {
         schemaVersion: 1,
         appName: "skfiy",
         commitSha: "abc123",
+        zip: { path: alphaZipPath },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -189,6 +192,7 @@ describe("dogfood cohort updater", () => {
         schemaVersion: 1,
         appName: "skfiy",
         commitSha: "abc123",
+        zip: { path: alphaZipPath },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -249,6 +253,7 @@ describe("dogfood cohort updater", () => {
         schemaVersion: 1,
         appName: "skfiy",
         commitSha: "abc123",
+        zip: { path: alphaZipPath },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -262,6 +267,18 @@ describe("dogfood cohort updater", () => {
       [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const issueBody = [
+      "### alpha manifest",
+      "",
+      path.basename(manifestPath),
+      "",
+      "### alpha zip",
+      "",
+      path.basename(alphaZipPath),
+      "",
+      "### commit sha",
+      "",
+      "abc123",
+      "",
       "### tester id",
       "",
       "tester-from-issue",
@@ -353,6 +370,7 @@ describe("dogfood cohort updater", () => {
         schemaVersion: 1,
         appName: "skfiy",
         commitSha: "abc123",
+        zip: { path: alphaZipPath },
         uiSmokeArtifactPath: manifestUiSmokePath,
         smokeArtifactPath: manifestGhosttySmokePath,
         chromeSmokeArtifactPath: manifestChromeSmokePath,
@@ -366,6 +384,18 @@ describe("dogfood cohort updater", () => {
       [testerVoiceSmokePath]: createSmokeArtifact(testerVoiceSmokePath, "passed")
     });
     const issueBody = [
+      "### alpha manifest",
+      "",
+      path.basename(manifestPath),
+      "",
+      "### alpha zip",
+      "",
+      path.basename(alphaZipPath),
+      "",
+      "### commit sha",
+      "",
+      "abc123",
+      "",
       "### tester id",
       "",
       "tester-artifact-paths",
@@ -459,6 +489,7 @@ describe("dogfood cohort updater", () => {
         schemaVersion: 1,
         appName: "skfiy",
         commitSha: "abc123",
+        zip: { path: alphaZipPath },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
@@ -472,6 +503,18 @@ describe("dogfood cohort updater", () => {
       [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const incompleteIssueBody = [
+      "### alpha manifest",
+      "",
+      path.basename(manifestPath),
+      "",
+      "### alpha zip",
+      "",
+      path.basename(alphaZipPath),
+      "",
+      "### commit sha",
+      "",
+      "abc123",
+      "",
       "### tester id",
       "",
       "tester-incomplete-artifacts",
@@ -514,6 +557,97 @@ describe("dogfood cohort updater", () => {
         };
       }
     })).rejects.toThrow("Issue Finder smoke artifact must include an absolute path.");
+  });
+
+  it("rejects accepted issue bodies whose alpha identity does not match the manifest", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        zip: { path: alphaZipPath },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    });
+    const mismatchedIssueBody = [
+      "### alpha manifest",
+      "",
+      path.basename(manifestPath),
+      "",
+      "### alpha zip",
+      "",
+      path.basename(alphaZipPath),
+      "",
+      "### commit sha",
+      "",
+      "different-commit",
+      "",
+      "### tester id",
+      "",
+      "tester-wrong-alpha",
+      "",
+      "### cohort workflows",
+      "",
+      "- [x] coding-terminal",
+      "",
+      "### UI smoke artifact",
+      "",
+      uiSmokePath,
+      "",
+      "### smoke artifact",
+      "",
+      ghosttySmokePath,
+      "",
+      "### Chrome smoke artifact",
+      "",
+      chromeSmokePath,
+      "",
+      "### Finder smoke artifact",
+      "",
+      finderSmokePath,
+      "",
+      "### voice smoke artifact",
+      "",
+      voiceSmokePath
+    ].join("\n");
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      reportPath,
+      cohortPath
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: mismatchedIssueBody,
+          labels: [
+            "dogfood:accepted",
+            "workflow:coding-terminal"
+          ]
+        };
+      }
+    })).rejects.toThrow("Issue commit sha must match manifest commitSha.");
   });
 
   it("requires a GitHub issue URL when generating a real dogfood report from a manifest", async () => {

@@ -167,6 +167,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
   );
 
   const manifest = await io.readJson(options.manifestPath);
+  const issueAlphaIdentity = validateIssueAlphaIdentity(manifest, options.manifestPath, issue);
   const smokeArtifactSelection = readSmokeArtifactSelection(manifest, issue);
   const smokePaths = smokeArtifactSelection.paths;
   const smokeArtifacts = {
@@ -194,7 +195,8 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
       issueLabels,
       collectedAt: typeof options.now === "function" ? options.now() : new Date().toISOString(),
       generatedBy: "dogfood:report",
-      artifactSource: smokeArtifactSelection.artifactSource
+      artifactSource: smokeArtifactSelection.artifactSource,
+      ...issueAlphaIdentity
     },
     permissionStates: readPermissionStates(smokeArtifacts),
     artifacts: smokePaths,
@@ -212,6 +214,7 @@ export function createDogfoodReportHelpText() {
     "Use --issue-url to link the generated report to the accepted GitHub dogfood issue.",
     "By default testerId, workflows, smoke artifact paths, and labels are read from GitHub with gh issue view.",
     "When the issue body is readable, dogfood:report requires all five issue smoke artifact paths.",
+    "It also requires the issue alpha manifest, zip, and commit sha to match --manifest.",
     "Use --tester-id and --workflows as explicit overrides for the issue body fields.",
     "Use --issue-labels as an explicit/offline override proving dogfood:accepted plus matching workflow:* labels.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
@@ -254,6 +257,34 @@ function readSmokeArtifactSelection(manifest, issue) {
   };
 }
 
+function validateIssueAlphaIdentity(manifest, manifestPath, issue) {
+  if (!hasIssueBody(issue)) {
+    return {};
+  }
+
+  const issueAlphaManifest = readRequiredIssueValue(issue, "alpha manifest");
+  const issueAlphaZip = readRequiredIssueValue(issue, "alpha zip");
+  const issueCommitSha = readRequiredIssueValue(issue, "commit sha");
+  const manifestCommitSha = readManifestCommitSha(manifest);
+  const manifestZipPath = readManifestZipPath(manifest);
+
+  if (issueCommitSha !== manifestCommitSha) {
+    throw new Error("Issue commit sha must match manifest commitSha.");
+  }
+  if (!matchesIssuePathOrBasename(issueAlphaManifest, manifestPath)) {
+    throw new Error("Issue alpha manifest must match --manifest.");
+  }
+  if (!matchesIssuePathOrBasename(issueAlphaZip, manifestZipPath)) {
+    throw new Error("Issue alpha zip must match manifest zip.path.");
+  }
+
+  return {
+    issueAlphaManifest,
+    issueAlphaZip,
+    issueCommitSha
+  };
+}
+
 function readAbsoluteManifestPath(manifest, field) {
   const value = manifest?.[field];
   if (typeof value !== "string" || !path.isAbsolute(value)) {
@@ -261,6 +292,24 @@ function readAbsoluteManifestPath(manifest, field) {
   }
 
   return value;
+}
+
+function readManifestCommitSha(manifest) {
+  const value = manifest?.commitSha;
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error("Manifest commitSha must be a non-empty string.");
+  }
+
+  return value.trim();
+}
+
+function readManifestZipPath(manifest) {
+  const value = manifest?.zip?.path;
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error("Manifest zip.path must be a non-empty string.");
+  }
+
+  return value.trim();
 }
 
 function readSmokeResult(artifact) {
@@ -510,6 +559,19 @@ function readIssueArtifactPath(issue, sectionTitle) {
   return value;
 }
 
+function readRequiredIssueValue(issue, sectionTitle) {
+  const value = readIssueSection(issue.body, sectionTitle)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && line !== "_No response_");
+
+  if (!value) {
+    throw new Error(`Issue ${sectionTitle} must be set.`);
+  }
+
+  return value;
+}
+
 function readRequiredIssueArtifactPath(issue, sectionTitle) {
   const value = readIssueArtifactPath(issue, sectionTitle);
   if (!value) {
@@ -521,6 +583,11 @@ function readRequiredIssueArtifactPath(issue, sectionTitle) {
 
 function hasIssueBody(issue) {
   return typeof issue?.body === "string" && issue.body.trim().length > 0;
+}
+
+function matchesIssuePathOrBasename(issueValue, expectedPath) {
+  return issueValue === expectedPath
+    || path.basename(issueValue) === path.basename(expectedPath);
 }
 
 function readIssueSection(body, title) {
