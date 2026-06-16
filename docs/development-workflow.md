@@ -276,6 +276,7 @@ Generate a copyable handoff for each real tester before asking them to run the p
 npm run dogfood:prepare-alpha -- \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --tester-id tester-b \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
   --execute
 ```
 

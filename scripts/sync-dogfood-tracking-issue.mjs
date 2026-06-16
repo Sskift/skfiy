@@ -155,7 +155,8 @@ export function createDogfoodTrackingIssueBody({
   const testerAssignmentLines = createRecommendedTesterAssignmentLines({
     acceptedReportCount: preservedReportIssueUrls.length,
     relativeManifestPath,
-    releaseUrl
+    releaseUrl,
+    trackingIssueUrl
   });
   const missingRealTesterCount = Math.max(0, 3 - preservedReportIssueUrls.length);
 
@@ -345,7 +346,8 @@ function formatOptionalUrl(url) {
 function createRecommendedTesterAssignmentLines({
   acceptedReportCount,
   relativeManifestPath,
-  releaseUrl
+  releaseUrl,
+  trackingIssueUrl
 }) {
   const remainingRequiredSlots = Math.max(0, 3 - acceptedReportCount);
   if (remainingRequiredSlots === 0) {
@@ -364,7 +366,7 @@ function createRecommendedTesterAssignmentLines({
       `  - Prepare: \`${formatSingleLineCommand("npm run dogfood:prepare-alpha --", [
         ["--release-url", releaseUrl],
         ["--tester-id", testerId],
-        ["--workflows", workflowList],
+        ["--tracking-issue-url", trackingIssueUrl],
         ["--execute"]
       ])}\``,
       `  - Run: \`${formatSingleLineCommand("npm run dogfood:tester --", [

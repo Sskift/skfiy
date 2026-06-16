@@ -117,6 +117,7 @@ npm run dogfood:status -- \
 npm run dogfood:prepare-alpha -- \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --tester-id tester-a \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
   --execute
 npm run dogfood:handoff -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \

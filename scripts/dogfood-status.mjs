@@ -134,6 +134,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   });
   const testerAssignments = createTesterAssignments({
     manifestPath: options.manifestPath,
+    trackingIssueUrl: options.trackingIssueUrl,
+    trackingIssueFile: options.trackingIssueFile,
     currentAlpha,
     verifiedRealAcceptedReportCount: verifiedRealAcceptedReportIssueUrls.length,
     missingRequiredReports,
@@ -495,6 +497,8 @@ function createNextActions({
 
 function createTesterAssignments({
   manifestPath,
+  trackingIssueUrl,
+  trackingIssueFile,
   currentAlpha,
   verifiedRealAcceptedReportCount,
   missingRequiredReports,
@@ -538,6 +542,8 @@ function createTesterAssignments({
         testerId,
         workflows,
         manifestPath,
+        trackingIssueUrl,
+        trackingIssueFile,
         releaseUrl: currentAlpha.fields.release
       })
     };
@@ -558,8 +564,20 @@ function distributeWorkflows(workflows, assignmentCount) {
   return groups;
 }
 
-function createTesterAssignmentCommands({ testerId, workflows, manifestPath, releaseUrl }) {
+function createTesterAssignmentCommands({
+  testerId,
+  workflows,
+  manifestPath,
+  trackingIssueUrl,
+  trackingIssueFile,
+  releaseUrl
+}) {
   const workflowList = workflows.join(",");
+  const trackingIssueArgs = readPrepareAlphaTrackingIssueArgs({
+    trackingIssueUrl,
+    trackingIssueFile,
+    workflowList
+  });
 
   return {
     prepareAlpha: [
@@ -568,8 +586,7 @@ function createTesterAssignmentCommands({ testerId, workflows, manifestPath, rel
       releaseUrl || "<github-alpha-release-url>",
       "--tester-id",
       testerId,
-      "--workflows",
-      workflowList,
+      ...trackingIssueArgs,
       "--execute"
     ].join(" "),
     tester: [
@@ -599,6 +616,16 @@ function createTesterAssignmentCommands({ testerId, workflows, manifestPath, rel
       `.skfiy-dogfood/reviews/${testerId}.md`
     ].join(" ")
   };
+}
+
+function readPrepareAlphaTrackingIssueArgs({ trackingIssueUrl, trackingIssueFile, workflowList }) {
+  if (typeof trackingIssueUrl === "string" && trackingIssueUrl.trim().length > 0) {
+    return ["--tracking-issue-url", trackingIssueUrl.trim()];
+  }
+  if (typeof trackingIssueFile === "string" && trackingIssueFile.trim().length > 0) {
+    return ["--tracking-issue-file", trackingIssueFile.trim()];
+  }
+  return ["--workflows", workflowList];
 }
 
 function validateTrackingIssueCurrentAlpha({ body, manifest, manifestPath }) {
