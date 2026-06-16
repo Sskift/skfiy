@@ -132,6 +132,14 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     passedWorkflowCoverage,
     invalidReportIssueCount
   });
+  const testerAssignments = createTesterAssignments({
+    manifestPath: options.manifestPath,
+    currentAlpha,
+    verifiedRealAcceptedReportCount: verifiedRealAcceptedReportIssueUrls.length,
+    missingRequiredReports,
+    workflowCoverage,
+    passedWorkflowCoverage
+  });
 
   const status = {
     result,
@@ -168,6 +176,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
       canRunCollect,
       cohortReady: false
     },
+    testerAssignments,
     nextActions
   };
 
@@ -187,6 +196,7 @@ export function createDogfoodStatusHelpText() {
     "and accepted report URLs recorded in the tracking issue or local tracking issue markdown file.",
     "It separates real tester readiness from local synthetic reports such as local-* and preflight-* runs.",
     "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
+    "It also emits recommended tester assignments with prepare/tester/review commands.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
   ].join("\n");
 }
@@ -268,6 +278,22 @@ export function createDogfoodStatusMarkdown(status) {
   lines.push("", "## Next Actions", "");
   for (const action of status.nextActions) {
     lines.push(`- ${action}`);
+  }
+
+  lines.push("", "## Recommended Tester Assignments", "");
+  if (!Array.isArray(status.testerAssignments) || status.testerAssignments.length === 0) {
+    lines.push("- none");
+  } else {
+    for (const assignment of status.testerAssignments) {
+      lines.push(`- ${assignment.testerId}: ${assignment.workflows.join(", ")}`);
+      lines.push(`  - Purpose: ${assignment.purpose}`);
+      lines.push("  - Prepare:");
+      lines.push(`    \`${assignment.commands.prepareAlpha}\``);
+      lines.push("  - Run:");
+      lines.push(`    \`${assignment.commands.tester}\``);
+      lines.push("  - Review:");
+      lines.push(`    \`${assignment.commands.review}\``);
+    }
   }
 
   return `${lines.join("\n")}\n`;
@@ -465,6 +491,112 @@ function createNextActions({
   }
 
   return actions;
+}
+
+function createTesterAssignments({
+  manifestPath,
+  currentAlpha,
+  verifiedRealAcceptedReportCount,
+  missingRequiredReports,
+  workflowCoverage,
+  passedWorkflowCoverage
+}) {
+  const slotsRemaining = Math.max(0, 5 - verifiedRealAcceptedReportCount);
+  if (slotsRemaining === 0) {
+    return [];
+  }
+
+  const sourceWorkflows = workflowCoverage.missing.length > 0
+    ? workflowCoverage.missing
+    : passedWorkflowCoverage.missing.length > 0
+      ? passedWorkflowCoverage.missing
+      : REQUIRED_WORKFLOW_IDS;
+  let assignmentCount = 0;
+  let purpose = "";
+
+  if (missingRequiredReports > 0 || workflowCoverage.missing.length > 0) {
+    assignmentCount = missingRequiredReports > 0 ? missingRequiredReports : 1;
+    purpose = "real-tester-count-and-workflow-coverage";
+  } else if (passedWorkflowCoverage.missing.length > 0) {
+    assignmentCount = 1;
+    purpose = "passed-workflow-evidence";
+  }
+
+  assignmentCount = Math.min(slotsRemaining, assignmentCount);
+  if (assignmentCount <= 0) {
+    return [];
+  }
+
+  return distributeWorkflows(sourceWorkflows, assignmentCount).map((workflows, index) => {
+    const testerId = `tester-${verifiedRealAcceptedReportCount + index + 1}`;
+
+    return {
+      testerId,
+      workflows,
+      purpose,
+      commands: createTesterAssignmentCommands({
+        testerId,
+        workflows,
+        manifestPath,
+        releaseUrl: currentAlpha.fields.release
+      })
+    };
+  });
+}
+
+function distributeWorkflows(workflows, assignmentCount) {
+  const remaining = [...workflows];
+  const groups = [];
+
+  for (let index = 0; index < assignmentCount; index += 1) {
+    const slotsLeft = assignmentCount - index;
+    const take = Math.max(1, Math.ceil(remaining.length / slotsLeft));
+    const group = remaining.splice(0, take);
+    groups.push(group.length > 0 ? group : [REQUIRED_WORKFLOW_IDS[index % REQUIRED_WORKFLOW_IDS.length]]);
+  }
+
+  return groups;
+}
+
+function createTesterAssignmentCommands({ testerId, workflows, manifestPath, releaseUrl }) {
+  const workflowList = workflows.join(",");
+
+  return {
+    prepareAlpha: [
+      "npm run dogfood:prepare-alpha --",
+      "--release-url",
+      releaseUrl || "<github-alpha-release-url>",
+      "--tester-id",
+      testerId,
+      "--execute"
+    ].join(" "),
+    tester: [
+      "npm run dogfood:tester --",
+      "--manifest",
+      manifestPath,
+      "--app",
+      "<path-to-unzipped-skfiy.app>",
+      "--tester-id",
+      testerId,
+      "--workflows",
+      workflowList,
+      "--artifacts-dir",
+      `.skfiy-smoke/dogfood/${testerId}`,
+      "--issue-output",
+      `.skfiy-dogfood/issues/${testerId}.md`,
+      "--summary",
+      `.skfiy-dogfood/${testerId}-summary.md`
+    ].join(" "),
+    review: [
+      "npm run dogfood:review --",
+      "--manifest",
+      manifestPath,
+      "--issue-url",
+      "<filed-dogfood-issue-url>",
+      "--summary",
+      `.skfiy-dogfood/reviews/${testerId}.md`
+    ].join(" ")
+  };
 }
 
 function validateTrackingIssueCurrentAlpha({ body, manifest, manifestPath }) {

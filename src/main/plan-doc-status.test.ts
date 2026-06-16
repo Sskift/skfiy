@@ -123,6 +123,8 @@ describe("implementation plan status docs", () => {
   it("documents the maintainer dogfood collection and cohort verification loop", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
 
+    expect(readme).toContain("npm run dogfood:status -- \\");
+    expect(readme).toContain("Recommended Tester Assignments");
     expect(readme).toContain("npm run dogfood:collect -- \\");
     expect(readme).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
     expect(readme).toContain("--reports-dir .skfiy-dogfood/reports");

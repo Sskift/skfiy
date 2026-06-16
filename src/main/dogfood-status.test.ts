@@ -53,6 +53,7 @@ describe("dogfood status reporter", () => {
     expect(createDogfoodStatusHelpText()).toContain("non-mutating");
     expect(createDogfoodStatusHelpText()).toContain("accepted report URLs");
     expect(createDogfoodStatusHelpText()).toContain("real tester");
+    expect(createDogfoodStatusHelpText()).toContain("tester assignments");
   });
 
   it("parses a local tracking issue file for offline status checks", async () => {
@@ -244,6 +245,86 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("Result: waiting-for-dogfood");
     expect(io.textFiles[summaryPath]).toContain("Accepted report URLs: 0/3 minimum");
     expect(io.textFiles[summaryPath]).toContain("screenRecording: denied");
+  });
+
+  it("recommends concrete tester assignments for missing real reports and workflow coverage", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed", {
+        screenRecording: "denied",
+        accessibility: "denied",
+        microphone: "not-determined",
+        speechRecognition: "not-determined"
+      }),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: {
+        ...createSmokeArtifact(voiceSmokePath, "blocked"),
+        provider: "native-macos",
+        speechStatus: {
+          speechRecognition: { state: "not-determined" },
+          microphone: { state: "not-determined" }
+        }
+      }
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      testerAssignments: [
+        {
+          testerId: "tester-1",
+          workflows: ["coding-terminal", "screenshot-inspection"],
+          purpose: "real-tester-count-and-workflow-coverage",
+          commands: {
+            prepareAlpha: expect.stringContaining("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-1 --execute"),
+            tester: expect.stringContaining("npm run dogfood:tester -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection"),
+            review: expect.stringContaining("npm run dogfood:review -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --issue-url <filed-dogfood-issue-url> --summary .skfiy-dogfood/reviews/tester-1.md")
+          }
+        },
+        {
+          testerId: "tester-2",
+          workflows: ["finder-file"],
+          purpose: "real-tester-count-and-workflow-coverage"
+        },
+        {
+          testerId: "tester-3",
+          workflows: ["browser-fallback"],
+          purpose: "real-tester-count-and-workflow-coverage"
+        }
+      ]
+    });
+    expect(io.textFiles[summaryPath]).toContain("## Recommended Tester Assignments");
+    expect(io.textFiles[summaryPath]).toContain("- tester-1: coding-terminal, screenshot-inspection");
+    expect(io.textFiles[summaryPath]).toContain("npm run dogfood:tester -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection");
   });
 
   it("reports when the tracking issue has enough report URLs to try dogfood:collect", async () => {

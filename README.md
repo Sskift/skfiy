@@ -110,6 +110,10 @@ npm run dogfood:tracking-issue -- \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
   --output .skfiy-dogfood/tracking-issue-<commit>.md
+npm run dogfood:status -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --summary .skfiy-dogfood/status-<commit>.md
 npm run dogfood:prepare-alpha -- \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --tester-id tester-a \
@@ -142,6 +146,10 @@ npm run dogfood:cohort -- \
   --summary .skfiy-dogfood/internal-alpha-summary-strict.md \
   --require-passed
 ```
+
+`dogfood:status` is non-mutating. Its summary includes a
+`Recommended Tester Assignments` section with copyable prepare, tester, and
+review commands for the next real tester slots and missing workflow coverage.
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main
 process in another terminal with `npm run dev:electron`.
