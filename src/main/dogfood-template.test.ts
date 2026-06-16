@@ -20,6 +20,7 @@ describe("skfiy dogfood issue template", () => {
       "commit sha",
       "UI smoke artifact",
       "smoke artifact",
+      "Finder smoke artifact",
       "voice smoke artifact",
       "runnerHasTmux",
       "Screen Recording",
@@ -35,6 +36,10 @@ describe("skfiy dogfood issue template", () => {
       "Verified press_key",
       "app policy settings",
       "com.mitchellh.ghostty",
+      "com.apple.finder",
+      "Finder before tree / after tree",
+      "Verified create_folder",
+      "Verified move_file",
       "panic stop"
     ];
 

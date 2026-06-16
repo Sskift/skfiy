@@ -296,7 +296,9 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - safe planner groups files into Images/Documents/Code/Archives/Other folders
   - [x] no destructive delete without approval
     - planner emits only create-folder and move-file operations, and local mutation requires approval
-  - remaining product evidence gap: Finder is still a safe planner POC; it needs a product-path test-folder organizer task, smoke artifact, alpha manifest field, dogfood verifier gate, and issue-template evidence before it counts as dogfood coverage
+  - [x] product-path test-folder organization evidence
+    - `npm run smoke:finder -- --require-passed --output .skfiy-smoke/finder-organize.json` launches `dist/skfiy.app`, routes the command through renderer -> preload -> main -> fs -> Finder, records Finder app policy approval, verifies `create_folder` / `move_file`, and checks before/after trees
+  - remaining product evidence gap: Finder now counts as dogfood coverage for the safe test-folder organization path; the next gap is a richer Finder UI/observe adapter that can ground selection, window focus, drag/drop, and user-chosen folders instead of only a constrained temporary-folder workflow
 - Start evaluation scorecard:
   - [x] task success rate
   - [x] number of manual interventions
@@ -311,9 +313,9 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
 
 - [x] Build signed/notarized alpha package or documented unsigned internal build.
   - documented current unsigned internal build path in `docs/internal-alpha-build.md`; signing/notarization remains required before broader release
-  - unsigned local dogfood artifacts now use `npm run alpha:artifact`, producing a versioned `.zip` plus manifest with commit SHA, bundle id, signing/notarization state, SHA256 checksum, UI smoke artifact path, Ghostty smoke artifact path, and native voice smoke artifact path
-  - dogfood evidence verifier now runs as `npm run dogfood:verify -- --manifest <alpha-manifest>` and checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, app policy settings, clipboard read/write approval runs, and cleanup state
-  - GitHub dogfood issue form now requires alpha manifest, alpha zip, commit SHA, UI smoke artifact, Ghostty smoke artifact, voice smoke artifact, `runnerHasTmux`, permission states, ASR provider, Computer Use result, screenshot paths, action verification events, app policy settings, clipboard approval runs, and panic stop notes
+  - unsigned local dogfood artifacts now use `npm run alpha:artifact`, producing a versioned `.zip` plus manifest with commit SHA, bundle id, signing/notarization state, SHA256 checksum, UI smoke artifact path, Ghostty smoke artifact path, Finder smoke artifact path, and native voice smoke artifact path
+  - dogfood evidence verifier now runs as `npm run dogfood:verify -- --manifest <alpha-manifest>` and checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, Finder smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, app policy settings, Finder before/after tree, clipboard read/write approval runs, and cleanup state
+  - GitHub dogfood issue form now requires alpha manifest, alpha zip, commit SHA, UI smoke artifact, Ghostty smoke artifact, Finder smoke artifact, voice smoke artifact, `runnerHasTmux`, permission states, ASR provider, Computer Use result, screenshot paths, action verification events, app policy settings, Finder before/after tree, clipboard approval runs, and panic stop notes
 - [x] Add app allowlist/denylist UI.
   - settings panel now exposes allow/ask/deny policies for Ghostty, Chrome, and Finder; Ghostty defaults to allow for the current product smoke path, while ask/deny can gate Computer Use before touching the app
 - [x] Add per-turn approval transcript:

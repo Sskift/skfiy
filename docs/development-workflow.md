@@ -145,7 +145,7 @@ Preferred local command after `npm run build`:
 npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
 ```
 
-Run product smoke commands sequentially. `smoke:ui`, `smoke:ghostty`, and `smoke:voice` share a `.skfiy-smoke/product-smoke.lock` guard so concurrent packaged-app runs fail instead of producing contaminated cleanup evidence.
+Run product smoke commands sequentially. `smoke:ui`, `smoke:ghostty`, `smoke:finder`, and `smoke:voice` share a `.skfiy-smoke/product-smoke.lock` guard so concurrent packaged-app runs fail instead of producing contaminated cleanup evidence.
 
 Use `npm run smoke:ghostty -- --require-passed` only when Screen Recording and Accessibility are already granted to `dist/skfiy.app`; otherwise the expected result is `blocked` with fail-closed evidence.
 The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, app policy settings, replay records, screenshot file sizes, matrix run results, and cleanup process checks. Use `--matrix --output <path>` to persist the exact JSON evidence for dogfood reports. Dogfood Ghostty evidence must include `clipboard-read-approval` and `clipboard-write-approval` runs with `needs-user-confirmation` and the high-risk clipboard approval message. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, visible Ghostty app policy settings, a completed task event, `Verified type_text` and `Verified press_key` action verification events, and non-empty before/after screenshot files.
@@ -157,6 +157,16 @@ The smoke output is JSON and includes launch identity, task events, permissions,
 - Clipboard read/write commands ask for approval.
 - Destructive command asks for approval and defaults to deny.
 - Stop/panic cancels the active turn.
+
+### Finder Computer Use Smoke
+
+Use the packaged app path and a throwaway test folder:
+
+```bash
+npm run smoke:finder -- --require-passed --output .skfiy-smoke/finder-organize.json
+```
+
+The Finder smoke script launches `dist/skfiy.app` through LaunchServices, sends `整理 Finder 测试文件夹 <tmpdir>` through the preload API, approves Finder app policy plus the medium-risk file move, and verifies the resulting directory tree. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> fs -> Finder`, Finder app policy settings, beforeTree entries `notes.pdf`, `photo.png`, and `script.ts`, afterTree entries `Documents/notes.pdf`, `Images/photo.png`, and `Code/script.ts`, `Verified create_folder` and `Verified move_file` events, and empty `processesAfterCleanup`.
 
 ### Native Voice Smoke
 
@@ -170,13 +180,13 @@ Use `npm run smoke:voice -- --require-passed` only after Microphone and Speech R
 
 ### Dogfood Evidence Gate
 
-After creating an alpha manifest, verify that the manifest, zip, UI smoke artifact, Ghostty smoke artifact, and native voice smoke artifact form one coherent evidence chain:
+After creating an alpha manifest, verify that the manifest, zip, UI smoke artifact, Ghostty smoke artifact, Finder smoke artifact, and native voice smoke artifact form one coherent evidence chain:
 
 ```bash
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after both Ghostty and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, clipboard read/write approval runs, and required manifest links.
+Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
 
 ## Reporting Template
 
@@ -190,6 +200,8 @@ Task: "open Ghostty, run pwd, screenshot"
 Events: observing -> executing -> submitted -> completed
 Action verification: Verified type_text, Verified press_key
 Clipboard approvals: clipboard-read-approval needs-user-confirmation, clipboard-write-approval needs-user-confirmation
+Finder: beforeTree notes.pdf/photo.png/script.ts -> afterTree Documents/notes.pdf/Images/photo.png/Code/script.ts
+Finder action verification: Verified create_folder, Verified move_file
 Screenshots:
 - before: /path/to/before.png
 - after: /path/to/after.png

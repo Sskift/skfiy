@@ -11,11 +11,14 @@ const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const execFileAsync = promisify(execFile);
 const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
+const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> fs -> Finder";
 const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
 const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
+const ACCEPTED_FINDER_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_VOICE_RESULTS = new Set(["passed", "blocked", "no-transcript"]);
 const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
+const REQUIRED_FINDER_AFTER_TREE = ["Code/script.ts", "Documents/notes.pdf", "Images/photo.png"];
 const CLIPBOARD_APPROVAL_RUNS = [
   { id: "clipboard-read-approval", command: "pbpaste" },
   { id: "clipboard-write-approval", command: "echo skfiy | pbcopy" }
@@ -71,6 +74,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   const zipPath = readString(manifest?.zip?.path);
   const uiSmokeArtifactPath = readString(manifest?.uiSmokeArtifactPath);
   const smokeArtifactPath = readString(manifest?.smokeArtifactPath);
+  const finderSmokeArtifactPath = readString(manifest?.finderSmokeArtifactPath);
   const voiceSmokeArtifactPath = readString(manifest?.voiceSmokeArtifactPath);
 
   check(checks, "manifest.appName", manifest?.appName === "skfiy", "manifest appName must be skfiy");
@@ -106,6 +110,12 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.finderSmokeArtifactPath",
+    typeof finderSmokeArtifactPath === "string",
+    "manifest finderSmokeArtifactPath is required"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.ui",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:ui -- --output <path>"),
@@ -124,6 +134,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:voice -- --output <path>"),
     "manifest must require native voice smoke evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.finder",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("npm run smoke:finder -- --output <path>"),
+    "manifest must require Finder smoke evidence"
   );
   check(
     checks,
@@ -146,6 +163,20 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && manifest.requiredDogfoodEvidence.includes("clipboard read/write approval runs"),
     "manifest must require clipboard read/write approval evidence"
   );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.finderAppPolicy",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Finder app policy settings"),
+    "manifest must require Finder app policy evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.finderOrganization",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Finder test-folder organization evidence"),
+    "manifest must require Finder organization evidence"
+  );
   await verifyCurrentHead(manifest, options, io, checks);
 
   if (zipPath) {
@@ -157,6 +188,9 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     : undefined;
   const ghostty = smokeArtifactPath
     ? await readArtifactJson(smokeArtifactPath, "ghostty", io, checks)
+    : undefined;
+  const finder = finderSmokeArtifactPath
+    ? await readArtifactJson(finderSmokeArtifactPath, "finder", io, checks)
     : undefined;
   const voice = voiceSmokeArtifactPath
     ? await readArtifactJson(voiceSmokeArtifactPath, "voice", io, checks)
@@ -170,6 +204,10 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     verifyGhosttySmoke(ghostty, smokeArtifactPath, options, checks);
   }
 
+  if (finder) {
+    verifyFinderSmoke(finder, finderSmokeArtifactPath, options, checks);
+  }
+
   if (voice) {
     verifyVoiceSmoke(voice, voiceSmokeArtifactPath, options, checks);
   }
@@ -181,6 +219,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && (!zipPath || path.isAbsolute(zipPath))
       && (!uiSmokeArtifactPath || path.isAbsolute(uiSmokeArtifactPath))
       && (!smokeArtifactPath || path.isAbsolute(smokeArtifactPath))
+      && (!finderSmokeArtifactPath || path.isAbsolute(finderSmokeArtifactPath))
       && (!voiceSmokeArtifactPath || path.isAbsolute(voiceSmokeArtifactPath)),
     `manifest and artifact paths should be absolute; manifest is in ${manifestDir}`
   );
@@ -352,6 +391,81 @@ function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
       "passed Ghostty smoke must include type_text and press_key action verification events"
     );
   }
+}
+
+function verifyFinderSmoke(artifact, expectedPath, options, checks) {
+  check(
+    checks,
+    "finder.artifactPath",
+    samePath(artifact.artifactPath, expectedPath),
+    "Finder artifactPath must match manifest finderSmokeArtifactPath"
+  );
+  check(
+    checks,
+    "finder.result",
+    ACCEPTED_FINDER_RESULTS.has(artifact.result),
+    "Finder smoke result must be passed or blocked"
+  );
+  check(
+    checks,
+    "finder.requirePassed",
+    !options.requirePassed || artifact.result === "passed",
+    "Finder smoke must be passed when --require-passed is used"
+  );
+  check(
+    checks,
+    "finder.appLaunchViaOpen",
+    artifact.appLaunchViaOpen === true,
+    "Finder smoke must launch skfiy through open/LaunchServices"
+  );
+  check(
+    checks,
+    "finder.runnerHasTmux",
+    artifact.runnerHasTmux === false,
+    "Finder smoke must not run under tmux"
+  );
+  check(
+    checks,
+    "finder.productPath",
+    artifact.productPath === FINDER_PRODUCT_PATH,
+    `Finder smoke productPath must be ${FINDER_PRODUCT_PATH}`
+  );
+  check(
+    checks,
+    "finder.appPolicySettings",
+    hasFinderAppPolicyEvidence(artifact.appPolicySettings),
+    "Finder smoke must include Finder app policy settings evidence"
+  );
+  check(
+    checks,
+    "finder.approval",
+    hasFinderApprovalEvidence(artifact.events),
+    "Finder smoke must include app policy approval evidence"
+  );
+  check(
+    checks,
+    "finder.actionVerification",
+    hasFinderOrganizationActionVerification(artifact.events),
+    "Finder smoke must include create_folder and move_file verification events"
+  );
+  check(
+    checks,
+    "finder.beforeTree",
+    hasFinderBeforeTree(artifact.beforeTree),
+    "Finder smoke must include the unorganized test-folder before tree"
+  );
+  check(
+    checks,
+    "finder.afterTree",
+    hasFinderAfterTree(artifact.afterTree),
+    "Finder smoke must include the organized test-folder after tree"
+  );
+  check(
+    checks,
+    "finder.processesAfterCleanup",
+    isEmptyArray(artifact.processesAfterCleanup),
+    "Finder smoke must clean up skfiy app processes"
+  );
 }
 
 function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
@@ -541,6 +655,69 @@ function hasGhosttyAppPolicyEvidence(value) {
       && app.bundleId === "com.mitchellh.ghostty"
       && typeof app.name === "string"
       && (app.policy === "allow" || app.policy === "ask" || app.policy === "deny")
+  );
+}
+
+function hasFinderAppPolicyEvidence(value) {
+  if (!value || !Array.isArray(value.apps)) {
+    return false;
+  }
+
+  return value.apps.some((app) =>
+    app
+      && app.bundleId === "com.apple.finder"
+      && typeof app.name === "string"
+      && (app.policy === "allow" || app.policy === "ask" || app.policy === "deny")
+  );
+}
+
+function hasFinderApprovalEvidence(events) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) =>
+    event?.status === "approval_required"
+      && typeof event.message === "string"
+      && event.message.includes("Finder requires approval by app policy")
+  );
+}
+
+function hasFinderOrganizationActionVerification(events) {
+  return hasTaskEventMessage(events, "Verified create_folder:")
+    && hasTaskEventMessage(events, "Verified move_file:");
+}
+
+function hasFinderBeforeTree(value) {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  const entries = new Set(value);
+  return entries.has("photo.png")
+    && entries.has("notes.pdf")
+    && entries.has("script.ts");
+}
+
+function hasFinderAfterTree(value) {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  const entries = new Set(value);
+  return REQUIRED_FINDER_AFTER_TREE.every((entry) => entries.has(entry))
+    && !entries.has("photo.png")
+    && !entries.has("notes.pdf")
+    && !entries.has("script.ts");
+}
+
+function hasTaskEventMessage(events, text) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) =>
+    typeof event?.message === "string" && event.message.includes(text)
   );
 }
 

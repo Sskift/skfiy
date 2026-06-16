@@ -42,10 +42,12 @@ import {
 } from "./voice-turn-session.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
+import { runFinderOrganizationTask, type FinderTaskEvent } from "./orchestrator/finder-task.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
 import {
   readPermissionsForRenderer
 } from "./permissions.js";
+import { selectCommandRoute } from "./task-routing.js";
 import { readStartupWarnings } from "./startup-guard.js";
 import {
   readStopTurnHotkeyStatus,
@@ -69,6 +71,7 @@ type TaskStatus =
   | "completed"
   | "failed";
 type PetWindowMode = "compact" | "expanded";
+type ComputerUseTaskEvent = GhosttyTaskEvent | FinderTaskEvent;
 
 interface TaskEvent {
   status: TaskStatus;
@@ -93,7 +96,6 @@ const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
 app.setName("skfiy");
 const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
-const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";
 const appPolicySettingsStore = createAppPolicySettingsStore(readInitialAppPolicySettings());
 const plannerProviderSettingsStore = createPlannerProviderSettingsStore(
   readInitialPlannerProviderSettings(process.env)
@@ -267,7 +269,7 @@ function assertDesktopActionResult(result: DesktopActionResult, label: string): 
   }
 }
 
-function createTaskEvent(event: GhosttyTaskEvent, mode: ManualMode): TaskEvent {
+function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEvent {
   const prefix = mode === "quiet" ? "Quiet mode: " : "";
 
   switch (event.type) {
@@ -441,21 +443,8 @@ async function runCommandTask(
     turnReplayStore.startTurn();
   }
 
-  const plannerRuntime = decidePlannerProviderRuntime(plannerProviderSettingsStore.get());
-
-  if (plannerRuntime.decision === "unavailable") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
-      status: plannerRuntime.status,
-      message: plannerRuntime.message
-    });
-    return;
-  }
-
-  const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), GHOSTTY_BUNDLE_ID);
+  const route = selectCommandRoute(command);
+  const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), route.bundleId);
 
   if (appPolicy.decision === "deny") {
     pendingApproval = null;
@@ -491,6 +480,37 @@ async function runCommandTask(
   activeTaskController = controller;
 
   try {
+    if (route.kind === "finder") {
+      for await (const taskEvent of runFinderOrganizationTask(command, { approved })) {
+        if (controller.signal.aborted || taskId !== currentTaskId) {
+          return;
+        }
+
+        turnReplayStore.recordComputerUseEvent(taskEvent);
+
+        if (taskEvent.type === "approval_required" && !approved) {
+          pendingApproval = { command, mode };
+        }
+
+        emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));
+      }
+      return;
+    }
+
+    const plannerRuntime = decidePlannerProviderRuntime(plannerProviderSettingsStore.get());
+
+    if (plannerRuntime.decision === "unavailable") {
+      pendingApproval = null;
+      activeTaskController?.abort();
+      activeTaskController = null;
+      currentTaskId += 1;
+      emitTurnReplayTaskEvent(window, {
+        status: plannerRuntime.status,
+        message: plannerRuntime.message
+      });
+      return;
+    }
+
     const plannedCommand = await resolvePlannerCommand({
       input: command,
       runtime: plannerRuntime,
