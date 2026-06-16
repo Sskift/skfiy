@@ -6,8 +6,13 @@ export interface DesktopHelperProcessResult {
 
 export type ProcessRunner = (
   command: string,
-  args: readonly string[]
+  args: readonly string[],
+  options?: ProcessRunnerOptions
 ) => Promise<DesktopHelperProcessResult>;
+
+export interface ProcessRunnerOptions {
+  signal?: AbortSignal;
+}
 
 export interface DesktopHelperClientOptions {
   helperPath?: string;
@@ -64,6 +69,7 @@ export interface NativeSpeechTranscriptionOptions {
   locale: string;
   maxDurationMs: number;
   silenceTimeoutMs: number;
+  signal?: AbortSignal;
 }
 
 export interface NativeSpeechTranscriptionResult {

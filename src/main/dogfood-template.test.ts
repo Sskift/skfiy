@@ -36,6 +36,7 @@ describe("skfiy dogfood issue template", () => {
       "ASR provider",
       "Speech Recognition",
       "Native voice transcript-to-task evidence",
+      "Native voice no-transcript/cancellation evidence",
       "transcriptEvents",
       "taskEvents",
       "Computer Use result",

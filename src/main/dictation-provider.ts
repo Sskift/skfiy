@@ -150,6 +150,7 @@ export function createNativeMacOSDictationProvider({
 }: NativeMacOSDictationProviderOptions): DictationProvider {
   let providerTask: Promise<void> = Promise.resolve();
   let settleProviderTask: (() => void) | undefined;
+  let transcriptionAbortController: AbortController | undefined;
   let turnGeneration = 0;
   let lifecycleState: "idle" | "listening" | "no_transcript" | "cancelled" | "stopped" | "failed" = "idle";
 
@@ -186,6 +187,7 @@ export function createNativeMacOSDictationProvider({
       turnGeneration += 1;
       const generation = turnGeneration;
       lifecycleState = "listening";
+      transcriptionAbortController = new AbortController();
       beginProviderTask();
       emit({
         providerId: "native-macos",
@@ -196,7 +198,8 @@ export function createNativeMacOSDictationProvider({
       void helper.transcribeSpeech({
         locale,
         maxDurationMs: NATIVE_MACOS_MAX_DURATION_MS,
-        silenceTimeoutMs: NATIVE_MACOS_SILENCE_TIMEOUT_MS
+        silenceTimeoutMs: NATIVE_MACOS_SILENCE_TIMEOUT_MS,
+        signal: transcriptionAbortController.signal
       }).then((transcript) => {
         if (!isCurrentListeningTurn(generation)) {
           return;
@@ -204,6 +207,7 @@ export function createNativeMacOSDictationProvider({
 
         if (!transcript.text.trim()) {
           lifecycleState = "no_transcript";
+          transcriptionAbortController = undefined;
           emit({
             providerId: "native-macos",
             state: "no_transcript",
@@ -214,6 +218,7 @@ export function createNativeMacOSDictationProvider({
         }
 
         lifecycleState = "stopped";
+        transcriptionAbortController = undefined;
         emitTranscript(transcript);
         emit({
           providerId: "native-macos",
@@ -227,6 +232,7 @@ export function createNativeMacOSDictationProvider({
         }
 
         lifecycleState = "failed";
+        transcriptionAbortController = undefined;
         emit({
           providerId: "native-macos",
           state: "failed",
@@ -248,6 +254,8 @@ export function createNativeMacOSDictationProvider({
 
       turnGeneration += 1;
       lifecycleState = "cancelled";
+      transcriptionAbortController?.abort();
+      transcriptionAbortController = undefined;
       emit({
         providerId: "native-macos",
         state: "cancelled",

@@ -364,11 +364,12 @@ body:
     id: voice_and_stop
     attributes:
       label: Voice and panic stop notes
-      description: Include start/stop behavior, provider failure messages, native voice transcript-to-task evidence, and whether panic stop / global stop hotkey was tested.
+      description: Include start/stop behavior, provider failure messages, native voice transcript-to-task evidence, no-transcript/cancellation evidence, and whether panic stop / global stop hotkey was tested.
       placeholder: |
         ASR provider:
         transcript observed:
         Native voice transcript-to-task evidence:
+        Native voice no-transcript/cancellation evidence:
         transcriptEvents:
         taskEvents:
         panic stop:

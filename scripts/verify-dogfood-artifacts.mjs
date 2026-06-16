@@ -171,6 +171,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.voiceNoTranscriptCancellation",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Native voice no-transcript/cancellation evidence"),
+    "manifest must require native voice no-transcript/cancellation evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.chrome",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:chrome -- --output <path>"),
@@ -836,6 +843,18 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
       "voice.downstreamTask",
       hasVoiceDownstreamTaskEvidence(artifact.taskEvents),
       "passed voice smoke must include downstream Computer Use task events"
+    );
+  }
+  if (artifact.result === "no-transcript") {
+    check(
+      checks,
+      "voice.noTranscriptLifecycle",
+      hasNoTranscriptVoiceLifecycleEvidence(
+        artifact.providerEvents,
+        artifact.transcriptEvents,
+        artifact.taskEvents
+      ),
+      "no-transcript voice smoke must include native listening plus no_transcript or cancelled provider state without final transcript or downstream task events"
     );
   }
   check(
@@ -1530,6 +1549,25 @@ function hasVoiceDownstreamTaskEvidence(events) {
         "failed"
       ].includes(event.status)
   );
+}
+
+function hasNoTranscriptVoiceLifecycleEvidence(providerEvents, transcriptEvents, taskEvents) {
+  if (!Array.isArray(providerEvents)) {
+    return false;
+  }
+
+  const listened = providerEvents.some((event) =>
+    event?.providerId === "native-macos" && event.state === "listening"
+  );
+  const endedWithoutTranscript = providerEvents.some((event) =>
+    event?.providerId === "native-macos"
+      && (event.state === "no_transcript" || event.state === "cancelled")
+  );
+
+  return listened
+    && endedWithoutTranscript
+    && !hasFinalVoiceTranscriptEvidence(transcriptEvents)
+    && !hasVoiceDownstreamTaskEvidence(taskEvents);
 }
 
 function hasRequiredGhosttyClipboardApprovalRuns(runs) {

@@ -23,6 +23,7 @@ import type {
   PermissionState,
   PermissionSummary,
   ProcessRunner,
+  ProcessRunnerOptions,
   ScreenshotResult,
   SpeechStatusResult
 } from "./types.js";
@@ -297,7 +298,8 @@ export class DesktopHelperClient {
         "--silence-timeout-ms",
         String(silenceTimeoutMs)
       ],
-      readNativeSpeechTranscriptionResult
+      readNativeSpeechTranscriptionResult,
+      { signal: options.signal }
     );
   }
 
@@ -315,9 +317,10 @@ export class DesktopHelperClient {
   private async runJson<T>(
     commandName: string,
     args: readonly string[],
-    readResponse: (payload: unknown, commandName: string) => T
+    readResponse: (payload: unknown, commandName: string) => T,
+    options?: ProcessRunnerOptions
   ): Promise<T> {
-    const result = await this.runner(this.helperPath, args);
+    const result = await this.runner(this.helperPath, args, options);
 
     if (result.exitCode !== 0) {
       const detail = readFailureDetail(commandName, result);
@@ -333,16 +336,22 @@ export class DesktopHelperClient {
 
 export const runProcess: ProcessRunner = (
   command,
-  args
+  args,
+  options
 ): Promise<DesktopHelperProcessResult> =>
   new Promise((resolve) => {
-    execFile(command, [...args], { encoding: "utf8" }, (error, stdout, stderr) => {
-      resolve({
-        stdout: String(stdout ?? ""),
-        stderr: String(stderr ?? ""),
-        exitCode: readExitCode(error)
-      });
-    });
+    execFile(
+      command,
+      [...args],
+      { encoding: "utf8", signal: options?.signal },
+      (error, stdout, stderr) => {
+        resolve({
+          stdout: String(stdout ?? ""),
+          stderr: String(stderr ?? ""),
+          exitCode: readExitCode(error)
+        });
+      }
+    );
   });
 
 function readExitCode(error: unknown): number {

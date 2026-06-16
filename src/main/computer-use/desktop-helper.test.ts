@@ -3,9 +3,9 @@ import { DesktopHelperClient } from "./desktop-helper";
 import type { DesktopHelperProcessResult, ProcessRunner } from "./types";
 
 function createClientWithResponses(responses: DesktopHelperProcessResult[]) {
-  const calls: Array<{ command: string; args: string[] }> = [];
-  const runner: ProcessRunner = async (command, args) => {
-    calls.push({ command, args: [...args] });
+  const calls: Array<{ command: string; args: string[]; signal?: AbortSignal }> = [];
+  const runner: ProcessRunner = async (command, args, options?: { signal?: AbortSignal }) => {
+    calls.push({ command, args: [...args], signal: options?.signal });
     const response = responses.shift();
 
     if (!response) {
@@ -371,6 +371,49 @@ describe("DesktopHelperClient", () => {
           "--silence-timeout-ms",
           "900"
         ]
+      }
+    ]);
+  });
+
+  it("passes an abort signal to the native speech helper process", async () => {
+    const controller = new AbortController();
+    const { calls, client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "transcribe-speech",
+          data: {
+            text: "",
+            isFinal: true,
+            durationMs: 120,
+            silenceTimedOut: false
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await client.transcribeSpeech({
+      locale: "zh-CN",
+      maxDurationMs: 6000,
+      silenceTimeoutMs: 900,
+      signal: controller.signal
+    });
+
+    expect(calls).toEqual([
+      {
+        command: "/tmp/skfiy-helper",
+        args: [
+          "transcribe-speech",
+          "--locale",
+          "zh-CN",
+          "--max-duration-ms",
+          "6000",
+          "--silence-timeout-ms",
+          "900"
+        ],
+        signal: controller.signal
       }
     ]);
   });

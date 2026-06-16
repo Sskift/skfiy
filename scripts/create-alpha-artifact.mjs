@@ -22,6 +22,7 @@ const DOGFOOD_EVIDENCE = [
   "Accessibility permission state",
   "Microphone or ASR provider state",
   "Native voice transcript-to-task evidence",
+  "Native voice no-transcript/cancellation evidence",
   "before/after screenshot paths when Computer Use passes",
   "action verification events when Computer Use passes",
   "Ghostty app policy settings",

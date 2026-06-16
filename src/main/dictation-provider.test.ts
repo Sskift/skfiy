@@ -345,6 +345,42 @@ describe("createNativeMacOSDictationProvider", () => {
     expect(events).toHaveLength(2);
   });
 
+  it("aborts the in-flight native helper transcription when stopped", async () => {
+    const deferredTranscript = createDeferred<NativeSpeechTranscriptionResult>();
+    const events: DictationProviderEvent[] = [];
+    let transcriptionSignal: AbortSignal | undefined;
+    const provider = createNativeMacOSDictationProvider({
+      helper: {
+        async getSpeechStatus(): Promise<SpeechStatusResult> {
+          return createGrantedSpeechStatus();
+        },
+        transcribeSpeech(options): Promise<NativeSpeechTranscriptionResult> {
+          transcriptionSignal = (
+            options as typeof options & { signal?: AbortSignal }
+          ).signal;
+          return deferredTranscript.promise;
+        }
+      },
+      locale: "zh-CN",
+      emit: (event) => events.push(event),
+      emitTranscript: () => undefined
+    });
+
+    await provider.prepare();
+
+    expect(transcriptionSignal).toBeInstanceOf(AbortSignal);
+    expect(transcriptionSignal?.aborted).toBe(false);
+
+    await provider.stop();
+
+    expect(transcriptionSignal?.aborted).toBe(true);
+    expect(events.at(-1)).toEqual({
+      providerId: "native-macos",
+      state: "cancelled",
+      message: "macOS 系统语音已取消."
+    });
+  });
+
   it("fails closed when native speech or microphone permission is missing", async () => {
     const events: DictationProviderEvent[] = [];
     const provider = createNativeMacOSDictationProvider({
