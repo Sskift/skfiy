@@ -169,6 +169,11 @@ review commands for the next real tester slots and missing workflow coverage.
 `dogfood:assignments` is also non-mutating. It packages those assignments into a
 copy-safe Markdown handoff for real testers without creating reports, adding
 labels, updating cohort JSON, or marking evidence accepted.
+The generated assignment packet includes a `Permission Preflight` section. It
+lists Screen Recording, Accessibility, Microphone, and Speech Recognition states
+from the current smoke evidence and tells testers to use `--require-passed` only
+after all four permissions are granted to the extracted `skfiy.app`; otherwise
+they should file normal blocked evidence for maintainer review.
 The generated tester/review commands use
 `<path-to-downloaded-alpha-manifest.json>` so testers replace it with the
 manifest path produced by `dogfood:prepare-alpha` on their own machine, instead

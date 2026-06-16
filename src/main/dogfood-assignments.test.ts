@@ -80,6 +80,11 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("Alpha: skfiy-alpha-abc1234");
     expect(packet).toContain("Tracking issue: https://github.com/Sskift/skfiy/issues/1");
     expect(packet).toContain("This packet is non-mutating: it does not create reports, add labels, update cohort JSON, or mark dogfood evidence accepted.");
+    expect(packet).toContain("## Permission Preflight");
+    expect(packet).toContain("Grant Screen Recording, Accessibility, Microphone, and Speech Recognition to the extracted `skfiy.app` before using `--require-passed`.");
+    expect(packet).toContain("If permissions are still blocked, run the normal tester command and file the blocked evidence instead of adding `--require-passed`.");
+    expect(packet).toContain("Screen Recording: denied");
+    expect(packet).toContain("Accessibility: denied");
     expect(packet).toContain("## tester-1");
     expect(packet).toContain("Workflows: coding-terminal, screenshot-inspection");
     expect(packet).toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc1234");
@@ -89,6 +94,7 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("finder-file");
     expect(packet).toContain("tester-3");
     expect(packet).toContain("browser-fallback");
+    expect(packet).toContain("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after all four permissions are granted.");
     expect(packet).not.toContain("--add-label dogfood:accepted");
   });
 
@@ -112,6 +118,8 @@ describe("dogfood tester assignment packet", () => {
       expect(document).toContain("npm run dogfood:assignments -- \\");
       expect(document).toContain("--output .skfiy-dogfood/assignments/");
       expect(document).toContain("non-mutating");
+      expect(document).toContain("Permission Preflight");
+      expect(document).toContain("`--require-passed`");
     }
   });
 });

@@ -441,6 +441,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
       --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
       --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md
     ```
+    - assignment packet now includes `Permission Preflight`, listing Screen Recording, Accessibility, Microphone, and Speech Recognition states and instructing testers to add `--require-passed` only after all four permissions are granted to the extracted `skfiy.app`
   - [ ] `coding-terminal` workflow reports from actual testers
   - [ ] `screenshot-inspection` workflow reports from actual testers
   - [ ] `finder-file` workflow reports from actual testers

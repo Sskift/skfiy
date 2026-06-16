@@ -7,6 +7,12 @@ import { createDogfoodStatus } from "./dogfood-status.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
+const PERMISSION_LABELS = {
+  screenRecording: "Screen Recording",
+  accessibility: "Accessibility",
+  microphone: "Microphone",
+  speechRecognition: "Speech Recognition"
+};
 
 export function createDefaultDogfoodAssignmentsOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -101,6 +107,7 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
   const blockers = Array.isArray(status.localSmoke?.permissionBlockers)
     ? status.localSmoke.permissionBlockers
     : [];
+  const permissionStates = readAssignmentPermissionStates(blockers);
   const nextActions = Array.isArray(status.nextActions) ? status.nextActions : [];
   const lines = [
     "# skfiy dogfood tester assignments",
@@ -131,6 +138,15 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
     for (const blocker of blockers) {
       lines.push(`- ${blocker.permission}: ${blocker.state}`);
     }
+  }
+
+  lines.push("", "## Permission Preflight", "");
+  lines.push("Grant Screen Recording, Accessibility, Microphone, and Speech Recognition to the extracted `skfiy.app` before using `--require-passed`.");
+  lines.push("If permissions are still blocked, run the normal tester command and file the blocked evidence instead of adding `--require-passed`.");
+  lines.push("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after all four permissions are granted.");
+  lines.push("");
+  for (const [permission, label] of Object.entries(PERMISSION_LABELS)) {
+    lines.push(`- ${label}: ${permissionStates[permission] ?? "unknown"}`);
   }
 
   lines.push("", "## Tester Packets", "");
@@ -227,6 +243,15 @@ function readReleaseUrl(status, shortSha) {
 
 function formatList(values) {
   return Array.isArray(values) && values.length > 0 ? values.join(", ") : "none";
+}
+
+function readAssignmentPermissionStates(blockers) {
+  return Object.fromEntries(
+    Object.keys(PERMISSION_LABELS).map((permission) => {
+      const blocker = blockers.find((item) => item?.permission === permission);
+      return [permission, blocker?.state ?? "unknown"];
+    })
+  );
 }
 
 function readValue(argv, index, arg) {
