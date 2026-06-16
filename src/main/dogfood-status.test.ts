@@ -326,7 +326,7 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("missing dogfood:accepted label");
   });
 
-  it("does not count local synthetic report issues toward real tester readiness", async () => {
+  it("does not count local or preflight synthetic report issues toward real tester readiness", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
         input: Record<string, unknown>,
@@ -341,7 +341,8 @@ describe("dogfood status reporter", () => {
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
-      "https://github.com/Sskift/skfiy/issues/103"
+      "https://github.com/Sskift/skfiy/issues/103",
+      "https://github.com/Sskift/skfiy/issues/104"
     ];
     const io = createMemoryIo({
       [manifestPath]: createManifest({
@@ -366,10 +367,15 @@ describe("dogfood status reporter", () => {
         ["coding-terminal", "screenshot-inspection"],
         { result: "passed" }
       ),
-      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["finder-file"], {
+      [reportUrls[1]]: createAcceptedReportIssue(
+        "preflight-abc123",
+        ["coding-terminal"],
+        { result: "passed" }
+      ),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-2", ["finder-file"], {
         result: "passed"
       }),
-      [reportUrls[2]]: createAcceptedReportIssue("tester-3", ["browser-fallback"], {
+      [reportUrls[3]]: createAcceptedReportIssue("tester-3", ["browser-fallback"], {
         result: "passed"
       })
     });
@@ -382,8 +388,8 @@ describe("dogfood status reporter", () => {
     }, io)).resolves.toMatchObject({
       result: "waiting-for-dogfood",
       trackingIssue: {
-        acceptedReportCount: 3,
-        verifiedAcceptedReportCount: 3,
+        acceptedReportCount: 4,
+        verifiedAcceptedReportCount: 4,
         verifiedRealAcceptedReportCount: 2,
         missingRequiredReports: 1,
         reportIssueValidation: [
@@ -397,12 +403,19 @@ describe("dogfood status reporter", () => {
           {
             issueUrl: reportUrls[1],
             ok: true,
+            testerId: "preflight-abc123",
+            realTester: false,
+            realTesterReasons: ["tester id preflight-abc123 is reserved for local synthetic runs"]
+          },
+          {
+            issueUrl: reportUrls[2],
+            ok: true,
             testerId: "tester-2",
             realTester: true,
             realTesterReasons: []
           },
           {
-            issueUrl: reportUrls[2],
+            issueUrl: reportUrls[3],
             ok: true,
             testerId: "tester-3",
             realTester: true,
@@ -420,6 +433,7 @@ describe("dogfood status reporter", () => {
     });
     expect(io.textFiles[summaryPath]).toContain("Verified real accepted report URLs: 2/3 minimum");
     expect(io.textFiles[summaryPath]).toContain("synthetic: tester id local-abc123 is reserved for local synthetic runs");
+    expect(io.textFiles[summaryPath]).toContain("synthetic: tester id preflight-abc123 is reserved for local synthetic runs");
   });
 
   it("reports missing workflow coverage from verified accepted report issues", async () => {

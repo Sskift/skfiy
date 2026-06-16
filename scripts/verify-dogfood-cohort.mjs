@@ -48,6 +48,7 @@ const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
 const SYNTHETIC_TESTER_ID_PREFIXES = [
   "local-",
   "prepare-",
+  "preflight-",
   "synthetic-"
 ];
 
@@ -119,7 +120,7 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
     checks,
     "cohort.distinctRealTesters",
     realTesterIds.size >= 3 && realTesterIds.size <= 5,
-    "cohort must include 3-5 distinct real testerId values; local-* and prepare-* reports are local synthetic evidence only"
+    "cohort must include 3-5 distinct real testerId values; local-*, prepare-*, preflight-*, and synthetic-* reports are local synthetic evidence only"
   );
 
   const eligibleReports = reports.filter((report) =>
@@ -203,7 +204,7 @@ export function createDogfoodCohortHelpText() {
     "artifactSource=github-issue-smoke-artifacts, and issue alpha manifest/zip/commit identity",
     "matching the report manifestPath and commitSha.",
     "Workflow coverage counts only reports that satisfy these report-level gates.",
-    "The real tester gate excludes local-* and prepare-* tester ids from the 3-5 user count.",
+    "The real tester gate excludes local-*, prepare-*, preflight-*, and synthetic-* tester ids from the 3-5 user count.",
     "The Markdown summary separates source-eligible workflow coverage from passed workflow coverage,",
     "so blocked permission evidence is not described as a passed product workflow.",
     "Use --require-passed for a strict release gate that fails unless every required workflow",

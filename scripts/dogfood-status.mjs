@@ -30,6 +30,7 @@ const BLOCKING_PERMISSION_STATES = new Set([
 const SYNTHETIC_TESTER_ID_PREFIXES = [
   "local-",
   "prepare-",
+  "preflight-",
   "synthetic-"
 ];
 
@@ -173,7 +174,7 @@ export function createDogfoodStatusHelpText() {
     "Creates a non-mutating dogfood readiness status report.",
     "It summarizes the alpha manifest, local smoke artifact results, permission blockers,",
     "and accepted report URLs recorded in the tracking issue.",
-    "It separates real tester readiness from local synthetic reports such as local-* runs.",
+    "It separates real tester readiness from local synthetic reports such as local-* and preflight-* runs.",
     "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
   ].join("\n");

@@ -130,7 +130,7 @@ describe("dogfood cohort verifier", () => {
     });
   });
 
-  it("does not count local synthetic reports toward the real tester gate", async () => {
+  it("does not count local or preflight synthetic reports toward the real tester gate", async () => {
     const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       verifyDogfoodCohort: (
         input: Record<string, unknown>,
@@ -143,8 +143,8 @@ describe("dogfood cohort verifier", () => {
     }, createMemoryIo({
       [cohortPath]: createCohort([
         createReport("local-a", ["coding-terminal", "screenshot-inspection"]),
-        createReport("local-b", ["finder-file"]),
-        createReport("local-c", ["browser-fallback"])
+        createReport("preflight-b", ["finder-file"]),
+        createReport("synthetic-c", ["browser-fallback"])
       ])
     }))).resolves.toMatchObject({
       result: "failed",
@@ -166,7 +166,8 @@ describe("dogfood cohort verifier", () => {
         expect.objectContaining({ id: "cohort.distinctTesters", ok: true }),
         expect.objectContaining({ id: "cohort.distinctRealTesters", ok: false }),
         expect.objectContaining({ id: "cohort.workflowCoverage.browser-fallback", ok: true }),
-        expect.objectContaining({ id: "report.local-a.source", ok: true })
+        expect.objectContaining({ id: "report.local-a.source", ok: true }),
+        expect.objectContaining({ id: "report.preflight-b.source", ok: true })
       ])
     });
   });
