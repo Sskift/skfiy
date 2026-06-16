@@ -80,6 +80,12 @@ describe("dogfood cohort verifier", () => {
           "screenshot-inspection": true,
           "finder-file": true,
           "browser-fallback": true
+        },
+        passedWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": false,
+          "browser-fallback": false
         }
       },
       checks: expect.arrayContaining([
@@ -420,6 +426,8 @@ describe("dogfood cohort verifier", () => {
     expect(io.files[summaryPath]).toContain("# skfiy dogfood cohort summary");
     expect(io.files[summaryPath]).toContain("Result: failed");
     expect(io.files[summaryPath]).toContain("Distinct testers: 2/3-5");
+    expect(io.files[summaryPath]).toContain("## Passed Workflow Coverage");
+    expect(io.files[summaryPath]).toContain("- coding-terminal: blocked-or-missing");
     expect(io.files[summaryPath]).toContain("- browser-fallback");
     expect(io.files[summaryPath]).toContain("| tester-a | blocked | coding-terminal, screenshot-inspection | yes | https://github.com/Sskift/skfiy/issues/a |");
     expect(io.files[summaryPath]).toContain("| tester-b | blocked | finder-file | yes | https://github.com/Sskift/skfiy/issues/b |");

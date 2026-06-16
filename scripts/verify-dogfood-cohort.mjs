@@ -149,6 +149,7 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
       result,
       reports,
       requiredWorkflowCoverage,
+      passedWorkflowCoverage: result.summary.passedWorkflowCoverage,
       testerIds
     });
     await io.writeText(options.summaryPath, markdown);
@@ -173,6 +174,8 @@ export function createDogfoodCohortHelpText() {
     "artifactSource=github-issue-smoke-artifacts, and issue alpha manifest/zip/commit identity",
     "matching the report manifestPath and commitSha.",
     "Workflow coverage counts only reports that satisfy these report-level gates.",
+    "The Markdown summary separates source-eligible workflow coverage from passed workflow coverage,",
+    "so blocked permission evidence is not described as a passed product workflow.",
     "",
     "Use --summary to write a short Markdown readiness report for maintainers."
   ].join("\n");
@@ -182,6 +185,7 @@ export function createDogfoodCohortMarkdown({
   result,
   reports,
   requiredWorkflowCoverage,
+  passedWorkflowCoverage,
   testerIds
 }) {
   const missingWorkflows = REQUIRED_DOGFOOD_WORKFLOWS.filter((workflow) =>
@@ -203,6 +207,11 @@ export function createDogfoodCohortMarkdown({
 
   for (const workflow of REQUIRED_DOGFOOD_WORKFLOWS) {
     lines.push(`- ${workflow}: ${requiredWorkflowCoverage[workflow] === true ? "covered" : "missing"}`);
+  }
+
+  lines.push("", "## Passed Workflow Coverage", "");
+  for (const workflow of REQUIRED_DOGFOOD_WORKFLOWS) {
+    lines.push(`- ${workflow}: ${passedWorkflowCoverage[workflow] === true ? "passed" : "blocked-or-missing"}`);
   }
 
   if (missingWorkflows.length > 0) {
@@ -313,6 +322,18 @@ function verifyReport(report, index, cohortManifestPath, checks) {
 }
 
 function createCohortSummary(reports, testerIds, requiredWorkflowCoverage) {
+  const passedWorkflowCoverage = Object.fromEntries(
+    REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => [
+      workflow,
+      reports.some((report) =>
+        report?.result === "passed"
+        && isWorkflowCoverageEligibleReport(report, report?.manifestPath)
+        && Array.isArray(report?.workflows)
+        && report.workflows.includes(workflow)
+      )
+    ])
+  );
+
   return {
     totalReports: reports.length,
     distinctTesters: testerIds.size,
@@ -328,7 +349,8 @@ function createCohortSummary(reports, testerIds, requiredWorkflowCoverage) {
       })
     ).length,
     eligibleWorkflowCoverage: requiredWorkflowCoverage,
-    requiredWorkflowCoverage
+    requiredWorkflowCoverage,
+    passedWorkflowCoverage
   };
 }
 
