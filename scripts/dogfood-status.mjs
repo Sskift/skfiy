@@ -484,8 +484,13 @@ async function readManifestChecks(manifest, options, io) {
         currentHead.changedFiles = changedFiles
           .map((filePath) => typeof filePath === "string" ? normalizeRepoPath(filePath) : "")
           .filter(Boolean);
-        currentHead.appRelevantChangedFiles = currentHead.changedFiles
-          .filter((filePath) => isAppRelevantChangedPath(filePath));
+        currentHead.appRelevantChangedFiles = await readAppRelevantChangedFiles({
+          changedFiles: currentHead.changedFiles,
+          baseSha: manifestSha,
+          headSha: currentHeadSha,
+          rootDir: options.rootDir ?? DEFAULT_ROOT_DIR,
+          io
+        });
         currentHead.appCodeOk = currentHead.appRelevantChangedFiles.length === 0;
       }
     }
@@ -517,6 +522,54 @@ function isAppRelevantChangedPath(filePath) {
   }
   return APP_RELEVANT_PATHS.has(normalized)
     || APP_RELEVANT_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+async function readAppRelevantChangedFiles({
+  changedFiles,
+  baseSha,
+  headSha,
+  rootDir,
+  io
+}) {
+  const relevant = [];
+
+  for (const filePath of changedFiles) {
+    if (filePath === "package.json" && typeof io.readFileAtCommit === "function") {
+      if (await packageJsonRuntimeChanged({ baseSha, headSha, filePath, rootDir, io })) {
+        relevant.push(filePath);
+      }
+      continue;
+    }
+    if (isAppRelevantChangedPath(filePath)) {
+      relevant.push(filePath);
+    }
+  }
+
+  return relevant;
+}
+
+async function packageJsonRuntimeChanged({ baseSha, headSha, filePath, rootDir, io }) {
+  const [baseText, headText] = await Promise.all([
+    io.readFileAtCommit(baseSha, filePath, rootDir),
+    io.readFileAtCommit(headSha, filePath, rootDir)
+  ]);
+  const baseRuntime = readPackageRuntimeFields(JSON.parse(baseText));
+  const headRuntime = readPackageRuntimeFields(JSON.parse(headText));
+
+  return JSON.stringify(baseRuntime) !== JSON.stringify(headRuntime);
+}
+
+function readPackageRuntimeFields(packageJson) {
+  return {
+    name: packageJson?.name,
+    version: packageJson?.version,
+    type: packageJson?.type,
+    main: packageJson?.main,
+    dependencies: packageJson?.dependencies ?? {},
+    devDependencies: packageJson?.devDependencies ?? {},
+    optionalDependencies: packageJson?.optionalDependencies ?? {},
+    peerDependencies: packageJson?.peerDependencies ?? {}
+  };
 }
 
 function isTestSourcePath(filePath) {
@@ -1189,6 +1242,12 @@ function createDefaultIo() {
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean);
+    },
+    async readFileAtCommit(commitSha, filePath, rootDir) {
+      const { stdout } = await execFileAsync("git", ["show", `${commitSha}:${filePath}`], {
+        cwd: rootDir
+      });
+      return stdout;
     }
   };
 }

@@ -121,6 +121,10 @@ npm run dogfood:status -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
   --summary .skfiy-dogfood/status-<commit>.md
+npm run dogfood:assignments -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md
 npm run dogfood:prepare-alpha -- \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --tester-id tester-a \
@@ -162,6 +166,9 @@ npm run dogfood:cohort -- \
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
+`dogfood:assignments` is also non-mutating. It packages those assignments into a
+copy-safe Markdown handoff for real testers without creating reports, adding
+labels, updating cohort JSON, or marking evidence accepted.
 The generated tester/review commands use
 `<path-to-downloaded-alpha-manifest.json>` so testers replace it with the
 manifest path produced by `dogfood:prepare-alpha` on their own machine, instead

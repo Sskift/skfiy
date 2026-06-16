@@ -390,6 +390,105 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("Alpha app code current: yes");
   });
 
+  it("does not ask for a fresh alpha when package.json only adds dogfood coordination scripts", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = {
+      ...createMemoryIo({
+        [manifestPath]: createManifest({
+          uiSmokePath,
+          ghosttySmokePath,
+          chromeSmokePath,
+          finderSmokePath,
+          voiceSmokePath
+        }),
+        [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+        [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+        [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+        [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+        [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+      }, {
+        [trackingIssueUrl]: {
+          body: createTrackingIssueBody([]),
+          labels: ["skfiy", "dogfood"]
+        }
+      }),
+      async readCurrentHead() {
+        return "assignmenthead";
+      },
+      async readChangedFilesBetween(base: string, head: string) {
+        return base === "abc123" && head === "assignmenthead"
+          ? [
+            "package.json",
+            "scripts/create-dogfood-assignments.mjs",
+            "src/main/dogfood-assignments.test.ts",
+            "docs/development-workflow.md"
+          ]
+          : [];
+      },
+      async readFileAtCommit(commitSha: string, filePath: string) {
+        if (filePath !== "package.json") {
+          throw new Error(`Unexpected file at commit: ${commitSha}:${filePath}`);
+        }
+        const base = {
+          name: "skfiy",
+          version: "0.1.0",
+          type: "module",
+          main: "dist/main/main.js",
+          scripts: {
+            "dogfood:status": "node scripts/dogfood-status.mjs"
+          },
+          dependencies: {
+            electron: "^39.2.7"
+          },
+          devDependencies: {
+            vitest: "^4.0.15"
+          }
+        };
+        const headPackage = {
+          ...base,
+          scripts: {
+            ...base.scripts,
+            "dogfood:assignments": "node scripts/create-dogfood-assignments.mjs"
+          }
+        };
+        return JSON.stringify(commitSha === "abc123" ? base : headPackage);
+      }
+    };
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      manifest: {
+        checks: {
+          currentHead: {
+            ok: false,
+            appCodeOk: true,
+            appRelevantChangedFiles: []
+          }
+        }
+      }
+    });
+    expect(status.nextActions).not.toContain(
+      "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha."
+    );
+    expect(io.textFiles[summaryPath]).toContain("Alpha app code current: yes");
+  });
+
   it("recommends concrete tester assignments for missing real reports and workflow coverage", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

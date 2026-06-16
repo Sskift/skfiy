@@ -434,6 +434,13 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] `dogfood:review --execute` now keeps the same validation gate but lets maintainers add the missing `dogfood:accepted` / `workflow:*` labels and refresh the tracking issue in one explicit post-review step
   - [x] `dogfood:review` now writes a structured `Result: rejected` summary with the blocking validation error when alpha/artifact checks fail, while still exiting failed and withholding acceptance/tracking commands
   - [x] `dogfood:tracking-issue` accepts repeatable `--accepted-report-url` arguments, deduplicates them with existing report links, and fills the next real tester slots in a dry-run body before maintainers edit GitHub
+  - [x] non-mutating tester assignment packet, packaging the current `dogfood:status` recommended prepare/tester/review commands into copy-safe Markdown without creating reports, adding labels, updating cohort JSON, or marking evidence accepted:
+    ```bash
+    npm run dogfood:assignments -- \
+      --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+      --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+      --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md
+    ```
   - [ ] `coding-terminal` workflow reports from actual testers
   - [ ] `screenshot-inspection` workflow reports from actual testers
   - [ ] `finder-file` workflow reports from actual testers

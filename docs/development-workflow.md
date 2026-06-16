@@ -270,6 +270,17 @@ npm run dogfood:status -- \
 `dogfood:status` reports local smoke results, permission blockers, accepted report URLs already filled into the tracking issue, the tracking issue `Current Alpha` identity, current git HEAD comparison when available, and a non-mutating validation of each linked report issue. The tracking issue identity check requires its release tag, manifest, zip, zip SHA256, commit, bundle id, and app name to match the selected manifest before `ready-to-collect` can be reported. If the selected alpha manifest is older than HEAD, status adds a next action to publish a fresh alpha or intentionally keep testing the older selected alpha; this is a warning by default and only becomes a strict collect gate with `--require-current-head`. The linked issue validation checks `dogfood:accepted`, matching alpha manifest/zip/commit identity, at least one checked cohort workflow, and exact `workflow:*` labels before it counts the issue as a verified accepted report. Real tester readiness excludes reserved local synthetic tester ids such as `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*`; those reports remain useful local evidence but do not count toward the 3-5 real-user gate, workflow coverage, or passed workflow coverage. It also writes a `Recommended Tester Assignments` section with copyable `dogfood:prepare-alpha`, `dogfood:tester`, and `dogfood:review` commands for the next real tester slots and missing workflow coverage; suggested `tester-N` ids skip tester ids already parsed from linked reports, and when status is based on a GitHub tracking issue, the generated review commands carry the same `--tracking-issue-url` so accepted reports are linked back to the intended cohort issue instead of the default. Once source coverage is complete and only passed workflow coverage is missing, the assignment purpose changes to `passed-workflow-evidence` and the generated prepare/tester commands include `--require-passed`. It does not create reports, edit GitHub, or mark the cohort ready; use it to decide whether the next step is publishing a fresh alpha, updating stale alpha links, granting permissions, replacing stale issue links, collecting tester reports, or running `dogfood:collect`. Add `--require-current-head` only when validating a local alpha before publication; published-release status checks must keep working after later documentation-only commits.
 Workflow coverage in `dogfood:status` comes only from verified accepted real tester report issues, not from the tracking issue checklist. Passed Workflow Coverage is separate and only counts linked real tester report issues whose `Computer Use result` is `passed`, so blocked permission evidence cannot be mistaken for passed product-path evidence.
 
+To turn the current status recommendations into a copy-safe tester handoff packet:
+
+```bash
+npm run dogfood:assignments -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md
+```
+
+`dogfood:assignments` is non-mutating. It reads the same recommended tester assignments as `dogfood:status`, writes a Markdown packet with prepare/tester/review commands, and does not create or accept reports, add labels, update cohort JSON, or close workflow coverage.
+
 Generate a copyable handoff for each real tester before asking them to run the packaged app:
 
 ```bash
