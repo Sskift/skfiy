@@ -54,7 +54,8 @@ describe("dogfood handoff generator", () => {
       "~/Desktop/skfiy-finder-dogfood",
       "--chrome-current-page-endpoint",
       "http://127.0.0.1:9222",
-      "--require-passed"
+      "--require-passed",
+      "--allow-synthetic-tester-id"
     ], defaults)).toMatchObject({
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
       testerId: "tester-b",
@@ -65,7 +66,8 @@ describe("dogfood handoff generator", () => {
       outputPath: path.resolve(".skfiy-dogfood/handoffs/tester-b.md"),
       finderTargetDir: path.join(process.env.HOME ?? "", "Desktop/skfiy-finder-dogfood"),
       chromeCurrentPageEndpoint: "http://127.0.0.1:9222",
-      requirePassed: true
+      requirePassed: true,
+      allowSyntheticTesterId: true
     });
     expect(createDogfoodHandoffHelpText()).toContain("dogfood:handoff");
     expect(createDogfoodHandoffHelpText()).toContain("does not create or accept GitHub reports");
@@ -155,6 +157,27 @@ describe("dogfood handoff generator", () => {
     }, createMemoryIo())).rejects.toThrow(
       "Reserved dogfood tester id prefix"
     );
+  });
+
+  it("allows reserved tester id prefixes only for explicit maintainer handoff generation", async () => {
+    const { createDogfoodHandoff } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodHandoff: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(createDogfoodHandoff({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "prepare-abc123",
+      workflows: ["coding-terminal"],
+      outputPath,
+      allowSyntheticTesterId: true
+    }, createMemoryIo())).resolves.toMatchObject({
+      result: "created",
+      testerId: "prepare-abc123"
+    });
   });
 });
 

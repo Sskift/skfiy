@@ -144,6 +144,25 @@ describe("alpha dogfood preparation", () => {
     ]);
   });
 
+  it("allows synthetic prepare tester ids only for the generated maintainer handoff command", async () => {
+    const { createPrepareAlphaDogfoodPlan } = await import(pathToFileURL(modulePath).href) as {
+      createPrepareAlphaDogfoodPlan: (input: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const plan = createPrepareAlphaDogfoodPlan({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "prepare-abc1234"
+    }) as {
+      commands: Array<{ id: string; command: string; args: string[] }>;
+    };
+
+    expect(plan.commands.find((command) => command.id === "handoff:create")?.args).toEqual(
+      expect.arrayContaining(["--allow-synthetic-tester-id"])
+    );
+  });
+
   it("executes with checksum validation before installing the app bundle", async () => {
     const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
       runPrepareAlphaDogfood: (

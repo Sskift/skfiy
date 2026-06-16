@@ -26,6 +26,7 @@ export function createDefaultDogfoodHandoffOptions(rootDir = DEFAULT_ROOT_DIR) {
     finderTargetDir: undefined,
     chromeCurrentPageEndpoint: undefined,
     requirePassed: false,
+    allowSyntheticTesterId: false,
     help: false
   };
 }
@@ -75,6 +76,9 @@ export function parseDogfoodHandoffArgs(argv, defaults) {
         break;
       case "--require-passed":
         options.requirePassed = true;
+        break;
+      case "--allow-synthetic-tester-id":
+        options.allowSyntheticTesterId = true;
         break;
       case "--help":
       case "-h":
@@ -146,6 +150,7 @@ export function createDogfoodHandoffHelpText() {
     "  --finder-target-dir <path>             Optional real Finder parent directory for the tester run.",
     "  --chrome-current-page-endpoint <url>   Optional consenting Chrome CDP endpoint for real-page evidence.",
     "  --require-passed                       Include strict passed smoke flags for permission-ready testers.",
+    "  --allow-synthetic-tester-id            Maintainer-only escape hatch for local/preflight handoffs that will not count as real testers.",
     "",
     "Required workflows:",
     ...REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => `  - ${workflow}`)
@@ -267,7 +272,9 @@ function validateOptions(options) {
   if (typeof options.testerId !== "string" || options.testerId.trim().length === 0) {
     throw new Error("Missing --tester-id <id>.");
   }
-  assertRealDogfoodTesterId(options.testerId);
+  if (options.allowSyntheticTesterId !== true) {
+    assertRealDogfoodTesterId(options.testerId);
+  }
   if (!Array.isArray(options.workflows) || options.workflows.length === 0) {
     throw new Error("Missing --workflows <workflow[,workflow]>.");
   }

@@ -8,6 +8,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
+import { readRealTesterDecision } from "./dogfood-tester-id.mjs";
+
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
@@ -187,7 +189,8 @@ export function createPrepareAlphaDogfoodPlan(options) {
           "--tester-id",
           testerId,
           "--output",
-          handoffOutputPath
+          handoffOutputPath,
+          ...readSyntheticTesterHandoffArgs(testerId)
         ]
       }
     ]
@@ -359,6 +362,12 @@ function replaceCommandArgs(command, replacements) {
     ...command,
     args: command.args.map((arg) => replacements[arg] ?? arg)
   };
+}
+
+function readSyntheticTesterHandoffArgs(testerId) {
+  return readRealTesterDecision(testerId).ok
+    ? []
+    : ["--allow-synthetic-tester-id"];
 }
 
 function readValue(argv, index, flag) {
