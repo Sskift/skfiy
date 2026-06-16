@@ -85,6 +85,11 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
 
   const manifest = await io.readJson(options.manifestPath);
   const trackingIssue = normalizeIssueEvidence(await io.readIssue(options.trackingIssueUrl));
+  const currentAlpha = validateTrackingIssueCurrentAlpha({
+    body: trackingIssue.body,
+    manifest,
+    manifestPath: options.manifestPath
+  });
   const acceptedReportIssueUrls = readAcceptedReportIssueUrls(
     trackingIssue.body,
     options.trackingIssueUrl
@@ -112,6 +117,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const canRunCollect = verifiedRealAcceptedReportIssueUrls.length >= 3
     && verifiedRealAcceptedReportIssueUrls.length <= 5
     && invalidReportIssueCount === 0
+    && currentAlpha.ok
     && workflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
   const nextActions = createNextActions({
@@ -119,6 +125,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     permissionBlockers,
     missingRequiredReports,
     manifestChecks,
+    currentAlpha,
     workflowCoverage,
     passedWorkflowCoverage,
     invalidReportIssueCount
@@ -138,6 +145,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
       checks: manifestChecks
     },
     trackingIssue: {
+      currentAlpha,
       acceptedReportIssueUrls,
       acceptedReportCount: acceptedReportIssueUrls.length,
       verifiedAcceptedReportIssueUrls,
@@ -191,6 +199,12 @@ export function createDogfoodStatusMarkdown(status) {
     `Accepted report URLs: ${status.trackingIssue.acceptedReportCount}/3 minimum`,
     `Verified accepted report URLs: ${status.trackingIssue.verifiedAcceptedReportCount}/3 minimum`,
     `Verified real accepted report URLs: ${status.trackingIssue.verifiedRealAcceptedReportCount}/3 minimum`,
+    "",
+    "## Current Alpha Identity",
+    "",
+    ...(status.trackingIssue.currentAlpha.ok
+      ? ["- ok"]
+      : status.trackingIssue.currentAlpha.reasons.map((reason) => `- invalid: ${reason}`)),
     "",
     "## Local Smoke",
     ""
@@ -360,12 +374,16 @@ function createNextActions({
   permissionBlockers,
   missingRequiredReports,
   manifestChecks,
+  currentAlpha,
   workflowCoverage,
   passedWorkflowCoverage,
   invalidReportIssueCount
 }) {
   const actions = [];
 
+  if (currentAlpha.ok !== true) {
+    actions.push("Update GitHub issue #1 Current Alpha section to match the selected manifest before collecting reports.");
+  }
   if (missingRequiredReports > 0) {
     actions.push("Collect at least 3 accepted real tester report issue URLs in GitHub issue #1.");
   }
@@ -401,6 +419,102 @@ function createNextActions({
   }
 
   return actions;
+}
+
+function validateTrackingIssueCurrentAlpha({ body, manifest, manifestPath }) {
+  const section = readMarkdownSection(body, "Current Alpha");
+  const fields = readCurrentAlphaFields(section);
+  const reasons = [];
+  const manifestCommitSha = typeof manifest?.commitSha === "string" ? manifest.commitSha.trim() : "";
+  const expectedReleaseTag = manifestCommitSha.length > 0
+    ? `skfiy-alpha-${manifestCommitSha.slice(0, 7)}`
+    : "";
+
+  if (section.length === 0) {
+    reasons.push("tracking issue is missing Current Alpha section");
+  }
+
+  if (fields.release.length === 0) {
+    reasons.push("missing tracking issue release");
+  } else if (expectedReleaseTag.length === 0 || !fields.release.includes(`/releases/tag/${expectedReleaseTag}`)) {
+    reasons.push("tracking issue release does not match manifest commit");
+  }
+
+  if (fields.manifest.length === 0) {
+    reasons.push("missing tracking issue manifest");
+  } else if (!matchesIssuePathOrBasename(fields.manifest, manifestPath)) {
+    reasons.push("tracking issue manifest does not match current manifest");
+  }
+
+  const manifestZipPath = typeof manifest?.zip?.path === "string" ? manifest.zip.path : "";
+  if (fields.zip.length === 0) {
+    reasons.push("missing tracking issue zip");
+  } else if (!matchesIssuePathOrBasename(fields.zip, manifestZipPath)) {
+    reasons.push("tracking issue zip does not match manifest zip.path");
+  }
+
+  const manifestZipSha256 = typeof manifest?.zip?.sha256 === "string" ? manifest.zip.sha256.trim() : "";
+  if (fields.zipSha256.length === 0) {
+    reasons.push("missing tracking issue zip SHA256");
+  } else if (manifestZipSha256.length === 0 || fields.zipSha256 !== manifestZipSha256) {
+    reasons.push("tracking issue zip SHA256 does not match manifest zip.sha256");
+  }
+
+  if (fields.commit.length === 0) {
+    reasons.push("missing tracking issue commit");
+  } else if (fields.commit !== manifestCommitSha) {
+    reasons.push("tracking issue commit does not match manifest commitSha");
+  }
+
+  const bundleIdentifier = typeof manifest?.bundleIdentifier === "string" ? manifest.bundleIdentifier.trim() : "";
+  if (fields.bundleId.length === 0) {
+    reasons.push("missing tracking issue bundle id");
+  } else if (fields.bundleId !== bundleIdentifier) {
+    reasons.push("tracking issue bundle id does not match manifest bundleIdentifier");
+  }
+
+  const appName = typeof manifest?.appName === "string" ? manifest.appName.trim() : "";
+  if (fields.appName.length === 0) {
+    reasons.push("missing tracking issue app name");
+  } else if (fields.appName !== appName) {
+    reasons.push("tracking issue app name does not match manifest appName");
+  }
+
+  return {
+    ok: reasons.length === 0,
+    reasons,
+    fields
+  };
+}
+
+function readCurrentAlphaFields(section) {
+  return {
+    release: readBulletField(section, "Release"),
+    manifest: readBulletField(section, "Manifest"),
+    zip: readBulletField(section, "Zip"),
+    zipSha256: readBulletField(section, "Zip SHA256"),
+    commit: readBulletField(section, "Commit"),
+    bundleId: readBulletField(section, "Bundle id"),
+    appName: readBulletField(section, "App name")
+  };
+}
+
+function readBulletField(section, label) {
+  if (typeof section !== "string" || section.length === 0) {
+    return "";
+  }
+
+  const pattern = new RegExp(`^-\\s*${escapeRegExp(label)}:\\s*(.+?)\\s*$`, "im");
+  const match = pattern.exec(section);
+
+  return match ? stripMarkdownValue(match[1]) : "";
+}
+
+function stripMarkdownValue(value) {
+  const trimmed = String(value ?? "").trim();
+  const wrappedBackticks = /^`([^`]+)`$/.exec(trimmed);
+
+  return wrappedBackticks ? wrappedBackticks[1].trim() : trimmed;
 }
 
 async function validateAcceptedReportIssues({ manifest, manifestPath, issueUrls, io }) {
@@ -616,9 +730,13 @@ function matchesIssuePathOrBasename(issueValue, expectedPath) {
   }
   const normalizedIssueValue = issueValue.trim();
   const normalizedExpectedPath = expectedPath.trim();
+  const suffixIssueValue = normalizedIssueValue
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "");
 
   return normalizedIssueValue === normalizedExpectedPath
-    || normalizedIssueValue === path.basename(normalizedExpectedPath);
+    || normalizedIssueValue === path.basename(normalizedExpectedPath)
+    || normalizedExpectedPath.endsWith(`/${suffixIssueValue}`);
 }
 
 function readWorkflowCoverage(body) {
