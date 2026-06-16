@@ -50,6 +50,13 @@ to use skfiy's local one-shot Speech framework prototype; it listens until a
 short silence timeout or a maximum duration, then streams the final transcript
 back into the same Computer Use path.
 
+Before a voice transcript can enter Computer Use, skfiy now applies a
+main-process admission gate: streaming ASR providers must produce a final
+transcript, submitted text must match that final candidate, low-confidence
+candidates ask for clarification, and chat/unsupported requests are routed away
+from desktop control. Doubao remains supported as a text bridge when it cannot
+provide per-candidate confidence.
+
 For native macOS speech dogfood, tune the bounded listening turn with
 `SKFIY_NATIVE_SPEECH_LOCALE`, `SKFIY_NATIVE_SPEECH_MAX_DURATION_MS`, and
 `SKFIY_NATIVE_SPEECH_SILENCE_TIMEOUT_MS`. The defaults are `zh-CN`, `7000`,
@@ -185,6 +192,10 @@ tester command includes `--file-issue`, which creates only the dogfood report
 issue after local validation; maintainer acceptance still requires
 `dogfood:review`, whose default dry-run can be promoted with `--execute` after
 the report validates.
+`dogfood:tester` summaries include a `Smoke Results` table with each packaged
+smoke's result, product path, and permission states parsed from the smoke JSON
+stdout, so testers and maintainers can audit passed/blocked/no-transcript runs
+without opening every artifact by hand.
 Workflow and passed workflow coverage in `dogfood:status` and
 `dogfood:cohort` count only verified accepted reports from real tester ids;
 `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` remain local evidence

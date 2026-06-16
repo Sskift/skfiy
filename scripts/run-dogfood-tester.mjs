@@ -24,6 +24,13 @@ const REQUIRED_STRICT_PERMISSION_KEYS = [
   "microphone",
   "speechRecognition"
 ];
+const PRODUCT_SMOKE_COMMAND_IDS = new Set([
+  "smoke:ui",
+  "smoke:ghostty",
+  "smoke:chrome",
+  "smoke:finder",
+  "smoke:voice"
+]);
 const EXPECTED_APP_BUNDLE_BASENAME = "skfiy.app";
 const EXPECTED_APP_BUNDLE_IDENTITY = {
   CFBundleIdentifier: "com.sskift.skfiy",
@@ -462,7 +469,24 @@ function createDogfoodTesterSummary({
     `- Chrome: ${plan.artifacts.chrome}`,
     `- Finder: ${plan.artifacts.finder}`,
     `- Voice: ${plan.artifacts.voice}`,
-    "",
+    ""
+  ];
+
+  const smokeResultRows = readSmokeResultRows(commandResults);
+  if (smokeResultRows.length > 0) {
+    lines.push(
+      "## Smoke Results",
+      "",
+      "| smoke | result | product path | permissions |",
+      "| --- | --- | --- | --- |",
+      ...smokeResultRows.map((row) =>
+        `| ${escapeMarkdownTableCell(row.id)} | ${escapeMarkdownTableCell(row.result)} | ${escapeMarkdownTableCell(row.productPath)} | ${escapeMarkdownTableCell(row.permissions)} |`
+      ),
+      ""
+    );
+  }
+
+  lines.push(
     "## Commands",
     "",
     "| step | exit | command |",
@@ -471,7 +495,7 @@ function createDogfoodTesterSummary({
       `| ${escapeMarkdownTableCell(commandResult.id)} | ${commandResult.exitCode} | ${escapeMarkdownTableCell(formatCommand(commandResult.command, commandResult.args))} |`
     ),
     ""
-  ];
+  );
 
   if (appBundlePreflight) {
     lines.push(
@@ -541,6 +565,48 @@ function createDogfoodTesterSummary({
   );
 
   return lines.join("\n");
+}
+
+function readSmokeResultRows(commandResults) {
+  return commandResults
+    .filter((commandResult) => PRODUCT_SMOKE_COMMAND_IDS.has(commandResult.id))
+    .map((commandResult) => {
+      const evidence = parseJson(commandResult.stdout);
+      return {
+        id: commandResult.id,
+        result: readSmokeResult(evidence),
+        productPath: readSmokeProductPath(evidence),
+        permissions: readSmokePermissionSummary(evidence)
+      };
+    });
+}
+
+function readSmokeResult(evidence) {
+  return readNonEmptyString(evidence?.result) ?? "unknown";
+}
+
+function readSmokeProductPath(evidence) {
+  return readNonEmptyString(evidence?.productPath) ?? "unknown";
+}
+
+function readSmokePermissionSummary(evidence) {
+  const permissions = evidence && typeof evidence.permissions === "object" && evidence.permissions
+    ? evidence.permissions
+    : undefined;
+  if (!permissions) {
+    return "unknown";
+  }
+
+  const entries = Object.entries(permissions)
+    .map(([permission, detail]) => {
+      const state = readNonEmptyString(detail?.state) ?? "unknown";
+      return `${permission}=${state}`;
+    });
+  return entries.length > 0 ? entries.join(", ") : "unknown";
+}
+
+function readNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 async function fileDogfoodReportIssue(plan, io, env) {

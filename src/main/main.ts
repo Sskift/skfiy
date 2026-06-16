@@ -39,8 +39,10 @@ import {
 } from "./dictation-provider.js";
 import {
   createVoiceTurnSessionStore,
+  decideVoiceIntentAdmission,
   type VoiceTurnSession,
   type VoiceTurnProviderId,
+  type VoiceIntentAdmissionDecision,
   type VoiceTurnTranscriptCandidateInput
 } from "./voice-turn-session.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
@@ -186,6 +188,11 @@ function cancelVoiceTurnSession(sessionId: unknown): void {
   } catch {
     // The renderer can send a late stop after a submit already finalized the session.
   }
+}
+
+function readVoiceTurnSession(sessionId: unknown): VoiceTurnSession | null {
+  const id = typeof sessionId === "string" ? sessionId : voiceTurnSessionStore.getActive()?.id;
+  return id ? voiceTurnSessionStore.get(id) : null;
 }
 
 function finalizeVoiceTurnSession(sessionId: unknown, transcript: string): void {
@@ -500,6 +507,30 @@ function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget 
 
 function readFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function handleVoiceAdmissionInterruption(
+  window: BrowserWindow | null,
+  voiceAdmission: Exclude<VoiceIntentAdmissionDecision, { decision: "computer_use" }>
+): void {
+  pendingApproval = null;
+  activeTaskController?.abort();
+  activeTaskController = null;
+  currentTaskId += 1;
+  turnReplayStore.startTurn();
+
+  if (voiceAdmission.decision === "chat") {
+    emitTurnReplayTaskEvent(window, {
+      status: "completed",
+      message: "Voice intent routed to chat: 我是 skfiy，可以帮你把明确的语音意图转成受控的桌面操作。"
+    });
+    return;
+  }
+
+  emitTurnReplayTaskEvent(window, {
+    status: "needs_confirmation",
+    message: `Voice intent needs clarification: ${voiceAdmission.reason} 请重新说清目标应用和动作。`
+  });
 }
 
 async function runCommandTask(
@@ -978,6 +1009,22 @@ ipcMain.handle(
       return;
     }
 
+    const voiceTurnSession = readVoiceTurnSession(sessionId);
+    if (!voiceTurnSession) {
+      emitTaskEvent(window, {
+        status: "failed",
+        message: "Voice turn session is missing."
+      });
+      return;
+    }
+
+    const route = selectCommandRoute(trimmed);
+    const voiceAdmission = decideVoiceIntentAdmission({
+      session: voiceTurnSession,
+      submittedText: trimmed,
+      route
+    });
+
     try {
       finalizeVoiceTurnSession(sessionId, trimmed);
     } catch (error) {
@@ -992,7 +1039,12 @@ ipcMain.handle(
       await stopCurrentDictationProvider(window);
     }
 
-    await runCommandTask(window, trimmed, "active", false);
+    if (voiceAdmission.decision === "computer_use") {
+      await runCommandTask(window, trimmed, "active", false);
+      return;
+    }
+
+    handleVoiceAdmissionInterruption(window, voiceAdmission);
   }
 );
 

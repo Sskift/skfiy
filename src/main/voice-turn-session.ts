@@ -43,6 +43,44 @@ export interface VoiceTurnSessionStoreOptions {
   defaultTimeoutMs?: number;
 }
 
+export type VoiceIntentAdmissionRoute =
+  | { kind: "ghostty" | "chrome" | "finder"; bundleId: string }
+  | { kind: "chat"; reason: string }
+  | { kind: "needs_clarification"; reason: string };
+
+export type VoiceIntentAdmissionDecision =
+  | {
+    decision: "computer_use";
+    routeKind: "ghostty" | "chrome" | "finder";
+    transcript: string;
+    confidence?: number;
+  }
+  | {
+    decision: "chat";
+    transcript: string;
+    reason: string;
+  }
+  | {
+    decision: "needs_clarification";
+    transcript: string;
+    reason: string;
+  };
+
+export interface VoiceIntentAdmissionInput {
+  session: VoiceTurnSession;
+  submittedText: string;
+  route: VoiceIntentAdmissionRoute;
+  minConfidence?: number;
+}
+
+const DEFAULT_VOICE_INTENT_MIN_CONFIDENCE = 0.6;
+const FINAL_TRANSCRIPT_REQUIRED_PROVIDERS = new Set<VoiceTurnProviderId>([
+  "browser",
+  "native-macos",
+  "local",
+  "cloud"
+]);
+
 export function createVoiceTurnSessionStore({
   now = () => Date.now(),
   defaultTimeoutMs = 30_000
@@ -182,4 +220,77 @@ export function createVoiceTurnSessionStore({
 
 function isTerminalStatus(status: VoiceTurnStatus): boolean {
   return status === "finalized" || status === "cancelled" || status === "failed";
+}
+
+export function decideVoiceIntentAdmission({
+  session,
+  submittedText,
+  route,
+  minConfidence = DEFAULT_VOICE_INTENT_MIN_CONFIDENCE
+}: VoiceIntentAdmissionInput): VoiceIntentAdmissionDecision {
+  const transcript = submittedText.trim();
+  const finalTranscript = session.finalTranscript?.trim();
+
+  if (!transcript) {
+    return {
+      decision: "needs_clarification",
+      transcript,
+      reason: "Voice command must contain text before Computer Use can start."
+    };
+  }
+
+  if (FINAL_TRANSCRIPT_REQUIRED_PROVIDERS.has(session.providerId) && !finalTranscript) {
+    return {
+      decision: "needs_clarification",
+      transcript,
+      reason: "Voice provider did not produce a final transcript."
+    };
+  }
+
+  if (finalTranscript && finalTranscript !== transcript) {
+    return {
+      decision: "needs_clarification",
+      transcript,
+      reason: "Submitted voice text does not match the final transcript candidate."
+    };
+  }
+
+  if (
+    typeof session.confidence === "number"
+    && Number.isFinite(session.confidence)
+    && session.confidence < minConfidence
+  ) {
+    return {
+      decision: "needs_clarification",
+      transcript,
+      reason: `Voice confidence ${formatConfidence(session.confidence)} is below the ${formatConfidence(minConfidence)} admission threshold.`
+    };
+  }
+
+  if (route.kind === "chat") {
+    return {
+      decision: "chat",
+      transcript,
+      reason: route.reason
+    };
+  }
+
+  if (route.kind === "needs_clarification") {
+    return {
+      decision: "needs_clarification",
+      transcript,
+      reason: route.reason
+    };
+  }
+
+  return {
+    decision: "computer_use",
+    routeKind: route.kind,
+    transcript,
+    confidence: session.confidence
+  };
+}
+
+function formatConfidence(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(3)));
 }

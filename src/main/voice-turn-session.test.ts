@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createVoiceTurnSessionStore } from "./voice-turn-session";
+import {
+  createVoiceTurnSessionStore,
+  decideVoiceIntentAdmission,
+  type VoiceTurnSession
+} from "./voice-turn-session";
 
 describe("voice turn session store", () => {
   it("tracks a voice turn from listening through final transcript", () => {
@@ -102,3 +106,123 @@ describe("voice turn session store", () => {
     expect(store.getActive()).toBeNull();
   });
 });
+
+describe("decideVoiceIntentAdmission", () => {
+  it("requires a recorded final transcript for browser and native speech sessions", () => {
+    expect(decideVoiceIntentAdmission({
+      session: createSession({
+        providerId: "browser",
+        finalTranscript: undefined
+      }),
+      submittedText: "打开 Ghostty 执行 pwd",
+      route: { kind: "ghostty", bundleId: "com.mitchellh.ghostty" }
+    })).toMatchObject({
+      decision: "needs_clarification",
+      reason: "Voice provider did not produce a final transcript."
+    });
+  });
+
+  it("rejects submitted text that differs from the final transcript candidate", () => {
+    expect(decideVoiceIntentAdmission({
+      session: createSession({
+        finalTranscript: "打开 Ghostty 执行 pwd",
+        confidence: 0.91
+      }),
+      submittedText: "rm -rf ~/Desktop",
+      route: { kind: "ghostty", bundleId: "com.mitchellh.ghostty" }
+    })).toMatchObject({
+      decision: "needs_clarification",
+      reason: "Submitted voice text does not match the final transcript candidate."
+    });
+  });
+
+  it("rejects low-confidence final transcript candidates before Computer Use", () => {
+    expect(decideVoiceIntentAdmission({
+      session: createSession({
+        finalTranscript: "打开 Ghostty 执行 pwd",
+        confidence: 0.42
+      }),
+      submittedText: "打开 Ghostty 执行 pwd",
+      route: { kind: "ghostty", bundleId: "com.mitchellh.ghostty" },
+      minConfidence: 0.6
+    })).toMatchObject({
+      decision: "needs_clarification",
+      reason: "Voice confidence 0.42 is below the 0.6 admission threshold."
+    });
+  });
+
+  it("routes chat and unsupported voice turns away from Computer Use", () => {
+    expect(decideVoiceIntentAdmission({
+      session: createSession({
+        finalTranscript: "你是谁",
+        confidence: 0.9
+      }),
+      submittedText: "你是谁",
+      route: {
+        kind: "chat",
+        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+      }
+    })).toMatchObject({
+      decision: "chat",
+      reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+    });
+
+    expect(decideVoiceIntentAdmission({
+      session: createSession({
+        finalTranscript: "帮我整理一下桌面",
+        confidence: 0.9
+      }),
+      submittedText: "帮我整理一下桌面",
+      route: {
+        kind: "needs_clarification",
+        reason: "No supported desktop control route matched this request."
+      }
+    })).toMatchObject({
+      decision: "needs_clarification",
+      reason: "No supported desktop control route matched this request."
+    });
+  });
+
+  it("admits supported desktop routes after transcript and confidence checks pass", () => {
+    expect(decideVoiceIntentAdmission({
+      session: createSession({
+        finalTranscript: "打开 Ghostty 执行 pwd",
+        confidence: 0.91
+      }),
+      submittedText: "打开 Ghostty 执行 pwd",
+      route: { kind: "ghostty", bundleId: "com.mitchellh.ghostty" }
+    })).toMatchObject({
+      decision: "computer_use",
+      routeKind: "ghostty",
+      transcript: "打开 Ghostty 执行 pwd"
+    });
+  });
+
+  it("keeps Doubao text bridge submissions possible when no confidence candidate is available", () => {
+    expect(decideVoiceIntentAdmission({
+      session: createSession({
+        providerId: "doubao",
+        finalTranscript: undefined,
+        confidence: undefined
+      }),
+      submittedText: "打开 Ghostty 执行 pwd",
+      route: { kind: "ghostty", bundleId: "com.mitchellh.ghostty" }
+    })).toMatchObject({
+      decision: "computer_use",
+      routeKind: "ghostty"
+    });
+  });
+});
+
+function createSession(overrides: Partial<VoiceTurnSession> = {}): VoiceTurnSession {
+  return {
+    id: "voice-turn-test",
+    providerId: "browser",
+    trigger: "pet-click",
+    status: "transcribing",
+    startedAt: 1_000,
+    updatedAt: 1_000,
+    timeoutAt: 31_000,
+    ...overrides
+  };
+}

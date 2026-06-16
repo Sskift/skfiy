@@ -176,6 +176,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] browser ASR result events stream partial/final transcript candidates back to the main-process session
   - [x] browser ASR interim or low-confidence candidates stay visible but do not auto-submit into Computer Use
   - [x] `submit-dictation` finalizes the session before entering the Computer Use task path
+  - [x] `submit-dictation` now passes through a main-process voice intent admission gate before Computer Use: streamed ASR providers require a final transcript, submitted text must match the final candidate, low-confidence candidates ask for clarification, chat prompts route away from desktop control, and Doubao remains a text-bridge provider when candidate confidence is unavailable
   - [x] `stop-dictation` cancels the active session on manual stop or panic stop
   - [x] partial/final transcript, confidence, timeout, cancellation, and provider failure states are represented in a testable backend store
 - [x] Add a stop-turn hotkey and make pet click not start a new turn while dragging.

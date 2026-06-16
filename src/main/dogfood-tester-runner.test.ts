@@ -281,6 +281,69 @@ describe("dogfood tester runner", () => {
     );
   });
 
+  it("summarizes smoke results, product paths, and permission states in the tester summary", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      "smoke:ui": {
+        stdout: JSON.stringify({
+          result: "no-onboarding",
+          productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
+          permissions: {
+            screenRecording: { state: "granted" },
+            accessibility: { state: "granted" },
+            microphone: { state: "granted" },
+            speechRecognition: { state: "granted" }
+          }
+        })
+      },
+      "smoke:ghostty": {
+        stdout: JSON.stringify({
+          result: "blocked",
+          productPath: "renderer -> preload -> main -> helper -> Ghostty",
+          permissions: {
+            screenRecording: { state: "denied" },
+            accessibility: { state: "granted" }
+          }
+        })
+      },
+      "smoke:chrome": {
+        stdout: [
+          "> skfiy@0.1.0 smoke:chrome",
+          "> node scripts/smoke-chrome-product.mjs",
+          JSON.stringify({
+            result: "passed",
+            productPath: "renderer -> preload -> main -> CDP -> Chrome",
+            permissions: {
+              screenRecording: { state: "granted" }
+            }
+          }, null, 2)
+        ].join("\n")
+      }
+    });
+
+    await runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      artifactsDir: "/repo/.skfiy-smoke/dogfood/tester-a",
+      issueOutputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
+      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    const summary = io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"];
+    expect(summary).toContain("## Smoke Results");
+    expect(summary).toContain("| smoke:ui | no-onboarding | LaunchServices -> renderer DOM -> React permission onboarding | screenRecording=granted, accessibility=granted, microphone=granted, speechRecognition=granted |");
+    expect(summary).toContain("| smoke:ghostty | blocked | renderer -> preload -> main -> helper -> Ghostty | screenRecording=denied, accessibility=granted |");
+    expect(summary).toContain("| smoke:chrome | passed | renderer -> preload -> main -> CDP -> Chrome | screenRecording=granted |");
+  });
+
   it("optionally files the generated report issue without accepting it", async () => {
     const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodTester: (
