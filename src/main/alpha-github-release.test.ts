@@ -61,7 +61,7 @@ describe("GitHub alpha release publisher", () => {
     expect(createGitHubAlphaReleaseHelpText()).toContain("dry-run");
   });
 
-  it("plans a pre-release with zip, manifest, checksum, and tester handoff instructions", async () => {
+  it("plans a pre-release with zip, manifest, checksum, and dogfood collection instructions", async () => {
     const {
       createGitHubAlphaReleasePlan,
       createGitHubAlphaReleaseNotes
@@ -119,8 +119,17 @@ describe("GitHub alpha release publisher", () => {
     expect(notes).toContain(trackingIssueUrl);
     expect(notes).toContain("npm run dogfood:prepare-alpha");
     expect(notes).toContain("npm run dogfood:handoff");
+    expect(notes).toContain("npm run dogfood:status");
+    expect(notes).toContain("npm run dogfood:collect");
+    expect(notes).toContain("npm run dogfood:cohort");
     expect(notes).toContain("--release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1");
     expect(notes).toContain("--app <path-to-unzipped-skfiy.app>");
+    expect(notes).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
+    expect(notes).toContain("--reports-dir .skfiy-dogfood/reports");
+    expect(notes).toContain("--cohort .skfiy-dogfood/internal-alpha-cohort.json");
+    expect(notes).toContain("--summary .skfiy-dogfood/internal-alpha-summary.md");
+    expect(notes).toContain("--summary .skfiy-dogfood/internal-alpha-summary-strict.md");
+    expect(notes).toContain("--require-passed");
     expect(notes).toContain("Do not run dogfood from tmux");
   });
 
