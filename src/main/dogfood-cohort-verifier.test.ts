@@ -37,10 +37,12 @@ describe("dogfood cohort verifier", () => {
       "--cohort",
       ".skfiy-dogfood/internal-alpha-cohort.json",
       "--summary",
-      ".skfiy-dogfood/internal-alpha-summary.md"
+      ".skfiy-dogfood/internal-alpha-summary.md",
+      "--require-passed"
     ], defaults)).toMatchObject({
       cohortPath: path.resolve(".skfiy-dogfood/internal-alpha-cohort.json"),
-      summaryPath: path.resolve(".skfiy-dogfood/internal-alpha-summary.md")
+      summaryPath: path.resolve(".skfiy-dogfood/internal-alpha-summary.md"),
+      requirePassed: true
     });
     expect(createDogfoodCohortHelpText()).toContain("coding-terminal");
     expect(createDogfoodCohortHelpText()).toContain("--summary");
@@ -48,6 +50,7 @@ describe("dogfood cohort verifier", () => {
     expect(createDogfoodCohortHelpText()).toContain("artifactSource=github-issue-smoke-artifacts");
     expect(createDogfoodCohortHelpText()).toContain("issue alpha manifest/zip/commit identity");
     expect(createDogfoodCohortHelpText()).toContain("Workflow coverage counts only reports");
+    expect(createDogfoodCohortHelpText()).toContain("--require-passed");
   });
 
   it("accepts a 3-person cohort that covers all required dogfood workflows", async () => {
@@ -146,6 +149,82 @@ describe("dogfood cohort verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("cohort.workflowCoverage.browser-fallback")
+      ])
+    });
+  });
+
+  it("fails in strict passed mode when a required workflow only has blocked evidence", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(verifyDogfoodCohort({
+      cohortPath,
+      requirePassed: true
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        createReport("tester-a", ["coding-terminal", "screenshot-inspection"], "passed"),
+        createReport("tester-b", ["finder-file"], "blocked"),
+        createReport("tester-c", ["browser-fallback"], "blocked")
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("cohort.passedWorkflowCoverage.finder-file"),
+        expect.stringContaining("cohort.passedWorkflowCoverage.browser-fallback")
+      ]),
+      summary: {
+        passedWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": false,
+          "browser-fallback": false
+        }
+      },
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "cohort.workflowCoverage.finder-file", ok: true }),
+        expect.objectContaining({ id: "cohort.passedWorkflowCoverage.finder-file", ok: false }),
+        expect.objectContaining({ id: "cohort.passedWorkflowCoverage.browser-fallback", ok: false })
+      ])
+    });
+  });
+
+  it("passes in strict passed mode when every required workflow has passed product evidence", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(verifyDogfoodCohort({
+      cohortPath,
+      requirePassed: true
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        createReport("tester-a", ["coding-terminal", "screenshot-inspection"], "passed"),
+        createReport("tester-b", ["finder-file"], "passed"),
+        createReport("tester-c", ["browser-fallback"], "passed")
+      ])
+    }))).resolves.toMatchObject({
+      result: "passed",
+      errors: [],
+      summary: {
+        passedWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": true,
+          "browser-fallback": true
+        }
+      },
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "cohort.passedWorkflowCoverage.coding-terminal", ok: true }),
+        expect.objectContaining({ id: "cohort.passedWorkflowCoverage.screenshot-inspection", ok: true }),
+        expect.objectContaining({ id: "cohort.passedWorkflowCoverage.finder-file", ok: true }),
+        expect.objectContaining({ id: "cohort.passedWorkflowCoverage.browser-fallback", ok: true })
       ])
     });
   });

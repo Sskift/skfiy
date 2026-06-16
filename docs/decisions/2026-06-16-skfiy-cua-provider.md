@@ -37,7 +37,7 @@ AIME remains the likely distribution and assistant workflow home after skfiy pro
 
 Trigger to promote external CUA from evaluation mode to candidate default only when all of these are true:
 
-- Each internal dogfood report first passes `npm run dogfood:verify -- --manifest <alpha-manifest> --require-passed` on its own machine, then the aggregated `.skfiy-dogfood/internal-alpha-cohort.json` passes `npm run dogfood:cohort -- --cohort <path>` with 3-5 distinct testers and all required workflow ids covered.
+- Each internal dogfood report first passes `npm run dogfood:verify -- --manifest <alpha-manifest> --require-passed` on its own machine, then the aggregated `.skfiy-dogfood/internal-alpha-cohort.json` passes `npm run dogfood:cohort -- --cohort <path> --require-passed` with 3-5 distinct testers and all required workflow ids covered by passed product-path reports.
 - Ghostty and native voice product smokes both pass through `dist/skfiy.app`, LaunchServices `open`, and `runnerHasTmux=false`.
 - The provider returns an inspectable rationale plus a bounded action or command schema that skfiy can validate before execution.
 - External provider failures, timeouts, policy denials, malformed actions, and prompt-injection detections fail closed with replay evidence.

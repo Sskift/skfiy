@@ -179,6 +179,17 @@ npm run dogfood:cohort -- \
 
 The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `commitSha`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers, coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`, and source issue identity that matches the report manifest and commit. Workflow coverage is counted only from reports that satisfy the report-level source, artifact, permission, LaunchServices, and identity gates. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, issue links, and separate passed workflow coverage without replacing the JSON verifier. A permission-blocked report may cover a workflow for cohort source-quality purposes, but it does not count as passed product-path evidence.
 
+When judging whether the cohort proves product-path execution rather than only source quality, run the strict passed gate:
+
+```bash
+npm run dogfood:cohort -- \
+  --cohort .skfiy-dogfood/internal-alpha-cohort.json \
+  --summary .skfiy-dogfood/internal-alpha-summary.md \
+  --require-passed
+```
+
+`--require-passed` fails unless every required workflow is covered by at least one accepted report whose `Computer Use result` is `passed`.
+
 Check Developer ID signing and notarization readiness:
 
 ```bash
@@ -342,3 +353,4 @@ Before any broader internal release:
 - Run `npm run release:mac:notarize` successfully on the final artifact.
 - Keep `npm run smoke:ui -- --output <path>` and `npm run dogfood:verify -- --manifest <path>` passing with permission setting direct-link evidence.
 - Keep `npm run dogfood:cohort -- --cohort <path>` passing with 3-5 distinct testers and all four required workflow ids covered by source/artifact/permission-eligible reports.
+- Keep `npm run dogfood:cohort -- --cohort <path> --require-passed` passing before claiming the cohort proves product-path execution for all four workflows.

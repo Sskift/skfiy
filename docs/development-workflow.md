@@ -357,6 +357,17 @@ npm run dogfood:cohort -- \
 
 The cohort gate checks distinct testers, required workflow coverage (`coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`), `appLaunchViaOpen=true`, `runnerHasTmux=false`, absolute alpha manifest and smoke artifact paths, Screen Recording, Accessibility, Microphone, and Speech Recognition states, and accepted GitHub issue source metadata for every report. Each source must include `dogfood:accepted` plus matching `workflow:*` labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, and a source commit that matches the report `commitSha`. Workflow coverage is counted only from reports that already satisfy the report-level gates, so a source-ineligible or artifact-ineligible report cannot cover a required workflow. `--summary` writes a short local Markdown readiness report showing missing workflows, blocking checks, per-tester status, issue links, and a separate Passed Workflow Coverage section. This gate proves report quality and coverage; it does not mark the real dogfood complete until the cohort file contains reports from actual testers. A blocked report can prove the packaged app/reporting chain for a workflow, but it is not passed product-path evidence; passed workflow coverage remains separate until the tester machine grants the required macOS permissions and the smoke result is `passed`.
 
+For the final product-path release gate, add `--require-passed`:
+
+```bash
+npm run dogfood:cohort -- \
+  --cohort .skfiy-dogfood/internal-alpha-cohort.json \
+  --summary .skfiy-dogfood/internal-alpha-summary.md \
+  --require-passed
+```
+
+This strict mode keeps all source/artifact checks and also fails unless each required workflow has at least one accepted report whose `Computer Use result` is `passed`. Use the default mode while collecting permission-blocked source evidence; use `--require-passed` only when deciding whether the dogfood cohort proves the product path works.
+
 ### macOS Release Signing
 
 Use the read-only release check before any broader internal package:

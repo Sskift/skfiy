@@ -51,6 +51,7 @@ export function createDefaultDogfoodCohortOptions(rootDir = DEFAULT_ROOT_DIR) {
     cohortPath: undefined,
     summaryPath: undefined,
     rootDir,
+    requirePassed: false,
     help: false
   };
 }
@@ -69,6 +70,9 @@ export function parseDogfoodCohortArgs(argv, defaults) {
       case "--summary":
         options.summaryPath = path.resolve(readValue(argv, index, arg));
         index += 1;
+        break;
+      case "--require-passed":
+        options.requirePassed = true;
         break;
       case "--help":
       case "-h":
@@ -127,6 +131,18 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
     );
   }
 
+  const passedWorkflowCoverage = createPassedWorkflowCoverage(reports, cohortManifestPath);
+  if (options.requirePassed === true) {
+    for (const workflow of REQUIRED_DOGFOOD_WORKFLOWS) {
+      check(
+        checks,
+        `cohort.passedWorkflowCoverage.${workflow}`,
+        passedWorkflowCoverage[workflow] === true,
+        `cohort must include at least one passed product-path report for ${workflow}`
+      );
+    }
+  }
+
   for (const [index, report] of reports.entries()) {
     verifyReport(report, index, cohortManifestPath, checks);
   }
@@ -140,7 +156,7 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
     cohortPath,
     summaryPath: typeof options.summaryPath === "string" ? options.summaryPath : undefined,
     errors,
-    summary: createCohortSummary(reports, testerIds, requiredWorkflowCoverage),
+    summary: createCohortSummary(reports, testerIds, requiredWorkflowCoverage, passedWorkflowCoverage),
     checks
   };
 
@@ -149,7 +165,7 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
       result,
       reports,
       requiredWorkflowCoverage,
-      passedWorkflowCoverage: result.summary.passedWorkflowCoverage,
+      passedWorkflowCoverage,
       testerIds
     });
     await io.writeText(options.summaryPath, markdown);
@@ -176,6 +192,8 @@ export function createDogfoodCohortHelpText() {
     "Workflow coverage counts only reports that satisfy these report-level gates.",
     "The Markdown summary separates source-eligible workflow coverage from passed workflow coverage,",
     "so blocked permission evidence is not described as a passed product workflow.",
+    "Use --require-passed for a strict release gate that fails unless every required workflow",
+    "has at least one passed product-path report.",
     "",
     "Use --summary to write a short Markdown readiness report for maintainers."
   ].join("\n");
@@ -321,19 +339,7 @@ function verifyReport(report, index, cohortManifestPath, checks) {
   );
 }
 
-function createCohortSummary(reports, testerIds, requiredWorkflowCoverage) {
-  const passedWorkflowCoverage = Object.fromEntries(
-    REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => [
-      workflow,
-      reports.some((report) =>
-        report?.result === "passed"
-        && isWorkflowCoverageEligibleReport(report, report?.manifestPath)
-        && Array.isArray(report?.workflows)
-        && report.workflows.includes(workflow)
-      )
-    ])
-  );
-
+function createCohortSummary(reports, testerIds, requiredWorkflowCoverage, passedWorkflowCoverage) {
   return {
     totalReports: reports.length,
     distinctTesters: testerIds.size,
@@ -352,6 +358,20 @@ function createCohortSummary(reports, testerIds, requiredWorkflowCoverage) {
     requiredWorkflowCoverage,
     passedWorkflowCoverage
   };
+}
+
+function createPassedWorkflowCoverage(reports, cohortManifestPath) {
+  return Object.fromEntries(
+    REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => [
+      workflow,
+      reports.some((report) =>
+        report?.result === "passed"
+        && isWorkflowCoverageEligibleReport(report, cohortManifestPath)
+        && Array.isArray(report?.workflows)
+        && report.workflows.includes(workflow)
+      )
+    ])
+  );
 }
 
 function isWorkflowCoverageEligibleReport(report, cohortManifestPath) {
