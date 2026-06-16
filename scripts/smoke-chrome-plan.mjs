@@ -25,6 +25,7 @@ export function createDefaultChromeSmokeOptions(rootDir) {
     keepExisting: false,
     keepOpen: false,
     requirePassed: false,
+    currentPageEndpoint: undefined,
     outputPath: undefined,
     help: false
   };
@@ -70,6 +71,10 @@ export function parseChromeSmokeArgs(argv, defaults) {
       case "--require-passed":
         options.requirePassed = true;
         break;
+      case "--current-page-endpoint":
+        options.currentPageEndpoint = normalizeEndpoint(readValue(argv, index, arg), arg);
+        index += 1;
+        break;
       case "--output":
         options.outputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
@@ -100,6 +105,8 @@ Options:
   --settle-ms <number>  Delay after renderer actions. Default: ${defaults.settleMs}
   --output <path>       Persist smoke evidence JSON.
   --require-passed      Exit non-zero unless the smoke result is passed.
+  --current-page-endpoint <url>
+                        Attach to an existing Chrome CDP endpoint and observe the current page only.
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   -h, --help            Show this help.
@@ -242,6 +249,56 @@ export function classifyChromeCurrentPageSmokeEvidence({
   return "passed";
 }
 
+export function classifyChromeBringYourOwnCurrentPageEvidence({
+  events = [],
+  pageSnapshot,
+  runnerHasTmux = false,
+  appLaunchViaOpen = false,
+  chromeLaunchViaOpen = false,
+  productPath,
+  chromeEndpoint
+}) {
+  const last = events.at(-1);
+
+  if (!last) {
+    return "no-events";
+  }
+
+  if (last.status === "approval_required") {
+    return "needs-user-confirmation";
+  }
+
+  if (last.status === "needs_confirmation" && isChromeSensitivePauseMessage(last.message)) {
+    return SENSITIVE_EXPECTED_RESULT;
+  }
+
+  if (
+    (last.status === "failed" || last.status === "needs_confirmation")
+    && isChromeBlockedMessage(last.message)
+  ) {
+    return "blocked";
+  }
+
+  if (last.status !== "completed") {
+    return last.status ?? "failed";
+  }
+
+  if (
+    runnerHasTmux
+    || appLaunchViaOpen !== true
+    || chromeLaunchViaOpen !== false
+    || productPath !== PRODUCT_PATH
+    || typeof chromeEndpoint !== "string"
+    || chromeEndpoint.length === 0
+    || !hasBringYourOwnChromeCurrentPageSnapshotEvidence(events, pageSnapshot)
+    || hasTaskEventMessage(events, "Verified navigate:")
+  ) {
+    return "failed";
+  }
+
+  return "passed";
+}
+
 export function classifyChromeFallbackSwitchEvidence({
   events = [],
   runnerHasTmux = false,
@@ -326,6 +383,19 @@ function hasChromeCurrentPageSnapshotEvidence(events, pageSnapshot, expectedText
     && hasTaskEventMessage(events, "Chrome current page extracted:");
 }
 
+function hasBringYourOwnChromeCurrentPageSnapshotEvidence(events, pageSnapshot) {
+  return pageSnapshot
+    && typeof pageSnapshot === "object"
+    && typeof pageSnapshot.url === "string"
+    && pageSnapshot.url.length > 0
+    && typeof pageSnapshot.title === "string"
+    && pageSnapshot.title.length > 0
+    && typeof pageSnapshot.text === "string"
+    && pageSnapshot.text.trim().length > 0
+    && hasTaskEventMessage(events, "Verified current_page_snapshot:")
+    && hasTaskEventMessage(events, "Chrome current page extracted:");
+}
+
 function hasTaskEventMessage(events, prefix) {
   return Array.isArray(events)
     && events.some((event) =>
@@ -340,12 +410,24 @@ function isChromeSensitivePauseMessage(message) {
 }
 
 function isChromeBlockedMessage(message) {
-  return typeof message === "string"
-    && message.toLowerCase().includes("chrome")
+  if (typeof message !== "string") {
+    return false;
+  }
+
+  const normalized = message.toLowerCase();
+
+  return normalized.includes("chrome")
     && (
-      message.toLowerCase().includes("not configured")
-      || message.toLowerCase().includes("endpoint")
-      || message.toLowerCase().includes("unavailable")
+      normalized.includes("not configured")
+      || normalized.includes("endpoint")
+      || normalized.includes("unavailable")
+      || (
+        normalized.includes("screenshot fallback")
+        && (
+          normalized.includes("screen recording permission")
+          || normalized.includes("accessibility permission")
+        )
+      )
     );
 }
 
@@ -357,6 +439,19 @@ function readPositiveInteger(value, name) {
   }
 
   return parsed;
+}
+
+function normalizeEndpoint(value, name) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("invalid protocol");
+    }
+
+    return parsed.href.replace(/\/$/, "");
+  } catch {
+    throw new Error(`${name} must be an http(s) URL.`);
+  }
 }
 
 function readValue(argv, index, name) {

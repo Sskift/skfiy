@@ -212,7 +212,7 @@ body:
     id: chrome_extraction
     attributes:
       label: Chrome extracted text
-      description: Paste Chrome smoke product path, extractedText, navigate/extract verification events, current-page observation evidence, sensitive-page pause evidence, and screenshot fallback switching evidence.
+      description: Paste Chrome smoke product path, extractedText, navigate/extract verification events, current-page observation evidence, optional real current-page BYO observation evidence, sensitive-page pause evidence, and screenshot fallback switching evidence.
       placeholder: |
         productPath: renderer -> preload -> main -> CDP -> Chrome
         extractedText: skfiy chrome smoke ready
@@ -224,6 +224,12 @@ body:
         currentPageRun.pageSnapshot.text: skfiy chrome smoke ready
         Verified current_page_snapshot: Observed current page: ...
         Chrome current page extracted: skfiy chrome smoke ready
+        Chrome real current-page BYO observation:
+        command: npm run smoke:chrome -- --current-page-endpoint http://127.0.0.1:9222 --output .skfiy-smoke/chrome-real-page.json
+        realCurrentPageRun.result: passed
+        realCurrentPageRun.pageSnapshot.url: https://...
+        realCurrentPageRun.pageSnapshot.text: ...
+        --current-page-endpoint: http://127.0.0.1:9222
         Chrome sensitive-page pause:
         result: sensitive-paused
         Verification failed (sensitive): Sensitive UI text is visible.

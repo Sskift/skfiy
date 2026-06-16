@@ -10,6 +10,7 @@ import {
   CURRENT_PAGE_COMMAND,
   FALLBACK_PRODUCT_PATH,
   FALLBACK_SWITCH_PRODUCT_PATH,
+  classifyChromeBringYourOwnCurrentPageEvidence,
   classifyChromeCurrentPageSmokeEvidence,
   classifyChromeFallbackSwitchEvidence,
   classifyChromeFallbackSmokeEvidence,
@@ -44,32 +45,37 @@ async function main() {
     return;
   }
 
-  const chromeEndpoint = `http://127.0.0.1:${options.chromePort}`;
+  const chromeEndpoint = options.currentPageEndpoint ?? `http://127.0.0.1:${options.chromePort}`;
   const evidence = {
     timestamp: new Date().toISOString(),
     appPath: options.appPath,
     chromeAppName: options.chromeAppName,
     launch: formatLaunchCommand(options, chromeEndpoint),
     fallbackLaunch: formatFallbackLaunchCommand(options),
-    chromeLaunch: formatChromeLaunchCommand(options),
+    chromeLaunch: options.currentPageEndpoint
+      ? `provided Chrome CDP endpoint: ${options.currentPageEndpoint}`
+      : formatChromeLaunchCommand(options),
     appLaunchViaOpen: true,
-    chromeLaunchViaOpen: true,
+    chromeLaunchViaOpen: options.currentPageEndpoint ? false : true,
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
     fallbackProductPath: FALLBACK_PRODUCT_PATH,
     fallbackSwitchProductPath: FALLBACK_SWITCH_PRODUCT_PATH,
+    targetMode: options.currentPageEndpoint ? "bring-your-own-current-page" : "fixture-suite",
     artifactPath: options.outputPath,
     fixtureRoot: undefined,
     pageUrl: undefined,
     sensitivePageUrl: undefined,
     formPageUrl: undefined,
     chromeEndpoint,
+    currentPageEndpoint: options.currentPageEndpoint,
     command: undefined,
     currentPageCommand: CURRENT_PAGE_COMMAND,
     sensitiveCommand: undefined,
     formCommand: undefined,
     extractedText: "",
     events: [],
+    realCurrentPageRun: undefined,
     currentPageRun: undefined,
     sensitiveRun: undefined,
     formRun: undefined,
@@ -89,6 +95,47 @@ async function main() {
       rootDir: ROOT_DIR,
       scriptName: "smoke:chrome"
     });
+
+    if (options.currentPageEndpoint) {
+      if (!options.keepExisting) {
+        await quitSkfiy();
+        await sleep(700);
+      }
+
+      await launchSkfiy(options, chromeEndpoint);
+      evidence.processesAfterLaunch = await readSkfiyProcesses();
+
+      const page = await waitForRendererPage(options.port, options.timeoutMs);
+      const cdp = await createCdpClient(page.webSocketDebuggerUrl);
+
+      try {
+        await cdp.send("Runtime.enable");
+        await cdp.send("Runtime.addBinding", { name: "skfiyChromeSmokeEvent" });
+        await cdp.send("Runtime.evaluate", {
+          expression: installEventSinkExpression(),
+          awaitPromise: true,
+          returnByValue: true
+        });
+
+        await readRendererEvidence(cdp, evidence);
+        evidence.realCurrentPageRun = await runChromeBringYourOwnCurrentPageCommand(
+          cdp,
+          options,
+          evidence
+        );
+        evidence.currentPageRun = evidence.realCurrentPageRun;
+        evidence.events = evidence.realCurrentPageRun.events;
+        evidence.result = evidence.realCurrentPageRun.result;
+      } finally {
+        cdp.close();
+      }
+
+      if (options.requirePassed && evidence.result !== "passed") {
+        process.exitCode = 2;
+      }
+
+      return;
+    }
 
     const fixture = await createChromeFixture();
     evidence.fixtureRoot = fixture.rootPath;
@@ -497,6 +544,59 @@ async function runChromeFallbackSwitchProductCommand(options, command) {
   } finally {
     cdp.close();
   }
+}
+
+async function runChromeBringYourOwnCurrentPageCommand(cdp, options, evidence) {
+  const events = await runChromeProductCommand(cdp, CURRENT_PAGE_COMMAND, options);
+  const extractedText = extractCompletedChromeCurrentPageText(events);
+  const pageSnapshot = extractChromeCurrentPageSnapshot(events);
+
+  return {
+    command: CURRENT_PAGE_COMMAND,
+    chromeEndpoint: options.currentPageEndpoint,
+    productPath: PRODUCT_PATH,
+    appLaunchViaOpen: true,
+    chromeLaunchViaOpen: false,
+    runnerHasTmux: Boolean(process.env.TMUX),
+    pageSnapshot,
+    events,
+    extractedText,
+    result: classifyChromeBringYourOwnCurrentPageEvidence({
+      ...evidence,
+      chromeEndpoint: options.currentPageEndpoint,
+      chromeLaunchViaOpen: false,
+      events,
+      pageSnapshot
+    })
+  };
+}
+
+async function readRendererEvidence(cdp, evidence) {
+  const permissions = await cdp.send("Runtime.evaluate", {
+    expression: "window.skfiy.getPermissions()",
+    awaitPromise: true,
+    returnByValue: true
+  });
+  const runtimeStatus = await cdp.send("Runtime.evaluate", {
+    expression: "window.skfiy.getRuntimeStatus()",
+    awaitPromise: true,
+    returnByValue: true
+  });
+  const startupWarnings = await cdp.send("Runtime.evaluate", {
+    expression: "window.skfiy.getStartupWarnings()",
+    awaitPromise: true,
+    returnByValue: true
+  });
+  const appPolicySettings = await cdp.send("Runtime.evaluate", {
+    expression: "window.skfiy.getAppPolicySettings()",
+    awaitPromise: true,
+    returnByValue: true
+  });
+
+  evidence.permissions = permissions.result?.value;
+  evidence.runtimeStatus = runtimeStatus.result?.value;
+  evidence.startupWarnings = startupWarnings.result?.value;
+  evidence.appPolicySettings = appPolicySettings.result?.value;
 }
 
 function readBrokenChromeEndpoint(options) {

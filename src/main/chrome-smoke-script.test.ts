@@ -29,6 +29,7 @@ describe("Chrome product smoke script", () => {
     const {
       FALLBACK_PRODUCT_PATH,
       FALLBACK_SWITCH_PRODUCT_PATH,
+      classifyChromeBringYourOwnCurrentPageEvidence,
       classifyChromeCurrentPageSmokeEvidence,
       classifyChromeFallbackSmokeEvidence,
       classifyChromeFallbackSwitchEvidence,
@@ -39,6 +40,7 @@ describe("Chrome product smoke script", () => {
     } = await import(pathToFileURL(modulePath).href) as {
       FALLBACK_PRODUCT_PATH: string;
       FALLBACK_SWITCH_PRODUCT_PATH: string;
+      classifyChromeBringYourOwnCurrentPageEvidence: (input: Record<string, unknown>) => string;
       classifyChromeCurrentPageSmokeEvidence: (input: Record<string, unknown>) => string;
       classifyChromeFallbackSmokeEvidence: (input: Record<string, unknown>) => string;
       classifyChromeFallbackSwitchEvidence: (input: Record<string, unknown>) => string;
@@ -65,7 +67,22 @@ describe("Chrome product smoke script", () => {
       outputPath: path.resolve(".skfiy-smoke/chrome.json"),
       chromePort: 9444
     });
+    expect(parseChromeSmokeArgs(
+      [
+        "--current-page-endpoint",
+        "http://127.0.0.1:9222",
+        "--output",
+        ".skfiy-smoke/chrome-real-page.json"
+      ],
+      createDefaultChromeSmokeOptions("/repo")
+    )).toMatchObject({
+      currentPageEndpoint: "http://127.0.0.1:9222",
+      outputPath: path.resolve(".skfiy-smoke/chrome-real-page.json")
+    });
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain("smoke:chrome");
+    expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
+      "--current-page-endpoint"
+    );
     expect(classifyChromeFallbackSmokeEvidence({
       appLaunchViaOpen: true,
       runnerHasTmux: false,
@@ -153,6 +170,76 @@ describe("Chrome product smoke script", () => {
         }
       ]
     })).toBe("passed");
+    expect(classifyChromeBringYourOwnCurrentPageEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: false,
+      runnerHasTmux: false,
+      productPath: PRODUCT_PATH,
+      chromeEndpoint: "http://127.0.0.1:9222",
+      pageSnapshot: {
+        url: "https://example.bytedance.net/workspace",
+        title: "internal workspace",
+        text: "logged in workspace ready"
+      },
+      events: [
+        {
+          status: "executing",
+          message: "Verified current_page_snapshot: Observed current page: internal workspace (https://example.bytedance.net/workspace)"
+        },
+        {
+          status: "completed",
+          message: "Chrome current page extracted: logged in workspace ready"
+        }
+      ]
+    })).toBe("passed");
+    expect(classifyChromeBringYourOwnCurrentPageEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: false,
+      runnerHasTmux: false,
+      productPath: PRODUCT_PATH,
+      chromeEndpoint: "http://127.0.0.1:9222",
+      pageSnapshot: {
+        url: "https://example.bytedance.net/workspace",
+        title: "internal workspace",
+        text: "logged in workspace ready"
+      },
+      events: [
+        {
+          status: "executing",
+          message: "Verified navigate: Navigated to: https://example.bytedance.net/workspace"
+        },
+        {
+          status: "completed",
+          message: "Chrome current page extracted: logged in workspace ready"
+        }
+      ]
+    })).toBe("failed");
+    expect(classifyChromeBringYourOwnCurrentPageEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: false,
+      runnerHasTmux: false,
+      productPath: PRODUCT_PATH,
+      chromeEndpoint: "http://127.0.0.1:65530",
+      events: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (extraction): Chrome CDP current page snapshot failed: endpoint unavailable screenshot fallback failed: Screen Recording permission is required"
+        }
+      ]
+    })).toBe("blocked");
+    expect(classifyChromeBringYourOwnCurrentPageEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: false,
+      runnerHasTmux: false,
+      productPath: PRODUCT_PATH,
+      chromeEndpoint: "http://127.0.0.1:65530",
+      events: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (extraction): Chrome CDP current page snapshot failed: fetch failed screenshot fallback activation failed: Accessibility permission is required"
+        }
+      ]
+    })).toBe("blocked");
   });
 
   it("records a configured-CDP failure switch run in the product smoke source", () => {
@@ -173,8 +260,12 @@ describe("Chrome product smoke script", () => {
     );
 
     expect(source).toContain("currentPageRun");
+    expect(source).toContain("realCurrentPageRun");
     expect(source).toContain("观察 Chrome 当前页面并提取正文");
+    expect(source).toContain("runChromeBringYourOwnCurrentPageCommand");
+    expect(source).toContain("currentPageEndpoint");
     expect(source).toContain("classifyChromeCurrentPageSmokeEvidence");
+    expect(source).toContain("classifyChromeBringYourOwnCurrentPageEvidence");
   });
 
   it("classifies a completed Chrome extraction with expected text as passed", async () => {
