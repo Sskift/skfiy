@@ -99,7 +99,7 @@ npm run dogfood:prepare-alpha -- \
   --execute
 ```
 
-`dogfood:prepare-alpha` defaults to dry-run. With `--execute`, it downloads the GitHub release zip and manifest, verifies the zip SHA256 against the manifest, extracts `skfiy.app` under `.skfiy-dogfood/apps/<tag>/`, and generates a handoff whose `dogfood:tester` command uses that extracted app bundle. Pass `--app /Applications/skfiy.app --replace-existing` only when the tester intentionally wants to install over an existing Applications copy.
+`dogfood:prepare-alpha` defaults to dry-run. With `--execute`, it downloads the GitHub release zip and manifest, verifies the zip SHA256 against the manifest, extracts `skfiy.app`, checks the extracted `Info.plist` identity (`CFBundleIdentifier=com.sskift.skfiy`, `CFBundleName=skfiy`, `CFBundleDisplayName=skfiy`, `CFBundleExecutable=skfiy`), installs the app under `.skfiy-dogfood/apps/<tag>/`, and generates a handoff whose `dogfood:tester` command uses that extracted app bundle. Pass `--app /Applications/skfiy.app --replace-existing` only when the tester intentionally wants to install over an existing Applications copy.
 
 Before asking a tester to run the alpha, generate a handoff note with the exact package identity and commands:
 

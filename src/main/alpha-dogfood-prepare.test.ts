@@ -199,6 +199,31 @@ describe("alpha dogfood preparation", () => {
     expect(io.commands.at(-1)?.args).toContain("/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app");
   });
 
+  it("rejects downloaded alpha zips whose app bundle identity is not lowercase skfiy", async () => {
+    const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
+      runPrepareAlphaDogfood: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(runPrepareAlphaDogfood({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "tester-a",
+      dryRun: false
+    }, createMemoryIo({
+      extractedInfoPlist: createInfoPlist({
+        bundleIdentifier: "com.sskift.skfiy",
+        bundleName: "Skfiy",
+        displayName: "Skfiy",
+        executable: "Skfiy"
+      })
+    }))).rejects.toThrow("Downloaded alpha app CFBundleName must be skfiy.");
+  });
+
   it("treats app bundle directories as existing filesystem paths", async () => {
     const { pathExists } = await import(pathToFileURL(modulePath).href) as {
       pathExists: (filePath: string) => Promise<boolean>;
@@ -214,7 +239,7 @@ describe("alpha dogfood preparation", () => {
   });
 });
 
-function createMemoryIo() {
+function createMemoryIo(options: { extractedInfoPlist?: string } = {}) {
   const commands: Array<{ id: string; command: string; args: string[] }> = [];
   const sha256Inputs: string[] = [];
   const manifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.json";
@@ -256,6 +281,17 @@ function createMemoryIo() {
         || filePath === manifestPath
         || filePath === "/repo/.skfiy-dogfood/extracted/skfiy-alpha-abc1234/skfiy.app";
     },
+    async readText(filePath: string) {
+      if (filePath !== "/repo/.skfiy-dogfood/extracted/skfiy-alpha-abc1234/skfiy.app/Contents/Info.plist") {
+        throw new Error(`Unexpected text path: ${filePath}`);
+      }
+      return options.extractedInfoPlist ?? createInfoPlist({
+        bundleIdentifier: "com.sskift.skfiy",
+        bundleName: "skfiy",
+        displayName: "skfiy",
+        executable: "skfiy"
+      });
+    },
     async sha256File(filePath: string) {
       sha256Inputs.push(filePath);
       return "feedface";
@@ -265,4 +301,31 @@ function createMemoryIo() {
       return { stdout: "", stderr: "", exitCode: 0 };
     }
   };
+}
+
+function createInfoPlist({
+  bundleIdentifier,
+  bundleName,
+  displayName,
+  executable
+}: {
+  bundleIdentifier: string;
+  bundleName: string;
+  displayName: string;
+  executable: string;
+}) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+\t<key>CFBundleIdentifier</key>
+\t<string>${bundleIdentifier}</string>
+\t<key>CFBundleName</key>
+\t<string>${bundleName}</string>
+\t<key>CFBundleDisplayName</key>
+\t<string>${displayName}</string>
+\t<key>CFBundleExecutable</key>
+\t<string>${executable}</string>
+</dict>
+</plist>
+`;
 }

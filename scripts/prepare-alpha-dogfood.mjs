@@ -246,6 +246,7 @@ export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
   if (!(await io.exists(extractedAppPath))) {
     throw new Error(`Downloaded alpha zip did not contain skfiy.app at ${extractedAppPath}.`);
   }
+  await validateExtractedAppBundleIdentity(extractedAppPath, io);
 
   await io.execPlanCommand(plan.commands[2]);
   const handoffCommand = replaceCommandArgs(plan.commands[3], {
@@ -357,6 +358,29 @@ function validateManifest(manifest) {
   }
 }
 
+async function validateExtractedAppBundleIdentity(appPath, io) {
+  const infoPlistPath = path.join(appPath, "Contents", "Info.plist");
+  const infoPlist = await io.readText(infoPlistPath);
+  const expected = {
+    CFBundleIdentifier: "com.sskift.skfiy",
+    CFBundleName: "skfiy",
+    CFBundleDisplayName: "skfiy",
+    CFBundleExecutable: "skfiy"
+  };
+
+  for (const [key, value] of Object.entries(expected)) {
+    const actual = readInfoPlistString(infoPlist, key);
+    if (actual !== value) {
+      throw new Error(`Downloaded alpha app ${key} must be ${value}.`);
+    }
+  }
+}
+
+function readInfoPlistString(infoPlist, key) {
+  const pattern = new RegExp(`<key>${escapeRegExp(key)}</key>\\s*<string>([^<]*)</string>`);
+  return pattern.exec(infoPlist)?.[1];
+}
+
 function replaceCommandArgs(command, replacements) {
   return {
     ...command,
@@ -395,6 +419,9 @@ function createDefaultIo() {
     async readJson(filePath) {
       return JSON.parse(await readFile(filePath, "utf8"));
     },
+    async readText(filePath) {
+      return await readFile(filePath, "utf8");
+    },
     async listFiles(dirPath) {
       return await readdir(dirPath);
     },
@@ -408,6 +435,10 @@ function createDefaultIo() {
       return { stdout, stderr, exitCode: 0 };
     }
   };
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function sha256File(filePath) {
