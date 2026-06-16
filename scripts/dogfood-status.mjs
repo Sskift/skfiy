@@ -578,6 +578,7 @@ function createTesterAssignmentCommands({
     trackingIssueFile,
     workflowList
   });
+  const reviewTrackingIssueArgs = readReviewTrackingIssueArgs({ trackingIssueUrl });
 
   return {
     prepareAlpha: [
@@ -612,6 +613,7 @@ function createTesterAssignmentCommands({
       manifestPath,
       "--issue-url",
       "<filed-dogfood-issue-url>",
+      ...reviewTrackingIssueArgs,
       "--summary",
       `.skfiy-dogfood/reviews/${testerId}.md`
     ].join(" ")
@@ -626,6 +628,14 @@ function readPrepareAlphaTrackingIssueArgs({ trackingIssueUrl, trackingIssueFile
     return ["--tracking-issue-file", trackingIssueFile.trim()];
   }
   return ["--workflows", workflowList];
+}
+
+function readReviewTrackingIssueArgs({ trackingIssueUrl }) {
+  if (typeof trackingIssueUrl === "string" && trackingIssueUrl.trim().length > 0) {
+    return ["--tracking-issue-url", trackingIssueUrl.trim()];
+  }
+
+  return [];
 }
 
 function validateTrackingIssueCurrentAlpha({ body, manifest, manifestPath }) {

@@ -313,7 +313,7 @@ describe("dogfood status reporter", () => {
           commands: {
             prepareAlpha: expect.stringContaining("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute"),
             tester: expect.stringContaining("npm run dogfood:tester -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection"),
-            review: expect.stringContaining("npm run dogfood:review -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --issue-url <filed-dogfood-issue-url> --summary .skfiy-dogfood/reviews/tester-1.md")
+            review: expect.stringContaining("npm run dogfood:review -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md")
           }
         },
         {
@@ -333,6 +333,7 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("- tester-1: coding-terminal, screenshot-inspection");
     expect(io.textFiles[summaryPath]).toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute");
     expect(io.textFiles[summaryPath]).toContain("npm run dogfood:tester -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection");
+    expect(io.textFiles[summaryPath]).toContain("npm run dogfood:review -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md");
   });
 
   it("reports when the tracking issue has enough report URLs to try dogfood:collect", async () => {
