@@ -106,10 +106,13 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
     "cohort must include 3-5 distinct testerId values"
   );
 
+  const eligibleReports = reports.filter((report) =>
+    isWorkflowCoverageEligibleReport(report, cohortManifestPath)
+  );
   const requiredWorkflowCoverage = Object.fromEntries(
     REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => [
       workflow,
-      reports.some((report) =>
+      eligibleReports.some((report) =>
         Array.isArray(report?.workflows) && report.workflows.includes(workflow)
       )
     ])
@@ -169,6 +172,7 @@ export function createDogfoodCohortHelpText() {
     "source.issueUrl/source.collectedAt linking back to an accepted GitHub dogfood issue,",
     "artifactSource=github-issue-smoke-artifacts, and issue alpha manifest/zip/commit identity",
     "matching the report manifestPath and commitSha.",
+    "Workflow coverage counts only reports that satisfy these report-level gates.",
     "",
     "Use --summary to write a short Markdown readiness report for maintainers."
   ].join("\n");
@@ -323,8 +327,32 @@ function createCohortSummary(reports, testerIds, requiredWorkflowCoverage) {
         manifestPath: report?.manifestPath
       })
     ).length,
+    eligibleWorkflowCoverage: requiredWorkflowCoverage,
     requiredWorkflowCoverage
   };
+}
+
+function isWorkflowCoverageEligibleReport(report, cohortManifestPath) {
+  const reportManifestPath = typeof report?.manifestPath === "string" ? report.manifestPath : undefined;
+
+  return typeof report?.testerId === "string"
+    && report.testerId.trim().length > 0
+    && ACCEPTED_REPORT_RESULTS.has(report?.result)
+    && typeof reportManifestPath === "string"
+    && path.isAbsolute(reportManifestPath)
+    && (
+      typeof cohortManifestPath !== "string"
+      || path.resolve(reportManifestPath) === path.resolve(cohortManifestPath)
+    )
+    && report?.appLaunchViaOpen === true
+    && report?.runnerHasTmux === false
+    && hasKnownWorkflow(report?.workflows)
+    && hasRequiredArtifactPaths(report?.artifacts)
+    && hasRequiredPermissionStates(report?.permissionStates)
+    && hasRequiredSource(report?.source, report?.workflows, {
+      commitSha: report?.commitSha,
+      manifestPath: reportManifestPath
+    });
 }
 
 function collectDistinctTesterIds(reports) {

@@ -78,7 +78,7 @@ npm run dogfood:cohort -- \
   --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `commitSha`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers, coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`, and source issue identity that matches the report manifest and commit. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, and issue links without replacing the JSON verifier.
+The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `commitSha`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers, coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`, and source issue identity that matches the report manifest and commit. Workflow coverage is counted only from reports that satisfy the report-level source, artifact, permission, LaunchServices, and identity gates. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, and issue links without replacing the JSON verifier.
 
 Check Developer ID signing and notarization readiness:
 
@@ -242,4 +242,4 @@ Before any broader internal release:
 - Run `npm run release:mac:check` and resolve missing Developer ID or Apple notary credentials.
 - Run `npm run release:mac:notarize` successfully on the final artifact.
 - Keep `npm run smoke:ui -- --output <path>` and `npm run dogfood:verify -- --manifest <path>` passing with permission setting direct-link evidence.
-- Keep `npm run dogfood:cohort -- --cohort <path>` passing with 3-5 distinct testers and all four required workflow ids covered.
+- Keep `npm run dogfood:cohort -- --cohort <path>` passing with 3-5 distinct testers and all four required workflow ids covered by source/artifact/permission-eligible reports.

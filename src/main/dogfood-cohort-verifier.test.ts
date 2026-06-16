@@ -47,6 +47,7 @@ describe("dogfood cohort verifier", () => {
     expect(createDogfoodCohortHelpText()).toContain("browser-fallback");
     expect(createDogfoodCohortHelpText()).toContain("artifactSource=github-issue-smoke-artifacts");
     expect(createDogfoodCohortHelpText()).toContain("issue alpha manifest/zip/commit identity");
+    expect(createDogfoodCohortHelpText()).toContain("Workflow coverage counts only reports");
   });
 
   it("accepts a 3-person cohort that covers all required dogfood workflows", async () => {
@@ -285,6 +286,42 @@ describe("dogfood cohort verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("report.tester-a.source")
+      ])
+    });
+  });
+
+  it("does not count source-ineligible reports toward required workflow coverage", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const badBrowserReport = createReport("tester-c", ["browser-fallback"]);
+    badBrowserReport.source.artifactSource = "alpha-manifest-smoke-artifacts";
+    delete (badBrowserReport.source as { issueAlphaManifest?: unknown }).issueAlphaManifest;
+
+    await expect(verifyDogfoodCohort({
+      cohortPath
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        createReport("tester-a", ["coding-terminal", "screenshot-inspection"]),
+        createReport("tester-b", ["finder-file"]),
+        badBrowserReport
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      summary: {
+        eligibleWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": true,
+          "browser-fallback": false
+        }
+      },
+      errors: expect.arrayContaining([
+        expect.stringContaining("cohort.workflowCoverage.browser-fallback"),
+        expect.stringContaining("report.tester-c.source")
       ])
     });
   });
