@@ -167,7 +167,7 @@ npm run dogfood:collect -- \
   --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-`dogfood:collect` fetches the tracking issue with `gh issue view`, discovers linked accepted report issue URLs from the Required Tester Count section, converts each issue through the same `dogfood:report` gates, writes deterministic per-tester report JSON files under `.skfiy-dogfood/reports/`, writes the cohort JSON, and immediately runs `dogfood:cohort`. It is a collection helper only: real completion still requires 3-5 actual tester report issues and a passing cohort verifier.
+`dogfood:collect` fetches the tracking issue with `gh issue view`, discovers linked accepted report issue URLs from the Required Tester Count section, converts each issue through the same `dogfood:report` gates, writes deterministic per-tester report JSON files under `.skfiy-dogfood/reports/`, writes the cohort JSON, and immediately runs `dogfood:cohort`. It is a collection helper only: real completion still requires 3-5 actual tester report issues and a passing cohort verifier. Local synthetic tester ids such as `local-*`, `prepare-*`, and `synthetic-*` may be collected for debugging evidence, but they do not satisfy the real-user count.
 
 After 3-5 single-user dogfood reports are collected, verify cross-user coverage:
 
@@ -177,7 +177,7 @@ npm run dogfood:cohort -- \
   --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `commitSha`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers, coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`, and source issue identity that matches the report manifest and commit. Workflow coverage is counted only from reports that satisfy the report-level source, artifact, permission, LaunchServices, and identity gates. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, issue links, and separate passed workflow coverage without replacing the JSON verifier. A permission-blocked report may cover a workflow for cohort source-quality purposes, but it does not count as passed product-path evidence.
+The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `commitSha`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct real testers, coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`, and source issue identity that matches the report manifest and commit. Workflow coverage is counted only from reports that satisfy the report-level source, artifact, permission, LaunchServices, and identity gates. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, issue links, distinct real tester count, synthetic report count, and separate passed workflow coverage without replacing the JSON verifier. A permission-blocked report may cover a workflow for cohort source-quality purposes, but it does not count as passed product-path evidence.
 
 When judging whether the cohort proves product-path execution rather than only source quality, run the strict passed gate:
 
@@ -352,5 +352,5 @@ Before any broader internal release:
 - Run `npm run release:mac:check` and resolve missing Developer ID or Apple notary credentials.
 - Run `npm run release:mac:notarize` successfully on the final artifact.
 - Keep `npm run smoke:ui -- --output <path>` and `npm run dogfood:verify -- --manifest <path>` passing with permission setting direct-link evidence.
-- Keep `npm run dogfood:cohort -- --cohort <path>` passing with 3-5 distinct testers and all four required workflow ids covered by source/artifact/permission-eligible reports.
+- Keep `npm run dogfood:cohort -- --cohort <path>` passing with 3-5 distinct real testers and all four required workflow ids covered by source/artifact/permission-eligible reports.
 - Keep `npm run dogfood:cohort -- --cohort <path> --require-passed` passing before claiming the cohort proves product-path execution for all four workflows.

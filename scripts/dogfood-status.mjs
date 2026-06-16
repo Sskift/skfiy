@@ -27,6 +27,11 @@ const BLOCKING_PERMISSION_STATES = new Set([
   "blocked",
   "unavailable"
 ]);
+const SYNTHETIC_TESTER_ID_PREFIXES = [
+  "local-",
+  "prepare-",
+  "synthetic-"
+];
 
 export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -92,16 +97,19 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const verifiedAcceptedReportIssueUrls = reportIssueValidation
     .filter((issue) => issue.ok)
     .map((issue) => issue.issueUrl);
+  const verifiedRealAcceptedReportIssueUrls = reportIssueValidation
+    .filter((issue) => issue.ok && issue.realTester)
+    .map((issue) => issue.issueUrl);
   const workflowCoverage = readVerifiedReportWorkflowCoverage(reportIssueValidation);
   const passedWorkflowCoverage = readPassedReportWorkflowCoverage(reportIssueValidation);
   const smokeArtifacts = await readSmokeArtifacts(manifest, io);
   const artifactResults = readArtifactResults(smokeArtifacts);
   const permissionBlockers = readPermissionBlockers(smokeArtifacts);
   const manifestChecks = await readManifestChecks(manifest, options, io);
-  const missingRequiredReports = Math.max(0, 3 - verifiedAcceptedReportIssueUrls.length);
+  const missingRequiredReports = Math.max(0, 3 - verifiedRealAcceptedReportIssueUrls.length);
   const invalidReportIssueCount = reportIssueValidation.filter((issue) => !issue.ok).length;
-  const canRunCollect = verifiedAcceptedReportIssueUrls.length >= 3
-    && verifiedAcceptedReportIssueUrls.length <= 5
+  const canRunCollect = verifiedRealAcceptedReportIssueUrls.length >= 3
+    && verifiedRealAcceptedReportIssueUrls.length <= 5
     && invalidReportIssueCount === 0
     && workflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
@@ -133,6 +141,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
       acceptedReportCount: acceptedReportIssueUrls.length,
       verifiedAcceptedReportIssueUrls,
       verifiedAcceptedReportCount: verifiedAcceptedReportIssueUrls.length,
+      verifiedRealAcceptedReportIssueUrls,
+      verifiedRealAcceptedReportCount: verifiedRealAcceptedReportIssueUrls.length,
       reportIssueValidation,
       missingRequiredReports,
       workflowCoverage,
@@ -163,6 +173,7 @@ export function createDogfoodStatusHelpText() {
     "Creates a non-mutating dogfood readiness status report.",
     "It summarizes the alpha manifest, local smoke artifact results, permission blockers,",
     "and accepted report URLs recorded in the tracking issue.",
+    "It separates real tester readiness from local synthetic reports such as local-* runs.",
     "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
   ].join("\n");
@@ -178,6 +189,7 @@ export function createDogfoodStatusMarkdown(status) {
     `Commit: ${status.manifest.commitSha ?? "unknown"}`,
     `Accepted report URLs: ${status.trackingIssue.acceptedReportCount}/3 minimum`,
     `Verified accepted report URLs: ${status.trackingIssue.verifiedAcceptedReportCount}/3 minimum`,
+    `Verified real accepted report URLs: ${status.trackingIssue.verifiedRealAcceptedReportCount}/3 minimum`,
     "",
     "## Local Smoke",
     ""
@@ -211,7 +223,11 @@ export function createDogfoodStatusMarkdown(status) {
   } else {
     for (const issue of status.trackingIssue.reportIssueValidation) {
       const state = issue.ok ? "ok" : `invalid: ${issue.reasons.join("; ")}`;
-      lines.push(`- ${issue.issueUrl}: ${state}`);
+      const tester = issue.testerId ? ` tester=${issue.testerId}` : "";
+      const synthetic = issue.ok && !issue.realTester && issue.realTesterReasons.length > 0
+        ? `; synthetic: ${issue.realTesterReasons.join("; ")}`
+        : "";
+      lines.push(`- ${issue.issueUrl}: ${state}${tester}${synthetic}`);
     }
   }
 
@@ -401,6 +417,9 @@ async function validateAcceptedReportIssues({ manifest, manifestPath, issueUrls,
         issueUrl,
         ok: validation.reasons.length === 0,
         reasons: validation.reasons,
+        testerId: validation.testerId,
+        realTester: validation.realTester,
+        realTesterReasons: validation.realTesterReasons,
         workflows: validation.workflows,
         result: validation.result
       });
@@ -409,6 +428,9 @@ async function validateAcceptedReportIssues({ manifest, manifestPath, issueUrls,
         issueUrl,
         ok: false,
         reasons: [error instanceof Error ? error.message : "failed to read issue"],
+        testerId: "",
+        realTester: false,
+        realTesterReasons: ["issue could not be read"],
         workflows: [],
         result: "unknown"
       });
@@ -423,6 +445,8 @@ function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
   const labels = new Set(issue.labels);
   const workflows = readIssueWorkflows(issue.body);
   const result = readIssueResult(issue.body);
+  const testerId = readIssueSection(issue.body, "tester id");
+  const realTesterDecision = readRealTesterDecision(testerId);
 
   if (!labels.has("dogfood:accepted")) {
     reasons.push("missing dogfood:accepted label");
@@ -473,8 +497,37 @@ function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
 
   return {
     reasons,
+    testerId,
+    realTester: realTesterDecision.ok,
+    realTesterReasons: realTesterDecision.ok ? [] : [realTesterDecision.message],
     workflows,
     result
+  };
+}
+
+function readRealTesterDecision(testerId) {
+  if (typeof testerId !== "string" || testerId.trim().length === 0) {
+    return {
+      ok: false,
+      message: "missing tester id"
+    };
+  }
+
+  const normalized = testerId.trim();
+  const lower = normalized.toLowerCase();
+  const syntheticPrefix = SYNTHETIC_TESTER_ID_PREFIXES.find((prefix) =>
+    lower.startsWith(prefix)
+  );
+  if (syntheticPrefix) {
+    return {
+      ok: false,
+      message: `tester id ${normalized} is reserved for local synthetic runs`
+    };
+  }
+
+  return {
+    ok: true,
+    message: "tester id counts as a real tester"
   };
 }
 

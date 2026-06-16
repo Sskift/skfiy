@@ -51,6 +51,7 @@ describe("dogfood cohort verifier", () => {
     expect(createDogfoodCohortHelpText()).toContain("issue alpha manifest/zip/commit identity");
     expect(createDogfoodCohortHelpText()).toContain("Workflow coverage counts only reports");
     expect(createDogfoodCohortHelpText()).toContain("--require-passed");
+    expect(createDogfoodCohortHelpText()).toContain("local-*");
   });
 
   it("accepts a 3-person cohort that covers all required dogfood workflows", async () => {
@@ -125,6 +126,47 @@ describe("dogfood cohort verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("cohort.distinctTesters")
+      ])
+    });
+  });
+
+  it("does not count local synthetic reports toward the real tester gate", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(verifyDogfoodCohort({
+      cohortPath
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        createReport("local-a", ["coding-terminal", "screenshot-inspection"]),
+        createReport("local-b", ["finder-file"]),
+        createReport("local-c", ["browser-fallback"])
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("cohort.distinctRealTesters")
+      ]),
+      summary: {
+        distinctTesters: 3,
+        distinctRealTesters: 0,
+        syntheticReports: 3,
+        requiredWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": true,
+          "browser-fallback": true
+        }
+      },
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "cohort.distinctTesters", ok: true }),
+        expect.objectContaining({ id: "cohort.distinctRealTesters", ok: false }),
+        expect.objectContaining({ id: "cohort.workflowCoverage.browser-fallback", ok: true }),
+        expect.objectContaining({ id: "report.local-a.realTester", ok: false })
       ])
     });
   });
@@ -505,6 +547,7 @@ describe("dogfood cohort verifier", () => {
     expect(io.files[summaryPath]).toContain("# skfiy dogfood cohort summary");
     expect(io.files[summaryPath]).toContain("Result: failed");
     expect(io.files[summaryPath]).toContain("Distinct testers: 2/3-5");
+    expect(io.files[summaryPath]).toContain("Distinct real testers: 2/3-5");
     expect(io.files[summaryPath]).toContain("## Passed Workflow Coverage");
     expect(io.files[summaryPath]).toContain("- coding-terminal: blocked-or-missing");
     expect(io.files[summaryPath]).toContain("- browser-fallback");

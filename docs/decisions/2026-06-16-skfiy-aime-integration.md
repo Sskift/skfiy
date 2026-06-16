@@ -44,7 +44,7 @@ Search limitations: Feishu drive/message sources returned partial authentication
 
 Revisit this decision when any of these become true:
 
-- Single-user `npm run dogfood:verify -- --manifest <alpha-manifest> --require-passed` reports are collected from 3-5 internal dogfood machines, and the aggregated cohort passes `npm run dogfood:cohort -- --cohort <path> --require-passed`.
+- Single-user `npm run dogfood:verify -- --manifest <alpha-manifest> --require-passed` reports are collected from 3-5 real internal dogfood machines, and the aggregated cohort passes `npm run dogfood:cohort -- --cohort <path> --require-passed`.
 - AIME Buddy exposes a supported plugin API for native macOS app observation/action, permission onboarding, and replay surfaces.
 - AIOS Computer Use exposes a stable native macOS runtime that covers screenshot, accessibility tree, click/type/scroll/drag, app activation, and action verification.
 - AIME product direction explicitly adopts native app Computer Use beyond browser control and task notification.

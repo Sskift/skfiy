@@ -52,6 +52,7 @@ describe("dogfood status reporter", () => {
     expect(createDogfoodStatusHelpText()).toContain("dogfood:status");
     expect(createDogfoodStatusHelpText()).toContain("non-mutating");
     expect(createDogfoodStatusHelpText()).toContain("accepted report URLs");
+    expect(createDogfoodStatusHelpText()).toContain("real tester");
   });
 
   it("reports missing accepted report URLs and current permission blockers without claiming readiness", async () => {
@@ -323,6 +324,102 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("Verified accepted report URLs: 1/3 minimum");
     expect(io.textFiles[summaryPath]).toContain("commit sha does not match manifest commitSha");
     expect(io.textFiles[summaryPath]).toContain("missing dogfood:accepted label");
+  });
+
+  it("does not count local synthetic report issues toward real tester readiness", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const reportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102",
+      "https://github.com/Sskift/skfiy/issues/103"
+    ];
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody(reportUrls),
+        labels: ["skfiy", "dogfood"]
+      },
+      [reportUrls[0]]: createAcceptedReportIssue(
+        "local-abc123",
+        ["coding-terminal", "screenshot-inspection"],
+        { result: "passed" }
+      ),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["finder-file"], {
+        result: "passed"
+      }),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-3", ["browser-fallback"], {
+        result: "passed"
+      })
+    });
+
+    await expect(createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "waiting-for-dogfood",
+      trackingIssue: {
+        acceptedReportCount: 3,
+        verifiedAcceptedReportCount: 3,
+        verifiedRealAcceptedReportCount: 2,
+        missingRequiredReports: 1,
+        reportIssueValidation: [
+          {
+            issueUrl: reportUrls[0],
+            ok: true,
+            testerId: "local-abc123",
+            realTester: false,
+            realTesterReasons: ["tester id local-abc123 is reserved for local synthetic runs"]
+          },
+          {
+            issueUrl: reportUrls[1],
+            ok: true,
+            testerId: "tester-2",
+            realTester: true,
+            realTesterReasons: []
+          },
+          {
+            issueUrl: reportUrls[2],
+            ok: true,
+            testerId: "tester-3",
+            realTester: true,
+            realTesterReasons: []
+          }
+        ]
+      },
+      readiness: {
+        canRunCollect: false,
+        cohortReady: false
+      },
+      nextActions: expect.arrayContaining([
+        "Collect at least 3 accepted real tester report issue URLs in GitHub issue #1."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("Verified real accepted report URLs: 2/3 minimum");
+    expect(io.textFiles[summaryPath]).toContain("synthetic: tester id local-abc123 is reserved for local synthetic runs");
   });
 
   it("reports missing workflow coverage from verified accepted report issues", async () => {

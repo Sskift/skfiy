@@ -45,6 +45,11 @@ const BLOCKING_PERMISSION_STATES = new Set([
 
 const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
 const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
+const SYNTHETIC_TESTER_ID_PREFIXES = [
+  "local-",
+  "prepare-",
+  "synthetic-"
+];
 
 export function createDefaultDogfoodCohortOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -103,11 +108,18 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
   );
 
   const testerIds = collectDistinctTesterIds(reports);
+  const realTesterIds = collectDistinctTesterIds(reports.filter(isRealTesterReport));
   check(
     checks,
     "cohort.distinctTesters",
     testerIds.size >= 3 && testerIds.size <= 5,
     "cohort must include 3-5 distinct testerId values"
+  );
+  check(
+    checks,
+    "cohort.distinctRealTesters",
+    realTesterIds.size >= 3 && realTesterIds.size <= 5,
+    "cohort must include 3-5 distinct real testerId values; local-* and prepare-* reports are local synthetic evidence only"
   );
 
   const eligibleReports = reports.filter((report) =>
@@ -166,7 +178,8 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
       reports,
       requiredWorkflowCoverage,
       passedWorkflowCoverage,
-      testerIds
+      testerIds,
+      realTesterIds
     });
     await io.writeText(options.summaryPath, markdown);
   }
@@ -190,6 +203,7 @@ export function createDogfoodCohortHelpText() {
     "artifactSource=github-issue-smoke-artifacts, and issue alpha manifest/zip/commit identity",
     "matching the report manifestPath and commitSha.",
     "Workflow coverage counts only reports that satisfy these report-level gates.",
+    "The real tester gate excludes local-* and prepare-* tester ids from the 3-5 user count.",
     "The Markdown summary separates source-eligible workflow coverage from passed workflow coverage,",
     "so blocked permission evidence is not described as a passed product workflow.",
     "Use --require-passed for a strict release gate that fails unless every required workflow",
@@ -204,7 +218,8 @@ export function createDogfoodCohortMarkdown({
   reports,
   requiredWorkflowCoverage,
   passedWorkflowCoverage,
-  testerIds
+  testerIds,
+  realTesterIds
 }) {
   const missingWorkflows = REQUIRED_DOGFOOD_WORKFLOWS.filter((workflow) =>
     requiredWorkflowCoverage[workflow] !== true
@@ -215,7 +230,9 @@ export function createDogfoodCohortMarkdown({
     `Result: ${result.result}`,
     `Cohort: ${result.cohortPath}`,
     `Distinct testers: ${testerIds.size}/3-5`,
+    `Distinct real testers: ${realTesterIds.size}/3-5`,
     `Total reports: ${reports.length}`,
+    `Synthetic reports: ${result.summary.syntheticReports}`,
     `Passed reports: ${result.summary.passedReports}`,
     `Permission-blocked reports: ${result.summary.permissionBlockedReports}`,
     "",
@@ -337,12 +354,24 @@ function verifyReport(report, index, cohortManifestPath, checks) {
     }),
     "report source must include type=github-issue, source.issueUrl, collectedAt, generatedBy=dogfood:report, artifactSource=github-issue-smoke-artifacts, issue alpha manifest/zip/commit identity, dogfood:accepted, and matching workflow:* issue labels"
   );
+  const realTester = readRealTesterDecision(report?.testerId);
+  check(
+    checks,
+    `${checkId}.realTester`,
+    realTester.ok,
+    realTester.message
+  );
 }
 
 function createCohortSummary(reports, testerIds, requiredWorkflowCoverage, passedWorkflowCoverage) {
+  const realTesterIds = collectDistinctTesterIds(reports.filter(isRealTesterReport));
+
   return {
     totalReports: reports.length,
     distinctTesters: testerIds.size,
+    distinctRealTesters: realTesterIds.size,
+    realTesterReports: reports.filter(isRealTesterReport).length,
+    syntheticReports: reports.filter((report) => !isRealTesterReport(report)).length,
     passedReports: reports.filter((report) => report?.result === "passed").length,
     blockedReports: reports.filter((report) => report?.result === "blocked").length,
     permissionBlockedReports: reports.filter((report) =>
@@ -403,6 +432,36 @@ function collectDistinctTesterIds(reports) {
       .map((report) => typeof report?.testerId === "string" ? report.testerId.trim() : "")
       .filter(Boolean)
   );
+}
+
+function isRealTesterReport(report) {
+  return readRealTesterDecision(report?.testerId).ok;
+}
+
+function readRealTesterDecision(testerId) {
+  if (typeof testerId !== "string" || testerId.trim().length === 0) {
+    return {
+      ok: false,
+      message: "report testerId is required for real tester counting"
+    };
+  }
+
+  const normalized = testerId.trim();
+  const lower = normalized.toLowerCase();
+  const syntheticPrefix = SYNTHETIC_TESTER_ID_PREFIXES.find((prefix) =>
+    lower.startsWith(prefix)
+  );
+  if (syntheticPrefix) {
+    return {
+      ok: false,
+      message: `tester id ${normalized} is reserved for local synthetic runs`
+    };
+  }
+
+  return {
+    ok: true,
+    message: "report testerId counts as a real tester"
+  };
 }
 
 function hasSharedCohortManifestPath(cohortManifestPath, reports) {
