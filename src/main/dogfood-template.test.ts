@@ -44,7 +44,9 @@ describe("skfiy dogfood issue template", () => {
       "com.apple.finder",
       "Finder observe_app",
       "Finder semantic selection",
+      "finderDragProbe",
       "Finder before tree / after tree",
+      "Verified drag",
       "Verified create_folder",
       "Verified move_file",
       "panic stop"

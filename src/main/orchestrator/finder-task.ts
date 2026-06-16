@@ -14,8 +14,11 @@ const FINDER_BUNDLE_ID = "com.apple.finder";
 const FINDER_ORGANIZE_PREFIX = "整理 Finder 测试文件夹 ";
 const FINDER_ORGANIZE_CURRENT_FOLDER = "整理 Finder 当前文件夹";
 const FINDER_ORGANIZE_SELECTED_FOLDER = "整理 Finder 选中文件夹";
+const FINDER_DRAG_PROBE_PREFIX = "探测 Finder 拖拽测试文件夹 ";
 const FINDER_CURRENT_FOLDER_COMMAND = "Finder current folder";
 const FINDER_SELECTED_FOLDER_COMMAND = "Finder selected folder";
+const FINDER_DRAG_PROBE_COMMAND = "Finder drag probe";
+const FINDER_DRAG_PROBE_DURATION_MS = 300;
 
 const FINDER_ORGANIZATION_RISK: RiskDecision = {
   level: "medium",
@@ -26,10 +29,11 @@ const FINDER_ORGANIZATION_RISK: RiskDecision = {
 type FinderOrganizationTarget =
   | { kind: "absolute_path"; rootPath: string }
   | { kind: "current_finder_folder" }
-  | { kind: "selected_finder_folder" };
+  | { kind: "selected_finder_folder" }
+  | { kind: "drag_probe"; rootPath: string };
 
 type FinderObservationOutcome =
-  | { ok: true; selection?: FinderSelectionResult }
+  | { ok: true; appState?: DesktopAppState; selection?: FinderSelectionResult }
   | { ok: false };
 
 export type FinderTaskEvent =
@@ -63,13 +67,13 @@ export type FinderTaskEvent =
     }
   | {
       type: "action_verified";
-      actionType: "create_folder" | "move_file";
+      actionType: "create_folder" | "move_file" | "drag";
       status: "passed";
       message: string;
     }
   | {
       type: "verification_failed";
-      stage: "input" | "file_operation" | "activate" | "observe" | "selection";
+      stage: "input" | "file_operation" | "activate" | "observe" | "selection" | "drag";
       reason: string;
     }
   | {
@@ -123,18 +127,21 @@ export async function* runFinderOrganizationTask(
 
   let rootPath: string;
 
+  let observation: FinderObservationOutcome | undefined;
+
   if (parsed.target.kind === "current_finder_folder" || parsed.target.kind === "selected_finder_folder") {
     yield {
       type: "locating_app",
       appName: FINDER_APP_NAME
     };
 
-    const observation = yield* observeFinder(options);
-    if (!observation.ok) {
+    const finderObservation = yield* observeFinder(options);
+    if (!finderObservation.ok) {
       return;
     }
+    observation = finderObservation;
 
-    const semanticFolder = resolveSemanticFinderFolder(parsed.target.kind, observation.selection);
+    const semanticFolder = resolveSemanticFinderFolder(parsed.target.kind, finderObservation.selection);
     if (!semanticFolder.ok) {
       yield {
         type: "verification_failed",
@@ -168,13 +175,17 @@ export async function* runFinderOrganizationTask(
     }))
   });
 
-  if (parsed.target.kind === "absolute_path") {
+  if (parsed.target.kind === "absolute_path" || parsed.target.kind === "drag_probe") {
     yield {
       type: "locating_app",
       appName: FINDER_APP_NAME
     };
 
-    yield* observeFinder(options);
+    observation = yield* observeFinder(options);
+  }
+
+  if (parsed.target.kind === "drag_probe") {
+    yield* performFinderDragProbe(options, observation);
   }
 
   for (const operation of plan.operations) {
@@ -275,7 +286,100 @@ async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<Finder
   };
 
   const selection = yield* observeFinderSelection(options.desktopClient);
-  return { ok: true, selection };
+  return { ok: true, appState: observationResult.result, selection };
+}
+
+async function* performFinderDragProbe(
+  options: FinderTaskOptions,
+  observation: FinderObservationOutcome | undefined
+): AsyncGenerator<FinderTaskEvent> {
+  if (!options.desktopClient) {
+    yield {
+      type: "verification_failed",
+      stage: "drag",
+      reason: "Finder drag probe requires a desktop client."
+    };
+    return;
+  }
+
+  if (!observation?.ok || !observation.appState) {
+    yield {
+      type: "verification_failed",
+      stage: "drag",
+      reason: "Finder drag probe needs a passed Finder observation."
+    };
+    return;
+  }
+
+  const dragAction = createFinderDragProbeAction(observation.appState);
+  if (!dragAction.ok) {
+    yield {
+      type: "verification_failed",
+      stage: "drag",
+      reason: dragAction.reason
+    };
+    return;
+  }
+
+  const dragResult = await executeFinderAction(options.desktopClient, dragAction.action);
+  if (!dragResult.ok) {
+    yield {
+      type: "verification_failed",
+      stage: "drag",
+      reason: dragResult.reason
+    };
+    return;
+  }
+
+  yield {
+    type: "action_verified",
+    actionType: "drag",
+    status: "passed",
+    message: formatFinderDragProbeMessage(dragAction.action)
+  };
+}
+
+function createFinderDragProbeAction(appState: DesktopAppState):
+  | { ok: true; action: Extract<DesktopExecutableAction, { type: "drag" }> }
+  | { ok: false; reason: string } {
+  const window = appState.windows?.find((candidate) => (
+    candidate.layer === 0
+    && candidate.bounds.width >= 180
+    && candidate.bounds.height >= 120
+  ));
+
+  if (!window) {
+    return {
+      ok: false,
+      reason: "Finder drag probe needs a visible Finder window at least 180x120."
+    };
+  }
+
+  const { x, y, width, height } = window.bounds;
+  const from = {
+    x: Math.round(x + width * 0.25),
+    y: Math.round(y + height * 0.5)
+  };
+  const to = {
+    x: Math.round(x + width * 0.75),
+    y: from.y
+  };
+
+  return {
+    ok: true,
+    action: {
+      type: "drag",
+      from,
+      to,
+      durationMs: FINDER_DRAG_PROBE_DURATION_MS
+    }
+  };
+}
+
+function formatFinderDragProbeMessage(
+  action: Extract<DesktopExecutableAction, { type: "drag" }>
+): string {
+  return `Finder drag probe from ${action.from.x},${action.from.y} to ${action.to.x},${action.to.y} over ${action.durationMs ?? FINDER_DRAG_PROBE_DURATION_MS}ms.`;
 }
 
 async function* observeFinderSelection(
@@ -369,10 +473,29 @@ export function parseFinderOrganizationIntent(input: string):
     };
   }
 
+  if (trimmed.startsWith(FINDER_DRAG_PROBE_PREFIX)) {
+    const rootPath = trimmed.slice(FINDER_DRAG_PROBE_PREFIX.length).trim();
+    if (!path.isAbsolute(rootPath)) {
+      return {
+        ok: false,
+        reason: "Finder drag probe requires an absolute folder path."
+      };
+    }
+
+    return {
+      ok: true,
+      command: FINDER_DRAG_PROBE_COMMAND,
+      target: {
+        kind: "drag_probe",
+        rootPath: path.resolve(rootPath)
+      }
+    };
+  }
+
   if (!trimmed.startsWith(FINDER_ORGANIZE_PREFIX)) {
     return {
       ok: false,
-      reason: "Finder organization requires: 整理 Finder 测试文件夹 <absolute-path>, 整理 Finder 当前文件夹, or 整理 Finder 选中文件夹"
+      reason: "Finder organization requires: 整理 Finder 测试文件夹 <absolute-path>, 整理 Finder 当前文件夹, 整理 Finder 选中文件夹, or 探测 Finder 拖拽测试文件夹 <absolute-path>"
     };
   }
 

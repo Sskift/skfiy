@@ -173,10 +173,10 @@ The Chrome smoke script launches a temporary Chrome profile through LaunchServic
 Use the packaged app path and a throwaway test folder:
 
 ```bash
-npm run smoke:finder -- --require-passed --output .skfiy-smoke/finder-organize.json
+npm run smoke:finder -- --drag-probe --require-passed --output .skfiy-smoke/finder-drag-probe.json
 ```
 
-The Finder smoke script launches `dist/skfiy.app` through LaunchServices, sends `整理 Finder 测试文件夹 <tmpdir>` through the preload API, approves Finder app policy plus the medium-risk file move, activates Finder through `skfiy-helper`, captures a before `observe_app` record, reads Finder semantic selection through Apple Events, and verifies the resulting directory tree. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> helper observe_app -> fs -> Finder`, Finder app policy settings, `finderObservation.result: passed`, `finderObservation.frontmostBundleId: com.apple.finder`, a Finder screenshot path, `finderSemanticObservation.result: passed`, `finderSemanticObservation.source: finder-applescript`, `finderSemanticObservation.frontmostBundleId: com.apple.finder`, beforeTree entries `notes.pdf`, `photo.png`, and `script.ts`, afterTree entries `Documents/notes.pdf`, `Images/photo.png`, and `Code/script.ts`, `Verified create_folder` and `Verified move_file` events, and empty `processesAfterCleanup`. A permission-blocked observe or semantic step must produce the matching blocked observation field and keep the smoke result blocked until permissions are granted.
+The Finder smoke script launches `dist/skfiy.app` through LaunchServices, opens a throwaway fixture in Finder, sends `探测 Finder 拖拽测试文件夹 <tmpdir>` through the preload API, approves Finder app policy plus the medium-risk local mutation, activates Finder through `skfiy-helper`, captures a before `observe_app` record, reads Finder semantic selection through Apple Events, runs a bounded Finder-window HID drag probe through the helper, and verifies the resulting directory tree. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder`, Finder app policy settings, `finderObservation.result: passed`, `finderObservation.frontmostBundleId: com.apple.finder`, a Finder screenshot path, `finderSemanticObservation.result: passed`, `finderSemanticObservation.source: finder-applescript`, `finderSemanticObservation.frontmostBundleId: com.apple.finder`, `finderDragProbe.result: passed`, `finderDragProbe.source: finder-hid-drag`, beforeTree entries `notes.pdf`, `photo.png`, and `script.ts`, afterTree entries `Documents/notes.pdf`, `Images/photo.png`, and `Code/script.ts`, `Verified drag`, `Verified create_folder`, and `Verified move_file` events, and empty `processesAfterCleanup`. A permission-blocked observe, semantic, or drag step must produce the matching blocked evidence and keep the smoke result blocked until permissions are granted.
 
 To verify current Finder window grounding, run:
 
@@ -212,7 +212,7 @@ After creating an alpha manifest, verify that the manifest, zip, UI smoke artifa
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, Chrome extraction evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
+Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, Chrome extraction evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder drag-probe evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
 
 ## Reporting Template
 
@@ -233,7 +233,8 @@ Chrome form action: formRun.result passed, Verified fill_selector, Verified clic
 Finder: beforeTree notes.pdf/photo.png/script.ts -> afterTree Documents/notes.pdf/Images/photo.png/Code/script.ts
 Finder observe_app: finderObservation.result passed, frontmostBundleId com.apple.finder, screenshotPath /tmp/skfiy/finder-before-...
 Finder semantic selection: finderSemanticObservation.result passed, source finder-applescript, selectedCount 1
-Finder action verification: Verified create_folder, Verified move_file
+Finder drag probe: finderDragProbe.result passed, source finder-hid-drag
+Finder action verification: Verified drag, Verified create_folder, Verified move_file
 Screenshots:
 - before: /path/to/before.png
 - after: /path/to/after.png

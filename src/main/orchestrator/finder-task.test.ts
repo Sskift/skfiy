@@ -479,6 +479,161 @@ describe("runFinderOrganizationTask", () => {
     }
   });
 
+  it("performs a Finder drag probe through the desktop client before filesystem organization", async () => {
+    const rootPath = await createFixture();
+    const actions: DesktopExecutableAction[] = [];
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        actions.push(action);
+
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: path.basename(rootPath),
+                layer: 0,
+                bounds: { x: 100, y: 120, width: 640, height: 480 }
+              }
+            ]
+          };
+        }
+
+        return { ok: true };
+      },
+      async getFinderSelection() {
+        return {
+          source: "finder-applescript" as const,
+          frontmostBundleId: "com.apple.finder",
+          targetPath: rootPath,
+          selection: []
+        };
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask(`探测 Finder 拖拽测试文件夹 ${rootPath}`, {
+          approved: true,
+          desktopClient,
+          createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
+        })
+      );
+
+      expect(actions.slice(0, 3)).toEqual([
+        { type: "activate_app", bundleId: "com.apple.finder" },
+        {
+          type: "observe_app",
+          bundleId: "com.apple.finder",
+          screenshotOutputPath: "/tmp/skfiy-finder-before.png"
+        },
+        {
+          type: "drag",
+          from: { x: 260, y: 360 },
+          to: { x: 580, y: 360 },
+          durationMs: 300
+        }
+      ]);
+      expect(events.map((event) => event.type)).toEqual([
+        "started",
+        "approval_required",
+        "locating_app",
+        "app_activated",
+        "screenshot_before",
+        "finder_selection_observed",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "completed"
+      ]);
+      expect(events.find((event) => (
+        event.type === "action_verified"
+        && "actionType" in event
+        && event.actionType === "drag"
+      ))).toMatchObject({
+        type: "action_verified",
+        actionType: "drag",
+        status: "passed",
+        message: "Finder drag probe from 260,360 to 580,360 over 300ms."
+      });
+      await expect(readFile(path.join(rootPath, "Images", "photo.png"), "utf8"))
+        .resolves.toBe("image");
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
+  it("records a permission-blocked Finder drag probe without skipping safe organization", async () => {
+    const rootPath = await createFixture();
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: path.basename(rootPath),
+                layer: 0,
+                bounds: { x: 100, y: 120, width: 640, height: 480 }
+              }
+            ]
+          };
+        }
+
+        if (action.type === "drag") {
+          return { ok: false, message: "Accessibility permission is required for skfiy." };
+        }
+
+        return { ok: true };
+      },
+      async getFinderSelection() {
+        return {
+          source: "finder-applescript" as const,
+          frontmostBundleId: "com.apple.finder",
+          targetPath: rootPath,
+          selection: []
+        };
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask(`探测 Finder 拖拽测试文件夹 ${rootPath}`, {
+          approved: true,
+          desktopClient
+        })
+      );
+
+      expect(events).toContainEqual({
+        type: "verification_failed",
+        stage: "drag",
+        reason: "Accessibility permission is required for skfiy."
+      });
+      expect(events.at(-1)).toMatchObject({
+        type: "completed",
+        summary: "Finder test folder organized."
+      });
+      await expect(readFile(path.join(rootPath, "Images", "photo.png"), "utf8"))
+        .resolves.toBe("image");
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
   it("emits Finder semantic selection context when the desktop client can read it", async () => {
     const rootPath = await createFixture();
     const desktopClient = {

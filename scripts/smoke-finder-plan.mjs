@@ -4,10 +4,12 @@ export const DEFAULT_PORT = 9244;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
 export const PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
+export const DRAG_PROBE_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
 export const FINDER_TARGET_MODES = new Set([
   "explicit-path",
   "current-finder-folder",
-  "selected-finder-folder"
+  "selected-finder-folder",
+  "drag-probe"
 ]);
 export const EXPECTED_AFTER_TREE = [
   "Code/script.ts",
@@ -68,6 +70,9 @@ export function parseFinderSmokeArgs(argv, defaults) {
       case "--selected-folder":
         options.targetMode = "selected-finder-folder";
         break;
+      case "--drag-probe":
+        options.targetMode = "drag-probe";
+        break;
       case "--output":
         options.outputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
@@ -98,6 +103,7 @@ Options:
   --require-passed      Exit non-zero unless the smoke result is passed.
   --current-folder      Open the fixture in Finder and run "整理 Finder 当前文件夹".
   --selected-folder     Select the fixture in Finder and run "整理 Finder 选中文件夹".
+  --drag-probe          Open the fixture in Finder, run a helper drag probe, then organize it.
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   -h, --help            Show this help.
@@ -109,6 +115,7 @@ export function classifyFinderSmokeEvidence({
   afterTree = [],
   finderObservation,
   finderSemanticObservation,
+  finderDragProbe,
   targetMode = "explicit-path",
   fixtureRoot,
   runnerHasTmux = false,
@@ -133,6 +140,10 @@ export function classifyFinderSmokeEvidence({
     return "blocked";
   }
 
+  if (hasPermissionBlockedFinderDragProbe(finderDragProbe)) {
+    return "blocked";
+  }
+
   if (
     last.status === "failed"
     && typeof last.message === "string"
@@ -145,7 +156,11 @@ export function classifyFinderSmokeEvidence({
     return last.status ?? "failed";
   }
 
-  if (runnerHasTmux || appLaunchViaOpen !== true || productPath !== PRODUCT_PATH) {
+  if (
+    runnerHasTmux
+    || appLaunchViaOpen !== true
+    || productPath !== readFinderProductPath(targetMode)
+  ) {
     return "failed";
   }
 
@@ -153,11 +168,18 @@ export function classifyFinderSmokeEvidence({
     !hasExpectedAfterTree(afterTree)
     || !hasPassedFinderObservation(finderObservation)
     || !hasPassedFinderSemanticObservation(finderSemanticObservation, { targetMode, fixtureRoot })
+    || !hasExpectedFinderDragProbe(finderDragProbe, targetMode)
   ) {
     return "failed";
   }
 
   return "passed";
+}
+
+export function readFinderProductPath(targetMode) {
+  return targetMode === "drag-probe"
+    ? DRAG_PROBE_PRODUCT_PATH
+    : PRODUCT_PATH;
 }
 
 function hasExpectedAfterTree(afterTree) {
@@ -203,6 +225,12 @@ function hasPassedFinderSemanticObservation(finderSemanticObservation, options =
       ));
   }
 
+  if (options.targetMode === "drag-probe") {
+    return typeof options.fixtureRoot !== "string"
+      || typeof finderSemanticObservation.targetPath !== "string"
+      || path.resolve(finderSemanticObservation.targetPath) === path.resolve(options.fixtureRoot);
+  }
+
   return true;
 }
 
@@ -210,6 +238,22 @@ function hasPermissionBlockedFinderSemanticObservation(finderSemanticObservation
   return finderSemanticObservation?.result === "blocked"
     && typeof finderSemanticObservation.reason === "string"
     && isPermissionBlockedMessage(finderSemanticObservation.reason);
+}
+
+function hasExpectedFinderDragProbe(finderDragProbe, targetMode) {
+  if (targetMode !== "drag-probe") {
+    return true;
+  }
+
+  return finderDragProbe?.result === "passed"
+    && finderDragProbe.source === "finder-hid-drag"
+    && finderDragProbe.frontmostBundleId === "com.apple.finder";
+}
+
+function hasPermissionBlockedFinderDragProbe(finderDragProbe) {
+  return finderDragProbe?.result === "blocked"
+    && typeof finderDragProbe.reason === "string"
+    && isPermissionBlockedMessage(finderDragProbe.reason);
 }
 
 function isPermissionBlockedMessage(message) {

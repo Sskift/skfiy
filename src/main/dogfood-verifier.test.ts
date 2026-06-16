@@ -21,7 +21,8 @@ describe("dogfood artifact verifier", () => {
     "Finder app policy settings",
     "Finder observe_app screenshot or permission-blocked evidence",
     "Finder semantic selection evidence",
-    "Finder test-folder organization evidence"
+    "Finder test-folder organization evidence",
+    "Finder drag probe evidence"
   ];
   const ghosttyAppPolicySettings = {
     apps: [
@@ -66,8 +67,9 @@ describe("dogfood artifact verifier", () => {
     result: "passed",
     appLaunchViaOpen: true,
     runnerHasTmux: false,
-    productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+    productPath: "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder",
     artifactPath,
+    targetMode: "drag-probe",
     finderObservation: {
       result: "passed",
       screenshotPath: "/tmp/skfiy/finder-before.png",
@@ -80,6 +82,12 @@ describe("dogfood artifact verifier", () => {
       frontmostBundleId: "com.apple.finder",
       targetPath: "/tmp/skfiy-finder-smoke",
       selectedCount: 1
+    },
+    finderDragProbe: {
+      result: "passed",
+      source: "finder-hid-drag",
+      frontmostBundleId: "com.apple.finder",
+      message: "Verified drag: Finder drag probe from 260,360 to 580,360 over 300ms."
     },
     appPolicySettings: ghosttyAppPolicySettings,
     beforeTree: ["notes.pdf", "photo.png", "script.ts"],
@@ -96,6 +104,10 @@ describe("dogfood artifact verifier", () => {
       {
         status: "executing",
         message: "Verified move_file: Moved file: /tmp/demo/photo.png -> /tmp/demo/Images/photo.png"
+      },
+      {
+        status: "executing",
+        message: "Verified drag: Finder drag probe from 260,360 to 580,360 over 300ms."
       },
       {
         status: "completed",
@@ -380,7 +392,104 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "chrome.formAction", ok: true }),
         expect.objectContaining({ id: "finder.productPath", ok: true }),
         expect.objectContaining({ id: "finder.actionVerification", ok: true }),
+        expect.objectContaining({ id: "finder.dragProbe", ok: true }),
         expect.objectContaining({ id: "voice.productPath", ok: true })
+      ])
+    });
+  });
+
+  it("fails Finder evidence that omits drag probe evidence", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const finderArtifact = {
+      ...createFinderSmokeArtifact(finderSmokePath),
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      targetMode: "explicit-path",
+      finderDragProbe: undefined,
+      events: createFinderSmokeArtifact(finderSmokePath).events.filter((event) => (
+        !event.message?.startsWith("Verified drag:")
+      ))
+    };
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
+        artifactPath: uiSmokePath,
+        petClicked: true,
+        onboardingVisible: true,
+        permissionRows: [
+          { label: "屏幕录制" },
+          { label: "辅助功能" },
+          { label: "麦克风" },
+          { label: "语音识别" }
+        ],
+        processesAfterCleanup: []
+      },
+      [ghosttySmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> Ghostty",
+        artifactPath: ghosttySmokePath,
+        appPolicySettings: ghosttyAppPolicySettings,
+        runs: clipboardApprovalRuns,
+        processesAfterCleanup: []
+      },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: finderArtifact,
+      [voiceSmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+        artifactPath: voiceSmokePath,
+        provider: "native-macos",
+        speechStatus: {
+          locale: "zh-CN",
+          recognizerAvailable: true,
+          speechRecognition: { state: "not-determined" },
+          microphone: { state: "granted" }
+        },
+        processesAfterCleanup: []
+      }
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("finder.productPath"),
+        expect.stringContaining("finder.dragProbe")
       ])
     });
   });
@@ -764,6 +873,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderObservation"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderSemanticObservation"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderOrganization"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.finderDragProbe"),
         expect.stringContaining("ui.runnerHasTmux"),
         expect.stringContaining("ui.productPath"),
         expect.stringContaining("ui.petClicked"),
@@ -791,6 +901,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("finder.observation"),
         expect.stringContaining("finder.semanticObservation"),
         expect.stringContaining("finder.actionVerification"),
+        expect.stringContaining("finder.dragProbe"),
         expect.stringContaining("finder.beforeTree"),
         expect.stringContaining("finder.afterTree"),
         expect.stringContaining("finder.processesAfterCleanup"),

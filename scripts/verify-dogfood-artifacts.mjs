@@ -12,7 +12,7 @@ const execFileAsync = promisify(execFile);
 const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 const CHROME_PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
-const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
+const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
 const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
 const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
@@ -236,6 +236,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Finder test-folder organization evidence"),
     "manifest must require Finder organization evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.finderDragProbe",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Finder drag probe evidence"),
+    "manifest must require Finder drag probe evidence"
   );
   await verifyCurrentHead(manifest, options, io, checks);
 
@@ -635,6 +642,16 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   );
   check(
     checks,
+    "finder.dragProbe",
+    hasFinderDragProbeEvidence(artifact.finderDragProbe, artifact.result)
+      && (
+        artifact.finderDragProbe?.result === "blocked"
+        || hasFinderDragProbeActionEvidence(artifact.events, artifact.result)
+      ),
+    "Finder smoke must include drag-probe evidence or a permission-blocked drag reason"
+  );
+  check(
+    checks,
     "finder.beforeTree",
     hasFinderBeforeTree(artifact.beforeTree),
     "Finder smoke must include the unorganized test-folder before tree"
@@ -1017,6 +1034,46 @@ function isPermissionBlockedMessage(message) {
 function hasFinderOrganizationActionVerification(events) {
   return hasTaskEventMessage(events, "Verified create_folder:")
     && hasTaskEventMessage(events, "Verified move_file:");
+}
+
+function hasFinderDragProbeEvidence(value, result) {
+  if (result === "passed") {
+    return hasPassedFinderDragProbe(value);
+  }
+
+  if (result === "blocked") {
+    return hasPassedFinderDragProbe(value) || hasPermissionBlockedFinderDragProbe(value);
+  }
+
+  return false;
+}
+
+function hasPassedFinderDragProbe(value) {
+  return Boolean(value)
+    && value.result === "passed"
+    && value.source === "finder-hid-drag"
+    && value.frontmostBundleId === "com.apple.finder";
+}
+
+function hasPermissionBlockedFinderDragProbe(value) {
+  return Boolean(value)
+    && value.result === "blocked"
+    && typeof value.reason === "string"
+    && isPermissionBlockedMessage(value.reason);
+}
+
+function hasFinderDragProbeActionEvidence(events, result) {
+  if (hasTaskEventMessage(events, "Verified drag:")) {
+    return true;
+  }
+
+  return result === "blocked"
+    && Array.isArray(events)
+    && events.some((event) => (
+      typeof event?.message === "string"
+      && event.message.includes("Verification failed (drag):")
+      && isPermissionBlockedMessage(event.message)
+    ));
 }
 
 function hasFinderBeforeTree(value) {

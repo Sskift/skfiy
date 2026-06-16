@@ -11,7 +11,7 @@ import {
   createDefaultFinderSmokeOptions,
   createHelpText,
   parseFinderSmokeArgs,
-  PRODUCT_PATH
+  readFinderProductPath
 } from "./smoke-finder-plan.mjs";
 import { writeSmokeEvidence } from "./smoke-ghostty-plan.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
@@ -36,7 +36,7 @@ async function main() {
     launch: formatLaunchCommand(options),
     appLaunchViaOpen: true,
     runnerHasTmux: Boolean(process.env.TMUX),
-    productPath: PRODUCT_PATH,
+    productPath: readFinderProductPath(options.targetMode),
     artifactPath: options.outputPath,
     targetMode: options.targetMode,
     fixtureRoot: undefined,
@@ -46,6 +46,7 @@ async function main() {
     events: [],
     finderObservation: undefined,
     finderSemanticObservation: undefined,
+    finderDragProbe: undefined,
     permissions: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
@@ -64,7 +65,7 @@ async function main() {
     evidence.command = readFinderSmokeCommand(options.targetMode, evidence.fixtureRoot);
     evidence.beforeTree = await readDirectoryTree(evidence.fixtureRoot);
 
-    if (options.targetMode === "current-finder-folder") {
+    if (options.targetMode === "current-finder-folder" || options.targetMode === "drag-probe") {
       await openFinderFolder(evidence.fixtureRoot);
       await sleep(700);
     }
@@ -143,6 +144,7 @@ async function main() {
         cdp.events,
         evidence.finderObservation
       );
+      evidence.finderDragProbe = readFinderDragProbe(cdp.events, evidence.finderObservation);
       evidence.afterTree = await readDirectoryTree(evidence.fixtureRoot);
       evidence.result = classifyFinderSmokeEvidence(evidence);
     } finally {
@@ -248,6 +250,10 @@ function readFinderSmokeCommand(targetMode, fixtureRoot) {
 
   if (targetMode === "selected-finder-folder") {
     return "整理 Finder 选中文件夹";
+  }
+
+  if (targetMode === "drag-probe") {
+    return `探测 Finder 拖拽测试文件夹 ${fixtureRoot}`;
   }
 
   return `整理 Finder 测试文件夹 ${fixtureRoot}`;
@@ -447,6 +453,46 @@ function readFinderSemanticObservation(events, finderObservation) {
     return {
       result: "blocked",
       reason: `Skipped Finder semantic selection because Finder observe_app was blocked: ${finderObservation.reason}`
+    };
+  }
+
+  return {
+    result: "missing"
+  };
+}
+
+function readFinderDragProbe(events, finderObservation) {
+  const passedEvent = events.find((event) => (
+    typeof event?.message === "string"
+    && event.message.startsWith("Verified drag:")
+  ));
+
+  if (passedEvent) {
+    return {
+      result: "passed",
+      source: "finder-hid-drag",
+      frontmostBundleId: "com.apple.finder",
+      message: passedEvent.message
+    };
+  }
+
+  const blockedEvent = events.find((event) => (
+    typeof event?.message === "string"
+    && event.message.includes("Verification failed (drag):")
+    && isPermissionBlockedMessage(event.message)
+  ));
+
+  if (blockedEvent) {
+    return {
+      result: "blocked",
+      reason: blockedEvent.message
+    };
+  }
+
+  if (finderObservation?.result === "blocked") {
+    return {
+      result: "blocked",
+      reason: `Skipped Finder drag probe because Finder observe_app was blocked: ${finderObservation.reason}`
     };
   }
 
