@@ -308,6 +308,84 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("Alpha is current HEAD: no");
   });
 
+  it("does not ask for a fresh alpha when only docs and evidence changed after the alpha commit", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = {
+      ...createMemoryIo({
+        [manifestPath]: createManifest({
+          uiSmokePath,
+          ghosttySmokePath,
+          chromeSmokePath,
+          finderSmokePath,
+          voiceSmokePath
+        }),
+        [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+        [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+        [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+        [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+        [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+      }, {
+        [trackingIssueUrl]: {
+          body: createTrackingIssueBody([]),
+          labels: ["skfiy", "dogfood"]
+        }
+      }),
+      async readCurrentHead() {
+        return "docshead";
+      },
+      async readChangedFilesBetween(base: string, head: string) {
+        return base === "abc123" && head === "docshead"
+          ? [
+            "docs/release-evidence/latest-alpha.json",
+            "docs/superpowers/plans/2026-06-15-skfiy-mvp.md",
+            ".skfiy-dogfood/status-abc123.md"
+          ]
+          : [];
+      }
+    };
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      manifest: {
+        checks: {
+          currentHead: {
+            expected: "docshead",
+            actual: "abc123",
+            ok: false,
+            appCodeOk: true,
+            changedFiles: [
+              "docs/release-evidence/latest-alpha.json",
+              "docs/superpowers/plans/2026-06-15-skfiy-mvp.md",
+              ".skfiy-dogfood/status-abc123.md"
+            ],
+            appRelevantChangedFiles: [],
+            required: false
+          }
+        }
+      }
+    });
+    expect(status.nextActions).not.toContain(
+      "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha."
+    );
+    expect(io.textFiles[summaryPath]).toContain("Alpha app code current: yes");
+  });
+
   it("recommends concrete tester assignments for missing real reports and workflow coverage", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

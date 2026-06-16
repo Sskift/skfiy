@@ -29,6 +29,23 @@ const BLOCKING_PERMISSION_STATES = new Set([
   "blocked",
   "unavailable"
 ]);
+const APP_RELEVANT_PATH_PREFIXES = [
+  "src/",
+  "macos-helper/",
+  "release/"
+];
+const APP_RELEVANT_PATHS = new Set([
+  "index.html",
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "tsconfig.electron.json",
+  "vite.config.ts",
+  "vitest.config.ts",
+  "scripts/build-helper.sh",
+  "scripts/create-alpha-artifact.mjs",
+  "scripts/package-macos-app.mjs"
+]);
 export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     rootDir,
@@ -202,7 +219,7 @@ export function createDogfoodStatusHelpText() {
     "and accepted report URLs recorded in the tracking issue or local tracking issue markdown file.",
     "It separates real tester readiness from local synthetic reports such as local-* and preflight-* runs.",
     "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
-    "It warns when the selected alpha manifest is older than the current git HEAD.",
+    "It warns when app-build inputs changed after the selected alpha manifest commit.",
     "It also emits recommended tester assignments with prepare/tester/review commands.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
   ].join("\n");
@@ -219,7 +236,8 @@ export function createDogfoodStatusMarkdown(status) {
     ...(status.manifest.checks.currentHead
       ? [
         `Current HEAD: ${status.manifest.checks.currentHead.expected}`,
-        `Alpha is current HEAD: ${status.manifest.checks.currentHead.ok ? "yes" : "no"}`
+        `Alpha is current HEAD: ${status.manifest.checks.currentHead.ok ? "yes" : "no"}`,
+        `Alpha app code current: ${readCurrentHeadAppCodeLabel(status.manifest.checks.currentHead)}`
       ]
       : []),
     `Accepted report URLs: ${status.trackingIssue.acceptedReportCount}/3 minimum`,
@@ -435,11 +453,36 @@ async function readManifestChecks(manifest, options, io) {
     const currentHeadSha = typeof options.currentHeadSha === "string"
       ? options.currentHeadSha
       : await readOptionalCurrentHead(options, io);
-    checks.currentHead = {
+    const manifestSha = typeof manifest?.commitSha === "string" ? manifest.commitSha : undefined;
+    const currentHead = {
       expected: currentHeadSha,
-      actual: typeof manifest?.commitSha === "string" ? manifest.commitSha : undefined,
-      ok: manifest?.commitSha === currentHeadSha,
+      actual: manifestSha,
+      ok: manifestSha === currentHeadSha,
       required: options.requireCurrentHead === true
+    };
+    if (
+      currentHead.ok !== true
+      && currentHead.required !== true
+      && typeof manifestSha === "string"
+      && typeof currentHeadSha === "string"
+      && typeof io.readChangedFilesBetween === "function"
+    ) {
+      const changedFiles = await io.readChangedFilesBetween(
+        manifestSha,
+        currentHeadSha,
+        options.rootDir ?? DEFAULT_ROOT_DIR
+      );
+      if (Array.isArray(changedFiles)) {
+        currentHead.changedFiles = changedFiles
+          .map((filePath) => typeof filePath === "string" ? normalizeRepoPath(filePath) : "")
+          .filter(Boolean);
+        currentHead.appRelevantChangedFiles = currentHead.changedFiles
+          .filter((filePath) => isAppRelevantChangedPath(filePath));
+        currentHead.appCodeOk = currentHead.appRelevantChangedFiles.length === 0;
+      }
+    }
+    checks.currentHead = {
+      ...currentHead
     };
   }
 
@@ -453,6 +496,26 @@ async function readManifestChecks(manifest, options, io) {
   }
 
   return checks;
+}
+
+function normalizeRepoPath(filePath) {
+  return filePath.replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
+function isAppRelevantChangedPath(filePath) {
+  const normalized = normalizeRepoPath(filePath);
+  return APP_RELEVANT_PATHS.has(normalized)
+    || APP_RELEVANT_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}
+
+function readCurrentHeadAppCodeLabel(currentHead) {
+  if (currentHead.ok === true || currentHead.appCodeOk === true) {
+    return "yes";
+  }
+  if (Array.isArray(currentHead.appRelevantChangedFiles)) {
+    return "no";
+  }
+  return "unknown";
 }
 
 async function readOptionalCurrentHead(options, io) {
@@ -503,7 +566,11 @@ function createNextActions({
   if (permissionBlockers.some((item) => item.permission === "speechRecognition")) {
     actions.push("Grant Speech Recognition to dist/skfiy.app or the alpha app bundle before requiring passed native speech evidence.");
   }
-  if (manifestChecks.currentHead && manifestChecks.currentHead.ok !== true) {
+  if (
+    manifestChecks.currentHead
+    && manifestChecks.currentHead.ok !== true
+    && (manifestChecks.currentHead.required === true || manifestChecks.currentHead.appCodeOk !== true)
+  ) {
     actions.push(
       manifestChecks.currentHead.required === true
         ? "Regenerate the alpha artifact so manifest commitSha matches the current HEAD."
@@ -1087,6 +1154,15 @@ function createDefaultIo() {
         cwd: rootDir
       });
       return stdout.trim();
+    },
+    async readChangedFilesBetween(baseSha, headSha, rootDir) {
+      const { stdout } = await execFileAsync("git", ["diff", "--name-only", `${baseSha}..${headSha}`], {
+        cwd: rootDir
+      });
+      return stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
     }
   };
 }
