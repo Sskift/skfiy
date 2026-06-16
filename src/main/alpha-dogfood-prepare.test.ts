@@ -217,9 +217,9 @@ describe("alpha dogfood preparation", () => {
     }, createMemoryIo({
       extractedInfoPlist: createInfoPlist({
         bundleIdentifier: "com.sskift.skfiy",
-        bundleName: "Skfiy",
-        displayName: "Skfiy",
-        executable: "Skfiy"
+        bundleName: "skfiy-alpha",
+        displayName: "skfiy-alpha",
+        executable: "skfiy-alpha"
       })
     }))).rejects.toThrow("Downloaded alpha app CFBundleName must be skfiy.");
   });

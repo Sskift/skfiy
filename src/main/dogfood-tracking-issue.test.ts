@@ -111,6 +111,8 @@ describe("dogfood tracking issue sync", () => {
     expect(body).toContain("Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`, Speech Recognition `not-determined`");
     expect(body).toContain("npm run dogfood:status -- \\");
     expect(body).toContain("--manifest .skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json");
+    expect(body).toContain("npm run dogfood:review -- \\");
+    expect(body).not.toContain("--require-current-head");
     expect(body).toContain("--release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1");
     expect(body).toContain("No accepted real tester report is linked yet for this alpha");
   });

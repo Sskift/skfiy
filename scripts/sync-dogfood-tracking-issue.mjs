@@ -193,8 +193,7 @@ export function createDogfoodTrackingIssueBody({
     formatMultilineCommand("npm run dogfood:status --", [
       ["--manifest", relativeManifestPath],
       ["--tracking-issue-url", trackingIssueUrl],
-      ["--summary", `.skfiy-dogfood/status-${shortSha}.md`],
-      ["--require-current-head"]
+      ["--summary", `.skfiy-dogfood/status-${shortSha}.md`]
     ]),
     "```",
     "",
@@ -229,8 +228,7 @@ export function createDogfoodTrackingIssueBody({
     formatMultilineCommand("npm run dogfood:review --", [
       ["--manifest", relativeManifestPath],
       ["--issue-url", "<filed-dogfood-issue-url>"],
-      ["--summary", ".skfiy-dogfood/reviews/<stable-real-tester-id>.md"],
-      ["--require-current-head"]
+      ["--summary", ".skfiy-dogfood/reviews/<stable-real-tester-id>.md"]
     ]),
     "```",
     "",

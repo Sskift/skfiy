@@ -62,8 +62,7 @@ For a read-only status snapshot of the same alpha plus the current GitHub tracki
 npm run dogfood:status -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
-  --summary .skfiy-dogfood/status.md \
-  --require-current-head
+  --summary .skfiy-dogfood/status.md
 ```
 
 `dogfood:status` summarizes the alpha manifest, local smoke artifact results, current permission blockers, accepted report issue URLs already filled into the tracking issue, per-issue validation for current-alpha identity plus exact accepted/workflow labels, and separate passed workflow coverage based on linked issues whose `Computer Use result` is `passed`. It is intentionally non-mutating: it does not create reports, update the tracking issue, or claim cohort readiness. Readiness is based on verified accepted report issue URLs and workflow coverage from those verified issues, not merely the number of links or checked boxes present in the tracking issue.
@@ -88,7 +87,7 @@ npm run dogfood:tracking-issue -- \
   --output .skfiy-dogfood/tracking-issue-<commit>.md
 ```
 
-This is a dry-run by default. Add `--execute` only after reviewing the generated body; it runs `gh issue edit` and replaces the tracking issue with a body whose Current Alpha identity matches the selected manifest while preserving existing accepted report issue URLs from the real-tester slots. Follow it with `dogfood:status --require-current-head` so stale release/hash links are caught before asking testers to run the alpha.
+This is a dry-run by default. Add `--execute` only after reviewing the generated body; it runs `gh issue edit` and replaces the tracking issue with a body whose Current Alpha identity matches the selected manifest while preserving existing accepted report issue URLs from the real-tester slots. Follow it with `dogfood:status` so stale release/hash links are caught before asking testers to run the alpha. Use `--require-current-head` only before sharing a freshly built local alpha, not for published-release coordination from later documentation commits.
 
 For a tester machine, prepare the downloadable alpha before collecting evidence:
 
@@ -150,8 +149,7 @@ Before applying accepted labels, maintainers should run a non-mutating review ag
 npm run dogfood:review -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue> \
-  --summary .skfiy-dogfood/reviews/<stable-tester-id>.md \
-  --require-current-head
+  --summary .skfiy-dogfood/reviews/<stable-tester-id>.md
 ```
 
 `dogfood:review` reads the real issue body, synthesizes the labels that would be required for acceptance, reuses the same manifest-backed `dogfood:report` parser against the issue's smoke artifact paths, and writes a maintainer summary with suggested labels. It does not add labels, edit the tracking issue, or count the report toward the cohort.

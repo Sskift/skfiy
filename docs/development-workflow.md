@@ -264,11 +264,10 @@ To get a non-mutating readiness snapshot before filing or collecting dogfood rep
 npm run dogfood:status -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
-  --summary .skfiy-dogfood/status.md \
-  --require-current-head
+  --summary .skfiy-dogfood/status.md
 ```
 
-`dogfood:status` reports local smoke results, permission blockers, manifest/current-head state, accepted report URLs already filled into the tracking issue, the tracking issue `Current Alpha` identity, and a non-mutating validation of each linked report issue. The tracking issue identity check requires its release tag, manifest, zip, zip SHA256, commit, bundle id, and app name to match the selected manifest before `ready-to-collect` can be reported. The linked issue validation checks `dogfood:accepted`, matching alpha manifest/zip/commit identity, at least one checked cohort workflow, and exact `workflow:*` labels before it counts the issue as a verified accepted report. Real tester readiness excludes reserved local synthetic tester ids such as `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*`; those reports remain useful local evidence but do not count toward the 3-5 real-user gate. It does not create reports, edit GitHub, or mark the cohort ready; use it to decide whether the next step is updating stale alpha links, granting permissions, replacing stale issue links, collecting tester reports, or running `dogfood:collect`.
+`dogfood:status` reports local smoke results, permission blockers, accepted report URLs already filled into the tracking issue, the tracking issue `Current Alpha` identity, and a non-mutating validation of each linked report issue. The tracking issue identity check requires its release tag, manifest, zip, zip SHA256, commit, bundle id, and app name to match the selected manifest before `ready-to-collect` can be reported. The linked issue validation checks `dogfood:accepted`, matching alpha manifest/zip/commit identity, at least one checked cohort workflow, and exact `workflow:*` labels before it counts the issue as a verified accepted report. Real tester readiness excludes reserved local synthetic tester ids such as `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*`; those reports remain useful local evidence but do not count toward the 3-5 real-user gate. It does not create reports, edit GitHub, or mark the cohort ready; use it to decide whether the next step is updating stale alpha links, granting permissions, replacing stale issue links, collecting tester reports, or running `dogfood:collect`. Add `--require-current-head` only when validating a local alpha before publication; published-release status checks must keep working after later documentation-only commits.
 Workflow coverage in `dogfood:status` comes only from verified accepted report issues, not from the tracking issue checklist. Passed Workflow Coverage is separate and only counts linked report issues whose `Computer Use result` is `passed`, so blocked permission evidence cannot be mistaken for passed product-path evidence.
 
 Generate a copyable handoff for each real tester before asking them to run the packaged app:
@@ -317,8 +316,7 @@ Before adding `dogfood:accepted` to a filed tester issue, run:
 npm run dogfood:review -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue> \
-  --summary .skfiy-dogfood/reviews/<stable-tester-id>.md \
-  --require-current-head
+  --summary .skfiy-dogfood/reviews/<stable-tester-id>.md
 ```
 
 This preflight is non-mutating. It checks the filed issue body and artifact paths through the same manifest-backed parser used by `dogfood:report`, then prints suggested labels. Maintainers still apply labels and update the tracking issue manually after review.
