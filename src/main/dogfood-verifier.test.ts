@@ -150,7 +150,12 @@ describe("dogfood artifact verifier", () => {
     formRun: {
       result: "passed",
       pageUrl: "file:///tmp/skfiy-form.html",
-      extractedText: "skfiy form submitted",
+      fields: [
+        { selector: "#name", value: "skfiy" },
+        { selector: "#email", value: "agent@skfiy.test" },
+        { selector: "#role", value: "operator" }
+      ],
+      extractedText: "skfiy agent@skfiy.test operator form submitted",
       events: [
         {
           status: "approval_required",
@@ -166,15 +171,23 @@ describe("dogfood artifact verifier", () => {
         },
         {
           status: "executing",
+          message: "Verified fill_selector: Filled #email."
+        },
+        {
+          status: "executing",
+          message: "Verified fill_selector: Filled #role."
+        },
+        {
+          status: "executing",
           message: "Verified click_selector: Clicked #submit."
         },
         {
           status: "executing",
-          message: "Verified extract_text: Extracted text: skfiy form submitted"
+          message: "Verified extract_text: Extracted text: skfiy agent@skfiy.test operator form submitted"
         },
         {
           status: "completed",
-          message: "Chrome test page extracted: skfiy form submitted"
+          message: "Chrome test page extracted: skfiy agent@skfiy.test operator form submitted"
         }
       ]
     },

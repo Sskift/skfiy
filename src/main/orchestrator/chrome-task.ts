@@ -22,6 +22,22 @@ export interface ChromeTaskClient {
   waitForPageReady?: () => Promise<void>;
 }
 
+export interface ChromeFormField {
+  selector: string;
+  value: string;
+}
+
+type ChromePageIntent =
+  | { ok: true; url: string }
+  | {
+      ok: true;
+      kind: "form";
+      url: string;
+      fields: ChromeFormField[];
+      submitSelector: string;
+    }
+  | { ok: false; reason: string };
+
 export type ChromeTaskEvent =
   | {
       type: "started";
@@ -128,17 +144,19 @@ export async function* runChromePageTask(
 
     if (isChromeFormIntent(parsed)) {
       try {
-        await client.sendCdpCommand(buildCdpCommand({
-          type: "fill_selector",
-          selector: parsed.fieldSelector,
-          value: parsed.value
-        }));
-        yield {
-          type: "action_verified",
-          actionType: "fill_selector",
-          status: "passed",
-          message: `Filled ${parsed.fieldSelector}.`
-        };
+        for (const field of parsed.fields) {
+          await client.sendCdpCommand(buildCdpCommand({
+            type: "fill_selector",
+            selector: field.selector,
+            value: field.value
+          }));
+          yield {
+            type: "action_verified",
+            actionType: "fill_selector",
+            status: "passed",
+            message: `Filled ${field.selector}.`
+          };
+        }
 
         await client.sendCdpCommand(buildCdpCommand({
           type: "click_selector",
@@ -198,17 +216,7 @@ function hasSensitiveText(value: string): boolean {
   return SENSITIVE_CHROME_TEXT_PATTERNS.some((pattern) => pattern.test(value));
 }
 
-export function parseChromePageIntent(input: string):
-  | { ok: true; url: string }
-  | {
-      ok: true;
-      kind: "form";
-      url: string;
-      fieldSelector: string;
-      value: string;
-      submitSelector: string;
-    }
-  | { ok: false; reason: string } {
+export function parseChromePageIntent(input: string): ChromePageIntent {
   const trimmed = input.trim();
 
   const formIntent = parseChromeFormIntent(trimmed);
@@ -245,8 +253,7 @@ function parseChromeFormIntent(input: string):
       ok: true;
       kind: "form";
       url: string;
-      fieldSelector: string;
-      value: string;
+      fields: ChromeFormField[];
       submitSelector: string;
     }
   | { ok: false } {
@@ -271,16 +278,13 @@ function parseChromeFormIntent(input: string):
   const submitSelector = body
     .slice(clickIndex + CHROME_FORM_CLICK_MARKER.length)
     .trim();
-  const equalsIndex = assignment.indexOf("=");
+  const fields = parseChromeFormFields(assignment);
 
-  if (equalsIndex <= 0 || !submitSelector) {
+  if (!submitSelector || fields.length === 0) {
     return { ok: false };
   }
 
-  const fieldSelector = assignment.slice(0, equalsIndex).trim();
-  const value = assignment.slice(equalsIndex + 1).trim();
-
-  if (!isSupportedUrl(url) || !fieldSelector || !value) {
+  if (!isSupportedUrl(url)) {
     return { ok: false };
   }
 
@@ -288,27 +292,39 @@ function parseChromeFormIntent(input: string):
     ok: true,
     kind: "form",
     url,
-    fieldSelector,
-    value,
+    fields,
     submitSelector
   };
 }
 
-function isChromeFormIntent(
-  intent: { ok: true; url: string } | {
-    ok: true;
-    kind: "form";
-    url: string;
-    fieldSelector: string;
-    value: string;
-    submitSelector: string;
+function parseChromeFormFields(assignment: string): ChromeFormField[] {
+  const chunks = assignment.split(";").map((chunk) => chunk.trim()).filter(Boolean);
+  const fields: ChromeFormField[] = [];
+
+  for (const chunk of chunks) {
+    const equalsIndex = chunk.indexOf("=");
+    if (equalsIndex <= 0) {
+      return [];
+    }
+
+    const selector = chunk.slice(0, equalsIndex).trim();
+    const value = chunk.slice(equalsIndex + 1).trim();
+
+    if (!selector || !value) {
+      return [];
+    }
+
+    fields.push({ selector, value });
   }
-): intent is {
+
+  return fields;
+}
+
+function isChromeFormIntent(intent: Extract<ChromePageIntent, { ok: true }>): intent is {
   ok: true;
   kind: "form";
   url: string;
-  fieldSelector: string;
-  value: string;
+  fields: ChromeFormField[];
   submitSelector: string;
 } {
   return "kind" in intent && intent.kind === "form";

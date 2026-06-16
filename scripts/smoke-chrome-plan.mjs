@@ -5,7 +5,7 @@ export const DEFAULT_CHROME_PORT = 9444;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
 export const EXPECTED_TEXT = "skfiy chrome smoke ready";
-export const FORM_EXPECTED_TEXT = "skfiy form submitted";
+export const FORM_EXPECTED_TEXT = "skfiy agent@skfiy.test operator form submitted";
 export const SENSITIVE_EXPECTED_RESULT = "sensitive-paused";
 export const PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
 

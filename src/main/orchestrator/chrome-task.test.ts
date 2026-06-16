@@ -62,8 +62,25 @@ describe("parseChromePageIntent", () => {
       ok: true,
       kind: "form",
       url: "file:///tmp/skfiy-form.html",
-      fieldSelector: "#name",
-      value: "skfiy",
+      fields: [
+        { selector: "#name", value: "skfiy" }
+      ],
+      submitSelector: "#submit"
+    });
+  });
+
+  it("accepts a constrained Chrome test-form command with multiple fields", () => {
+    expect(parseChromePageIntent(
+      "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #name=skfiy; #email=agent@skfiy.test; #role=operator 点击 #submit 并提取正文"
+    )).toEqual({
+      ok: true,
+      kind: "form",
+      url: "file:///tmp/skfiy-form.html",
+      fields: [
+        { selector: "#name", value: "skfiy" },
+        { selector: "#email", value: "agent@skfiy.test" },
+        { selector: "#role", value: "operator" }
+      ],
       submitSelector: "#submit"
     });
   });
@@ -163,7 +180,7 @@ describe("runChromePageTask", () => {
 
     const events = await collectEvents(
       runChromePageTask(
-        "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #name=skfiy 点击 #submit 并提取正文",
+        "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #name=skfiy; #email=agent@skfiy.test; #role=operator 点击 #submit 并提取正文",
         client,
         { approved: true }
       )
@@ -173,6 +190,8 @@ describe("runChromePageTask", () => {
       "started",
       "approval_required",
       "locating_app",
+      "action_verified",
+      "action_verified",
       "action_verified",
       "action_verified",
       "action_verified",
@@ -192,10 +211,22 @@ describe("runChromePageTask", () => {
     expect(client.sendCdpCommand).toHaveBeenNthCalledWith(3, {
       method: "Runtime.evaluate",
       params: expect.objectContaining({
-        expression: expect.stringContaining("#submit")
+        expression: expect.stringContaining("#email")
       })
     });
     expect(client.sendCdpCommand).toHaveBeenNthCalledWith(4, {
+      method: "Runtime.evaluate",
+      params: expect.objectContaining({
+        expression: expect.stringContaining("#role")
+      })
+    });
+    expect(client.sendCdpCommand).toHaveBeenNthCalledWith(5, {
+      method: "Runtime.evaluate",
+      params: expect.objectContaining({
+        expression: expect.stringContaining("#submit")
+      })
+    });
+    expect(client.sendCdpCommand).toHaveBeenNthCalledWith(6, {
       method: "Runtime.evaluate",
       params: expect.objectContaining({
         expression: expect.stringContaining("document.body")
@@ -206,6 +237,16 @@ describe("runChromePageTask", () => {
         type: "action_verified",
         actionType: "fill_selector",
         message: "Filled #name."
+      }),
+      expect.objectContaining({
+        type: "action_verified",
+        actionType: "fill_selector",
+        message: "Filled #email."
+      }),
+      expect.objectContaining({
+        type: "action_verified",
+        actionType: "fill_selector",
+        message: "Filled #role."
       }),
       expect.objectContaining({
         type: "action_verified",
@@ -238,5 +279,50 @@ describe("runChromePageTask", () => {
       stage: "interaction",
       reason: "Selector not found: #name"
     });
+  });
+
+  it("reports the failing selector when one field in a multi-field form fails", async () => {
+    const client = createChromeClient();
+    client.sendCdpCommand.mockImplementation(async (command) => {
+      if (command.method === "Page.navigate") {
+        return { frameId: "frame-1" };
+      }
+
+      if (
+        command.method === "Runtime.evaluate"
+        && typeof command.params?.expression === "string"
+        && command.params.expression.includes("#email")
+      ) {
+        throw new Error("Selector not found: #email");
+      }
+
+      return {
+        result: {
+          type: "string",
+          value: "skfiy chrome smoke ready"
+        }
+      };
+    });
+
+    const events = await collectEvents(
+      runChromePageTask(
+        "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #name=skfiy; #email=agent@skfiy.test; #role=operator 点击 #submit 并提取正文",
+        client,
+        { approved: true }
+      )
+    );
+
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "interaction",
+      reason: "Selector not found: #email"
+    });
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "action_verified",
+        actionType: "fill_selector",
+        message: "Filled #name."
+      })
+    ]));
   });
 });

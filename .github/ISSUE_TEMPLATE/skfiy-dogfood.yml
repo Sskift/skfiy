@@ -223,8 +223,11 @@ body:
         Verification failed (sensitive): Sensitive UI text is visible.
         Chrome form action:
         formRun.result: passed
-        formRun.extractedText: skfiy form submitted
+        formRun.fields: #name, #email, #role
+        formRun.extractedText: skfiy agent@skfiy.test operator form submitted
         Verified fill_selector: Filled #name.
+        Verified fill_selector: Filled #email.
+        Verified fill_selector: Filled #role.
         Verified click_selector: Clicked #submit.
     validations:
       required: true

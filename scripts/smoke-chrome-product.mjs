@@ -22,6 +22,11 @@ const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
+const FORM_FIELDS = [
+  { selector: "#name", value: "skfiy" },
+  { selector: "#email", value: "agent@skfiy.test" },
+  { selector: "#role", value: "operator" }
+];
 
 async function main() {
   const defaults = createDefaultChromeSmokeOptions(ROOT_DIR);
@@ -78,7 +83,7 @@ async function main() {
     evidence.formPageUrl = fixture.formUrl;
     evidence.command = `打开 Chrome 测试页面 ${fixture.url} 并提取正文`;
     evidence.sensitiveCommand = `打开 Chrome 测试页面 ${fixture.sensitiveUrl} 并提取正文`;
-    evidence.formCommand = `填写 Chrome 测试表单 ${fixture.formUrl} 字段 #name=skfiy 点击 #submit 并提取正文`;
+    evidence.formCommand = `填写 Chrome 测试表单 ${fixture.formUrl} 字段 ${formatFormAssignments(FORM_FIELDS)} 点击 #submit 并提取正文`;
 
     if (!options.keepExisting) {
       await quitSkfiy();
@@ -169,6 +174,7 @@ async function main() {
       evidence.formRun = {
         pageUrl: evidence.formPageUrl,
         command: evidence.formCommand,
+        fields: FORM_FIELDS,
         events: formEvents,
         extractedText: formText,
         result: classifyChromeSmokeEvidence({
@@ -265,6 +271,8 @@ async function createChromeFixture() {
     <main>
       <form id="profile">
         <label>Name <input id="name" name="name" /></label>
+        <label>Email <input id="email" name="email" /></label>
+        <label>Role <input id="role" name="role" /></label>
         <button id="submit" type="submit">Submit</button>
       </form>
       <p id="result">waiting for input</p>
@@ -273,7 +281,9 @@ async function createChromeFixture() {
       document.querySelector("#profile").addEventListener("submit", (event) => {
         event.preventDefault();
         document.querySelector("#result").textContent =
-          document.querySelector("#name").value + " form submitted";
+          document.querySelector("#name").value + " "
+          + document.querySelector("#email").value + " "
+          + document.querySelector("#role").value + " form submitted";
       });
     </script>
   </body>
@@ -286,6 +296,10 @@ async function createChromeFixture() {
     sensitiveUrl: pathToFileURL(sensitivePagePath).href,
     formUrl: pathToFileURL(formPagePath).href
   };
+}
+
+function formatFormAssignments(fields) {
+  return fields.map((field) => `${field.selector}=${field.value}`).join("; ");
 }
 
 async function launchChrome(options, chromeUserDataDir) {

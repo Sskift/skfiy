@@ -21,7 +21,8 @@ const ACCEPTED_FINDER_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_VOICE_RESULTS = new Set(["passed", "blocked", "no-transcript"]);
 const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
 const REQUIRED_CHROME_TEXT = "skfiy chrome smoke ready";
-const REQUIRED_CHROME_FORM_TEXT = "skfiy form submitted";
+const REQUIRED_CHROME_FORM_TEXT = "skfiy agent@skfiy.test operator form submitted";
+const REQUIRED_CHROME_FORM_SELECTORS = ["#name", "#email", "#role"];
 const REQUIRED_FINDER_AFTER_TREE = ["Code/script.ts", "Documents/notes.pdf", "Images/photo.png"];
 const CLIPBOARD_APPROVAL_RUNS = [
   { id: "clipboard-read-approval", command: "pbpaste" },
@@ -903,11 +904,25 @@ function hasChromeFormActionEvidence(value) {
     && value.result === "passed"
     && typeof value.extractedText === "string"
     && value.extractedText.includes(REQUIRED_CHROME_FORM_TEXT)
+    && hasChromeFormFieldEvidence(value)
     && Array.isArray(value.events)
     && hasTaskEventMessage(value.events, "Verified navigate:")
-    && hasTaskEventMessage(value.events, "Verified fill_selector:")
+    && REQUIRED_CHROME_FORM_SELECTORS.every((selector) =>
+      hasTaskEventMessage(value.events, `Verified fill_selector: Filled ${selector}.`)
+    )
     && hasTaskEventMessage(value.events, "Verified click_selector:")
     && hasTaskEventMessage(value.events, "Verified extract_text:");
+}
+
+function hasChromeFormFieldEvidence(value) {
+  if (!Array.isArray(value?.fields)) {
+    return false;
+  }
+
+  const selectors = new Set(value.fields
+    .map((field) => field?.selector)
+    .filter((selector) => typeof selector === "string"));
+  return REQUIRED_CHROME_FORM_SELECTORS.every((selector) => selectors.has(selector));
 }
 
 function hasFinderAppPolicyEvidence(value) {

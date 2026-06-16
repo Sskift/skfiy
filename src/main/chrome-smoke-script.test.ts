@@ -86,13 +86,15 @@ describe("Chrome product smoke script", () => {
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
       expectedText: FORM_EXPECTED_TEXT,
-      extractedText: "skfiy form submitted",
+      extractedText: FORM_EXPECTED_TEXT,
       events: [
         { status: "executing", message: "Verified navigate: Navigated to: file:///tmp/form.html" },
         { status: "executing", message: "Verified fill_selector: Filled #name." },
+        { status: "executing", message: "Verified fill_selector: Filled #email." },
+        { status: "executing", message: "Verified fill_selector: Filled #role." },
         { status: "executing", message: "Verified click_selector: Clicked #submit." },
-        { status: "executing", message: "Verified extract_text: Extracted text: skfiy form submitted" },
-        { status: "completed", message: "Chrome test page extracted: skfiy form submitted" }
+        { status: "executing", message: `Verified extract_text: Extracted text: ${FORM_EXPECTED_TEXT}` },
+        { status: "completed", message: `Chrome test page extracted: ${FORM_EXPECTED_TEXT}` }
       ]
     })).toBe("passed");
   });

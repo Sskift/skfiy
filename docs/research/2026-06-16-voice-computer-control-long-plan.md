@@ -295,8 +295,8 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] product-path sensitive-page pause evidence
     - the Chrome smoke now runs a second sensitive-page fixture, expects `sensitiveRun.result: sensitive-paused`, and verifies `Verification failed (sensitive): Sensitive UI text is visible.` instead of completing with sensitive text
   - [x] product-path form action evidence
-    - the Chrome smoke now runs a form fixture through `填写 Chrome 测试表单 <url> 字段 #name=skfiy 点击 #submit 并提取正文`, verifies `fill_selector` and `click_selector`, and checks `formRun.extractedText: skfiy form submitted`
-  - remaining product evidence gap: Chrome now counts as dogfood coverage for isolated safe-page CDP extraction, sensitive-page pause, and a selector-based form fill/click flow; the next gap is broader browser-task coverage with real logged-in pages, DOM/screenshot fallback switching, and richer multi-field/form adapters
+    - the Chrome smoke now runs a multi-field form fixture through `填写 Chrome 测试表单 <url> 字段 #name=skfiy; #email=agent@skfiy.test; #role=operator 点击 #submit 并提取正文`, verifies `fill_selector` for every field plus `click_selector`, and checks `formRun.extractedText: skfiy agent@skfiy.test operator form submitted`
+  - remaining product evidence gap: Chrome now counts as dogfood coverage for isolated safe-page CDP extraction, sensitive-page pause, and a selector-based multi-field form fill/click flow; the next gap is broader browser-task coverage with real logged-in pages and DOM/screenshot fallback switching
 - Add Finder proof of concept:
   - [x] organize a test folder
     - safe planner groups files into Images/Documents/Code/Archives/Other folders
