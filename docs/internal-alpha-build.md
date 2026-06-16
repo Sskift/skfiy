@@ -34,6 +34,7 @@ Create a local unsigned dogfood artifact after `npm run build`:
 npm run alpha:artifact \
   -- --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json \
   --smoke-artifact .skfiy-smoke/ghostty-matrix-9260.json \
+  --chrome-smoke-artifact .skfiy-smoke/chrome-page.json \
   --finder-smoke-artifact .skfiy-smoke/finder-organize.json \
   --voice-smoke-artifact .skfiy-smoke/voice-native.json
 ```
@@ -45,7 +46,7 @@ This writes a versioned zip and manifest to `.skfiy-alpha/`, for example:
 .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-The manifest records the exact commit SHA, bundle identifier, unsigned/notarized state, zip byte size, SHA256 checksum, the UI smoke artifact path, the Ghostty smoke artifact path, the Finder smoke artifact path, the native voice smoke artifact path, and required app policy evidence used for dogfood.
+The manifest records the exact commit SHA, bundle identifier, unsigned/notarized state, zip byte size, SHA256 checksum, the UI smoke artifact path, the Ghostty smoke artifact path, the Chrome smoke artifact path, the Finder smoke artifact path, the native voice smoke artifact path, and required app policy evidence used for dogfood.
 
 Verify the evidence chain before sharing an alpha:
 
@@ -53,7 +54,7 @@ Verify the evidence chain before sharing an alpha:
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-This gate checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, Finder smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, and process cleanup. Add `--require-current-head` before sharing a local alpha so stale manifests from older commits fail. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and the product smokes are expected to pass.
+This gate checks the manifest, zip byte count, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, native voice smoke artifact, LaunchServices launch markers, `runnerHasTmux=false`, product paths, and process cleanup. Add `--require-current-head` before sharing a local alpha so stale manifests from older commits fail. Add `--require-passed` only after the machine has granted the required Screen Recording, Accessibility, Microphone, and Speech Recognition permissions and the product smokes are expected to pass.
 
 ## Launch
 
@@ -90,7 +91,7 @@ After `npm run build`, run:
 npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
 ```
 
-Run Ghostty, Finder, and voice product smoke commands sequentially. The scripts share `.skfiy-smoke/product-smoke.lock` and fail fast if another packaged-app smoke is already active, because concurrent runs can contaminate `processesAfterCleanup` evidence.
+Run Ghostty, Chrome, Finder, and voice product smoke commands sequentially. The scripts share `.skfiy-smoke/product-smoke.lock` and fail fast if another packaged-app smoke is already active, because concurrent runs can contaminate `processesAfterCleanup` evidence.
 
 Expected output before permissions are granted:
 
@@ -111,6 +112,14 @@ npm run smoke:ghostty -- --require-passed --output .skfiy-smoke/ghostty-smoke-pa
 ```
 
 The smoke output is JSON and records launch identity, task events, permissions, runtime status, app policy settings, replay records, screenshot file checks, matrix run results, and cleanup process checks. `--matrix --output <path>` persists the same evidence to a local artifact file so dogfood reports do not depend on terminal scrollback. A dogfood Ghostty artifact must include `clipboard-read-approval` and `clipboard-write-approval` runs that stop at high-risk approval. A passing smoke run must include visible Ghostty app policy settings, a completed event, `Verified type_text` and `Verified press_key` action verification events, plus non-empty before/after screenshots from the packaged app product path.
+
+For Chrome structured browser-control evidence through the packaged app:
+
+```bash
+npm run smoke:chrome -- --require-passed --output .skfiy-smoke/chrome-page.json
+```
+
+This launches an isolated Chrome profile with a temporary CDP port, launches `dist/skfiy.app` via LaunchServices with `--skfiy-chrome-cdp-endpoint=<endpoint>`, sends `打开 Chrome 测试页面 <file-url> 并提取正文` through `window.skfiy.runCommand`, approves Chrome app policy plus medium-risk browser state mutation, and verifies the extracted test-page text. A passing Chrome smoke artifact must include `runnerHasTmux=false`, product path `renderer -> preload -> main -> CDP -> Chrome`, Chrome app policy settings, `extractedText: skfiy chrome smoke ready`, `Verified navigate`, `Verified extract_text`, and empty skfiy/Chrome cleanup process lists.
 
 For Finder test-folder organization evidence through the packaged app:
 
@@ -151,9 +160,9 @@ The external endpoint receives a JSON task request for the Ghostty terminal-comm
 
 ## Distribution Notes
 
-This build is unsigned and unnotarized. For local dogfood, share the zip and manifest generated by `npm run alpha:artifact`, or share the repository with the matching commit SHA and ask testers to run the smoke commands locally after granting permissions. Ask testers to attach the `--matrix --output` Ghostty JSON artifact, the Finder organization JSON artifact, the clipboard read/write approval run entries, any before/after screenshot paths listed in Ghostty evidence, and the `Verified type_text` / `Verified press_key` / `Verified create_folder` / `Verified move_file` event messages when Computer Use passes.
+This build is unsigned and unnotarized. For local dogfood, share the zip and manifest generated by `npm run alpha:artifact`, or share the repository with the matching commit SHA and ask testers to run the smoke commands locally after granting permissions. Ask testers to attach the `--matrix --output` Ghostty JSON artifact, the Chrome extraction JSON artifact, the Finder organization JSON artifact, the clipboard read/write approval run entries, any before/after screenshot paths listed in Ghostty evidence, and the `Verified type_text` / `Verified press_key` / `Verified navigate` / `Verified extract_text` / `Verified create_folder` / `Verified move_file` event messages when Computer Use passes.
 
-Dogfood reports should use the GitHub issue form at `.github/ISSUE_TEMPLATE/skfiy-dogfood.yml`. The form requires the alpha manifest, alpha zip, commit SHA, UI smoke artifact, Ghostty smoke artifact, Finder smoke artifact, voice smoke artifact, `runnerHasTmux`, permission states, ASR provider, Computer Use result, screenshot paths, action verification events, app policy settings, Finder before/after tree, clipboard approval runs, and panic stop notes.
+Dogfood reports should use the GitHub issue form at `.github/ISSUE_TEMPLATE/skfiy-dogfood.yml`. The form requires the alpha manifest, alpha zip, commit SHA, UI smoke artifact, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, voice smoke artifact, `runnerHasTmux`, permission states, ASR provider, Computer Use result, screenshot paths, action verification events, app policy settings, Chrome extracted text, Finder before/after tree, clipboard approval runs, and panic stop notes.
 
 Before any broader internal release, add:
 

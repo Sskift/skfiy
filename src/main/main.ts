@@ -17,6 +17,8 @@ import {
   decideAppPolicy,
   readInitialAppPolicySettings
 } from "./app-policy-settings.js";
+import { createChromeCdpClient } from "./chrome-cdp-client.js";
+import { readChromeCdpEndpoint } from "./chrome-cdp-settings.js";
 import {
   createDictationSettingsStore,
   readInitialDictationSettings,
@@ -41,6 +43,7 @@ import {
   type VoiceTurnTranscriptCandidateInput
 } from "./voice-turn-session.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
+import { runChromePageTask, type ChromeTaskEvent } from "./orchestrator/chrome-task.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import { runFinderOrganizationTask, type FinderTaskEvent } from "./orchestrator/finder-task.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
@@ -71,7 +74,7 @@ type TaskStatus =
   | "completed"
   | "failed";
 type PetWindowMode = "compact" | "expanded";
-type ComputerUseTaskEvent = GhosttyTaskEvent | FinderTaskEvent;
+type ComputerUseTaskEvent = GhosttyTaskEvent | ChromeTaskEvent | FinderTaskEvent;
 
 interface TaskEvent {
   status: TaskStatus;
@@ -97,6 +100,10 @@ app.setName("skfiy");
 const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
 const appPolicySettingsStore = createAppPolicySettingsStore(readInitialAppPolicySettings());
+const chromeCdpEndpoint = readChromeCdpEndpoint({
+  argv: process.argv,
+  env: process.env
+});
 const plannerProviderSettingsStore = createPlannerProviderSettingsStore(
   readInitialPlannerProviderSettings(process.env)
 );
@@ -482,6 +489,27 @@ async function runCommandTask(
   try {
     if (route.kind === "finder") {
       for await (const taskEvent of runFinderOrganizationTask(command, { approved })) {
+        if (controller.signal.aborted || taskId !== currentTaskId) {
+          return;
+        }
+
+        turnReplayStore.recordComputerUseEvent(taskEvent);
+
+        if (taskEvent.type === "approval_required" && !approved) {
+          pendingApproval = { command, mode };
+        }
+
+        emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));
+      }
+      return;
+    }
+
+    if (route.kind === "chrome") {
+      const chromeClient = chromeCdpEndpoint
+        ? createChromeCdpClient({ endpoint: chromeCdpEndpoint })
+        : undefined;
+
+      for await (const taskEvent of runChromePageTask(command, chromeClient, { approved })) {
         if (controller.signal.aborted || taskId !== currentTaskId) {
           return;
         }

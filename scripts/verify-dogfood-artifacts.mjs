@@ -11,13 +11,16 @@ const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const execFileAsync = promisify(execFile);
 const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
+const CHROME_PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
 const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> fs -> Finder";
 const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
 const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
+const ACCEPTED_CHROME_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_FINDER_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_VOICE_RESULTS = new Set(["passed", "blocked", "no-transcript"]);
 const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
+const REQUIRED_CHROME_TEXT = "skfiy chrome smoke ready";
 const REQUIRED_FINDER_AFTER_TREE = ["Code/script.ts", "Documents/notes.pdf", "Images/photo.png"];
 const CLIPBOARD_APPROVAL_RUNS = [
   { id: "clipboard-read-approval", command: "pbpaste" },
@@ -74,6 +77,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   const zipPath = readString(manifest?.zip?.path);
   const uiSmokeArtifactPath = readString(manifest?.uiSmokeArtifactPath);
   const smokeArtifactPath = readString(manifest?.smokeArtifactPath);
+  const chromeSmokeArtifactPath = readString(manifest?.chromeSmokeArtifactPath);
   const finderSmokeArtifactPath = readString(manifest?.finderSmokeArtifactPath);
   const voiceSmokeArtifactPath = readString(manifest?.voiceSmokeArtifactPath);
 
@@ -110,6 +114,12 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.chromeSmokeArtifactPath",
+    typeof chromeSmokeArtifactPath === "string",
+    "manifest chromeSmokeArtifactPath is required"
+  );
+  check(
+    checks,
     "manifest.finderSmokeArtifactPath",
     typeof finderSmokeArtifactPath === "string",
     "manifest finderSmokeArtifactPath is required"
@@ -134,6 +144,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:voice -- --output <path>"),
     "manifest must require native voice smoke evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.chrome",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("npm run smoke:chrome -- --output <path>"),
+    "manifest must require Chrome smoke evidence"
   );
   check(
     checks,
@@ -165,6 +182,20 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.chromeAppPolicy",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Chrome app policy settings"),
+    "manifest must require Chrome app policy evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.chromeExtraction",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Chrome test-page extraction evidence"),
+    "manifest must require Chrome extraction evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.finderAppPolicy",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Finder app policy settings"),
@@ -189,6 +220,9 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   const ghostty = smokeArtifactPath
     ? await readArtifactJson(smokeArtifactPath, "ghostty", io, checks)
     : undefined;
+  const chrome = chromeSmokeArtifactPath
+    ? await readArtifactJson(chromeSmokeArtifactPath, "chrome", io, checks)
+    : undefined;
   const finder = finderSmokeArtifactPath
     ? await readArtifactJson(finderSmokeArtifactPath, "finder", io, checks)
     : undefined;
@@ -202,6 +236,10 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
 
   if (ghostty) {
     verifyGhosttySmoke(ghostty, smokeArtifactPath, options, checks);
+  }
+
+  if (chrome) {
+    verifyChromeSmoke(chrome, chromeSmokeArtifactPath, options, checks);
   }
 
   if (finder) {
@@ -219,6 +257,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && (!zipPath || path.isAbsolute(zipPath))
       && (!uiSmokeArtifactPath || path.isAbsolute(uiSmokeArtifactPath))
       && (!smokeArtifactPath || path.isAbsolute(smokeArtifactPath))
+      && (!chromeSmokeArtifactPath || path.isAbsolute(chromeSmokeArtifactPath))
       && (!finderSmokeArtifactPath || path.isAbsolute(finderSmokeArtifactPath))
       && (!voiceSmokeArtifactPath || path.isAbsolute(voiceSmokeArtifactPath)),
     `manifest and artifact paths should be absolute; manifest is in ${manifestDir}`
@@ -391,6 +430,87 @@ function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
       "passed Ghostty smoke must include type_text and press_key action verification events"
     );
   }
+}
+
+function verifyChromeSmoke(artifact, expectedPath, options, checks) {
+  check(
+    checks,
+    "chrome.artifactPath",
+    samePath(artifact.artifactPath, expectedPath),
+    "Chrome artifactPath must match manifest chromeSmokeArtifactPath"
+  );
+  check(
+    checks,
+    "chrome.result",
+    ACCEPTED_CHROME_RESULTS.has(artifact.result),
+    "Chrome smoke result must be passed or blocked"
+  );
+  check(
+    checks,
+    "chrome.requirePassed",
+    !options.requirePassed || artifact.result === "passed",
+    "Chrome smoke must be passed when --require-passed is used"
+  );
+  check(
+    checks,
+    "chrome.appLaunchViaOpen",
+    artifact.appLaunchViaOpen === true,
+    "Chrome smoke must launch skfiy through open/LaunchServices"
+  );
+  check(
+    checks,
+    "chrome.chromeLaunchViaOpen",
+    artifact.chromeLaunchViaOpen === true,
+    "Chrome smoke must launch Chrome through open/LaunchServices"
+  );
+  check(
+    checks,
+    "chrome.runnerHasTmux",
+    artifact.runnerHasTmux === false,
+    "Chrome smoke must not run under tmux"
+  );
+  check(
+    checks,
+    "chrome.productPath",
+    artifact.productPath === CHROME_PRODUCT_PATH,
+    `Chrome smoke productPath must be ${CHROME_PRODUCT_PATH}`
+  );
+  check(
+    checks,
+    "chrome.appPolicySettings",
+    hasChromeAppPolicyEvidence(artifact.appPolicySettings),
+    "Chrome smoke must include Chrome app policy settings evidence"
+  );
+  check(
+    checks,
+    "chrome.approval",
+    hasChromeApprovalEvidence(artifact.events),
+    "Chrome smoke must include app policy approval evidence"
+  );
+  check(
+    checks,
+    "chrome.actionVerification",
+    hasChromeActionVerification(artifact.events),
+    "Chrome smoke must include navigate and extract_text verification events"
+  );
+  check(
+    checks,
+    "chrome.extractedText",
+    typeof artifact.extractedText === "string" && artifact.extractedText.includes(REQUIRED_CHROME_TEXT),
+    "Chrome smoke must include extracted test-page text"
+  );
+  check(
+    checks,
+    "chrome.chromeProcessesAfterCleanup",
+    isEmptyArray(artifact.chromeProcessesAfterCleanup),
+    "Chrome smoke must clean up its temporary Chrome process"
+  );
+  check(
+    checks,
+    "chrome.processesAfterCleanup",
+    isEmptyArray(artifact.processesAfterCleanup),
+    "Chrome smoke must clean up skfiy app processes"
+  );
 }
 
 function verifyFinderSmoke(artifact, expectedPath, options, checks) {
@@ -656,6 +776,36 @@ function hasGhosttyAppPolicyEvidence(value) {
       && typeof app.name === "string"
       && (app.policy === "allow" || app.policy === "ask" || app.policy === "deny")
   );
+}
+
+function hasChromeAppPolicyEvidence(value) {
+  if (!value || !Array.isArray(value.apps)) {
+    return false;
+  }
+
+  return value.apps.some((app) =>
+    app
+      && app.bundleId === "com.google.Chrome"
+      && typeof app.name === "string"
+      && (app.policy === "allow" || app.policy === "ask" || app.policy === "deny")
+  );
+}
+
+function hasChromeApprovalEvidence(events) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) =>
+    event?.status === "approval_required"
+      && typeof event.message === "string"
+      && event.message.includes("Chrome requires approval by app policy")
+  );
+}
+
+function hasChromeActionVerification(events) {
+  return hasTaskEventMessage(events, "Verified navigate:")
+    && hasTaskEventMessage(events, "Verified extract_text:");
 }
 
 function hasFinderAppPolicyEvidence(value) {

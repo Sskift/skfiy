@@ -56,6 +56,15 @@ body:
       required: true
 
   - type: input
+    id: chrome_smoke_artifact
+    attributes:
+      label: Chrome smoke artifact
+      description: Path or attachment name for `npm run smoke:chrome -- --output <path>` JSON evidence.
+      placeholder: .skfiy-smoke/chrome-page.json
+    validations:
+      required: true
+
+  - type: input
     id: finder_smoke_artifact
     attributes:
       label: Finder smoke artifact
@@ -191,10 +200,24 @@ body:
     id: app_policy_settings
     attributes:
       label: app policy settings
-      description: Paste the Ghostty and Finder entries from `appPolicySettings` in the smoke artifacts.
+      description: Paste the Ghostty, Chrome, and Finder entries from `appPolicySettings` in the smoke artifacts.
       placeholder: |
         { "name": "Ghostty", "bundleId": "com.mitchellh.ghostty", "policy": "allow" }
+        { "name": "Chrome", "bundleId": "com.google.Chrome", "policy": "ask" }
         { "name": "Finder", "bundleId": "com.apple.finder", "policy": "ask" }
+    validations:
+      required: true
+
+  - type: textarea
+    id: chrome_extraction
+    attributes:
+      label: Chrome extracted text
+      description: Paste Chrome smoke product path, extractedText, and navigate/extract verification events.
+      placeholder: |
+        productPath: renderer -> preload -> main -> CDP -> Chrome
+        extractedText: skfiy chrome smoke ready
+        Verified navigate: Navigated to: ...
+        Verified extract_text: Extracted text: ...
     validations:
       required: true
 
@@ -243,9 +266,10 @@ body:
         npm run build
         npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
         npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
+        npm run smoke:chrome -- --require-passed --output .skfiy-smoke/chrome-page.json
         npm run smoke:finder -- --require-passed --output .skfiy-smoke/finder-organize.json
         npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
-        npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json --smoke-artifact .skfiy-smoke/ghostty-matrix.json --finder-smoke-artifact .skfiy-smoke/finder-organize.json --voice-smoke-artifact .skfiy-smoke/voice-native.json
+        npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json --smoke-artifact .skfiy-smoke/ghostty-matrix.json --chrome-smoke-artifact .skfiy-smoke/chrome-page.json --finder-smoke-artifact .skfiy-smoke/finder-organize.json --voice-smoke-artifact .skfiy-smoke/voice-native.json
     validations:
       required: true
 

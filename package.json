@@ -18,6 +18,7 @@
     "package:mac": "node scripts/package-macos-app.mjs",
     "alpha:artifact": "node scripts/create-alpha-artifact.mjs",
     "smoke:ghostty": "node scripts/smoke-ghostty-product.mjs",
+    "smoke:chrome": "node scripts/smoke-chrome-product.mjs",
     "smoke:finder": "node scripts/smoke-finder-product.mjs",
     "smoke:ui": "node scripts/smoke-ui-product.mjs",
     "smoke:voice": "node scripts/smoke-voice-product.mjs",

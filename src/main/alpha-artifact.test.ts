@@ -77,6 +77,7 @@ describe("alpha artifact packaging", () => {
         zipBytes: number;
         uiSmokeArtifactPath?: string;
         smokeArtifactPath?: string;
+        chromeSmokeArtifactPath?: string;
         finderSmokeArtifactPath?: string;
         voiceSmokeArtifactPath?: string;
       }) => Record<string, unknown>;
@@ -91,6 +92,8 @@ describe("alpha artifact packaging", () => {
       ".skfiy-smoke/ui-permission-onboarding.json",
       "--smoke-artifact",
       ".skfiy-smoke/ghostty-matrix.json",
+      "--chrome-smoke-artifact",
+      ".skfiy-smoke/chrome-page.json",
       "--finder-smoke-artifact",
       ".skfiy-smoke/finder-organize.json",
       "--voice-smoke-artifact",
@@ -100,12 +103,14 @@ describe("alpha artifact packaging", () => {
       outputDir: "/repo/.skfiy-alpha",
       uiSmokeArtifactPath: undefined,
       smokeArtifactPath: undefined,
+      chromeSmokeArtifactPath: undefined,
       finderSmokeArtifactPath: undefined,
       voiceSmokeArtifactPath: undefined,
       help: false
     })).toMatchObject({
       uiSmokeArtifactPath: path.resolve(".skfiy-smoke/ui-permission-onboarding.json"),
       smokeArtifactPath: path.resolve(".skfiy-smoke/ghostty-matrix.json"),
+      chromeSmokeArtifactPath: path.resolve(".skfiy-smoke/chrome-page.json"),
       finderSmokeArtifactPath: path.resolve(".skfiy-smoke/finder-organize.json"),
       voiceSmokeArtifactPath: path.resolve(".skfiy-smoke/voice-native.json")
     });
@@ -125,6 +130,7 @@ describe("alpha artifact packaging", () => {
       zipBytes: 4096,
       uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-permission-onboarding.json",
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
+      chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-page.json",
       finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-organize.json",
       voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json"
     })).toMatchObject({
@@ -142,11 +148,13 @@ describe("alpha artifact packaging", () => {
       },
       uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-permission-onboarding.json",
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
+      chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-page.json",
       finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-organize.json",
       voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json",
       requiredDogfoodEvidence: [
         "npm run smoke:ui -- --output <path>",
         "npm run smoke:ghostty -- --output <path>",
+        "npm run smoke:chrome -- --output <path>",
         "npm run smoke:finder -- --output <path>",
         "npm run smoke:voice -- --output <path>",
         "Screen Recording permission state",
@@ -156,6 +164,8 @@ describe("alpha artifact packaging", () => {
         "action verification events when Computer Use passes",
         "Ghostty app policy settings",
         "clipboard read/write approval runs",
+        "Chrome app policy settings",
+        "Chrome test-page extraction evidence",
         "Finder app policy settings",
         "Finder test-folder organization evidence"
       ]

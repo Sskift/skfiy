@@ -1,0 +1,428 @@
+#!/usr/bin/env node
+import { existsSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+import {
+  classifyChromeSmokeEvidence,
+  createDefaultChromeSmokeOptions,
+  createHelpText,
+  EXPECTED_TEXT,
+  parseChromeSmokeArgs,
+  PRODUCT_PATH
+} from "./smoke-chrome-plan.mjs";
+import { writeSmokeEvidence } from "./smoke-ghostty-plan.mjs";
+import { acquireSmokeLock } from "./smoke-lock.mjs";
+
+const execFileAsync = promisify(execFile);
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
+const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
+
+async function main() {
+  const defaults = createDefaultChromeSmokeOptions(ROOT_DIR);
+  const options = parseChromeSmokeArgs(process.argv.slice(2), defaults);
+
+  if (options.help) {
+    process.stdout.write(createHelpText(defaults));
+    return;
+  }
+
+  const chromeEndpoint = `http://127.0.0.1:${options.chromePort}`;
+  const evidence = {
+    timestamp: new Date().toISOString(),
+    appPath: options.appPath,
+    chromeAppName: options.chromeAppName,
+    launch: formatLaunchCommand(options, chromeEndpoint),
+    chromeLaunch: formatChromeLaunchCommand(options),
+    appLaunchViaOpen: true,
+    chromeLaunchViaOpen: true,
+    runnerHasTmux: Boolean(process.env.TMUX),
+    productPath: PRODUCT_PATH,
+    artifactPath: options.outputPath,
+    fixtureRoot: undefined,
+    pageUrl: undefined,
+    chromeEndpoint,
+    command: undefined,
+    extractedText: "",
+    events: [],
+    permissions: undefined,
+    runtimeStatus: undefined,
+    startupWarnings: undefined,
+    appPolicySettings: undefined,
+    result: "not-run"
+  };
+  let smokeLock;
+
+  try {
+    assertChromeSmokeReady(options);
+    smokeLock = await acquireSmokeLock({
+      rootDir: ROOT_DIR,
+      scriptName: "smoke:chrome"
+    });
+
+    const fixture = await createChromeFixture();
+    evidence.fixtureRoot = fixture.rootPath;
+    evidence.pageUrl = fixture.url;
+    evidence.command = `打开 Chrome 测试页面 ${fixture.url} 并提取正文`;
+
+    if (!options.keepExisting) {
+      await quitSkfiy();
+      await killChromeSmokeProcesses(fixture.chromeUserDataDir);
+      await sleep(700);
+    }
+
+    await launchChrome(options, fixture.chromeUserDataDir);
+    await waitForChromeEndpoint(options.chromePort, options.timeoutMs);
+    evidence.chromeProcessesAfterLaunch = await readChromeSmokeProcesses(fixture.chromeUserDataDir);
+
+    await launchSkfiy(options, chromeEndpoint);
+    evidence.processesAfterLaunch = await readSkfiyProcesses();
+
+    const page = await waitForRendererPage(options.port, options.timeoutMs);
+    const cdp = await createCdpClient(page.webSocketDebuggerUrl);
+
+    try {
+      await cdp.send("Runtime.enable");
+      await cdp.send("Runtime.addBinding", { name: "skfiyChromeSmokeEvent" });
+      await cdp.send("Runtime.evaluate", {
+        expression: installEventSinkExpression(),
+        awaitPromise: true,
+        returnByValue: true
+      });
+
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          `window.skfiy.runCommand(${JSON.stringify(evidence.command)}, { mode: "active" })`,
+        awaitPromise: true,
+        returnByValue: true
+      });
+      await sleep(options.settleMs);
+
+      if (cdp.events.at(-1)?.status === "approval_required") {
+        await cdp.send("Runtime.evaluate", {
+          expression: "window.skfiy.approveTask()",
+          awaitPromise: true,
+          returnByValue: true
+        });
+      }
+
+      await waitForTerminalTaskEvent(cdp, options.timeoutMs);
+
+      const permissions = await cdp.send("Runtime.evaluate", {
+        expression: "window.skfiy.getPermissions()",
+        awaitPromise: true,
+        returnByValue: true
+      });
+      const runtimeStatus = await cdp.send("Runtime.evaluate", {
+        expression: "window.skfiy.getRuntimeStatus()",
+        awaitPromise: true,
+        returnByValue: true
+      });
+      const startupWarnings = await cdp.send("Runtime.evaluate", {
+        expression: "window.skfiy.getStartupWarnings()",
+        awaitPromise: true,
+        returnByValue: true
+      });
+      const appPolicySettings = await cdp.send("Runtime.evaluate", {
+        expression: "window.skfiy.getAppPolicySettings()",
+        awaitPromise: true,
+        returnByValue: true
+      });
+
+      evidence.permissions = permissions.result?.value;
+      evidence.runtimeStatus = runtimeStatus.result?.value;
+      evidence.startupWarnings = startupWarnings.result?.value;
+      evidence.appPolicySettings = appPolicySettings.result?.value;
+      evidence.events = cdp.events;
+      evidence.extractedText = extractCompletedChromeText(cdp.events);
+      evidence.result = classifyChromeSmokeEvidence(evidence);
+    } finally {
+      cdp.close();
+    }
+
+    if (options.requirePassed && evidence.result !== "passed") {
+      process.exitCode = 2;
+    }
+  } catch (error) {
+    evidence.result = "error";
+    evidence.error = error instanceof Error ? error.message : String(error);
+    process.exitCode = 1;
+  } finally {
+    if (!options.keepOpen) {
+      await quitSkfiy();
+      await sleep(500);
+      evidence.processesAfterCleanup = await readSkfiyProcesses();
+    }
+    if (evidence.fixtureRoot) {
+      await killChromeSmokeProcesses(path.join(evidence.fixtureRoot, "chrome-profile"));
+      await sleep(500);
+      evidence.chromeProcessesAfterCleanup = await readChromeSmokeProcesses(
+        path.join(evidence.fixtureRoot, "chrome-profile")
+      );
+      await rm(evidence.fixtureRoot, { recursive: true, force: true });
+    }
+    await smokeLock?.release();
+
+    if (options.outputPath) {
+      try {
+        await writeSmokeEvidence(options.outputPath, evidence);
+      } catch (error) {
+        evidence.artifactError = error instanceof Error ? error.message : String(error);
+        process.exitCode = process.exitCode ?? 1;
+      }
+    }
+
+    process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
+  }
+}
+
+function assertChromeSmokeReady(options) {
+  if (!existsSync(options.appPath)) {
+    throw new Error(`App bundle is missing at ${options.appPath}. Run npm run build first.`);
+  }
+
+  if (typeof WebSocket !== "function") {
+    throw new Error("This smoke script requires a Node runtime with global WebSocket support.");
+  }
+}
+
+function formatLaunchCommand(options, chromeEndpoint) {
+  return `open -na ${options.appPath} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${chromeEndpoint}`;
+}
+
+function formatChromeLaunchCommand(options) {
+  return `open -na ${options.chromeAppName} --args --remote-debugging-port=${options.chromePort}`;
+}
+
+async function createChromeFixture() {
+  const rootPath = await mkdtemp(path.join(os.tmpdir(), "skfiy-chrome-smoke-"));
+  const chromeUserDataDir = path.join(rootPath, "chrome-profile");
+  const pagePath = path.join(rootPath, "index.html");
+  await writeFile(pagePath, `<!doctype html>
+<html>
+  <head><title>skfiy chrome smoke</title></head>
+  <body><main>${EXPECTED_TEXT}</main></body>
+</html>
+`);
+  return {
+    rootPath,
+    chromeUserDataDir,
+    url: pathToFileURL(pagePath).href
+  };
+}
+
+async function launchChrome(options, chromeUserDataDir) {
+  await execFileAsync("open", [
+    "-n",
+    "-a",
+    options.chromeAppName,
+    "--args",
+    `--remote-debugging-port=${options.chromePort}`,
+    `--user-data-dir=${chromeUserDataDir}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+    "about:blank"
+  ]);
+}
+
+async function launchSkfiy(options, chromeEndpoint) {
+  await execFileAsync("open", [
+    "-n",
+    "-a",
+    options.appPath,
+    "--args",
+    `--remote-debugging-port=${options.port}`,
+    `--skfiy-chrome-cdp-endpoint=${chromeEndpoint}`
+  ]);
+}
+
+async function waitForChromeEndpoint(port, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+      if (response.ok) {
+        const pages = await response.json();
+        if (pages.some((page) => page.type === "page" && page.webSocketDebuggerUrl)) {
+          return;
+        }
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await sleep(250);
+  }
+
+  throw new Error(
+    `Timed out waiting for Chrome CDP on port ${port}.`
+      + (lastError instanceof Error ? ` Last error: ${lastError.message}` : "")
+  );
+}
+
+async function waitForRendererPage(port, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+
+  while (Date.now() < deadline) {
+    try {
+      const pages = await fetch(`http://127.0.0.1:${port}/json/list`).then((response) => {
+        if (!response.ok) {
+          throw new Error(`CDP returned HTTP ${response.status}.`);
+        }
+
+        return response.json();
+      });
+      const page = pages.find((entry) => entry.type === "page" && entry.webSocketDebuggerUrl);
+
+      if (page) {
+        return page;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await sleep(250);
+  }
+
+  throw new Error(
+    `Timed out waiting for skfiy renderer on CDP port ${port}.`
+      + (lastError instanceof Error ? ` Last error: ${lastError.message}` : "")
+  );
+}
+
+async function createCdpClient(webSocketDebuggerUrl) {
+  const ws = new WebSocket(webSocketDebuggerUrl);
+  const pending = new Map();
+  const events = [];
+  let nextId = 1;
+
+  ws.addEventListener("message", (raw) => {
+    const message = JSON.parse(raw.data.toString());
+
+    if (message.id && pending.has(message.id)) {
+      const { resolve, reject } = pending.get(message.id);
+      pending.delete(message.id);
+
+      if (message.error) {
+        reject(new Error(message.error.message));
+      } else {
+        resolve(message.result);
+      }
+
+      return;
+    }
+
+    if (
+      message.method === "Runtime.bindingCalled"
+      && message.params?.name === "skfiyChromeSmokeEvent"
+    ) {
+      events.push(JSON.parse(message.params.payload));
+    }
+  });
+
+  await new Promise((resolve, reject) => {
+    ws.addEventListener("open", resolve, { once: true });
+    ws.addEventListener("error", reject, { once: true });
+  });
+
+  return {
+    events,
+    send(method, params = {}) {
+      const id = nextId;
+      nextId += 1;
+      ws.send(JSON.stringify({ id, method, params }));
+      return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+    },
+    close() {
+      ws.close();
+    }
+  };
+}
+
+function installEventSinkExpression() {
+  return `(() => {
+    if (!window.skfiy) {
+      throw new Error("window.skfiy preload API is unavailable.");
+    }
+
+    if (!window.__skfiyChromeSmokeInstalled) {
+      window.__skfiyChromeSmokeInstalled = true;
+      window.skfiy.onTaskEvent((event) => {
+        globalThis.skfiyChromeSmokeEvent(JSON.stringify(event));
+      });
+    }
+
+    return true;
+  })()`;
+}
+
+async function waitForTerminalTaskEvent(cdp, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const status = cdp.events.at(-1)?.status;
+    if (
+      status === "completed"
+      || status === "failed"
+      || status === "needs_confirmation"
+      || status === "idle"
+    ) {
+      return;
+    }
+
+    await sleep(250);
+  }
+}
+
+function extractCompletedChromeText(events) {
+  const completed = events.findLast((event) =>
+    event?.status === "completed"
+      && typeof event.message === "string"
+      && event.message.startsWith("Chrome test page extracted:")
+  );
+
+  return completed?.message?.slice("Chrome test page extracted:".length).trim() ?? "";
+}
+
+async function quitSkfiy() {
+  await execFileAsync("osascript", [
+    "-e",
+    `tell application id "${BUNDLE_IDENTIFIER}" to quit`
+  ]).catch(() => undefined);
+}
+
+async function killChromeSmokeProcesses(chromeUserDataDir) {
+  await execFileAsync("pkill", ["-f", chromeUserDataDir]).catch(() => undefined);
+}
+
+async function readSkfiyProcesses() {
+  return readProcessLines("dist/skfiy.app|/skfiy.app/Contents/MacOS|Electron.*skfiy");
+}
+
+async function readChromeSmokeProcesses(chromeUserDataDir) {
+  return readProcessLines(chromeUserDataDir);
+}
+
+async function readProcessLines(pattern) {
+  try {
+    const { stdout } = await execFileAsync("pgrep", ["-fl", pattern]);
+    return stdout.trim().split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+await main();

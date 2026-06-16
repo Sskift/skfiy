@@ -14,6 +14,7 @@ const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
 const DOGFOOD_EVIDENCE = [
   "npm run smoke:ui -- --output <path>",
   "npm run smoke:ghostty -- --output <path>",
+  "npm run smoke:chrome -- --output <path>",
   "npm run smoke:finder -- --output <path>",
   "npm run smoke:voice -- --output <path>",
   "Screen Recording permission state",
@@ -23,6 +24,8 @@ const DOGFOOD_EVIDENCE = [
   "action verification events when Computer Use passes",
   "Ghostty app policy settings",
   "clipboard read/write approval runs",
+  "Chrome app policy settings",
+  "Chrome test-page extraction evidence",
   "Finder app policy settings",
   "Finder test-folder organization evidence"
 ];
@@ -63,6 +66,7 @@ export function createAlphaManifest({
   zipBytes,
   uiSmokeArtifactPath,
   smokeArtifactPath,
+  chromeSmokeArtifactPath,
   finderSmokeArtifactPath,
   voiceSmokeArtifactPath
 }) {
@@ -85,6 +89,7 @@ export function createAlphaManifest({
     },
     uiSmokeArtifactPath,
     smokeArtifactPath,
+    chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
     voiceSmokeArtifactPath,
     requiredDogfoodEvidence: DOGFOOD_EVIDENCE
@@ -108,6 +113,10 @@ export function parseAlphaArtifactArgs(argv, defaults) {
         break;
       case "--smoke-artifact":
         options.smokeArtifactPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--chrome-smoke-artifact":
+        options.chromeSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--finder-smoke-artifact":
@@ -145,6 +154,8 @@ Options:
   --ui-smoke-artifact <path>
                             UI permission onboarding smoke JSON artifact to reference in the manifest.
   --smoke-artifact <path>   Smoke JSON artifact to reference in the manifest.
+  --chrome-smoke-artifact <path>
+                            Chrome smoke JSON artifact to reference in the manifest.
   --finder-smoke-artifact <path>
                             Finder smoke JSON artifact to reference in the manifest.
   --voice-smoke-artifact <path>
@@ -166,6 +177,7 @@ export async function createAlphaArtifact({
     outputDir: defaults.outputDir,
     uiSmokeArtifactPath: undefined,
     smokeArtifactPath: undefined,
+    chromeSmokeArtifactPath: undefined,
     finderSmokeArtifactPath: undefined,
     voiceSmokeArtifactPath: undefined,
     help: false
@@ -202,6 +214,7 @@ export async function createAlphaArtifact({
     zipBytes: zipStats.size,
     uiSmokeArtifactPath: options.uiSmokeArtifactPath,
     smokeArtifactPath: options.smokeArtifactPath,
+    chromeSmokeArtifactPath: options.chromeSmokeArtifactPath,
     finderSmokeArtifactPath: options.finderSmokeArtifactPath,
     voiceSmokeArtifactPath: options.voiceSmokeArtifactPath
   });

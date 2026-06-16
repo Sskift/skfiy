@@ -8,11 +8,14 @@ describe("dogfood artifact verifier", () => {
   const requiredManifestEvidence = [
     "npm run smoke:ui -- --output <path>",
     "npm run smoke:ghostty -- --output <path>",
+    "npm run smoke:chrome -- --output <path>",
     "npm run smoke:finder -- --output <path>",
     "npm run smoke:voice -- --output <path>",
     "action verification events when Computer Use passes",
     "Ghostty app policy settings",
     "clipboard read/write approval runs",
+    "Chrome app policy settings",
+    "Chrome test-page extraction evidence",
     "Finder app policy settings",
     "Finder test-folder organization evidence"
   ];
@@ -84,6 +87,57 @@ describe("dogfood artifact verifier", () => {
     ],
     processesAfterCleanup: []
   });
+  const createChromeSmokeArtifact = (artifactPath: string) => ({
+    result: "passed",
+    appLaunchViaOpen: true,
+    chromeLaunchViaOpen: true,
+    runnerHasTmux: false,
+    productPath: "renderer -> preload -> main -> CDP -> Chrome",
+    artifactPath,
+    chromeEndpoint: "http://127.0.0.1:9444",
+    appPolicySettings: ghosttyAppPolicySettings,
+    extractedText: "skfiy chrome smoke ready",
+    events: [
+      {
+        status: "approval_required",
+        message: "Approval required (app policy): Chrome requires approval by app policy."
+      },
+      {
+        status: "executing",
+        message: "Verified navigate: Navigated to: file:///tmp/skfiy-chrome.html"
+      },
+      {
+        status: "executing",
+        message: "Verified extract_text: Extracted text: skfiy chrome smoke ready"
+      },
+      {
+        status: "completed",
+        message: "Chrome test page extracted: skfiy chrome smoke ready"
+      }
+    ],
+    chromeProcessesAfterCleanup: [],
+    processesAfterCleanup: []
+  });
+  const createBrokenChromeSmokeArtifact = (artifactPath: string) => ({
+    result: "passed",
+    appLaunchViaOpen: true,
+    chromeLaunchViaOpen: false,
+    runnerHasTmux: true,
+    productPath: "cdp-only",
+    artifactPath,
+    appPolicySettings: {
+      apps: []
+    },
+    extractedText: "",
+    events: [
+      {
+        status: "completed",
+        message: "Chrome test page extracted:"
+      }
+    ],
+    chromeProcessesAfterCleanup: ["123 Google Chrome"],
+    processesAfterCleanup: ["456 skfiy.app"]
+  });
   const createBrokenFinderSmokeArtifact = (artifactPath: string) => ({
     result: "passed",
     appLaunchViaOpen: true,
@@ -151,6 +205,7 @@ describe("dogfood artifact verifier", () => {
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
     const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -167,6 +222,7 @@ describe("dogfood artifact verifier", () => {
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: requiredManifestEvidence
@@ -202,6 +258,7 @@ describe("dogfood artifact verifier", () => {
         runs: clipboardApprovalRuns,
         processesAfterCleanup: []
       },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
       [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
       [voiceSmokePath]: {
         result: "blocked",
@@ -227,10 +284,13 @@ describe("dogfood artifact verifier", () => {
       checks: expect.arrayContaining([
         expect.objectContaining({ id: "manifest.uiSmokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "manifest.smokeArtifactPath", ok: true }),
+        expect.objectContaining({ id: "manifest.chromeSmokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "manifest.finderSmokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "manifest.voiceSmokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "ui.productPath", ok: true }),
         expect.objectContaining({ id: "ghostty.productPath", ok: true }),
+        expect.objectContaining({ id: "chrome.productPath", ok: true }),
+        expect.objectContaining({ id: "chrome.actionVerification", ok: true }),
         expect.objectContaining({ id: "finder.productPath", ok: true }),
         expect.objectContaining({ id: "finder.actionVerification", ok: true }),
         expect.objectContaining({ id: "voice.productPath", ok: true })
@@ -250,6 +310,7 @@ describe("dogfood artifact verifier", () => {
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
     const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -266,6 +327,7 @@ describe("dogfood artifact verifier", () => {
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: requiredManifestEvidence
@@ -305,6 +367,7 @@ describe("dogfood artifact verifier", () => {
         ],
         processesAfterCleanup: []
       },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
       [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
       [voiceSmokePath]: {
         result: "blocked",
@@ -341,6 +404,7 @@ describe("dogfood artifact verifier", () => {
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
     const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -357,6 +421,7 @@ describe("dogfood artifact verifier", () => {
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: []
@@ -381,6 +446,7 @@ describe("dogfood artifact verifier", () => {
         artifactPath: ghosttySmokePath,
         processesAfterCleanup: ["123 skfiy.app"]
       },
+      [chromeSmokePath]: createBrokenChromeSmokeArtifact(chromeSmokePath),
       [finderSmokePath]: createBrokenFinderSmokeArtifact(finderSmokePath),
       [voiceSmokePath]: {
         result: "blocked",
@@ -398,6 +464,9 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.actionVerification"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.appPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.clipboardApproval"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.chrome"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.chromeAppPolicy"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.chromeExtraction"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finder"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderAppPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderOrganization"),
@@ -411,6 +480,14 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("ghostty.appPolicySettings"),
         expect.stringContaining("ghostty.clipboardApprovalRuns"),
         expect.stringContaining("ghostty.processesAfterCleanup"),
+        expect.stringContaining("chrome.runnerHasTmux"),
+        expect.stringContaining("chrome.productPath"),
+        expect.stringContaining("chrome.appPolicySettings"),
+        expect.stringContaining("chrome.approval"),
+        expect.stringContaining("chrome.actionVerification"),
+        expect.stringContaining("chrome.extractedText"),
+        expect.stringContaining("chrome.chromeProcessesAfterCleanup"),
+        expect.stringContaining("chrome.processesAfterCleanup"),
         expect.stringContaining("finder.runnerHasTmux"),
         expect.stringContaining("finder.productPath"),
         expect.stringContaining("finder.appPolicySettings"),
@@ -436,6 +513,7 @@ describe("dogfood artifact verifier", () => {
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
     const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -452,6 +530,7 @@ describe("dogfood artifact verifier", () => {
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: requiredManifestEvidence
@@ -486,6 +565,7 @@ describe("dogfood artifact verifier", () => {
         ],
         processesAfterCleanup: []
       },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
       [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
       [voiceSmokePath]: {
         result: "passed",
@@ -522,6 +602,7 @@ describe("dogfood artifact verifier", () => {
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
     const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -540,6 +621,7 @@ describe("dogfood artifact verifier", () => {
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: requiredManifestEvidence
@@ -571,6 +653,7 @@ describe("dogfood artifact verifier", () => {
         runs: clipboardApprovalRuns,
         processesAfterCleanup: []
       },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
       [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
       [voiceSmokePath]: {
         result: "blocked",
@@ -607,6 +690,7 @@ describe("dogfood artifact verifier", () => {
     const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
     const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
@@ -623,6 +707,7 @@ describe("dogfood artifact verifier", () => {
         zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
         uiSmokeArtifactPath: uiSmokePath,
         smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
         requiredDogfoodEvidence: requiredManifestEvidence
@@ -654,6 +739,7 @@ describe("dogfood artifact verifier", () => {
         runs: clipboardApprovalRuns,
         processesAfterCleanup: []
       },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
       [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
       [voiceSmokePath]: {
         result: "blocked",
