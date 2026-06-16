@@ -39,6 +39,8 @@ describe("alpha dogfood preparation", () => {
       releaseUrl,
       "--tester-id",
       "tester-a",
+      "--workflows",
+      "coding-terminal,screenshot-inspection",
       "--app",
       "~/Applications/skfiy.app",
       "--download-dir",
@@ -52,6 +54,7 @@ describe("alpha dogfood preparation", () => {
       repo: "Sskift/skfiy",
       tagName: "skfiy-alpha-abc1234",
       testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
       appPath: path.join(process.env.HOME ?? "", "Applications/skfiy.app"),
       downloadDir: path.resolve(".skfiy-dogfood/downloads/tester-a"),
       handoffOutputPath: path.resolve(".skfiy-dogfood/handoffs/tester-a.md"),
@@ -61,6 +64,7 @@ describe("alpha dogfood preparation", () => {
     expect(createPrepareAlphaDogfoodHelpText()).toContain("dogfood:prepare-alpha");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("dry-run");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--execute");
+    expect(createPrepareAlphaDogfoodHelpText()).toContain("--workflows");
   });
 
   it("dry-runs a release download, checksum verification, app extraction, and handoff command", async () => {
@@ -142,6 +146,29 @@ describe("alpha dogfood preparation", () => {
         ]
       }
     ]);
+  });
+
+  it("passes assigned workflows through to the generated handoff command", async () => {
+    const { createPrepareAlphaDogfoodPlan } = await import(pathToFileURL(modulePath).href) as {
+      createPrepareAlphaDogfoodPlan: (input: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const plan = createPrepareAlphaDogfoodPlan({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"]
+    }) as {
+      commands: Array<{ id: string; command: string; args: string[] }>;
+    };
+
+    expect(plan.commands.find((command) => command.id === "handoff:create")?.args).toEqual(
+      expect.arrayContaining([
+        "--workflows",
+        "coding-terminal,screenshot-inspection"
+      ])
+    );
   });
 
   it("allows synthetic prepare tester ids only for the generated maintainer handoff command", async () => {

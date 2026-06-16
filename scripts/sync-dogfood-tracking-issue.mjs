@@ -364,6 +364,7 @@ function createRecommendedTesterAssignmentLines({
       `  - Prepare: \`${formatSingleLineCommand("npm run dogfood:prepare-alpha --", [
         ["--release-url", releaseUrl],
         ["--tester-id", testerId],
+        ["--workflows", workflowList],
         ["--execute"]
       ])}\``,
       `  - Run: \`${formatSingleLineCommand("npm run dogfood:tester --", [

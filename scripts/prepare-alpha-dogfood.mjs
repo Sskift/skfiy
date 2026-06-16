@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { readRealTesterDecision } from "./dogfood-tester-id.mjs";
+import { REQUIRED_DOGFOOD_WORKFLOWS } from "./verify-dogfood-cohort.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,7 @@ export function createDefaultPrepareAlphaDogfoodOptions(rootDir = DEFAULT_ROOT_D
     releaseUrl: undefined,
     tagName: undefined,
     testerId: undefined,
+    workflows: undefined,
     appPath: undefined,
     downloadDir: undefined,
     extractDir: undefined,
@@ -60,6 +62,10 @@ export function parsePrepareAlphaDogfoodArgs(argv, defaults) {
         break;
       case "--tester-id":
         options.testerId = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--workflows":
+        options.workflows = readWorkflowList(readValue(argv, index, arg));
         index += 1;
         break;
       case "--app":
@@ -122,6 +128,9 @@ export function createPrepareAlphaDogfoodPlan(options) {
   const handoffOutputPath = typeof options.handoffOutputPath === "string"
     ? options.handoffOutputPath
     : path.join(rootDir, ".skfiy-dogfood", "handoffs", `${testerId}.md`);
+  const workflowArgs = Array.isArray(options.workflows) && options.workflows.length > 0
+    ? ["--workflows", options.workflows.join(",")]
+    : [];
   const placeholderManifestPath = path.join(downloadDir, "<downloaded-alpha.json>");
   const placeholderZipPath = path.join(downloadDir, "<downloaded-alpha.zip>");
 
@@ -188,6 +197,7 @@ export function createPrepareAlphaDogfoodPlan(options) {
           appPath,
           "--tester-id",
           testerId,
+          ...workflowArgs,
           "--output",
           handoffOutputPath,
           ...readSyntheticTesterHandoffArgs(testerId)
@@ -280,6 +290,7 @@ export function createPrepareAlphaDogfoodHelpText() {
     "  --repo <owner/name>       Repository for --tag mode. Default: Sskift/skfiy.",
     "  --tag <tag>               Release tag when --release-url is not used.",
     "  --tester-id <id>          Stable tester id for the generated handoff.",
+    "  --workflows <ids>         Optional comma-separated workflow ids to pass into the handoff.",
     "  --app <path>              App bundle destination. Default: .skfiy-dogfood/apps/<tag>/skfiy.app.",
     "  --download-dir <path>     Release asset download directory.",
     "  --extract-dir <path>      Temporary extraction directory.",
@@ -310,6 +321,24 @@ function validatePlanOptions(options) {
   if (typeof options.testerId !== "string" || options.testerId.trim().length === 0) {
     throw new Error("Missing --tester-id <id>.");
   }
+  if (Array.isArray(options.workflows)) {
+    if (options.workflows.length === 0) {
+      throw new Error("--workflows must include at least one workflow id.");
+    }
+    const unknownWorkflow = options.workflows.find((workflow) =>
+      !REQUIRED_DOGFOOD_WORKFLOWS.includes(workflow)
+    );
+    if (unknownWorkflow) {
+      throw new Error(`Unknown dogfood workflow: ${unknownWorkflow}.`);
+    }
+  }
+}
+
+function readWorkflowList(value) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function parseGitHubReleaseUrl(releaseUrl) {

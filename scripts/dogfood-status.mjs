@@ -568,6 +568,8 @@ function createTesterAssignmentCommands({ testerId, workflows, manifestPath, rel
       releaseUrl || "<github-alpha-release-url>",
       "--tester-id",
       testerId,
+      "--workflows",
+      workflowList,
       "--execute"
     ].join(" "),
     tester: [
