@@ -146,7 +146,8 @@ describe("alpha artifact packaging", () => {
         "Microphone or ASR provider state",
         "before/after screenshot paths when Computer Use passes",
         "action verification events when Computer Use passes",
-        "Ghostty app policy settings"
+        "Ghostty app policy settings",
+        "clipboard read/write approval runs"
       ]
     });
   });

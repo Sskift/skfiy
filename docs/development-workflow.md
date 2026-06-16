@@ -142,13 +142,13 @@ Use only a skfiy-owned Ghostty context.
 Preferred local command after `npm run build`:
 
 ```bash
-npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json
+npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
 ```
 
 Run product smoke commands sequentially. `smoke:ui`, `smoke:ghostty`, and `smoke:voice` share a `.skfiy-smoke/product-smoke.lock` guard so concurrent packaged-app runs fail instead of producing contaminated cleanup evidence.
 
 Use `npm run smoke:ghostty -- --require-passed` only when Screen Recording and Accessibility are already granted to `dist/skfiy.app`; otherwise the expected result is `blocked` with fail-closed evidence.
-The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, app policy settings, replay records, screenshot file sizes, and cleanup process checks. Use `--output <path>` to persist the exact JSON evidence for dogfood reports. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, visible Ghostty app policy settings, a completed task event, `Verified type_text` and `Verified press_key` action verification events, and non-empty before/after screenshot files.
+The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, app policy settings, replay records, screenshot file sizes, matrix run results, and cleanup process checks. Use `--matrix --output <path>` to persist the exact JSON evidence for dogfood reports. Dogfood Ghostty evidence must include `clipboard-read-approval` and `clipboard-write-approval` runs with `needs-user-confirmation` and the high-risk clipboard approval message. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, visible Ghostty app policy settings, a completed task event, `Verified type_text` and `Verified press_key` action verification events, and non-empty before/after screenshot files.
 
 ### Safety Smoke
 
@@ -176,7 +176,7 @@ After creating an alpha manifest, verify that the manifest, zip, UI smoke artifa
 npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json
 ```
 
-Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after both Ghostty and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, and required manifest links.
+Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after both Ghostty and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, clipboard read/write approval runs, and required manifest links.
 
 ## Reporting Template
 
@@ -189,6 +189,7 @@ Permissions: Screen Recording ok, Accessibility ok, Microphone ok
 Task: "open Ghostty, run pwd, screenshot"
 Events: observing -> executing -> submitted -> completed
 Action verification: Verified type_text, Verified press_key
+Clipboard approvals: clipboard-read-approval needs-user-confirmation, clipboard-write-approval needs-user-confirmation
 Screenshots:
 - before: /path/to/before.png
 - after: /path/to/after.png

@@ -10,7 +10,8 @@ describe("dogfood artifact verifier", () => {
     "npm run smoke:ghostty -- --output <path>",
     "npm run smoke:voice -- --output <path>",
     "action verification events when Computer Use passes",
-    "Ghostty app policy settings"
+    "Ghostty app policy settings",
+    "clipboard read/write approval runs"
   ];
   const ghosttyAppPolicySettings = {
     apps: [
@@ -19,6 +20,38 @@ describe("dogfood artifact verifier", () => {
       { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
     ]
   };
+  const clipboardApprovalRuns = [
+    {
+      id: "clipboard-read-approval",
+      result: "needs-user-confirmation",
+      events: [
+        {
+          status: "executing",
+          message: "Risk high: Command can read or overwrite clipboard contents."
+        },
+        {
+          status: "approval_required",
+          message: "Approval required (high): Command can read or overwrite clipboard contents.",
+          command: "pbpaste"
+        }
+      ]
+    },
+    {
+      id: "clipboard-write-approval",
+      result: "needs-user-confirmation",
+      events: [
+        {
+          status: "executing",
+          message: "Risk high: Command can read or overwrite clipboard contents."
+        },
+        {
+          status: "approval_required",
+          message: "Approval required (high): Command can read or overwrite clipboard contents.",
+          command: "echo skfiy | pbcopy"
+        }
+      ]
+    }
+  ];
 
   it("is exposed as an npm script for dogfood evidence checks", () => {
     const packageJson = JSON.parse(
@@ -113,6 +146,7 @@ describe("dogfood artifact verifier", () => {
           screenRecording: { state: "denied" },
           accessibility: { state: "denied" }
         },
+        runs: clipboardApprovalRuns,
         processesAfterCleanup: []
       },
       [voiceSmokePath]: {
@@ -143,6 +177,94 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "ui.productPath", ok: true }),
         expect.objectContaining({ id: "ghostty.productPath", ok: true }),
         expect.objectContaining({ id: "voice.productPath", ok: true })
+      ])
+    });
+  });
+
+  it("fails Ghostty matrix evidence that omits clipboard approval runs", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
+        artifactPath: uiSmokePath,
+        petClicked: true,
+        onboardingVisible: true,
+        permissionRows: [
+          { label: "屏幕录制" },
+          { label: "辅助功能" },
+          { label: "麦克风" },
+          { label: "语音识别" }
+        ],
+        processesAfterCleanup: []
+      },
+      [ghosttySmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> Ghostty",
+        artifactPath: ghosttySmokePath,
+        appPolicySettings: ghosttyAppPolicySettings,
+        runs: [
+          {
+            id: "pwd-readonly",
+            result: "blocked",
+            events: [
+              { status: "failed", message: "Screen Recording permission is required." }
+            ]
+          }
+        ],
+        processesAfterCleanup: []
+      },
+      [voiceSmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+        artifactPath: voiceSmokePath,
+        provider: "native-macos",
+        speechStatus: {
+          locale: "zh-CN",
+          recognizerAvailable: true,
+          speechRecognition: { state: "not-determined" },
+          microphone: { state: "granted" }
+        },
+        processesAfterCleanup: []
+      }
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("ghostty.clipboardApprovalRuns")
       ])
     });
   });
@@ -212,6 +334,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.ui"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.actionVerification"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.appPolicy"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.clipboardApproval"),
         expect.stringContaining("ui.runnerHasTmux"),
         expect.stringContaining("ui.productPath"),
         expect.stringContaining("ui.petClicked"),
@@ -220,6 +343,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("ghostty.runnerHasTmux"),
         expect.stringContaining("ghostty.productPath"),
         expect.stringContaining("ghostty.appPolicySettings"),
+        expect.stringContaining("ghostty.clipboardApprovalRuns"),
         expect.stringContaining("ghostty.processesAfterCleanup"),
         expect.stringContaining("voice.productPath")
       ])
@@ -280,6 +404,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
         appPolicySettings: ghosttyAppPolicySettings,
+        runs: clipboardApprovalRuns,
         events: [
           { status: "completed", message: "Command completed in Ghostty." }
         ],
@@ -364,6 +489,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
         appPolicySettings: ghosttyAppPolicySettings,
+        runs: clipboardApprovalRuns,
         processesAfterCleanup: []
       },
       [voiceSmokePath]: {
@@ -443,6 +569,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "renderer -> preload -> main -> helper -> Ghostty",
         artifactPath: ghosttySmokePath,
         appPolicySettings: ghosttyAppPolicySettings,
+        runs: clipboardApprovalRuns,
         processesAfterCleanup: []
       },
       [voiceSmokePath]: {

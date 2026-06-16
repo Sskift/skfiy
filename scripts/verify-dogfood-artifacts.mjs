@@ -16,6 +16,11 @@ const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_VOICE_RESULTS = new Set(["passed", "blocked", "no-transcript"]);
 const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
+const CLIPBOARD_APPROVAL_RUNS = [
+  { id: "clipboard-read-approval", command: "pbpaste" },
+  { id: "clipboard-write-approval", command: "echo skfiy | pbcopy" }
+];
+const CLIPBOARD_RISK_MESSAGE = "Command can read or overwrite clipboard contents.";
 
 export function createDefaultDogfoodVerifyOptions(rootDir) {
   return {
@@ -133,6 +138,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Ghostty app policy settings"),
     "manifest must require Ghostty app policy evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.clipboardApproval",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("clipboard read/write approval runs"),
+    "manifest must require clipboard read/write approval evidence"
   );
   await verifyCurrentHead(manifest, options, io, checks);
 
@@ -318,6 +330,12 @@ function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
     "ghostty.appPolicySettings",
     hasGhosttyAppPolicyEvidence(artifact.appPolicySettings),
     "Ghostty smoke must include Ghostty app policy settings evidence"
+  );
+  check(
+    checks,
+    "ghostty.clipboardApprovalRuns",
+    hasRequiredGhosttyClipboardApprovalRuns(artifact.runs),
+    "Ghostty matrix smoke must include pbpaste and pbcopy high-risk approval runs"
   );
   check(
     checks,
@@ -524,6 +542,33 @@ function hasGhosttyAppPolicyEvidence(value) {
       && typeof app.name === "string"
       && (app.policy === "allow" || app.policy === "ask" || app.policy === "deny")
   );
+}
+
+function hasRequiredGhosttyClipboardApprovalRuns(runs) {
+  if (!Array.isArray(runs)) {
+    return false;
+  }
+
+  return CLIPBOARD_APPROVAL_RUNS.every((requiredRun) =>
+    runs.some((run) => isClipboardApprovalRun(run, requiredRun))
+  );
+}
+
+function isClipboardApprovalRun(run, requiredRun) {
+  return run?.id === requiredRun.id
+    && run.result === "needs-user-confirmation"
+    && Array.isArray(run.events)
+    && run.events.some((event) =>
+      event?.status === "approval_required"
+      && event.command === requiredRun.command
+      && typeof event.message === "string"
+      && event.message.includes(CLIPBOARD_RISK_MESSAGE)
+    )
+    && run.events.some((event) =>
+      event?.status === "executing"
+      && typeof event.message === "string"
+      && event.message.includes(`Risk high: ${CLIPBOARD_RISK_MESSAGE}`)
+    );
 }
 
 function hasVerifiedGhosttyAction(events, actionType) {
