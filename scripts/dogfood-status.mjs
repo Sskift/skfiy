@@ -92,7 +92,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const verifiedAcceptedReportIssueUrls = reportIssueValidation
     .filter((issue) => issue.ok)
     .map((issue) => issue.issueUrl);
-  const workflowCoverage = readWorkflowCoverage(trackingIssue.body);
+  const workflowCoverage = readVerifiedReportWorkflowCoverage(reportIssueValidation);
   const smokeArtifacts = await readSmokeArtifacts(manifest, io);
   const artifactResults = readArtifactResults(smokeArtifacts);
   const permissionBlockers = readPermissionBlockers(smokeArtifacts);
@@ -101,7 +101,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const invalidReportIssueCount = reportIssueValidation.filter((issue) => !issue.ok).length;
   const canRunCollect = verifiedAcceptedReportIssueUrls.length >= 3
     && verifiedAcceptedReportIssueUrls.length <= 5
-    && invalidReportIssueCount === 0;
+    && invalidReportIssueCount === 0
+    && workflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
   const nextActions = createNextActions({
     canRunCollect,
@@ -375,21 +376,23 @@ async function validateAcceptedReportIssues({ manifest, manifestPath, issueUrls,
   for (const issueUrl of issueUrls) {
     try {
       const issue = normalizeIssueEvidence(await io.readIssue(issueUrl));
-      const reasons = validateAcceptedReportIssue({
+      const validation = validateAcceptedReportIssue({
         manifest,
         manifestPath,
         issue
       });
       results.push({
         issueUrl,
-        ok: reasons.length === 0,
-        reasons
+        ok: validation.reasons.length === 0,
+        reasons: validation.reasons,
+        workflows: validation.workflows
       });
     } catch (error) {
       results.push({
         issueUrl,
         ok: false,
-        reasons: [error instanceof Error ? error.message : "failed to read issue"]
+        reasons: [error instanceof Error ? error.message : "failed to read issue"],
+        workflows: []
       });
     }
   }
@@ -400,6 +403,7 @@ async function validateAcceptedReportIssues({ manifest, manifestPath, issueUrls,
 function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
   const reasons = [];
   const labels = new Set(issue.labels);
+  const workflows = readIssueWorkflows(issue.body);
 
   if (!labels.has("dogfood:accepted")) {
     reasons.push("missing dogfood:accepted label");
@@ -428,13 +432,51 @@ function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
     reasons.push("alpha zip does not match manifest zip.path");
   }
 
-  for (const workflow of readIssueWorkflows(issue.body)) {
+  if (workflows.length === 0) {
+    reasons.push("missing checked cohort workflow");
+  }
+
+  for (const workflow of workflows) {
     if (!labels.has(`workflow:${workflow}`)) {
       reasons.push(`missing workflow:${workflow} label`);
     }
   }
 
-  return reasons;
+  for (const label of labels) {
+    if (!label.startsWith("workflow:")) {
+      continue;
+    }
+    const workflow = label.slice("workflow:".length);
+    if (!workflows.includes(workflow)) {
+      reasons.push(`unexpected workflow:${workflow} label`);
+    }
+  }
+
+  return {
+    reasons,
+    workflows
+  };
+}
+
+function readVerifiedReportWorkflowCoverage(reportIssueValidation) {
+  const covered = [];
+
+  for (const issue of reportIssueValidation) {
+    if (!issue.ok) {
+      continue;
+    }
+    for (const workflow of issue.workflows) {
+      if (!covered.includes(workflow)) {
+        covered.push(workflow);
+      }
+    }
+  }
+
+  return {
+    required: [...REQUIRED_WORKFLOW_IDS],
+    covered,
+    missing: REQUIRED_WORKFLOW_IDS.filter((workflow) => !covered.includes(workflow))
+  };
 }
 
 function readIssueWorkflows(body) {

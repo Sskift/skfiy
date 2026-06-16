@@ -180,12 +180,9 @@ describe("dogfood status reporter", () => {
         body: createTrackingIssueBody(reportUrls),
         labels: ["skfiy", "dogfood"]
       },
-      ...Object.fromEntries(
-        reportUrls.map((url, index) => [
-          url,
-          createAcceptedReportIssue(`tester-${index + 1}`, ["coding-terminal"])
-        ])
-      )
+      [reportUrls[0]]: createAcceptedReportIssue("tester-1", ["coding-terminal", "screenshot-inspection"]),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["finder-file"]),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-3", ["browser-fallback"])
     });
 
     await expect(createDogfoodStatus({
@@ -198,7 +195,16 @@ describe("dogfood status reporter", () => {
         acceptedReportIssueUrls: reportUrls,
         acceptedReportCount: 3,
         missingRequiredReports: 0,
-        verifiedAcceptedReportCount: 3
+        verifiedAcceptedReportCount: 3,
+        workflowCoverage: {
+          covered: [
+            "coding-terminal",
+            "screenshot-inspection",
+            "finder-file",
+            "browser-fallback"
+          ],
+          missing: []
+        }
       },
       localSmoke: {
         permissionBlockers: []
@@ -300,7 +306,7 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("missing dogfood:accepted label");
   });
 
-  it("reports missing workflow coverage from the tracking issue checklist", async () => {
+  it("reports missing workflow coverage from verified accepted report issues", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
         input: Record<string, unknown>,
@@ -336,12 +342,8 @@ describe("dogfood status reporter", () => {
         }),
         labels: ["skfiy", "dogfood"]
       },
-      ...Object.fromEntries(
-        reportUrls.map((url, index) => [
-          url,
-          createAcceptedReportIssue(`tester-${index + 1}`, ["coding-terminal"])
-        ])
-      )
+      [reportUrls[0]]: createAcceptedReportIssue("tester-1", ["coding-terminal"]),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["screenshot-inspection"])
     });
 
     await expect(createDogfoodStatus({
@@ -363,6 +365,93 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("## Workflow Coverage");
     expect(io.textFiles[summaryPath]).toContain("- coding-terminal: covered");
     expect(io.textFiles[summaryPath]).toContain("- finder-file: missing");
+  });
+
+  it("rejects listed report issues with no checked workflows or extra workflow labels", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const reportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102",
+      "https://github.com/Sskift/skfiy/issues/103"
+    ];
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody(reportUrls, {
+          coveredWorkflows: [
+            "coding-terminal",
+            "screenshot-inspection",
+            "finder-file",
+            "browser-fallback"
+          ]
+        }),
+        labels: ["skfiy", "dogfood"]
+      },
+      [reportUrls[0]]: createAcceptedReportIssue("tester-a", []),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-b", ["finder-file"], {
+        labels: ["dogfood:accepted", "workflow:finder-file", "workflow:browser-fallback"]
+      }),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-c", ["browser-fallback"])
+    });
+
+    await expect(createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "waiting-for-dogfood",
+      trackingIssue: {
+        verifiedAcceptedReportCount: 1,
+        missingRequiredReports: 2,
+        workflowCoverage: {
+          covered: ["browser-fallback"],
+          missing: ["coding-terminal", "screenshot-inspection", "finder-file"]
+        },
+        reportIssueValidation: [
+          {
+            issueUrl: reportUrls[0],
+            ok: false,
+            reasons: ["missing checked cohort workflow"]
+          },
+          {
+            issueUrl: reportUrls[1],
+            ok: false,
+            reasons: ["unexpected workflow:browser-fallback label"]
+          },
+          {
+            issueUrl: reportUrls[2],
+            ok: true,
+            reasons: []
+          }
+        ]
+      },
+      nextActions: expect.arrayContaining([
+        "Collect accepted reports covering missing workflows: coding-terminal, screenshot-inspection, finder-file."
+      ])
+    });
   });
 });
 
