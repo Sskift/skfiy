@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -8,10 +8,13 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
   classifyFinderSmokeEvidence,
+  createFinderTargetDirSafetyEvidence,
   createDefaultFinderSmokeOptions,
   createHelpText,
+  parseProcessIds,
   parseFinderSmokeArgs,
-  readFinderProductPath
+  readFinderProductPath,
+  withSmokeTimeout
 } from "./smoke-finder-plan.mjs";
 import { writeSmokeEvidence } from "./smoke-ghostty-plan.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
@@ -39,6 +42,9 @@ async function main() {
     productPath: readFinderProductPath(options.targetMode),
     artifactPath: options.outputPath,
     targetMode: options.targetMode,
+    targetDir: options.targetDir,
+    resolvedTargetDir: undefined,
+    targetDirSafety: undefined,
     fixtureRoot: undefined,
     command: undefined,
     beforeTree: [],
@@ -62,7 +68,15 @@ async function main() {
       rootDir: ROOT_DIR,
       scriptName: "smoke:finder"
     });
-    evidence.fixtureRoot = await createFinderFixture();
+    evidence.resolvedTargetDir = options.targetDir
+      ? readFinderTargetDirectory(options.targetDir)
+      : undefined;
+    evidence.fixtureRoot = await createFinderFixture(evidence.resolvedTargetDir ?? os.tmpdir());
+    evidence.targetDirSafety = createFinderTargetDirSafetyEvidence({
+      targetDir: evidence.resolvedTargetDir,
+      fixtureRoot: evidence.fixtureRoot
+    });
+    assertFinderTargetDirSafety(evidence.targetDirSafety, options);
     evidence.command = readFinderSmokeCommand(options.targetMode, evidence.fixtureRoot);
     evidence.beforeTree = await readDirectoryTree(evidence.fixtureRoot);
 
@@ -90,54 +104,55 @@ async function main() {
 
     const page = await waitForRendererPage(options.port, options.timeoutMs);
     const cdp = await createCdpClient(page.webSocketDebuggerUrl);
+    const sendCdp = (method, params, label) => withSmokeTimeout(
+      cdp.send(method, params),
+      options.timeoutMs,
+      label
+    );
 
     try {
-      await cdp.send("Runtime.enable");
-      await cdp.send("Runtime.addBinding", { name: "skfiyFinderSmokeEvent" });
-      await cdp.send("Runtime.evaluate", {
+      await sendCdp("Runtime.enable", undefined, "Finder Runtime.enable");
+      await sendCdp(
+        "Runtime.addBinding",
+        { name: "skfiyFinderSmokeEvent" },
+        "Finder Runtime.addBinding"
+      );
+      await sendCdp("Runtime.evaluate", {
         expression: installEventSinkExpression(),
         awaitPromise: true,
         returnByValue: true
-      });
+      }, "Finder install event sink");
 
-      await cdp.send("Runtime.evaluate", {
+      await sendCdp("Runtime.evaluate", {
         expression:
           `window.skfiy.runCommand(${JSON.stringify(evidence.command)}, { mode: "active" })`,
         awaitPromise: true,
         returnByValue: true
-      });
+      }, "Finder runCommand");
       await sleep(options.settleMs);
 
-      if (cdp.events.at(-1)?.status === "approval_required") {
-        await cdp.send("Runtime.evaluate", {
-          expression: "window.skfiy.approveTask()",
-          awaitPromise: true,
-          returnByValue: true
-        });
-      }
+      await approvePendingFinderTasks(cdp, options, sendCdp);
 
-      await waitForTerminalTaskEvent(cdp, options.timeoutMs);
-
-      const permissions = await cdp.send("Runtime.evaluate", {
+      const permissions = await sendCdp("Runtime.evaluate", {
         expression: "window.skfiy.getPermissions()",
         awaitPromise: true,
         returnByValue: true
-      });
-      const runtimeStatus = await cdp.send("Runtime.evaluate", {
+      }, "Finder getPermissions");
+      const runtimeStatus = await sendCdp("Runtime.evaluate", {
         expression: "window.skfiy.getRuntimeStatus()",
         awaitPromise: true,
         returnByValue: true
-      });
-      const startupWarnings = await cdp.send("Runtime.evaluate", {
+      }, "Finder getRuntimeStatus");
+      const startupWarnings = await sendCdp("Runtime.evaluate", {
         expression: "window.skfiy.getStartupWarnings()",
         awaitPromise: true,
         returnByValue: true
-      });
-      const appPolicySettings = await cdp.send("Runtime.evaluate", {
+      }, "Finder getStartupWarnings");
+      const appPolicySettings = await sendCdp("Runtime.evaluate", {
         expression: "window.skfiy.getAppPolicySettings()",
         awaitPromise: true,
         returnByValue: true
-      });
+      }, "Finder getAppPolicySettings");
 
       evidence.permissions = permissions.result?.value;
       evidence.runtimeStatus = runtimeStatus.result?.value;
@@ -157,6 +172,20 @@ async function main() {
       );
       evidence.afterTree = await readDirectoryTree(evidence.fixtureRoot);
       evidence.result = classifyFinderSmokeEvidence(evidence);
+    } catch (error) {
+      evidence.events = cdp.events;
+      evidence.finderObservation = readFinderObservation(cdp.events);
+      evidence.finderSemanticObservation = readFinderSemanticObservation(
+        cdp.events,
+        evidence.finderObservation
+      );
+      evidence.finderDragProbe = readFinderDragProbe(cdp.events, evidence.finderObservation);
+      evidence.finderItemDragDrop = readFinderItemDragDrop(
+        cdp.events,
+        evidence.finderObservation,
+        evidence.fixtureRoot
+      );
+      throw error;
     } finally {
       cdp.close();
     }
@@ -197,6 +226,10 @@ function assertSmokeReady(options) {
     throw new Error(`App bundle is missing at ${options.appPath}. Run npm run build first.`);
   }
 
+  if (options.targetDir) {
+    readFinderTargetDirectory(options.targetDir);
+  }
+
   if (typeof WebSocket !== "function") {
     throw new Error("This smoke script requires a Node runtime with global WebSocket support.");
   }
@@ -206,8 +239,35 @@ function formatLaunchCommand(options) {
   return `open -na ${options.appPath} --args --remote-debugging-port=${options.port}`;
 }
 
-async function createFinderFixture() {
-  const rootPath = await mkdtemp(path.join(os.tmpdir(), "skfiy-finder-smoke-"));
+function readFinderTargetDirectory(targetDir) {
+  try {
+    const targetStat = statSync(targetDir);
+    if (!targetStat.isDirectory()) {
+      throw new Error("not a directory");
+    }
+
+    return realpathSync(targetDir);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`--target-dir must be an existing directory: ${targetDir}. ${detail}`);
+  }
+}
+
+function assertFinderTargetDirSafety(targetDirSafety, options) {
+  if (!options.targetDir) {
+    return;
+  }
+
+  if (
+    targetDirSafety?.result !== "passed"
+    || targetDirSafety.fixtureInsideTargetDir !== true
+  ) {
+    throw new Error("--target-dir safety check failed: fixture root must be an isolated child directory.");
+  }
+}
+
+async function createFinderFixture(parentDir) {
+  const rootPath = await mkdtemp(path.join(parentDir, "skfiy-finder-smoke-"));
   await writeFile(path.join(rootPath, "photo.png"), "image");
   await writeFile(path.join(rootPath, "notes.pdf"), "document");
   await writeFile(path.join(rootPath, "script.ts"), "code");
@@ -378,12 +438,43 @@ async function waitForTerminalTaskEvent(cdp, timeoutMs) {
     if (
       status === "completed"
       || status === "failed"
+      || status === "approval_required"
+      || status === "needs_confirmation"
       || status === "idle"
     ) {
       return;
     }
 
     await sleep(250);
+  }
+}
+
+async function approvePendingFinderTasks(cdp, options, sendCdp) {
+  const deadline = Date.now() + options.timeoutMs;
+  let approvedEventCount = 0;
+  let approvalAttempts = 0;
+
+  while (Date.now() < deadline && approvalAttempts < 4) {
+    await waitForTerminalTaskEvent(cdp, Math.max(250, deadline - Date.now()));
+    const status = cdp.events.at(-1)?.status;
+
+    if (status !== "approval_required") {
+      return;
+    }
+
+    if (cdp.events.length === approvedEventCount) {
+      await sleep(250);
+      continue;
+    }
+
+    approvedEventCount = cdp.events.length;
+    approvalAttempts += 1;
+    await sendCdp("Runtime.evaluate", {
+      expression: "window.skfiy.approveTask()",
+      awaitPromise: false,
+      returnByValue: true
+    }, `Finder approveTask ${approvalAttempts}`);
+    await sleep(options.settleMs);
   }
 }
 
@@ -572,10 +663,27 @@ function isPermissionBlockedMessage(message) {
 }
 
 async function quitSkfiy() {
-  await execFileAsync("osascript", [
-    "-e",
-    `tell application id "${BUNDLE_IDENTIFIER}" to quit`
-  ]).catch(() => undefined);
+  await withSmokeTimeout(
+    execFileAsync("osascript", [
+      "-e",
+      `tell application id "${BUNDLE_IDENTIFIER}" to quit`
+    ]),
+    2_000,
+    "Finder quit skfiy"
+  ).catch(() => undefined);
+
+  await waitForSkfiyExit(2_000);
+  const remaining = parseProcessIds(await readSkfiyProcesses());
+  if (remaining.length > 0) {
+    await terminateProcesses(remaining, "SIGTERM");
+    await waitForSkfiyExit(2_000);
+  }
+
+  const stubborn = parseProcessIds(await readSkfiyProcesses());
+  if (stubborn.length > 0) {
+    await terminateProcesses(stubborn, "SIGKILL");
+    await waitForSkfiyExit(1_000);
+  }
 }
 
 async function readSkfiyProcesses() {
@@ -588,6 +696,28 @@ async function readProcessLines(pattern) {
     return stdout.trim().split("\n").filter(Boolean);
   } catch {
     return [];
+  }
+}
+
+async function waitForSkfiyExit(timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if ((await readSkfiyProcesses()).length === 0) {
+      return;
+    }
+
+    await sleep(100);
+  }
+}
+
+async function terminateProcesses(pids, signal) {
+  for (const pid of pids) {
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // Process already exited.
+    }
   }
 }
 

@@ -18,6 +18,8 @@ describe("Finder product smoke script", () => {
     });
     expect(source).toContain("window.skfiy.runCommand");
     expect(source).toContain("window.skfiy.approveTask()");
+    expect(source).toContain("awaitPromise: false");
+    expect(source).toContain("approvePendingFinderTasks");
     expect(source).toContain("window.skfiy.getAppPolicySettings()");
     expect(source).toContain("整理 Finder 当前文件夹");
     expect(source).toContain("整理 Finder 选中文件夹");
@@ -66,6 +68,13 @@ describe("Finder product smoke script", () => {
       targetMode: "explicit-path"
     });
     expect(parseFinderSmokeArgs(
+      ["--target-dir", "real-finder-area"],
+      createDefaultFinderSmokeOptions("/repo")
+    )).toMatchObject({
+      targetDir: path.resolve("real-finder-area"),
+      targetMode: "explicit-path"
+    });
+    expect(parseFinderSmokeArgs(
       ["--current-folder"],
       createDefaultFinderSmokeOptions("/repo")
     )).toMatchObject({
@@ -90,6 +99,140 @@ describe("Finder product smoke script", () => {
       targetMode: "item-drag-drop"
     });
     expect(createHelpText(createDefaultFinderSmokeOptions("/repo"))).toContain("smoke:finder");
+    expect(createHelpText(createDefaultFinderSmokeOptions("/repo"))).toContain("--target-dir <path>");
+  });
+
+  it("requires target-dir Finder evidence to use an isolated fixture inside the requested directory", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence,
+      createFinderTargetDirSafetyEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+      createFinderTargetDirSafetyEvidence: (input: {
+        fixtureRoot?: string;
+        targetDir?: string;
+      }) => Record<string, unknown>;
+    };
+
+    const baseEvidence = {
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      targetMode: "explicit-path",
+      targetDir: "/Users/test/Documents/skfiy-smoke-target",
+      finderObservation: {
+        result: "passed",
+        screenshotPath: "/tmp/skfiy/finder-before.png",
+        frontmostBundleId: "com.apple.finder",
+        windowCount: 1
+      },
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        targetPath: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123",
+        selectedCount: 0
+      },
+      events: [{ status: "completed", message: "Finder test folder organized." }],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    };
+
+    expect(createFinderTargetDirSafetyEvidence({
+      targetDir: "/Users/test/Documents/skfiy-smoke-target",
+      fixtureRoot: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123"
+    })).toMatchObject({
+      result: "passed",
+      fixtureInsideTargetDir: true
+    });
+
+    expect(classifyFinderSmokeEvidence({
+      ...baseEvidence,
+      fixtureRoot: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123",
+      targetDirSafety: {
+        result: "passed",
+        fixtureInsideTargetDir: true
+      }
+    })).toBe("passed");
+
+    expect(createFinderTargetDirSafetyEvidence({
+      targetDir: "/Users/test/Documents/skfiy-smoke-target",
+      fixtureRoot: "/Users/test/Documents/skfiy-smoke-target"
+    })).toMatchObject({
+      result: "failed",
+      fixtureInsideTargetDir: false
+    });
+
+    expect(classifyFinderSmokeEvidence({
+      ...baseEvidence,
+      fixtureRoot: "/Users/test/Documents/skfiy-smoke-target",
+      targetDirSafety: {
+        result: "failed",
+        fixtureInsideTargetDir: false
+      }
+    })).toBe("failed");
+  });
+
+  it("classifies an executing Finder task with denied Computer Use permissions as blocked", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      events: [
+        {
+          status: "executing",
+          message: "Risk medium: Finder organization moves files inside a user-approved folder."
+        }
+      ],
+      permissions: {
+        screenRecording: { state: "denied" },
+        accessibility: { state: "denied" }
+      }
+    })).toBe("blocked");
+  });
+
+  it("times out stalled Finder smoke async operations with a labelled error", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      withSmokeTimeout
+    } = await import(pathToFileURL(modulePath).href) as {
+      withSmokeTimeout: <T>(promise: Promise<T>, timeoutMs: number, label: string) => Promise<T>;
+    };
+
+    await expect(withSmokeTimeout(
+      new Promise(() => undefined),
+      1,
+      "Finder runCommand"
+    )).rejects.toThrow("Finder runCommand timed out after 1ms");
+
+    await expect(withSmokeTimeout(
+      Promise.resolve("ok"),
+      1_000,
+      "Finder quick command"
+    )).resolves.toBe("ok");
+  });
+
+  it("parses process ids from pgrep output for smoke cleanup", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      parseProcessIds
+    } = await import(pathToFileURL(modulePath).href) as {
+      parseProcessIds: (lines: string[]) => number[];
+    };
+
+    expect(parseProcessIds([
+      "65362 /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app/Contents/MacOS/skfiy --remote-debugging-port=9244",
+      "65373 /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app/Contents/Frameworks/Electron Helper (GPU).app/Contents/MacOS/Electron Helper (GPU)",
+      "not-a-pid /bin/zsh"
+    ])).toEqual([65362, 65373]);
   });
 
   it("classifies a completed Finder organization with expected after tree as passed", async () => {

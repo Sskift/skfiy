@@ -194,6 +194,15 @@ npm run smoke:finder -- --selected-folder --require-passed --output .skfiy-smoke
 
 This mode reveals and selects the fixture folder in Finder, sends `整理 Finder 选中文件夹`, and only passes when `finderSemanticObservation.selectedItems` contains the fixture directory. Permission-blocked runs should remain blocked with the concrete Screen Recording, Accessibility, or Automation reason.
 
+To exercise Finder under a real dogfood parent directory while keeping operations isolated:
+
+```bash
+mkdir -p ~/Desktop/skfiy-finder-dogfood
+npm run smoke:finder -- --target-dir ~/Desktop/skfiy-finder-dogfood --item-drag-drop --require-passed --output .skfiy-smoke/finder-target-dir.json
+```
+
+The smoke creates and cleans up only a generated `skfiy-finder-smoke-*` child directory under `--target-dir`, records `targetDirSafety`, and fails closed if the fixture is not a strict child of the requested directory.
+
 ### Native Voice Smoke
 
 Use the packaged app path and record provider, permission, transcript, and stop evidence:
@@ -213,6 +222,23 @@ npm run dogfood:verify -- --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-uns
 ```
 
 Use `--require-current-head` when validating a local alpha before sharing it; this fails if the manifest was created from an older commit than the current worktree HEAD. Use `--require-passed` only for a release gate after Ghostty, Chrome, Finder, and native voice smoke runs are expected to pass. Without `--require-passed`, permission-blocked runs are acceptable evidence only when they still prove the packaged app path, `runnerHasTmux=false`, product path, cleanup, app policy settings, Chrome extraction evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder item drag/drop evidence, Finder organization evidence, clipboard read/write approval runs, and required manifest links.
+
+### macOS Release Signing
+
+Use the read-only release check before any broader internal package:
+
+```bash
+npm run release:mac:check
+```
+
+The check reports missing Developer ID or Apple notary credentials and prints the planned release commands without mutating the app bundle. Actual signing and notarization require a packaged app from `npm run build` plus `SKFIY_DEVELOPER_ID_APPLICATION` and either `APPLE_KEYCHAIN_PROFILE` or all of `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
+
+Run the mutating release steps only after the check is clean:
+
+```bash
+npm run release:mac:sign
+npm run release:mac:notarize
+```
 
 ## Reporting Template
 

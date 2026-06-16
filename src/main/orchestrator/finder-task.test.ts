@@ -100,7 +100,6 @@ describe("runFinderOrganizationTask", () => {
 
       expect(events.map((event) => event.type)).toEqual([
         "started",
-        "approval_required",
         "locating_app",
         "action_verified",
         "action_verified",
@@ -176,7 +175,6 @@ describe("runFinderOrganizationTask", () => {
 
       expect(events.map((event) => event.type)).toEqual([
         "started",
-        "approval_required",
         "locating_app",
         "app_activated",
         "screenshot_before",
@@ -328,7 +326,6 @@ describe("runFinderOrganizationTask", () => {
       ]);
       expect(events.map((event) => event.type)).toEqual([
         "started",
-        "approval_required",
         "locating_app",
         "app_activated",
         "screenshot_before",
@@ -453,7 +450,6 @@ describe("runFinderOrganizationTask", () => {
       ]);
       expect(events.map((event) => event.type)).toEqual([
         "started",
-        "approval_required",
         "locating_app",
         "app_activated",
         "screenshot_before",
@@ -465,7 +461,7 @@ describe("runFinderOrganizationTask", () => {
         "action_verified",
         "completed"
       ]);
-      expect(events[4]).toMatchObject({
+      expect(events[3]).toMatchObject({
         type: "screenshot_before",
         path: "/tmp/skfiy-finder-before.png",
         observation: {
@@ -541,7 +537,6 @@ describe("runFinderOrganizationTask", () => {
       ]);
       expect(events.map((event) => event.type)).toEqual([
         "started",
-        "approval_required",
         "locating_app",
         "app_activated",
         "screenshot_before",

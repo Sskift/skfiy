@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -28,6 +28,39 @@ describe("product smoke lock", () => {
       ).resolves.toMatchObject({
         lockPath: path.join(rootDir, ".skfiy-smoke", "product-smoke.lock")
       });
+    } finally {
+      await rm(rootDir, { force: true, recursive: true });
+    }
+  });
+
+  it("reclaims a stale lock when the recorded owner process is no longer running", async () => {
+    const modulePath = path.join(process.cwd(), "scripts", "smoke-lock.mjs");
+    const { acquireSmokeLock } = await import(pathToFileURL(modulePath).href) as {
+      acquireSmokeLock: (input: {
+        rootDir: string;
+        scriptName: string;
+        isPidRunning?: (pid: number) => boolean;
+      }) => Promise<{ lockPath: string; release: () => Promise<void> }>;
+    };
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "skfiy-smoke-lock-"));
+    const lockPath = path.join(rootDir, ".skfiy-smoke", "product-smoke.lock");
+
+    try {
+      await mkdir(lockPath, { recursive: true });
+      await writeFile(
+        path.join(lockPath, "owner.json"),
+        `${JSON.stringify({
+          scriptName: "finder",
+          pid: 999_999,
+          acquiredAt: "2026-06-16T00:00:00.000Z"
+        })}\n`
+      );
+
+      await expect(acquireSmokeLock({
+        rootDir,
+        scriptName: "finder",
+        isPidRunning: () => false
+      })).resolves.toMatchObject({ lockPath });
     } finally {
       await rm(rootDir, { force: true, recursive: true });
     }

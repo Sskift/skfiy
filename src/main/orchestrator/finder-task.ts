@@ -126,13 +126,12 @@ export async function* runFinderOrganizationTask(
     return;
   }
 
-  yield {
-    type: "approval_required",
-    command: parsed.command,
-    risk: FINDER_ORGANIZATION_RISK
-  };
-
   if (!options.approved) {
+    yield {
+      type: "approval_required",
+      command: parsed.command,
+      risk: FINDER_ORGANIZATION_RISK
+    };
     return;
   }
 

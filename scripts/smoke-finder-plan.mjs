@@ -29,6 +29,7 @@ export function createDefaultFinderSmokeOptions(rootDir) {
     keepOpen: false,
     requirePassed: false,
     targetMode: "explicit-path",
+    targetDir: undefined,
     outputPath: undefined,
     help: false
   };
@@ -78,6 +79,10 @@ export function parseFinderSmokeArgs(argv, defaults) {
       case "--item-drag-drop":
         options.targetMode = "item-drag-drop";
         break;
+      case "--target-dir":
+        options.targetDir = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
       case "--output":
         options.outputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
@@ -110,10 +115,61 @@ Options:
   --selected-folder     Select the fixture in Finder and run "整理 Finder 选中文件夹".
   --drag-probe          Open the fixture in Finder, run a helper drag probe, then organize it.
   --item-drag-drop      Open the fixture in Finder, drag photo.png into Images, then organize it.
+  --target-dir <path>   Create the isolated Finder fixture inside this existing directory.
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   -h, --help            Show this help.
 `;
+}
+
+export function createFinderTargetDirSafetyEvidence({ fixtureRoot, targetDir } = {}) {
+  if (typeof targetDir !== "string") {
+    return {
+      result: "not-applicable",
+      fixtureInsideTargetDir: false
+    };
+  }
+
+  const normalizedTargetDir = path.resolve(targetDir);
+  const normalizedFixtureRoot = typeof fixtureRoot === "string"
+    ? path.resolve(fixtureRoot)
+    : undefined;
+  const fixtureInsideTargetDir = typeof normalizedFixtureRoot === "string"
+    && isPathInsideDirectory(normalizedFixtureRoot, normalizedTargetDir);
+
+  return {
+    result: fixtureInsideTargetDir ? "passed" : "failed",
+    targetDir: normalizedTargetDir,
+    fixtureRoot: normalizedFixtureRoot,
+    fixtureInsideTargetDir
+  };
+}
+
+export async function withSmokeTimeout(promise, timeoutMs, label) {
+  let timeoutId;
+
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export function parseProcessIds(lines) {
+  return lines.flatMap((line) => {
+    const match = /^(\d+)\s+/.exec(line);
+    if (!match) {
+      return [];
+    }
+
+    return [Number(match[1])];
+  });
 }
 
 export function classifyFinderSmokeEvidence({
@@ -123,7 +179,10 @@ export function classifyFinderSmokeEvidence({
   finderSemanticObservation,
   finderDragProbe,
   finderItemDragDrop,
+  permissions,
   targetMode = "explicit-path",
+  targetDir,
+  targetDirSafety,
   fixtureRoot,
   runnerHasTmux = false,
   appLaunchViaOpen = false,
@@ -163,8 +222,27 @@ export function classifyFinderSmokeEvidence({
     return "blocked";
   }
 
+  if (last.status === "executing" && hasDeniedComputerUsePermission(permissions)) {
+    return "blocked";
+  }
+
   if (last.status !== "completed") {
     return last.status ?? "failed";
+  }
+
+  if (typeof targetDir === "string") {
+    const safetyTargetDir = typeof targetDirSafety?.targetDir === "string"
+      ? targetDirSafety.targetDir
+      : targetDir;
+
+    if (
+      targetDirSafety?.result !== "passed"
+      || targetDirSafety.fixtureInsideTargetDir !== true
+      || typeof fixtureRoot !== "string"
+      || !isPathInsideDirectory(fixtureRoot, safetyTargetDir)
+    ) {
+      return "failed";
+    }
   }
 
   if (
@@ -290,6 +368,18 @@ function hasPermissionBlockedFinderItemDragDrop(finderItemDragDrop) {
   return finderItemDragDrop?.result === "blocked"
     && typeof finderItemDragDrop.reason === "string"
     && isPermissionBlockedMessage(finderItemDragDrop.reason);
+}
+
+function hasDeniedComputerUsePermission(permissions) {
+  return permissions?.screenRecording?.state === "denied"
+    || permissions?.accessibility?.state === "denied";
+}
+
+function isPathInsideDirectory(childPath, parentDir) {
+  const relativePath = path.relative(path.resolve(parentDir), path.resolve(childPath));
+  return relativePath.length > 0
+    && !relativePath.startsWith("..")
+    && !path.isAbsolute(relativePath);
 }
 
 function isPermissionBlockedMessage(message) {
