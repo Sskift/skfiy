@@ -141,9 +141,11 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     && currentAlpha.ok
     && currentHeadGateOk
     && workflowCoverage.missing.length === 0;
+  const canRunPassedCohort = canRunCollect && passedWorkflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
   const nextActions = createNextActions({
     canRunCollect,
+    canRunPassedCohort,
     trackingIssueTarget: readTrackingIssueTarget(options),
     permissionBlockers,
     missingRequiredReports,
@@ -198,6 +200,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     },
     readiness: {
       canRunCollect,
+      canRunPassedCohort,
       cohortReady: false
     },
     testerAssignments,
@@ -244,6 +247,7 @@ export function createDogfoodStatusMarkdown(status) {
     `Accepted report URLs: ${status.trackingIssue.acceptedReportCount}/3 minimum`,
     `Verified accepted report URLs: ${status.trackingIssue.verifiedAcceptedReportCount}/3 minimum`,
     `Verified real accepted report URLs: ${status.trackingIssue.verifiedRealAcceptedReportCount}/3 minimum`,
+    `Passed cohort gate ready: ${status.readiness.canRunPassedCohort ? "yes" : "no"}`,
     "",
     "## Current Alpha Identity",
     "",
@@ -539,6 +543,7 @@ async function readOptionalCurrentHead(options, io) {
 
 function createNextActions({
   canRunCollect,
+  canRunPassedCohort,
   trackingIssueTarget,
   permissionBlockers,
   missingRequiredReports,
@@ -590,6 +595,11 @@ function createNextActions({
   }
   if (canRunCollect) {
     actions.push("Run npm run dogfood:collect with the current manifest and tracking issue.");
+    if (canRunPassedCohort) {
+      actions.push("After collecting, run npm run dogfood:cohort -- --require-passed on the collected cohort JSON.");
+    } else {
+      actions.push("Do not run npm run dogfood:cohort -- --require-passed until passed workflow coverage is complete.");
+    }
   }
   if (actions.length === 0) {
     actions.push("Run npm run dogfood:collect, then npm run dogfood:cohort on the collected cohort JSON.");

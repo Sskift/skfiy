@@ -576,13 +576,99 @@ describe("dogfood status reporter", () => {
       },
       readiness: {
         canRunCollect: true,
+        canRunPassedCohort: false,
         cohortReady: false
       },
       nextActions: expect.arrayContaining([
         "Run npm run dogfood:collect with the current manifest and tracking issue.",
+        "Do not run npm run dogfood:cohort -- --require-passed until passed workflow coverage is complete.",
         "Collect passed product-path evidence for workflows: finder-file, browser-fallback."
       ])
     });
+  });
+
+  it("marks the strict passed cohort gate ready only after all required workflows have passed evidence", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const reportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102",
+      "https://github.com/Sskift/skfiy/issues/103"
+    ];
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
+        screenRecording: "authorized",
+        accessibility: "authorized",
+        microphone: "authorized",
+        speechRecognition: "authorized"
+      }),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody(reportUrls),
+        labels: ["skfiy", "dogfood"]
+      },
+      [reportUrls[0]]: createAcceptedReportIssue(
+        "tester-1",
+        ["coding-terminal", "screenshot-inspection"],
+        { result: "passed" }
+      ),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["finder-file"], {
+        result: "passed"
+      }),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-3", ["browser-fallback"], {
+        result: "passed"
+      })
+    });
+
+    await expect(createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "ready-to-collect",
+      trackingIssue: {
+        passedWorkflowCoverage: {
+          covered: [
+            "coding-terminal",
+            "screenshot-inspection",
+            "finder-file",
+            "browser-fallback"
+          ],
+          missing: []
+        }
+      },
+      readiness: {
+        canRunCollect: true,
+        canRunPassedCohort: true,
+        cohortReady: false
+      },
+      nextActions: expect.arrayContaining([
+        "Run npm run dogfood:collect with the current manifest and tracking issue.",
+        "After collecting, run npm run dogfood:cohort -- --require-passed on the collected cohort JSON."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("Passed cohort gate ready: yes");
   });
 
   it("does not mark status ready when the tracking issue current alpha is stale", async () => {

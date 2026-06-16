@@ -183,6 +183,10 @@ Workflow and passed workflow coverage in `dogfood:status` and
 `dogfood:cohort` count only verified accepted reports from real tester ids;
 `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` remain local evidence
 and cannot close required workflow coverage.
+`dogfood:status` also exposes `readiness.canRunPassedCohort` and a `Passed
+cohort gate ready` summary line, so maintainers can distinguish "ready to
+collect accepted reports" from "ready to run the final `--require-passed`
+cohort verifier".
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main
 process in another terminal with `npm run dev:electron`.
