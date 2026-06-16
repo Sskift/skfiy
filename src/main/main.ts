@@ -283,7 +283,9 @@ function createGhosttyDesktopClient(helper: DesktopHelperClient): DesktopClient 
 function createFinderDesktopClient(helper: DesktopHelperClient): FinderDesktopClient {
   return {
     executeAction: async (action) => helper.executeAction(action),
-    getFinderSelection: async () => helper.getFinderSelection()
+    getFinderSelection: async () => helper.getFinderSelection(),
+    getFinderItemLayout: async (folderPath, itemNames) =>
+      helper.getFinderItemLayout(folderPath, itemNames)
   };
 }
 

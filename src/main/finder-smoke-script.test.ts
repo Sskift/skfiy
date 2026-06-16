@@ -31,6 +31,14 @@ describe("Finder product smoke script", () => {
     expect(source).toContain("readFinderItemDragDrop");
   });
 
+  it("wires Finder item layout through the packaged app main process", () => {
+    const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+
+    expect(source).toContain("function createFinderDesktopClient");
+    expect(source).toContain("getFinderItemLayout: async");
+    expect(source).toContain("helper.getFinderItemLayout");
+  });
+
   it("defines Finder product paths and output options", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
 
