@@ -152,6 +152,9 @@ npm run dogfood:cohort -- \
 review commands for the next real tester slots and missing workflow coverage.
 The tracking issue body includes a `Recommended Tester Assignments` section too,
 so the GitHub coordination page carries the same suggested split.
+`dogfood:prepare-alpha` can infer `--workflows` from the tracking issue when a
+tester id appears in that section, so copied prepare commands and generated
+handoffs stay aligned.
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main
 process in another terminal with `npm run dev:electron`.

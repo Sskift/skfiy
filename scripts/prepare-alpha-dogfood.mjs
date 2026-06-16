@@ -26,6 +26,8 @@ export function createDefaultPrepareAlphaDogfoodOptions(rootDir = DEFAULT_ROOT_D
     tagName: undefined,
     testerId: undefined,
     workflows: undefined,
+    trackingIssueUrl: undefined,
+    trackingIssueFile: undefined,
     appPath: undefined,
     downloadDir: undefined,
     extractDir: undefined,
@@ -66,6 +68,14 @@ export function parsePrepareAlphaDogfoodArgs(argv, defaults) {
         break;
       case "--workflows":
         options.workflows = readWorkflowList(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--tracking-issue-url":
+        options.trackingIssueUrl = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--tracking-issue-file":
+        options.trackingIssueFile = resolvePath(readValue(argv, index, arg));
         index += 1;
         break;
       case "--app":
@@ -208,9 +218,10 @@ export function createPrepareAlphaDogfoodPlan(options) {
 }
 
 export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
-  const plan = createPrepareAlphaDogfoodPlan(options);
+  const resolvedOptions = await resolvePrepareAlphaDogfoodOptions(options, io);
+  const plan = createPrepareAlphaDogfoodPlan(resolvedOptions);
 
-  if (options.dryRun !== false) {
+  if (resolvedOptions.dryRun !== false) {
     return {
       status: "planned",
       dryRun: true,
@@ -291,6 +302,8 @@ export function createPrepareAlphaDogfoodHelpText() {
     "  --tag <tag>               Release tag when --release-url is not used.",
     "  --tester-id <id>          Stable tester id for the generated handoff.",
     "  --workflows <ids>         Optional comma-separated workflow ids to pass into the handoff.",
+    "  --tracking-issue-url <url> Infer --workflows from Recommended Tester Assignments when omitted.",
+    "  --tracking-issue-file <path> Infer --workflows from a local tracking issue body when omitted.",
     "  --app <path>              App bundle destination. Default: .skfiy-dogfood/apps/<tag>/skfiy.app.",
     "  --download-dir <path>     Release asset download directory.",
     "  --extract-dir <path>      Temporary extraction directory.",
@@ -300,6 +313,40 @@ export function createPrepareAlphaDogfoodHelpText() {
     "  --dry-run                 Force dry-run planning mode.",
     "  -h, --help                Show this help."
   ].join("\n");
+}
+
+async function resolvePrepareAlphaDogfoodOptions(options, io) {
+  if (Array.isArray(options.workflows) && options.workflows.length > 0) {
+    return options;
+  }
+  if (
+    typeof options.trackingIssueFile !== "string"
+    && typeof options.trackingIssueUrl !== "string"
+  ) {
+    return options;
+  }
+
+  const body = await readTrackingIssueBody(options, io);
+  const workflows = readRecommendedAssignmentWorkflows(body, options.testerId);
+  if (workflows.length === 0) {
+    throw new Error(`Tracking issue has no Recommended Tester Assignments entry for ${options.testerId}.`);
+  }
+
+  return {
+    ...options,
+    workflows
+  };
+}
+
+async function readTrackingIssueBody(options, io) {
+  if (typeof options.trackingIssueFile === "string") {
+    return await io.readText(options.trackingIssueFile);
+  }
+  if (typeof options.trackingIssueUrl === "string") {
+    const issue = await io.readIssue(options.trackingIssueUrl);
+    return typeof issue?.body === "string" ? issue.body : "";
+  }
+  return "";
 }
 
 export async function pathExists(filePath) {
@@ -339,6 +386,40 @@ function readWorkflowList(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function readRecommendedAssignmentWorkflows(body, testerId) {
+  if (typeof body !== "string" || body.length === 0 || typeof testerId !== "string") {
+    return [];
+  }
+  const section = readMarkdownSection(body, "Recommended Tester Assignments");
+  const escapedTesterId = escapeRegExp(testerId.trim());
+  const linePattern = new RegExp(
+    `^-\\s*(?:\`${escapedTesterId}\`|${escapedTesterId})\\s*:\\s*\`?([^\\n\`]+)\`?\\s*$`,
+    "im"
+  );
+  const match = linePattern.exec(section);
+  if (!match) {
+    return [];
+  }
+
+  return readWorkflowList(match[1]).filter((workflow) =>
+    REQUIRED_DOGFOOD_WORKFLOWS.includes(workflow)
+  );
+}
+
+function readMarkdownSection(body, title) {
+  const headingPattern = new RegExp(`^##\\s+${escapeRegExp(title)}\\s*$`, "im");
+  const headingMatch = headingPattern.exec(body);
+  if (!headingMatch) {
+    return "";
+  }
+
+  const sectionStart = headingMatch.index + headingMatch[0].length;
+  const rest = body.slice(sectionStart);
+  const nextHeadingMatch = /^##\s+/m.exec(rest);
+
+  return (nextHeadingMatch ? rest.slice(0, nextHeadingMatch.index) : rest).trim();
 }
 
 function parseGitHubReleaseUrl(releaseUrl) {
@@ -462,7 +543,45 @@ function createDefaultIo() {
         maxBuffer: 64 * 1024 * 1024
       });
       return { stdout, stderr, exitCode: 0 };
+    },
+    async readIssue(issueUrl) {
+      const issue = parseGitHubIssueUrl(issueUrl);
+      const { stdout } = await execFileAsync("gh", [
+        "issue",
+        "view",
+        issue.number,
+        "--repo",
+        issue.repository,
+        "--json",
+        "body"
+      ], {
+        cwd: DEFAULT_ROOT_DIR,
+        maxBuffer: 64 * 1024 * 1024
+      });
+      const payload = JSON.parse(stdout);
+
+      return {
+        body: typeof payload.body === "string" ? payload.body : ""
+      };
     }
+  };
+}
+
+function parseGitHubIssueUrl(issueUrl) {
+  const parsed = new URL(issueUrl);
+  const parts = parsed.pathname.split("/").filter(Boolean);
+  if (
+    parsed.hostname !== "github.com"
+    || parts.length !== 4
+    || parts[2] !== "issues"
+    || !/^\d+$/.test(parts[3])
+  ) {
+    throw new Error("--tracking-issue-url must look like https://github.com/owner/repo/issues/<number>.");
+  }
+
+  return {
+    repository: `${parts[0]}/${parts[1]}`,
+    number: parts[3]
   };
 }
 

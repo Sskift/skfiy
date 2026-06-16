@@ -41,6 +41,8 @@ describe("alpha dogfood preparation", () => {
       "tester-a",
       "--workflows",
       "coding-terminal,screenshot-inspection",
+      "--tracking-issue-url",
+      "https://github.com/Sskift/skfiy/issues/1",
       "--app",
       "~/Applications/skfiy.app",
       "--download-dir",
@@ -55,6 +57,7 @@ describe("alpha dogfood preparation", () => {
       tagName: "skfiy-alpha-abc1234",
       testerId: "tester-a",
       workflows: ["coding-terminal", "screenshot-inspection"],
+      trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
       appPath: path.join(process.env.HOME ?? "", "Applications/skfiy.app"),
       downloadDir: path.resolve(".skfiy-dogfood/downloads/tester-a"),
       handoffOutputPath: path.resolve(".skfiy-dogfood/handoffs/tester-a.md"),
@@ -65,6 +68,7 @@ describe("alpha dogfood preparation", () => {
     expect(createPrepareAlphaDogfoodHelpText()).toContain("dry-run");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--execute");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--workflows");
+    expect(createPrepareAlphaDogfoodHelpText()).toContain("--tracking-issue-url");
   });
 
   it("dry-runs a release download, checksum verification, app extraction, and handoff command", async () => {
@@ -171,6 +175,43 @@ describe("alpha dogfood preparation", () => {
     );
   });
 
+  it("infers assigned workflows from the tracking issue when workflows are omitted", async () => {
+    const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
+      runPrepareAlphaDogfood: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      trackingIssueBody: [
+        "## Recommended Tester Assignments",
+        "- `tester-a`: `finder-file,browser-fallback`",
+        "  - Prepare: `npm run dogfood:prepare-alpha -- --tester-id tester-a --workflows finder-file,browser-fallback --execute`"
+      ].join("\n")
+    });
+
+    const result = await runPrepareAlphaDogfood({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "tester-a",
+      trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
+      dryRun: true
+    }, io) as {
+      plan: {
+        commands: Array<{ id: string; command: string; args: string[] }>;
+      };
+    };
+
+    expect(result.plan.commands.find((command) => command.id === "handoff:create")?.args).toEqual(
+      expect.arrayContaining([
+        "--workflows",
+        "finder-file,browser-fallback"
+      ])
+    );
+  });
+
   it("allows synthetic prepare tester ids only for the generated maintainer handoff command", async () => {
     const { createPrepareAlphaDogfoodPlan } = await import(pathToFileURL(modulePath).href) as {
       createPrepareAlphaDogfoodPlan: (input: Record<string, unknown>) => Record<string, unknown>;
@@ -266,7 +307,7 @@ describe("alpha dogfood preparation", () => {
   });
 });
 
-function createMemoryIo(options: { extractedInfoPlist?: string } = {}) {
+function createMemoryIo(options: { extractedInfoPlist?: string; trackingIssueBody?: string } = {}) {
   const commands: Array<{ id: string; command: string; args: string[] }> = [];
   const sha256Inputs: string[] = [];
   const manifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.json";
@@ -318,6 +359,15 @@ function createMemoryIo(options: { extractedInfoPlist?: string } = {}) {
         displayName: "skfiy",
         executable: "skfiy"
       });
+    },
+    async readIssue(issueUrl: string) {
+      if (issueUrl !== "https://github.com/Sskift/skfiy/issues/1") {
+        throw new Error(`Unexpected issue URL: ${issueUrl}`);
+      }
+      return {
+        body: options.trackingIssueBody ?? "",
+        labels: ["skfiy", "dogfood"]
+      };
     },
     async sha256File(filePath: string) {
       sha256Inputs.push(filePath);

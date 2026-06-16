@@ -279,7 +279,7 @@ npm run dogfood:prepare-alpha -- \
   --execute
 ```
 
-`dogfood:prepare-alpha` downloads the release zip and manifest, verifies the zip SHA256 against the manifest, extracts `skfiy.app` under `.skfiy-dogfood/apps/<tag>/`, and creates a handoff whose `dogfood:tester` command points at that extracted app bundle. It defaults to dry-run; `--execute` is required before it downloads or writes local files.
+`dogfood:prepare-alpha` downloads the release zip and manifest, verifies the zip SHA256 against the manifest, extracts `skfiy.app` under `.skfiy-dogfood/apps/<tag>/`, and creates a handoff whose `dogfood:tester` command points at that extracted app bundle. It defaults to dry-run; `--execute` is required before it downloads or writes local files. If `--workflows` is omitted but `--tracking-issue-url` or `--tracking-issue-file` is provided, it reads `Recommended Tester Assignments` and passes the tester's workflows into the generated handoff.
 
 Maintainers can still generate a handoff manually when the tester has already unpacked the app:
 
