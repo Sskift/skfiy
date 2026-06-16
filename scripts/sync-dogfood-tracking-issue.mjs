@@ -152,6 +152,11 @@ export function createDogfoodTrackingIssueBody({
   const permissionLine = createPermissionLine(readPermissionStates(uiSmokeArtifact));
   const preservedReportIssueUrls = readAcceptedReportIssueUrls(existingBody, trackingIssueUrl);
   const testerSlotLines = createTesterSlotLines(preservedReportIssueUrls);
+  const testerAssignmentLines = createRecommendedTesterAssignmentLines({
+    acceptedReportCount: preservedReportIssueUrls.length,
+    relativeManifestPath,
+    releaseUrl
+  });
   const missingRealTesterCount = Math.max(0, 3 - preservedReportIssueUrls.length);
 
   return [
@@ -179,6 +184,9 @@ export function createDogfoodTrackingIssueBody({
     "",
     "## Required Real Tester Count",
     ...testerSlotLines,
+    "",
+    "## Recommended Tester Assignments",
+    ...testerAssignmentLines,
     "",
     "## Local Synthetic Evidence",
     `- Strict permission preflight summary: \`${preflightSummaryPath}\``,
@@ -334,6 +342,62 @@ function formatOptionalUrl(url) {
   return typeof url === "string" && url.trim().length > 0 ? ` ${url.trim()}` : "";
 }
 
+function createRecommendedTesterAssignmentLines({
+  acceptedReportCount,
+  relativeManifestPath,
+  releaseUrl
+}) {
+  const remainingRequiredSlots = Math.max(0, 3 - acceptedReportCount);
+  if (remainingRequiredSlots === 0) {
+    return [
+      "- No default tester split is generated because the required tester slots are already filled.",
+      "- Run `dogfood:status` to validate accepted issue labels, workflow coverage, and passed workflow coverage."
+    ];
+  }
+
+  return distributeInitialWorkflows(remainingRequiredSlots).flatMap((workflows, index) => {
+    const testerId = `tester-${acceptedReportCount + index + 1}`;
+    const workflowList = workflows.join(",");
+
+    return [
+      `- \`${testerId}\`: \`${workflowList}\``,
+      `  - Prepare: \`${formatSingleLineCommand("npm run dogfood:prepare-alpha --", [
+        ["--release-url", releaseUrl],
+        ["--tester-id", testerId],
+        ["--execute"]
+      ])}\``,
+      `  - Run: \`${formatSingleLineCommand("npm run dogfood:tester --", [
+        ["--manifest", relativeManifestPath],
+        ["--app", "<path-to-unzipped-skfiy.app>"],
+        ["--tester-id", testerId],
+        ["--workflows", workflowList],
+        ["--artifacts-dir", `.skfiy-smoke/dogfood/${testerId}`],
+        ["--issue-output", `.skfiy-dogfood/issues/${testerId}.md`],
+        ["--summary", `.skfiy-dogfood/${testerId}-summary.md`]
+      ])}\``,
+      `  - Review: \`${formatSingleLineCommand("npm run dogfood:review --", [
+        ["--manifest", relativeManifestPath],
+        ["--issue-url", "<filed-dogfood-issue-url>"],
+        ["--summary", `.skfiy-dogfood/reviews/${testerId}.md`]
+      ])}\``
+    ];
+  });
+}
+
+function distributeInitialWorkflows(assignmentCount) {
+  const workflows = [...REQUIRED_DOGFOOD_WORKFLOWS];
+  const groups = [];
+
+  for (let index = 0; index < assignmentCount; index += 1) {
+    const slotsLeft = assignmentCount - index;
+    const take = Math.max(1, Math.ceil(workflows.length / slotsLeft));
+    const group = workflows.splice(0, take);
+    groups.push(group.length > 0 ? group : [REQUIRED_DOGFOOD_WORKFLOWS[index % REQUIRED_DOGFOOD_WORKFLOWS.length]]);
+  }
+
+  return groups;
+}
+
 function readAcceptedReportIssueUrls(body, trackingIssueUrl) {
   const section = readMarkdownSection(body, "Required Real Tester Count")
     || readMarkdownSection(body, "Required Tester Count");
@@ -422,6 +486,16 @@ function formatMultilineCommand(command, args) {
   }
 
   return lines.map((line, index) => index < lines.length - 1 ? `${line} \\` : line).join("\n");
+}
+
+function formatSingleLineCommand(command, args) {
+  const parts = [command];
+
+  for (const arg of args) {
+    parts.push(arg.length === 1 ? arg[0] : `${arg[0]} ${arg[1]}`);
+  }
+
+  return parts.join(" ");
 }
 
 function validateOptions(options) {

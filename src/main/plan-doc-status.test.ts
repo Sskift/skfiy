@@ -125,6 +125,7 @@ describe("implementation plan status docs", () => {
 
     expect(readme).toContain("npm run dogfood:status -- \\");
     expect(readme).toContain("Recommended Tester Assignments");
+    expect(readme).toContain("tracking issue body includes a `Recommended Tester Assignments` section");
     expect(readme).toContain("npm run dogfood:collect -- \\");
     expect(readme).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
     expect(readme).toContain("--reports-dir .skfiy-dogfood/reports");

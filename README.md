@@ -150,6 +150,8 @@ npm run dogfood:cohort -- \
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
+The tracking issue body includes a `Recommended Tester Assignments` section too,
+so the GitHub coordination page carries the same suggested split.
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main
 process in another terminal with `npm run dev:electron`.
