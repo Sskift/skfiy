@@ -13,6 +13,7 @@ import {
   writeVoiceSmokeEvidence
 } from "./smoke-voice-plan.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
+import { SKFIY_APP_PROCESS_PATTERN } from "./skfiy-process-matching.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -295,7 +296,7 @@ async function readSkfiyProcesses() {
   try {
     const { stdout } = await execFileAsync("pgrep", [
       "-fl",
-      "dist/skfiy.app|/skfiy.app/Contents/MacOS|Electron.*skfiy"
+      SKFIY_APP_PROCESS_PATTERN
     ]);
     return stdout.trim().split("\n").filter(Boolean);
   } catch {

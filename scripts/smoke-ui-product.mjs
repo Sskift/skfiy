@@ -13,6 +13,7 @@ import {
   writeUiSmokeEvidence
 } from "./smoke-ui-plan.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
+import { SKFIY_APP_PROCESS_PATTERN } from "./skfiy-process-matching.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -224,7 +225,7 @@ async function quitSkfiy() {
 }
 
 async function readSkfiyProcesses() {
-  return readProcessLines("dist/skfiy.app|/skfiy.app/Contents/MacOS|Electron.*skfiy");
+  return readProcessLines(SKFIY_APP_PROCESS_PATTERN);
 }
 
 async function readProcessLines(pattern) {
