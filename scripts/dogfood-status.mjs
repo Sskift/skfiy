@@ -23,6 +23,7 @@ const REQUIRED_WORKFLOW_IDS = [
   "finder-file",
   "browser-fallback"
 ];
+const PREPARED_ALPHA_MANIFEST_PLACEHOLDER = "<path-to-downloaded-alpha-manifest.json>";
 const BLOCKING_PERMISSION_STATES = new Set([
   "denied",
   "not-determined",
@@ -705,7 +706,6 @@ function distributeWorkflows(workflows, assignmentCount) {
 function createTesterAssignmentCommands({
   testerId,
   workflows,
-  manifestPath,
   trackingIssueUrl,
   trackingIssueFile,
   releaseUrl
@@ -731,7 +731,7 @@ function createTesterAssignmentCommands({
     tester: [
       "npm run dogfood:tester --",
       "--manifest",
-      manifestPath,
+      PREPARED_ALPHA_MANIFEST_PLACEHOLDER,
       "--app",
       "<path-to-unzipped-skfiy.app>",
       "--tester-id",
@@ -748,7 +748,7 @@ function createTesterAssignmentCommands({
     review: [
       "npm run dogfood:review --",
       "--manifest",
-      manifestPath,
+      PREPARED_ALPHA_MANIFEST_PLACEHOLDER,
       "--issue-url",
       "<filed-dogfood-issue-url>",
       ...reviewTrackingIssueArgs,

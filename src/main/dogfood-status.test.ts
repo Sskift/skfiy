@@ -443,6 +443,8 @@ describe("dogfood status reporter", () => {
       testerAssignments: Array<{
         commands: {
           prepareAlpha: string;
+          tester: string;
+          review: string;
         };
       }>;
     };
@@ -455,8 +457,8 @@ describe("dogfood status reporter", () => {
           purpose: "real-tester-count-and-workflow-coverage",
           commands: {
             prepareAlpha: expect.stringContaining("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute"),
-            tester: expect.stringContaining("npm run dogfood:tester -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection"),
-            review: expect.stringContaining("npm run dogfood:review -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md")
+            tester: expect.stringContaining("npm run dogfood:tester -- --manifest <path-to-downloaded-alpha-manifest.json> --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection"),
+            review: expect.stringContaining("npm run dogfood:review -- --manifest <path-to-downloaded-alpha-manifest.json> --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md")
           }
         },
         {
@@ -475,8 +477,10 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("## Recommended Tester Assignments");
     expect(io.textFiles[summaryPath]).toContain("- tester-1: coding-terminal, screenshot-inspection");
     expect(io.textFiles[summaryPath]).toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute");
-    expect(io.textFiles[summaryPath]).toContain("npm run dogfood:tester -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection");
-    expect(io.textFiles[summaryPath]).toContain("npm run dogfood:review -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md");
+    expect(io.textFiles[summaryPath]).toContain("npm run dogfood:tester -- --manifest <path-to-downloaded-alpha-manifest.json> --app <path-to-unzipped-skfiy.app> --tester-id tester-1 --workflows coding-terminal,screenshot-inspection");
+    expect(io.textFiles[summaryPath]).toContain("npm run dogfood:review -- --manifest <path-to-downloaded-alpha-manifest.json> --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md");
+    expect(status.testerAssignments[0].commands.tester).not.toContain("/repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json");
+    expect(status.testerAssignments[0].commands.review).not.toContain("/repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json");
   });
 
   it("reports when the tracking issue has enough report URLs to try dogfood:collect", async () => {

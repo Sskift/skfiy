@@ -153,6 +153,10 @@ npm run dogfood:cohort -- \
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
+The generated tester/review commands use
+`<path-to-downloaded-alpha-manifest.json>` so testers replace it with the
+manifest path produced by `dogfood:prepare-alpha` on their own machine, instead
+of copying a maintainer-local `.skfiy-alpha` path.
 It also compares the selected alpha manifest commit with the current git HEAD
 when available; a mismatch is a warning by default and a strict gate only when
 `--require-current-head` is used for pre-publication checks.
@@ -162,6 +166,9 @@ The tracking issue body includes a `Recommended Tester Assignments` section too,
 so the GitHub coordination page carries the same suggested split. Its copied
 prepare and review commands keep the same tracking issue URL, so workflow
 inference and accepted-report linking stay attached to the intended cohort.
+Those GitHub commands also use the prepared-alpha manifest placeholder for
+tester/review steps, keeping the coordination issue portable across tester
+machines.
 `dogfood:prepare-alpha` can infer `--workflows` from the tracking issue when a
 tester id appears in that section, so copied prepare commands and generated
 handoffs stay aligned.

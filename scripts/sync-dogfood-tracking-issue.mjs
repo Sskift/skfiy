@@ -12,6 +12,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_TRACKING_ISSUE_URL = "https://github.com/Sskift/skfiy/issues/1";
 const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/\d+/g;
+const PREPARED_ALPHA_MANIFEST_PLACEHOLDER = "<path-to-downloaded-alpha-manifest.json>";
 const PERMISSION_LABELS = {
   screenRecording: "Screen Recording",
   accessibility: "Accessibility",
@@ -233,9 +234,11 @@ export function createDogfoodTrackingIssueBody({
     "## Tester Runner",
     "For one real tester machine, collect all five packaged-app smoke artifacts and generate a checked issue body from the exact artifacts written by the run:",
     "",
+    `Replace \`${PREPARED_ALPHA_MANIFEST_PLACEHOLDER}\` with the manifest path printed by \`dogfood:prepare-alpha\` on the tester machine.`,
+    "",
     "```bash",
     formatMultilineCommand("npm run dogfood:tester --", [
-      ["--manifest", relativeManifestPath],
+      ["--manifest", PREPARED_ALPHA_MANIFEST_PLACEHOLDER],
       ["--app", "/Applications/skfiy.app"],
       ["--tester-id", "<stable-real-tester-id>"],
       ["--workflows", "<comma-separated-workflow-ids>"],
@@ -250,7 +253,7 @@ export function createDogfoodTrackingIssueBody({
     "## Review Command",
     "```bash",
     formatMultilineCommand("npm run dogfood:review --", [
-      ["--manifest", relativeManifestPath],
+      ["--manifest", PREPARED_ALPHA_MANIFEST_PLACEHOLDER],
       ["--issue-url", "<filed-dogfood-issue-url>"],
       ["--tracking-issue-url", trackingIssueUrl],
       ["--summary", ".skfiy-dogfood/reviews/<stable-real-tester-id>.md"]
@@ -387,7 +390,7 @@ function createRecommendedTesterAssignmentLines({
         ["--execute"]
       ])}\``,
       `  - Run: \`${formatSingleLineCommand("npm run dogfood:tester --", [
-        ["--manifest", relativeManifestPath],
+        ["--manifest", PREPARED_ALPHA_MANIFEST_PLACEHOLDER],
         ["--app", "<path-to-unzipped-skfiy.app>"],
         ["--tester-id", testerId],
         ["--workflows", workflowList],
@@ -396,7 +399,7 @@ function createRecommendedTesterAssignmentLines({
         ["--summary", `.skfiy-dogfood/${testerId}-summary.md`]
       ])}\``,
       `  - Review: \`${formatSingleLineCommand("npm run dogfood:review --", [
-        ["--manifest", relativeManifestPath],
+        ["--manifest", PREPARED_ALPHA_MANIFEST_PLACEHOLDER],
         ["--issue-url", "<filed-dogfood-issue-url>"],
         ["--tracking-issue-url", trackingIssueUrl],
         ["--summary", `.skfiy-dogfood/reviews/${testerId}.md`]
