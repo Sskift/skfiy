@@ -74,7 +74,9 @@ describe("dogfood cohort collector", () => {
       "https://github.com/Sskift/skfiy/issues/102",
       "https://github.com/Sskift/skfiy/issues/103"
     ];
-    const trackingBody = createTrackingIssueBody(reportIssueUrls);
+    const trackingBody = createTrackingIssueBody(reportIssueUrls, {
+      testerSectionTitle: "Required Real Tester Count"
+    });
     const testerDefinitions = [
       {
         testerId: "tester-a",
@@ -324,7 +326,7 @@ describe("dogfood cohort collector", () => {
     });
   });
 
-  it("does not collect report URLs from outside the Required Tester Count section", async () => {
+  it("does not collect report URLs from outside the real tester count section", async () => {
     const { collectDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       collectDogfoodCohort: (
         input: Record<string, unknown>,
@@ -356,7 +358,7 @@ describe("dogfood cohort collector", () => {
       trackingIssueUrl,
       reportsDir,
       cohortPath
-    }, io)).rejects.toThrow("Tracking issue must include a Required Tester Count section.");
+    }, io)).rejects.toThrow("Tracking issue must include a Required Real Tester Count or Required Tester Count section.");
   });
 
   it("rejects malformed non-numeric GitHub issue URLs before calling gh", async () => {
@@ -396,7 +398,10 @@ describe("dogfood cohort collector", () => {
   });
 });
 
-function createTrackingIssueBody(issueUrls: string[]) {
+function createTrackingIssueBody(
+  issueUrls: string[],
+  options: { testerSectionTitle?: string } = {}
+) {
   const testerLines = issueUrls.length > 0
     ? issueUrls.map((url, index) => `- [ ] Tester ${index + 1} accepted report issue URL: ${url}`)
     : [
@@ -409,7 +414,7 @@ function createTrackingIssueBody(issueUrls: string[]) {
     "## Goal",
     "Collect real packaged-app dogfood reports.",
     "",
-    "## Required Tester Count",
+    `## ${options.testerSectionTitle ?? "Required Tester Count"}`,
     ...testerLines,
     "",
     "## Cohort Gate",

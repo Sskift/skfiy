@@ -173,9 +173,10 @@ function validateCollectOptions(options) {
 }
 
 function readAcceptedReportIssueUrls(body, trackingIssueUrl) {
-  const testerSection = readMarkdownSection(body, "Required Tester Count");
+  const testerSection = readMarkdownSection(body, "Required Real Tester Count")
+    || readMarkdownSection(body, "Required Tester Count");
   if (testerSection.length === 0) {
-    throw new Error("Tracking issue must include a Required Tester Count section.");
+    throw new Error("Tracking issue must include a Required Real Tester Count or Required Tester Count section.");
   }
   const urls = [];
 

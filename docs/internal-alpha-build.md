@@ -179,7 +179,7 @@ npm run dogfood:collect -- \
   --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-`dogfood:collect` fetches the tracking issue with `gh issue view`, discovers linked accepted report issue URLs from the Required Tester Count section, converts each issue through the same `dogfood:report` gates, writes deterministic per-tester report JSON files under `.skfiy-dogfood/reports/`, writes the cohort JSON, and immediately runs `dogfood:cohort`. It is a collection helper only: real completion still requires 3-5 actual tester report issues and a passing cohort verifier. Local synthetic tester ids such as `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` may be collected for debugging evidence, but they do not satisfy the real-user count.
+`dogfood:collect` fetches the tracking issue with `gh issue view`, discovers linked accepted report issue URLs from the `Required Real Tester Count` section, converts each issue through the same `dogfood:report` gates, writes deterministic per-tester report JSON files under `.skfiy-dogfood/reports/`, writes the cohort JSON, and immediately runs `dogfood:cohort`. It is a collection helper only: real completion still requires 3-5 actual tester report issues and a passing cohort verifier. Local synthetic tester ids such as `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` may be collected for debugging evidence, but they do not satisfy the real-user count.
 
 After 3-5 single-user dogfood reports are collected, verify cross-user coverage:
 

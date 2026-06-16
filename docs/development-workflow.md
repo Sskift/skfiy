@@ -357,7 +357,7 @@ npm run dogfood:collect -- \
   --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-`dogfood:collect` only discovers accepted report issue URLs from the tracking issue and then reuses the same manifest-backed `dogfood:report` parser for each issue. It still requires `dogfood:accepted`, matching `workflow:*` labels, issue alpha manifest/zip/commit identity, all five smoke artifact paths, and smoke JSON `artifactPath` identity. It immediately runs `dogfood:cohort`; a failed cohort verification keeps the command from being release evidence.
+`dogfood:collect` only discovers accepted report issue URLs from the tracking issue's `Required Real Tester Count` slots and then reuses the same manifest-backed `dogfood:report` parser for each issue. It still requires `dogfood:accepted`, matching `workflow:*` labels, issue alpha manifest/zip/commit identity, all five smoke artifact paths, and smoke JSON `artifactPath` identity. It immediately runs `dogfood:cohort`; a failed cohort verification keeps the command from being release evidence.
 
 After aggregating 3-5 single-user reports, run:
 
