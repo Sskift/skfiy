@@ -31,6 +31,7 @@ describe("skfiy dogfood issue template", () => {
       "--issue-url",
       "--issue-labels",
       "gh issue view",
+      "readable accepted issue body",
       "testerId, workflows, all five smoke artifact paths, and labels",
       "missing artifact paths are rejected",
       "must match the same alpha",

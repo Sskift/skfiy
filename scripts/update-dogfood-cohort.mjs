@@ -159,6 +159,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
     throw new Error("--issue-url must be an http(s) GitHub issue URL.");
   }
   const issue = await resolveAcceptedIssue(options, io);
+  requireIssueBodyForReport(issue);
   const testerId = resolveTesterId(options, issue);
   const workflows = resolveWorkflows(options, issue);
   const issueLabels = validateAcceptedIssueLabels(
@@ -168,7 +169,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
 
   const manifest = await io.readJson(options.manifestPath);
   const issueAlphaIdentity = validateIssueAlphaIdentity(manifest, options.manifestPath, issue);
-  const smokeArtifactSelection = readSmokeArtifactSelection(manifest, issue);
+  const smokeArtifactSelection = readSmokeArtifactSelection(issue);
   const smokePaths = smokeArtifactSelection.paths;
   const smokeArtifacts = {
     ui: await io.readJson(smokePaths.uiSmokeArtifactPath),
@@ -213,12 +214,13 @@ export function createDogfoodReportHelpText() {
     "Adds or replaces one real single-user dogfood report in a cohort JSON file.",
     "With --manifest, generates the single-user report from the alpha manifest and tester issue artifacts first.",
     "Use --issue-url to link the generated report to the accepted GitHub dogfood issue.",
-    "By default testerId, workflows, smoke artifact paths, and labels are read from GitHub with gh issue view.",
-    "When the issue body is readable, dogfood:report requires all five issue smoke artifact paths.",
+    "dogfood:report requires a readable accepted issue body from gh issue view.",
+    "testerId, workflows, smoke artifact paths, alpha identity, and labels are read from GitHub by default.",
+    "The issue body must include all five issue smoke artifact paths.",
     "It also requires the issue alpha manifest, zip, and commit sha to match --manifest.",
     "Every smoke artifact JSON artifactPath must match the issue artifact path it was read from.",
-    "Use --tester-id and --workflows as explicit overrides for the issue body fields.",
-    "Use --issue-labels as an explicit/offline override proving dogfood:accepted plus matching workflow:* labels.",
+    "Use --tester-id and --workflows only as explicit overrides for tester/workflow body fields.",
+    "Use --issue-labels only as an explicit override proving dogfood:accepted plus matching workflow:* labels.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
     "",
     "After collecting 3-5 distinct testers and all required workflows, run:",
@@ -229,23 +231,9 @@ export function createDogfoodReportHelpText() {
   ].join("\n");
 }
 
-function readManifestSmokePaths(manifest) {
-  return {
-    uiSmokeArtifactPath: readAbsoluteManifestPath(manifest, "uiSmokeArtifactPath"),
-    ghosttySmokeArtifactPath: readAbsoluteManifestPath(manifest, "smokeArtifactPath"),
-    chromeSmokeArtifactPath: readAbsoluteManifestPath(manifest, "chromeSmokeArtifactPath"),
-    finderSmokeArtifactPath: readAbsoluteManifestPath(manifest, "finderSmokeArtifactPath"),
-    voiceSmokeArtifactPath: readAbsoluteManifestPath(manifest, "voiceSmokeArtifactPath")
-  };
-}
-
-function readSmokeArtifactSelection(manifest, issue) {
-  const manifestPaths = readManifestSmokePaths(manifest);
+function readSmokeArtifactSelection(issue) {
   if (!hasIssueBody(issue)) {
-    return {
-      artifactSource: "alpha-manifest-smoke-artifacts",
-      paths: manifestPaths
-    };
+    throw new Error("Accepted GitHub issue body is required for dogfood:report artifact evidence.");
   }
 
   return {
@@ -299,15 +287,6 @@ function validateIssueAlphaIdentity(manifest, manifestPath, issue) {
     issueAlphaZip,
     issueCommitSha
   };
-}
-
-function readAbsoluteManifestPath(manifest, field) {
-  const value = manifest?.[field];
-  if (typeof value !== "string" || !path.isAbsolute(value)) {
-    throw new Error(`Manifest ${field} must be an absolute path.`);
-  }
-
-  return value;
 }
 
 function readManifestCommitSha(manifest) {
@@ -468,7 +447,7 @@ async function resolveAcceptedIssue(options, io) {
     || !Array.isArray(options.workflows)
     || options.workflows.length === 0;
 
-  if ((needsIssueBody || !hasIssueLabels(options)) && typeof io.readIssue === "function") {
+  if (typeof io.readIssue === "function") {
     return normalizeIssueEvidence(await io.readIssue(options.issueUrl));
   }
 
@@ -481,6 +460,12 @@ async function resolveAcceptedIssue(options, io) {
   }
 
   return normalizeIssueEvidence({ labels: options.issueLabels });
+}
+
+function requireIssueBodyForReport(issue) {
+  if (!hasIssueBody(issue)) {
+    throw new Error("Accepted GitHub issue body is required for dogfood:report artifact evidence.");
+  }
 }
 
 function resolveTesterId(options, issue) {
