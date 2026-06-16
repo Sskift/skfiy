@@ -25,6 +25,22 @@ function createChromeClient(): ChromeTaskClient & {
       }
 
       if (command.method === "Runtime.evaluate") {
+        if (
+          typeof command.params?.expression === "string"
+          && command.params.expression.includes("window.location.href")
+        ) {
+          return {
+            result: {
+              type: "object",
+              value: {
+                url: "file:///tmp/skfiy-chrome.html",
+                title: "skfiy current page",
+                text: "skfiy chrome smoke ready"
+              }
+            }
+          };
+        }
+
         return {
           result: {
             type: "string",
@@ -83,6 +99,13 @@ describe("parseChromePageIntent", () => {
     expect(parseChromePageIntent("打开 Chrome 搜索天气")).toMatchObject({
       ok: false,
       reason: expect.stringContaining("打开 Chrome 测试页面")
+    });
+  });
+
+  it("accepts a constrained current Chrome page observation command", () => {
+    expect(parseChromePageIntent("观察 Chrome 当前页面并提取正文")).toEqual({
+      ok: true,
+      kind: "current_page"
     });
   });
 
@@ -257,6 +280,49 @@ describe("runChromePageTask", () => {
     });
     expect(events.at(-1)).toMatchObject({
       type: "completed",
+      summary: expect.stringContaining("skfiy chrome smoke ready")
+    });
+  });
+
+  it("observes the current Chrome page without navigating", async () => {
+    const client = createChromeClient();
+
+    const events = await collectEvents(
+      runChromePageTask(
+        "观察 Chrome 当前页面并提取正文",
+        client,
+        { approved: true }
+      )
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "approval_required",
+      "locating_app",
+      "action_verified",
+      "completed"
+    ]);
+    expect(client.sendCdpCommand).toHaveBeenCalledTimes(1);
+    expect(client.sendCdpCommand).toHaveBeenNthCalledWith(1, {
+      method: "Runtime.evaluate",
+      params: expect.objectContaining({
+        awaitPromise: true,
+        returnByValue: true,
+        expression: expect.stringContaining("window.location.href")
+      })
+    });
+    expect(client.sendCdpCommand).not.toHaveBeenCalledWith(expect.objectContaining({
+      method: "Page.navigate"
+    }));
+    expect(events).toContainEqual({
+      type: "action_verified",
+      actionType: "current_page_snapshot",
+      status: "passed",
+      message: "Observed current page: skfiy current page (file:///tmp/skfiy-chrome.html)"
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "completed",
+      command: "file:///tmp/skfiy-chrome.html",
       summary: expect.stringContaining("skfiy chrome smoke ready")
     });
   });

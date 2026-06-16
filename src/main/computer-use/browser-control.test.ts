@@ -94,4 +94,23 @@ describe("buildCdpCommand", () => {
       }
     });
   });
+
+  it("builds a current page DOM snapshot command", () => {
+    expect(buildCdpCommand({
+      type: "extract_page_snapshot"
+    })).toEqual({
+      method: "Runtime.evaluate",
+      params: {
+        awaitPromise: true,
+        returnByValue: true,
+        expression: expect.stringContaining("window.location.href")
+      }
+    });
+    expect(buildCdpCommand({
+      type: "extract_page_snapshot"
+    }).params.expression).toEqual(expect.stringContaining("document.title"));
+    expect(buildCdpCommand({
+      type: "extract_page_snapshot"
+    }).params.expression).toEqual(expect.stringContaining("document.body"));
+  });
 });

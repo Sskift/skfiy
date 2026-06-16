@@ -29,6 +29,7 @@ describe("Chrome product smoke script", () => {
     const {
       FALLBACK_PRODUCT_PATH,
       FALLBACK_SWITCH_PRODUCT_PATH,
+      classifyChromeCurrentPageSmokeEvidence,
       classifyChromeFallbackSmokeEvidence,
       classifyChromeFallbackSwitchEvidence,
       PRODUCT_PATH,
@@ -38,6 +39,7 @@ describe("Chrome product smoke script", () => {
     } = await import(pathToFileURL(modulePath).href) as {
       FALLBACK_PRODUCT_PATH: string;
       FALLBACK_SWITCH_PRODUCT_PATH: string;
+      classifyChromeCurrentPageSmokeEvidence: (input: Record<string, unknown>) => string;
       classifyChromeFallbackSmokeEvidence: (input: Record<string, unknown>) => string;
       classifyChromeFallbackSwitchEvidence: (input: Record<string, unknown>) => string;
       PRODUCT_PATH: string;
@@ -130,6 +132,27 @@ describe("Chrome product smoke script", () => {
         }
       ]
     })).toBe("fallback-switched-blocked");
+    expect(classifyChromeCurrentPageSmokeEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: PRODUCT_PATH,
+      pageSnapshot: {
+        url: "file:///tmp/skfiy-chrome.html",
+        title: "skfiy chrome smoke",
+        text: "skfiy chrome smoke ready"
+      },
+      events: [
+        {
+          status: "executing",
+          message: "Verified current_page_snapshot: Observed current page: skfiy chrome smoke (file:///tmp/skfiy-chrome.html)"
+        },
+        {
+          status: "completed",
+          message: "Chrome current page extracted: skfiy chrome smoke ready"
+        }
+      ]
+    })).toBe("passed");
   });
 
   it("records a configured-CDP failure switch run in the product smoke source", () => {
@@ -141,6 +164,17 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("fallbackSwitchRun");
     expect(source).toContain("runChromeFallbackSwitchProductCommand");
     expect(source).toContain("classifyChromeFallbackSwitchEvidence");
+  });
+
+  it("records a current Chrome page observation run in the product smoke source", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
+      "utf8"
+    );
+
+    expect(source).toContain("currentPageRun");
+    expect(source).toContain("观察 Chrome 当前页面并提取正文");
+    expect(source).toContain("classifyChromeCurrentPageSmokeEvidence");
   });
 
   it("classifies a completed Chrome extraction with expected text as passed", async () => {

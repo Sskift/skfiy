@@ -17,7 +17,8 @@ export type BrowserStructuredAction =
   | { type: "navigate"; url: string }
   | { type: "fill_selector"; selector: string; value: string }
   | { type: "click_selector"; selector: string }
-  | { type: "extract_text"; selector?: string };
+  | { type: "extract_text"; selector?: string }
+  | { type: "extract_page_snapshot" };
 
 export interface CdpCommand {
   method: string;
@@ -62,6 +63,8 @@ export function buildCdpCommand(action: BrowserStructuredAction): CdpCommand {
       return createRuntimeEvaluateCommand(createClickSelectorExpression(action.selector));
     case "extract_text":
       return createRuntimeEvaluateCommand(createExtractTextExpression(action.selector));
+    case "extract_page_snapshot":
+      return createRuntimeEvaluateCommand(createExtractPageSnapshotExpression());
   }
 }
 
@@ -120,6 +123,14 @@ function createExtractTextExpression(selector: string | undefined): string {
     }
     return element.innerText ?? element.textContent ?? "";
   })()`;
+}
+
+function createExtractPageSnapshotExpression(): string {
+  return `(() => ({
+    url: window.location.href,
+    title: document.title,
+    text: document.body?.innerText ?? document.body?.textContent ?? ""
+  }))()`;
 }
 
 function escapeForTemplate(value: string): string {

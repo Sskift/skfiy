@@ -13,6 +13,7 @@ const CHROME_APP_NAME = "Chrome";
 const CHROME_BUNDLE_ID = "com.google.Chrome";
 const CHROME_PAGE_PREFIX = "打开 Chrome 测试页面 ";
 const CHROME_PAGE_SUFFIX = " 并提取正文";
+const CHROME_CURRENT_PAGE_COMMAND = "观察 Chrome 当前页面并提取正文";
 const CHROME_FORM_PREFIX = "填写 Chrome 测试表单 ";
 const CHROME_FORM_SUFFIX = " 并提取正文";
 const CHROME_FORM_FIELD_MARKER = " 字段 ";
@@ -39,7 +40,14 @@ export interface ChromeFormField {
   value: string;
 }
 
+export interface ChromeCurrentPageSnapshot {
+  url: string;
+  title: string;
+  text: string;
+}
+
 type ChromePageIntent =
+  | { ok: true; kind: "current_page" }
   | { ok: true; url: string }
   | {
       ok: true;
@@ -84,7 +92,12 @@ export type ChromeTaskEvent =
     }
   | {
       type: "action_verified";
-      actionType: "navigate" | "fill_selector" | "click_selector" | "extract_text";
+      actionType:
+        | "navigate"
+        | "fill_selector"
+        | "click_selector"
+        | "extract_text"
+        | "current_page_snapshot";
       status: "passed";
       message: string;
     }
@@ -111,7 +124,7 @@ export async function* runChromePageTask(
   options: ChromeTaskOptions = {}
 ): AsyncGenerator<ChromeTaskEvent> {
   const parsed = parseChromePageIntent(input);
-  const command = parsed.ok ? parsed.url : input.trim();
+  const command = parsed.ok ? readChromeIntentCommand(parsed) : input.trim();
 
   yield {
     type: "started",
@@ -130,7 +143,7 @@ export async function* runChromePageTask(
 
   yield {
     type: "approval_required",
-    command: parsed.url,
+    command,
     risk: CHROME_PAGE_RISK
   };
 
@@ -145,6 +158,40 @@ export async function* runChromePageTask(
 
   if (!client) {
     yield* captureChromeScreenshotFallback(options);
+    return;
+  }
+
+  if (isChromeCurrentPageIntent(parsed)) {
+    try {
+      const result = await client.sendCdpCommand(buildCdpCommand({ type: "extract_page_snapshot" }));
+      const snapshot = readCurrentPageSnapshotResult(result);
+
+      if (hasSensitiveText(snapshot.text)) {
+        yield {
+          type: "verification_failed",
+          stage: "sensitive",
+          reason: "Sensitive UI text is visible."
+        };
+        return;
+      }
+
+      yield {
+        type: "action_verified",
+        actionType: "current_page_snapshot",
+        status: "passed",
+        message: `Observed current page: ${snapshot.title || "untitled"} (${snapshot.url})`
+      };
+      yield {
+        type: "completed",
+        command: snapshot.url,
+        summary: `Chrome current page extracted: ${snapshot.text}`
+      };
+    } catch (error) {
+      yield* captureChromeScreenshotFallback(options, {
+        stage: "extraction",
+        reason: `Chrome CDP current page snapshot failed: ${readErrorMessage(error, "Chrome current page snapshot failed.")}`
+      });
+    }
     return;
   }
 
@@ -371,6 +418,13 @@ function defaultChromeFallbackScreenshotPath(): string {
 export function parseChromePageIntent(input: string): ChromePageIntent {
   const trimmed = input.trim();
 
+  if (trimmed === CHROME_CURRENT_PAGE_COMMAND) {
+    return {
+      ok: true,
+      kind: "current_page"
+    };
+  }
+
   const formIntent = parseChromeFormIntent(trimmed);
   if (formIntent.ok) {
     return formIntent;
@@ -398,6 +452,17 @@ export function parseChromePageIntent(input: string): ChromePageIntent {
     ok: true,
     url
   };
+}
+
+function readChromeIntentCommand(intent: Extract<ChromePageIntent, { ok: true }>): string {
+  return isChromeCurrentPageIntent(intent) ? "Chrome current page" : intent.url;
+}
+
+function isChromeCurrentPageIntent(intent: Extract<ChromePageIntent, { ok: true }>): intent is {
+  ok: true;
+  kind: "current_page";
+} {
+  return "kind" in intent && intent.kind === "current_page";
 }
 
 function parseChromeFormIntent(input: string):
@@ -513,6 +578,33 @@ function readRuntimeStringResult(value: unknown): string {
   }
 
   throw new Error("Chrome CDP extraction did not return a string value.");
+}
+
+function readCurrentPageSnapshotResult(value: unknown): ChromeCurrentPageSnapshot {
+  if (
+    value
+    && typeof value === "object"
+    && "result" in value
+    && value.result
+    && typeof value.result === "object"
+    && "value" in value.result
+    && value.result.value
+    && typeof value.result.value === "object"
+    && "url" in value.result.value
+    && typeof value.result.value.url === "string"
+    && "title" in value.result.value
+    && typeof value.result.value.title === "string"
+    && "text" in value.result.value
+    && typeof value.result.value.text === "string"
+  ) {
+    return {
+      url: value.result.value.url,
+      title: value.result.value.title,
+      text: value.result.value.text
+    };
+  }
+
+  throw new Error("Chrome CDP current page snapshot did not return url, title, and text.");
 }
 
 function readErrorMessage(error: unknown, fallback: string): string {

@@ -17,6 +17,7 @@ describe("dogfood artifact verifier", () => {
     "clipboard read/write approval runs",
     "Chrome app policy settings",
     "Chrome test-page extraction evidence",
+    "Chrome current-page observation evidence",
     "Chrome sensitive-page pause evidence",
     "Chrome form action evidence",
     "Chrome screenshot fallback evidence",
@@ -132,6 +133,30 @@ describe("dogfood artifact verifier", () => {
     chromeEndpoint: "http://127.0.0.1:9444",
     appPolicySettings: ghosttyAppPolicySettings,
     extractedText: "skfiy chrome smoke ready",
+    currentPageRun: {
+      result: "passed",
+      command: "观察 Chrome 当前页面并提取正文",
+      pageSnapshot: {
+        url: "file:///tmp/skfiy-chrome.html",
+        title: "skfiy chrome smoke",
+        text: "skfiy chrome smoke ready"
+      },
+      extractedText: "skfiy chrome smoke ready",
+      events: [
+        {
+          status: "approval_required",
+          message: "Approval required (app policy): Chrome requires approval by app policy."
+        },
+        {
+          status: "executing",
+          message: "Verified current_page_snapshot: Observed current page: skfiy chrome smoke (file:///tmp/skfiy-chrome.html)"
+        },
+        {
+          status: "completed",
+          message: "Chrome current page extracted: skfiy chrome smoke ready"
+        }
+      ]
+    },
     sensitiveRun: {
       result: "sensitive-paused",
       pageUrl: "file:///tmp/skfiy-login.html",
@@ -372,9 +397,11 @@ describe("dogfood artifact verifier", () => {
   it("parses an explicit manifest path and require-passed gate", async () => {
     const {
       createDefaultDogfoodVerifyOptions,
+      createDogfoodVerifyHelpText,
       parseDogfoodVerifyArgs
     } = await import(pathToFileURL(modulePath).href) as {
       createDefaultDogfoodVerifyOptions: (rootDir: string) => Record<string, unknown>;
+      createDogfoodVerifyHelpText: () => string;
       parseDogfoodVerifyArgs: (
         argv: string[],
         defaults: Record<string, unknown>
@@ -392,6 +419,7 @@ describe("dogfood artifact verifier", () => {
       requirePassed: true,
       requireCurrentHead: true
     });
+    expect(createDogfoodVerifyHelpText()).toContain("Chrome current-page observation evidence");
   });
 
   it("accepts a complete blocked dogfood evidence chain from the packaged app", async () => {
@@ -498,6 +526,7 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "ghostty.productPath", ok: true }),
         expect.objectContaining({ id: "chrome.productPath", ok: true }),
         expect.objectContaining({ id: "chrome.actionVerification", ok: true }),
+        expect.objectContaining({ id: "chrome.currentPage", ok: true }),
         expect.objectContaining({ id: "chrome.sensitivePause", ok: true }),
         expect.objectContaining({ id: "chrome.formAction", ok: true }),
         expect.objectContaining({ id: "chrome.fallback", ok: true }),
@@ -977,6 +1006,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.chrome"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeAppPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeExtraction"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.chromeCurrentPage"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeSensitivePause"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeFormAction"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeFallback"),
@@ -1003,6 +1033,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("chrome.approval"),
         expect.stringContaining("chrome.actionVerification"),
         expect.stringContaining("chrome.extractedText"),
+        expect.stringContaining("chrome.currentPage"),
         expect.stringContaining("chrome.sensitivePause"),
         expect.stringContaining("chrome.formAction"),
         expect.stringContaining("chrome.fallback"),
@@ -1071,6 +1102,56 @@ describe("dogfood artifact verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("chrome.fallbackSwitch")
+      ])
+    });
+  });
+
+  it("fails when Chrome smoke lacks current-page observation evidence", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const chromeArtifact = createChromeSmokeArtifact(chromeSmokePath);
+    delete (chromeArtifact as { currentPageRun?: unknown }).currentPageRun;
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: chromeArtifact,
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("chrome.currentPage")
       ])
     });
   });

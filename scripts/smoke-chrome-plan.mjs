@@ -6,6 +6,7 @@ export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
 export const EXPECTED_TEXT = "skfiy chrome smoke ready";
 export const FORM_EXPECTED_TEXT = "skfiy agent@skfiy.test operator form submitted";
+export const CURRENT_PAGE_COMMAND = "观察 Chrome 当前页面并提取正文";
 export const SENSITIVE_EXPECTED_RESULT = "sensitive-paused";
 export const PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
 export const FALLBACK_PRODUCT_PATH =
@@ -200,6 +201,47 @@ export function classifyChromeFallbackSmokeEvidence({
   return last.status ?? "failed";
 }
 
+export function classifyChromeCurrentPageSmokeEvidence({
+  events = [],
+  pageSnapshot,
+  expectedText = EXPECTED_TEXT,
+  runnerHasTmux = false,
+  appLaunchViaOpen = false,
+  chromeLaunchViaOpen = false,
+  productPath
+}) {
+  const last = events.at(-1);
+
+  if (!last) {
+    return "no-events";
+  }
+
+  if (last.status === "approval_required") {
+    return "needs-user-confirmation";
+  }
+
+  if (last.status === "failed" && isChromeBlockedMessage(last.message)) {
+    return "blocked";
+  }
+
+  if (last.status !== "completed") {
+    return last.status ?? "failed";
+  }
+
+  if (
+    runnerHasTmux
+    || appLaunchViaOpen !== true
+    || chromeLaunchViaOpen !== true
+    || productPath !== PRODUCT_PATH
+    || !hasChromeCurrentPageSnapshotEvidence(events, pageSnapshot, expectedText)
+    || hasTaskEventMessage(events, "Verified navigate:")
+  ) {
+    return "failed";
+  }
+
+  return "passed";
+}
+
 export function classifyChromeFallbackSwitchEvidence({
   events = [],
   runnerHasTmux = false,
@@ -268,6 +310,27 @@ function hasChromeFallbackSwitchEvent(events) {
       event?.status === "executing"
         && typeof event.message === "string"
         && /Switching Chrome control from cdp to screenshot_fallback/i.test(event.message)
+    );
+}
+
+function hasChromeCurrentPageSnapshotEvidence(events, pageSnapshot, expectedText) {
+  return pageSnapshot
+    && typeof pageSnapshot === "object"
+    && typeof pageSnapshot.url === "string"
+    && pageSnapshot.url.length > 0
+    && typeof pageSnapshot.title === "string"
+    && pageSnapshot.title.length > 0
+    && typeof pageSnapshot.text === "string"
+    && pageSnapshot.text.includes(expectedText)
+    && hasTaskEventMessage(events, "Verified current_page_snapshot:")
+    && hasTaskEventMessage(events, "Chrome current page extracted:");
+}
+
+function hasTaskEventMessage(events, prefix) {
+  return Array.isArray(events)
+    && events.some((event) =>
+      typeof event?.message === "string"
+        && event.message.startsWith(prefix)
     );
 }
 

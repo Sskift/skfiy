@@ -212,12 +212,18 @@ body:
     id: chrome_extraction
     attributes:
       label: Chrome extracted text
-      description: Paste Chrome smoke product path, extractedText, navigate/extract verification events, sensitive-page pause evidence, and screenshot fallback switching evidence.
+      description: Paste Chrome smoke product path, extractedText, navigate/extract verification events, current-page observation evidence, sensitive-page pause evidence, and screenshot fallback switching evidence.
       placeholder: |
         productPath: renderer -> preload -> main -> CDP -> Chrome
         extractedText: skfiy chrome smoke ready
         Verified navigate: Navigated to: ...
         Verified extract_text: Extracted text: ...
+        Chrome current-page observation:
+        currentPageRun.result: passed
+        currentPageRun.command: 观察 Chrome 当前页面并提取正文
+        currentPageRun.pageSnapshot.text: skfiy chrome smoke ready
+        Verified current_page_snapshot: Observed current page: ...
+        Chrome current page extracted: skfiy chrome smoke ready
         Chrome sensitive-page pause:
         result: sensitive-paused
         Verification failed (sensitive): Sensitive UI text is visible.

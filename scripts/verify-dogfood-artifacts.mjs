@@ -211,6 +211,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.chromeCurrentPage",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Chrome current-page observation evidence"),
+    "manifest must require Chrome current-page observation evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.chromeSensitivePause",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Chrome sensitive-page pause evidence"),
@@ -568,6 +575,12 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
     "chrome.extractedText",
     typeof artifact.extractedText === "string" && artifact.extractedText.includes(REQUIRED_CHROME_TEXT),
     "Chrome smoke must include extracted test-page text"
+  );
+  check(
+    checks,
+    "chrome.currentPage",
+    hasChromeCurrentPageEvidence(artifact.currentPageRun),
+    "Chrome smoke must include a current-page observation run without navigation"
   );
   check(
     checks,
@@ -948,6 +961,24 @@ function hasChromeApprovalEvidence(events) {
 function hasChromeActionVerification(events) {
   return hasTaskEventMessage(events, "Verified navigate:")
     && hasTaskEventMessage(events, "Verified extract_text:");
+}
+
+function hasChromeCurrentPageEvidence(value) {
+  return Boolean(value)
+    && value.result === "passed"
+    && value.command === "观察 Chrome 当前页面并提取正文"
+    && typeof value.extractedText === "string"
+    && value.extractedText.includes(REQUIRED_CHROME_TEXT)
+    && typeof value.pageSnapshot?.url === "string"
+    && value.pageSnapshot.url.length > 0
+    && typeof value.pageSnapshot?.title === "string"
+    && value.pageSnapshot.title.length > 0
+    && typeof value.pageSnapshot?.text === "string"
+    && value.pageSnapshot.text.includes(REQUIRED_CHROME_TEXT)
+    && Array.isArray(value.events)
+    && hasTaskEventMessage(value.events, "Verified current_page_snapshot:")
+    && hasTaskEventMessage(value.events, "Chrome current page extracted:")
+    && !hasTaskEventMessage(value.events, "Verified navigate:");
 }
 
 function hasChromeSensitivePauseEvidence(value) {
@@ -1394,7 +1425,7 @@ Validates that an alpha manifest references a coherent packaged-app dogfood evid
 
 Options:
   --manifest <path>     Alpha manifest JSON from npm run alpha:artifact.
-  --require-passed      Fail unless both Ghostty and native voice smoke results are passed.
+  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and native voice smoke results are passed, including Chrome current-page observation evidence.
   --require-current-head
                        Fail unless manifest commitSha matches the current git HEAD.
   -h, --help            Show this help.

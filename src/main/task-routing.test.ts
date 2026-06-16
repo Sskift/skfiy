@@ -18,6 +18,13 @@ describe("selectCommandRoute", () => {
     });
   });
 
+  it("routes current Chrome page observation commands to Chrome", () => {
+    expect(selectCommandRoute("观察 Chrome 当前页面并提取正文")).toEqual({
+      kind: "chrome",
+      bundleId: "com.google.Chrome"
+    });
+  });
+
   it("routes explicit Finder test-folder organization commands to Finder", () => {
     expect(selectCommandRoute("整理 Finder 测试文件夹 /tmp/skfiy-demo")).toEqual({
       kind: "finder",

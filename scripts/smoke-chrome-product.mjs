@@ -7,8 +7,10 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import {
+  CURRENT_PAGE_COMMAND,
   FALLBACK_PRODUCT_PATH,
   FALLBACK_SWITCH_PRODUCT_PATH,
+  classifyChromeCurrentPageSmokeEvidence,
   classifyChromeFallbackSwitchEvidence,
   classifyChromeFallbackSmokeEvidence,
   classifyChromeSmokeEvidence,
@@ -31,6 +33,7 @@ const FORM_FIELDS = [
   { selector: "#email", value: "agent@skfiy.test" },
   { selector: "#role", value: "operator" }
 ];
+const EXPECTED_CURRENT_PAGE_COMMAND = "观察 Chrome 当前页面并提取正文";
 
 async function main() {
   const defaults = createDefaultChromeSmokeOptions(ROOT_DIR);
@@ -62,10 +65,12 @@ async function main() {
     formPageUrl: undefined,
     chromeEndpoint,
     command: undefined,
+    currentPageCommand: CURRENT_PAGE_COMMAND,
     sensitiveCommand: undefined,
     formCommand: undefined,
     extractedText: "",
     events: [],
+    currentPageRun: undefined,
     sensitiveRun: undefined,
     formRun: undefined,
     fallbackRun: undefined,
@@ -153,6 +158,29 @@ async function main() {
       evidence.events = primaryEvents;
       evidence.extractedText = extractCompletedChromeText(primaryEvents);
       evidence.result = classifyChromeSmokeEvidence(evidence);
+
+      const currentPageEvents = await runChromeProductCommand(
+        cdp,
+        evidence.currentPageCommand,
+        options
+      );
+      const currentPageText = extractCompletedChromeCurrentPageText(currentPageEvents);
+      const currentPageSnapshot = extractChromeCurrentPageSnapshot(currentPageEvents);
+      evidence.currentPageRun = {
+        command: evidence.currentPageCommand,
+        pageSnapshot: currentPageSnapshot,
+        events: currentPageEvents,
+        extractedText: currentPageText,
+        result: classifyChromeCurrentPageSmokeEvidence({
+          ...evidence,
+          events: currentPageEvents,
+          pageSnapshot: currentPageSnapshot
+        })
+      };
+
+      if (evidence.result === "passed" && evidence.currentPageRun.result !== "passed") {
+        evidence.result = "failed";
+      }
 
       const sensitiveEvents = await runChromeProductCommand(
         cdp,
@@ -301,6 +329,10 @@ function assertChromeSmokeReady(options) {
 
   if (typeof WebSocket !== "function") {
     throw new Error("This smoke script requires a Node runtime with global WebSocket support.");
+  }
+
+  if (CURRENT_PAGE_COMMAND !== EXPECTED_CURRENT_PAGE_COMMAND) {
+    throw new Error("Chrome current-page smoke command changed without updating product evidence.");
   }
 }
 
@@ -642,6 +674,35 @@ function extractCompletedChromeText(events) {
   );
 
   return completed?.message?.slice("Chrome test page extracted:".length).trim() ?? "";
+}
+
+function extractCompletedChromeCurrentPageText(events) {
+  const prefix = "Chrome current page extracted:";
+  const completed = events.findLast((event) =>
+    event?.status === "completed"
+      && typeof event.message === "string"
+      && event.message.startsWith(prefix)
+  );
+
+  return completed?.message?.slice(prefix.length).trim() ?? "";
+}
+
+function extractChromeCurrentPageSnapshot(events) {
+  const extractedText = extractCompletedChromeCurrentPageText(events);
+  const event = events.findLast((item) =>
+    item?.status === "executing"
+      && typeof item.message === "string"
+      && item.message.startsWith("Verified current_page_snapshot:")
+  );
+  const matched = event?.message?.match(
+    /^Verified current_page_snapshot: Observed current page: (.*) \((.*)\)$/
+  );
+
+  return {
+    title: matched?.[1]?.trim() ?? "",
+    url: matched?.[2]?.trim() ?? "",
+    text: extractedText
+  };
 }
 
 async function quitSkfiy() {
