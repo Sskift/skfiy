@@ -12,7 +12,7 @@ const execFileAsync = promisify(execFile);
 const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 const CHROME_PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
-const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> fs -> Finder";
+const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
 const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
 const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
@@ -215,6 +215,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Finder app policy settings"),
     "manifest must require Finder app policy evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.finderObservation",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Finder observe_app screenshot or permission-blocked evidence"),
+    "manifest must require Finder observe_app evidence"
   );
   check(
     checks,
@@ -591,6 +598,12 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   );
   check(
     checks,
+    "finder.observation",
+    hasFinderObservationEvidence(artifact.finderObservation, artifact.result),
+    "Finder smoke must include observe_app screenshot evidence or a permission-blocked observation"
+  );
+  check(
+    checks,
     "finder.actionVerification",
     hasFinderOrganizationActionVerification(artifact.events),
     "Finder smoke must include create_folder and move_file verification events"
@@ -878,6 +891,39 @@ function hasFinderApprovalEvidence(events) {
       && typeof event.message === "string"
       && event.message.includes("Finder requires approval by app policy")
   );
+}
+
+function hasFinderObservationEvidence(value, result) {
+  if (result === "passed") {
+    return hasPassedFinderObservation(value);
+  }
+
+  if (result === "blocked") {
+    return hasPassedFinderObservation(value) || hasPermissionBlockedFinderObservation(value);
+  }
+
+  return false;
+}
+
+function hasPassedFinderObservation(value) {
+  return Boolean(value)
+    && value.result === "passed"
+    && typeof value.screenshotPath === "string"
+    && value.screenshotPath.length > 0
+    && value.frontmostBundleId === "com.apple.finder";
+}
+
+function hasPermissionBlockedFinderObservation(value) {
+  return Boolean(value)
+    && value.result === "blocked"
+    && typeof value.reason === "string"
+    && isPermissionBlockedMessage(value.reason);
+}
+
+function isPermissionBlockedMessage(message) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("permission")
+    && (normalized.includes("accessibility") || normalized.includes("screen recording"));
 }
 
 function hasFinderOrganizationActionVerification(events) {

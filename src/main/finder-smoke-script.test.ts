@@ -41,7 +41,7 @@ describe("Finder product smoke script", () => {
       ) => Record<string, unknown>;
     };
 
-    expect(PRODUCT_PATH).toBe("renderer -> preload -> main -> fs -> Finder");
+    expect(PRODUCT_PATH).toBe("renderer -> preload -> main -> helper observe_app -> fs -> Finder");
     expect(parseFinderSmokeArgs(
       ["--output", ".skfiy-smoke/finder.json"],
       createDefaultFinderSmokeOptions("/repo")
@@ -62,7 +62,13 @@ describe("Finder product smoke script", () => {
     expect(classifyFinderSmokeEvidence({
       appLaunchViaOpen: true,
       runnerHasTmux: false,
-      productPath: "renderer -> preload -> main -> fs -> Finder",
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      finderObservation: {
+        result: "passed",
+        screenshotPath: "/tmp/skfiy/finder-before.png",
+        frontmostBundleId: "com.apple.finder",
+        windowCount: 1
+      },
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [
         "Code/script.ts",
@@ -70,5 +76,51 @@ describe("Finder product smoke script", () => {
         "Images/photo.png"
       ]
     })).toBe("passed");
+  });
+
+  it("classifies a completed Finder organization without observe_app evidence as failed", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      events: [{ status: "completed", message: "Finder test folder organized." }],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    })).toBe("failed");
+  });
+
+  it("classifies a completed Finder organization with permission-blocked observation as blocked", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      finderObservation: {
+        result: "blocked",
+        reason: "Screen Recording permission is required for skfiy."
+      },
+      events: [{ status: "completed", message: "Finder test folder organized." }],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    })).toBe("blocked");
   });
 });

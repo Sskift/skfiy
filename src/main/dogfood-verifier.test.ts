@@ -19,6 +19,7 @@ describe("dogfood artifact verifier", () => {
     "Chrome sensitive-page pause evidence",
     "Chrome form action evidence",
     "Finder app policy settings",
+    "Finder observe_app screenshot or permission-blocked evidence",
     "Finder test-folder organization evidence"
   ];
   const ghosttyAppPolicySettings = {
@@ -64,8 +65,14 @@ describe("dogfood artifact verifier", () => {
     result: "passed",
     appLaunchViaOpen: true,
     runnerHasTmux: false,
-    productPath: "renderer -> preload -> main -> fs -> Finder",
+    productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
     artifactPath,
+    finderObservation: {
+      result: "passed",
+      screenshotPath: "/tmp/skfiy/finder-before.png",
+      frontmostBundleId: "com.apple.finder",
+      windowCount: 1
+    },
     appPolicySettings: ghosttyAppPolicySettings,
     beforeTree: ["notes.pdf", "photo.png", "script.ts"],
     afterTree: ["Code/script.ts", "Documents/notes.pdf", "Images/photo.png"],
@@ -543,6 +550,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeFormAction"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finder"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderAppPolicy"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.finderObservation"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderOrganization"),
         expect.stringContaining("ui.runnerHasTmux"),
         expect.stringContaining("ui.productPath"),
@@ -568,6 +576,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("finder.productPath"),
         expect.stringContaining("finder.appPolicySettings"),
         expect.stringContaining("finder.approval"),
+        expect.stringContaining("finder.observation"),
         expect.stringContaining("finder.actionVerification"),
         expect.stringContaining("finder.beforeTree"),
         expect.stringContaining("finder.afterTree"),

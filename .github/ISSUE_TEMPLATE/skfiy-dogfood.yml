@@ -230,6 +230,19 @@ body:
       required: true
 
   - type: textarea
+    id: finder_observation
+    attributes:
+      label: Finder observe_app
+      description: Paste Finder `finderObservation` from the smoke artifact, including screenshot path/frontmost bundle when passed or the permission-blocked reason.
+      placeholder: |
+        finderObservation.result: passed
+        finderObservation.screenshotPath: /tmp/skfiy/finder-before-...
+        finderObservation.frontmostBundleId: com.apple.finder
+        finderObservation.windowCount: 1
+    validations:
+      required: true
+
+  - type: textarea
     id: finder_organization
     attributes:
       label: Finder before tree / after tree

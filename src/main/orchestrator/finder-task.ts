@@ -1,9 +1,15 @@
 import { mkdir, readdir, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import { createFinderOrganizationPlan } from "../computer-use/finder-organizer.js";
+import type {
+  DesktopActionResult,
+  DesktopExecutableAction,
+  DesktopAppState
+} from "../computer-use/types.js";
 import type { RiskDecision } from "../../shared/types.js";
 
 const FINDER_APP_NAME = "Finder";
+const FINDER_BUNDLE_ID = "com.apple.finder";
 const FINDER_ORGANIZE_PREFIX = "整理 Finder 测试文件夹 ";
 
 const FINDER_ORGANIZATION_RISK: RiskDecision = {
@@ -28,6 +34,16 @@ export type FinderTaskEvent =
       appName: string;
     }
   | {
+      type: "app_activated";
+      appName: string;
+      bundleId: string;
+    }
+  | {
+      type: "screenshot_before";
+      path: string;
+      observation: DesktopAppState;
+    }
+  | {
       type: "action_verified";
       actionType: "create_folder" | "move_file";
       status: "passed";
@@ -35,7 +51,7 @@ export type FinderTaskEvent =
     }
   | {
       type: "verification_failed";
-      stage: "input" | "file_operation";
+      stage: "input" | "file_operation" | "activate" | "observe";
       reason: string;
     }
   | {
@@ -46,6 +62,12 @@ export type FinderTaskEvent =
 
 export interface FinderTaskOptions {
   approved?: boolean;
+  desktopClient?: FinderDesktopClient;
+  createScreenshotPath?: (stage: "before") => string;
+}
+
+export interface FinderDesktopClient {
+  executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult>;
 }
 
 export async function* runFinderOrganizationTask(
@@ -105,6 +127,8 @@ export async function* runFinderOrganizationTask(
     appName: FINDER_APP_NAME
   };
 
+  yield* observeFinder(options);
+
   for (const operation of plan.operations) {
     if (operation.type === "create_folder") {
       await mkdir(operation.path, { recursive: true });
@@ -140,6 +164,113 @@ export async function* runFinderOrganizationTask(
     command: rootPath,
     summary: "Finder test folder organized."
   };
+}
+
+async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<FinderTaskEvent> {
+  if (!options.desktopClient) {
+    return;
+  }
+
+  const activationResult = await executeFinderAction(
+    options.desktopClient,
+    { type: "activate_app", bundleId: FINDER_BUNDLE_ID }
+  );
+
+  if (!activationResult.ok) {
+    yield {
+      type: "verification_failed",
+      stage: "activate",
+      reason: activationResult.reason
+    };
+    return;
+  }
+
+  yield {
+    type: "app_activated",
+    appName: FINDER_APP_NAME,
+    bundleId: FINDER_BUNDLE_ID
+  };
+
+  const screenshotOutputPath = options.createScreenshotPath?.("before")
+    ?? defaultFinderScreenshotPath();
+  const observationResult = await executeFinderAction(
+    options.desktopClient,
+    {
+      type: "observe_app",
+      bundleId: FINDER_BUNDLE_ID,
+      screenshotOutputPath
+    }
+  );
+
+  if (!observationResult.ok) {
+    yield {
+      type: "verification_failed",
+      stage: "observe",
+      reason: observationResult.reason
+    };
+    return;
+  }
+
+  if (!isDesktopAppState(observationResult.result)) {
+    yield {
+      type: "verification_failed",
+      stage: "observe",
+      reason: "Finder observation did not return app state."
+    };
+    return;
+  }
+
+  yield {
+    type: "screenshot_before",
+    path: observationResult.result.screenshotPath,
+    observation: observationResult.result
+  };
+}
+
+async function executeFinderAction(
+  desktopClient: FinderDesktopClient,
+  action: DesktopExecutableAction
+): Promise<
+  | { ok: true; result: DesktopActionResult }
+  | { ok: false; reason: string }
+> {
+  try {
+    const result = await desktopClient.executeAction(action);
+
+    if (isFailedActionResult(result)) {
+      return {
+        ok: false,
+        reason: result.message ?? `Desktop helper could not ${action.type}.`
+      };
+    }
+
+    return { ok: true, result };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: readErrorMessage(error)
+    };
+  }
+}
+
+function isFailedActionResult(result: DesktopActionResult): result is { ok: false; message?: string } {
+  return "ok" in result && result.ok === false;
+}
+
+function isDesktopAppState(result: DesktopActionResult): result is DesktopAppState {
+  return "bundleId" in result
+    && "isRunning" in result
+    && "isActive" in result
+    && "screenshotPath" in result;
+}
+
+function defaultFinderScreenshotPath(): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return path.join("/tmp", "skfiy", `finder-before-${timestamp}.png`);
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Finder desktop observation failed.";
 }
 
 export function parseFinderOrganizationIntent(input: string):

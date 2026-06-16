@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { runFinderOrganizationTask } from "./finder-task";
+import type { DesktopActionResult, DesktopExecutableAction } from "../computer-use/types";
 
 async function collectEvents(task: AsyncGenerator<{ type: string }>) {
   const events: Array<{ type: string }> = [];
@@ -68,6 +69,80 @@ describe("runFinderOrganizationTask", () => {
       await expect(stat(path.join(rootPath, "photo.png"))).rejects.toThrow();
       await expect(stat(path.join(rootPath, "notes.pdf"))).rejects.toThrow();
       await expect(stat(path.join(rootPath, "script.ts"))).rejects.toThrow();
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
+  it("activates and observes Finder before moving files when a desktop client is available", async () => {
+    const rootPath = await createFixture();
+    const actions: DesktopExecutableAction[] = [];
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        actions.push(action);
+
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: "skfiy-finder-smoke",
+                layer: 0,
+                bounds: { x: 10, y: 20, width: 640, height: 480 }
+              }
+            ]
+          };
+        }
+
+        return { ok: true };
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask(`整理 Finder 测试文件夹 ${rootPath}`, {
+          approved: true,
+          desktopClient,
+          createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
+        })
+      );
+
+      expect(actions.slice(0, 2)).toEqual([
+        { type: "activate_app", bundleId: "com.apple.finder" },
+        {
+          type: "observe_app",
+          bundleId: "com.apple.finder",
+          screenshotOutputPath: "/tmp/skfiy-finder-before.png"
+        }
+      ]);
+      expect(events.map((event) => event.type)).toEqual([
+        "started",
+        "approval_required",
+        "locating_app",
+        "app_activated",
+        "screenshot_before",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "completed"
+      ]);
+      expect(events[4]).toMatchObject({
+        type: "screenshot_before",
+        path: "/tmp/skfiy-finder-before.png",
+        observation: {
+          bundleId: "com.apple.finder",
+          frontmostBundleId: "com.apple.finder",
+          accessibilityTrusted: true
+        }
+      });
     } finally {
       await rm(rootPath, { recursive: true, force: true });
     }

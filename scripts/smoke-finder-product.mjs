@@ -43,6 +43,7 @@ async function main() {
     beforeTree: [],
     afterTree: [],
     events: [],
+    finderObservation: undefined,
     permissions: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
@@ -125,6 +126,7 @@ async function main() {
       evidence.startupWarnings = startupWarnings.result?.value;
       evidence.appPolicySettings = appPolicySettings.result?.value;
       evidence.events = cdp.events;
+      evidence.finderObservation = readFinderObservation(cdp.events);
       evidence.afterTree = await readDirectoryTree(evidence.fixtureRoot);
       evidence.result = classifyFinderSmokeEvidence(evidence);
     } finally {
@@ -328,6 +330,53 @@ async function waitForTerminalTaskEvent(cdp, timeoutMs) {
 
     await sleep(250);
   }
+}
+
+function readFinderObservation(events) {
+  const beforeObservation = events.find((event) => (
+    event?.replayRecord?.stage === "before"
+    && event.replayRecord.bundleId === "com.apple.finder"
+  ))?.replayRecord;
+
+  if (beforeObservation) {
+    return {
+      result: "passed",
+      screenshotPath: beforeObservation.screenshotPath,
+      frontmostBundleId: beforeObservation.frontmostBundleId,
+      isRunning: beforeObservation.isRunning,
+      isActive: beforeObservation.isActive,
+      accessibilityTrusted: beforeObservation.accessibilityTrusted,
+      windowCount: Array.isArray(beforeObservation.windows)
+        ? beforeObservation.windows.length
+        : undefined
+    };
+  }
+
+  const blockedEvent = events.find((event) => (
+    typeof event?.message === "string"
+    && (
+      event.message.includes("Verification failed (activate):")
+      || event.message.includes("Verification failed (observe):")
+    )
+    && isPermissionBlockedMessage(event.message)
+  ));
+
+  if (blockedEvent) {
+    return {
+      result: "blocked",
+      reason: blockedEvent.message
+    };
+  }
+
+  return {
+    result: "missing"
+  };
+}
+
+function isPermissionBlockedMessage(message) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("permission")
+    && (normalized.includes("accessibility") || normalized.includes("screen recording"));
 }
 
 async function quitSkfiy() {

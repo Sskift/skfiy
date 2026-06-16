@@ -169,6 +169,7 @@ describe("alpha artifact packaging", () => {
         "Chrome sensitive-page pause evidence",
         "Chrome form action evidence",
         "Finder app policy settings",
+        "Finder observe_app screenshot or permission-blocked evidence",
         "Finder test-folder organization evidence"
       ]
     });

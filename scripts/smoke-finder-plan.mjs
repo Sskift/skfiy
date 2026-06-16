@@ -3,7 +3,7 @@ import path from "node:path";
 export const DEFAULT_PORT = 9244;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
-export const PRODUCT_PATH = "renderer -> preload -> main -> fs -> Finder";
+export const PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
 export const EXPECTED_AFTER_TREE = [
   "Code/script.ts",
   "Documents/notes.pdf",
@@ -93,6 +93,7 @@ Options:
 export function classifyFinderSmokeEvidence({
   events = [],
   afterTree = [],
+  finderObservation,
   runnerHasTmux = false,
   appLaunchViaOpen = false,
   productPath
@@ -119,12 +120,15 @@ export function classifyFinderSmokeEvidence({
     return last.status ?? "failed";
   }
 
-  if (
-    runnerHasTmux
-    || appLaunchViaOpen !== true
-    || productPath !== PRODUCT_PATH
-    || !hasExpectedAfterTree(afterTree)
-  ) {
+  if (runnerHasTmux || appLaunchViaOpen !== true || productPath !== PRODUCT_PATH) {
+    return "failed";
+  }
+
+  if (hasPermissionBlockedFinderObservation(finderObservation)) {
+    return "blocked";
+  }
+
+  if (!hasExpectedAfterTree(afterTree) || !hasPassedFinderObservation(finderObservation)) {
     return "failed";
   }
 
@@ -134,6 +138,19 @@ export function classifyFinderSmokeEvidence({
 function hasExpectedAfterTree(afterTree) {
   const entries = new Set(Array.isArray(afterTree) ? afterTree : []);
   return EXPECTED_AFTER_TREE.every((entry) => entries.has(entry));
+}
+
+function hasPassedFinderObservation(finderObservation) {
+  return finderObservation?.result === "passed"
+    && typeof finderObservation.screenshotPath === "string"
+    && finderObservation.screenshotPath.length > 0
+    && finderObservation.frontmostBundleId === "com.apple.finder";
+}
+
+function hasPermissionBlockedFinderObservation(finderObservation) {
+  return finderObservation?.result === "blocked"
+    && typeof finderObservation.reason === "string"
+    && isPermissionBlockedMessage(finderObservation.reason);
 }
 
 function isPermissionBlockedMessage(message) {

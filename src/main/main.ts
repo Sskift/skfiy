@@ -45,7 +45,11 @@ import {
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
 import { runChromePageTask, type ChromeTaskEvent } from "./orchestrator/chrome-task.js";
 import type { GhosttyTaskEvent } from "./orchestrator/events.js";
-import { runFinderOrganizationTask, type FinderTaskEvent } from "./orchestrator/finder-task.js";
+import {
+  runFinderOrganizationTask,
+  type FinderDesktopClient,
+  type FinderTaskEvent
+} from "./orchestrator/finder-task.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
 import {
   readPermissionsForRenderer
@@ -270,6 +274,12 @@ function createGhosttyDesktopClient(helper: DesktopHelperClient): DesktopClient 
   };
 }
 
+function createFinderDesktopClient(helper: DesktopHelperClient): FinderDesktopClient {
+  return {
+    executeAction: async (action) => helper.executeAction(action)
+  };
+}
+
 function assertDesktopActionResult(result: DesktopActionResult, label: string): void {
   if ("ok" in result && !result.ok) {
     throw new Error(result.message ?? `Desktop helper could not ${label}.`);
@@ -488,7 +498,14 @@ async function runCommandTask(
 
   try {
     if (route.kind === "finder") {
-      for await (const taskEvent of runFinderOrganizationTask(command, { approved })) {
+      const helper = createDesktopHelper();
+      const desktopClient = createFinderDesktopClient(helper);
+
+      for await (const taskEvent of runFinderOrganizationTask(command, {
+        approved,
+        desktopClient,
+        createScreenshotPath: () => createScreenshotPath("finder-before")
+      })) {
         if (controller.signal.aborted || taskId !== currentTaskId) {
           return;
         }

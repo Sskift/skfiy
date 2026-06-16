@@ -42,6 +42,7 @@ describe("skfiy dogfood issue template", () => {
       "Chrome sensitive-page pause",
       "Chrome form action",
       "com.apple.finder",
+      "Finder observe_app",
       "Finder before tree / after tree",
       "Verified create_folder",
       "Verified move_file",
