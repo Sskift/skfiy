@@ -45,6 +45,8 @@ describe("dogfood cohort verifier", () => {
     expect(createDogfoodCohortHelpText()).toContain("coding-terminal");
     expect(createDogfoodCohortHelpText()).toContain("--summary");
     expect(createDogfoodCohortHelpText()).toContain("browser-fallback");
+    expect(createDogfoodCohortHelpText()).toContain("artifactSource=github-issue-smoke-artifacts");
+    expect(createDogfoodCohortHelpText()).toContain("issue alpha manifest/zip/commit identity");
   });
 
   it("accepts a 3-person cohort that covers all required dogfood workflows", async () => {
@@ -199,6 +201,94 @@ describe("dogfood cohort verifier", () => {
     });
   });
 
+  it("fails reports whose source lacks issue alpha identity or issue artifact source metadata", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const badSourceReport = createReport("tester-a", [
+      "coding-terminal",
+      "screenshot-inspection"
+    ]);
+    delete (badSourceReport.source as { issueAlphaManifest?: unknown }).issueAlphaManifest;
+    badSourceReport.source.artifactSource = "alpha-manifest-smoke-artifacts";
+
+    await expect(verifyDogfoodCohort({
+      cohortPath
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        badSourceReport,
+        createReport("tester-b", ["finder-file"]),
+        createReport("tester-c", ["browser-fallback"])
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("report.tester-a.source")
+      ])
+    });
+  });
+
+  it("fails reports whose commitSha does not match the accepted issue source commit", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const badSourceReport = createReport("tester-a", [
+      "coding-terminal",
+      "screenshot-inspection"
+    ]);
+    badSourceReport.source.issueCommitSha = "different-commit";
+
+    await expect(verifyDogfoodCohort({
+      cohortPath
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        badSourceReport,
+        createReport("tester-b", ["finder-file"]),
+        createReport("tester-c", ["browser-fallback"])
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("report.tester-a.source")
+      ])
+    });
+  });
+
+  it("fails reports whose issue alpha manifest does not match the report manifestPath", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const badSourceReport = createReport("tester-a", [
+      "coding-terminal",
+      "screenshot-inspection"
+    ]);
+    badSourceReport.source.issueAlphaManifest = "skfiy-0.1.0-other-macos-unsigned.json";
+
+    await expect(verifyDogfoodCohort({
+      cohortPath
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        badSourceReport,
+        createReport("tester-b", ["finder-file"]),
+        createReport("tester-c", ["browser-fallback"])
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("report.tester-a.source")
+      ])
+    });
+  });
+
   it("fails reports that were captured through tmux or lack product evidence", async () => {
     const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       verifyDogfoodCohort: (
@@ -317,6 +407,7 @@ describe("dogfood cohort verifier", () => {
       testerId,
       result,
       manifestPath,
+      commitSha: "abc123",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       workflows,
@@ -329,7 +420,10 @@ describe("dogfood cohort verifier", () => {
         ],
         collectedAt: "2026-06-16T12:00:00.000Z",
         generatedBy: "dogfood:report",
-        artifactSource: "alpha-manifest-smoke-artifacts"
+        artifactSource: "github-issue-smoke-artifacts",
+        issueAlphaManifest: path.basename(manifestPath),
+        issueAlphaZip: "skfiy-0.1.0-abc123-macos-unsigned.zip",
+        issueCommitSha: "abc123"
       },
       permissionStates: {
         screenRecording: { state: result === "passed" ? "granted" : "denied" },

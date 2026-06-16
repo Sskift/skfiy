@@ -166,7 +166,9 @@ export function createDogfoodCohortHelpText() {
     "Each report must include testerId, manifestPath, appLaunchViaOpen=true, runnerHasTmux=false,",
     "permissionStates for Screen Recording, Accessibility, Microphone, and Speech Recognition,",
     "UI/Ghostty/Chrome/Finder/voice smoke artifact paths from the packaged app,",
-    "and source.issueUrl/source.collectedAt linking back to an accepted GitHub dogfood issue.",
+    "source.issueUrl/source.collectedAt linking back to an accepted GitHub dogfood issue,",
+    "artifactSource=github-issue-smoke-artifacts, and issue alpha manifest/zip/commit identity",
+    "matching the report manifestPath and commitSha.",
     "",
     "Use --summary to write a short Markdown readiness report for maintainers."
   ].join("\n");
@@ -298,8 +300,11 @@ function verifyReport(report, index, cohortManifestPath, checks) {
   check(
     checks,
     `${checkId}.source`,
-    hasRequiredSource(report?.source, report?.workflows),
-    "report source must include type=github-issue, source.issueUrl, collectedAt, generatedBy=dogfood:report, dogfood:accepted, and matching workflow:* issue labels"
+    hasRequiredSource(report?.source, report?.workflows, {
+      commitSha: report?.commitSha,
+      manifestPath: reportManifestPath
+    }),
+    "report source must include type=github-issue, source.issueUrl, collectedAt, generatedBy=dogfood:report, artifactSource=github-issue-smoke-artifacts, issue alpha manifest/zip/commit identity, dogfood:accepted, and matching workflow:* issue labels"
   );
 }
 
@@ -313,7 +318,10 @@ function createCohortSummary(reports, testerIds, requiredWorkflowCoverage) {
       hasBlockingPermissionState(report?.permissionStates)
     ).length,
     sourceLinkedReports: reports.filter((report) =>
-      hasRequiredSource(report?.source, report?.workflows)
+      hasRequiredSource(report?.source, report?.workflows, {
+        commitSha: report?.commitSha,
+        manifestPath: report?.manifestPath
+      })
     ).length,
     requiredWorkflowCoverage
   };
@@ -374,7 +382,7 @@ function hasRequiredPermissionStates(value) {
   );
 }
 
-function hasRequiredSource(value, workflows) {
+function hasRequiredSource(value, workflows, reportIdentity = {}) {
   return Boolean(value)
     && typeof value === "object"
     && value.type === "github-issue"
@@ -383,7 +391,28 @@ function hasRequiredSource(value, workflows) {
     && hasAcceptedIssueLabels(value.issueLabels, workflows)
     && typeof value.collectedAt === "string"
     && !Number.isNaN(Date.parse(value.collectedAt))
-    && value.generatedBy === "dogfood:report";
+    && value.generatedBy === "dogfood:report"
+    && value.artifactSource === "github-issue-smoke-artifacts"
+    && isNonEmptyString(value.issueAlphaManifest)
+    && isNonEmptyString(value.issueAlphaZip)
+    && path.basename(value.issueAlphaZip).endsWith(".zip")
+    && isNonEmptyString(value.issueCommitSha)
+    && isNonEmptyString(reportIdentity.commitSha)
+    && value.issueCommitSha.trim() === reportIdentity.commitSha.trim()
+    && matchesIssuePathOrBasename(value.issueAlphaManifest, reportIdentity.manifestPath);
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function matchesIssuePathOrBasename(issueValue, expectedPath) {
+  return isNonEmptyString(issueValue)
+    && isNonEmptyString(expectedPath)
+    && (
+      issueValue.trim() === expectedPath.trim()
+      || path.basename(issueValue.trim()) === path.basename(expectedPath.trim())
+    );
 }
 
 function hasAcceptedIssueLabels(issueLabels, workflows) {

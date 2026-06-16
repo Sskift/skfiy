@@ -78,7 +78,7 @@ npm run dogfood:cohort -- \
   --summary .skfiy-dogfood/internal-alpha-summary.md
 ```
 
-The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers and coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, and issue links without replacing the JSON verifier.
+The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `commitSha`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths. The verifier requires 3-5 distinct testers, coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`, and source issue identity that matches the report manifest and commit. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, and issue links without replacing the JSON verifier.
 
 Check Developer ID signing and notarization readiness:
 
