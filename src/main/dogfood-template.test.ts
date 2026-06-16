@@ -30,6 +30,7 @@ describe("skfiy dogfood issue template", () => {
       "--manifest",
       "--issue-url",
       "--issue-labels",
+      "gh issue view",
       "coding-terminal",
       "screenshot-inspection",
       "finder-file",

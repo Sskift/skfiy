@@ -245,12 +245,11 @@ npm run dogfood:report -- \
   --tester-id tester-a \
   --workflows coding-terminal,screenshot-inspection \
   --issue-url https://github.com/Sskift/skfiy/issues/<accepted-dogfood-issue> \
-  --issue-labels dogfood:accepted,workflow:coding-terminal,workflow:screenshot-inspection \
   --report .skfiy-dogfood/reports/tester-a.json \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json
 ```
 
-The report helper is incremental. It reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, validates that `--issue-labels` includes `dogfood:accepted` plus workflow labels matching `--workflows`, derives `result`, `appLaunchViaOpen`, `runnerHasTmux`, permission states, artifact paths, `source.issueUrl`, and `source.issueLabels` into a single report JSON, writes `.skfiy-dogfood/internal-alpha-cohort.json`, replaces an existing report with the same `testerId`, rejects mixed alpha manifest paths, and reports whether the cohort is ready; it does not claim dogfood completion before the verifier passes. Keep `.skfiy-dogfood/` local because it can contain tester-specific evidence.
+The report helper is incremental. It reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, reads the accepted issue's real labels with `gh issue view`, validates `dogfood:accepted` plus workflow labels matching `--workflows`, derives `result`, `appLaunchViaOpen`, `runnerHasTmux`, permission states, artifact paths, `source.issueUrl`, and `source.issueLabels` into a single report JSON, writes `.skfiy-dogfood/internal-alpha-cohort.json`, replaces an existing report with the same `testerId`, rejects mixed alpha manifest paths, and reports whether the cohort is ready; it does not claim dogfood completion before the verifier passes. Use `--issue-labels dogfood:accepted,workflow:coding-terminal,...` only as an explicit/offline override when `gh issue view` is unavailable. Keep `.skfiy-dogfood/` local because it can contain tester-specific evidence.
 
 After aggregating 3-5 single-user reports, run:
 

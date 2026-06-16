@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import { REQUIRED_DOGFOOD_WORKFLOWS } from "./verify-dogfood-cohort.mjs";
 
+const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_COHORT_NAME = "internal-alpha";
@@ -154,7 +157,10 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
   if (!isAcceptedIssueUrl(options.issueUrl)) {
     throw new Error("--issue-url must be an http(s) GitHub issue URL.");
   }
-  const issueLabels = validateAcceptedIssueLabels(options.issueLabels, options.workflows);
+  const issueLabels = validateAcceptedIssueLabels(
+    await resolveAcceptedIssueLabels(options, io),
+    options.workflows
+  );
 
   const manifest = await io.readJson(options.manifestPath);
   const smokePaths = readManifestSmokePaths(manifest);
@@ -194,12 +200,13 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
 export function createDogfoodReportHelpText() {
   return [
     "Usage: npm run dogfood:report -- --report <path> [--cohort <path>]",
-    "       npm run dogfood:report -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> --issue-url <accepted-issue-url> --issue-labels <labels> --report <path> [--cohort <path>]",
+    "       npm run dogfood:report -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> --issue-url <accepted-issue-url> --report <path> [--cohort <path>] [--issue-labels <labels>]",
     "",
     "Adds or replaces one real single-user dogfood report in a cohort JSON file.",
     "With --manifest, generates the single-user report from the alpha manifest and referenced smoke artifacts first.",
     "Use --issue-url to link the generated report to the accepted GitHub dogfood issue.",
-    "Use --issue-labels to prove that issue carries dogfood:accepted plus matching workflow:* labels.",
+    "By default labels are read from GitHub with gh issue view.",
+    "Use --issue-labels as an explicit/offline override proving dogfood:accepted plus matching workflow:* labels.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
     "",
     "After collecting 3-5 distinct testers and all required workflows, run:",
@@ -338,6 +345,9 @@ function createDefaultIo() {
     },
     async writeJson(filePath, value) {
       await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
+    },
+    async readIssueLabels(issueUrl) {
+      return await readIssueLabelsFromGitHub(issueUrl);
     }
   };
 }
@@ -356,6 +366,18 @@ function readWorkflowList(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+async function resolveAcceptedIssueLabels(options, io) {
+  if (Array.isArray(options.issueLabels) && options.issueLabels.length > 0) {
+    return options.issueLabels;
+  }
+
+  if (typeof io.readIssueLabels !== "function") {
+    throw new Error("Missing --issue-labels <label[,label]> and GitHub label reader is unavailable.");
+  }
+
+  return await io.readIssueLabels(options.issueUrl);
 }
 
 function readLabelList(value) {
@@ -413,6 +435,48 @@ function validateAcceptedIssueLabels(issueLabels, workflows) {
 
 function createWorkflowLabel(workflow) {
   return `${DOGFOOD_WORKFLOW_LABEL_PREFIX}${workflow}`;
+}
+
+async function readIssueLabelsFromGitHub(issueUrl) {
+  const issue = parseGitHubIssueUrl(issueUrl);
+  const { stdout } = await execFileAsync("gh", [
+    "issue",
+    "view",
+    issue.number,
+    "--repo",
+    issue.repository,
+    "--json",
+    "labels"
+  ]);
+  const payload = JSON.parse(stdout);
+
+  if (!Array.isArray(payload?.labels)) {
+    throw new Error(`GitHub issue labels are missing for ${issueUrl}.`);
+  }
+
+  return payload.labels
+    .map((label) => typeof label?.name === "string" ? label.name.trim() : "")
+    .filter(Boolean);
+}
+
+function parseGitHubIssueUrl(value) {
+  const url = new URL(value.trim());
+  const segments = url.pathname.split("/").filter(Boolean);
+  const issueIndex = segments.indexOf("issues");
+
+  if (
+    url.hostname !== "github.com"
+    || issueIndex !== 2
+    || segments.length !== 4
+    || segments[3].length === 0
+  ) {
+    throw new Error("--issue-url must be a github.com/<owner>/<repo>/issues/<number> URL.");
+  }
+
+  return {
+    repository: `${segments[0]}/${segments[1]}`,
+    number: segments[3]
+  };
 }
 
 function isAcceptedIssueUrl(value) {

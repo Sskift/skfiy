@@ -171,6 +171,66 @@ describe("dogfood cohort updater", () => {
     });
   });
 
+  it("fetches accepted issue labels from GitHub when issue labels are not passed explicitly", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    });
+    const fetchedIssueLabels = [
+      "dogfood:accepted",
+      "workflow:coding-terminal",
+      "workflow:browser-fallback"
+    ];
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "browser-fallback"],
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      reportPath,
+      cohortPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, {
+      ...io,
+      async readIssueLabels(issueUrl: string) {
+        expect(issueUrl).toBe("https://github.com/Sskift/skfiy/issues/123");
+        return fetchedIssueLabels;
+      }
+    })).resolves.toMatchObject({
+      result: "updated",
+      action: "appended"
+    });
+    expect(io.files[reportPath]).toMatchObject({
+      source: {
+        issueLabels: fetchedIssueLabels
+      }
+    });
+  });
+
   it("requires a GitHub issue URL when generating a real dogfood report from a manifest", async () => {
     const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       updateDogfoodCohort: (

@@ -66,12 +66,11 @@ npm run dogfood:report -- \
   --tester-id tester-a \
   --workflows coding-terminal,screenshot-inspection \
   --issue-url https://github.com/Sskift/skfiy/issues/<accepted-dogfood-issue> \
-  --issue-labels dogfood:accepted,workflow:coding-terminal,workflow:screenshot-inspection \
   --report .skfiy-dogfood/reports/tester-a.json \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json
 ```
 
-`dogfood:report` reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, validates that `--issue-labels` includes `dogfood:accepted` plus workflow labels matching `--workflows`, derives one report object with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching `source.issueLabels`, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths, preserves one report per tester, rejects reports from a different alpha manifest, and prints readiness without treating an incomplete cohort as complete. Keep `.skfiy-dogfood/` local; it can contain tester-specific evidence and is ignored by git.
+`dogfood:report` reads the manifest's UI/Ghostty/Chrome/Finder/voice artifact paths, reads the accepted issue's real labels with `gh issue view`, validates `dogfood:accepted` plus workflow labels matching `--workflows`, derives one report object with `testerId`, `result`, `manifestPath`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching `source.issueLabels`, and absolute UI/Ghostty/Chrome/Finder/voice artifact paths, preserves one report per tester, rejects reports from a different alpha manifest, and prints readiness without treating an incomplete cohort as complete. Use `--issue-labels dogfood:accepted,workflow:coding-terminal,...` only as an explicit/offline override when `gh issue view` is unavailable. Keep `.skfiy-dogfood/` local; it can contain tester-specific evidence and is ignored by git.
 
 After 3-5 single-user dogfood reports are collected, verify cross-user coverage:
 

@@ -389,12 +389,12 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - Refreshed internal search on 2026-06-16: AIME Desktop overlaps assistant/workflow/local file tasks, AIME Chrome Extension overlaps browser control, AIME Buddy overlaps desktop companion/task notification/status, and native macOS app Computer Use remains the skfiy validation gap unless AIME/AIOS exposes a stable native control plugin/runtime.
 - [ ] Internal dogfood with 3-5 real users:
   - [x] cohort verifier/report schema and issue-template fields
-  - [x] manifest-backed single-report generator and cohort updater via `npm run dogfood:report -- --manifest <path> --tester-id <id> --workflows <ids> --issue-url <accepted-issue-url> --issue-labels dogfood:accepted,workflow:<id> --report <path> --cohort <path>`
+  - [x] manifest-backed single-report generator and cohort updater via `npm run dogfood:report -- --manifest <path> --tester-id <id> --workflows <ids> --issue-url <accepted-issue-url> --report <path> --cohort <path>`
   - [x] report source metadata gate requiring accepted GitHub issue URL and collection timestamp for cohort verification
   - [x] cohort readiness Markdown summary via `npm run dogfood:cohort -- --cohort <path> --summary <path>`
   - [x] GitHub tracking issue for real internal alpha cohort collection: https://github.com/Sskift/skfiy/issues/1
   - [x] GitHub dogfood labels for accepted reports and workflow coverage (`dogfood:accepted`, `workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`)
-  - [x] `dogfood:report` and `dogfood:cohort` now require accepted issue label metadata that matches the reported workflows
+  - [x] `dogfood:report` reads accepted issue labels with `gh issue view` by default, and `dogfood:cohort` requires accepted issue label metadata that matches the reported workflows
   - [ ] `coding-terminal` workflow reports from actual testers
   - [ ] `screenshot-inspection` workflow reports from actual testers
   - [ ] `finder-file` workflow reports from actual testers
