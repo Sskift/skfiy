@@ -85,7 +85,7 @@ describe("native voice product smoke script", () => {
     })).toBe("blocked");
   });
 
-  it("requires native speech transcript evidence before classifying a run as passed", async () => {
+  it("requires native speech transcript and downstream task evidence before classifying a run as passed", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-voice-plan.mjs");
     const {
       classifyVoiceSmokeEvidence
@@ -106,20 +106,25 @@ describe("native voice product smoke script", () => {
     const transcriptEvents = [
       { isFinal: true, text: "打开 Ghostty 执行 pwd" }
     ];
+    const taskEvents = [
+      { status: "observing", message: "Preparing Computer Use command from voice transcript." }
+    ];
 
     expect(classifyVoiceSmokeEvidence({
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
       providerEvents,
-      transcriptEvents
+      transcriptEvents,
+      taskEvents
     })).toBe("passed");
     expect(classifyVoiceSmokeEvidence({
       appLaunchViaOpen: true,
       runnerHasTmux: true,
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
       providerEvents,
-      transcriptEvents
+      transcriptEvents,
+      taskEvents
     })).toBe("failed");
     expect(classifyVoiceSmokeEvidence({
       appLaunchViaOpen: true,
@@ -128,6 +133,14 @@ describe("native voice product smoke script", () => {
       providerEvents,
       transcriptEvents: []
     })).toBe("no-transcript");
+    expect(classifyVoiceSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+      providerEvents,
+      transcriptEvents,
+      taskEvents: []
+    })).toBe("failed");
     expect(classifyVoiceSmokeEvidence({
       appLaunchViaOpen: true,
       runnerHasTmux: false,

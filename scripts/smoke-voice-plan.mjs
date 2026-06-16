@@ -103,6 +103,7 @@ export function classifyVoiceSmokeEvidence({
     && typeof event.text === "string"
     && event.text.trim().length > 0
   );
+  const hasDownstreamTask = hasVoiceDownstreamTaskEvent(taskEvents);
 
   if (!hasListened && providerEvents.length === 0 && transcriptEvents.length === 0) {
     return "no-events";
@@ -112,7 +113,7 @@ export function classifyVoiceSmokeEvidence({
     return "no-transcript";
   }
 
-  if (!hasListened || !hasStopped) {
+  if (!hasListened || !hasStopped || !hasDownstreamTask) {
     return "failed";
   }
 
@@ -133,6 +134,24 @@ function hasProviderState(events, state) {
 
 function hasTaskStatus(events, status) {
   return events.some((event) => event?.status === status);
+}
+
+function hasVoiceDownstreamTaskEvent(events) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) =>
+    typeof event?.status === "string"
+    && [
+      "approval_required",
+      "observing",
+      "executing",
+      "needs_confirmation",
+      "completed",
+      "failed"
+    ].includes(event.status)
+  );
 }
 
 function hasPermissionBlockedEvent(events) {

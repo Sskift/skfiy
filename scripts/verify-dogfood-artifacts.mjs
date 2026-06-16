@@ -164,6 +164,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.voiceTranscriptTask",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Native voice transcript-to-task evidence"),
+    "manifest must require native voice transcript-to-task evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.chrome",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:chrome -- --output <path>"),
@@ -811,6 +818,26 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
     isNativeSpeechStatus(artifact.speechStatus),
     "voice smoke must include structured native speech status"
   );
+  if (artifact.result === "passed") {
+    check(
+      checks,
+      "voice.providerLifecycle",
+      hasVoiceProviderLifecycleEvidence(artifact.providerEvents),
+      "passed voice smoke must include native listening and stopped provider events"
+    );
+    check(
+      checks,
+      "voice.transcript",
+      hasFinalVoiceTranscriptEvidence(artifact.transcriptEvents),
+      "passed voice smoke must include a final non-empty transcript event"
+    );
+    check(
+      checks,
+      "voice.downstreamTask",
+      hasVoiceDownstreamTaskEvidence(artifact.taskEvents),
+      "passed voice smoke must include downstream Computer Use task events"
+    );
+  }
   check(
     checks,
     "voice.processesAfterCleanup",
@@ -1462,6 +1489,49 @@ function hasTaskEventMessage(events, text) {
   );
 }
 
+function hasVoiceProviderLifecycleEvidence(events) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) =>
+    event?.providerId === "native-macos" && event.state === "listening"
+  ) && events.some((event) =>
+    event?.providerId === "native-macos" && event.state === "stopped"
+  );
+}
+
+function hasFinalVoiceTranscriptEvidence(events) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) =>
+    event?.providerId === "native-macos"
+      && event.isFinal === true
+      && typeof event.text === "string"
+      && event.text.trim().length > 0
+  );
+}
+
+function hasVoiceDownstreamTaskEvidence(events) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) =>
+    typeof event?.status === "string"
+      && [
+        "approval_required",
+        "observing",
+        "executing",
+        "needs_confirmation",
+        "completed",
+        "failed"
+      ].includes(event.status)
+  );
+}
+
 function hasRequiredGhosttyClipboardApprovalRuns(runs) {
   if (!Array.isArray(runs)) {
     return false;
@@ -1529,7 +1599,7 @@ Validates that an alpha manifest references a coherent packaged-app dogfood evid
 
 Options:
   --manifest <path>     Alpha manifest JSON from npm run alpha:artifact.
-  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and native voice smoke results are passed, including Chrome current-page observation evidence.
+  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and native voice smoke results are passed, including Chrome current-page observation evidence and native voice transcript-to-task evidence.
   --require-current-head
                        Fail unless manifest commitSha matches the current git HEAD.
   -h, --help            Show this help.

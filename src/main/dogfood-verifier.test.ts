@@ -12,6 +12,7 @@ describe("dogfood artifact verifier", () => {
     "npm run smoke:finder -- --output <path>",
     "npm run smoke:voice -- --output <path>",
     "Permission settings direct links",
+    "Native voice transcript-to-task evidence",
     "action verification events when Computer Use passes",
     "Ghostty app policy settings",
     "clipboard read/write approval runs",
@@ -414,6 +415,47 @@ describe("dogfood artifact verifier", () => {
     ],
     processesAfterCleanup: []
   });
+  const createPassedVoiceSmokeArtifact = (artifactPath: string) => ({
+    result: "passed",
+    appLaunchViaOpen: true,
+    runnerHasTmux: false,
+    productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+    artifactPath,
+    provider: "native-macos",
+    speechStatus: {
+      locale: "zh-CN",
+      recognizerAvailable: true,
+      speechRecognition: { state: "granted" },
+      microphone: { state: "granted" }
+    },
+    providerEvents: [
+      {
+        providerId: "native-macos",
+        state: "listening",
+        message: "macOS system speech is listening."
+      },
+      {
+        providerId: "native-macos",
+        state: "stopped",
+        message: "macOS system speech finished."
+      }
+    ],
+    transcriptEvents: [
+      {
+        providerId: "native-macos",
+        isFinal: true,
+        text: "打开 Ghostty 执行 pwd",
+        confidence: 0.9
+      }
+    ],
+    taskEvents: [
+      {
+        status: "observing",
+        message: "Preparing Computer Use command from voice transcript."
+      }
+    ],
+    processesAfterCleanup: []
+  });
 
   it("is exposed as an npm script for dogfood evidence checks", () => {
     const packageJson = JSON.parse(
@@ -451,6 +493,7 @@ describe("dogfood artifact verifier", () => {
       requireCurrentHead: true
     });
     expect(createDogfoodVerifyHelpText()).toContain("Chrome current-page observation evidence");
+    expect(createDogfoodVerifyHelpText()).toContain("native voice transcript-to-task evidence");
   });
 
   it("accepts a complete blocked dogfood evidence chain from the packaged app", async () => {
@@ -1147,6 +1190,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.appPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.clipboardApproval"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chrome"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.voiceTranscriptTask"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeAppPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeExtraction"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.chromeCurrentPage"),
@@ -1417,7 +1461,7 @@ describe("dogfood artifact verifier", () => {
 
     await expect(verifyDogfoodArtifacts({
       manifestPath,
-      requirePassed: true
+      requirePassed: false
     }, createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -1651,6 +1695,59 @@ describe("dogfood artifact verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("voice.speechStatus")
+      ])
+    });
+  });
+
+  it("fails passed native voice evidence without transcript-to-task proof", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const incompleteVoice = createPassedVoiceSmokeArtifact(voiceSmokePath);
+
+    delete (incompleteVoice as { transcriptEvents?: unknown }).transcriptEvents;
+    delete (incompleteVoice as { taskEvents?: unknown }).taskEvents;
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: incompleteVoice
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("voice.transcript"),
+        expect.stringContaining("voice.downstreamTask")
       ])
     });
   });

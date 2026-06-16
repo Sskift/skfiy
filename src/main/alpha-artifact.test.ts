@@ -161,6 +161,7 @@ describe("alpha artifact packaging", () => {
         "Screen Recording permission state",
         "Accessibility permission state",
         "Microphone or ASR provider state",
+        "Native voice transcript-to-task evidence",
         "before/after screenshot paths when Computer Use passes",
         "action verification events when Computer Use passes",
         "Ghostty app policy settings",
