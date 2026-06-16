@@ -263,6 +263,8 @@ export function createDogfoodTrackingIssueBody({
     ]),
     "```",
     "",
+    "After the review summary is clean, rerun `dogfood:review` with `--execute` to add the missing accepted/workflow labels and refresh this tracking issue.",
+    "",
     "## Cohort Gate",
     "```bash",
     formatMultilineCommand("npm run dogfood:cohort --", [

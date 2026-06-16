@@ -157,6 +157,17 @@ npm run dogfood:review -- \
 
 `dogfood:review` reads the real issue body, synthesizes the labels that would be required for acceptance, reuses the same manifest-backed `dogfood:report` parser against the issue's smoke artifact paths, and writes a maintainer summary with suggested labels, a copy-safe `gh issue edit ... --add-label ...` acceptance command, and a `dogfood:tracking-issue --accepted-report-url ...` command for eligible real tester reports. If alpha identity or artifact validation fails, it still exits failed but writes a `Result: rejected` summary with the blocking reason and no acceptance/tracking commands. It does not add labels, edit the tracking issue, or count the report toward the cohort. Synthetic tester ids can still be reviewed as local evidence, but they do not get a real tracking-slot command.
 
+After reviewing the summary, rerun the same command with `--execute` to add the missing `dogfood:accepted` and `workflow:*` labels and refresh the tracking issue in one validated maintainer step:
+
+```bash
+npm run dogfood:review -- \
+  --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue> \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
+  --summary .skfiy-dogfood/reviews/<stable-tester-id>.md \
+  --execute
+```
+
 After each single-user dogfood report is accepted, generate a report JSON from the alpha manifest and the tester smoke artifact paths in the accepted issue body, then add or replace it in the local cohort file:
 
 Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issues/1. Each accepted single-user dogfood issue should be linked there before being converted into local `.skfiy-dogfood/` JSON. The tracking issue lists required workflow coverage as requirements only; real coverage is computed from verified accepted report issue labels by `dogfood:status` and `dogfood:cohort`. Accepted report issues should carry `dogfood:accepted` plus the covered workflow labels (`workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`) before maintainers run `dogfood:report`.

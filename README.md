@@ -19,7 +19,7 @@ floating desktop companion.
 
 ## macOS Permissions
 
-The app needs three system permissions before it can behave like a voice Computer Use app:
+The app needs four system permissions before it can behave like a voice Computer Use app:
 
 - **Screen Recording**: allows screenshots of the desktop or target window.
 - **Accessibility**: allows synthetic clicks, typing, key presses, and window
@@ -135,7 +135,8 @@ npm run dogfood:review -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --issue-url https://github.com/Sskift/skfiy/issues/<filed-dogfood-issue> \
   --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
-  --summary .skfiy-dogfood/reviews/tester-a.md
+  --summary .skfiy-dogfood/reviews/tester-a.md \
+  --execute
 npm run dogfood:collect -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
@@ -181,7 +182,9 @@ Its JSON result also includes `nextCommands.tester` and `nextCommands.review`
 with the prepared manifest path and app bundle path filled in, so testers can
 copy the next command without reconstructing paths by hand. The recommended
 tester command includes `--file-issue`, which creates only the dogfood report
-issue after local validation; maintainer acceptance still happens separately.
+issue after local validation; maintainer acceptance still requires
+`dogfood:review`, whose default dry-run can be promoted with `--execute` after
+the report validates.
 Workflow and passed workflow coverage in `dogfood:status` and
 `dogfood:cohort` count only verified accepted reports from real tester ids;
 `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` remain local evidence

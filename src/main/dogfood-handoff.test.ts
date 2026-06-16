@@ -137,6 +137,8 @@ describe("dogfood handoff generator", () => {
     expect(handoff).toContain("Do not add `dogfood:accepted` or `workflow:*` labels yourself.");
     expect(handoff).toContain("npm run dogfood:review -- \\");
     expect(handoff).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
+    expect(handoff).toContain("--execute");
+    expect(handoff).toContain("rerun the same review command with `--execute`");
     expect(handoff).not.toContain("--require-current-head");
     expect(handoff).toContain("dogfood:accepted");
     expect(handoff).toContain(trackingIssueUrl);

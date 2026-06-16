@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { isRealDogfoodTesterId } from "./dogfood-tester-id.mjs";
+import { syncDogfoodTrackingIssue } from "./sync-dogfood-tracking-issue.mjs";
 import { createDogfoodReportFromManifest } from "./update-dogfood-cohort.mjs";
 import { REQUIRED_DOGFOOD_WORKFLOWS, verifyDogfoodCohort } from "./verify-dogfood-cohort.mjs";
 
@@ -22,6 +23,7 @@ export function createDefaultDogfoodReviewOptions(rootDir = DEFAULT_ROOT_DIR) {
     issueUrl: undefined,
     trackingIssueUrl: DEFAULT_TRACKING_ISSUE_URL,
     summaryPath: undefined,
+    execute: false,
     requireCurrentHead: false,
     help: false
   };
@@ -49,6 +51,12 @@ export function parseDogfoodReviewArgs(argv, defaults) {
       case "--summary":
         options.summaryPath = path.resolve(readValue(argv, index, arg));
         index += 1;
+        break;
+      case "--execute":
+        options.execute = true;
+        break;
+      case "--dry-run":
+        options.execute = false;
         break;
       case "--require-current-head":
         options.requireCurrentHead = true;
@@ -140,8 +148,21 @@ export async function reviewDogfoodReport(options, io = createDefaultIo()) {
       manifest
     })
     : undefined;
+  if (options.execute === true && !eligibleForAcceptance) {
+    throw new Error("Cannot execute dogfood acceptance until report preview is eligible.");
+  }
+  const execution = options.execute === true
+    ? await executeDogfoodAcceptance({
+      options,
+      io,
+      issueUrl: options.issueUrl,
+      manifest,
+      missingSuggestedLabels,
+      trackingIssueCommand
+    })
+    : undefined;
   const result = {
-    result: "reviewed",
+    result: execution ? "accepted" : "reviewed",
     eligibleForAcceptance,
     issueUrl: options.issueUrl,
     testerId,
@@ -152,7 +173,8 @@ export async function reviewDogfoodReport(options, io = createDefaultIo()) {
     acceptanceCommand,
     trackingIssueCommand,
     reportPreview,
-    reportPreviewEligibility
+    reportPreviewEligibility,
+    execution
   };
 
   await writeReviewSummaryIfRequested(options, io, result);
@@ -164,16 +186,18 @@ export function createDogfoodReviewHelpText() {
   return [
     "Usage: npm run dogfood:review -- --manifest <alpha-manifest> --issue-url <filed-report-issue-url> [--summary <path>]",
     "",
-    "Runs a non-mutating maintainer review for one filed skfiy dogfood report issue.",
+    "Runs a non-mutating maintainer review by default for one filed skfiy dogfood report issue.",
     "It reads the real issue body, validates alpha identity and smoke artifact paths through dogfood:report,",
     "then prints suggested labels, a copy-safe acceptance command, and a real-tester tracking issue command.",
-    "It does not add labels, edit the tracking issue, or count the report toward dogfood:cohort.",
+    "Without --execute it does not add labels, edit the tracking issue, or count the report toward dogfood:cohort.",
     "",
     "Options:",
     "  --manifest <path>          Alpha manifest to compare against the report issue.",
     "  --issue-url <url>          Filed GitHub dogfood report issue URL.",
     "  --tracking-issue-url <url> Internal dogfood tracking issue URL. Default: https://github.com/Sskift/skfiy/issues/1.",
     "  --summary <path>           Optional Markdown review summary.",
+    "  --execute                  After validation, add missing labels and refresh the tracking issue.",
+    "  --dry-run                  Keep the default non-mutating behavior.",
     "  --require-current-head     Fail when manifest commitSha does not match local HEAD.",
     "  -h, --help                 Show this help.",
     "",
@@ -262,7 +286,7 @@ function createDogfoodReviewSummary(review) {
       ? [`\`${review.trackingIssueCommand}\``]
       : ["- unavailable for synthetic tester ids or unresolved blocking checks"]),
     "",
-    "This review did not add labels, edit GitHub, or count the report toward the cohort.",
+    createReviewMutationSummary(review),
     ""
   ].join("\n");
 }
@@ -342,6 +366,60 @@ function createTrackingIssueCommand({ manifestPath, issueUrl, trackingIssueUrl, 
     "--output",
     `.skfiy-dogfood/tracking-issue-${shortSha}.md`
   ].join(" ");
+}
+
+async function executeDogfoodAcceptance({
+  options,
+  io,
+  issueUrl,
+  manifest,
+  missingSuggestedLabels,
+  trackingIssueCommand
+}) {
+  const labelsAdded = [];
+  if (missingSuggestedLabels.length > 0) {
+    const parsed = parseGitHubIssueUrl(issueUrl);
+    await io.execFile("gh", [
+      "issue",
+      "edit",
+      String(parsed.issueNumber),
+      "--repo",
+      parsed.repository,
+      ...missingSuggestedLabels.flatMap((label) => ["--add-label", label])
+    ]);
+    labelsAdded.push(...missingSuggestedLabels);
+  }
+
+  const trackingIssue = trackingIssueCommand
+    ? await syncDogfoodTrackingIssue({
+      rootDir: options.rootDir ?? DEFAULT_ROOT_DIR,
+      manifestPath: options.manifestPath,
+      trackingIssueUrl: readTrackingIssueUrl(options),
+      acceptedReportIssueUrls: [issueUrl],
+      outputPath: path.join(
+        options.rootDir ?? DEFAULT_ROOT_DIR,
+        ".skfiy-dogfood",
+        `tracking-issue-${manifest.commitSha.slice(0, 7)}.md`
+      ),
+      dryRun: false
+    }, io)
+    : undefined;
+
+  return {
+    labelsAdded,
+    trackingIssue
+  };
+}
+
+function createReviewMutationSummary(review) {
+  if (review.execution) {
+    if (review.execution.trackingIssue) {
+      return "This review added missing labels and refreshed the tracking issue.";
+    }
+    return "This review added missing labels without updating the tracking issue.";
+  }
+
+  return "This review did not add labels, edit GitHub, or count the report toward the cohort.";
 }
 
 function validateOptions(options) {
@@ -449,6 +527,9 @@ function createDefaultIo() {
         cwd: DEFAULT_ROOT_DIR
       });
       return stdout.trim();
+    },
+    async execFile(command, args) {
+      return await execFileAsync(command, args);
     }
   };
 }
@@ -515,6 +596,7 @@ async function main() {
     missingSuggestedLabels: result.missingSuggestedLabels,
     acceptanceCommand: result.acceptanceCommand,
     trackingIssueCommand: result.trackingIssueCommand,
+    execution: result.execution,
     reportPreviewEligibility: result.reportPreviewEligibility
   }, null, 2)}\n`);
 }

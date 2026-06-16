@@ -127,6 +127,7 @@ describe("dogfood tracking issue sync", () => {
     expect(body).toContain("npm run dogfood:review -- \\");
     expect(body).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
     expect(body).toContain("npm run dogfood:review -- --manifest <path-to-downloaded-alpha-manifest.json> --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-1.md");
+    expect(body).toContain("After the review summary is clean, rerun `dogfood:review` with `--execute`");
     expect(body).toContain("Replace `<path-to-downloaded-alpha-manifest.json>` with the manifest path printed by `dogfood:prepare-alpha` on the tester machine.");
     expect(body).toContain("After `dogfood:prepare-alpha --execute` finishes, copy `nextCommands.tester` from its JSON output for the tester run.");
     expect(body).toContain("After the dogfood issue is filed, copy `nextCommands.review` from the same prepare output and replace `<filed-dogfood-issue-url>`.");

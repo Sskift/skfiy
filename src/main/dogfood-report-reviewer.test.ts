@@ -20,7 +20,7 @@ describe("dogfood report reviewer", () => {
     });
   });
 
-  it("parses manifest, issue URL, summary, tracking issue, and current-head arguments", async () => {
+  it("parses manifest, issue URL, summary, tracking issue, execute, and current-head arguments", async () => {
     const {
       createDefaultDogfoodReviewOptions,
       createDogfoodReviewHelpText,
@@ -44,12 +44,14 @@ describe("dogfood report reviewer", () => {
       "https://github.com/Sskift/skfiy/issues/1",
       "--summary",
       ".skfiy-dogfood/reviews/tester-a.md",
+      "--execute",
       "--require-current-head"
     ], defaults)).toMatchObject({
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
       issueUrl,
       trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
       summaryPath: path.resolve(".skfiy-dogfood/reviews/tester-a.md"),
+      execute: true,
       requireCurrentHead: true
     });
     expect(createDogfoodReviewHelpText()).toContain("dogfood:review");
@@ -132,6 +134,97 @@ describe("dogfood report reviewer", () => {
     expect(io.textFiles[summaryPath]).toContain("gh issue edit 123 --repo Sskift/skfiy --add-label dogfood:accepted --add-label workflow:coding-terminal --add-label workflow:screenshot-inspection");
     expect(io.textFiles[summaryPath]).toContain("npm run dogfood:tracking-issue -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --accepted-report-url https://github.com/Sskift/skfiy/issues/123 --output .skfiy-dogfood/tracking-issue-abc123.md");
     expect(io.mutations).toEqual([]);
+  });
+
+  it("executes maintainer acceptance labels and tracking issue sync when explicitly requested", async () => {
+    const { reviewDogfoodReport } = await import(pathToFileURL(modulePath).href) as {
+      reviewDogfoodReport: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const paths = createSmokePaths("tester-a");
+    const trackingIssueUrl = "https://github.com/Sskift/skfiy/issues/1";
+    const io = createMemoryIo({
+      files: {
+        [manifestPath]: createManifest("abc1234"),
+        [paths.ui]: createSmokeArtifact(paths.ui, "passed"),
+        [paths.ghostty]: createSmokeArtifact(paths.ghostty, "blocked"),
+        [paths.chrome]: createSmokeArtifact(paths.chrome, "passed"),
+        [paths.finder]: createSmokeArtifact(paths.finder, "blocked"),
+        [paths.voice]: createSmokeArtifact(paths.voice, "blocked")
+      },
+      issues: {
+        [issueUrl]: {
+          body: createIssueBody("tester-a", ["coding-terminal", "screenshot-inspection"], paths, {
+            commitSha: "abc1234"
+          }),
+          labels: ["skfiy"]
+        },
+        [trackingIssueUrl]: {
+          body: "",
+          labels: []
+        }
+      }
+    });
+
+    await expect(reviewDogfoodReport({
+      rootDir: "/repo",
+      manifestPath,
+      issueUrl,
+      trackingIssueUrl,
+      summaryPath,
+      execute: true,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "accepted",
+      eligibleForAcceptance: true,
+      execution: {
+        labelsAdded: [
+          "dogfood:accepted",
+          "workflow:coding-terminal",
+          "workflow:screenshot-inspection"
+        ],
+        trackingIssue: {
+          result: "updated",
+          dryRun: false,
+          trackingIssueUrl
+        }
+      }
+    });
+    expect(io.mutations).toEqual([
+      {
+        command: "gh",
+        args: [
+          "issue",
+          "edit",
+          "123",
+          "--repo",
+          "Sskift/skfiy",
+          "--add-label",
+          "dogfood:accepted",
+          "--add-label",
+          "workflow:coding-terminal",
+          "--add-label",
+          "workflow:screenshot-inspection"
+        ]
+      },
+      {
+        command: "gh",
+        args: [
+          "issue",
+          "edit",
+          "1",
+          "--repo",
+          "Sskift/skfiy",
+          "--body-file",
+          "/repo/.skfiy-dogfood/tracking-issue-abc1234.md"
+        ]
+      }
+    ]);
+    expect(io.textFiles[summaryPath]).toContain("Result: accepted");
+    expect(io.textFiles[summaryPath]).toContain("This review added missing labels and refreshed the tracking issue.");
+    expect(io.textFiles["/repo/.skfiy-dogfood/tracking-issue-abc1234.md"]).toContain(issueUrl);
   });
 
   it("allows local synthetic reports to be accepted as local evidence without making them real testers", async () => {
@@ -239,7 +332,13 @@ describe("dogfood report reviewer", () => {
       schemaVersion: 1,
       appName: "skfiy",
       commitSha,
-      zip: { path: alphaZipPath }
+      bundleIdentifier: "com.sskift.skfiy",
+      artifactBaseName: `skfiy-0.1.0-${commitSha}-macos-unsigned`,
+      uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui.json",
+      zip: {
+        path: alphaZipPath,
+        sha256: "abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abcd"
+      }
     };
   }
 
@@ -352,6 +451,10 @@ describe("dogfood report reviewer", () => {
       async mkdir() {},
       async writeText(filePath: string, text: string) {
         textFiles[filePath] = text;
+      },
+      async execFile(command: string, args: string[]) {
+        mutations.push({ command, args });
+        return { stdout: "", stderr: "" };
       }
     };
   }
