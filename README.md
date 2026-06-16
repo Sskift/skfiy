@@ -162,6 +162,10 @@ inference and accepted-report linking stay attached to the intended cohort.
 `dogfood:prepare-alpha` can infer `--workflows` from the tracking issue when a
 tester id appears in that section, so copied prepare commands and generated
 handoffs stay aligned.
+Workflow and passed workflow coverage in `dogfood:status` and
+`dogfood:cohort` count only verified accepted reports from real tester ids;
+`local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` remain local evidence
+and cannot close required workflow coverage.
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main
 process in another terminal with `npm run dev:electron`.

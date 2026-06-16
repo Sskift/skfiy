@@ -682,6 +682,14 @@ describe("dogfood status reporter", () => {
         verifiedAcceptedReportCount: 4,
         verifiedRealAcceptedReportCount: 2,
         missingRequiredReports: 1,
+        workflowCoverage: {
+          covered: ["finder-file", "browser-fallback"],
+          missing: ["coding-terminal", "screenshot-inspection"]
+        },
+        passedWorkflowCoverage: {
+          covered: ["finder-file", "browser-fallback"],
+          missing: ["coding-terminal", "screenshot-inspection"]
+        },
         reportIssueValidation: [
           {
             issueUrl: reportUrls[0],
@@ -724,7 +732,9 @@ describe("dogfood status reporter", () => {
         }
       ],
       nextActions: expect.arrayContaining([
-        "Collect at least 3 accepted real tester report issue URLs in GitHub issue #1."
+        "Collect at least 3 accepted real tester report issue URLs in GitHub issue #1.",
+        "Collect accepted reports covering missing workflows: coding-terminal, screenshot-inspection.",
+        "Collect passed product-path evidence for workflows: coding-terminal, screenshot-inspection."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("- tester-1:");

@@ -880,7 +880,7 @@ function readVerifiedReportWorkflowCoverage(reportIssueValidation) {
   const covered = [];
 
   for (const issue of reportIssueValidation) {
-    if (!issue.ok) {
+    if (!issue.ok || issue.realTester !== true) {
       continue;
     }
     for (const workflow of issue.workflows) {
@@ -901,7 +901,7 @@ function readPassedReportWorkflowCoverage(reportIssueValidation) {
   const covered = [];
 
   for (const issue of reportIssueValidation) {
-    if (!issue.ok || issue.result !== "passed") {
+    if (!issue.ok || issue.realTester !== true || issue.result !== "passed") {
       continue;
     }
     for (const workflow of issue.workflows) {

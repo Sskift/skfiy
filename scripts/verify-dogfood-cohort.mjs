@@ -119,7 +119,7 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
   );
 
   const eligibleReports = reports.filter((report) =>
-    isWorkflowCoverageEligibleReport(report, cohortManifestPath)
+    isRealWorkflowCoverageReport(report, cohortManifestPath)
   );
   const requiredWorkflowCoverage = Object.fromEntries(
     REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => [
@@ -135,7 +135,7 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
       checks,
       `cohort.workflowCoverage.${workflow}`,
       requiredWorkflowCoverage[workflow] === true,
-      `cohort must include at least one report for ${workflow}`
+      `cohort must include at least one real tester report for ${workflow}`
     );
   }
 
@@ -146,7 +146,7 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
         checks,
         `cohort.passedWorkflowCoverage.${workflow}`,
         passedWorkflowCoverage[workflow] === true,
-        `cohort must include at least one passed product-path report for ${workflow}`
+        `cohort must include at least one passed real tester product-path report for ${workflow}`
       );
     }
   }
@@ -198,7 +198,7 @@ export function createDogfoodCohortHelpText() {
     "source.issueUrl/source.collectedAt linking back to an accepted GitHub dogfood issue,",
     "artifactSource=github-issue-smoke-artifacts, and issue alpha manifest/zip/commit identity",
     "matching the report manifestPath and commitSha.",
-    "Workflow coverage counts only reports that satisfy these report-level gates.",
+    "Workflow coverage counts only reports from real testers that satisfy these report-level gates.",
     "The real tester gate excludes local-*, prepare-*, preflight-*, and synthetic-* tester ids from the 3-5 user count.",
     "The Markdown summary separates source-eligible workflow coverage from passed workflow coverage,",
     "so blocked permission evidence is not described as a passed product workflow.",
@@ -384,7 +384,7 @@ function createPassedWorkflowCoverage(reports, cohortManifestPath) {
       workflow,
       reports.some((report) =>
         report?.result === "passed"
-        && isWorkflowCoverageEligibleReport(report, cohortManifestPath)
+        && isRealWorkflowCoverageReport(report, cohortManifestPath)
         && Array.isArray(report?.workflows)
         && report.workflows.includes(workflow)
       )
@@ -413,6 +413,10 @@ function isWorkflowCoverageEligibleReport(report, cohortManifestPath) {
       commitSha: report?.commitSha,
       manifestPath: reportManifestPath
     });
+}
+
+function isRealWorkflowCoverageReport(report, cohortManifestPath) {
+  return isRealTesterReport(report) && isWorkflowCoverageEligibleReport(report, cohortManifestPath);
 }
 
 function collectDistinctTesterIds(reports) {

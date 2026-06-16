@@ -149,23 +149,27 @@ describe("dogfood cohort verifier", () => {
     }))).resolves.toMatchObject({
       result: "failed",
       errors: expect.arrayContaining([
-        expect.stringContaining("cohort.distinctRealTesters")
+        expect.stringContaining("cohort.distinctRealTesters"),
+        expect.stringContaining("cohort.workflowCoverage.coding-terminal"),
+        expect.stringContaining("cohort.workflowCoverage.screenshot-inspection"),
+        expect.stringContaining("cohort.workflowCoverage.finder-file"),
+        expect.stringContaining("cohort.workflowCoverage.browser-fallback")
       ]),
       summary: {
         distinctTesters: 3,
         distinctRealTesters: 0,
         syntheticReports: 3,
         requiredWorkflowCoverage: {
-          "coding-terminal": true,
-          "screenshot-inspection": true,
-          "finder-file": true,
-          "browser-fallback": true
+          "coding-terminal": false,
+          "screenshot-inspection": false,
+          "finder-file": false,
+          "browser-fallback": false
         }
       },
       checks: expect.arrayContaining([
         expect.objectContaining({ id: "cohort.distinctTesters", ok: true }),
         expect.objectContaining({ id: "cohort.distinctRealTesters", ok: false }),
-        expect.objectContaining({ id: "cohort.workflowCoverage.browser-fallback", ok: true }),
+        expect.objectContaining({ id: "cohort.workflowCoverage.browser-fallback", ok: false }),
         expect.objectContaining({ id: "report.Local-a.source", ok: true }),
         expect.objectContaining({ id: "report.PREflight-b.source", ok: true })
       ])
