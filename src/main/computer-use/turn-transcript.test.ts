@@ -272,6 +272,51 @@ describe("createTurnTranscript", () => {
     });
   });
 
+  it("records Finder plan previews as replay actions before execution", () => {
+    expect(createTurnTranscript([
+      {
+        type: "plan_preview",
+        preview: {
+          rootPath: "/tmp/skfiy-finder-smoke",
+          operationCount: 6,
+          destructiveOperationCount: 0,
+          createFolders: ["Images", "Documents", "Code"],
+          moveFiles: [
+            {
+              from: "/tmp/skfiy-finder-smoke/photo.png",
+              to: "/tmp/skfiy-finder-smoke/Images/photo.png"
+            },
+            {
+              from: "/tmp/skfiy-finder-smoke/notes.pdf",
+              to: "/tmp/skfiy-finder-smoke/Documents/notes.pdf"
+            },
+            {
+              from: "/tmp/skfiy-finder-smoke/script.ts",
+              to: "/tmp/skfiy-finder-smoke/Code/script.ts"
+            }
+          ]
+        }
+      }
+    ])).toMatchObject({
+      apps: [
+        {
+          name: "Finder",
+          bundleId: "com.apple.finder"
+        }
+      ],
+      actions: [
+        {
+          type: "preview_finder_plan",
+          rootPath: "/tmp/skfiy-finder-smoke",
+          operationCount: 6,
+          destructiveOperationCount: 0,
+          createFolderCount: 3,
+          moveFileCount: 3
+        }
+      ]
+    });
+  });
+
   it("uses OCR labels as screenshot grounding when accessibility is blocked", () => {
     expect(createTurnTranscript([
       {

@@ -52,6 +52,7 @@ async function main() {
     events: [],
     finderObservation: undefined,
     finderSemanticObservation: undefined,
+    finderPlanPreview: undefined,
     finderDragProbe: undefined,
     finderItemDragDrop: undefined,
     permissions: undefined,
@@ -164,6 +165,7 @@ async function main() {
         cdp.events,
         evidence.finderObservation
       );
+      evidence.finderPlanPreview = readFinderPlanPreview(cdp.events);
       evidence.finderDragProbe = readFinderDragProbe(cdp.events, evidence.finderObservation);
       evidence.finderItemDragDrop = readFinderItemDragDrop(
         cdp.events,
@@ -179,6 +181,7 @@ async function main() {
         cdp.events,
         evidence.finderObservation
       );
+      evidence.finderPlanPreview = readFinderPlanPreview(cdp.events);
       evidence.finderDragProbe = readFinderDragProbe(cdp.events, evidence.finderObservation);
       evidence.finderItemDragDrop = readFinderItemDragDrop(
         cdp.events,
@@ -558,6 +561,25 @@ function readFinderSemanticObservation(events, finderObservation) {
     return {
       result: "blocked",
       reason: `Skipped Finder semantic selection because Finder observe_app was blocked: ${finderObservation.reason}`
+    };
+  }
+
+  return {
+    result: "missing"
+  };
+}
+
+function readFinderPlanPreview(events) {
+  const preview = events.find((event) => event?.finderPlanPreview)?.finderPlanPreview;
+
+  if (preview) {
+    return {
+      result: "passed",
+      rootPath: preview.rootPath,
+      operationCount: preview.operationCount,
+      destructiveOperationCount: preview.destructiveOperationCount,
+      createFolders: Array.isArray(preview.createFolders) ? preview.createFolders : [],
+      moveFiles: Array.isArray(preview.moveFiles) ? preview.moveFiles : []
     };
   }
 

@@ -6,6 +6,14 @@ import {
 import { extractObservedElementsFromAppState } from "./observed-elements.js";
 import type { DesktopAppState, FinderSelectionResult } from "./types.js";
 
+export interface FinderPlanPreviewTranscriptPayload {
+  rootPath: string;
+  operationCount: number;
+  destructiveOperationCount: number;
+  createFolders: string[];
+  moveFiles: Array<{ from: string; to: string }>;
+}
+
 export type ComputerUseTurnEvent =
   | { type: "started"; command: string; risk: RiskDecision }
   | { type: "approval_required"; command: string; risk: RiskDecision }
@@ -38,6 +46,7 @@ export type ComputerUseTurnEvent =
   | { type: "recovery_attempted"; stage: string; action: "activate" | "open"; reason: string }
   | { type: "screenshot_before"; path: string; observation: DesktopAppState }
   | { type: "finder_selection_observed"; context: FinderSelectionResult }
+  | { type: "plan_preview"; preview: FinderPlanPreviewTranscriptPayload }
   | { type: "typing"; command: string }
   | { type: "submitted"; key: "enter" }
   | { type: "screenshot_after"; path: string; observation: DesktopAppState }
@@ -77,6 +86,14 @@ export type TurnTranscriptAction =
     frontmostBundleId?: string;
     targetPath?: string;
     selectedCount: number;
+  }
+  | {
+    type: "preview_finder_plan";
+    rootPath: string;
+    operationCount: number;
+    destructiveOperationCount: number;
+    createFolderCount: number;
+    moveFileCount: number;
   }
   | { type: "recover"; action: "activate" | "open"; stage: string; reason: string }
   | {
@@ -189,6 +206,20 @@ export function createTurnTranscript(
           frontmostBundleId: event.context.frontmostBundleId,
           targetPath: event.context.targetPath,
           selectedCount: event.context.selection.length
+        });
+        mergeApp(apps, {
+          name: "Finder",
+          bundleId: "com.apple.finder"
+        });
+        break;
+      case "plan_preview":
+        actions.push({
+          type: "preview_finder_plan",
+          rootPath: event.preview.rootPath,
+          operationCount: event.preview.operationCount,
+          destructiveOperationCount: event.preview.destructiveOperationCount,
+          createFolderCount: event.preview.createFolders.length,
+          moveFileCount: event.preview.moveFiles.length
         });
         mergeApp(apps, {
           name: "Finder",

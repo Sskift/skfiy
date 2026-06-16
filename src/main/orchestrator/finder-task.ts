@@ -76,6 +76,10 @@ export type FinderTaskEvent =
       context: FinderSelectionResult;
     }
   | {
+      type: "plan_preview";
+      preview: FinderPlanPreview;
+    }
+  | {
       type: "action_verified";
       actionType: "create_folder" | "move_file" | "drag" | "item_drag_drop";
       status: "passed";
@@ -96,6 +100,14 @@ export interface FinderTaskOptions {
   approved?: boolean;
   desktopClient?: FinderDesktopClient;
   createScreenshotPath?: (stage: "before") => string;
+}
+
+export interface FinderPlanPreview {
+  rootPath: string;
+  operationCount: number;
+  destructiveOperationCount: number;
+  createFolders: string[];
+  moveFiles: Array<{ from: string; to: string }>;
 }
 
 export interface FinderDesktopClient {
@@ -176,7 +188,8 @@ export async function* runFinderOrganizationTask(
     return;
   }
 
-  const entries = await readdir(rootPath, { withFileTypes: true });
+  const entries = (await readdir(rootPath, { withFileTypes: true }))
+    .sort((left, right) => left.name.localeCompare(right.name));
   const plan = createFinderOrganizationPlan({
     rootPath,
     entries: entries.map((entry) => ({
@@ -184,6 +197,11 @@ export async function* runFinderOrganizationTask(
       kind: entry.isDirectory() ? "directory" : "file"
     }))
   });
+
+  yield {
+    type: "plan_preview",
+    preview: createFinderPlanPreview(rootPath, plan.operations)
+  };
 
   if (
     parsed.target.kind === "absolute_path"
@@ -256,6 +274,32 @@ export async function* runFinderOrganizationTask(
     type: "completed",
     command: rootPath,
     summary: "Finder test folder organized."
+  };
+}
+
+function createFinderPlanPreview(
+  rootPath: string,
+  operations: FinderOrganizationOperation[]
+): FinderPlanPreview {
+  return {
+    rootPath,
+    operationCount: operations.length,
+    destructiveOperationCount: operations.filter((operation) =>
+      !["create_folder", "move_file"].includes(operation.type)
+    ).length,
+    createFolders: operations
+      .filter((operation): operation is Extract<FinderOrganizationOperation, { type: "create_folder" }> =>
+        operation.type === "create_folder"
+      )
+      .map((operation) => operation.path),
+    moveFiles: operations
+      .filter((operation): operation is Extract<FinderOrganizationOperation, { type: "move_file" }> =>
+        operation.type === "move_file"
+      )
+      .map((operation) => ({
+        from: operation.from,
+        to: operation.to
+      }))
   };
 }
 

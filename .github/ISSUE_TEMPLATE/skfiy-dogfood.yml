@@ -278,6 +278,22 @@ body:
       required: true
 
   - type: textarea
+    id: finder_plan_preview
+    attributes:
+      label: Finder plan preview
+      description: Paste Finder `finderPlanPreview` from the smoke artifact and the matching task event. It must appear before file operations and report zero destructive operations.
+      placeholder: |
+        finderPlanPreview.result: passed
+        finderPlanPreview.rootPath: /tmp/skfiy-finder-smoke
+        finderPlanPreview.operationCount: 6
+        finderPlanPreview.destructiveOperationCount: 0
+        finderPlanPreview.createFolders: Images, Documents, Code
+        finderPlanPreview.moveFiles: photo.png -> Images/photo.png, notes.pdf -> Documents/notes.pdf, script.ts -> Code/script.ts
+        Finder plan preview: 3 folders, 3 moves, 0 destructive operations.
+    validations:
+      required: true
+
+  - type: textarea
     id: finder_organization
     attributes:
       label: Finder before tree / after tree

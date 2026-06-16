@@ -53,6 +53,7 @@ import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import {
   runFinderOrganizationTask,
   type FinderDesktopClient,
+  type FinderPlanPreview,
   type FinderTaskEvent
 } from "./orchestrator/finder-task.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
@@ -92,6 +93,7 @@ interface TaskEvent {
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
+  finderPlanPreview?: FinderPlanPreview;
 }
 
 interface PendingApproval {
@@ -377,6 +379,12 @@ function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEve
         status: "observing",
         message: `${prefix}Observed Finder selection: ${formatFinderSelectionSummary(event.context)}`,
         finderSelection: event.context
+      };
+    case "plan_preview":
+      return {
+        status: "executing",
+        message: `${prefix}Finder plan preview: ${event.preview.createFolders.length} folders, ${event.preview.moveFiles.length} moves, ${event.preview.destructiveOperationCount} destructive operations.`,
+        finderPlanPreview: event.preview
       };
     case "typing":
       return {

@@ -267,6 +267,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.finderPlanPreview",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Finder plan preview evidence"),
+    "manifest must require Finder plan preview evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.finderOrganization",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Finder test-folder organization evidence"),
@@ -692,6 +699,12 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
     "finder.selectedFolderTarget",
     hasSelectedFinderFolderTargetEvidence(artifact),
     "Finder selected-folder smoke must prove semantic selectedItems contains the prepared fixture root"
+  );
+  check(
+    checks,
+    "finder.planPreview",
+    hasFinderPlanPreviewEvidence(artifact.finderPlanPreview, artifact.result, artifact.fixtureRoot),
+    "Finder smoke must include a pre-execution plan preview with no destructive operations"
   );
   check(
     checks,
@@ -1209,6 +1222,45 @@ function hasSelectedFinderFolderTargetEvidence(artifact) {
       && typeof item.path === "string"
       && path.resolve(item.path) === path.resolve(artifact.fixtureRoot)
     ));
+}
+
+function hasFinderPlanPreviewEvidence(value, result, fixtureRoot) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  if (result === "blocked" && value.result === "missing") {
+    return false;
+  }
+
+  if (
+    value.result !== "passed"
+    || typeof value.rootPath !== "string"
+    || !Number.isFinite(value.operationCount)
+    || value.operationCount <= 0
+    || value.destructiveOperationCount !== 0
+    || !Array.isArray(value.createFolders)
+    || !Array.isArray(value.moveFiles)
+    || value.moveFiles.length === 0
+  ) {
+    return false;
+  }
+
+  if (
+    typeof fixtureRoot === "string"
+    && path.resolve(value.rootPath) !== path.resolve(fixtureRoot)
+  ) {
+    return false;
+  }
+
+  return ["photo.png", "notes.pdf", "script.ts"].every((fileName) =>
+    value.moveFiles.some((move) =>
+      typeof move?.from === "string"
+        && typeof move?.to === "string"
+        && path.basename(move.from) === fileName
+        && path.resolve(move.from) !== path.resolve(move.to)
+    )
+  );
 }
 
 function hasPermissionBlockedFinderObservation(value) {

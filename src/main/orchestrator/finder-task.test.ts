@@ -6,7 +6,7 @@ import { runFinderOrganizationTask } from "./finder-task";
 import type { DesktopActionResult, DesktopExecutableAction } from "../computer-use/types";
 
 async function collectEvents(task: AsyncGenerator<{ type: string }>) {
-  const events: Array<{ type: string }> = [];
+  const events: Array<Record<string, unknown>> = [];
 
   for await (const event of task) {
     events.push(event);
@@ -90,6 +90,60 @@ describe("runFinderOrganizationTask", () => {
     }
   });
 
+  it("previews the Finder organization plan before filesystem changes after approval", async () => {
+    const rootPath = await createFixture();
+
+    try {
+      const task = runFinderOrganizationTask(`整理 Finder 测试文件夹 ${rootPath}`, { approved: true });
+
+      expect(await task.next()).toMatchObject({
+        value: { type: "started" },
+        done: false
+      });
+
+      const preview = await task.next();
+      expect(preview).toMatchObject({
+        value: {
+          type: "plan_preview",
+          preview: {
+            rootPath,
+            operationCount: 6,
+            destructiveOperationCount: 0,
+            createFolders: expect.arrayContaining([
+              path.join(rootPath, "Images"),
+              path.join(rootPath, "Documents"),
+              path.join(rootPath, "Code")
+            ]),
+            moveFiles: expect.arrayContaining([
+              {
+                from: path.join(rootPath, "photo.png"),
+                to: path.join(rootPath, "Images", "photo.png")
+              },
+              {
+                from: path.join(rootPath, "notes.pdf"),
+                to: path.join(rootPath, "Documents", "notes.pdf")
+              },
+              {
+                from: path.join(rootPath, "script.ts"),
+                to: path.join(rootPath, "Code", "script.ts")
+              }
+            ])
+          }
+        },
+        done: false
+      });
+      expect(await readdir(rootPath)).toEqual(["notes.pdf", "photo.png", "script.ts"]);
+
+      for await (const _event of task) {
+        // Drain the task after proving preview happens before mutation.
+      }
+      await expect(readFile(path.join(rootPath, "Images", "photo.png"), "utf8"))
+        .resolves.toBe("image");
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
   it("organizes a test folder after approval without deleting files", async () => {
     const rootPath = await createFixture();
 
@@ -100,6 +154,7 @@ describe("runFinderOrganizationTask", () => {
 
       expect(events.map((event) => event.type)).toEqual([
         "started",
+        "plan_preview",
         "locating_app",
         "action_verified",
         "action_verified",
@@ -179,6 +234,7 @@ describe("runFinderOrganizationTask", () => {
         "app_activated",
         "screenshot_before",
         "finder_selection_observed",
+        "plan_preview",
         "action_verified",
         "action_verified",
         "action_verified",
@@ -330,6 +386,7 @@ describe("runFinderOrganizationTask", () => {
         "app_activated",
         "screenshot_before",
         "finder_selection_observed",
+        "plan_preview",
         "action_verified",
         "action_verified",
         "action_verified",
@@ -450,6 +507,7 @@ describe("runFinderOrganizationTask", () => {
       ]);
       expect(events.map((event) => event.type)).toEqual([
         "started",
+        "plan_preview",
         "locating_app",
         "app_activated",
         "screenshot_before",
@@ -461,7 +519,7 @@ describe("runFinderOrganizationTask", () => {
         "action_verified",
         "completed"
       ]);
-      expect(events[3]).toMatchObject({
+      expect(events.find((event) => event.type === "screenshot_before")).toMatchObject({
         type: "screenshot_before",
         path: "/tmp/skfiy-finder-before.png",
         observation: {
@@ -537,6 +595,7 @@ describe("runFinderOrganizationTask", () => {
       ]);
       expect(events.map((event) => event.type)).toEqual([
         "started",
+        "plan_preview",
         "locating_app",
         "app_activated",
         "screenshot_before",

@@ -3,6 +3,34 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
+function createFinderPlanPreviewEvidence(rootPath = "/tmp/skfiy-finder-smoke") {
+  return {
+    result: "passed",
+    rootPath,
+    operationCount: 6,
+    destructiveOperationCount: 0,
+    createFolders: [
+      path.join(rootPath, "Images"),
+      path.join(rootPath, "Documents"),
+      path.join(rootPath, "Code")
+    ],
+    moveFiles: [
+      {
+        from: path.join(rootPath, "photo.png"),
+        to: path.join(rootPath, "Images", "photo.png")
+      },
+      {
+        from: path.join(rootPath, "notes.pdf"),
+        to: path.join(rootPath, "Documents", "notes.pdf")
+      },
+      {
+        from: path.join(rootPath, "script.ts"),
+        to: path.join(rootPath, "Code", "script.ts")
+      }
+    ]
+  };
+}
+
 describe("Finder product smoke script", () => {
   it("is exposed as an npm script and uses the product preload API", () => {
     const packageJson = JSON.parse(
@@ -29,6 +57,7 @@ describe("Finder product smoke script", () => {
     expect(source).toContain("selectFinderFolder");
     expect(source).toContain("readFinderDragProbe");
     expect(source).toContain("readFinderItemDragDrop");
+    expect(source).toContain("readFinderPlanPreview");
   });
 
   it("wires Finder item layout through the packaged app main process", () => {
@@ -142,6 +171,31 @@ describe("Finder product smoke script", () => {
         targetPath: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123",
         selectedCount: 0
       },
+      finderPlanPreview: {
+        result: "passed",
+        rootPath: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123",
+        operationCount: 6,
+        destructiveOperationCount: 0,
+        createFolders: [
+          "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123/Images",
+          "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123/Documents",
+          "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123/Code"
+        ],
+        moveFiles: [
+          {
+            from: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123/photo.png",
+            to: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123/Images/photo.png"
+          },
+          {
+            from: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123/notes.pdf",
+            to: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123/Documents/notes.pdf"
+          },
+          {
+            from: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123/script.ts",
+            to: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123/Code/script.ts"
+          }
+        ]
+      },
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [
         "Code/script.ts",
@@ -182,6 +236,16 @@ describe("Finder product smoke script", () => {
         result: "failed",
         fixtureInsideTargetDir: false
       }
+    })).toBe("failed");
+
+    expect(classifyFinderSmokeEvidence({
+      ...baseEvidence,
+      fixtureRoot: "/Users/test/Documents/skfiy-smoke-target/skfiy-finder-smoke-abc123",
+      targetDirSafety: {
+        result: "passed",
+        fixtureInsideTargetDir: true
+      },
+      finderPlanPreview: undefined
     })).toBe("failed");
   });
 
@@ -268,6 +332,7 @@ describe("Finder product smoke script", () => {
         targetPath: "/tmp/skfiy-finder-smoke",
         selectedCount: 1
       },
+      finderPlanPreview: createFinderPlanPreviewEvidence(),
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [
         "Code/script.ts",
@@ -297,6 +362,7 @@ describe("Finder product smoke script", () => {
         frontmostBundleId: "com.apple.finder",
         windowCount: 1
       },
+      finderPlanPreview: createFinderPlanPreviewEvidence(),
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [
         "Code/script.ts",
@@ -348,6 +414,7 @@ describe("Finder product smoke script", () => {
         frontmostBundleId: "com.apple.finder",
         windowCount: 1
       },
+      finderPlanPreview: createFinderPlanPreviewEvidence(),
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [
         "Code/script.ts",
@@ -420,6 +487,7 @@ describe("Finder product smoke script", () => {
         targetPath: "/tmp/skfiy-finder-smoke",
         selectedCount: 0
       },
+      finderPlanPreview: createFinderPlanPreviewEvidence(),
       finderDragProbe: {
         result: "passed",
         source: "finder-hid-drag",
@@ -505,6 +573,7 @@ describe("Finder product smoke script", () => {
         targetPath: "/tmp/skfiy-finder-smoke",
         selectedCount: 0
       },
+      finderPlanPreview: createFinderPlanPreviewEvidence(),
       finderItemDragDrop: {
         result: "passed",
         source: "finder-applescript-layout+hid-drag",

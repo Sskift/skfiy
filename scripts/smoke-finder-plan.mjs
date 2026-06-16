@@ -177,6 +177,7 @@ export function classifyFinderSmokeEvidence({
   afterTree = [],
   finderObservation,
   finderSemanticObservation,
+  finderPlanPreview,
   finderDragProbe,
   finderItemDragDrop,
   permissions,
@@ -257,6 +258,7 @@ export function classifyFinderSmokeEvidence({
     !hasExpectedAfterTree(afterTree)
     || !hasPassedFinderObservation(finderObservation)
     || !hasPassedFinderSemanticObservation(finderSemanticObservation, { targetMode, fixtureRoot })
+    || !hasPassedFinderPlanPreview(finderPlanPreview, { fixtureRoot })
     || !hasExpectedFinderDragProbe(finderDragProbe, targetMode)
     || !hasExpectedFinderItemDragDrop(finderItemDragDrop, targetMode)
   ) {
@@ -334,6 +336,31 @@ function hasPermissionBlockedFinderSemanticObservation(finderSemanticObservation
   return finderSemanticObservation?.result === "blocked"
     && typeof finderSemanticObservation.reason === "string"
     && isPermissionBlockedMessage(finderSemanticObservation.reason);
+}
+
+function hasPassedFinderPlanPreview(finderPlanPreview, options = {}) {
+  if (
+    finderPlanPreview?.result !== "passed"
+    || typeof finderPlanPreview.rootPath !== "string"
+    || !Number.isFinite(finderPlanPreview.operationCount)
+    || finderPlanPreview.operationCount <= 0
+    || finderPlanPreview.destructiveOperationCount !== 0
+    || !Array.isArray(finderPlanPreview.createFolders)
+    || !Array.isArray(finderPlanPreview.moveFiles)
+    || finderPlanPreview.moveFiles.length === 0
+  ) {
+    return false;
+  }
+
+  if (
+    typeof options.fixtureRoot === "string"
+    && path.resolve(finderPlanPreview.rootPath) !== path.resolve(options.fixtureRoot)
+  ) {
+    return false;
+  }
+
+  const movedBasenames = new Set(finderPlanPreview.moveFiles.map((move) => path.basename(move?.from ?? "")));
+  return ["photo.png", "notes.pdf", "script.ts"].every((name) => movedBasenames.has(name));
 }
 
 function hasExpectedFinderDragProbe(finderDragProbe, targetMode) {
