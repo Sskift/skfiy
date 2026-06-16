@@ -1,12 +1,16 @@
 #!/usr/bin/env node
+import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 
 import { createDogfoodStatus } from "./dogfood-status.mjs";
 
+const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
+const GITHUB_ISSUE_URL_PATTERN = /^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/issues\/(\d+)$/;
 const PERMISSION_LABELS = {
   screenRecording: "Screen Recording",
   accessibility: "Accessibility",
@@ -21,6 +25,7 @@ export function createDefaultDogfoodAssignmentsOptions(rootDir = DEFAULT_ROOT_DI
     trackingIssueUrl: undefined,
     trackingIssueFile: undefined,
     outputPath: undefined,
+    dryRun: true,
     requireCurrentHead: false,
     help: false
   };
@@ -48,6 +53,12 @@ export function parseDogfoodAssignmentsArgs(argv, defaults) {
       case "--output":
         options.outputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
+        break;
+      case "--execute":
+        options.dryRun = false;
+        break;
+      case "--dry-run":
+        options.dryRun = true;
         break;
       case "--require-current-head":
         options.requireCurrentHead = true;
@@ -84,16 +95,30 @@ export async function runDogfoodAssignments(options, io = createDefaultIo()) {
     ? options.outputPath
     : createDefaultOutputPath(options.rootDir ?? DEFAULT_ROOT_DIR, status);
   const markdown = createDogfoodAssignmentsMarkdown(status, { generatedAt });
+  const commentCommand = typeof options.trackingIssueUrl === "string"
+    ? createTrackingIssueCommentCommand({
+      trackingIssueUrl: options.trackingIssueUrl,
+      bodyFile: outputPath
+    })
+    : undefined;
 
   await io.mkdir(path.dirname(outputPath), { recursive: true });
   await io.writeText(outputPath, markdown);
+  if (options.dryRun === false && commentCommand) {
+    await io.execFile(commentCommand.command, commentCommand.args);
+  } else if (options.dryRun === false && !commentCommand) {
+    throw new Error("--execute requires --tracking-issue-url so the assignment packet can be posted as a GitHub issue comment.");
+  }
 
   return {
     result: status.result,
+    dryRun: options.dryRun !== false,
     assignmentCount: Array.isArray(status.testerAssignments)
       ? status.testerAssignments.length
       : 0,
-    outputPath
+    outputPath,
+    commentCommand,
+    postedToTrackingIssue: options.dryRun === false && Boolean(commentCommand)
   };
 }
 
@@ -190,11 +215,13 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
 
 export function createDogfoodAssignmentsHelpText() {
   return [
-    "Usage: npm run dogfood:assignments -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--output <markdown-path>] [--require-current-head]",
+    "Usage: npm run dogfood:assignments -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--output <markdown-path>] [--execute] [--require-current-head]",
     "",
     "Creates a non-mutating tester assignment packet from dogfood:status.",
     "It packages recommended prepare/tester/review commands into copy-safe Markdown.",
     "It does not create or accept reports, add labels, update cohort JSON, or weaken dogfood gates.",
+    "By default it writes the local packet and reports a GitHub issue comment command without running it.",
+    "Pass --execute with --tracking-issue-url to post the packet as a GitHub issue comment.",
     "Use it to hand real testers the current alpha assignment while preserving maintainer review."
   ].join("\n");
 }
@@ -254,6 +281,26 @@ function readAssignmentPermissionStates(blockers) {
   );
 }
 
+function createTrackingIssueCommentCommand({ trackingIssueUrl, bodyFile }) {
+  const match = trackingIssueUrl.match(GITHUB_ISSUE_URL_PATTERN);
+  if (!match) {
+    throw new Error("--tracking-issue-url must be a GitHub issue URL when creating an assignment comment command.");
+  }
+
+  return {
+    command: "gh",
+    args: [
+      "issue",
+      "comment",
+      match[2],
+      "--repo",
+      match[1],
+      "--body-file",
+      bodyFile
+    ]
+  };
+}
+
 function readValue(argv, index, arg) {
   const value = argv[index + 1];
   if (!value || value.startsWith("--")) {
@@ -270,6 +317,9 @@ function createDefaultIo() {
     },
     async writeText(filePath, value) {
       await writeFile(filePath, value);
+    },
+    async execFile(command, args) {
+      return await execFileAsync(command, args);
     }
   };
 }

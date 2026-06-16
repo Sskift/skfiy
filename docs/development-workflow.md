@@ -279,7 +279,7 @@ npm run dogfood:assignments -- \
   --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md
 ```
 
-`dogfood:assignments` is non-mutating. It reads the same recommended tester assignments as `dogfood:status`, writes a Markdown packet with prepare/tester/review commands, and does not create or accept reports, add labels, update cohort JSON, or close workflow coverage. The packet includes a `Permission Preflight` section that lists Screen Recording, Accessibility, Microphone, and Speech Recognition states from the selected smoke evidence. Testers should use `--require-passed` only after all four permissions are granted to the extracted `skfiy.app`; otherwise they should run the normal tester command and file blocked evidence.
+`dogfood:assignments` is non-mutating by default. It reads the same recommended tester assignments as `dogfood:status`, writes a Markdown packet with prepare/tester/review commands, and does not create or accept reports, add labels, update cohort JSON, or close workflow coverage. The default output includes the GitHub issue comment command but does not run it; add `--execute` only when the packet should be posted as a GitHub issue comment on the tracking issue. The packet includes a `Permission Preflight` section that lists Screen Recording, Accessibility, Microphone, and Speech Recognition states from the selected smoke evidence. Testers should use `--require-passed` only after all four permissions are granted to the extracted `skfiy.app`; otherwise they should run the normal tester command and file blocked evidence.
 
 Generate a copyable handoff for each real tester before asking them to run the packaged app:
 

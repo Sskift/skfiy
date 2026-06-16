@@ -41,16 +41,20 @@ describe("dogfood tester assignment packet", () => {
       trackingIssueUrl,
       "--output",
       ".skfiy-dogfood/assignments/abc1234.md",
+      "--execute",
       "--require-current-head"
     ], defaults)).toMatchObject({
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc1234-macos-unsigned.json"),
       trackingIssueUrl,
       outputPath: path.resolve(".skfiy-dogfood/assignments/abc1234.md"),
+      dryRun: false,
       requireCurrentHead: true
     });
     expect(createDogfoodAssignmentsHelpText()).toContain("dogfood:assignments");
     expect(createDogfoodAssignmentsHelpText()).toContain("non-mutating");
     expect(createDogfoodAssignmentsHelpText()).toContain("does not create or accept reports");
+    expect(createDogfoodAssignmentsHelpText()).toContain("--execute");
+    expect(createDogfoodAssignmentsHelpText()).toContain("GitHub issue comment");
   });
 
   it("writes a copy-safe assignment packet from dogfood status without accepting evidence", async () => {
@@ -71,8 +75,22 @@ describe("dogfood tester assignment packet", () => {
     }, io)).resolves.toMatchObject({
       result: "waiting-for-dogfood",
       assignmentCount: 3,
-      outputPath: "/repo/.skfiy-dogfood/assignments/abc1234.md"
+      outputPath: "/repo/.skfiy-dogfood/assignments/abc1234.md",
+      dryRun: true,
+      commentCommand: {
+        command: "gh",
+        args: [
+          "issue",
+          "comment",
+          "1",
+          "--repo",
+          "Sskift/skfiy",
+          "--body-file",
+          "/repo/.skfiy-dogfood/assignments/abc1234.md"
+        ]
+      }
     });
+    expect(io.commands).toEqual([]);
 
     const packet = io.textFiles["/repo/.skfiy-dogfood/assignments/abc1234.md"];
     expect(packet).toContain("# skfiy dogfood tester assignments");
@@ -98,6 +116,43 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).not.toContain("--add-label dogfood:accepted");
   });
 
+  it("posts the assignment packet to the tracking issue only when execute is explicit", async () => {
+    const { runDogfoodAssignments } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodAssignments: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo();
+
+    await expect(runDogfoodAssignments({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      outputPath: "/repo/.skfiy-dogfood/assignments/abc1234.md",
+      dryRun: false,
+      now: () => "2026-06-17T10:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      dryRun: false,
+      postedToTrackingIssue: true
+    });
+
+    expect(io.commands).toEqual([
+      {
+        command: "gh",
+        args: [
+          "issue",
+          "comment",
+          "1",
+          "--repo",
+          "Sskift/skfiy",
+          "--body-file",
+          "/repo/.skfiy-dogfood/assignments/abc1234.md"
+        ]
+      }
+    ]);
+  });
+
   it("documents assignment packets in the user workflow", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(
@@ -120,11 +175,14 @@ describe("dogfood tester assignment packet", () => {
       expect(document).toContain("non-mutating");
       expect(document).toContain("Permission Preflight");
       expect(document).toContain("`--require-passed`");
+      expect(document).toContain("GitHub issue comment");
+      expect(document).toContain("`--execute`");
     }
   });
 });
 
 function createMemoryIo() {
+  const commands: Array<{ command: string; args: string[] }> = [];
   const textFiles: Record<string, string> = {};
   const status = {
     result: "waiting-for-dogfood",
@@ -162,6 +220,7 @@ function createMemoryIo() {
   };
 
   return {
+    commands,
     textFiles,
     async createDogfoodStatus() {
       return status;
@@ -169,6 +228,10 @@ function createMemoryIo() {
     async mkdir() {},
     async writeText(filePath: string, value: string) {
       textFiles[filePath] = value;
+    },
+    async execFile(command: string, args: string[]) {
+      commands.push({ command, args });
+      return { stdout: "", stderr: "" };
     }
   };
 }

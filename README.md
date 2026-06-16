@@ -169,6 +169,9 @@ review commands for the next real tester slots and missing workflow coverage.
 `dogfood:assignments` is also non-mutating. It packages those assignments into a
 copy-safe Markdown handoff for real testers without creating reports, adding
 labels, updating cohort JSON, or marking evidence accepted.
+By default it writes the local packet and prints the GitHub issue comment command
+without running it; add `--execute` only when you want to publish that packet as
+a GitHub issue comment on the tracking issue.
 The generated assignment packet includes a `Permission Preflight` section. It
 lists Screen Recording, Accessibility, Microphone, and Speech Recognition states
 from the current smoke evidence and tells testers to use `--require-passed` only
