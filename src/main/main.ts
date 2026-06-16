@@ -99,6 +99,7 @@ interface TaskEvent {
 interface PendingApproval {
   command: string;
   mode: ManualMode;
+  planApproved?: boolean;
 }
 
 interface ObserveAppReplayRecord extends DesktopAppState {
@@ -386,6 +387,13 @@ function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEve
         message: `${prefix}Finder plan preview: ${event.preview.createFolders.length} folders, ${event.preview.moveFiles.length} moves, ${event.preview.destructiveOperationCount} destructive operations.`,
         finderPlanPreview: event.preview
       };
+    case "plan_confirmation_required":
+      return {
+        status: "approval_required",
+        message: `${prefix}Finder plan confirmation required: ${event.reason}`,
+        command: event.command,
+        finderPlanPreview: event.preview
+      };
     case "typing":
       return {
         status: "executing",
@@ -498,7 +506,8 @@ async function runCommandTask(
   window: BrowserWindow | null,
   command: string,
   mode: ManualMode,
-  approved: boolean
+  approved: boolean,
+  planApproved = false
 ) {
   if (!approved) {
     turnReplayStore.startTurn();
@@ -547,6 +556,7 @@ async function runCommandTask(
 
       for await (const taskEvent of runFinderOrganizationTask(command, {
         approved,
+        planApproved,
         desktopClient,
         createScreenshotPath: () => createScreenshotPath("finder-before")
       })) {
@@ -558,6 +568,10 @@ async function runCommandTask(
 
         if (taskEvent.type === "approval_required" && !approved) {
           pendingApproval = { command, mode };
+        }
+
+        if (taskEvent.type === "plan_confirmation_required" && !planApproved) {
+          pendingApproval = { command, mode, planApproved: true };
         }
 
         emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));
@@ -967,7 +981,7 @@ ipcMain.handle("skfiy:approve-task", async (event) => {
     return;
   }
 
-  await runCommandTask(window, approval.command, approval.mode, true);
+  await runCommandTask(window, approval.command, approval.mode, true, approval.planApproved === true);
 });
 
 ipcMain.handle("skfiy:deny-task", async (event) => {

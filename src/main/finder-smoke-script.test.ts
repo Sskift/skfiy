@@ -58,6 +58,7 @@ describe("Finder product smoke script", () => {
     expect(source).toContain("readFinderDragProbe");
     expect(source).toContain("readFinderItemDragDrop");
     expect(source).toContain("readFinderPlanPreview");
+    expect(source).toContain("readFinderPlanConfirmation");
   });
 
   it("wires Finder item layout through the packaged app main process", () => {
@@ -66,6 +67,8 @@ describe("Finder product smoke script", () => {
     expect(source).toContain("function createFinderDesktopClient");
     expect(source).toContain("getFinderItemLayout: async");
     expect(source).toContain("helper.getFinderItemLayout");
+    expect(source).toContain("plan_confirmation_required");
+    expect(source).toContain("planApproved: true");
   });
 
   it("defines Finder product paths and output options", async () => {
@@ -333,6 +336,11 @@ describe("Finder product smoke script", () => {
         selectedCount: 1
       },
       finderPlanPreview: createFinderPlanPreviewEvidence(),
+      finderPlanConfirmation: {
+        result: "passed",
+        reason: "Finder current-folder organization needs confirmation after plan preview.",
+        confirmedAfterPreview: true
+      },
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [
         "Code/script.ts",
@@ -363,6 +371,11 @@ describe("Finder product smoke script", () => {
         windowCount: 1
       },
       finderPlanPreview: createFinderPlanPreviewEvidence(),
+      finderPlanConfirmation: {
+        result: "passed",
+        reason: "Finder current-folder organization needs confirmation after plan preview.",
+        confirmedAfterPreview: true
+      },
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [
         "Code/script.ts",
@@ -381,6 +394,18 @@ describe("Finder product smoke script", () => {
         selectedCount: 0
       }
     })).toBe("passed");
+
+    expect(classifyFinderSmokeEvidence({
+      ...baseEvidence,
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        targetPath: "/tmp/skfiy-finder-smoke",
+        selectedCount: 0
+      },
+      finderPlanConfirmation: undefined
+    })).toBe("failed");
 
     expect(classifyFinderSmokeEvidence({
       ...baseEvidence,
@@ -415,6 +440,11 @@ describe("Finder product smoke script", () => {
         windowCount: 1
       },
       finderPlanPreview: createFinderPlanPreviewEvidence(),
+      finderPlanConfirmation: {
+        result: "passed",
+        reason: "Finder selected-folder organization needs confirmation after plan preview.",
+        confirmedAfterPreview: true
+      },
       events: [{ status: "completed", message: "Finder test folder organized." }],
       afterTree: [
         "Code/script.ts",

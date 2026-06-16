@@ -53,6 +53,7 @@ async function main() {
     finderObservation: undefined,
     finderSemanticObservation: undefined,
     finderPlanPreview: undefined,
+    finderPlanConfirmation: undefined,
     finderDragProbe: undefined,
     finderItemDragDrop: undefined,
     permissions: undefined,
@@ -166,6 +167,7 @@ async function main() {
         evidence.finderObservation
       );
       evidence.finderPlanPreview = readFinderPlanPreview(cdp.events);
+      evidence.finderPlanConfirmation = readFinderPlanConfirmation(cdp.events);
       evidence.finderDragProbe = readFinderDragProbe(cdp.events, evidence.finderObservation);
       evidence.finderItemDragDrop = readFinderItemDragDrop(
         cdp.events,
@@ -182,6 +184,7 @@ async function main() {
         evidence.finderObservation
       );
       evidence.finderPlanPreview = readFinderPlanPreview(cdp.events);
+      evidence.finderPlanConfirmation = readFinderPlanConfirmation(cdp.events);
       evidence.finderDragProbe = readFinderDragProbe(cdp.events, evidence.finderObservation);
       evidence.finderItemDragDrop = readFinderItemDragDrop(
         cdp.events,
@@ -585,6 +588,32 @@ function readFinderPlanPreview(events) {
 
   return {
     result: "missing"
+  };
+}
+
+function readFinderPlanConfirmation(events) {
+  const confirmationIndex = events.findIndex((event) => (
+    event?.status === "approval_required"
+    && typeof event.message === "string"
+    && event.message.includes("Finder plan confirmation required")
+  ));
+
+  if (confirmationIndex === -1) {
+    return {
+      result: "missing"
+    };
+  }
+
+  const previewIndex = events.findIndex((event) => event?.finderPlanPreview);
+  const confirmationEvent = events[confirmationIndex];
+  const continuedAfterConfirmation = events.slice(confirmationIndex + 1).some((event) =>
+    event?.status !== "approval_required"
+  );
+
+  return {
+    result: continuedAfterConfirmation ? "passed" : "waiting",
+    reason: confirmationEvent.message.replace(/^.*Finder plan confirmation required:\s*/, ""),
+    confirmedAfterPreview: previewIndex !== -1 && previewIndex < confirmationIndex && continuedAfterConfirmation
   };
 }
 

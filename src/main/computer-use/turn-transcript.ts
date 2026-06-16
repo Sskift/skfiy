@@ -47,6 +47,12 @@ export type ComputerUseTurnEvent =
   | { type: "screenshot_before"; path: string; observation: DesktopAppState }
   | { type: "finder_selection_observed"; context: FinderSelectionResult }
   | { type: "plan_preview"; preview: FinderPlanPreviewTranscriptPayload }
+  | {
+    type: "plan_confirmation_required";
+    command: string;
+    preview: FinderPlanPreviewTranscriptPayload;
+    reason: string;
+  }
   | { type: "typing"; command: string }
   | { type: "submitted"; key: "enter" }
   | { type: "screenshot_after"; path: string; observation: DesktopAppState }
@@ -94,6 +100,13 @@ export type TurnTranscriptAction =
     destructiveOperationCount: number;
     createFolderCount: number;
     moveFileCount: number;
+  }
+  | {
+    type: "confirm_finder_plan";
+    rootPath: string;
+    operationCount: number;
+    destructiveOperationCount: number;
+    reason: string;
   }
   | { type: "recover"; action: "activate" | "open"; stage: string; reason: string }
   | {
@@ -220,6 +233,22 @@ export function createTurnTranscript(
           destructiveOperationCount: event.preview.destructiveOperationCount,
           createFolderCount: event.preview.createFolders.length,
           moveFileCount: event.preview.moveFiles.length
+        });
+        mergeApp(apps, {
+          name: "Finder",
+          bundleId: "com.apple.finder"
+        });
+        break;
+      case "plan_confirmation_required":
+        command = event.command;
+        approvalRequired = true;
+        outcome = "approval_required";
+        actions.push({
+          type: "confirm_finder_plan",
+          rootPath: event.preview.rootPath,
+          operationCount: event.preview.operationCount,
+          destructiveOperationCount: event.preview.destructiveOperationCount,
+          reason: event.reason
         });
         mergeApp(apps, {
           name: "Finder",

@@ -36,6 +36,7 @@ const DOGFOOD_EVIDENCE = [
   "Finder observe_app screenshot or permission-blocked evidence",
   "Finder semantic selection evidence",
   "Finder plan preview evidence",
+  "Finder plan confirmation evidence",
   "Finder test-folder organization evidence",
   "Finder item drag/drop evidence"
 ];

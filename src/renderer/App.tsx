@@ -190,6 +190,18 @@ export interface TaskEvent {
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
+  finderPlanPreview?: FinderPlanPreview;
+}
+
+export interface FinderPlanPreview {
+  rootPath: string;
+  operationCount: number;
+  destructiveOperationCount: number;
+  createFolders: string[];
+  moveFiles: Array<{
+    from: string;
+    to: string;
+  }>;
 }
 
 export interface FinderSelectionResult {
@@ -318,6 +330,7 @@ declare global {
 interface TaskView {
   status: TaskStatus;
   message: string;
+  finderPlanPreview?: FinderPlanPreview;
 }
 
 interface PetDragState {
@@ -599,6 +612,40 @@ function TaskReplay({ records }: { records: ObserveAppReplayRecord[] }) {
   );
 }
 
+function FinderPlanPreviewSummary({ preview }: { preview: FinderPlanPreview }) {
+  return (
+    <div className="finder-plan-preview" aria-label="Finder plan preview">
+      <strong>Finder plan preview</strong>
+      <div className="finder-plan-stats">
+        <span>{preview.operationCount} operations</span>
+        <span>{preview.destructiveOperationCount} destructive</span>
+        <span>{preview.moveFiles.length} moves</span>
+      </div>
+      <div className="finder-plan-moves">
+        {preview.moveFiles.slice(0, 3).map((move) => (
+          <em key={`${move.from}->${move.to}`}>
+            {formatFinderPreviewMove(move, preview.rootPath)}
+          </em>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatFinderPreviewMove(
+  move: FinderPlanPreview["moveFiles"][number],
+  rootPath: string
+): string {
+  return `${readPathPreview(move.from, rootPath)} -> ${readPathPreview(move.to, rootPath)}`;
+}
+
+function readPathPreview(filePath: string, rootPath: string): string {
+  const normalizedRoot = rootPath.endsWith("/") ? rootPath : `${rootPath}/`;
+  return filePath.startsWith(normalizedRoot)
+    ? filePath.slice(normalizedRoot.length)
+    : filePath.split("/").filter(Boolean).at(-1) ?? filePath;
+}
+
 function LocalReplayViewer({ replay }: { replay: TurnReplay | null }) {
   const transcript = replay?.transcript;
 
@@ -759,7 +806,8 @@ export default function App() {
     useState<DictationTranscriptUpdate | null>(null);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
-    message: STATUS_COPY.idle.message
+    message: STATUS_COPY.idle.message,
+    finderPlanPreview: undefined
   });
   const [replayRecords, setReplayRecords] = useState<ObserveAppReplayRecord[]>([]);
   const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
@@ -844,7 +892,8 @@ export default function App() {
     return api.onTaskEvent((event) => {
       setTask({
         status: event.status,
-        message: event.message ?? STATUS_COPY[event.status].message
+        message: event.message ?? STATUS_COPY[event.status].message,
+        finderPlanPreview: event.finderPlanPreview
       });
       setReplayRecords((records) => {
         if (event.replayReset) {
@@ -1616,6 +1665,9 @@ export default function App() {
           ) : task.status === "approval_required" ? (
             <>
               <p>{task.message}</p>
+              {task.finderPlanPreview ? (
+                <FinderPlanPreviewSummary preview={task.finderPlanPreview} />
+              ) : null}
               <div className="approval-actions">
                 <button type="button" aria-label="确认" onClick={approveTask}>
                   <Play size={14} aria-hidden="true" />

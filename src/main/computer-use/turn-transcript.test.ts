@@ -317,6 +317,41 @@ describe("createTurnTranscript", () => {
     });
   });
 
+  it("records Finder plan confirmation as an approval checkpoint", () => {
+    expect(createTurnTranscript([
+      {
+        type: "plan_confirmation_required",
+        command: "Finder current folder",
+        reason: "Finder current-folder organization needs confirmation after plan preview.",
+        preview: {
+          rootPath: "/tmp/skfiy-finder-smoke",
+          operationCount: 6,
+          destructiveOperationCount: 0,
+          createFolders: ["Images", "Documents", "Code"],
+          moveFiles: [
+            {
+              from: "/tmp/skfiy-finder-smoke/photo.png",
+              to: "/tmp/skfiy-finder-smoke/Images/photo.png"
+            }
+          ]
+        }
+      }
+    ])).toMatchObject({
+      command: "Finder current folder",
+      approvalRequired: true,
+      outcome: "approval_required",
+      actions: [
+        {
+          type: "confirm_finder_plan",
+          rootPath: "/tmp/skfiy-finder-smoke",
+          operationCount: 6,
+          destructiveOperationCount: 0,
+          reason: "Finder current-folder organization needs confirmation after plan preview."
+        }
+      ]
+    });
+  });
+
   it("uses OCR labels as screenshot grounding when accessibility is blocked", () => {
     expect(createTurnTranscript([
       {

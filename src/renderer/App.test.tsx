@@ -1051,6 +1051,45 @@ describe("App", () => {
     expect(api.denyTask).toHaveBeenCalledTimes(1);
   });
 
+  it("shows Finder plan preview details inside the approval panel", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "approval_required",
+      message: "Finder plan confirmation required before file operations.",
+      finderPlanPreview: {
+        rootPath: "/tmp/skfiy-finder-smoke",
+        operationCount: 6,
+        destructiveOperationCount: 0,
+        createFolders: [
+          "/tmp/skfiy-finder-smoke/Images",
+          "/tmp/skfiy-finder-smoke/Documents",
+          "/tmp/skfiy-finder-smoke/Code"
+        ],
+        moveFiles: [
+          {
+            from: "/tmp/skfiy-finder-smoke/photo.png",
+            to: "/tmp/skfiy-finder-smoke/Images/photo.png"
+          },
+          {
+            from: "/tmp/skfiy-finder-smoke/notes.pdf",
+            to: "/tmp/skfiy-finder-smoke/Documents/notes.pdf"
+          },
+          {
+            from: "/tmp/skfiy-finder-smoke/script.ts",
+            to: "/tmp/skfiy-finder-smoke/Code/script.ts"
+          }
+        ]
+      }
+    } as TaskEvent));
+
+    expect(screen.getByText("Finder plan preview")).toBeInTheDocument();
+    expect(screen.getByText("6 operations")).toBeInTheDocument();
+    expect(screen.getByText("0 destructive")).toBeInTheDocument();
+    expect(screen.getByText("3 moves")).toBeInTheDocument();
+    expect(screen.getByText("photo.png -> Images/photo.png")).toBeInTheDocument();
+  });
+
   it("shows verification failure as human confirmation without approval execution controls", () => {
     render(<App />);
 

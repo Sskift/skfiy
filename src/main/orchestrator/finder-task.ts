@@ -80,6 +80,12 @@ export type FinderTaskEvent =
       preview: FinderPlanPreview;
     }
   | {
+      type: "plan_confirmation_required";
+      command: string;
+      preview: FinderPlanPreview;
+      reason: string;
+    }
+  | {
       type: "action_verified";
       actionType: "create_folder" | "move_file" | "drag" | "item_drag_drop";
       status: "passed";
@@ -98,6 +104,7 @@ export type FinderTaskEvent =
 
 export interface FinderTaskOptions {
   approved?: boolean;
+  planApproved?: boolean;
   desktopClient?: FinderDesktopClient;
   createScreenshotPath?: (stage: "before") => string;
 }
@@ -203,6 +210,16 @@ export async function* runFinderOrganizationTask(
     preview: createFinderPlanPreview(rootPath, plan.operations)
   };
 
+  if (needsFinderPlanConfirmation(parsed.target) && !options.planApproved) {
+    yield {
+      type: "plan_confirmation_required",
+      command: parsed.command,
+      preview: createFinderPlanPreview(rootPath, plan.operations),
+      reason: readFinderPlanConfirmationReason(parsed.target)
+    };
+    return;
+  }
+
   if (
     parsed.target.kind === "absolute_path"
     || parsed.target.kind === "drag_probe"
@@ -275,6 +292,18 @@ export async function* runFinderOrganizationTask(
     command: rootPath,
     summary: "Finder test folder organized."
   };
+}
+
+function needsFinderPlanConfirmation(target: FinderOrganizationTarget): boolean {
+  return target.kind === "current_finder_folder" || target.kind === "selected_finder_folder";
+}
+
+function readFinderPlanConfirmationReason(target: FinderOrganizationTarget): string {
+  if (target.kind === "selected_finder_folder") {
+    return "Finder selected-folder organization needs confirmation after plan preview.";
+  }
+
+  return "Finder current-folder organization needs confirmation after plan preview.";
 }
 
 function createFinderPlanPreview(

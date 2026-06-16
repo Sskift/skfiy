@@ -294,6 +294,18 @@ body:
       required: true
 
   - type: textarea
+    id: finder_plan_confirmation
+    attributes:
+      label: Finder plan confirmation
+      description: For `--current-folder` or `--selected-folder` runs, paste `finderPlanConfirmation` from the smoke artifact. It proves the user confirmed after preview and before file operations.
+      placeholder: |
+        finderPlanConfirmation.result: passed
+        finderPlanConfirmation.reason: Finder current-folder organization needs confirmation after plan preview.
+        finderPlanConfirmation.confirmedAfterPreview: true
+    validations:
+      required: true
+
+  - type: textarea
     id: finder_organization
     attributes:
       label: Finder before tree / after tree

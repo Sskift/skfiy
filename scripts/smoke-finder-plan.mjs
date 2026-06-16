@@ -178,6 +178,7 @@ export function classifyFinderSmokeEvidence({
   finderObservation,
   finderSemanticObservation,
   finderPlanPreview,
+  finderPlanConfirmation,
   finderDragProbe,
   finderItemDragDrop,
   permissions,
@@ -259,6 +260,7 @@ export function classifyFinderSmokeEvidence({
     || !hasPassedFinderObservation(finderObservation)
     || !hasPassedFinderSemanticObservation(finderSemanticObservation, { targetMode, fixtureRoot })
     || !hasPassedFinderPlanPreview(finderPlanPreview, { fixtureRoot })
+    || !hasExpectedFinderPlanConfirmation(finderPlanConfirmation, targetMode)
     || !hasExpectedFinderDragProbe(finderDragProbe, targetMode)
     || !hasExpectedFinderItemDragDrop(finderItemDragDrop, targetMode)
   ) {
@@ -361,6 +363,17 @@ function hasPassedFinderPlanPreview(finderPlanPreview, options = {}) {
 
   const movedBasenames = new Set(finderPlanPreview.moveFiles.map((move) => path.basename(move?.from ?? "")));
   return ["photo.png", "notes.pdf", "script.ts"].every((name) => movedBasenames.has(name));
+}
+
+function hasExpectedFinderPlanConfirmation(finderPlanConfirmation, targetMode) {
+  if (targetMode !== "current-finder-folder" && targetMode !== "selected-finder-folder") {
+    return true;
+  }
+
+  return finderPlanConfirmation?.result === "passed"
+    && finderPlanConfirmation.confirmedAfterPreview === true
+    && typeof finderPlanConfirmation.reason === "string"
+    && finderPlanConfirmation.reason.includes("confirmation after plan preview");
 }
 
 function hasExpectedFinderDragProbe(finderDragProbe, targetMode) {

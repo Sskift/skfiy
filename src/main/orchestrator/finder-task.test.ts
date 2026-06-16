@@ -144,6 +144,69 @@ describe("runFinderOrganizationTask", () => {
     }
   });
 
+  it("requires a second confirmation after preview before changing the current Finder folder", async () => {
+    const rootPath = await createFixture();
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: path.basename(rootPath),
+                layer: 0,
+                bounds: { x: 10, y: 20, width: 640, height: 480 }
+              }
+            ]
+          };
+        }
+
+        return { ok: true };
+      },
+      async getFinderSelection() {
+        return {
+          source: "finder-applescript" as const,
+          frontmostBundleId: "com.apple.finder",
+          targetPath: rootPath,
+          selection: []
+        };
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask("整理 Finder 当前文件夹", {
+          approved: true,
+          desktopClient,
+          createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
+        })
+      );
+
+      expect(events.map((event) => event.type)).toEqual([
+        "started",
+        "locating_app",
+        "app_activated",
+        "screenshot_before",
+        "finder_selection_observed",
+        "plan_preview",
+        "plan_confirmation_required"
+      ]);
+      expect(events.at(-1)).toMatchObject({
+        type: "plan_confirmation_required",
+        command: "Finder current folder",
+        reason: "Finder current-folder organization needs confirmation after plan preview."
+      });
+      expect(await readdir(rootPath)).toEqual(["notes.pdf", "photo.png", "script.ts"]);
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
   it("organizes a test folder after approval without deleting files", async () => {
     const rootPath = await createFixture();
 
@@ -223,6 +286,7 @@ describe("runFinderOrganizationTask", () => {
       const events = await collectEvents(
         runFinderOrganizationTask("整理 Finder 选中文件夹", {
           approved: true,
+          planApproved: true,
           desktopClient,
           createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
         })
@@ -367,6 +431,7 @@ describe("runFinderOrganizationTask", () => {
       const events = await collectEvents(
         runFinderOrganizationTask("整理 Finder 当前文件夹", {
           approved: true,
+          planApproved: true,
           desktopClient,
           createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
         })

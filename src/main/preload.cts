@@ -45,6 +45,18 @@ interface TaskEvent {
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
+  finderPlanPreview?: FinderPlanPreview;
+}
+
+interface FinderPlanPreview {
+  rootPath: string;
+  operationCount: number;
+  destructiveOperationCount: number;
+  createFolders: string[];
+  moveFiles: Array<{
+    from: string;
+    to: string;
+  }>;
 }
 
 interface FinderSelectionResult {

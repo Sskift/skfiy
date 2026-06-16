@@ -26,6 +26,7 @@ describe("dogfood artifact verifier", () => {
     "Finder observe_app screenshot or permission-blocked evidence",
     "Finder semantic selection evidence",
     "Finder plan preview evidence",
+    "Finder plan confirmation evidence",
     "Finder test-folder organization evidence",
     "Finder item drag/drop evidence"
   ];
@@ -659,7 +660,6 @@ describe("dogfood artifact verifier", () => {
     }))).resolves.toMatchObject({
       result: "failed",
       errors: expect.arrayContaining([
-        expect.stringContaining("finder.productPath"),
         expect.stringContaining("finder.itemDragDrop")
       ])
     });
@@ -907,6 +907,68 @@ describe("dogfood artifact verifier", () => {
     });
   });
 
+  it("fails current Finder folder evidence without second-stage plan confirmation", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const finderArtifact = {
+      ...createFinderSmokeArtifact(finderSmokePath),
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      targetMode: "current-finder-folder",
+      fixtureRoot: "/tmp/skfiy-finder-smoke",
+      finderPlanConfirmation: undefined,
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        targetPath: "/tmp/skfiy-finder-smoke",
+        selectedCount: 0
+      }
+    };
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: "a".repeat(64) },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: finderArtifact,
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("finder.planConfirmation")
+      ])
+    });
+  });
+
   it("fails selected Finder folder evidence when semantic selection does not include the fixture", async () => {
     const {
       verifyDogfoodArtifacts
@@ -1097,6 +1159,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderObservation"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderSemanticObservation"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderPlanPreview"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.finderPlanConfirmation"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderOrganization"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderItemDragDrop"),
         expect.stringContaining("ui.runnerHasTmux"),

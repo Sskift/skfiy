@@ -299,6 +299,46 @@ textarea:focus-visible {
   margin-top: 7px;
 }
 
+.finder-plan-preview {
+  display: grid;
+  gap: 5px;
+  margin-top: 7px;
+  padding: 6px;
+  border: 1px solid rgba(238, 247, 255, 0.12);
+  border-radius: 7px;
+  background: rgba(13, 22, 36, 0.58);
+}
+
+.finder-plan-preview > strong {
+  color: #f7d56a;
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.finder-plan-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.finder-plan-stats span,
+.finder-plan-moves em {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(238, 247, 255, 0.82);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finder-plan-moves {
+  display: grid;
+  gap: 3px;
+}
+
 .voice-actions {
   display: flex;
   justify-content: flex-end;

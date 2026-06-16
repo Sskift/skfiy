@@ -12,7 +12,9 @@ const execFileAsync = promisify(execFile);
 const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 const CHROME_PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
-const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder";
+const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
+const FINDER_ITEM_DRAG_DROP_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder";
+const FINDER_DRAG_PROBE_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
 const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
 const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
@@ -271,6 +273,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Finder plan preview evidence"),
     "manifest must require Finder plan preview evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.finderPlanConfirmation",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Finder plan confirmation evidence"),
+    "manifest must require Finder plan confirmation evidence"
   );
   check(
     checks,
@@ -661,8 +670,8 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "finder.productPath",
-    artifact.productPath === FINDER_PRODUCT_PATH,
-    `Finder smoke productPath must be ${FINDER_PRODUCT_PATH}`
+    artifact.productPath === readExpectedFinderProductPath(artifact.targetMode),
+    `Finder smoke productPath must be ${readExpectedFinderProductPath(artifact.targetMode)}`
   );
   check(
     checks,
@@ -703,8 +712,19 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "finder.planPreview",
-    hasFinderPlanPreviewEvidence(artifact.finderPlanPreview, artifact.result, artifact.fixtureRoot),
+    hasFinderPlanPreviewEvidence(
+      artifact.finderPlanPreview,
+      artifact.result,
+      artifact.fixtureRoot,
+      artifact.targetMode
+    ),
     "Finder smoke must include a pre-execution plan preview with no destructive operations"
+  );
+  check(
+    checks,
+    "finder.planConfirmation",
+    hasFinderPlanConfirmationEvidence(artifact.finderPlanConfirmation, artifact.result, artifact.targetMode),
+    "Finder current/selected folder smoke must include second-stage plan confirmation evidence"
   );
   check(
     checks,
@@ -1224,13 +1244,25 @@ function hasSelectedFinderFolderTargetEvidence(artifact) {
     ));
 }
 
-function hasFinderPlanPreviewEvidence(value, result, fixtureRoot) {
+function readExpectedFinderProductPath(targetMode) {
+  if (targetMode === "item-drag-drop") {
+    return FINDER_ITEM_DRAG_DROP_PRODUCT_PATH;
+  }
+
+  if (targetMode === "drag-probe") {
+    return FINDER_DRAG_PROBE_PRODUCT_PATH;
+  }
+
+  return FINDER_PRODUCT_PATH;
+}
+
+function hasFinderPlanPreviewEvidence(value, result, fixtureRoot, targetMode) {
   if (!value || typeof value !== "object") {
-    return false;
+    return result === "blocked" && isSemanticFinderTargetMode(targetMode);
   }
 
   if (result === "blocked" && value.result === "missing") {
-    return false;
+    return isSemanticFinderTargetMode(targetMode);
   }
 
   if (
@@ -1261,6 +1293,26 @@ function hasFinderPlanPreviewEvidence(value, result, fixtureRoot) {
         && path.resolve(move.from) !== path.resolve(move.to)
     )
   );
+}
+
+function hasFinderPlanConfirmationEvidence(value, result, targetMode) {
+  if (!isSemanticFinderTargetMode(targetMode)) {
+    return true;
+  }
+
+  if (result !== "passed") {
+    return true;
+  }
+
+  return Boolean(value)
+    && value.result === "passed"
+    && value.confirmedAfterPreview === true
+    && typeof value.reason === "string"
+    && value.reason.includes("confirmation after plan preview");
+}
+
+function isSemanticFinderTargetMode(targetMode) {
+  return targetMode === "current-finder-folder" || targetMode === "selected-finder-folder";
 }
 
 function hasPermissionBlockedFinderObservation(value) {
