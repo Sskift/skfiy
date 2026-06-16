@@ -70,6 +70,7 @@ describe("dogfood cohort updater", () => {
     expect(createDogfoodReportHelpText()).toContain("requires a readable accepted issue body");
     expect(createDogfoodReportHelpText()).toContain("must include all five issue smoke artifact paths");
     expect(createDogfoodReportHelpText()).toContain("requires the issue alpha manifest, zip, and commit sha to match --manifest");
+    expect(createDogfoodReportHelpText()).toContain("sourceEligibleReports");
     expect(createDogfoodReportHelpText()).toContain("3-5 distinct testers");
   });
 
@@ -1018,6 +1019,43 @@ describe("dogfood cohort updater", () => {
         }),
         expect.objectContaining({ testerId: "tester-b" })
       ]
+    });
+  });
+
+  it("does not mark a cohort ready when reports lack final source identity", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [reportPath]: createReport("tester-c", ["browser-fallback"], "passed"),
+      [cohortPath]: createCohort([
+        createReport("tester-a", ["coding-terminal"]),
+        createReport("tester-b", ["screenshot-inspection", "finder-file"])
+      ])
+    });
+
+    await expect(updateDogfoodCohort({
+      reportPath,
+      cohortPath,
+      now: () => "2026-06-16T13:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "updated",
+      action: "appended",
+      summary: {
+        totalReports: 3,
+        distinctTesters: 3,
+        sourceEligibleReports: 0,
+        cohortReady: false,
+        requiredWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": true,
+          "browser-fallback": true
+        }
+      }
     });
   });
 

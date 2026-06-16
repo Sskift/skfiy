@@ -395,6 +395,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] GitHub tracking issue for real internal alpha cohort collection: https://github.com/Sskift/skfiy/issues/1
   - [x] GitHub dogfood labels for accepted reports and workflow coverage (`dogfood:accepted`, `workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`)
   - [x] `dogfood:report` requires a readable accepted issue body and labels with `gh issue view` by default, deriving tester/workflow metadata, requiring issue alpha manifest/zip/commit identity to match the selected manifest, requiring all five tester smoke artifact paths from the report issue, and requiring each smoke JSON `artifactPath` to match its issue-listed path, while explicit overrides cannot replace issue artifact or alpha identity evidence and `dogfood:cohort` requires accepted issue label metadata, `artifactSource=github-issue-smoke-artifacts`, and issue alpha manifest/zip/commit identity that matches each report
+  - [x] `dogfood:report` readiness now exposes `sourceEligibleReports` and only marks `summary.cohortReady=true` when every report already has final source/artifact identity, 3-5 testers, and full workflow coverage
   - [ ] `coding-terminal` workflow reports from actual testers
   - [ ] `screenshot-inspection` workflow reports from actual testers
   - [ ] `finder-file` workflow reports from actual testers

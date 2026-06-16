@@ -221,6 +221,8 @@ export function createDogfoodReportHelpText() {
     "Every smoke artifact JSON artifactPath must match the issue artifact path it was read from.",
     "Use --tester-id and --workflows only as explicit overrides for tester/workflow body fields.",
     "Use --issue-labels only as an explicit override proving dogfood:accepted plus matching workflow:* labels.",
+    "summary.sourceEligibleReports counts reports that already satisfy final source/artifact identity gates.",
+    "summary.cohortReady requires 3-5 testers, full workflow coverage, and sourceEligibleReports=totalReports.",
     "This is an incremental collection helper; it does not claim dogfood completion.",
     "",
     "After collecting 3-5 distinct testers and all required workflows, run:",
@@ -366,13 +368,70 @@ function createCollectionSummary(reports) {
     ])
   );
   const coverageComplete = Object.values(requiredWorkflowCoverage).every(Boolean);
+  const sourceEligibleReports = reports.filter(isCohortEligibleReport).length;
 
   return {
     totalReports: reports.length,
     distinctTesters: testerIds.size,
-    cohortReady: testerIds.size >= 3 && testerIds.size <= 5 && coverageComplete,
+    sourceEligibleReports,
+    cohortReady: testerIds.size >= 3
+      && testerIds.size <= 5
+      && coverageComplete
+      && sourceEligibleReports === reports.length,
     requiredWorkflowCoverage
   };
+}
+
+function isCohortEligibleReport(report) {
+  const source = report?.source;
+  const workflows = Array.isArray(report?.workflows) ? report.workflows : [];
+
+  try {
+    readTesterId(report);
+    readManifestPath(report);
+    validateAcceptedIssueLabels(source?.issueLabels, workflows);
+  } catch {
+    return false;
+  }
+
+  return report?.appLaunchViaOpen === true
+    && report?.runnerHasTmux === false
+    && hasRequiredArtifactPaths(report?.artifacts)
+    && hasRequiredPermissionStates(report?.permissionStates)
+    && source?.type === "github-issue"
+    && typeof source.issueUrl === "string"
+    && isAcceptedIssueUrl(source.issueUrl)
+    && typeof source.collectedAt === "string"
+    && !Number.isNaN(Date.parse(source.collectedAt))
+    && source.generatedBy === "dogfood:report"
+    && source.artifactSource === "github-issue-smoke-artifacts"
+    && hasNonEmptyString(source.issueAlphaManifest)
+    && hasNonEmptyString(source.issueAlphaZip)
+    && path.basename(source.issueAlphaZip).endsWith(".zip")
+    && hasNonEmptyString(source.issueCommitSha)
+    && hasNonEmptyString(report?.commitSha)
+    && source.issueCommitSha.trim() === report.commitSha.trim()
+    && matchesIssuePathOrBasename(source.issueAlphaManifest, report.manifestPath);
+}
+
+function hasRequiredArtifactPaths(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  return DOGFOOD_SMOKE_ARTIFACT_SECTIONS.every(([field]) =>
+    typeof value[field] === "string" && path.isAbsolute(value[field])
+  );
+}
+
+function hasRequiredPermissionStates(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  return ["screenRecording", "accessibility", "microphone", "speechRecognition"].every((key) =>
+    typeof value[key]?.state === "string" && value[key].state.length > 0
+  );
 }
 
 function collectDistinctTesterIds(reports) {
