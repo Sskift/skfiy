@@ -25,6 +25,31 @@ async function createFixture() {
 }
 
 describe("runFinderOrganizationTask", () => {
+  it("requires approval before reading the current Finder folder", async () => {
+    const events = await collectEvents(
+      runFinderOrganizationTask("整理 Finder 当前文件夹")
+    );
+
+    expect(events).toEqual([
+      {
+        type: "started",
+        command: "Finder current folder",
+        risk: expect.objectContaining({
+          level: "medium",
+          requiresApproval: true
+        })
+      },
+      {
+        type: "approval_required",
+        command: "Finder current folder",
+        risk: expect.objectContaining({
+          level: "medium",
+          requiresApproval: true
+        })
+      }
+    ]);
+  });
+
   it("requires approval before organizing files", async () => {
     const rootPath = await createFixture();
 
@@ -69,6 +94,139 @@ describe("runFinderOrganizationTask", () => {
       await expect(stat(path.join(rootPath, "photo.png"))).rejects.toThrow();
       await expect(stat(path.join(rootPath, "notes.pdf"))).rejects.toThrow();
       await expect(stat(path.join(rootPath, "script.ts"))).rejects.toThrow();
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
+  it("organizes the current Finder folder from semantic Finder context", async () => {
+    const rootPath = await createFixture();
+    const actions: DesktopExecutableAction[] = [];
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        actions.push(action);
+
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: path.basename(rootPath),
+                layer: 0,
+                bounds: { x: 10, y: 20, width: 640, height: 480 }
+              }
+            ]
+          };
+        }
+
+        return { ok: true };
+      },
+      async getFinderSelection() {
+        return {
+          source: "finder-applescript" as const,
+          frontmostBundleId: "com.apple.finder",
+          targetPath: rootPath,
+          selection: []
+        };
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask("整理 Finder 当前文件夹", {
+          approved: true,
+          desktopClient,
+          createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
+        })
+      );
+
+      expect(actions.slice(0, 2)).toEqual([
+        { type: "activate_app", bundleId: "com.apple.finder" },
+        {
+          type: "observe_app",
+          bundleId: "com.apple.finder",
+          screenshotOutputPath: "/tmp/skfiy-finder-before.png"
+        }
+      ]);
+      expect(events.map((event) => event.type)).toEqual([
+        "started",
+        "approval_required",
+        "locating_app",
+        "app_activated",
+        "screenshot_before",
+        "finder_selection_observed",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "action_verified",
+        "completed"
+      ]);
+      expect(events.find((event) => event.type === "finder_selection_observed")).toMatchObject({
+        type: "finder_selection_observed",
+        context: {
+          targetPath: rootPath,
+          selection: []
+        }
+      });
+      await expect(readFile(path.join(rootPath, "Images", "photo.png"), "utf8"))
+        .resolves.toBe("image");
+      await expect(readFile(path.join(rootPath, "Documents", "notes.pdf"), "utf8"))
+        .resolves.toBe("document");
+      await expect(readFile(path.join(rootPath, "Code", "script.ts"), "utf8"))
+        .resolves.toBe("code");
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when the current Finder folder cannot be grounded semantically", async () => {
+    const rootPath = await createFixture();
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: []
+          };
+        }
+
+        return { ok: true };
+      },
+      async getFinderSelection() {
+        return {
+          source: "finder-applescript" as const,
+          frontmostBundleId: "com.apple.finder",
+          selection: []
+        };
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask("整理 Finder 当前文件夹", {
+          approved: true,
+          desktopClient
+        })
+      );
+
+      expect(events.at(-1)).toMatchObject({
+        type: "verification_failed",
+        stage: "selection",
+        reason: "Finder current-folder organization needs a Finder window target path or one selected folder."
+      });
+      expect(await readdir(rootPath)).toEqual(["notes.pdf", "photo.png", "script.ts"]);
     } finally {
       await rm(rootPath, { recursive: true, force: true });
     }

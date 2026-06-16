@@ -38,6 +38,7 @@ async function main() {
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
     artifactPath: options.outputPath,
+    targetMode: options.targetMode,
     fixtureRoot: undefined,
     command: undefined,
     beforeTree: [],
@@ -60,8 +61,15 @@ async function main() {
       scriptName: "smoke:finder"
     });
     evidence.fixtureRoot = await createFinderFixture();
-    evidence.command = `整理 Finder 测试文件夹 ${evidence.fixtureRoot}`;
+    evidence.command = options.targetMode === "current-finder-folder"
+      ? "整理 Finder 当前文件夹"
+      : `整理 Finder 测试文件夹 ${evidence.fixtureRoot}`;
     evidence.beforeTree = await readDirectoryTree(evidence.fixtureRoot);
+
+    if (options.targetMode === "current-finder-folder") {
+      await openFinderFolder(evidence.fixtureRoot);
+      await sleep(700);
+    }
 
     if (!options.keepExisting) {
       await quitSkfiy();
@@ -220,6 +228,10 @@ async function launchSkfiy(options) {
     "--args",
     `--remote-debugging-port=${options.port}`
   ]);
+}
+
+async function openFinderFolder(folderPath) {
+  await execFileAsync("open", [folderPath]);
 }
 
 async function waitForRendererPage(port, timeoutMs) {

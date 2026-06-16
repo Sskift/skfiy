@@ -19,6 +19,8 @@ describe("Finder product smoke script", () => {
     expect(source).toContain("window.skfiy.runCommand");
     expect(source).toContain("window.skfiy.approveTask()");
     expect(source).toContain("window.skfiy.getAppPolicySettings()");
+    expect(source).toContain("整理 Finder 当前文件夹");
+    expect(source).toContain("openFinderFolder");
   });
 
   it("defines a Finder product path and output option", async () => {
@@ -46,7 +48,14 @@ describe("Finder product smoke script", () => {
       ["--output", ".skfiy-smoke/finder.json"],
       createDefaultFinderSmokeOptions("/repo")
     )).toMatchObject({
-      outputPath: path.resolve(".skfiy-smoke/finder.json")
+      outputPath: path.resolve(".skfiy-smoke/finder.json"),
+      targetMode: "explicit-path"
+    });
+    expect(parseFinderSmokeArgs(
+      ["--current-folder"],
+      createDefaultFinderSmokeOptions("/repo")
+    )).toMatchObject({
+      targetMode: "current-finder-folder"
     });
     expect(createHelpText(createDefaultFinderSmokeOptions("/repo"))).toContain("smoke:finder");
   });
@@ -83,6 +92,89 @@ describe("Finder product smoke script", () => {
         "Images/photo.png"
       ]
     })).toBe("passed");
+  });
+
+  it("classifies a current Finder folder organization only when semantic target matches the fixture", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    const baseEvidence = {
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      targetMode: "current-finder-folder",
+      fixtureRoot: "/tmp/skfiy-finder-smoke",
+      finderObservation: {
+        result: "passed",
+        screenshotPath: "/tmp/skfiy/finder-before.png",
+        frontmostBundleId: "com.apple.finder",
+        windowCount: 1
+      },
+      events: [{ status: "completed", message: "Finder test folder organized." }],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      ...baseEvidence,
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        targetPath: "/tmp/skfiy-finder-smoke",
+        selectedCount: 0
+      }
+    })).toBe("passed");
+
+    expect(classifyFinderSmokeEvidence({
+      ...baseEvidence,
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.apple.finder",
+        targetPath: "/tmp/other-folder",
+        selectedCount: 0
+      }
+    })).toBe("failed");
+  });
+
+  it("classifies a permission-blocked current Finder folder observation as blocked", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      targetMode: "current-finder-folder",
+      fixtureRoot: "/tmp/skfiy-finder-smoke",
+      finderObservation: {
+        result: "blocked",
+        reason: "Accessibility permission is required for skfiy."
+      },
+      events: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (activate): Accessibility permission is required for skfiy."
+        }
+      ],
+      afterTree: [
+        "notes.pdf",
+        "photo.png",
+        "script.ts"
+      ]
+    })).toBe("blocked");
   });
 
   it("classifies a completed Finder organization without observe_app evidence as failed", async () => {

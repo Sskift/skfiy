@@ -4,6 +4,7 @@ export const DEFAULT_PORT = 9244;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
 export const PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
+export const FINDER_TARGET_MODES = new Set(["explicit-path", "current-finder-folder"]);
 export const EXPECTED_AFTER_TREE = [
   "Code/script.ts",
   "Documents/notes.pdf",
@@ -19,6 +20,7 @@ export function createDefaultFinderSmokeOptions(rootDir) {
     keepExisting: false,
     keepOpen: false,
     requirePassed: false,
+    targetMode: "explicit-path",
     outputPath: undefined,
     help: false
   };
@@ -56,6 +58,9 @@ export function parseFinderSmokeArgs(argv, defaults) {
       case "--require-passed":
         options.requirePassed = true;
         break;
+      case "--current-folder":
+        options.targetMode = "current-finder-folder";
+        break;
       case "--output":
         options.outputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
@@ -84,6 +89,7 @@ Options:
   --settle-ms <number>  Delay after renderer actions. Default: ${defaults.settleMs}
   --output <path>       Persist smoke evidence JSON.
   --require-passed      Exit non-zero unless the smoke result is passed.
+  --current-folder      Open the fixture in Finder and run "整理 Finder 当前文件夹".
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   -h, --help            Show this help.
@@ -95,6 +101,8 @@ export function classifyFinderSmokeEvidence({
   afterTree = [],
   finderObservation,
   finderSemanticObservation,
+  targetMode = "explicit-path",
+  fixtureRoot,
   runnerHasTmux = false,
   appLaunchViaOpen = false,
   productPath
@@ -107,6 +115,14 @@ export function classifyFinderSmokeEvidence({
 
   if (last.status === "approval_required") {
     return "needs-user-confirmation";
+  }
+
+  if (hasPermissionBlockedFinderObservation(finderObservation)) {
+    return "blocked";
+  }
+
+  if (hasPermissionBlockedFinderSemanticObservation(finderSemanticObservation)) {
+    return "blocked";
   }
 
   if (
@@ -125,18 +141,10 @@ export function classifyFinderSmokeEvidence({
     return "failed";
   }
 
-  if (hasPermissionBlockedFinderObservation(finderObservation)) {
-    return "blocked";
-  }
-
-  if (hasPermissionBlockedFinderSemanticObservation(finderSemanticObservation)) {
-    return "blocked";
-  }
-
   if (
     !hasExpectedAfterTree(afterTree)
     || !hasPassedFinderObservation(finderObservation)
-    || !hasPassedFinderSemanticObservation(finderSemanticObservation)
+    || !hasPassedFinderSemanticObservation(finderSemanticObservation, { targetMode, fixtureRoot })
   ) {
     return "failed";
   }
@@ -162,11 +170,22 @@ function hasPermissionBlockedFinderObservation(finderObservation) {
     && isPermissionBlockedMessage(finderObservation.reason);
 }
 
-function hasPassedFinderSemanticObservation(finderSemanticObservation) {
-  return finderSemanticObservation?.result === "passed"
+function hasPassedFinderSemanticObservation(finderSemanticObservation, options = {}) {
+  const hasBaseEvidence = finderSemanticObservation?.result === "passed"
     && finderSemanticObservation.source === "finder-applescript"
     && finderSemanticObservation.frontmostBundleId === "com.apple.finder"
     && Number.isFinite(finderSemanticObservation.selectedCount);
+
+  if (!hasBaseEvidence) {
+    return false;
+  }
+
+  if (options.targetMode === "current-finder-folder") {
+    return typeof options.fixtureRoot === "string"
+      && path.resolve(finderSemanticObservation.targetPath ?? "") === path.resolve(options.fixtureRoot);
+  }
+
+  return true;
 }
 
 function hasPermissionBlockedFinderSemanticObservation(finderSemanticObservation) {

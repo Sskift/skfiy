@@ -25,6 +25,13 @@ describe("selectCommandRoute", () => {
     });
   });
 
+  it("routes current Finder folder organization commands to Finder", () => {
+    expect(selectCommandRoute("整理 Finder 当前文件夹")).toEqual({
+      kind: "finder",
+      bundleId: "com.apple.finder"
+    });
+  });
+
   it("keeps terminal commands on the Ghostty route", () => {
     expect(selectCommandRoute("打开 Ghostty 执行 pwd 并截图")).toEqual({
       kind: "ghostty",

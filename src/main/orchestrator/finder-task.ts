@@ -12,12 +12,22 @@ import type { RiskDecision } from "../../shared/types.js";
 const FINDER_APP_NAME = "Finder";
 const FINDER_BUNDLE_ID = "com.apple.finder";
 const FINDER_ORGANIZE_PREFIX = "整理 Finder 测试文件夹 ";
+const FINDER_ORGANIZE_CURRENT_FOLDER = "整理 Finder 当前文件夹";
+const FINDER_CURRENT_FOLDER_COMMAND = "Finder current folder";
 
 const FINDER_ORGANIZATION_RISK: RiskDecision = {
   level: "medium",
-  reason: "Finder organization moves files inside a local test folder.",
+  reason: "Finder organization moves files inside a user-approved folder.",
   requiresApproval: true
 };
+
+type FinderOrganizationTarget =
+  | { kind: "absolute_path"; rootPath: string }
+  | { kind: "current_finder_folder" };
+
+type FinderObservationOutcome =
+  | { ok: true; selection?: FinderSelectionResult }
+  | { ok: false };
 
 export type FinderTaskEvent =
   | {
@@ -81,7 +91,7 @@ export async function* runFinderOrganizationTask(
   options: FinderTaskOptions = {}
 ): AsyncGenerator<FinderTaskEvent> {
   const parsed = parseFinderOrganizationIntent(input);
-  const command = parsed.ok ? parsed.rootPath : input.trim();
+  const command = parsed.ok ? parsed.command : input.trim();
 
   yield {
     type: "started",
@@ -100,7 +110,7 @@ export async function* runFinderOrganizationTask(
 
   yield {
     type: "approval_required",
-    command: parsed.rootPath,
+    command: parsed.command,
     risk: FINDER_ORGANIZATION_RISK
   };
 
@@ -108,7 +118,34 @@ export async function* runFinderOrganizationTask(
     return;
   }
 
-  const rootPath = parsed.rootPath;
+  let rootPath: string;
+
+  if (parsed.target.kind === "current_finder_folder") {
+    yield {
+      type: "locating_app",
+      appName: FINDER_APP_NAME
+    };
+
+    const observation = yield* observeFinder(options);
+    if (!observation.ok) {
+      return;
+    }
+
+    const currentFolder = resolveCurrentFinderFolder(observation.selection);
+    if (!currentFolder.ok) {
+      yield {
+        type: "verification_failed",
+        stage: "selection",
+        reason: currentFolder.reason
+      };
+      return;
+    }
+
+    rootPath = currentFolder.rootPath;
+  } else {
+    rootPath = parsed.target.rootPath;
+  }
+
   const rootStatus = await readDirectoryStatus(rootPath);
   if (!rootStatus.ok) {
     yield {
@@ -128,12 +165,14 @@ export async function* runFinderOrganizationTask(
     }))
   });
 
-  yield {
-    type: "locating_app",
-    appName: FINDER_APP_NAME
-  };
+  if (parsed.target.kind === "absolute_path") {
+    yield {
+      type: "locating_app",
+      appName: FINDER_APP_NAME
+    };
 
-  yield* observeFinder(options);
+    yield* observeFinder(options);
+  }
 
   for (const operation of plan.operations) {
     if (operation.type === "create_folder") {
@@ -174,7 +213,7 @@ export async function* runFinderOrganizationTask(
 
 async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<FinderTaskEvent> {
   if (!options.desktopClient) {
-    return;
+    return { ok: true };
   }
 
   const activationResult = await executeFinderAction(
@@ -188,7 +227,7 @@ async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<Finder
       stage: "activate",
       reason: activationResult.reason
     };
-    return;
+    return { ok: false };
   }
 
   yield {
@@ -214,7 +253,7 @@ async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<Finder
       stage: "observe",
       reason: observationResult.reason
     };
-    return;
+    return { ok: false };
   }
 
   if (!isDesktopAppState(observationResult.result)) {
@@ -223,7 +262,7 @@ async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<Finder
       stage: "observe",
       reason: "Finder observation did not return app state."
     };
-    return;
+    return { ok: false };
   }
 
   yield {
@@ -232,27 +271,31 @@ async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<Finder
     observation: observationResult.result
   };
 
-  yield* observeFinderSelection(options.desktopClient);
+  const selection = yield* observeFinderSelection(options.desktopClient);
+  return { ok: true, selection };
 }
 
 async function* observeFinderSelection(
   desktopClient: FinderDesktopClient
-): AsyncGenerator<FinderTaskEvent> {
+): AsyncGenerator<FinderTaskEvent, FinderSelectionResult | undefined> {
   if (!desktopClient.getFinderSelection) {
-    return;
+    return undefined;
   }
 
   try {
+    const context = await desktopClient.getFinderSelection();
     yield {
       type: "finder_selection_observed",
-      context: await desktopClient.getFinderSelection()
+      context
     };
+    return context;
   } catch (error) {
     yield {
       type: "verification_failed",
       stage: "selection",
       reason: readErrorMessage(error)
     };
+    return undefined;
   }
 }
 
@@ -303,14 +346,22 @@ function readErrorMessage(error: unknown): string {
 }
 
 export function parseFinderOrganizationIntent(input: string):
-  | { ok: true; rootPath: string }
+  | { ok: true; command: string; target: FinderOrganizationTarget }
   | { ok: false; reason: string } {
   const trimmed = input.trim();
+
+  if (trimmed === FINDER_ORGANIZE_CURRENT_FOLDER) {
+    return {
+      ok: true,
+      command: FINDER_CURRENT_FOLDER_COMMAND,
+      target: { kind: "current_finder_folder" }
+    };
+  }
 
   if (!trimmed.startsWith(FINDER_ORGANIZE_PREFIX)) {
     return {
       ok: false,
-      reason: "Finder organization requires: 整理 Finder 测试文件夹 <absolute-path>"
+      reason: "Finder organization requires: 整理 Finder 测试文件夹 <absolute-path> or 整理 Finder 当前文件夹"
     };
   }
 
@@ -324,7 +375,38 @@ export function parseFinderOrganizationIntent(input: string):
 
   return {
     ok: true,
-    rootPath: path.resolve(rootPath)
+    command: path.resolve(rootPath),
+    target: {
+      kind: "absolute_path",
+      rootPath: path.resolve(rootPath)
+    }
+  };
+}
+
+function resolveCurrentFinderFolder(selection: FinderSelectionResult | undefined):
+  | { ok: true; rootPath: string }
+  | { ok: false; reason: string } {
+  if (selection?.targetPath && path.isAbsolute(selection.targetPath)) {
+    return {
+      ok: true,
+      rootPath: path.resolve(selection.targetPath)
+    };
+  }
+
+  const selectedFolders = selection?.selection
+    .filter((item) => item.kind === "directory" && path.isAbsolute(item.path))
+    ?? [];
+
+  if (selectedFolders.length === 1) {
+    return {
+      ok: true,
+      rootPath: path.resolve(selectedFolders[0].path)
+    };
+  }
+
+  return {
+    ok: false,
+    reason: "Finder current-folder organization needs a Finder window target path or one selected folder."
   };
 }
 

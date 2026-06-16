@@ -617,6 +617,12 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   );
   check(
     checks,
+    "finder.currentFolderTarget",
+    hasCurrentFinderFolderTargetEvidence(artifact),
+    "Finder current-folder smoke must prove semantic targetPath matches the prepared fixture root"
+  );
+  check(
+    checks,
     "finder.actionVerification",
     hasFinderOrganizationActionVerification(artifact.events),
     "Finder smoke must include create_folder and move_file verification events"
@@ -944,6 +950,20 @@ function hasPassedFinderSemanticObservation(value) {
     && value.source === "finder-applescript"
     && value.frontmostBundleId === "com.apple.finder"
     && Number.isFinite(value.selectedCount);
+}
+
+function hasCurrentFinderFolderTargetEvidence(artifact) {
+  if (artifact?.targetMode !== "current-finder-folder") {
+    return true;
+  }
+
+  if (artifact.result === "blocked") {
+    return true;
+  }
+
+  return typeof artifact.fixtureRoot === "string"
+    && typeof artifact.finderSemanticObservation?.targetPath === "string"
+    && path.resolve(artifact.finderSemanticObservation.targetPath) === path.resolve(artifact.fixtureRoot);
 }
 
 function hasPermissionBlockedFinderObservation(value) {

@@ -178,6 +178,14 @@ npm run smoke:finder -- --require-passed --output .skfiy-smoke/finder-organize.j
 
 The Finder smoke script launches `dist/skfiy.app` through LaunchServices, sends `整理 Finder 测试文件夹 <tmpdir>` through the preload API, approves Finder app policy plus the medium-risk file move, activates Finder through `skfiy-helper`, captures a before `observe_app` record, reads Finder semantic selection through Apple Events, and verifies the resulting directory tree. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> helper observe_app -> fs -> Finder`, Finder app policy settings, `finderObservation.result: passed`, `finderObservation.frontmostBundleId: com.apple.finder`, a Finder screenshot path, `finderSemanticObservation.result: passed`, `finderSemanticObservation.source: finder-applescript`, `finderSemanticObservation.frontmostBundleId: com.apple.finder`, beforeTree entries `notes.pdf`, `photo.png`, and `script.ts`, afterTree entries `Documents/notes.pdf`, `Images/photo.png`, and `Code/script.ts`, `Verified create_folder` and `Verified move_file` events, and empty `processesAfterCleanup`. A permission-blocked observe or semantic step must produce the matching blocked observation field and keep the smoke result blocked until permissions are granted.
 
+To verify current Finder window grounding, run:
+
+```bash
+npm run smoke:finder -- --current-folder --require-passed --output .skfiy-smoke/finder-current-folder.json
+```
+
+This mode opens the fixture folder in Finder, sends `整理 Finder 当前文件夹`, and only passes when `finderSemanticObservation.targetPath` resolves to the same path as `fixtureRoot`. Permission-blocked runs should remain blocked with the concrete Screen Recording, Accessibility, or Automation reason.
+
 ### Native Voice Smoke
 
 Use the packaged app path and record provider, permission, transcript, and stop evidence:
