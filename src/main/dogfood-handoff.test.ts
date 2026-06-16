@@ -70,6 +70,7 @@ describe("dogfood handoff generator", () => {
     expect(createDogfoodHandoffHelpText()).toContain("dogfood:handoff");
     expect(createDogfoodHandoffHelpText()).toContain("does not create or accept GitHub reports");
     expect(createDogfoodHandoffHelpText()).toContain("--tester-id");
+    expect(createDogfoodHandoffHelpText()).toContain("Reserved tester id prefixes");
   });
 
   it("writes a copyable tester handoff with alpha identity, no-tmux warning, and review steps", async () => {
@@ -126,10 +127,34 @@ describe("dogfood handoff generator", () => {
     expect(handoff).toContain("--artifacts-dir .skfiy-smoke/dogfood/tester-b");
     expect(handoff).toContain("--issue-output .skfiy-dogfood/issues/tester-b.md");
     expect(handoff).toContain("File a `skfiy dogfood report` issue");
+    expect(handoff).toContain("gh issue create -- \\");
+    expect(handoff).toContain("--repo Sskift/skfiy");
+    expect(handoff).toContain("--title \"skfiy dogfood report: tester-b\"");
+    expect(handoff).toContain("--body-file .skfiy-dogfood/issues/tester-b.md");
+    expect(handoff).toContain("Do not add `dogfood:accepted` or `workflow:*` labels yourself.");
     expect(handoff).toContain("npm run dogfood:review -- \\");
     expect(handoff).toContain("dogfood:accepted");
     expect(handoff).toContain(trackingIssueUrl);
     expect(handoff).toContain("Blocked evidence is acceptable when it records the real permission state");
+  });
+
+  it("rejects reserved synthetic tester id prefixes that cannot count as real dogfood users", async () => {
+    const { createDogfoodHandoff } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodHandoff: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    await expect(createDogfoodHandoff({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "PREflight-abc123",
+      workflows: ["coding-terminal"],
+      outputPath
+    }, createMemoryIo())).rejects.toThrow(
+      "Reserved dogfood tester id prefix"
+    );
   });
 });
 

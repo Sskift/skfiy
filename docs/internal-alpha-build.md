@@ -113,6 +113,7 @@ npm run dogfood:handoff -- \
 ```
 
 `dogfood:handoff` writes a copyable tester packet with the alpha zip path, SHA256, release URL, explicit app bundle path, no-tmux warning, permission checklist, `dogfood:tester` command, issue filing instructions, and maintainer review commands. It does not create or accept GitHub reports.
+Use a stable real tester id such as `tester-a` or an anonymized handle. Reserved synthetic prefixes (`local-*`, `prepare-*`, `preflight-*`, and `synthetic-*`) are rejected by `dogfood:handoff` and by default in `dogfood:tester` because they can never satisfy the real-user cohort gate. Maintainer-only local/preflight runs may pass `--allow-synthetic-tester-id`, but those artifacts remain synthetic evidence and must not be counted as real tester reports.
 
 For a single tester, prefer the one-command runner so all packaged-app smokes run sequentially and the checked GitHub issue body is generated from the exact artifacts it just wrote:
 
@@ -128,6 +129,7 @@ npm run dogfood:tester -- \
 ```
 
 `dogfood:tester` refuses to run from tmux, passes the explicit `--app` path through every packaged-app smoke, runs `smoke:ui`, `smoke:ghostty -- --matrix`, `smoke:chrome`, `smoke:finder -- --item-drag-drop`, and `smoke:voice`, then runs `dogfood:issue -- --check-report` with those five artifact paths. It does not file or accept GitHub reports. A maintainer must still review the generated issue and add `dogfood:accepted` plus workflow labels before the report can count toward the cohort. Use `--finder-target-dir ~/Desktop/skfiy-finder-dogfood` to place Finder fixtures under a real tester-owned parent directory, `--chrome-current-page-endpoint http://127.0.0.1:9222` for consenting logged-in current-page Chrome evidence, and `--require-passed` only when the tester machine has granted the permissions needed for passed Ghostty, Chrome, Finder, and voice smokes. In `--require-passed` mode, the runner now parses the first UI smoke permission snapshot and stops before the long Computer Use smokes if Screen Recording, Accessibility, Microphone, or Speech Recognition is not already granted.
+The generated run summary includes a copy-safe `gh issue create --body-file ...` command. That command intentionally creates only the dogfood report issue; testers should not apply `dogfood:accepted` or `workflow:*` labels themselves.
 
 After a tester runs the packaged-app smokes manually, generate a GitHub dogfood issue body draft from the same manifest and smoke artifact paths instead of copying fields by hand:
 
@@ -156,7 +158,7 @@ npm run dogfood:review -- \
 
 After each single-user dogfood report is accepted, generate a report JSON from the alpha manifest and the tester smoke artifact paths in the accepted issue body, then add or replace it in the local cohort file:
 
-Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issues/1. Each accepted single-user dogfood issue should be linked there before being converted into local `.skfiy-dogfood/` JSON. Accepted report issues should carry `dogfood:accepted` plus the covered workflow labels (`workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`) before maintainers run `dogfood:report`.
+Track the current internal alpha cohort in https://github.com/Sskift/skfiy/issues/1. Each accepted single-user dogfood issue should be linked there before being converted into local `.skfiy-dogfood/` JSON. The tracking issue lists required workflow coverage as requirements only; real coverage is computed from verified accepted report issue labels by `dogfood:status` and `dogfood:cohort`. Accepted report issues should carry `dogfood:accepted` plus the covered workflow labels (`workflow:coding-terminal`, `workflow:screenshot-inspection`, `workflow:finder-file`, `workflow:browser-fallback`) before maintainers run `dogfood:report`.
 
 ```bash
 npm run dogfood:report -- \

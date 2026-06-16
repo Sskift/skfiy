@@ -256,6 +256,7 @@ npm run dogfood:tracking-issue -- \
 ```
 
 The default mode is a dry-run that writes the issue body locally. Review it, then add `--execute` to run `gh issue edit` for the tracking issue. The generated body preserves existing accepted report issue URLs in the required real-tester slots while refreshing current alpha release/manifest/zip/SHA/commit identity, synthetic local preflight evidence, and the exact status, prepare, tester, review, and cohort commands for that alpha.
+The generated workflow coverage section is intentionally neutral: it lists required workflows but does not check them off. `dogfood:status` and `dogfood:cohort` compute real coverage from verified accepted report issue labels.
 
 To get a non-mutating readiness snapshot before filing or collecting dogfood reports:
 
@@ -308,6 +309,7 @@ npm run dogfood:tester -- \
 ```
 
 This runner is only a local evidence collector. It refuses tmux, runs product smokes sequentially, generates the `dogfood:issue -- --check-report` draft from the artifacts it just wrote, and leaves GitHub filing plus `dogfood:accepted` label review to maintainers. When `--require-passed` is used, the runner treats the first UI smoke as a strict permission preflight and stops before Ghostty/Chrome/Finder/voice if Screen Recording, Accessibility, Microphone, or Speech Recognition is still missing.
+The runner summary prints a copy-safe `gh issue create --body-file ...` command that files only the report body. It does not add labels; testers must leave `dogfood:accepted` and `workflow:*` labels to maintainers after `dogfood:review`. Reserved synthetic tester ids (`local-*`, `prepare-*`, `preflight-*`, and `synthetic-*`) are rejected for normal tester runs; use `--allow-synthetic-tester-id` only for maintainer local/preflight evidence that will not count toward the real-user cohort gate.
 
 Before adding `dogfood:accepted` to a filed tester issue, run:
 

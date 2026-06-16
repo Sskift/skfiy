@@ -5,6 +5,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
+import { readRealTesterDecision } from "./dogfood-tester-id.mjs";
+
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
@@ -27,13 +29,6 @@ const BLOCKING_PERMISSION_STATES = new Set([
   "blocked",
   "unavailable"
 ]);
-const SYNTHETIC_TESTER_ID_PREFIXES = [
-  "local-",
-  "prepare-",
-  "preflight-",
-  "synthetic-"
-];
-
 export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     rootDir,
@@ -617,32 +612,6 @@ function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
     realTesterReasons: realTesterDecision.ok ? [] : [realTesterDecision.message],
     workflows,
     result
-  };
-}
-
-function readRealTesterDecision(testerId) {
-  if (typeof testerId !== "string" || testerId.trim().length === 0) {
-    return {
-      ok: false,
-      message: "missing tester id"
-    };
-  }
-
-  const normalized = testerId.trim();
-  const lower = normalized.toLowerCase();
-  const syntheticPrefix = SYNTHETIC_TESTER_ID_PREFIXES.find((prefix) =>
-    lower.startsWith(prefix)
-  );
-  if (syntheticPrefix) {
-    return {
-      ok: false,
-      message: `tester id ${normalized} is reserved for local synthetic runs`
-    };
-  }
-
-  return {
-    ok: true,
-    message: "tester id counts as a real tester"
   };
 }
 

@@ -3,6 +3,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { readRealTesterDecision } from "./dogfood-tester-id.mjs";
+
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 
@@ -45,13 +47,6 @@ const BLOCKING_PERMISSION_STATES = new Set([
 
 const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
 const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
-const SYNTHETIC_TESTER_ID_PREFIXES = [
-  "local-",
-  "prepare-",
-  "preflight-",
-  "synthetic-"
-];
-
 export function createDefaultDogfoodCohortOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     cohortPath: undefined,
@@ -429,33 +424,9 @@ function collectDistinctTesterIds(reports) {
 }
 
 function isRealTesterReport(report) {
-  return readRealTesterDecision(report?.testerId).ok;
-}
-
-function readRealTesterDecision(testerId) {
-  if (typeof testerId !== "string" || testerId.trim().length === 0) {
-    return {
-      ok: false,
-      message: "report testerId is required for real tester counting"
-    };
-  }
-
-  const normalized = testerId.trim();
-  const lower = normalized.toLowerCase();
-  const syntheticPrefix = SYNTHETIC_TESTER_ID_PREFIXES.find((prefix) =>
-    lower.startsWith(prefix)
-  );
-  if (syntheticPrefix) {
-    return {
-      ok: false,
-      message: `tester id ${normalized} is reserved for local synthetic runs`
-    };
-  }
-
-  return {
-    ok: true,
-    message: "report testerId counts as a real tester"
-  };
+  return readRealTesterDecision(report?.testerId, {
+    missingMessage: "report testerId is required for real tester counting"
+  }).ok;
 }
 
 function hasSharedCohortManifestPath(cohortManifestPath, reports) {

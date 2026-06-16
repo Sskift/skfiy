@@ -54,7 +54,8 @@ describe("dogfood tester runner", () => {
       "~/Desktop/skfiy-finder-dogfood",
       "--chrome-current-page-endpoint",
       "http://127.0.0.1:9222",
-      "--require-passed"
+      "--require-passed",
+      "--allow-synthetic-tester-id"
     ], defaults)).toMatchObject({
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
       testerId: "tester-a",
@@ -66,12 +67,14 @@ describe("dogfood tester runner", () => {
       appPath: "/Applications/skfiy.app",
       finderTargetDir: path.join(os.homedir(), "Desktop/skfiy-finder-dogfood"),
       chromeCurrentPageEndpoint: "http://127.0.0.1:9222",
-      requirePassed: true
+      requirePassed: true,
+      allowSyntheticTesterId: true
     });
     expect(createDogfoodTesterHelpText()).toContain("dogfood:tester");
     expect(createDogfoodTesterHelpText()).toContain("packaged-app smokes sequentially");
     expect(createDogfoodTesterHelpText()).toContain("does not fabricate tester reports");
     expect(createDogfoodTesterHelpText()).toContain("strict permission preflight");
+    expect(createDogfoodTesterHelpText()).toContain("Reserved tester id prefixes");
   });
 
   it("plans sequential packaged-app smokes and a checked dogfood issue draft", async () => {
@@ -191,6 +194,12 @@ describe("dogfood tester runner", () => {
     expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
       "This runner did not file or accept a GitHub report."
     );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "gh issue create --repo Sskift/skfiy --title \"skfiy dogfood report: tester-a\" --body-file /repo/.skfiy-dogfood/issues/tester-a.md"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "Do not add `dogfood:accepted` or `workflow:*` labels yourself."
+    );
   });
 
   it("stops after UI preflight when strict passed evidence is missing required permissions", async () => {
@@ -309,6 +318,66 @@ describe("dogfood tester runner", () => {
       workflows: ["coding-terminal"],
       env: { TMUX: "/tmp/tmux" }
     }, createMemoryIo())).rejects.toThrow("dogfood:tester must not run from tmux");
+  });
+
+  it("rejects reserved synthetic tester id prefixes before collecting local artifacts", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo();
+
+    await expect(runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "Local-smoke",
+      workflows: ["coding-terminal"]
+    }, io)).rejects.toThrow("Reserved dogfood tester id prefix");
+
+    expect(io.commands).toEqual([]);
+    expect(io.textFiles).toEqual({});
+  });
+
+  it("allows reserved tester id prefixes only for explicit maintainer preflight runs", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      "smoke:ui": {
+        stdout: JSON.stringify({
+          result: "passed",
+          permissions: {
+            screenRecording: { state: "denied" },
+            accessibility: { state: "denied" },
+            microphone: { state: "not-determined" },
+            speechRecognition: { state: "not-determined" }
+          }
+        }),
+        exitCode: 0
+      }
+    });
+
+    await expect(runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "preflight-abc123",
+      workflows: ["coding-terminal"],
+      requirePassed: true,
+      allowSyntheticTesterId: true,
+      summaryPath: "/repo/.skfiy-dogfood/preflight-abc123-summary.md"
+    }, io)).rejects.toThrow("permission preflight failed");
+
+    expect(io.commands.map((command) => command.args.slice(0, 2).join(" "))).toEqual([
+      "run smoke:ui"
+    ]);
+    expect(io.textFiles["/repo/.skfiy-dogfood/preflight-abc123-summary.md"]).toContain(
+      "Tester: preflight-abc123"
+    );
   });
 });
 

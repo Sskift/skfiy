@@ -4,6 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import {
+  assertRealDogfoodTesterId,
+  formatReservedDogfoodTesterIdPrefixes
+} from "./dogfood-tester-id.mjs";
 import { REQUIRED_DOGFOOD_WORKFLOWS } from "./verify-dogfood-cohort.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -132,6 +136,7 @@ export function createDogfoodHandoffHelpText() {
     "The handoff includes the alpha zip identity, no-tmux warning, permission checklist,",
     "the exact dogfood:tester command, GitHub issue filing instructions, and maintainer review steps.",
     "It does not create or accept GitHub reports and does not update the cohort.",
+    `Reserved tester id prefixes are rejected because they cannot count as real dogfood users: ${formatReservedDogfoodTesterIdPrefixes()}.`,
     "",
     "Options:",
     "  --workflows <ids>                      Comma-separated workflow ids. Defaults to all required workflows.",
@@ -178,6 +183,7 @@ function createDogfoodHandoffMarkdown({
     ...(requirePassed ? [["--require-passed"]] : [])
   ];
   const reviewSummaryPath = `.skfiy-dogfood/reviews/${testerId}.md`;
+  const repository = parseTrackingIssueRepository(trackingIssueUrl);
 
   return [
     `# skfiy dogfood handoff: ${testerId}`,
@@ -213,6 +219,16 @@ function createDogfoodHandoffMarkdown({
     "## Filing",
     "",
     `File a \`skfiy dogfood report\` issue using the generated body at \`${issueOutput}\`.`,
+    "",
+    "```bash",
+    formatMultilineCommand("gh issue create --", [
+      ["--repo", repository],
+      ["--title", `skfiy dogfood report: ${testerId}`],
+      ["--body-file", issueOutput]
+    ]),
+    "```",
+    "",
+    "Do not add `dogfood:accepted` or `workflow:*` labels yourself.",
     `Then add the filed issue URL to ${trackingIssueUrl} only after maintainer review accepts it.`,
     "",
     "## Maintainer Review",
@@ -251,6 +267,7 @@ function validateOptions(options) {
   if (typeof options.testerId !== "string" || options.testerId.trim().length === 0) {
     throw new Error("Missing --tester-id <id>.");
   }
+  assertRealDogfoodTesterId(options.testerId);
   if (!Array.isArray(options.workflows) || options.workflows.length === 0) {
     throw new Error("Missing --workflows <workflow[,workflow]>.");
   }
@@ -275,7 +292,7 @@ function formatMultilineCommand(command, args) {
     if (arg.length === 1) {
       lines.push(`  ${arg[0]} \\`);
     } else {
-      lines.push(`  ${arg[0]} ${arg[1]} \\`);
+      lines.push(`  ${arg[0]} ${shellQuote(arg[1])} \\`);
     }
   }
   const last = lines.at(-1);
@@ -284,6 +301,26 @@ function formatMultilineCommand(command, args) {
   }
 
   return lines.join("\n");
+}
+
+function shellQuote(value) {
+  const text = String(value);
+  return /^[A-Za-z0-9_/:=.,+-]+$/.test(text)
+    ? text
+    : JSON.stringify(text);
+}
+
+function parseTrackingIssueRepository(trackingIssueUrl) {
+  try {
+    const url = new URL(String(trackingIssueUrl));
+    const segments = url.pathname.split("/").filter(Boolean);
+    if (url.hostname === "github.com" && segments.length >= 2) {
+      return `${segments[0]}/${segments[1]}`;
+    }
+  } catch {
+    // Fall through to the project default.
+  }
+  return "Sskift/skfiy";
 }
 
 function optionalPair(flag, value) {

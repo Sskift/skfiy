@@ -142,9 +142,9 @@ describe("dogfood cohort verifier", () => {
       cohortPath
     }, createMemoryIo({
       [cohortPath]: createCohort([
-        createReport("local-a", ["coding-terminal", "screenshot-inspection"]),
-        createReport("preflight-b", ["finder-file"]),
-        createReport("synthetic-c", ["browser-fallback"])
+        createReport("Local-a", ["coding-terminal", "screenshot-inspection"]),
+        createReport("PREflight-b", ["finder-file"]),
+        createReport("SYNTHETIC-c", ["browser-fallback"])
       ])
     }))).resolves.toMatchObject({
       result: "failed",
@@ -166,8 +166,8 @@ describe("dogfood cohort verifier", () => {
         expect.objectContaining({ id: "cohort.distinctTesters", ok: true }),
         expect.objectContaining({ id: "cohort.distinctRealTesters", ok: false }),
         expect.objectContaining({ id: "cohort.workflowCoverage.browser-fallback", ok: true }),
-        expect.objectContaining({ id: "report.local-a.source", ok: true }),
-        expect.objectContaining({ id: "report.preflight-b.source", ok: true })
+        expect.objectContaining({ id: "report.Local-a.source", ok: true }),
+        expect.objectContaining({ id: "report.PREflight-b.source", ok: true })
       ])
     });
   });

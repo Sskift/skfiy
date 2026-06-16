@@ -103,6 +103,9 @@ describe("dogfood tracking issue sync", () => {
     expect(body).toContain("- Bundle id: `com.sskift.skfiy`");
     expect(body).toContain("- App name: `skfiy`");
     expect(body).toContain("Real tester gate excludes tester ids beginning with `local-`, `prepare-`, `preflight-`, or `synthetic-`");
+    expect(body).toContain("- Required: `coding-terminal`");
+    expect(body).not.toContain("- [x] `coding-terminal`");
+    expect(body).toContain("Workflow coverage is computed from verified accepted report issue labels by `dogfood:status`, not from this checklist.");
     expect(body).toContain("- Strict permission preflight summary: `.skfiy-dogfood/preflight-abcdef1-summary.md`");
     expect(body).toContain("- UI artifact: `.skfiy-smoke/dogfood/preflight-abcdef1/preflight-abcdef1-ui.json`");
     expect(body).toContain("Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`, Speech Recognition `not-determined`");

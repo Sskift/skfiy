@@ -456,12 +456,12 @@ describe("dogfood status reporter", () => {
         labels: ["skfiy", "dogfood"]
       },
       [reportUrls[0]]: createAcceptedReportIssue(
-        "local-abc123",
+        "Local-abc123",
         ["coding-terminal", "screenshot-inspection"],
         { result: "passed" }
       ),
       [reportUrls[1]]: createAcceptedReportIssue(
-        "preflight-abc123",
+        "PREflight-abc123",
         ["coding-terminal"],
         { result: "passed" }
       ),
@@ -489,16 +489,16 @@ describe("dogfood status reporter", () => {
           {
             issueUrl: reportUrls[0],
             ok: true,
-            testerId: "local-abc123",
+            testerId: "Local-abc123",
             realTester: false,
-            realTesterReasons: ["tester id local-abc123 is reserved for local synthetic runs"]
+            realTesterReasons: ["tester id Local-abc123 is reserved for local synthetic runs"]
           },
           {
             issueUrl: reportUrls[1],
             ok: true,
-            testerId: "preflight-abc123",
+            testerId: "PREflight-abc123",
             realTester: false,
-            realTesterReasons: ["tester id preflight-abc123 is reserved for local synthetic runs"]
+            realTesterReasons: ["tester id PREflight-abc123 is reserved for local synthetic runs"]
           },
           {
             issueUrl: reportUrls[2],
@@ -525,8 +525,8 @@ describe("dogfood status reporter", () => {
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("Verified real accepted report URLs: 2/3 minimum");
-    expect(io.textFiles[summaryPath]).toContain("synthetic: tester id local-abc123 is reserved for local synthetic runs");
-    expect(io.textFiles[summaryPath]).toContain("synthetic: tester id preflight-abc123 is reserved for local synthetic runs");
+    expect(io.textFiles[summaryPath]).toContain("synthetic: tester id Local-abc123 is reserved for local synthetic runs");
+    expect(io.textFiles[summaryPath]).toContain("synthetic: tester id PREflight-abc123 is reserved for local synthetic runs");
   });
 
   it("reports missing workflow coverage from verified accepted report issues", async () => {
