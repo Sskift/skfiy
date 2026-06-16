@@ -84,17 +84,19 @@ Before asking a tester to run the alpha, generate a handoff note with the exact 
 npm run dogfood:handoff -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
+  --app <path-to-unzipped-skfiy.app> \
   --tester-id tester-a \
   --output .skfiy-dogfood/handoffs/tester-a.md
 ```
 
-`dogfood:handoff` writes a copyable tester packet with the alpha zip path, SHA256, no-tmux warning, permission checklist, `dogfood:tester` command, issue filing instructions, and maintainer review commands. It does not create or accept GitHub reports.
+`dogfood:handoff` writes a copyable tester packet with the alpha zip path, SHA256, release URL, explicit app bundle path, no-tmux warning, permission checklist, `dogfood:tester` command, issue filing instructions, and maintainer review commands. It does not create or accept GitHub reports.
 
 For a single tester, prefer the one-command runner so all packaged-app smokes run sequentially and the checked GitHub issue body is generated from the exact artifacts it just wrote:
 
 ```bash
 npm run dogfood:tester -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --app <path-to-unzipped-skfiy.app> \
   --tester-id tester-a \
   --workflows coding-terminal,screenshot-inspection \
   --artifacts-dir .skfiy-smoke/dogfood/tester-a \
@@ -102,7 +104,7 @@ npm run dogfood:tester -- \
   --summary .skfiy-dogfood/tester-a-summary.md
 ```
 
-`dogfood:tester` refuses to run from tmux, runs `smoke:ui`, `smoke:ghostty -- --matrix`, `smoke:chrome`, `smoke:finder -- --item-drag-drop`, and `smoke:voice` through the packaged app path, then runs `dogfood:issue -- --check-report` with those five artifact paths. It does not file or accept GitHub reports. A maintainer must still review the generated issue and add `dogfood:accepted` plus workflow labels before the report can count toward the cohort. Use `--finder-target-dir ~/Desktop/skfiy-finder-dogfood` to place Finder fixtures under a real tester-owned parent directory, `--chrome-current-page-endpoint http://127.0.0.1:9222` for consenting logged-in current-page Chrome evidence, and `--require-passed` only when the tester machine has granted the permissions needed for passed Ghostty, Chrome, Finder, and voice smokes.
+`dogfood:tester` refuses to run from tmux, passes the explicit `--app` path through every packaged-app smoke, runs `smoke:ui`, `smoke:ghostty -- --matrix`, `smoke:chrome`, `smoke:finder -- --item-drag-drop`, and `smoke:voice`, then runs `dogfood:issue -- --check-report` with those five artifact paths. It does not file or accept GitHub reports. A maintainer must still review the generated issue and add `dogfood:accepted` plus workflow labels before the report can count toward the cohort. Use `--finder-target-dir ~/Desktop/skfiy-finder-dogfood` to place Finder fixtures under a real tester-owned parent directory, `--chrome-current-page-endpoint http://127.0.0.1:9222` for consenting logged-in current-page Chrome evidence, and `--require-passed` only when the tester machine has granted the permissions needed for passed Ghostty, Chrome, Finder, and voice smokes.
 
 After a tester runs the packaged-app smokes manually, generate a GitHub dogfood issue body draft from the same manifest and smoke artifact paths instead of copying fields by hand:
 

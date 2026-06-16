@@ -17,6 +17,7 @@ export function createDefaultDogfoodHandoffOptions(rootDir = DEFAULT_ROOT_DIR) {
     workflows: [...REQUIRED_DOGFOOD_WORKFLOWS],
     trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
     releaseUrl: undefined,
+    appPath: undefined,
     outputPath: undefined,
     finderTargetDir: undefined,
     chromeCurrentPageEndpoint: undefined,
@@ -50,6 +51,10 @@ export function parseDogfoodHandoffArgs(argv, defaults) {
         break;
       case "--release-url":
         options.releaseUrl = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--app":
+        options.appPath = resolvePath(readValue(argv, index, arg));
         index += 1;
         break;
       case "--output":
@@ -96,6 +101,7 @@ export async function createDogfoodHandoff(options, io = createDefaultIo()) {
     workflows: options.workflows,
     trackingIssueUrl: options.trackingIssueUrl,
     releaseUrl: options.releaseUrl,
+    appPath: options.appPath,
     finderTargetDir: options.finderTargetDir,
     chromeCurrentPageEndpoint: options.chromeCurrentPageEndpoint,
     requirePassed: options.requirePassed,
@@ -131,6 +137,7 @@ export function createDogfoodHandoffHelpText() {
     "  --workflows <ids>                      Comma-separated workflow ids. Defaults to all required workflows.",
     "  --tracking-issue-url <url>             Dogfood tracking issue URL.",
     "  --release-url <url>                    Optional GitHub release URL for remote testers.",
+    "  --app <path>                           App bundle path that dogfood:tester should launch.",
     "  --finder-target-dir <path>             Optional real Finder parent directory for the tester run.",
     "  --chrome-current-page-endpoint <url>   Optional consenting Chrome CDP endpoint for real-page evidence.",
     "  --require-passed                       Include strict passed smoke flags for permission-ready testers.",
@@ -148,6 +155,7 @@ function createDogfoodHandoffMarkdown({
   workflows,
   trackingIssueUrl,
   releaseUrl,
+  appPath,
   finderTargetDir,
   chromeCurrentPageEndpoint,
   requirePassed,
@@ -159,6 +167,7 @@ function createDogfoodHandoffMarkdown({
   const summaryPath = `.skfiy-dogfood/${testerId}-summary.md`;
   const testerArgs = [
     ["--manifest", relativeManifestPath],
+    ...optionalPair("--app", appPath),
     ["--tester-id", testerId],
     ["--workflows", workflows.join(",")],
     ["--artifacts-dir", artifactsDir],
@@ -182,6 +191,7 @@ function createDogfoodHandoffMarkdown({
     `- Manifest: \`${path.basename(manifestPath)}\``,
     `- Alpha zip: \`${path.basename(String(manifest?.zip?.path ?? ""))}\``,
     ...(releaseUrl ? [`- Release: ${releaseUrl}`] : []),
+    ...(appPath ? [`- App bundle to test: \`${appPath}\``] : []),
     `- Zip path to share: \`${manifest?.zip?.path ?? "missing"}\``,
     `- Zip SHA256: \`${manifest?.zip?.sha256 ?? "missing"}\``,
     `- Commit: \`${manifest?.commitSha ?? "missing"}\``,
@@ -189,7 +199,7 @@ function createDogfoodHandoffMarkdown({
     "## Tester Rules",
     "",
     "- Do not run this from tmux, detached shell launchers, `npm start`, Vite, or direct Electron.",
-    "- Use the packaged app identity from the alpha zip or `dist/skfiy.app`.",
+    "- Use the packaged app identity from the alpha zip or the explicit `--app` path.",
     "- Grant Screen Recording, Accessibility, Microphone, and Speech Recognition to `skfiy.app` before expecting passed evidence.",
     "- Blocked evidence is acceptable when it records the real permission state, packaged-app launch path, artifacts, and cleanup.",
     "- Do not edit generated artifact paths or alpha identity fields by hand.",

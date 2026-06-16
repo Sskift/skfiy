@@ -210,6 +210,7 @@ export function createGitHubAlphaReleaseNotes({
     "npm run dogfood:handoff -- \\",
     `  --manifest .skfiy-alpha/${path.basename(manifestPath)} \\`,
     ...(releaseUrl ? [`  --release-url ${releaseUrl} \\`] : []),
+    "  --app <path-to-unzipped-skfiy.app> \\",
     "  --tester-id <stable-tester-id> \\",
     "  --output .skfiy-dogfood/handoffs/<stable-tester-id>.md",
     "```",

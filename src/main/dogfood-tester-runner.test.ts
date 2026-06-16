@@ -48,6 +48,8 @@ describe("dogfood tester runner", () => {
       ".skfiy-dogfood/tester-a-summary.md",
       "--listen-ms",
       "1200",
+      "--app",
+      "/Applications/skfiy.app",
       "--finder-target-dir",
       "~/Desktop/skfiy-finder-dogfood",
       "--chrome-current-page-endpoint",
@@ -61,6 +63,7 @@ describe("dogfood tester runner", () => {
       issueOutputPath: path.resolve(".skfiy-dogfood/issues/tester-a.md"),
       summaryPath: path.resolve(".skfiy-dogfood/tester-a-summary.md"),
       listenMs: 1200,
+      appPath: "/Applications/skfiy.app",
       finderTargetDir: path.join(os.homedir(), "Desktop/skfiy-finder-dogfood"),
       chromeCurrentPageEndpoint: "http://127.0.0.1:9222",
       requirePassed: true
@@ -83,6 +86,7 @@ describe("dogfood tester runner", () => {
       artifactsDir: "/repo/.skfiy-smoke/dogfood/tester-a",
       issueOutputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
       listenMs: 1200,
+      appPath: "/Applications/skfiy.app",
       requirePassed: false
     }) as {
       artifacts: Record<string, string>;
@@ -105,12 +109,17 @@ describe("dogfood tester runner", () => {
       "smoke:voice",
       "dogfood:issue"
     ]);
+    expect(plan.commands.slice(0, 5).every((command) =>
+      command.args.includes("--app") && command.args.includes("/Applications/skfiy.app")
+    )).toBe(true);
     expect(plan.commands[1]).toMatchObject({
       command: "npm",
       args: [
         "run",
         "smoke:ghostty",
         "--",
+        "--app",
+        "/Applications/skfiy.app",
         "--matrix",
         "--output",
         "/repo/.skfiy-smoke/dogfood/tester-a/tester-a-ghostty.json"

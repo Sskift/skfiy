@@ -46,6 +46,8 @@ describe("dogfood handoff generator", () => {
       trackingIssueUrl,
       "--release-url",
       "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123",
+      "--app",
+      "~/Applications/skfiy.app",
       "--output",
       ".skfiy-dogfood/handoffs/tester-b.md",
       "--finder-target-dir",
@@ -59,6 +61,7 @@ describe("dogfood handoff generator", () => {
       workflows: ["coding-terminal", "browser-fallback"],
       trackingIssueUrl,
       releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123",
+      appPath: path.join(process.env.HOME ?? "", "Applications/skfiy.app"),
       outputPath: path.resolve(".skfiy-dogfood/handoffs/tester-b.md"),
       finderTargetDir: path.join(process.env.HOME ?? "", "Desktop/skfiy-finder-dogfood"),
       chromeCurrentPageEndpoint: "http://127.0.0.1:9222",
@@ -90,6 +93,7 @@ describe("dogfood handoff generator", () => {
       ],
       trackingIssueUrl,
       releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123",
+      appPath: "/Applications/skfiy.app",
       outputPath,
       now: () => "2026-06-16T12:00:00.000Z"
     }, io)).resolves.toMatchObject({
@@ -108,6 +112,7 @@ describe("dogfood handoff generator", () => {
     expect(handoff).toContain("skfiy-0.1.0-abc123-macos-unsigned.zip");
     expect(handoff).toContain("Zip SHA256: `feedface`");
     expect(handoff).toContain("Release: https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123");
+    expect(handoff).toContain("App bundle to test: `/Applications/skfiy.app`");
     expect(handoff).toContain("Commit: `abc123`");
     expect(handoff).toContain("Do not run this from tmux");
     expect(handoff).toContain("Screen Recording");
@@ -115,6 +120,7 @@ describe("dogfood handoff generator", () => {
     expect(handoff).toContain("Microphone");
     expect(handoff).toContain("Speech Recognition");
     expect(handoff).toContain("npm run dogfood:tester -- \\");
+    expect(handoff).toContain("--app /Applications/skfiy.app");
     expect(handoff).toContain("--tester-id tester-b");
     expect(handoff).toContain("--workflows coding-terminal,screenshot-inspection,finder-file,browser-fallback");
     expect(handoff).toContain("--artifacts-dir .skfiy-smoke/dogfood/tester-b");

@@ -264,17 +264,19 @@ Generate a copyable handoff for each real tester before asking them to run the p
 npm run dogfood:handoff -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
+  --app <path-to-unzipped-skfiy.app> \
   --tester-id tester-b \
   --output .skfiy-dogfood/handoffs/tester-b.md
 ```
 
-`dogfood:handoff` writes alpha identity, zip SHA256, no-tmux rules, permission setup, the exact `dogfood:tester` command, filing instructions, and maintainer review commands. It is intentionally non-mutating: it does not create GitHub issues, accept reports, or update the cohort.
+`dogfood:handoff` writes alpha identity, zip SHA256, no-tmux rules, permission setup, the explicit app bundle path that `dogfood:tester` should launch, filing instructions, and maintainer review commands. It is intentionally non-mutating: it does not create GitHub issues, accept reports, or update the cohort.
 
 For one real tester machine, collect the five packaged-app smoke artifacts and a checked issue body with:
 
 ```bash
 npm run dogfood:tester -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
+  --app <path-to-unzipped-skfiy.app> \
   --tester-id tester-a \
   --workflows coding-terminal,screenshot-inspection \
   --artifacts-dir .skfiy-smoke/dogfood/tester-a \

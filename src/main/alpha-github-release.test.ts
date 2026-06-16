@@ -118,6 +118,7 @@ describe("GitHub alpha release publisher", () => {
     expect(notes).toContain(trackingIssueUrl);
     expect(notes).toContain("npm run dogfood:handoff");
     expect(notes).toContain("--release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1");
+    expect(notes).toContain("--app <path-to-unzipped-skfiy.app>");
     expect(notes).toContain("Do not run dogfood from tmux");
   });
 

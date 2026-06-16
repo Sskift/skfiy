@@ -24,6 +24,7 @@ export function createDefaultDogfoodTesterOptions(rootDir = DEFAULT_ROOT_DIR) {
     issueOutputPath: undefined,
     summaryPath: undefined,
     listenMs: DEFAULT_LISTEN_MS,
+    appPath: undefined,
     finderTargetDir: undefined,
     chromeCurrentPageEndpoint: undefined,
     requirePassed: false,
@@ -64,6 +65,10 @@ export function parseDogfoodTesterArgs(argv, defaults) {
         break;
       case "--listen-ms":
         options.listenMs = readPositiveInteger(readValue(argv, index, arg), arg);
+        index += 1;
+        break;
+      case "--app":
+        options.appPath = resolvePath(readValue(argv, index, arg));
         index += 1;
         break;
       case "--finder-target-dir":
@@ -110,24 +115,29 @@ export function createDogfoodTesterPlan(options) {
     finder: path.join(artifactsDir, `${testerId}-finder.json`),
     voice: path.join(artifactsDir, `${testerId}-voice.json`)
   };
+  const appArgs = readOptionalPair("--app", options.appPath);
   const commands = [
     createNpmCommand("smoke:ui", [
+      ...appArgs,
       "--output",
       artifacts.ui
     ]),
     createNpmCommand("smoke:ghostty", [
+      ...appArgs,
       "--matrix",
       "--output",
       artifacts.ghostty,
       ...readRequirePassedArgs("smoke:ghostty", options)
     ]),
     createNpmCommand("smoke:chrome", [
+      ...appArgs,
       "--output",
       artifacts.chrome,
       ...readOptionalPair("--current-page-endpoint", options.chromeCurrentPageEndpoint),
       ...readRequirePassedArgs("smoke:chrome", options)
     ]),
     createNpmCommand("smoke:finder", [
+      ...appArgs,
       "--item-drag-drop",
       "--output",
       artifacts.finder,
@@ -135,6 +145,7 @@ export function createDogfoodTesterPlan(options) {
       ...readRequirePassedArgs("smoke:finder", options)
     ]),
     createNpmCommand("smoke:voice", [
+      ...appArgs,
       "--output",
       artifacts.voice,
       "--listen-ms",
@@ -168,6 +179,7 @@ export function createDogfoodTesterPlan(options) {
     rootDir,
     testerId,
     workflows: [...options.workflows],
+    appPath: options.appPath,
     artifactsDir,
     artifacts,
     issueOutputPath,
@@ -264,6 +276,7 @@ export function createDogfoodTesterHelpText() {
     "  --issue-output <path>          Markdown issue body path.",
     "  --summary <path>               Local run summary path.",
     `  --listen-ms <number>           Native voice listen window. Default: ${DEFAULT_LISTEN_MS}.`,
+    "  --app <path>                   App bundle to test. Use the alpha zip's skfiy.app when dogfooding a release.",
     "  --finder-target-dir <path>     Parent directory for the isolated Finder fixture.",
     "  --chrome-current-page-endpoint <url>",
     "                                Attach Chrome BYO current-page mode to a consenting tester page.",
