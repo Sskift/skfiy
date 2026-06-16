@@ -45,10 +45,13 @@ async function main() {
     artifactPath: options.outputPath,
     fixtureRoot: undefined,
     pageUrl: undefined,
+    sensitivePageUrl: undefined,
     chromeEndpoint,
     command: undefined,
+    sensitiveCommand: undefined,
     extractedText: "",
     events: [],
+    sensitiveRun: undefined,
     permissions: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
@@ -67,7 +70,9 @@ async function main() {
     const fixture = await createChromeFixture();
     evidence.fixtureRoot = fixture.rootPath;
     evidence.pageUrl = fixture.url;
+    evidence.sensitivePageUrl = fixture.sensitiveUrl;
     evidence.command = `打开 Chrome 测试页面 ${fixture.url} 并提取正文`;
+    evidence.sensitiveCommand = `打开 Chrome 测试页面 ${fixture.sensitiveUrl} 并提取正文`;
 
     if (!options.keepExisting) {
       await quitSkfiy();
@@ -94,23 +99,11 @@ async function main() {
         returnByValue: true
       });
 
-      await cdp.send("Runtime.evaluate", {
-        expression:
-          `window.skfiy.runCommand(${JSON.stringify(evidence.command)}, { mode: "active" })`,
-        awaitPromise: true,
-        returnByValue: true
-      });
-      await sleep(options.settleMs);
-
-      if (cdp.events.at(-1)?.status === "approval_required") {
-        await cdp.send("Runtime.evaluate", {
-          expression: "window.skfiy.approveTask()",
-          awaitPromise: true,
-          returnByValue: true
-        });
-      }
-
-      await waitForTerminalTaskEvent(cdp, options.timeoutMs);
+      const primaryEvents = await runChromeProductCommand(
+        cdp,
+        evidence.command,
+        options
+      );
 
       const permissions = await cdp.send("Runtime.evaluate", {
         expression: "window.skfiy.getPermissions()",
@@ -137,9 +130,29 @@ async function main() {
       evidence.runtimeStatus = runtimeStatus.result?.value;
       evidence.startupWarnings = startupWarnings.result?.value;
       evidence.appPolicySettings = appPolicySettings.result?.value;
-      evidence.events = cdp.events;
-      evidence.extractedText = extractCompletedChromeText(cdp.events);
+      evidence.events = primaryEvents;
+      evidence.extractedText = extractCompletedChromeText(primaryEvents);
       evidence.result = classifyChromeSmokeEvidence(evidence);
+
+      const sensitiveEvents = await runChromeProductCommand(
+        cdp,
+        evidence.sensitiveCommand,
+        options
+      );
+      evidence.sensitiveRun = {
+        pageUrl: evidence.sensitivePageUrl,
+        command: evidence.sensitiveCommand,
+        events: sensitiveEvents,
+        result: classifyChromeSmokeEvidence({
+          ...evidence,
+          events: sensitiveEvents,
+          extractedText: ""
+        })
+      };
+
+      if (evidence.result === "passed" && evidence.sensitiveRun.result !== "sensitive-paused") {
+        evidence.result = "failed";
+      }
     } finally {
       cdp.close();
     }
@@ -202,16 +215,24 @@ async function createChromeFixture() {
   const rootPath = await mkdtemp(path.join(os.tmpdir(), "skfiy-chrome-smoke-"));
   const chromeUserDataDir = path.join(rootPath, "chrome-profile");
   const pagePath = path.join(rootPath, "index.html");
+  const sensitivePagePath = path.join(rootPath, "sensitive.html");
   await writeFile(pagePath, `<!doctype html>
 <html>
   <head><title>skfiy chrome smoke</title></head>
   <body><main>${EXPECTED_TEXT}</main></body>
 </html>
 `);
+  await writeFile(sensitivePagePath, `<!doctype html>
+<html>
+  <head><title>skfiy sensitive smoke</title></head>
+  <body><main>Enter password and one-time code</main></body>
+</html>
+`);
   return {
     rootPath,
     chromeUserDataDir,
-    url: pathToFileURL(pagePath).href
+    url: pathToFileURL(pagePath).href,
+    sensitiveUrl: pathToFileURL(sensitivePagePath).href
   };
 }
 
@@ -344,6 +365,28 @@ async function createCdpClient(webSocketDebuggerUrl) {
       ws.close();
     }
   };
+}
+
+async function runChromeProductCommand(cdp, command, options) {
+  const startIndex = cdp.events.length;
+  await cdp.send("Runtime.evaluate", {
+    expression:
+      `window.skfiy.runCommand(${JSON.stringify(command)}, { mode: "active" })`,
+    awaitPromise: true,
+    returnByValue: true
+  });
+  await sleep(options.settleMs);
+
+  if (cdp.events.at(-1)?.status === "approval_required") {
+    await cdp.send("Runtime.evaluate", {
+      expression: "window.skfiy.approveTask()",
+      awaitPromise: true,
+      returnByValue: true
+    });
+  }
+
+  await waitForTerminalTaskEvent(cdp, options.timeoutMs);
+  return cdp.events.slice(startIndex);
 }
 
 function installEventSinkExpression() {

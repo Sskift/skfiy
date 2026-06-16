@@ -166,7 +166,7 @@ Use the packaged app path and an isolated Chrome CDP profile:
 npm run smoke:chrome -- --require-passed --output .skfiy-smoke/chrome-page.json
 ```
 
-The Chrome smoke script launches a temporary Chrome profile through LaunchServices, passes its CDP endpoint into `dist/skfiy.app`, sends `打开 Chrome 测试页面 <file-url> 并提取正文` through the preload API, approves Chrome app policy plus the medium-risk browser action, and verifies extracted page text. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> CDP -> Chrome`, Chrome app policy settings, `extractedText: skfiy chrome smoke ready`, `Verified navigate` and `Verified extract_text` events, and empty skfiy/Chrome cleanup process lists.
+The Chrome smoke script launches a temporary Chrome profile through LaunchServices, passes its CDP endpoint into `dist/skfiy.app`, sends `打开 Chrome 测试页面 <file-url> 并提取正文` through the preload API, approves Chrome app policy plus the medium-risk browser action, and verifies extracted page text. It then runs a second sensitive-page fixture and requires skfiy to pause instead of completing when page text contains password or one-time-code language. A `passed` result requires `runnerHasTmux=false`, product path `renderer -> preload -> main -> CDP -> Chrome`, Chrome app policy settings, `extractedText: skfiy chrome smoke ready`, `Verified navigate` and `Verified extract_text` events for the safe page, a `sensitiveRun.result: sensitive-paused` record with `Verification failed (sensitive): Sensitive UI text is visible.`, and empty skfiy/Chrome cleanup process lists.
 
 ### Finder Computer Use Smoke
 
@@ -212,6 +212,7 @@ Action verification: Verified type_text, Verified press_key
 Clipboard approvals: clipboard-read-approval needs-user-confirmation, clipboard-write-approval needs-user-confirmation
 Chrome: extractedText skfiy chrome smoke ready
 Chrome action verification: Verified navigate, Verified extract_text
+Chrome sensitive pause: sensitiveRun.result sensitive-paused
 Finder: beforeTree notes.pdf/photo.png/script.ts -> afterTree Documents/notes.pdf/Images/photo.png/Code/script.ts
 Finder action verification: Verified create_folder, Verified move_file
 Screenshots:

@@ -5,6 +5,7 @@ export const DEFAULT_CHROME_PORT = 9444;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
 export const EXPECTED_TEXT = "skfiy chrome smoke ready";
+export const SENSITIVE_EXPECTED_RESULT = "sensitive-paused";
 export const PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
 
 export function createDefaultChromeSmokeOptions(rootDir) {
@@ -117,6 +118,10 @@ export function classifyChromeSmokeEvidence({
     return "needs-user-confirmation";
   }
 
+  if (last.status === "needs_confirmation" && isChromeSensitivePauseMessage(last.message)) {
+    return SENSITIVE_EXPECTED_RESULT;
+  }
+
   if (last.status === "failed" && isChromeBlockedMessage(last.message)) {
     return "blocked";
   }
@@ -136,6 +141,11 @@ export function classifyChromeSmokeEvidence({
   }
 
   return "passed";
+}
+
+function isChromeSensitivePauseMessage(message) {
+  return typeof message === "string"
+    && message.includes("Verification failed (sensitive): Sensitive UI text is visible.");
 }
 
 function isChromeBlockedMessage(message) {

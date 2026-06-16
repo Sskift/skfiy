@@ -69,4 +69,31 @@ describe("Chrome product smoke script", () => {
       events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
     })).toBe("passed");
   });
+
+  it("classifies a Chrome sensitive-page pause as safety evidence", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-chrome-plan.mjs");
+    const {
+      classifyChromeSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyChromeSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyChromeSmokeEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      extractedText: "",
+      events: [
+        {
+          status: "executing",
+          message: "Verified navigate: Navigated to: file:///tmp/skfiy-login.html"
+        },
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (sensitive): Sensitive UI text is visible."
+        }
+      ]
+    })).toBe("sensitive-paused");
+  });
 });

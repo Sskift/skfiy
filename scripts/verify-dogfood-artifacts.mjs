@@ -16,7 +16,7 @@ const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> fs -> Finder";
 const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
 const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
-const ACCEPTED_CHROME_RESULTS = new Set(["passed", "blocked"]);
+const ACCEPTED_CHROME_RESULTS = new Set(["passed", "blocked", "sensitive-paused"]);
 const ACCEPTED_FINDER_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_VOICE_RESULTS = new Set(["passed", "blocked", "no-transcript"]);
 const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
@@ -193,6 +193,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Chrome test-page extraction evidence"),
     "manifest must require Chrome extraction evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.chromeSensitivePause",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Chrome sensitive-page pause evidence"),
+    "manifest must require Chrome sensitive-page pause evidence"
   );
   check(
     checks,
@@ -501,6 +508,12 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
   );
   check(
     checks,
+    "chrome.sensitivePause",
+    hasChromeSensitivePauseEvidence(artifact.sensitiveRun),
+    "Chrome smoke must include a sensitive-page run that pauses before completion"
+  );
+  check(
+    checks,
     "chrome.chromeProcessesAfterCleanup",
     isEmptyArray(artifact.chromeProcessesAfterCleanup),
     "Chrome smoke must clean up its temporary Chrome process"
@@ -806,6 +819,14 @@ function hasChromeApprovalEvidence(events) {
 function hasChromeActionVerification(events) {
   return hasTaskEventMessage(events, "Verified navigate:")
     && hasTaskEventMessage(events, "Verified extract_text:");
+}
+
+function hasChromeSensitivePauseEvidence(value) {
+  return Boolean(value)
+    && value.result === "sensitive-paused"
+    && Array.isArray(value.events)
+    && hasTaskEventMessage(value.events, "Verified navigate:")
+    && hasTaskEventMessage(value.events, "Verification failed (sensitive): Sensitive UI text is visible.");
 }
 
 function hasFinderAppPolicyEvidence(value) {

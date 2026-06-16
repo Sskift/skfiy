@@ -107,4 +107,41 @@ describe("runChromePageTask", () => {
       summary: expect.stringContaining("skfiy chrome smoke ready")
     });
   });
+
+  it("pauses instead of completing when extracted page text looks sensitive", async () => {
+    const client = createChromeClient();
+    client.sendCdpCommand.mockImplementation(async (command) => {
+      if (command.method === "Page.navigate") {
+        return { frameId: "frame-1" };
+      }
+
+      return {
+        result: {
+          type: "string",
+          value: "Enter password and one-time code"
+        }
+      };
+    });
+
+    const events = await collectEvents(
+      runChromePageTask(
+        "打开 Chrome 测试页面 file:///tmp/skfiy-login.html 并提取正文",
+        client,
+        { approved: true }
+      )
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "approval_required",
+      "locating_app",
+      "action_verified",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "sensitive",
+      reason: "Sensitive UI text is visible."
+    });
+  });
 });

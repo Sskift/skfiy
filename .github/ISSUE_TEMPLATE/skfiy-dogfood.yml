@@ -212,12 +212,15 @@ body:
     id: chrome_extraction
     attributes:
       label: Chrome extracted text
-      description: Paste Chrome smoke product path, extractedText, and navigate/extract verification events.
+      description: Paste Chrome smoke product path, extractedText, navigate/extract verification events, and sensitive-page pause evidence.
       placeholder: |
         productPath: renderer -> preload -> main -> CDP -> Chrome
         extractedText: skfiy chrome smoke ready
         Verified navigate: Navigated to: ...
         Verified extract_text: Extracted text: ...
+        Chrome sensitive-page pause:
+        result: sensitive-paused
+        Verification failed (sensitive): Sensitive UI text is visible.
     validations:
       required: true
 

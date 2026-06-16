@@ -39,6 +39,7 @@ describe("skfiy dogfood issue template", () => {
       "com.mitchellh.ghostty",
       "com.google.Chrome",
       "Chrome extracted text",
+      "Chrome sensitive-page pause",
       "com.apple.finder",
       "Finder before tree / after tree",
       "Verified create_folder",

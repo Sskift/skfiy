@@ -26,6 +26,7 @@ const DOGFOOD_EVIDENCE = [
   "clipboard read/write approval runs",
   "Chrome app policy settings",
   "Chrome test-page extraction evidence",
+  "Chrome sensitive-page pause evidence",
   "Finder app policy settings",
   "Finder test-folder organization evidence"
 ];

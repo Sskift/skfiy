@@ -1,4 +1,5 @@
 import { buildCdpCommand, type CdpCommand } from "../computer-use/browser-control.js";
+import { createSensitiveTextPatterns } from "../computer-use/sensitive-ui-policy.js";
 import type { RiskDecision } from "../../shared/types.js";
 
 const CHROME_APP_NAME = "Chrome";
@@ -10,6 +11,7 @@ const CHROME_PAGE_RISK: RiskDecision = {
   reason: "Chrome test-page control navigates the browser and reads page text.",
   requiresApproval: true
 };
+const SENSITIVE_CHROME_TEXT_PATTERNS = createSensitiveTextPatterns();
 
 export interface ChromeTaskClient {
   sendCdpCommand(command: CdpCommand): Promise<unknown>;
@@ -39,7 +41,7 @@ export type ChromeTaskEvent =
     }
   | {
       type: "verification_failed";
-      stage: "input" | "connection" | "navigation" | "extraction";
+      stage: "input" | "connection" | "navigation" | "extraction" | "sensitive";
       reason: string;
     }
   | {
@@ -121,6 +123,16 @@ export async function* runChromePageTask(
     await client.waitForPageReady?.();
     const result = await client.sendCdpCommand(buildCdpCommand({ type: "extract_text" }));
     const extractedText = readRuntimeStringResult(result);
+
+    if (hasSensitiveText(extractedText)) {
+      yield {
+        type: "verification_failed",
+        stage: "sensitive",
+        reason: "Sensitive UI text is visible."
+      };
+      return;
+    }
+
     yield {
       type: "action_verified",
       actionType: "extract_text",
@@ -139,6 +151,10 @@ export async function* runChromePageTask(
       reason: readErrorMessage(error, "Chrome text extraction failed.")
     };
   }
+}
+
+function hasSensitiveText(value: string): boolean {
+  return SENSITIVE_CHROME_TEXT_PATTERNS.some((pattern) => pattern.test(value));
 }
 
 export function parseChromePageIntent(input: string):
