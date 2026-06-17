@@ -29,6 +29,10 @@ const REQUIRED_UI_PERMISSION_SETTING_TARGETS = [
   { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
   { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
 ];
+const REQUIRED_STOP_TURN_HOTKEY = {
+  accelerator: "Control+Alt+Shift+Esc",
+  label: "Ctrl Opt Shift Esc"
+};
 const REQUIRED_CHROME_TEXT = "skfiy chrome smoke ready";
 const REQUIRED_CHROME_FORM_TEXT = "skfiy agent@skfiy.test operator form submitted";
 const REQUIRED_CHROME_FORM_SELECTORS = ["#name", "#email", "#role"];
@@ -162,6 +166,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Permission settings direct links"),
     "manifest must require permission settings direct-link evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.stopTurnHotkey",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Panic stop runtime hotkey evidence"),
+    "manifest must require panic stop runtime hotkey evidence"
   );
   check(
     checks,
@@ -453,6 +464,12 @@ function verifyUiSmoke(artifact, expectedPath, options, checks) {
     "ui.petDrag",
     hasPetDragEvidence(artifact.petDrag),
     "UI smoke must drag the real desktop pet upward and suppress the click after drag"
+  );
+  check(
+    checks,
+    "ui.stopTurnHotkey",
+    hasStopTurnHotkeyEvidence(artifact.runtimeStatus?.stopTurnHotkey),
+    "UI smoke must record the registered panic stop hotkey from runtimeStatus.stopTurnHotkey"
   );
 
   if (artifact.result === "passed") {
@@ -1067,6 +1084,16 @@ function hasPetDragEvidence(petDrag) {
     && petDrag.totalDeltaY < 0
     && petDrag.upwardMovement === true
     && petDrag.suppressedClickAfterDrag === true;
+}
+
+function hasStopTurnHotkeyEvidence(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  return value.accelerator === REQUIRED_STOP_TURN_HOTKEY.accelerator
+    && value.label === REQUIRED_STOP_TURN_HOTKEY.label
+    && value.registered === true;
 }
 
 function hasWindowBounds(bounds) {
@@ -1796,7 +1823,7 @@ Validates that an alpha manifest references a coherent packaged-app dogfood evid
 
 Options:
   --manifest <path>     Alpha manifest JSON from npm run alpha:artifact.
-  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and native voice smoke results are passed, including Chrome current-page observation evidence and native voice transcript-to-task evidence.
+  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and native voice smoke results are passed, including panic stop runtime hotkey evidence, Chrome current-page observation evidence, and native voice transcript-to-task evidence.
   --require-current-head
                        Fail unless manifest commitSha matches the current git HEAD.
   -h, --help            Show this help.

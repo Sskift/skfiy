@@ -12,6 +12,7 @@ describe("dogfood artifact verifier", () => {
     "npm run smoke:finder -- --output <path>",
     "npm run smoke:voice -- --output <path>",
     "Permission settings direct links",
+    "Panic stop runtime hotkey evidence",
     "Native voice transcript-to-task evidence",
     "Native voice no-transcript/cancellation evidence",
     "Accepted GitHub dogfood issue source",
@@ -405,6 +406,13 @@ describe("dogfood artifact verifier", () => {
     upwardMovement: true,
     suppressedClickAfterDrag: true
   });
+  const createStopTurnRuntimeStatus = () => ({
+    stopTurnHotkey: {
+      accelerator: "Control+Alt+Shift+Esc",
+      label: "Ctrl Opt Shift Esc",
+      registered: true
+    }
+  });
   const createUiSmokeArtifact = (artifactPath: string) => ({
     result: "passed",
     appLaunchViaOpen: true,
@@ -413,6 +421,7 @@ describe("dogfood artifact verifier", () => {
     artifactPath,
     petClicked: true,
     petDrag: createUiPetDragEvidence(),
+    runtimeStatus: createStopTurnRuntimeStatus(),
     onboardingVisible: true,
     permissionRows: [
       { label: "屏幕录制", state: "denied", stateText: "未授权" },
@@ -584,6 +593,7 @@ describe("dogfood artifact verifier", () => {
         artifactPath: uiSmokePath,
         petClicked: true,
         petDrag: createUiPetDragEvidence(),
+        runtimeStatus: createStopTurnRuntimeStatus(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制", state: "denied", stateText: "未授权" },
@@ -643,6 +653,7 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "manifest.finderSmokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "manifest.voiceSmokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "ui.productPath", ok: true }),
+        expect.objectContaining({ id: "ui.stopTurnHotkey", ok: true }),
         expect.objectContaining({ id: "ghostty.productPath", ok: true }),
         expect.objectContaining({ id: "chrome.productPath", ok: true }),
         expect.objectContaining({ id: "chrome.actionVerification", ok: true }),
@@ -655,6 +666,57 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "finder.planPreview", ok: true }),
         expect.objectContaining({ id: "finder.itemDragDrop", ok: true }),
         expect.objectContaining({ id: "voice.productPath", ok: true })
+      ])
+    });
+  });
+
+  it("fails UI evidence that omits the runtime stop-turn hotkey status", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const uiArtifact = createUiSmokeArtifact(uiSmokePath);
+
+    delete (uiArtifact as { runtimeStatus?: unknown }).runtimeStatus;
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: uiArtifact,
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("ui.stopTurnHotkey")
       ])
     });
   });
@@ -1434,6 +1496,7 @@ describe("dogfood artifact verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("manifest.requiredDogfoodEvidence.ui"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.stopTurnHotkey"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.actionVerification"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.appPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.clipboardApproval"),
