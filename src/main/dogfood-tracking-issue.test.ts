@@ -177,6 +177,62 @@ describe("dogfood tracking issue sync", () => {
     expect(body).not.toContain("No accepted real tester report is linked yet for this alpha");
   });
 
+  it("uses verified accepted real reports rather than filled URL slots for gaps and assignments", async () => {
+    const { syncDogfoodTrackingIssue } = await import(pathToFileURL(modulePath).href) as {
+      syncDogfoodTrackingIssue: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const invalidReportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102",
+      "https://github.com/Sskift/skfiy/issues/103"
+    ];
+    const io = createMemoryIo({
+      existingTrackingIssueBody: [
+        "## Required Real Tester Count",
+        `- [ ] Tester 1 accepted report issue URL: ${invalidReportUrls[0]}`,
+        `- [ ] Tester 2 accepted report issue URL: ${invalidReportUrls[1]}`,
+        `- [ ] Tester 3 accepted report issue URL: ${invalidReportUrls[2]}`,
+        "- [ ] Optional tester 4 accepted report issue URL:",
+        "- [ ] Optional tester 5 accepted report issue URL:"
+      ].join("\n"),
+      reportIssues: Object.fromEntries(
+        invalidReportUrls.map((url, index) => [
+          url,
+          createReportIssue({
+            testerId: index === 2 ? "local-stale" : `tester-stale-${index + 1}`,
+            workflows: index === 0 ? ["coding-terminal"] : [],
+            labels: index === 0 ? ["workflow:coding-terminal"] : []
+          })
+        ])
+      )
+    });
+
+    await syncDogfoodTrackingIssue({
+      rootDir: "/repo",
+      manifestPath,
+      releaseUrl,
+      trackingIssueUrl,
+      outputPath,
+      dryRun: true
+    }, io);
+
+    const body = io.textFiles[outputPath];
+    expect(body).toContain("- [ ] Tester 1 accepted report issue URL: https://github.com/Sskift/skfiy/issues/101");
+    expect(body).toContain("- [ ] Tester 2 accepted report issue URL: https://github.com/Sskift/skfiy/issues/102");
+    expect(body).toContain("- [ ] Tester 3 accepted report issue URL: https://github.com/Sskift/skfiy/issues/103");
+    expect(body).toContain("- Verified accepted real tester reports: 0/3 minimum");
+    expect(body).toContain("- Tracking issue has 3 linked report URL(s), but only 0 verified accepted real tester report(s) currently count.");
+    expect(body).toContain("- Missing workflow coverage: coding-terminal, screenshot-inspection, finder-file, browser-fallback");
+    expect(body).toContain("- Missing passed workflow coverage: coding-terminal, screenshot-inspection, finder-file, browser-fallback");
+    expect(body).toContain("- `tester-1`: `coding-terminal,screenshot-inspection`");
+    expect(body).toContain("- `tester-2`: `finder-file`");
+    expect(body).toContain("- `tester-3`: `browser-fallback`");
+    expect(body).not.toContain("No default tester split is generated because the required tester slots are already filled.");
+  });
+
   it("adds a newly accepted report URL to the next tracking issue slot", async () => {
     const { syncDogfoodTrackingIssue } = await import(pathToFileURL(modulePath).href) as {
       syncDogfoodTrackingIssue: (
@@ -256,7 +312,10 @@ describe("dogfood tracking issue sync", () => {
   });
 });
 
-function createMemoryIo(options: { existingTrackingIssueBody?: string } = {}) {
+function createMemoryIo(options: {
+  existingTrackingIssueBody?: string;
+  reportIssues?: Record<string, { body: string; labels: string[] }>;
+} = {}) {
   const commands: Array<{ command: string; args: string[] }> = [];
   const textFiles: Record<string, string> = {};
 
@@ -302,7 +361,14 @@ function createMemoryIo(options: { existingTrackingIssueBody?: string } = {}) {
     },
     async readIssue(issueUrl: string) {
       if (issueUrl !== trackingIssueUrl) {
-        throw new Error(`Unexpected issue URL: ${issueUrl}`);
+        if (options.reportIssues?.[issueUrl]) {
+          return options.reportIssues[issueUrl];
+        }
+
+        return createReportIssue({
+          testerId: `tester-${issueUrl.split("/").pop() ?? "unknown"}`,
+          workflows: readDefaultWorkflowsForIssue(issueUrl)
+        });
       }
 
       return {
@@ -314,5 +380,55 @@ function createMemoryIo(options: { existingTrackingIssueBody?: string } = {}) {
       commands.push({ command, args });
       return { stdout: "", stderr: "" };
     }
+  };
+}
+
+function readDefaultWorkflowsForIssue(issueUrl: string) {
+  if (issueUrl.endsWith("/101")) {
+    return ["coding-terminal", "screenshot-inspection"];
+  }
+  if (issueUrl.endsWith("/102")) {
+    return ["finder-file"];
+  }
+  return ["browser-fallback"];
+}
+
+function createReportIssue({
+  testerId,
+  workflows,
+  labels
+}: {
+  testerId: string;
+  workflows: string[];
+  labels?: string[];
+}) {
+  const issueLabels = labels ?? [
+    "dogfood:accepted",
+    ...workflows.map((workflow) => `workflow:${workflow}`)
+  ];
+  return {
+    labels: issueLabels,
+    body: [
+      "### tester id",
+      testerId,
+      "### cohort workflows",
+      ...workflows.map((workflow) => `- [x] ${workflow}`),
+      "### Computer Use result",
+      "blocked",
+      "### commit sha",
+      "abcdef1234567890",
+      "### alpha manifest",
+      path.basename(manifestPath),
+      "### alpha zip",
+      "skfiy-0.1.0-abcdef1-macos-unsigned.zip",
+      "### UI pet drag evidence",
+      "result: passed",
+      "source: renderer-pointer-events-window-bounds",
+      "beforeBounds: {\"x\":1200,\"y\":820,\"width\":320,\"height\":224}",
+      "afterBounds: {\"x\":1200,\"y\":732,\"width\":320,\"height\":224}",
+      "totalDeltaY: -88",
+      "upwardMovement: true",
+      "suppressedClickAfterDrag: true"
+    ].join("\n")
   };
 }

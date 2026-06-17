@@ -380,17 +380,19 @@ After aggregating 3-5 single-user reports, run:
 ```bash
 npm run dogfood:cohort -- \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json \
-  --summary .skfiy-dogfood/internal-alpha-summary.md
+  --summary .skfiy-dogfood/internal-alpha-summary.md \
+  --json-output .skfiy-dogfood/internal-alpha-summary.json
 ```
 
-The cohort gate checks distinct real testers, required real-tester workflow coverage (`coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`), `appLaunchViaOpen=true`, `runnerHasTmux=false`, absolute alpha manifest and smoke artifact paths, `uiPetDragEvidence.verifiedBy=dogfood:report`, `stopTurnEvidence.verifiedBy=dogfood:report`, Screen Recording, Accessibility, Microphone, and Speech Recognition states, and accepted GitHub issue source metadata for every report. Each source must include `dogfood:accepted` plus matching `workflow:*` labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, and a source commit that matches the report `commitSha`. Workflow coverage is counted only from real tester reports that already satisfy the report-level gates, so a source-ineligible, artifact-ineligible, UI-pet-drag-ineligible, stop-turn-ineligible, or synthetic report cannot cover a required workflow. Reserved local synthetic tester ids such as `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` can preserve local packaged-app evidence, but they fail the real tester gate and coverage gates. `--summary` writes a short local Markdown readiness report showing missing workflows, blocking checks, per-tester status, issue links, distinct real tester count, synthetic report count, and a separate Passed Workflow Coverage section. This gate proves report quality and coverage; it does not mark the real dogfood complete until the cohort file contains reports from actual testers. A blocked real tester report can prove the packaged app/reporting chain for a workflow, but it is not passed product-path evidence; passed workflow coverage remains separate until the tester machine grants the required macOS permissions and the smoke result is `passed`.
+The cohort gate checks distinct real testers, required real-tester workflow coverage (`coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`), `appLaunchViaOpen=true`, `runnerHasTmux=false`, absolute alpha manifest and smoke artifact paths, `uiPetDragEvidence.verifiedBy=dogfood:report`, `stopTurnEvidence.verifiedBy=dogfood:report`, Screen Recording, Accessibility, Microphone, and Speech Recognition states, and accepted GitHub issue source metadata for every report. Each source must include `dogfood:accepted` plus matching `workflow:*` labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, and a source commit that matches the report `commitSha`. Workflow coverage is counted only from real tester reports that already satisfy the report-level gates, so a source-ineligible, artifact-ineligible, UI-pet-drag-ineligible, stop-turn-ineligible, or synthetic report cannot cover a required workflow. Reserved local synthetic tester ids such as `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` can preserve local packaged-app evidence, but they fail the real tester gate and coverage gates. `--summary` writes a short local Markdown readiness report showing missing workflows, blocking checks, per-tester status, issue links, distinct real tester count, synthetic report count, and a separate Passed Workflow Coverage section. `--json-output` writes the same gate result, blocking checks, workflow coverage, and passed workflow coverage as machine-readable JSON for dashboards and follow-up automation. This gate proves report quality and coverage; it does not mark the real dogfood complete until the cohort file contains reports from actual testers. A blocked real tester report can prove the packaged app/reporting chain for a workflow, but it is not passed product-path evidence; passed workflow coverage remains separate until the tester machine grants the required macOS permissions and the smoke result is `passed`.
 
 For the final product-path release gate, add `--require-passed`:
 
 ```bash
 npm run dogfood:cohort -- \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json \
-  --summary .skfiy-dogfood/internal-alpha-summary.md \
+  --summary .skfiy-dogfood/internal-alpha-summary-strict.md \
+  --json-output .skfiy-dogfood/internal-alpha-summary-strict.json \
   --require-passed
 ```
 

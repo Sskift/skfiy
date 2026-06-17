@@ -54,6 +54,7 @@ export function createDefaultDogfoodCohortOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     cohortPath: undefined,
     summaryPath: undefined,
+    jsonOutputPath: undefined,
     rootDir,
     requirePassed: false,
     help: false
@@ -73,6 +74,10 @@ export function parseDogfoodCohortArgs(argv, defaults) {
         break;
       case "--summary":
         options.summaryPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--json-output":
+        options.jsonOutputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--require-passed":
@@ -166,6 +171,7 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
     result: errors.length === 0 ? "passed" : "failed",
     cohortPath,
     summaryPath: typeof options.summaryPath === "string" ? options.summaryPath : undefined,
+    jsonOutputPath: typeof options.jsonOutputPath === "string" ? options.jsonOutputPath : undefined,
     errors,
     summary: createCohortSummary(reports, testerIds, requiredWorkflowCoverage, passedWorkflowCoverage),
     checks
@@ -182,13 +188,16 @@ export async function verifyDogfoodCohort(options, io = createDefaultIo()) {
     });
     await io.writeText(options.summaryPath, markdown);
   }
+  if (typeof options.jsonOutputPath === "string") {
+    await io.writeText(options.jsonOutputPath, `${JSON.stringify(result, null, 2)}\n`);
+  }
 
   return result;
 }
 
 export function createDogfoodCohortHelpText() {
   return [
-    "Usage: npm run dogfood:cohort -- --cohort <path> [--summary <markdown-path>]",
+    "Usage: npm run dogfood:cohort -- --cohort <path> [--summary <markdown-path>] [--json-output <json-path>]",
     "",
     "Verifies a skfiy internal dogfood cohort report.",
     "",
@@ -211,6 +220,7 @@ export function createDogfoodCohortHelpText() {
     "has at least one passed product-path report.",
     "",
     "Use --summary to write a short Markdown readiness report for maintainers."
+    + " Use --json-output to persist the same gate result, checks, errors, and coverage summary as machine-readable JSON."
   ].join("\n");
 }
 

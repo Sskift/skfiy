@@ -38,10 +38,13 @@ describe("dogfood cohort verifier", () => {
       ".skfiy-dogfood/internal-alpha-cohort.json",
       "--summary",
       ".skfiy-dogfood/internal-alpha-summary.md",
+      "--json-output",
+      ".skfiy-dogfood/internal-alpha-summary.json",
       "--require-passed"
     ], defaults)).toMatchObject({
       cohortPath: path.resolve(".skfiy-dogfood/internal-alpha-cohort.json"),
       summaryPath: path.resolve(".skfiy-dogfood/internal-alpha-summary.md"),
+      jsonOutputPath: path.resolve(".skfiy-dogfood/internal-alpha-summary.json"),
       requirePassed: true
     });
     expect(createDogfoodCohortHelpText()).toContain("coding-terminal");
@@ -54,6 +57,7 @@ describe("dogfood cohort verifier", () => {
     expect(createDogfoodCohortHelpText()).toContain("Workflow coverage counts only reports");
     expect(createDogfoodCohortHelpText()).toContain("--require-passed");
     expect(createDogfoodCohortHelpText()).toContain("local-*");
+    expect(createDogfoodCohortHelpText()).toContain("--json-output");
   });
 
   it("accepts a 3-person cohort that covers all required dogfood workflows", async () => {
@@ -640,6 +644,69 @@ describe("dogfood cohort verifier", () => {
     expect(io.files[summaryPath]).toContain("- browser-fallback");
     expect(io.files[summaryPath]).toContain("| tester-a | blocked | coding-terminal, screenshot-inspection | yes | https://github.com/Sskift/skfiy/issues/a |");
     expect(io.files[summaryPath]).toContain("| tester-b | blocked | finder-file | yes | https://github.com/Sskift/skfiy/issues/b |");
+  });
+
+  it("writes the cohort gate result as machine-readable JSON for automation", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const jsonOutputPath = "/repo/.skfiy-dogfood/internal-alpha-summary.json";
+    const io = createMemoryIo({
+      [cohortPath]: createCohort([
+        createReport("tester-a", ["coding-terminal", "screenshot-inspection"], "passed"),
+        createReport("tester-b", ["finder-file"], "blocked"),
+        createReport("tester-c", ["browser-fallback"], "blocked")
+      ])
+    });
+
+    await expect(verifyDogfoodCohort({
+      cohortPath,
+      jsonOutputPath,
+      requirePassed: true
+    }, io)).resolves.toMatchObject({
+      result: "failed",
+      jsonOutputPath,
+      errors: expect.arrayContaining([
+        expect.stringContaining("cohort.passedWorkflowCoverage.finder-file"),
+        expect.stringContaining("cohort.passedWorkflowCoverage.browser-fallback")
+      ])
+    });
+
+    const persisted = JSON.parse(io.files[jsonOutputPath] as string);
+    expect(persisted).toMatchObject({
+      result: "failed",
+      cohortPath,
+      jsonOutputPath,
+      summary: {
+        totalReports: 3,
+        distinctRealTesters: 3,
+        passedReports: 1,
+        permissionBlockedReports: 2,
+        requiredWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": true,
+          "browser-fallback": true
+        },
+        passedWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": false,
+          "browser-fallback": false
+        }
+      }
+    });
+    expect(persisted.errors).toEqual(expect.arrayContaining([
+      expect.stringContaining("cohort.passedWorkflowCoverage.finder-file"),
+      expect.stringContaining("cohort.passedWorkflowCoverage.browser-fallback")
+    ]));
+    expect(persisted.checks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "cohort.workflowCoverage.finder-file", ok: true }),
+      expect.objectContaining({ id: "cohort.passedWorkflowCoverage.finder-file", ok: false })
+    ]));
   });
 
   function createCohort(reports: unknown[]) {

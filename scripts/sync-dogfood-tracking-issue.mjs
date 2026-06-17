@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
+import { createDogfoodStatus } from "./dogfood-status.mjs";
 import { REQUIRED_DOGFOOD_WORKFLOWS } from "./verify-dogfood-cohort.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -96,7 +97,7 @@ export async function syncDogfoodTrackingIssue(options, io = createDefaultIo()) 
     : createReleaseUrlFromTrackingIssue(options.trackingIssueUrl, shortSha);
   const uiSmokeArtifact = await readOptionalJson(manifest.uiSmokeArtifactPath, io);
   const existingTrackingIssue = await readOptionalIssue(options.trackingIssueUrl, io);
-  const body = createDogfoodTrackingIssueBody({
+  const initialBody = createDogfoodTrackingIssueBody({
     rootDir,
     manifestPath: options.manifestPath,
     manifest,
@@ -105,6 +106,25 @@ export async function syncDogfoodTrackingIssue(options, io = createDefaultIo()) 
     acceptedReportIssueUrls: options.acceptedReportIssueUrls,
     existingBody: existingTrackingIssue?.body,
     uiSmokeArtifact
+  });
+  const dogfoodStatus = await createStatusForTrackingIssueBody({
+    rootDir,
+    manifestPath: options.manifestPath,
+    trackingIssueUrl: options.trackingIssueUrl,
+    trackingIssueFile: outputPath,
+    body: initialBody,
+    io
+  });
+  const body = createDogfoodTrackingIssueBody({
+    rootDir,
+    manifestPath: options.manifestPath,
+    manifest,
+    releaseUrl,
+    trackingIssueUrl: options.trackingIssueUrl,
+    acceptedReportIssueUrls: options.acceptedReportIssueUrls,
+    existingBody: existingTrackingIssue?.body,
+    uiSmokeArtifact,
+    dogfoodStatus
   });
 
   await io.mkdir(path.dirname(outputPath), { recursive: true });
@@ -150,7 +170,8 @@ export function createDogfoodTrackingIssueBody({
   trackingIssueUrl,
   acceptedReportIssueUrls,
   existingBody,
-  uiSmokeArtifact
+  uiSmokeArtifact,
+  dogfoodStatus
 }) {
   validateManifest(manifest);
   const shortSha = manifest.commitSha.slice(0, 7);
@@ -166,14 +187,32 @@ export function createDogfoodTrackingIssueBody({
     acceptedReportIssueUrls,
     trackingIssueUrl
   );
+  const linkedReportCount = preservedReportIssueUrls.length;
+  const verifiedRealAcceptedReportCount = readVerifiedRealAcceptedReportCount(
+    dogfoodStatus,
+    linkedReportCount
+  );
+  const workflowCoverageMissing = readCoverageMissing(
+    dogfoodStatus?.trackingIssue?.workflowCoverage
+  );
+  const passedWorkflowCoverageMissing = readCoverageMissing(
+    dogfoodStatus?.trackingIssue?.passedWorkflowCoverage
+  );
   const testerSlotLines = createTesterSlotLines(preservedReportIssueUrls);
   const testerAssignmentLines = createRecommendedTesterAssignmentLines({
-    acceptedReportCount: preservedReportIssueUrls.length,
+    acceptedReportCount: verifiedRealAcceptedReportCount,
     relativeManifestPath,
     releaseUrl,
     trackingIssueUrl
   });
-  const missingRealTesterCount = Math.max(0, 3 - preservedReportIssueUrls.length);
+  const missingRealTesterCount = Math.max(0, 3 - verifiedRealAcceptedReportCount);
+  const currentKnownGapLines = createCurrentKnownGapLines({
+    linkedReportCount,
+    verifiedRealAcceptedReportCount,
+    missingRealTesterCount,
+    workflowCoverageMissing,
+    passedWorkflowCoverageMissing
+  });
 
   return [
     "## Goal",
@@ -217,7 +256,8 @@ export function createDogfoodTrackingIssueBody({
     formatMultilineCommand("npm run dogfood:status --", [
       ["--manifest", relativeManifestPath],
       ["--tracking-issue-url", trackingIssueUrl],
-      ["--summary", `.skfiy-dogfood/status-${shortSha}.md`]
+      ["--summary", `.skfiy-dogfood/status-${shortSha}.md`],
+      ["--json-output", `.skfiy-dogfood/status-${shortSha}.json`]
     ]),
     "```",
     "",
@@ -270,7 +310,8 @@ export function createDogfoodTrackingIssueBody({
     "```bash",
     formatMultilineCommand("npm run dogfood:cohort --", [
       ["--cohort", `.skfiy-dogfood/internal-alpha-cohort-${shortSha}.json`],
-      ["--summary", `.skfiy-dogfood/internal-alpha-summary-${shortSha}.md`]
+      ["--summary", `.skfiy-dogfood/internal-alpha-summary-${shortSha}.md`],
+      ["--json-output", `.skfiy-dogfood/internal-alpha-summary-${shortSha}.json`]
     ]),
     "```",
     "",
@@ -280,14 +321,13 @@ export function createDogfoodTrackingIssueBody({
     formatMultilineCommand("npm run dogfood:cohort --", [
       ["--cohort", `.skfiy-dogfood/internal-alpha-cohort-${shortSha}.json`],
       ["--summary", `.skfiy-dogfood/internal-alpha-summary-${shortSha}-strict.md`],
+      ["--json-output", `.skfiy-dogfood/internal-alpha-summary-${shortSha}-strict.json`],
       ["--require-passed"]
     ]),
     "```",
     "",
     "## Current Known Gaps",
-    missingRealTesterCount >= 3
-      ? "- No accepted real tester report is linked yet for this alpha. The cohort still needs at least 3 distinct real tester reports."
-      : `- The cohort still needs at least ${missingRealTesterCount} more distinct real tester report${missingRealTesterCount === 1 ? "" : "s"}.`,
+    ...currentKnownGapLines,
     "- Passed native voice, Finder, Ghostty, screenshot, and browser product-path evidence still depends on testers granting macOS Screen Recording, Accessibility, Microphone, and Speech Recognition permissions to the alpha `skfiy.app` bundle.",
     "- Signing and notarization still require configured Apple Developer ID/notary credentials before broader distribution.",
     ""
@@ -327,6 +367,81 @@ function createResult({ result, dryRun, manifest, releaseUrl, trackingIssueUrl, 
       zipPath: manifest.zip.path
     }
   };
+}
+
+async function createStatusForTrackingIssueBody({
+  rootDir,
+  manifestPath,
+  trackingIssueUrl,
+  trackingIssueFile,
+  body,
+  io
+}) {
+  const statusIo = {
+    ...io,
+    async readText(filePath) {
+      if (path.resolve(filePath) === path.resolve(trackingIssueFile)) {
+        return body;
+      }
+      if (typeof io.readText === "function") {
+        return await io.readText(filePath);
+      }
+      throw new Error(`Unexpected text path: ${filePath}`);
+    },
+    async writeText() {}
+  };
+  const statusFactory = typeof io.createDogfoodStatus === "function"
+    ? io.createDogfoodStatus
+    : createDogfoodStatus;
+
+  return await statusFactory({
+    rootDir,
+    manifestPath,
+    trackingIssueUrl,
+    trackingIssueFile
+  }, statusIo);
+}
+
+function readVerifiedRealAcceptedReportCount(status, fallback) {
+  const count = status?.trackingIssue?.verifiedRealAcceptedReportCount;
+  return Number.isFinite(count) ? count : fallback;
+}
+
+function readCoverageMissing(coverage) {
+  return Array.isArray(coverage?.missing)
+    ? coverage.missing
+    : [...REQUIRED_DOGFOOD_WORKFLOWS];
+}
+
+function createCurrentKnownGapLines({
+  linkedReportCount,
+  verifiedRealAcceptedReportCount,
+  missingRealTesterCount,
+  workflowCoverageMissing,
+  passedWorkflowCoverageMissing
+}) {
+  const lines = [
+    `- Verified accepted real tester reports: ${verifiedRealAcceptedReportCount}/3 minimum`
+  ];
+
+  if (linkedReportCount === 0) {
+    lines.push("- No accepted real tester report is linked yet for this alpha. The cohort still needs at least 3 distinct real tester reports.");
+  } else if (linkedReportCount !== verifiedRealAcceptedReportCount) {
+    lines.push(`- Tracking issue has ${linkedReportCount} linked report URL(s), but only ${verifiedRealAcceptedReportCount} verified accepted real tester report(s) currently count.`);
+  }
+
+  if (linkedReportCount > 0 && missingRealTesterCount > 0) {
+    lines.push(`- The cohort still needs at least ${missingRealTesterCount} more distinct real tester report${missingRealTesterCount === 1 ? "" : "s"}.`);
+  }
+
+  lines.push(`- Missing workflow coverage: ${formatList(workflowCoverageMissing)}`);
+  lines.push(`- Missing passed workflow coverage: ${formatList(passedWorkflowCoverageMissing)}`);
+
+  return lines;
+}
+
+function formatList(values) {
+  return Array.isArray(values) && values.length > 0 ? values.join(", ") : "none";
 }
 
 async function readOptionalJson(filePath, io) {

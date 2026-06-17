@@ -220,17 +220,19 @@ After 3-5 single-user dogfood reports are collected, verify cross-user coverage:
 ```bash
 npm run dogfood:cohort -- \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json \
-  --summary .skfiy-dogfood/internal-alpha-summary.md
+  --summary .skfiy-dogfood/internal-alpha-summary.md \
+  --json-output .skfiy-dogfood/internal-alpha-summary.json
 ```
 
-The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `commitSha`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, absolute UI/Ghostty/Chrome/Finder/voice artifact paths, `uiPetDragEvidence` verified by `dogfood:report`, and `stopTurnEvidence` verified by `dogfood:report`. The verifier requires 3-5 distinct real testers, real-tester coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`, and source issue identity that matches the report manifest and commit. Workflow coverage is counted only from real tester reports that satisfy the report-level source, artifact, permission, LaunchServices, UI pet drag, stop-turn, and identity gates. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, issue links, distinct real tester count, synthetic report count, and separate passed workflow coverage without replacing the JSON verifier. A permission-blocked real tester report may cover a workflow for cohort source-quality purposes, but it does not count as passed product-path evidence.
+The cohort file is separate from the alpha manifest. It should list one report per tester with `testerId`, `result`, `manifestPath`, `commitSha`, `appLaunchViaOpen=true`, `runnerHasTmux=false`, `workflows`, `permissionStates`, accepted GitHub issue source metadata, matching accepted/workflow issue labels, `artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, absolute UI/Ghostty/Chrome/Finder/voice artifact paths, `uiPetDragEvidence` verified by `dogfood:report`, and `stopTurnEvidence` verified by `dogfood:report`. The verifier requires 3-5 distinct real testers, real-tester coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`, and source issue identity that matches the report manifest and commit. Workflow coverage is counted only from real tester reports that satisfy the report-level source, artifact, permission, LaunchServices, UI pet drag, stop-turn, and identity gates. The optional summary Markdown is local coordination output that shows missing workflows, blocking checks, per-tester status, issue links, distinct real tester count, synthetic report count, and separate passed workflow coverage. `--json-output` writes the same verifier result, checks, errors, and coverage summary for automation without relying on stdout capture. A permission-blocked real tester report may cover a workflow for cohort source-quality purposes, but it does not count as passed product-path evidence.
 
 When judging whether the cohort proves product-path execution rather than only source quality, run the strict passed gate:
 
 ```bash
 npm run dogfood:cohort -- \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json \
-  --summary .skfiy-dogfood/internal-alpha-summary.md \
+  --summary .skfiy-dogfood/internal-alpha-summary-strict.md \
+  --json-output .skfiy-dogfood/internal-alpha-summary-strict.json \
   --require-passed
 ```
 

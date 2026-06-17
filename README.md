@@ -159,10 +159,12 @@ npm run dogfood:collect -- \
   --summary .skfiy-dogfood/internal-alpha-summary.md
 npm run dogfood:cohort -- \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json \
-  --summary .skfiy-dogfood/internal-alpha-summary.md
+  --summary .skfiy-dogfood/internal-alpha-summary.md \
+  --json-output .skfiy-dogfood/internal-alpha-summary.json
 npm run dogfood:cohort -- \
   --cohort .skfiy-dogfood/internal-alpha-cohort.json \
   --summary .skfiy-dogfood/internal-alpha-summary-strict.md \
+  --json-output .skfiy-dogfood/internal-alpha-summary-strict.json \
   --require-passed
 ```
 
@@ -243,6 +245,9 @@ Workflow and passed workflow coverage in `dogfood:status` and
 `dogfood:cohort` count only verified accepted reports from real tester ids;
 `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` remain local evidence
 and cannot close required workflow coverage.
+Use `dogfood:cohort --json-output` to persist the final cohort gate result,
+blocking checks, workflow coverage, and passed workflow coverage as
+machine-readable JSON alongside the Markdown maintainer summary.
 `dogfood:status` also exposes `readiness.canRunPassedCohort` and a `Passed
 cohort gate ready` summary line, so maintainers can distinguish "ready to
 collect accepted reports" from "ready to run the final `--require-passed`
