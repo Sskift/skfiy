@@ -137,6 +137,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const passedWorkflowCoverage = readPassedReportWorkflowCoverage(reportIssueValidation);
   const smokeArtifacts = await readSmokeArtifacts(manifest, io);
   const artifactResults = readArtifactResults(smokeArtifacts);
+  const smokeArtifactProblems = readSmokeArtifactProblems(smokeArtifacts);
   const permissionBlockers = readPermissionBlockers(smokeArtifacts);
   const manifestChecks = await readManifestChecks(manifest, options, io);
   const missingRequiredReports = Math.max(0, 3 - verifiedRealAcceptedReportIssueUrls.length);
@@ -175,7 +176,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     passedWorkflowCoverage,
     invalidReportIssueCount,
     assignmentComment,
-    testerAssignmentCount: testerAssignments.length
+    testerAssignmentCount: testerAssignments.length,
+    smokeArtifactProblems
   });
 
   const status = {
@@ -425,16 +427,45 @@ async function readOptionalJson(filePath, io) {
     return undefined;
   }
 
-  return await io.readJson(filePath);
+  try {
+    return await io.readJson(filePath);
+  } catch (error) {
+    return {
+      artifactPath: filePath,
+      artifactReadStatus: isMissingFileError(error) ? "missing" : "unreadable",
+      artifactReadError: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 
 function readArtifactResults(smokeArtifacts) {
   return Object.fromEntries(
     Object.entries(smokeArtifacts).map(([name, artifact]) => [
       name,
-      typeof artifact?.result === "string" ? artifact.result : "missing"
+      typeof artifact?.result === "string"
+        ? artifact.result
+        : typeof artifact?.artifactReadStatus === "string"
+          ? artifact.artifactReadStatus
+          : "missing"
     ])
   );
+}
+
+function readSmokeArtifactProblems(smokeArtifacts) {
+  return Object.entries(smokeArtifacts)
+    .filter(([, artifact]) =>
+      artifact?.artifactReadStatus === "missing" || artifact?.artifactReadStatus === "unreadable"
+    )
+    .map(([name, artifact]) => ({
+      name,
+      status: artifact.artifactReadStatus,
+      path: artifact.artifactPath
+    }));
+}
+
+function isMissingFileError(error) {
+  return error?.code === "ENOENT"
+    || (error instanceof Error && /\bmissing\b|no such file/i.test(error.message));
 }
 
 function readPermissionBlockers(smokeArtifacts) {
@@ -625,7 +656,8 @@ function createNextActions({
   passedWorkflowCoverage,
   invalidReportIssueCount,
   assignmentComment,
-  testerAssignmentCount
+  testerAssignmentCount,
+  smokeArtifactProblems = []
 }) {
   const actions = [];
 
@@ -644,6 +676,12 @@ function createNextActions({
   }
   if (invalidReportIssueCount > 0) {
     actions.push("Review or replace stale/invalid dogfood report issue URLs before collecting the cohort.");
+  }
+  if (smokeArtifactProblems.length > 0) {
+    const summary = smokeArtifactProblems
+      .map((problem) => `${problem.name} (${problem.path})`)
+      .join(", ");
+    actions.push(`Regenerate or attach missing smoke artifacts before relying on local readiness: ${summary}.`);
   }
   if (workflowCoverage.missing.length > 0) {
     actions.push(`Collect accepted reports covering missing workflows: ${workflowCoverage.missing.join(", ")}.`);
