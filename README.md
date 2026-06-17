@@ -163,6 +163,10 @@ npm run dogfood:cohort -- \
   --require-passed
 ```
 
+The UI smoke uses the compiled app bundle, drags the real desktop pet upward,
+checks the native window bounds changed, verifies the post-drag click is
+suppressed, and then clicks the pet to capture permission onboarding evidence.
+
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.

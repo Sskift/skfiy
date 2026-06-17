@@ -812,6 +812,16 @@ ipcMain.on("skfiy:set-window-mode", (event, mode: unknown) => {
   setPetWindowMode(window, nextMode);
 });
 
+ipcMain.handle("skfiy:get-window-bounds", (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+
+  if (!window || window.isDestroyed()) {
+    return null;
+  }
+
+  return window.getBounds();
+});
+
 ipcMain.handle(
   "skfiy:run-command",
   async (event, command: unknown, options: { mode?: unknown } = {}) => {

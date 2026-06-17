@@ -144,6 +144,12 @@ beforeEach(() => {
         registered: true
       }
     }),
+    getWindowBounds: vi.fn<DesktopApi["getWindowBounds"]>().mockResolvedValue({
+      x: 100,
+      y: 100,
+      width: 320,
+      height: 224
+    }),
     moveWindowBy: vi.fn<DesktopApi["moveWindowBy"]>(),
     setWindowMode: vi.fn<DesktopApi["setWindowMode"]>(),
     onDictationProviderEvent: vi.fn((callback: (event: DictationProviderEvent) => void) => {

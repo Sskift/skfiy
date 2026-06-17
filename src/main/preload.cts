@@ -241,6 +241,13 @@ interface RuntimeStatus {
   };
 }
 
+interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   prepareDictation: () => Promise<DictationPreparation>;
@@ -282,6 +289,7 @@ interface DesktopApi {
   ) => Promise<PlannerProviderSettings>;
   getTurnReplay: () => Promise<TurnReplay | null>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
+  getWindowBounds: () => Promise<WindowBounds | null>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
@@ -435,6 +443,10 @@ const api: DesktopApi = {
         }
       };
   },
+  async getWindowBounds() {
+    const payload = await ipcRenderer.invoke("skfiy:get-window-bounds");
+    return isWindowBounds(payload) ? payload : null;
+  },
   moveWindowBy(deltaX, deltaY) {
     ipcRenderer.send("skfiy:move-window-by", deltaX, deltaY);
   },
@@ -565,6 +577,24 @@ function isDictationProviderSelection(value: unknown): value is DictationProvide
 
 function isPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function isWindowBounds(value: unknown): value is WindowBounds {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const bounds = value as Partial<WindowBounds>;
+  return (
+    typeof bounds.x === "number"
+    && Number.isFinite(bounds.x)
+    && typeof bounds.y === "number"
+    && Number.isFinite(bounds.y)
+    && typeof bounds.width === "number"
+    && Number.isFinite(bounds.width)
+    && typeof bounds.height === "number"
+    && Number.isFinite(bounds.height)
+  );
 }
 
 function isAppPolicySettings(value: unknown): value is AppPolicySettings {

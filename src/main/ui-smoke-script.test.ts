@@ -61,6 +61,20 @@ describe("packaged UI product smoke script", () => {
       runnerHasTmux: false,
       productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
       petClicked: true,
+      petDrag: {
+        result: "passed",
+        source: "renderer-pointer-events-window-bounds",
+        beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
+        afterBounds: { x: 1212, y: 732, width: 320, height: 224 },
+        moveEvents: [
+          { deltaX: 12, deltaY: -58 },
+          { deltaX: 0, deltaY: -30 }
+        ],
+        totalDeltaX: 12,
+        totalDeltaY: -88,
+        upwardMovement: true,
+        suppressedClickAfterDrag: true
+      },
       onboardingVisible: true,
       permissionRows: [
         { label: "屏幕录制", stateText: "未授权" },
@@ -82,6 +96,24 @@ describe("packaged UI product smoke script", () => {
       ...passedEvidence,
       runnerHasTmux: true
     })).toBe("failed");
+    expect(classifyUiSmokeEvidence({
+      ...passedEvidence,
+      petDrag: undefined
+    })).toBe("missing-pet-drag");
+    expect(classifyUiSmokeEvidence({
+      ...passedEvidence,
+      petDrag: {
+        result: "passed",
+        source: "renderer-pointer-events-window-bounds",
+        beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
+        afterBounds: { x: 1212, y: 844, width: 320, height: 224 },
+        moveEvents: [{ deltaX: 12, deltaY: 24 }],
+        totalDeltaX: 12,
+        totalDeltaY: 24,
+        upwardMovement: false,
+        suppressedClickAfterDrag: true
+      }
+    })).toBe("missing-pet-drag");
     expect(classifyUiSmokeEvidence({
       ...passedEvidence,
       permissionRows: [
@@ -108,5 +140,17 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("aria-label=\"权限引导\"");
     expect(source).toContain("permissionSettingTargets");
     expect(source).toContain("window.skfiy.getPermissions()");
+    expect(source).toContain("getWindowBounds");
+    expect(source).toContain("dispatchPetPointerEvent(pet, \"pointerdown\"");
+    expect(source).toContain("dispatchPetPointerEvent(pet, \"pointermove\"");
+    expect(source).toContain("pet.dispatchEvent(new PointerEvent(type");
+    expect(source).toContain("petDrag");
+    expect(source).toContain("suppressedClickAfterDrag");
+    expect(source).toContain("createInspectPermissionOnboardingExpression");
+    expect(source).toContain("exercisePetDrag.toString()");
+    expect(source).toContain("dispatchPetPointerEvent.toString()");
+    expect(source).toContain("hasWindowBounds.toString()");
+    expect(source).toContain("formatRuntimeExceptionDetails");
+    expect(source).toContain("exceptionDetails.exception?.description");
   });
 });

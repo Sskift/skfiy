@@ -156,6 +156,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - [x] Computer Use preflight blocks before opening Ghostty when Screen Recording or Accessibility is not granted, while keeping approval-first behavior for medium/high risk commands.
   - [x] Left-click voice entry opens a permission onboarding panel before dictation when required permissions are denied or not determined.
   - [x] UI smoke and dogfood verifier require direct permission setting targets for Screen Recording, Accessibility, Microphone, and Speech Recognition.
+  - [x] UI smoke and dogfood verifier require `petDrag` evidence with renderer pointer events, real `beforeBounds`/`afterBounds`, upward movement, and suppressed click-after-drag behavior.
 - [x] Refactor dictation into a provider interface.
 - [x] Keep Doubao as a provider, but add provider state events:
   - [x] unavailable
@@ -185,7 +186,7 @@ Goal: remove permission confusion, make voice lifecycle explicit, make app ident
   - app launched via `open` has no tw-dashboard permission prompt
   - left-click starts listening or gives actionable provider error
   - current packaged UI check on 2026-06-16: CDP-clicking the pet in `dist/skfiy.app` opened `权限引导` with Screen Recording, Accessibility, Microphone, and Speech Recognition rows when permissions were denied/not-determined
-  - repeatable packaged UI smoke now exists: `npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json`; it launches `dist/skfiy.app`, clicks the real renderer pet through DOM events, records onboarding visibility and permission rows, and shares the product smoke lock with Ghostty/voice runs
+  - repeatable packaged UI smoke now exists: `npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json`; it launches `dist/skfiy.app`, drags the real renderer pet upward through DOM pointer events, records `petDrag.beforeBounds`/`petDrag.afterBounds`, clicks the pet, records onboarding visibility and permission rows, and shares the product smoke lock with Ghostty/voice runs
   - voice submit path now flows through renderer -> preload -> main `submit-dictation`, finalizes a voice session, then enters the existing Computer Use command path
   - browser ASR transcript updates now flow through renderer -> preload -> main `update-dictation-transcript` before submit
   - browser ASR auto-submit requires a final candidate and does not run low-confidence candidates

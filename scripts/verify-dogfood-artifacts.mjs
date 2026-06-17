@@ -448,6 +448,12 @@ function verifyUiSmoke(artifact, expectedPath, options, checks) {
     artifact.petClicked === true,
     "UI smoke must click the real desktop pet"
   );
+  check(
+    checks,
+    "ui.petDrag",
+    hasPetDragEvidence(artifact.petDrag),
+    "UI smoke must drag the real desktop pet upward and suppress the click after drag"
+  );
 
   if (artifact.result === "passed") {
     check(
@@ -1044,6 +1050,32 @@ function hasRequiredPermissionSettingTargets(value) {
       && target?.buttonLabel === required.buttonLabel
     )
   );
+}
+
+function hasPetDragEvidence(petDrag) {
+  if (!petDrag || petDrag.result !== "passed") {
+    return false;
+  }
+
+  return petDrag.source === "renderer-pointer-events-window-bounds"
+    && hasWindowBounds(petDrag.beforeBounds)
+    && hasWindowBounds(petDrag.afterBounds)
+    && Array.isArray(petDrag.moveEvents)
+    && petDrag.moveEvents.length > 0
+    && Number.isFinite(petDrag.totalDeltaX)
+    && Number.isFinite(petDrag.totalDeltaY)
+    && petDrag.totalDeltaY < 0
+    && petDrag.upwardMovement === true
+    && petDrag.suppressedClickAfterDrag === true;
+}
+
+function hasWindowBounds(bounds) {
+  return bounds
+    && typeof bounds === "object"
+    && Number.isFinite(bounds.x)
+    && Number.isFinite(bounds.y)
+    && Number.isFinite(bounds.width)
+    && Number.isFinite(bounds.height);
 }
 
 function hasBlockingPermission(permissions) {

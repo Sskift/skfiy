@@ -186,6 +186,13 @@ export interface RuntimeStatus {
   };
 }
 
+export interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface TaskEvent {
   status: TaskStatus;
   message?: string;
@@ -288,6 +295,7 @@ export interface DesktopApi {
   ) => Promise<PlannerProviderSettings>;
   getTurnReplay: () => Promise<TurnReplay | null>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
+  getWindowBounds: () => Promise<WindowBounds | null>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
@@ -505,6 +513,7 @@ const fallbackApi: DesktopApi = {
       registered: false
     }
   }),
+  getWindowBounds: async () => null,
   moveWindowBy: () => undefined,
   setWindowMode: () => undefined,
   onDictationProviderEvent: () => () => undefined,

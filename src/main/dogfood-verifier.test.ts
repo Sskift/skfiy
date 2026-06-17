@@ -391,6 +391,20 @@ describe("dogfood artifact verifier", () => {
     ],
     processesAfterCleanup: ["123 skfiy.app"]
   });
+  const createUiPetDragEvidence = () => ({
+    result: "passed",
+    source: "renderer-pointer-events-window-bounds",
+    beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
+    afterBounds: { x: 1212, y: 732, width: 320, height: 224 },
+    moveEvents: [
+      { deltaX: 12, deltaY: -58 },
+      { deltaX: 0, deltaY: -30 }
+    ],
+    totalDeltaX: 12,
+    totalDeltaY: -88,
+    upwardMovement: true,
+    suppressedClickAfterDrag: true
+  });
   const createUiSmokeArtifact = (artifactPath: string) => ({
     result: "passed",
     appLaunchViaOpen: true,
@@ -398,6 +412,7 @@ describe("dogfood artifact verifier", () => {
     productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
     artifactPath,
     petClicked: true,
+    petDrag: createUiPetDragEvidence(),
     onboardingVisible: true,
     permissionRows: [
       { label: "屏幕录制", state: "denied", stateText: "未授权" },
@@ -568,6 +583,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         artifactPath: uiSmokePath,
         petClicked: true,
+        petDrag: createUiPetDragEvidence(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制", state: "denied", stateText: "未授权" },
@@ -841,6 +857,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         artifactPath: uiSmokePath,
         petClicked: true,
+        petDrag: createUiPetDragEvidence(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制" },
@@ -977,6 +994,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         artifactPath: uiSmokePath,
         petClicked: true,
+        petDrag: createUiPetDragEvidence(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制" },
@@ -1134,6 +1152,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         artifactPath: uiSmokePath,
         petClicked: true,
+        petDrag: createUiPetDragEvidence(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制" },
@@ -1301,6 +1320,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         artifactPath: uiSmokePath,
         petClicked: true,
+        petDrag: createUiPetDragEvidence(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制" },
@@ -1440,6 +1460,7 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("ui.runnerHasTmux"),
         expect.stringContaining("ui.productPath"),
         expect.stringContaining("ui.petClicked"),
+        expect.stringContaining("ui.petDrag"),
         expect.stringContaining("ui.permissionRows"),
         expect.stringContaining("ui.processesAfterCleanup"),
         expect.stringContaining("ghostty.runnerHasTmux"),
@@ -1620,6 +1641,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         artifactPath: uiSmokePath,
         petClicked: true,
+        petDrag: createUiPetDragEvidence(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制", state: "denied", stateText: "未授权" },
@@ -1716,6 +1738,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         artifactPath: uiSmokePath,
         petClicked: true,
+        petDrag: createUiPetDragEvidence(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制" },
@@ -1870,6 +1893,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         artifactPath: uiSmokePath,
         petClicked: true,
+        petDrag: createUiPetDragEvidence(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制" },
@@ -1956,6 +1980,7 @@ describe("dogfood artifact verifier", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         artifactPath: uiSmokePath,
         petClicked: true,
+        petDrag: createUiPetDragEvidence(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制" },

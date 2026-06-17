@@ -42,6 +42,7 @@ async function main() {
     startupWarnings: undefined,
     runtimeStatus: undefined,
     petClicked: false,
+    petDrag: undefined,
     onboardingVisible: false,
     permissionRows: [],
     permissionSettingTargets: [],
@@ -78,7 +79,7 @@ async function main() {
         evidence,
         await evaluateValue(
           cdp,
-          `(${inspectPermissionOnboardingExpression.toString()})(${JSON.stringify(options.settleMs)})`
+          createInspectPermissionOnboardingExpression(options.settleMs)
         )
       );
       evidence.result = classifyUiSmokeEvidence(evidence);
@@ -211,10 +212,34 @@ async function evaluateValue(cdp, expression) {
   });
 
   if (response.exceptionDetails) {
-    throw new Error(response.exceptionDetails.text ?? "Renderer evaluation failed.");
+    throw new Error(formatRuntimeExceptionDetails(response.exceptionDetails));
   }
 
   return response.result?.value;
+}
+
+function createInspectPermissionOnboardingExpression(settleMs) {
+  return [
+    "(() => {",
+    inspectPermissionOnboardingExpression.toString(),
+    exercisePetDrag.toString(),
+    dispatchPetPointerEvent.toString(),
+    hasWindowBounds.toString(),
+    `return inspectPermissionOnboardingExpression(${JSON.stringify(settleMs)});`,
+    "})()"
+  ].join("\n");
+}
+
+function formatRuntimeExceptionDetails(exceptionDetails) {
+  const parts = [
+    exceptionDetails.exception?.description,
+    exceptionDetails.text,
+    exceptionDetails.stackTrace?.callFrames
+      ?.map((frame) => `${frame.functionName || "<anonymous>"}:${frame.lineNumber + 1}:${frame.columnNumber + 1}`)
+      .join("\n")
+  ].filter(Boolean);
+
+  return parts.join("\n") || "Renderer evaluation failed.";
 }
 
 async function quitSkfiy() {
@@ -237,7 +262,7 @@ async function readProcessLines(pattern) {
     .filter(Boolean);
 }
 
-function inspectPermissionOnboardingExpression(settleMs) {
+async function inspectPermissionOnboardingExpression(settleMs) {
   const permissionTargets = {
     "屏幕录制": "screen-recording",
     "辅助功能": "accessibility",
@@ -247,6 +272,7 @@ function inspectPermissionOnboardingExpression(settleMs) {
   const pet = Array.from(document.querySelectorAll("[aria-label]")).find((element) =>
     /skfiy codex-style pet/i.test(element.getAttribute("aria-label") ?? "")
   );
+  const petDrag = await exercisePetDrag(pet);
 
   if (pet) {
     pet.dispatchEvent(new MouseEvent("click", {
@@ -284,6 +310,7 @@ function inspectPermissionOnboardingExpression(settleMs) {
 
       resolve({
         petClicked: Boolean(pet),
+        petDrag,
         onboardingVisible: Boolean(onboarding),
         permissionRows,
         permissionSettingTargets,
@@ -291,6 +318,99 @@ function inspectPermissionOnboardingExpression(settleMs) {
       });
     }, settleMs);
   });
+}
+
+async function exercisePetDrag(pet) {
+  const skfiy = window.skfiy;
+  const moveEvents = [
+    { deltaX: 12, deltaY: -58 },
+    { deltaX: 0, deltaY: -30 }
+  ];
+
+  if (
+    !pet
+    || typeof PointerEvent !== "function"
+    || typeof skfiy?.moveWindowBy !== "function"
+    || typeof skfiy?.getWindowBounds !== "function"
+  ) {
+    return {
+      result: "missing",
+      source: "renderer-pointer-events-window-bounds",
+      beforeBounds: null,
+      afterBounds: null,
+      moveEvents,
+      totalDeltaX: 0,
+      totalDeltaY: 0,
+      upwardMovement: false,
+      suppressedClickAfterDrag: false
+    };
+  }
+
+  const beforeBounds = await skfiy.getWindowBounds();
+
+  dispatchPetPointerEvent(pet, "pointerdown", { screenX: 100, screenY: 100, buttons: 1 });
+  dispatchPetPointerEvent(pet, "pointermove", { screenX: 112, screenY: 42, buttons: 1 });
+  dispatchPetPointerEvent(pet, "pointermove", { screenX: 112, screenY: 12, buttons: 1 });
+  dispatchPetPointerEvent(pet, "pointerup", { screenX: 112, screenY: 12, buttons: 0 });
+  await new Promise((resolve) => window.setTimeout(resolve, 250));
+
+  const afterBounds = await skfiy.getWindowBounds();
+
+  pet.dispatchEvent(new MouseEvent("click", {
+    bubbles: true,
+    cancelable: true,
+    view: window
+  }));
+
+  const totalDeltaX = hasWindowBounds(beforeBounds) && hasWindowBounds(afterBounds)
+    ? afterBounds.x - beforeBounds.x
+    : 0;
+  const totalDeltaY = hasWindowBounds(beforeBounds) && hasWindowBounds(afterBounds)
+    ? afterBounds.y - beforeBounds.y
+    : 0;
+  const suppressedClickAfterDrag = !document.querySelector('[aria-label="权限引导"]');
+
+  return {
+    result: hasWindowBounds(beforeBounds)
+      && hasWindowBounds(afterBounds)
+      && totalDeltaY < 0
+      && suppressedClickAfterDrag
+      ? "passed"
+      : "failed",
+    source: "renderer-pointer-events-window-bounds",
+    beforeBounds,
+    afterBounds,
+    moveEvents,
+    totalDeltaX,
+    totalDeltaY,
+    upwardMovement: totalDeltaY < 0,
+    suppressedClickAfterDrag
+  };
+}
+
+function dispatchPetPointerEvent(pet, type, { screenX, screenY, buttons }) {
+  pet.dispatchEvent(new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+    pointerId: 41,
+    pointerType: "mouse",
+    button: 0,
+    buttons,
+    screenX,
+    screenY,
+    clientX: 48,
+    clientY: 48
+  }));
+}
+
+function hasWindowBounds(bounds) {
+  return bounds
+    && typeof bounds === "object"
+    && Number.isFinite(bounds.x)
+    && Number.isFinite(bounds.y)
+    && Number.isFinite(bounds.width)
+    && Number.isFinite(bounds.height);
 }
 
 function sleep(ms) {
