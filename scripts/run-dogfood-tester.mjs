@@ -213,6 +213,7 @@ export function createDogfoodTesterPlan(options) {
 
   return {
     rootDir,
+    manifestPath: options.manifestPath,
     testerId,
     workflows: [...options.workflows],
     appPath,
@@ -540,31 +541,59 @@ function createDogfoodTesterSummary({
 
   lines.push(
     "## Filing",
-    "",
-    ...(filedIssue
-      ? [`Filed GitHub report: ${filedIssue.issueUrl}`]
-      : ["This runner did not file or accept a GitHub report. File the generated issue body manually with:"]),
-    "",
-    "```bash",
-    formatCommand("gh", [
-      "issue",
-      "create",
-      "--repo",
-      DEFAULT_DOGFOOD_REPOSITORY,
-      "--title",
-      `skfiy dogfood report: ${plan.testerId}`,
-      "--body-file",
-      plan.issueOutputPath
-    ]),
-    "```",
-    "",
-    filedIssue
-      ? "This runner did not accept the report, add labels, edit the tracking issue, or count it toward the cohort."
-      : "Do not add `dogfood:accepted` or `workflow:*` labels yourself. Maintainers must review it and add dogfood:accepted plus workflow labels before dogfood:collect can count it.",
     ""
   );
 
+  if (filedIssue) {
+    lines.push(
+      `Filed GitHub report: ${filedIssue.issueUrl}`,
+      "",
+      "Maintainer review command:",
+      "",
+      "```bash",
+      createMaintainerReviewCommand(plan, filedIssue.issueUrl),
+      "```",
+      "",
+      "This runner did not accept the report, add labels, edit the tracking issue, or count it toward the cohort.",
+      ""
+    );
+  } else {
+    lines.push(
+      "This runner did not file or accept a GitHub report. File the generated issue body manually with:",
+      "",
+      "```bash",
+      formatCommand("gh", [
+        "issue",
+        "create",
+        "--repo",
+        DEFAULT_DOGFOOD_REPOSITORY,
+        "--title",
+        `skfiy dogfood report: ${plan.testerId}`,
+        "--body-file",
+        plan.issueOutputPath
+      ]),
+      "```",
+      "",
+      "Do not add `dogfood:accepted` or `workflow:*` labels yourself. Maintainers must review it and add dogfood:accepted plus workflow labels before dogfood:collect can count it.",
+      ""
+    );
+  }
+
   return lines.join("\n");
+}
+
+function createMaintainerReviewCommand(plan, issueUrl) {
+  return formatCommand("npm", [
+    "run",
+    "dogfood:review",
+    "--",
+    "--manifest",
+    plan.manifestPath,
+    "--issue-url",
+    issueUrl,
+    "--summary",
+    path.join(plan.rootDir, ".skfiy-dogfood", "reviews", `${plan.testerId}.md`)
+  ]);
 }
 
 function readSmokeResultRows(commandResults) {

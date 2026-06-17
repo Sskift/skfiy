@@ -388,10 +388,20 @@ describe("dogfood tester runner", () => {
       ]
     });
     expect(io.commands.at(-1)?.args).not.toContain("--label");
-    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+    const summary = io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"];
+    expect(summary).toContain(
       "Filed GitHub report: https://github.com/Sskift/skfiy/issues/211"
     );
-    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+    expect(summary).toContain(
+      "Maintainer review command:"
+    );
+    expect(summary).toContain(
+      "npm run dogfood:review -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --issue-url https://github.com/Sskift/skfiy/issues/211 --summary /repo/.skfiy-dogfood/reviews/tester-a.md"
+    );
+    expect(summary).not.toContain(
+      "gh issue create --repo Sskift/skfiy --title \"skfiy dogfood report: tester-a\""
+    );
+    expect(summary).toContain(
       "This runner did not accept the report, add labels, edit the tracking issue, or count it toward the cohort."
     );
   });
