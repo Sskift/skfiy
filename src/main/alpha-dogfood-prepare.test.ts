@@ -343,6 +343,45 @@ describe("alpha dogfood preparation", () => {
     expect(result.plan.nextCommands.tester).not.toContain("--workflows finder-file");
   });
 
+  it("reads GitHub tracking issue comments in the default CLI issue query", async () => {
+    const {
+      createGitHubIssueViewCommand,
+      normalizeGitHubIssueViewPayload
+    } = await import(pathToFileURL(modulePath).href) as {
+      createGitHubIssueViewCommand: (issueUrl: string) => { command: string; args: string[] };
+      normalizeGitHubIssueViewPayload: (payload: Record<string, unknown>) => {
+        body: string;
+        comments: Array<{ body: string }>;
+      };
+    };
+
+    expect(createGitHubIssueViewCommand("https://github.com/Sskift/skfiy/issues/1")).toEqual({
+      command: "gh",
+      args: [
+        "issue",
+        "view",
+        "1",
+        "--repo",
+        "Sskift/skfiy",
+        "--json",
+        "body,comments"
+      ]
+    });
+    expect(normalizeGitHubIssueViewPayload({
+      body: "issue body",
+      comments: [
+        { body: "first assignment packet" },
+        { body: "" },
+        { note: "ignored" }
+      ]
+    })).toEqual({
+      body: "issue body",
+      comments: [
+        { body: "first assignment packet" }
+      ]
+    });
+  });
+
   it("allows synthetic prepare tester ids only for the generated maintainer handoff command", async () => {
     const { createPrepareAlphaDogfoodPlan } = await import(pathToFileURL(modulePath).href) as {
       createPrepareAlphaDogfoodPlan: (input: Record<string, unknown>) => Record<string, unknown>;

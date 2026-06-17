@@ -670,26 +670,49 @@ function createDefaultIo() {
       return { stdout, stderr, exitCode: 0 };
     },
     async readIssue(issueUrl) {
-      const issue = parseGitHubIssueUrl(issueUrl);
-      const { stdout } = await execFileAsync("gh", [
-        "issue",
-        "view",
-        issue.number,
-        "--repo",
-        issue.repository,
-        "--json",
-        "body"
-      ], {
+      const command = createGitHubIssueViewCommand(issueUrl);
+      const { stdout } = await execFileAsync(command.command, command.args, {
         cwd: DEFAULT_ROOT_DIR,
         maxBuffer: 64 * 1024 * 1024
       });
-      const payload = JSON.parse(stdout);
-
-      return {
-        body: typeof payload.body === "string" ? payload.body : ""
-      };
+      return normalizeGitHubIssueViewPayload(JSON.parse(stdout));
     }
   };
+}
+
+export function createGitHubIssueViewCommand(issueUrl) {
+  const issue = parseGitHubIssueUrl(issueUrl);
+  return {
+    command: "gh",
+    args: [
+      "issue",
+      "view",
+      issue.number,
+      "--repo",
+      issue.repository,
+      "--json",
+      "body,comments"
+    ]
+  };
+}
+
+export function normalizeGitHubIssueViewPayload(payload) {
+  return {
+    body: typeof payload?.body === "string" ? payload.body : "",
+    comments: readCommentPayloads(payload?.comments)
+  };
+}
+
+function readCommentPayloads(comments) {
+  const entries = Array.isArray(comments)
+    ? comments
+    : Array.isArray(comments?.nodes)
+      ? comments.nodes
+      : [];
+
+  return entries
+    .map((comment) => ({ body: typeof comment?.body === "string" ? comment.body : "" }))
+    .filter((comment) => comment.body.trim().length > 0);
 }
 
 function parseGitHubIssueUrl(issueUrl) {
