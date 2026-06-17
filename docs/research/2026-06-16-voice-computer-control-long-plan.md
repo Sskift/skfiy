@@ -445,6 +445,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
       --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md
     ```
     - assignment packet now includes `Permission Preflight`, listing Screen Recording, Accessibility, Microphone, and Speech Recognition states and instructing testers to add `--require-passed` only after all four permissions are granted to the extracted `skfiy.app`
+    - assignment packet now includes `Evidence Preview Gate`, instructing testers to confirm `reportPreviewEligibility.eligible=true` before filing and preserving UI pet drag evidence from the packaged app when the preview is blocked
     - assignment packet dry-run now exposes a GitHub issue comment command, while `--execute` posts the packet to the tracking issue as a GitHub issue comment without accepting evidence
   - [x] `dogfood:status` now reads GitHub tracking issue comments and reports whether the current `skfiy-alpha-<commit>` tester assignment packet with `Permission Preflight` is already posted, adding a next action when assignments exist but the current packet comment is missing
   - [ ] `coding-terminal` workflow reports from actual testers

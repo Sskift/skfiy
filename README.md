@@ -184,6 +184,11 @@ lists Screen Recording, Accessibility, Microphone, and Speech Recognition states
 from the current smoke evidence and tells testers to use `--require-passed` only
 after all four permissions are granted to the extracted `skfiy.app`; otherwise
 they should file normal blocked evidence for maintainer review.
+It also includes an `Evidence Preview Gate` section that tells testers to confirm
+`reportPreviewEligibility.eligible=true` before filing and to preserve the
+blocking checks when it is false. That gate calls out UI pet drag evidence
+explicitly, including renderer pointer events, before/after bounds, upward
+movement, and suppressed click-after-drag from the packaged app.
 The generated tester/review commands use
 `<path-to-downloaded-alpha-manifest.json>` so testers replace it with the
 manifest path produced by `dogfood:prepare-alpha` on their own machine, instead

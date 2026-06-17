@@ -174,6 +174,11 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
     lines.push(`- ${label}: ${permissionStates[permission] ?? "unknown"}`);
   }
 
+  lines.push("", "## Evidence Preview Gate", "");
+  lines.push("Before filing, confirm the generated `dogfood:issue -- --check-report` output shows `reportPreviewEligibility.eligible=true`.");
+  lines.push("The report preview must include UI pet drag evidence from the packaged app: renderer pointer events, before/after bounds, upward movement, and suppressed click-after-drag.");
+  lines.push("If `reportPreviewEligibility.eligible=false`, file the blocked evidence only after preserving the blocking checks for maintainer review.");
+
   lines.push("", "## Tester Packets", "");
   if (assignments.length === 0) {
     lines.push("- none");

@@ -103,6 +103,10 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("If permissions are still blocked, run the normal tester command and file the blocked evidence instead of adding `--require-passed`.");
     expect(packet).toContain("Screen Recording: denied");
     expect(packet).toContain("Accessibility: denied");
+    expect(packet).toContain("## Evidence Preview Gate");
+    expect(packet).toContain("Before filing, confirm the generated `dogfood:issue -- --check-report` output shows `reportPreviewEligibility.eligible=true`.");
+    expect(packet).toContain("The report preview must include UI pet drag evidence from the packaged app: renderer pointer events, before/after bounds, upward movement, and suppressed click-after-drag.");
+    expect(packet).toContain("If `reportPreviewEligibility.eligible=false`, file the blocked evidence only after preserving the blocking checks for maintainer review.");
     expect(packet).toContain("## tester-1");
     expect(packet).toContain("Workflows: coding-terminal, screenshot-inspection");
     expect(packet).toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc1234");
@@ -174,6 +178,9 @@ describe("dogfood tester assignment packet", () => {
       expect(document).toContain("--output .skfiy-dogfood/assignments/");
       expect(document).toContain("non-mutating");
       expect(document).toContain("Permission Preflight");
+      expect(document).toContain("Evidence Preview Gate");
+      expect(document).toContain("reportPreviewEligibility.eligible=true");
+      expect(document).toContain("UI pet drag evidence");
       expect(document).toContain("`--require-passed`");
       expect(document).toContain("GitHub issue comment");
       expect(document).toContain("`--execute`");
