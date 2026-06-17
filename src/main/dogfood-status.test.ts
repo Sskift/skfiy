@@ -1443,6 +1443,86 @@ describe("dogfood status reporter", () => {
       ])
     });
   });
+
+  it("does not count accepted report issues without UI pet drag evidence", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const reportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102",
+      "https://github.com/Sskift/skfiy/issues/103"
+    ];
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody(reportUrls),
+        labels: ["skfiy", "dogfood"]
+      },
+      [reportUrls[0]]: createAcceptedReportIssue("tester-a", ["coding-terminal"], {
+        includeUiPetDragEvidence: false
+      }),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-b", ["finder-file"]),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-c", ["browser-fallback"])
+    });
+
+    await expect(createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      result: "waiting-for-dogfood",
+      trackingIssue: {
+        verifiedAcceptedReportCount: 2,
+        missingRequiredReports: 1,
+        reportIssueValidation: [
+          {
+            issueUrl: reportUrls[0],
+            ok: false,
+            reasons: ["missing UI pet drag evidence"]
+          },
+          {
+            issueUrl: reportUrls[1],
+            ok: true,
+            reasons: []
+          },
+          {
+            issueUrl: reportUrls[2],
+            ok: true,
+            reasons: []
+          }
+        ],
+        workflowCoverage: {
+          covered: ["finder-file", "browser-fallback"],
+          missing: ["coding-terminal", "screenshot-inspection"]
+        }
+      },
+      readiness: {
+        canRunCollect: false
+      }
+    });
+  });
 });
 
 function createManifest({
@@ -1568,10 +1648,9 @@ function createTrackingIssueBody(
 function createAcceptedReportIssue(
   testerId: string,
   workflows: string[],
-  options: { commitSha?: string; labels?: string[]; result?: string } = {}
+  options: { commitSha?: string; labels?: string[]; result?: string; includeUiPetDragEvidence?: boolean } = {}
 ) {
-  return {
-    body: [
+  const body = [
       "### alpha manifest",
       "",
       path.basename(manifestPath),
@@ -1594,11 +1673,34 @@ function createAcceptedReportIssue(
       `- [${workflows.includes("screenshot-inspection") ? "x" : " "}] screenshot-inspection`,
       `- [${workflows.includes("finder-file") ? "x" : " "}] finder-file`,
       `- [${workflows.includes("browser-fallback") ? "x" : " "}] browser-fallback`,
+      ""
+    ];
+
+  if (options.includeUiPetDragEvidence !== false) {
+    body.push(
+      "### UI pet drag evidence",
       "",
+      "result: passed",
+      "source: renderer-pointer-events-window-bounds",
+      "beforeBounds: {\"x\":1200,\"y\":820,\"width\":320,\"height\":224}",
+      "afterBounds: {\"x\":1200,\"y\":732,\"width\":320,\"height\":224}",
+      "moveEvents: 1",
+      "totalDeltaX: 0",
+      "totalDeltaY: -88",
+      "upwardMovement: true",
+      "suppressedClickAfterDrag: true",
+      ""
+    );
+  }
+
+  body.push(
       "### Computer Use result",
       "",
       options.result ?? "blocked"
-    ].join("\n"),
+  );
+
+  return {
+    body: body.join("\n"),
     labels: options.labels ?? [
       "dogfood:accepted",
       ...workflows.map((workflow) => `workflow:${workflow}`)

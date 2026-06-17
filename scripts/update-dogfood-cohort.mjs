@@ -180,6 +180,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
   };
   validateSmokeArtifactPaths(smokeArtifacts, smokePaths);
   validateIssueAppBundlePreflight(issue, smokeArtifacts.ui);
+  validateIssueUiPetDragEvidence(issue, smokeArtifacts.ui);
   const artifactResults = Object.fromEntries(
     Object.entries(smokeArtifacts).map(([key, artifact]) => [key, readSmokeResult(artifact)])
   );
@@ -203,7 +204,8 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
     },
     permissionStates: readPermissionStates(smokeArtifacts),
     artifacts: smokePaths,
-    artifactResults
+    artifactResults,
+    uiPetDragEvidence: createUiPetDragReportEvidence(smokeArtifacts.ui?.petDrag)
   };
 }
 
@@ -219,6 +221,7 @@ export function createDogfoodReportHelpText() {
     "testerId, workflows, smoke artifact paths, alpha identity, and labels are read from GitHub by default.",
     "The issue body must include all five issue smoke artifact paths.",
     "The issue body must include app bundle preflight evidence matching the UI smoke artifact appPath, launch, appLaunchViaOpen, runnerHasTmux, and productPath.",
+    "The issue body must include UI pet drag evidence matching the UI smoke artifact petDrag window-bounds proof.",
     "It also requires the issue alpha manifest, zip, and commit sha to match --manifest.",
     "Every smoke artifact JSON artifactPath must match the issue artifact path it was read from.",
     "Use --tester-id and --workflows only as explicit overrides for tester/workflow body fields.",
@@ -337,6 +340,131 @@ function readRequiredAppBundlePreflightValue(preflight, key) {
   }
 
   return value.trim();
+}
+
+function validateIssueUiPetDragEvidence(issue, uiArtifact) {
+  const evidence = readIssueKeyValueSection(issue, "UI pet drag evidence");
+  const result = readRequiredIssueKeyValue(evidence, "UI pet drag evidence", "result");
+  const source = readRequiredIssueKeyValue(evidence, "UI pet drag evidence", "source");
+  const beforeBounds = readRequiredIssueJsonValue(evidence, "UI pet drag evidence", "beforeBounds");
+  const afterBounds = readRequiredIssueJsonValue(evidence, "UI pet drag evidence", "afterBounds");
+  const moveEvents = readRequiredIssueNumberValue(evidence, "UI pet drag evidence", "moveEvents");
+  const totalDeltaX = readRequiredIssueNumberValue(evidence, "UI pet drag evidence", "totalDeltaX");
+  const totalDeltaY = readRequiredIssueNumberValue(evidence, "UI pet drag evidence", "totalDeltaY");
+  const upwardMovement = readRequiredIssueKeyValue(evidence, "UI pet drag evidence", "upwardMovement");
+  const suppressedClickAfterDrag = readRequiredIssueKeyValue(evidence, "UI pet drag evidence", "suppressedClickAfterDrag");
+  const petDrag = uiArtifact?.petDrag;
+
+  if (!petDrag || typeof petDrag !== "object") {
+    throw new Error("UI smoke artifact petDrag evidence must be recorded.");
+  }
+  if (result !== "passed" || petDrag.result !== "passed") {
+    throw new Error("Issue UI pet drag evidence result must be passed and match the UI smoke artifact.");
+  }
+  if (source !== petDrag.source || source !== "renderer-pointer-events-window-bounds") {
+    throw new Error("Issue UI pet drag evidence source must match the UI smoke artifact.");
+  }
+  validateIssueWindowBounds("beforeBounds", beforeBounds, petDrag.beforeBounds);
+  validateIssueWindowBounds("afterBounds", afterBounds, petDrag.afterBounds);
+  if (!Array.isArray(petDrag.moveEvents) || petDrag.moveEvents.length <= 0) {
+    throw new Error("UI smoke artifact petDrag moveEvents must be recorded.");
+  }
+  if (moveEvents !== petDrag.moveEvents.length) {
+    throw new Error("Issue UI pet drag evidence moveEvents must match the UI smoke artifact.");
+  }
+  if (totalDeltaX !== petDrag.totalDeltaX || totalDeltaY !== petDrag.totalDeltaY) {
+    throw new Error("Issue UI pet drag evidence deltas must match the UI smoke artifact.");
+  }
+  if (totalDeltaY >= 0 || petDrag.totalDeltaY >= 0) {
+    throw new Error("Issue UI pet drag evidence must prove upward movement.");
+  }
+  if (upwardMovement !== "true" || petDrag.upwardMovement !== true) {
+    throw new Error("Issue UI pet drag evidence upwardMovement must be true and match the UI smoke artifact.");
+  }
+  if (suppressedClickAfterDrag !== "true" || petDrag.suppressedClickAfterDrag !== true) {
+    throw new Error("Issue UI pet drag evidence suppressedClickAfterDrag must be true and match the UI smoke artifact.");
+  }
+}
+
+function createUiPetDragReportEvidence(petDrag) {
+  return {
+    result: petDrag.result,
+    source: petDrag.source,
+    beforeBounds: petDrag.beforeBounds,
+    afterBounds: petDrag.afterBounds,
+    moveEvents: petDrag.moveEvents.length,
+    totalDeltaX: petDrag.totalDeltaX,
+    totalDeltaY: petDrag.totalDeltaY,
+    upwardMovement: petDrag.upwardMovement,
+    suppressedClickAfterDrag: petDrag.suppressedClickAfterDrag,
+    verifiedBy: "dogfood:report"
+  };
+}
+
+function validateIssueWindowBounds(key, issueBounds, artifactBounds) {
+  if (!hasWindowBounds(issueBounds) || !hasWindowBounds(artifactBounds)) {
+    throw new Error(`Issue UI pet drag evidence ${key} must include window bounds.`);
+  }
+  for (const field of ["x", "y", "width", "height"]) {
+    if (issueBounds[field] !== artifactBounds[field]) {
+      throw new Error(`Issue UI pet drag evidence ${key} must match the UI smoke artifact.`);
+    }
+  }
+}
+
+function hasWindowBounds(value) {
+  return value
+    && Number.isFinite(value.x)
+    && Number.isFinite(value.y)
+    && Number.isFinite(value.width)
+    && Number.isFinite(value.height);
+}
+
+function readIssueKeyValueSection(issue, sectionTitle) {
+  const section = readIssueSection(issue.body, sectionTitle);
+  const values = new Map();
+
+  for (const line of section.split(/\r?\n/)) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+    if (key.length > 0 && value.length > 0 && value !== "_No response_") {
+      values.set(key, value);
+    }
+  }
+
+  return values;
+}
+
+function readRequiredIssueKeyValue(values, sectionTitle, key) {
+  const value = values.get(key);
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Issue ${sectionTitle} must include ${key}.`);
+  }
+
+  return value.trim();
+}
+
+function readRequiredIssueNumberValue(values, sectionTitle, key) {
+  const value = readRequiredIssueKeyValue(values, sectionTitle, key);
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) {
+    throw new Error(`Issue ${sectionTitle} ${key} must be a finite number.`);
+  }
+
+  return numberValue;
+}
+
+function readRequiredIssueJsonValue(values, sectionTitle, key) {
+  const value = readRequiredIssueKeyValue(values, sectionTitle, key);
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new Error(`Issue ${sectionTitle} ${key} must be valid JSON.`);
+  }
 }
 
 function validateIssueAlphaIdentity(manifest, manifestPath, issue) {

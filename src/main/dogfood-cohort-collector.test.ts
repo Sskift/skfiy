@@ -486,7 +486,9 @@ function createIssueBody(
     "launch: open -na /repo/dist/skfiy.app --args --remote-debugging-port=9310",
     "appLaunchViaOpen: true",
     "runnerHasTmux: false",
-    "productPath: LaunchServices -> renderer DOM -> React permission onboarding"
+    "productPath: LaunchServices -> renderer DOM -> React permission onboarding",
+    "",
+    ...createUiPetDragEvidenceLines()
   ].join("\n");
 }
 
@@ -499,6 +501,17 @@ function createSmokeArtifact(artifactPath: string, result: string) {
     productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
     appLaunchViaOpen: true,
     runnerHasTmux: false,
+    petDrag: {
+      result: "passed",
+      source: "renderer-pointer-events-window-bounds",
+      beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
+      afterBounds: { x: 1200, y: 732, width: 320, height: 224 },
+      moveEvents: [{ type: "pointermove", clientX: 1260, clientY: 760 }],
+      totalDeltaX: 0,
+      totalDeltaY: -88,
+      upwardMovement: true,
+      suppressedClickAfterDrag: true
+    },
     permissions: {
       screenRecording: { state: "authorized" },
       accessibility: { state: "authorized" },
@@ -506,6 +519,22 @@ function createSmokeArtifact(artifactPath: string, result: string) {
       speechRecognition: { state: "authorized" }
     }
   };
+}
+
+function createUiPetDragEvidenceLines() {
+  return [
+    "### UI pet drag evidence",
+    "",
+    "result: passed",
+    "source: renderer-pointer-events-window-bounds",
+    "beforeBounds: {\"x\":1200,\"y\":820,\"width\":320,\"height\":224}",
+    "afterBounds: {\"x\":1200,\"y\":732,\"width\":320,\"height\":224}",
+    "moveEvents: 1",
+    "totalDeltaX: 0",
+    "totalDeltaY: -88",
+    "upwardMovement: true",
+    "suppressedClickAfterDrag: true"
+  ];
 }
 
 function createMemoryIo(

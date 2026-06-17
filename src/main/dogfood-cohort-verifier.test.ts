@@ -49,6 +49,7 @@ describe("dogfood cohort verifier", () => {
     expect(createDogfoodCohortHelpText()).toContain("browser-fallback");
     expect(createDogfoodCohortHelpText()).toContain("artifactSource=github-issue-smoke-artifacts");
     expect(createDogfoodCohortHelpText()).toContain("issue alpha manifest/zip/commit identity");
+    expect(createDogfoodCohortHelpText()).toContain("uiPetDragEvidence");
     expect(createDogfoodCohortHelpText()).toContain("Workflow coverage counts only reports");
     expect(createDogfoodCohortHelpText()).toContain("--require-passed");
     expect(createDogfoodCohortHelpText()).toContain("local-*");
@@ -100,6 +101,7 @@ describe("dogfood cohort verifier", () => {
         expect.objectContaining({ id: "cohort.workflowCoverage.browser-fallback", ok: true }),
         expect.objectContaining({ id: "report.tester-a.manifestPath", ok: true }),
         expect.objectContaining({ id: "report.tester-a.artifacts", ok: true }),
+        expect.objectContaining({ id: "report.tester-a.uiPetDragEvidence", ok: true }),
         expect.objectContaining({ id: "report.tester-a.permissionStates", ok: true }),
         expect.objectContaining({ id: "report.tester-a.runnerHasTmux", ok: true }),
         expect.objectContaining({ id: "report.tester-a.source", ok: true })
@@ -364,6 +366,45 @@ describe("dogfood cohort verifier", () => {
     });
   });
 
+  it("fails reports without dogfood:report verified UI pet drag evidence", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const missingPetDragReport = createReport("tester-a", [
+      "coding-terminal",
+      "screenshot-inspection"
+    ]);
+    delete (missingPetDragReport as { uiPetDragEvidence?: unknown }).uiPetDragEvidence;
+
+    await expect(verifyDogfoodCohort({
+      cohortPath
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        missingPetDragReport,
+        createReport("tester-b", ["finder-file"]),
+        createReport("tester-c", ["browser-fallback"])
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("report.tester-a.uiPetDragEvidence"),
+        expect.stringContaining("cohort.workflowCoverage.coding-terminal"),
+        expect.stringContaining("cohort.workflowCoverage.screenshot-inspection")
+      ]),
+      summary: {
+        eligibleWorkflowCoverage: {
+          "coding-terminal": false,
+          "screenshot-inspection": false,
+          "finder-file": true,
+          "browser-fallback": true
+        }
+      }
+    });
+  });
+
   it("fails reports whose commitSha does not match the accepted issue source commit", async () => {
     const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       verifyDogfoodCohort: (
@@ -609,6 +650,18 @@ describe("dogfood cohort verifier", () => {
         chromeSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-chrome.json`,
         finderSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-finder.json`,
         voiceSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-voice.json`
+      },
+      uiPetDragEvidence: {
+        result: "passed",
+        source: "renderer-pointer-events-window-bounds",
+        beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
+        afterBounds: { x: 1200, y: 732, width: 320, height: 224 },
+        moveEvents: 1,
+        totalDeltaX: 0,
+        totalDeltaY: -88,
+        upwardMovement: true,
+        suppressedClickAfterDrag: true,
+        verifiedBy: "dogfood:report"
       }
     };
   }

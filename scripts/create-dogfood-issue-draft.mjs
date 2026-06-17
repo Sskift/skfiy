@@ -144,7 +144,8 @@ export function createDogfoodIssueDraftHelpText() {
     "Usage: npm run dogfood:issue -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> [--output <issue-body.md>]",
     "",
     "Creates a GitHub dogfood issue body draft from one real tester machine.",
-    "The draft copies alpha identity, all five smoke artifact paths, permission states, and core evidence",
+    "The draft copies alpha identity, all five smoke artifact paths, app bundle preflight,",
+    "UI pet drag evidence, permission states, and core evidence",
     "from the manifest and smoke JSON files so maintainers can file an accepted GitHub dogfood issue",
     "without manually retyping fields that dogfood:report later verifies.",
     "Use --check-report to round-trip the generated draft through dogfood:report's parser locally.",
@@ -343,6 +344,10 @@ function createDogfoodIssueBody({
     "### app bundle preflight",
     "",
     createAppBundlePreflightEvidence(smokeArtifacts),
+    "",
+    "### UI pet drag evidence",
+    "",
+    createUiPetDragEvidence(smokeArtifacts.ui?.petDrag),
     "",
     "### Screen Recording",
     "",
@@ -559,6 +564,24 @@ function createAppBundlePreflightEvidence(smokeArtifacts) {
   ].join("\n");
 }
 
+function createUiPetDragEvidence(petDrag) {
+  if (!petDrag || typeof petDrag !== "object") {
+    return "not available";
+  }
+
+  return [
+    `result: ${readFirstString([petDrag.result], "not available")}`,
+    `source: ${readFirstString([petDrag.source], "not available")}`,
+    `beforeBounds: ${createJsonEvidence(petDrag.beforeBounds)}`,
+    `afterBounds: ${createJsonEvidence(petDrag.afterBounds)}`,
+    `moveEvents: ${Array.isArray(petDrag.moveEvents) ? petDrag.moveEvents.length : 0}`,
+    `totalDeltaX: ${formatNumberEvidence(petDrag.totalDeltaX)}`,
+    `totalDeltaY: ${formatNumberEvidence(petDrag.totalDeltaY)}`,
+    `upwardMovement: ${String(petDrag.upwardMovement === true)}`,
+    `suppressedClickAfterDrag: ${String(petDrag.suppressedClickAfterDrag === true)}`
+  ].join("\n");
+}
+
 function createChromeEvidence(chromeArtifact) {
   return [
     `productPath: ${readFirstString([chromeArtifact?.productPath], "not available")}`,
@@ -641,6 +664,10 @@ function createJsonEvidence(value) {
 function readFirstString(values, fallback) {
   const value = values.find((item) => typeof item === "string" && item.trim().length > 0);
   return value ?? fallback;
+}
+
+function formatNumberEvidence(value) {
+  return Number.isFinite(value) ? String(value) : "not available";
 }
 
 function readWorkflowList(value) {

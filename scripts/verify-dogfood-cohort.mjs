@@ -195,6 +195,7 @@ export function createDogfoodCohortHelpText() {
     "Each report must include testerId, manifestPath, appLaunchViaOpen=true, runnerHasTmux=false,",
     "permissionStates for Screen Recording, Accessibility, Microphone, and Speech Recognition,",
     "UI/Ghostty/Chrome/Finder/voice smoke artifact paths from the packaged app,",
+    "uiPetDragEvidence verified by dogfood:report,",
     "source.issueUrl/source.collectedAt linking back to an accepted GitHub dogfood issue,",
     "artifactSource=github-issue-smoke-artifacts, and issue alpha manifest/zip/commit identity",
     "matching the report manifestPath and commitSha.",
@@ -350,6 +351,12 @@ function verifyReport(report, index, cohortManifestPath, checks) {
     }),
     "report source must include type=github-issue, source.issueUrl, collectedAt, generatedBy=dogfood:report, artifactSource=github-issue-smoke-artifacts, issue alpha manifest/zip/commit identity, dogfood:accepted, and matching workflow:* issue labels"
   );
+  check(
+    checks,
+    `${checkId}.uiPetDragEvidence`,
+    hasRequiredUiPetDragEvidence(report?.uiPetDragEvidence),
+    "report uiPetDragEvidence must prove a dogfood:report verified renderer-pointer-events-window-bounds upward drag with suppressed click-after-drag"
+  );
 }
 
 function createCohortSummary(reports, testerIds, requiredWorkflowCoverage, passedWorkflowCoverage) {
@@ -367,10 +374,7 @@ function createCohortSummary(reports, testerIds, requiredWorkflowCoverage, passe
       hasBlockingPermissionState(report?.permissionStates)
     ).length,
     sourceLinkedReports: reports.filter((report) =>
-      hasRequiredSource(report?.source, report?.workflows, {
-        commitSha: report?.commitSha,
-        manifestPath: report?.manifestPath
-      })
+      isWorkflowCoverageEligibleReport(report)
     ).length,
     eligibleWorkflowCoverage: requiredWorkflowCoverage,
     requiredWorkflowCoverage,
@@ -408,6 +412,7 @@ function isWorkflowCoverageEligibleReport(report, cohortManifestPath) {
     && report?.runnerHasTmux === false
     && hasKnownWorkflow(report?.workflows)
     && hasRequiredArtifactPaths(report?.artifacts)
+    && hasRequiredUiPetDragEvidence(report?.uiPetDragEvidence)
     && hasRequiredPermissionStates(report?.permissionStates)
     && hasRequiredSource(report?.source, report?.workflows, {
       commitSha: report?.commitSha,
@@ -468,6 +473,32 @@ function hasRequiredArtifactPaths(value) {
   return REQUIRED_ARTIFACT_FIELDS.every((field) =>
     typeof value[field] === "string" && path.isAbsolute(value[field])
   );
+}
+
+function hasRequiredUiPetDragEvidence(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && value.result === "passed"
+    && value.source === "renderer-pointer-events-window-bounds"
+    && hasWindowBounds(value.beforeBounds)
+    && hasWindowBounds(value.afterBounds)
+    && Number.isFinite(value.moveEvents)
+    && value.moveEvents > 0
+    && Number.isFinite(value.totalDeltaX)
+    && Number.isFinite(value.totalDeltaY)
+    && value.totalDeltaY < 0
+    && value.upwardMovement === true
+    && value.suppressedClickAfterDrag === true
+    && value.verifiedBy === "dogfood:report";
+}
+
+function hasWindowBounds(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && Number.isFinite(value.x)
+    && Number.isFinite(value.y)
+    && Number.isFinite(value.width)
+    && Number.isFinite(value.height);
 }
 
 function hasRequiredPermissionStates(value) {

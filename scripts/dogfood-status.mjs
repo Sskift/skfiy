@@ -1177,6 +1177,8 @@ function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
     }
   }
 
+  reasons.push(...validateIssueUiPetDragEvidence(issue.body));
+
   return {
     reasons,
     testerId,
@@ -1185,6 +1187,78 @@ function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
     workflows,
     result
   };
+}
+
+function validateIssueUiPetDragEvidence(body) {
+  const section = readIssueSection(body, "UI pet drag evidence");
+  if (section.length === 0) {
+    return ["missing UI pet drag evidence"];
+  }
+
+  const evidence = readIssueKeyValueSection(section);
+  const result = evidence.get("result");
+  const source = evidence.get("source");
+  const totalDeltaY = Number(evidence.get("totalDeltaY"));
+  const upwardMovement = evidence.get("upwardMovement");
+  const suppressedClickAfterDrag = evidence.get("suppressedClickAfterDrag");
+  const beforeBounds = readJsonEvidence(evidence.get("beforeBounds"));
+  const afterBounds = readJsonEvidence(evidence.get("afterBounds"));
+
+  if (result !== "passed") {
+    return ["UI pet drag evidence result must be passed"];
+  }
+  if (source !== "renderer-pointer-events-window-bounds") {
+    return ["UI pet drag evidence source must be renderer-pointer-events-window-bounds"];
+  }
+  if (!hasWindowBounds(beforeBounds) || !hasWindowBounds(afterBounds)) {
+    return ["UI pet drag evidence must include beforeBounds and afterBounds"];
+  }
+  if (!Number.isFinite(totalDeltaY) || totalDeltaY >= 0 || upwardMovement !== "true") {
+    return ["UI pet drag evidence must prove upward movement"];
+  }
+  if (suppressedClickAfterDrag !== "true") {
+    return ["UI pet drag evidence must prove suppressedClickAfterDrag"];
+  }
+
+  return [];
+}
+
+function readIssueKeyValueSection(section) {
+  const values = new Map();
+
+  for (const line of section.split(/\r?\n/)) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+    if (key.length > 0 && value.length > 0 && value !== "_No response_") {
+      values.set(key, value);
+    }
+  }
+
+  return values;
+}
+
+function readJsonEvidence(value) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function hasWindowBounds(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && Number.isFinite(value.x)
+    && Number.isFinite(value.y)
+    && Number.isFinite(value.width)
+    && Number.isFinite(value.height);
 }
 
 function readVerifiedReportWorkflowCoverage(reportIssueValidation) {

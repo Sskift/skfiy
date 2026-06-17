@@ -76,6 +76,8 @@ describe("dogfood issue draft generator", () => {
     expect(createDogfoodIssueDraftHelpText()).toContain("--check-report");
     expect(createDogfoodIssueDraftHelpText()).toContain("reportPreviewEligibility");
     expect(createDogfoodIssueDraftHelpText()).toContain("accepted GitHub dogfood issue");
+    expect(createDogfoodIssueDraftHelpText()).toContain("app bundle preflight");
+    expect(createDogfoodIssueDraftHelpText()).toContain("UI pet drag evidence");
   });
 
   it("creates a GitHub issue body that dogfood:report can parse without manual alpha or artifact copying", async () => {
@@ -190,6 +192,11 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("appLaunchViaOpen: true");
     expect(body).toContain("runnerHasTmux: false");
     expect(body).toContain("productPath: LaunchServices -> renderer DOM -> React permission onboarding");
+    expect(body).toContain("### UI pet drag evidence");
+    expect(body).toContain("source: renderer-pointer-events-window-bounds");
+    expect(body).toContain("totalDeltaY: -88");
+    expect(body).toContain("upwardMovement: true");
+    expect(body).toContain("suppressedClickAfterDrag: true");
     expect(body).toContain("### Screen Recording");
     expect(body).toContain("granted");
     expect(body).toContain("### ASR provider");
@@ -370,6 +377,17 @@ describe("dogfood issue draft generator", () => {
         accessibility: { state: "unknown" },
         microphone: { state: "unknown" },
         speechRecognition: { state: "unknown" }
+      },
+      petDrag: {
+        result: "passed",
+        source: "renderer-pointer-events-window-bounds",
+        beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
+        afterBounds: { x: 1200, y: 732, width: 320, height: 224 },
+        moveEvents: [{ type: "pointermove", clientX: 1260, clientY: 760 }],
+        totalDeltaX: 0,
+        totalDeltaY: -88,
+        upwardMovement: true,
+        suppressedClickAfterDrag: true
       },
       ...overrides
     };

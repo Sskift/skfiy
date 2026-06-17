@@ -70,6 +70,7 @@ describe("dogfood cohort updater", () => {
     expect(createDogfoodReportHelpText()).toContain("requires a readable accepted issue body");
     expect(createDogfoodReportHelpText()).toContain("must include all five issue smoke artifact paths");
     expect(createDogfoodReportHelpText()).toContain("must include app bundle preflight evidence");
+    expect(createDogfoodReportHelpText()).toContain("must include UI pet drag evidence");
     expect(createDogfoodReportHelpText()).toContain("requires the issue alpha manifest, zip, and commit sha to match --manifest");
     expect(createDogfoodReportHelpText()).toContain("sourceEligibleReports");
     expect(createDogfoodReportHelpText()).toContain("3-5 distinct testers");
@@ -235,6 +236,18 @@ describe("dogfood cohort updater", () => {
         chrome: "passed",
         finder: "blocked",
         voice: "blocked"
+      },
+      uiPetDragEvidence: {
+        result: "passed",
+        source: "renderer-pointer-events-window-bounds",
+        beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
+        afterBounds: { x: 1200, y: 732, width: 320, height: 224 },
+        moveEvents: 1,
+        totalDeltaX: 0,
+        totalDeltaY: -88,
+        upwardMovement: true,
+        suppressedClickAfterDrag: true,
+        verifiedBy: "dogfood:report"
       }
     });
     expect(io.files[cohortPath]).toMatchObject({
@@ -381,6 +394,172 @@ describe("dogfood cohort updater", () => {
     })).rejects.toThrow("Issue app bundle preflight must include appPath.");
   });
 
+  it("rejects manifest report generation when the issue body omits UI pet drag evidence", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        zip: { path: alphaZipPath },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    });
+    const issueBody = createIssueBody("tester-a", ["coding-terminal", "browser-fallback"], {
+      uiSmokePath,
+      ghosttySmokePath,
+      chromeSmokePath,
+      finderSmokePath,
+      voiceSmokePath
+    }, "abc123", { includeUiPetDragEvidence: false });
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "browser-fallback"],
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      issueLabels: [
+        "dogfood:accepted",
+        "workflow:coding-terminal",
+        "workflow:browser-fallback"
+      ],
+      reportPath,
+      cohortPath
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: issueBody,
+          labels: [
+            "dogfood:accepted",
+            "workflow:coding-terminal",
+            "workflow:browser-fallback"
+          ]
+        };
+      }
+    })).rejects.toThrow("Issue UI pet drag evidence must include result.");
+  });
+
+  it.each([
+    {
+      name: "mismatched source",
+      lines: ["source: dom-only"],
+      error: "Issue UI pet drag evidence source must match the UI smoke artifact."
+    },
+    {
+      name: "mismatched beforeBounds",
+      lines: ["beforeBounds: {\"x\":1200,\"y\":900,\"width\":320,\"height\":224}"],
+      error: "Issue UI pet drag evidence beforeBounds must match the UI smoke artifact."
+    },
+    {
+      name: "mismatched afterBounds",
+      lines: ["afterBounds: {\"x\":1200,\"y\":700,\"width\":320,\"height\":224}"],
+      error: "Issue UI pet drag evidence afterBounds must match the UI smoke artifact."
+    },
+    {
+      name: "missing movement events",
+      lines: ["moveEvents: 0"],
+      error: "Issue UI pet drag evidence moveEvents must match the UI smoke artifact."
+    },
+    {
+      name: "wrong delta",
+      lines: ["totalDeltaY: -1"],
+      error: "Issue UI pet drag evidence deltas must match the UI smoke artifact."
+    },
+    {
+      name: "no upward movement",
+      lines: ["upwardMovement: false"],
+      error: "Issue UI pet drag evidence upwardMovement must be true and match the UI smoke artifact."
+    },
+    {
+      name: "click not suppressed",
+      lines: ["suppressedClickAfterDrag: false"],
+      error: "Issue UI pet drag evidence suppressedClickAfterDrag must be true and match the UI smoke artifact."
+    }
+  ])("rejects manifest report generation with $name UI pet drag evidence", async ({ lines, error }) => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        zip: { path: alphaZipPath },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    });
+    const issueBody = createIssueBody("tester-a", ["coding-terminal", "browser-fallback"], {
+      uiSmokePath,
+      ghosttySmokePath,
+      chromeSmokePath,
+      finderSmokePath,
+      voiceSmokePath
+    }, "abc123", { uiPetDragEvidenceLineOverrides: lines });
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "browser-fallback"],
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      issueLabels: [
+        "dogfood:accepted",
+        "workflow:coding-terminal",
+        "workflow:browser-fallback"
+      ],
+      reportPath,
+      cohortPath
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: issueBody,
+          labels: [
+            "dogfood:accepted",
+            "workflow:coding-terminal",
+            "workflow:browser-fallback"
+          ]
+        };
+      }
+    })).rejects.toThrow(error);
+  });
+
   it("derives tester id and workflows from the accepted GitHub issue body", async () => {
     const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       updateDogfoodCohort: (
@@ -455,7 +634,9 @@ describe("dogfood cohort updater", () => {
       "",
       voiceSmokePath,
       "",
-      ...createAppBundlePreflightLines()
+      ...createAppBundlePreflightLines(),
+      "",
+      ...createUiPetDragEvidenceLines()
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -574,7 +755,9 @@ describe("dogfood cohort updater", () => {
       "",
       testerVoiceSmokePath,
       "",
-      ...createAppBundlePreflightLines()
+      ...createAppBundlePreflightLines(),
+      "",
+      ...createUiPetDragEvidenceLines()
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -1176,6 +1359,8 @@ describe("dogfood cohort updater", () => {
     commitSha = "abc123",
     options: {
       includeAppBundlePreflight?: boolean;
+      includeUiPetDragEvidence?: boolean;
+      uiPetDragEvidenceLineOverrides?: string[];
       appPath?: string;
       launch?: string;
       productPath?: string;
@@ -1240,6 +1425,13 @@ describe("dogfood cohort updater", () => {
       );
     }
 
+    if (options.includeUiPetDragEvidence !== false) {
+      issueBody.push(
+        "",
+        ...createUiPetDragEvidenceLines(options.uiPetDragEvidenceLineOverrides)
+      );
+    }
+
     return issueBody.join("\n");
   }
 
@@ -1256,6 +1448,35 @@ describe("dogfood cohort updater", () => {
       "runnerHasTmux: false",
       `productPath: ${productPath}`
     ];
+  }
+
+  function createUiPetDragEvidenceLines(overrides: string[] = []) {
+    const overrideMap = new Map(overrides.map((line) => {
+      const separatorIndex = line.indexOf(":");
+      return separatorIndex > 0
+        ? [line.slice(0, separatorIndex).trim(), line]
+        : [line, line];
+    }));
+    return [
+      "### UI pet drag evidence",
+      "",
+      "result: passed",
+      "source: renderer-pointer-events-window-bounds",
+      "beforeBounds: {\"x\":1200,\"y\":820,\"width\":320,\"height\":224}",
+      "afterBounds: {\"x\":1200,\"y\":732,\"width\":320,\"height\":224}",
+      "moveEvents: 1",
+      "totalDeltaX: 0",
+      "totalDeltaY: -88",
+      "upwardMovement: true",
+      "suppressedClickAfterDrag: true"
+    ].map((line) => {
+      const separatorIndex = line.indexOf(":");
+      if (separatorIndex <= 0) {
+        return line;
+      }
+      const key = line.slice(0, separatorIndex).trim();
+      return overrideMap.get(key) ?? line;
+    });
   }
 
   function createReport(
@@ -1309,6 +1530,17 @@ describe("dogfood cohort updater", () => {
       productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
+      petDrag: {
+        result: "passed",
+        source: "renderer-pointer-events-window-bounds",
+        beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
+        afterBounds: { x: 1200, y: 732, width: 320, height: 224 },
+        moveEvents: [{ type: "pointermove", clientX: 1260, clientY: 760 }],
+        totalDeltaX: 0,
+        totalDeltaY: -88,
+        upwardMovement: true,
+        suppressedClickAfterDrag: true
+      },
       permissions: {
         screenRecording: { state: "denied" },
         accessibility: { state: "denied" },
