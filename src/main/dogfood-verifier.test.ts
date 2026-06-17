@@ -643,6 +643,94 @@ describe("dogfood artifact verifier", () => {
     });
   });
 
+  it("accepts Finder evidence that is blocked by packaged-app Computer Use permissions before actions run", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const permissionReason = "Finder Computer Use permission blocked: Screen Recording permission is denied; Accessibility permission is denied.";
+    const finderArtifact = {
+      ...createFinderSmokeArtifact(finderSmokePath),
+      result: "blocked",
+      permissions: {
+        screenRecording: { state: "denied" },
+        accessibility: { state: "denied" }
+      },
+      finderObservation: {
+        result: "blocked",
+        reason: permissionReason
+      },
+      finderSemanticObservation: {
+        result: "blocked",
+        reason: `Skipped Finder semantic selection because ${permissionReason}`
+      },
+      finderPlanPreview: {
+        result: "missing"
+      },
+      finderItemDragDrop: {
+        result: "blocked",
+        reason: `Skipped Finder item drag/drop because ${permissionReason}`
+      },
+      afterTree: ["notes.pdf", "photo.png", "script.ts"],
+      events: [
+        {
+          status: "approval_required",
+          message: "Approval required (app policy): Finder requires approval by app policy."
+        },
+        {
+          status: "executing",
+          message: "Risk medium: Finder organization moves files inside a user-approved folder."
+        }
+      ]
+    };
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: finderArtifact,
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "passed",
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "finder.observation", ok: true }),
+        expect.objectContaining({ id: "finder.semanticObservation", ok: true }),
+        expect.objectContaining({ id: "finder.planPreview", ok: true }),
+        expect.objectContaining({ id: "finder.actionVerification", ok: true }),
+        expect.objectContaining({ id: "finder.itemDragDrop", ok: true }),
+        expect.objectContaining({ id: "finder.afterTree", ok: true })
+      ])
+    });
+  });
+
   it("fails when the alpha zip bytes match but the SHA256 does not", async () => {
     const {
       verifyDogfoodArtifacts

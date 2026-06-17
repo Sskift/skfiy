@@ -1018,6 +1018,67 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("- invalid: tracking issue release does not match manifest commit");
   });
 
+  it("uses the selected manifest alpha release URL in tester assignments when Current Alpha is stale", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([], {
+          currentAlpha: {
+            release: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-old9999",
+            manifest: ".skfiy-alpha/skfiy-0.1.0-old9999-macos-unsigned.json",
+            zip: "skfiy-0.1.0-old9999-macos-unsigned.zip",
+            zipSha256: "oldhash",
+            commit: "old9999",
+            bundleId: "com.sskift.skfiy",
+            appName: "skfiy"
+          }
+        }),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io) as {
+      testerAssignments: Array<{
+        commands: {
+          prepareAlpha: string;
+        };
+      }>;
+    };
+
+    expect(status.testerAssignments[0].commands.prepareAlpha).toContain(
+      "--release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123"
+    );
+    expect(status.testerAssignments[0].commands.prepareAlpha).not.toContain("skfiy-alpha-old9999");
+  });
+
   it("does not mark status ready when listed report issues are stale or not accepted", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

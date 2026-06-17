@@ -151,6 +151,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const canRunPassedCohort = canRunCollect && passedWorkflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
   const testerAssignments = createTesterAssignments({
+    manifest,
     manifestPath: options.manifestPath,
     trackingIssueUrl: options.trackingIssueUrl,
     trackingIssueFile: options.trackingIssueFile,
@@ -688,6 +689,7 @@ function createNextActions({
 }
 
 function createTesterAssignments({
+  manifest,
   manifestPath,
   trackingIssueUrl,
   trackingIssueFile,
@@ -728,6 +730,11 @@ function createTesterAssignments({
     assignmentCount,
     usedTesterIds
   });
+  const releaseUrl = readTesterAssignmentReleaseUrl({
+    currentAlpha,
+    manifest,
+    trackingIssueUrl
+  });
 
   return distributeWorkflows(sourceWorkflows, assignmentCount).map((workflows, index) => {
     const testerId = testerIds[index];
@@ -742,11 +749,41 @@ function createTesterAssignments({
         manifestPath,
         trackingIssueUrl,
         trackingIssueFile,
-        releaseUrl: currentAlpha.fields.release,
+        releaseUrl,
         requirePassed: purpose === "passed-workflow-evidence"
       })
     };
   });
+}
+
+function readTesterAssignmentReleaseUrl({ currentAlpha, manifest, trackingIssueUrl }) {
+  if (
+    currentAlpha?.ok === true
+    && typeof currentAlpha.fields?.release === "string"
+    && currentAlpha.fields.release.trim().length > 0
+  ) {
+    return currentAlpha.fields.release.trim();
+  }
+
+  return readManifestReleaseUrl(manifest, trackingIssueUrl);
+}
+
+function readManifestReleaseUrl(manifest, trackingIssueUrl) {
+  const repo = readGitHubRepoFromIssueUrl(trackingIssueUrl) ?? "Sskift/skfiy";
+  return `https://github.com/${repo}/releases/tag/${readManifestAlphaTag(manifest)}`;
+}
+
+function readGitHubRepoFromIssueUrl(issueUrl) {
+  if (typeof issueUrl !== "string") {
+    return undefined;
+  }
+
+  const match = /^https?:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/\d+/.exec(issueUrl.trim());
+  if (!match) {
+    return undefined;
+  }
+
+  return `${match[1]}/${match[2]}`;
 }
 
 function readUsedTesterIds(reportIssueValidation) {

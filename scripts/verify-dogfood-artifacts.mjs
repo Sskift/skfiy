@@ -692,6 +692,8 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
 }
 
 function verifyFinderSmoke(artifact, expectedPath, options, checks) {
+  const permissionBlocked = hasPermissionBlockedFinderSmoke(artifact);
+
   check(
     checks,
     "finder.artifactPath",
@@ -771,7 +773,8 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
       artifact.finderPlanPreview,
       artifact.result,
       artifact.fixtureRoot,
-      artifact.targetMode
+      artifact.targetMode,
+      permissionBlocked
     ),
     "Finder smoke must include a pre-execution plan preview with no destructive operations"
   );
@@ -784,7 +787,7 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "finder.actionVerification",
-    hasFinderOrganizationActionVerification(artifact.events),
+    permissionBlocked || hasFinderOrganizationActionVerification(artifact.events),
     "Finder smoke must include create_folder and move_file verification events"
   );
   check(
@@ -806,7 +809,7 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "finder.afterTree",
-    hasFinderAfterTree(artifact.afterTree),
+    permissionBlocked || hasFinderAfterTree(artifact.afterTree),
     "Finder smoke must include the organized test-folder after tree"
   );
   check(
@@ -1380,7 +1383,11 @@ function readExpectedFinderProductPath(targetMode) {
   return FINDER_PRODUCT_PATH;
 }
 
-function hasFinderPlanPreviewEvidence(value, result, fixtureRoot, targetMode) {
+function hasFinderPlanPreviewEvidence(value, result, fixtureRoot, targetMode, permissionBlocked = false) {
+  if (permissionBlocked) {
+    return !value || value.result === "missing" || hasPassedFinderPlanPreviewEvidence(value, fixtureRoot);
+  }
+
   if (!value || typeof value !== "object") {
     return result === "blocked" && isSemanticFinderTargetMode(targetMode);
   }
@@ -1389,8 +1396,17 @@ function hasFinderPlanPreviewEvidence(value, result, fixtureRoot, targetMode) {
     return isSemanticFinderTargetMode(targetMode);
   }
 
+  if (!hasPassedFinderPlanPreviewEvidence(value, fixtureRoot)) {
+    return false;
+  }
+
+  return true;
+}
+
+function hasPassedFinderPlanPreviewEvidence(value, fixtureRoot) {
   if (
-    value.result !== "passed"
+    !value
+    || value.result !== "passed"
     || typeof value.rootPath !== "string"
     || !Number.isFinite(value.operationCount)
     || value.operationCount <= 0
@@ -1402,10 +1418,7 @@ function hasFinderPlanPreviewEvidence(value, result, fixtureRoot, targetMode) {
     return false;
   }
 
-  if (
-    typeof fixtureRoot === "string"
-    && path.resolve(value.rootPath) !== path.resolve(fixtureRoot)
-  ) {
+  if (typeof fixtureRoot === "string" && path.resolve(value.rootPath) !== path.resolve(fixtureRoot)) {
     return false;
   }
 
@@ -1520,6 +1533,21 @@ function hasPermissionBlockedFinderItemDragDrop(value) {
     && value.result === "blocked"
     && typeof value.reason === "string"
     && isPermissionBlockedMessage(value.reason);
+}
+
+function hasPermissionBlockedFinderSmoke(artifact) {
+  return artifact?.result === "blocked"
+    && (
+      hasPermissionBlockedFinderObservation(artifact.finderObservation)
+      || hasPermissionBlockedFinderSemanticObservation(artifact.finderSemanticObservation)
+      || hasPermissionBlockedFinderItemDragDrop(artifact.finderItemDragDrop)
+      || hasDeniedFinderPermission(artifact.permissions)
+    );
+}
+
+function hasDeniedFinderPermission(permissions) {
+  return permissions?.screenRecording?.state === "denied"
+    || permissions?.accessibility?.state === "denied";
 }
 
 function hasFinderDragProbeActionEvidence(events, result) {

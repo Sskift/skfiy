@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import {
   classifyFinderSmokeEvidence,
   createFinderTargetDirSafetyEvidence,
+  createPermissionBlockedFinderEvidence,
   createDefaultFinderSmokeOptions,
   createHelpText,
   parseProcessIds,
@@ -175,6 +176,7 @@ async function main() {
         evidence.finderObservation,
         evidence.fixtureRoot
       );
+      applyPermissionBlockedFinderEvidence(evidence);
       evidence.afterTree = await readDirectoryTree(evidence.fixtureRoot);
       evidence.result = classifyFinderSmokeEvidence(evidence);
     } catch (error) {
@@ -192,6 +194,7 @@ async function main() {
         evidence.finderObservation,
         evidence.fixtureRoot
       );
+      applyPermissionBlockedFinderEvidence(evidence);
       throw error;
     } finally {
       cdp.close();
@@ -702,6 +705,38 @@ function readFinderItemDragDrop(events, finderObservation, fixtureRoot) {
   return {
     result: "missing"
   };
+}
+
+function applyPermissionBlockedFinderEvidence(evidence) {
+  const permissionBlock = createPermissionBlockedFinderEvidence(evidence.permissions);
+  if (!permissionBlock) {
+    return;
+  }
+
+  if (!evidence.finderObservation || evidence.finderObservation.result === "missing") {
+    evidence.finderObservation = permissionBlock;
+  }
+
+  if (!evidence.finderSemanticObservation || evidence.finderSemanticObservation.result === "missing") {
+    evidence.finderSemanticObservation = {
+      result: "blocked",
+      reason: `Skipped Finder semantic selection because ${permissionBlock.reason}`
+    };
+  }
+
+  if (!evidence.finderDragProbe || evidence.finderDragProbe.result === "missing") {
+    evidence.finderDragProbe = {
+      result: "blocked",
+      reason: `Skipped Finder drag probe because ${permissionBlock.reason}`
+    };
+  }
+
+  if (!evidence.finderItemDragDrop || evidence.finderItemDragDrop.result === "missing") {
+    evidence.finderItemDragDrop = {
+      result: "blocked",
+      reason: `Skipped Finder item drag/drop because ${permissionBlock.reason}`
+    };
+  }
 }
 
 function isPermissionBlockedMessage(message) {

@@ -255,9 +255,11 @@ describe("Finder product smoke script", () => {
   it("classifies an executing Finder task with denied Computer Use permissions as blocked", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
     const {
-      classifyFinderSmokeEvidence
+      classifyFinderSmokeEvidence,
+      createPermissionBlockedFinderEvidence
     } = await import(pathToFileURL(modulePath).href) as {
       classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+      createPermissionBlockedFinderEvidence: (permissions: Record<string, unknown>) => Record<string, unknown> | undefined;
     };
 
     expect(classifyFinderSmokeEvidence({
@@ -272,6 +274,13 @@ describe("Finder product smoke script", () => {
         accessibility: { state: "denied" }
       }
     })).toBe("blocked");
+    expect(createPermissionBlockedFinderEvidence({
+      screenRecording: { state: "denied" },
+      accessibility: { state: "denied" }
+    })).toMatchObject({
+      result: "blocked",
+      reason: expect.stringContaining("Screen Recording permission is denied")
+    });
   });
 
   it("times out stalled Finder smoke async operations with a labelled error", async () => {

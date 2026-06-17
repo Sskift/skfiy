@@ -270,6 +270,22 @@ export function classifyFinderSmokeEvidence({
   return "passed";
 }
 
+export function createPermissionBlockedFinderEvidence(permissions) {
+  if (!hasDeniedComputerUsePermission(permissions)) {
+    return undefined;
+  }
+
+  const reasons = [
+    readPermissionStateReason(permissions?.screenRecording, "Screen Recording"),
+    readPermissionStateReason(permissions?.accessibility, "Accessibility")
+  ].filter(Boolean);
+
+  return {
+    result: "blocked",
+    reason: `Finder Computer Use permission blocked: ${reasons.join("; ")}.`
+  };
+}
+
 export function readFinderProductPath(targetMode) {
   if (targetMode === "drag-probe") {
     return DRAG_PROBE_PRODUCT_PATH;
@@ -413,6 +429,15 @@ function hasPermissionBlockedFinderItemDragDrop(finderItemDragDrop) {
 function hasDeniedComputerUsePermission(permissions) {
   return permissions?.screenRecording?.state === "denied"
     || permissions?.accessibility?.state === "denied";
+}
+
+function readPermissionStateReason(permission, label) {
+  const state = typeof permission?.state === "string" ? permission.state : "";
+  if (state !== "denied") {
+    return undefined;
+  }
+
+  return `${label} permission is denied`;
 }
 
 function isPathInsideDirectory(childPath, parentDir) {
