@@ -14,6 +14,7 @@ describe("dogfood artifact verifier", () => {
     "Permission settings direct links",
     "Panic stop runtime hotkey evidence",
     "Native voice transcript-to-task evidence",
+    "Native voice Ghostty turn replay evidence",
     "Native voice no-transcript/cancellation evidence",
     "Accepted GitHub dogfood issue source",
     "action verification events when Computer Use passes",
@@ -504,10 +505,11 @@ describe("dogfood artifact verifier", () => {
     ],
     taskEvents: [
       {
-        status: "observing",
-        message: "Preparing Computer Use command from voice transcript."
+        status: "completed",
+        message: "Command completed from voice transcript."
       }
     ],
+    turnReplay: createPassedVoiceTurnReplay(),
     processesAfterCleanup: []
   });
 
@@ -548,6 +550,7 @@ describe("dogfood artifact verifier", () => {
     });
     expect(createDogfoodVerifyHelpText()).toContain("Chrome current-page observation evidence");
     expect(createDogfoodVerifyHelpText()).toContain("native voice transcript-to-task evidence");
+    expect(createDogfoodVerifyHelpText()).toContain("native voice Ghostty turn replay evidence");
   });
 
   it("accepts a complete blocked dogfood evidence chain from the packaged app", async () => {
@@ -2269,7 +2272,106 @@ describe("dogfood artifact verifier", () => {
       ])
     });
   });
+
+  it("fails passed native voice evidence without Ghostty replay proof", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const incompleteVoice = createPassedVoiceSmokeArtifact(voiceSmokePath);
+
+    delete (incompleteVoice as { turnReplay?: unknown }).turnReplay;
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: incompleteVoice
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("voice.turnReplay")
+      ])
+    });
+  });
 });
+
+function createPassedVoiceTurnReplay() {
+  return {
+    transcript: {
+      command: "pwd",
+      apps: [
+        {
+          name: "Ghostty",
+          bundleId: "com.mitchellh.ghostty",
+          pid: 54502
+        }
+      ],
+      screenshots: [
+        {
+          stage: "before",
+          path: "/repo/.skfiy-smoke/voice-before.png",
+          bundleId: "com.mitchellh.ghostty",
+          pid: 54502,
+          bytes: 1200
+        },
+        {
+          stage: "after",
+          path: "/repo/.skfiy-smoke/voice-after.png",
+          bundleId: "com.mitchellh.ghostty",
+          pid: 54502,
+          bytes: 1400
+        }
+      ],
+      actions: [
+        { type: "type_text", text: "pwd" },
+        { type: "verify", actionType: "type_text", status: "passed" },
+        { type: "press_key", key: "enter" },
+        { type: "verify", actionType: "press_key", status: "passed" }
+      ],
+      outcome: "completed"
+    },
+    timeline: [
+      {
+        status: "observing",
+        message: "Preparing Computer Use command from voice transcript."
+      },
+      {
+        status: "completed",
+        message: "Command completed from voice transcript."
+      }
+    ]
+  };
+}
 
 function createMemoryIo(files: Record<string, unknown>) {
   return {

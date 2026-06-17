@@ -62,6 +62,7 @@ describe("native voice product smoke script", () => {
         providerEvents?: Array<{ state: string; message?: string }>;
         taskEvents?: Array<{ status: string; message?: string }>;
         transcriptEvents?: Array<{ isFinal?: boolean; text?: string }>;
+        turnReplay?: unknown;
         runnerHasTmux?: boolean;
         appLaunchViaOpen?: boolean;
         productPath?: string;
@@ -97,6 +98,7 @@ describe("native voice product smoke script", () => {
         providerEvents?: Array<{ state: string; message?: string }>;
         taskEvents?: Array<{ status: string; message?: string }>;
         transcriptEvents?: Array<{ isFinal?: boolean; text?: string }>;
+        turnReplay?: unknown;
         runnerHasTmux?: boolean;
         appLaunchViaOpen?: boolean;
         productPath?: string;
@@ -120,6 +122,17 @@ describe("native voice product smoke script", () => {
       providerEvents,
       transcriptEvents,
       taskEvents
+    })).toBe("failed");
+    expect(classifyVoiceSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+      providerEvents,
+      transcriptEvents,
+      taskEvents: [
+        { status: "completed", message: "Task completed from voice transcript." }
+      ],
+      turnReplay: createPassedGhosttyTurnReplay()
     })).toBe("passed");
     expect(classifyVoiceSmokeEvidence({
       appLaunchViaOpen: true,
@@ -127,7 +140,8 @@ describe("native voice product smoke script", () => {
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
       providerEvents,
       transcriptEvents,
-      taskEvents
+      taskEvents,
+      turnReplay: createPassedGhosttyTurnReplay()
     })).toBe("failed");
     expect(classifyVoiceSmokeEvidence({
       appLaunchViaOpen: true,
@@ -170,9 +184,53 @@ describe("native voice product smoke script", () => {
       "window.skfiy.setDictationSettings({ provider: \"native-macos\", nativeSpeechLocale: ${JSON.stringify(options.locale)} })"
     );
     expect(source).toContain("window.skfiy.prepareDictation()");
+    expect(source).toContain("window.skfiy.submitDictation(");
+    expect(source).toContain("window.skfiy.getTurnReplay()");
     expect(source).toContain("window.skfiy.stopDictation(");
     expect(source).toContain("window.skfiy.onDictationProviderEvent");
     expect(source).toContain("window.skfiy.onDictationTranscriptEvent");
     expect(source).toContain("window.skfiy.onTaskEvent");
   });
 });
+
+function createPassedGhosttyTurnReplay() {
+  return {
+    transcript: {
+      command: "pwd",
+      apps: [
+        {
+          name: "Ghostty",
+          bundleId: "com.mitchellh.ghostty",
+          pid: 54502
+        }
+      ],
+      screenshots: [
+        {
+          stage: "before",
+          path: "/tmp/skfiy-voice-before.png",
+          bundleId: "com.mitchellh.ghostty",
+          pid: 54502,
+          bytes: 1200
+        },
+        {
+          stage: "after",
+          path: "/tmp/skfiy-voice-after.png",
+          bundleId: "com.mitchellh.ghostty",
+          pid: 54502,
+          bytes: 1400
+        }
+      ],
+      actions: [
+        { type: "type_text", text: "pwd" },
+        { type: "verify", actionType: "type_text", status: "passed" },
+        { type: "press_key", key: "enter" },
+        { type: "verify", actionType: "press_key", status: "passed" }
+      ],
+      outcome: "completed"
+    },
+    timeline: [
+      { status: "observing", message: "Preparing Computer Use command from voice transcript." },
+      { status: "completed", message: "Command completed from voice transcript." }
+    ]
+  };
+}

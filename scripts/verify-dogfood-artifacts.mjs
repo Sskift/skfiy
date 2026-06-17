@@ -197,6 +197,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.voiceTurnReplay",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Native voice Ghostty turn replay evidence"),
+    "manifest must require native voice Ghostty turn replay evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.voiceNoTranscriptCancellation",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Native voice no-transcript/cancellation evidence"),
@@ -910,6 +917,12 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
       "voice.downstreamTask",
       hasVoiceDownstreamTaskEvidence(artifact.taskEvents),
       "passed voice smoke must include downstream Computer Use task events"
+    );
+    check(
+      checks,
+      "voice.turnReplay",
+      hasPassedGhosttyTurnReplayEvidence(artifact.turnReplay),
+      "passed voice smoke must include Ghostty turn replay evidence with completed timeline, verified type_text/press_key actions, and non-empty before/after screenshots"
     );
   }
   if (artifact.result === "no-transcript") {
@@ -1716,6 +1729,74 @@ function hasVoiceDownstreamTaskEvidence(events) {
   );
 }
 
+function hasPassedGhosttyTurnReplayEvidence(turnReplay) {
+  if (!turnReplay || typeof turnReplay !== "object") {
+    return false;
+  }
+
+  const transcript = turnReplay.transcript;
+  const timeline = Array.isArray(turnReplay.timeline) ? turnReplay.timeline : [];
+
+  return Boolean(transcript)
+    && typeof transcript === "object"
+    && transcript.outcome === "completed"
+    && timeline.some((event) => event?.status === "completed")
+    && hasGhosttyTurnReplayApp(transcript.apps)
+    && hasGhosttyTurnReplayScreenshots(transcript.screenshots)
+    && hasGhosttyTurnReplayActions(transcript.actions);
+}
+
+function hasGhosttyTurnReplayApp(apps) {
+  return Array.isArray(apps)
+    && apps.some((app) => app?.bundleId === "com.mitchellh.ghostty");
+}
+
+function hasGhosttyTurnReplayScreenshots(screenshots) {
+  if (!Array.isArray(screenshots)) {
+    return false;
+  }
+
+  const before = screenshots.find((screenshot) =>
+    screenshot?.stage === "before"
+      && screenshot.bundleId === "com.mitchellh.ghostty"
+      && typeof screenshot.path === "string"
+      && screenshot.path.trim().length > 0
+      && readOptionalPositiveNumber(screenshot.bytes) > 0
+  );
+  const after = screenshots.find((screenshot) =>
+    screenshot?.stage === "after"
+      && screenshot.bundleId === "com.mitchellh.ghostty"
+      && typeof screenshot.path === "string"
+      && screenshot.path.trim().length > 0
+      && readOptionalPositiveNumber(screenshot.bytes) > 0
+  );
+
+  return Boolean(before && after);
+}
+
+function hasGhosttyTurnReplayActions(actions) {
+  if (!Array.isArray(actions)) {
+    return false;
+  }
+
+  return actions.some((action) => action?.type === "type_text")
+    && actions.some((action) => action?.type === "press_key")
+    && actions.some((action) =>
+      action?.type === "verify"
+        && action.actionType === "type_text"
+        && action.status === "passed"
+    )
+    && actions.some((action) =>
+      action?.type === "verify"
+        && action.actionType === "press_key"
+        && action.status === "passed"
+    );
+}
+
+function readOptionalPositiveNumber(value) {
+  return Number.isFinite(value) ? value : 0;
+}
+
 function hasNoTranscriptVoiceLifecycleEvidence(providerEvents, transcriptEvents, taskEvents) {
   if (!Array.isArray(providerEvents)) {
     return false;
@@ -1823,7 +1904,7 @@ Validates that an alpha manifest references a coherent packaged-app dogfood evid
 
 Options:
   --manifest <path>     Alpha manifest JSON from npm run alpha:artifact.
-  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and native voice smoke results are passed, including panic stop runtime hotkey evidence, Chrome current-page observation evidence, and native voice transcript-to-task evidence.
+  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and native voice smoke results are passed, including panic stop runtime hotkey evidence, Chrome current-page observation evidence, native voice transcript-to-task evidence, and native voice Ghostty turn replay evidence.
   --require-current-head
                        Fail unless manifest commitSha matches the current git HEAD.
   -h, --help            Show this help.

@@ -81,6 +81,7 @@ export function classifyVoiceSmokeEvidence({
   providerEvents = [],
   taskEvents = [],
   transcriptEvents = [],
+  turnReplay,
   runnerHasTmux = false,
   appLaunchViaOpen = false,
   productPath
@@ -125,7 +126,7 @@ export function classifyVoiceSmokeEvidence({
     return "failed";
   }
 
-  return "passed";
+  return hasPassedGhosttyTurnReplay(turnReplay) ? "passed" : "failed";
 }
 
 function hasProviderState(events, state) {
@@ -152,6 +153,74 @@ function hasVoiceDownstreamTaskEvent(events) {
       "failed"
     ].includes(event.status)
   );
+}
+
+function hasPassedGhosttyTurnReplay(turnReplay) {
+  if (!turnReplay || typeof turnReplay !== "object") {
+    return false;
+  }
+
+  const transcript = turnReplay.transcript;
+  const timeline = Array.isArray(turnReplay.timeline) ? turnReplay.timeline : [];
+
+  return Boolean(transcript)
+    && typeof transcript === "object"
+    && transcript.outcome === "completed"
+    && timeline.some((event) => event?.status === "completed")
+    && hasGhosttyApp(transcript.apps)
+    && hasRequiredGhosttyScreenshots(transcript.screenshots)
+    && hasRequiredGhosttyActions(transcript.actions);
+}
+
+function hasGhosttyApp(apps) {
+  return Array.isArray(apps)
+    && apps.some((app) => app?.bundleId === "com.mitchellh.ghostty");
+}
+
+function hasRequiredGhosttyScreenshots(screenshots) {
+  if (!Array.isArray(screenshots)) {
+    return false;
+  }
+
+  const before = screenshots.find((screenshot) =>
+    screenshot?.stage === "before"
+    && screenshot.bundleId === "com.mitchellh.ghostty"
+    && typeof screenshot.path === "string"
+    && screenshot.path.trim().length > 0
+    && readOptionalPositiveNumber(screenshot.bytes) > 0
+  );
+  const after = screenshots.find((screenshot) =>
+    screenshot?.stage === "after"
+    && screenshot.bundleId === "com.mitchellh.ghostty"
+    && typeof screenshot.path === "string"
+    && screenshot.path.trim().length > 0
+    && readOptionalPositiveNumber(screenshot.bytes) > 0
+  );
+
+  return Boolean(before && after);
+}
+
+function hasRequiredGhosttyActions(actions) {
+  if (!Array.isArray(actions)) {
+    return false;
+  }
+
+  return actions.some((action) => action?.type === "type_text")
+    && actions.some((action) => action?.type === "press_key")
+    && actions.some((action) =>
+      action?.type === "verify"
+      && action.actionType === "type_text"
+      && action.status === "passed"
+    )
+    && actions.some((action) =>
+      action?.type === "verify"
+      && action.actionType === "press_key"
+      && action.status === "passed"
+    );
+}
+
+function readOptionalPositiveNumber(value) {
+  return Number.isFinite(value) ? value : 0;
 }
 
 function hasPermissionBlockedEvent(events) {

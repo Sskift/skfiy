@@ -163,6 +163,7 @@ describe("alpha artifact packaging", () => {
         "Accessibility permission state",
         "Microphone or ASR provider state",
         "Native voice transcript-to-task evidence",
+        "Native voice Ghostty turn replay evidence",
         "Native voice no-transcript/cancellation evidence",
         "Accepted GitHub dogfood issue source",
         "before/after screenshot paths when Computer Use passes",

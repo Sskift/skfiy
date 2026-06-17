@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,6 +50,8 @@ async function main() {
     providerEvents: [],
     transcriptEvents: [],
     taskEvents: [],
+    turnReplay: undefined,
+    submission: undefined,
     result: "not-run"
   };
   let smokeLock;
@@ -104,6 +107,15 @@ async function main() {
         await sleep(Math.min(options.listenMs, 1_000));
       }
 
+      const finalTranscript = readFinalTranscript(cdp.events);
+      if (finalTranscript) {
+        evidence.submission = await evaluateValue(
+          cdp,
+          `window.skfiy.submitDictation(${JSON.stringify(evidence.preparation?.sessionId)}, ${JSON.stringify(finalTranscript)}, { stopNativeDictation: false })`
+        );
+        await waitForTaskTerminalEvent(cdp.events, Math.min(options.timeoutMs, 5_000));
+      }
+
       await evaluateValue(
         cdp,
         `window.skfiy.stopDictation(${JSON.stringify(evidence.preparation?.sessionId)})`
@@ -119,6 +131,7 @@ async function main() {
       evidence.taskEvents = cdp.events
         .filter((event) => event.channel === "task")
         .map((event) => event.payload);
+      evidence.turnReplay = await readTurnReplayEvidence(cdp);
       evidence.result = classifyVoiceSmokeEvidence(evidence);
     } finally {
       cdp.close();
@@ -260,6 +273,77 @@ async function evaluateValue(cdp, expression) {
   });
 
   return response.result?.value;
+}
+
+function readFinalTranscript(events) {
+  const transcriptEvents = events
+    .filter((event) => event.channel === "transcript")
+    .map((event) => event.payload)
+    .filter((event) =>
+      event?.isFinal === true
+      && typeof event.text === "string"
+      && event.text.trim().length > 0
+    );
+  const finalEvent = transcriptEvents.at(-1);
+
+  return typeof finalEvent?.text === "string" ? finalEvent.text.trim() : "";
+}
+
+async function waitForTaskTerminalEvent(events, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (events.some((event) =>
+      event.channel === "task"
+      && ["completed", "failed", "needs_confirmation"].includes(event.payload?.status)
+    )) {
+      return;
+    }
+
+    await sleep(200);
+  }
+}
+
+async function readTurnReplayEvidence(cdp) {
+  const replay = await evaluateValue(cdp, "window.skfiy.getTurnReplay()");
+  if (!replay || typeof replay !== "object") {
+    return replay;
+  }
+
+  return {
+    ...replay,
+    transcript: {
+      ...replay.transcript,
+      screenshots: await Promise.all(
+        (Array.isArray(replay.transcript?.screenshots) ? replay.transcript.screenshots : [])
+          .map(addScreenshotFileSize)
+      )
+    }
+  };
+}
+
+async function addScreenshotFileSize(screenshot) {
+  if (
+    !screenshot
+    || typeof screenshot !== "object"
+    || typeof screenshot.path !== "string"
+    || screenshot.path.trim().length === 0
+  ) {
+    return screenshot;
+  }
+
+  try {
+    const screenshotStat = await stat(screenshot.path);
+    return {
+      ...screenshot,
+      bytes: screenshotStat.size
+    };
+  } catch {
+    return {
+      ...screenshot,
+      bytes: 0
+    };
+  }
 }
 
 function installVoiceEventSinkExpression() {

@@ -656,8 +656,11 @@ function createVoiceTranscriptTaskEvidence(voiceArtifact) {
     : [];
   const taskEvents = Array.isArray(voiceArtifact?.taskEvents) ? voiceArtifact.taskEvents : [];
   const finalTranscripts = transcriptEvents.filter((event) =>
-    event?.final === true && typeof event?.text === "string" && event.text.trim().length > 0
+    (event?.final === true || event?.isFinal === true)
+      && typeof event?.text === "string"
+      && event.text.trim().length > 0
   );
+  const turnReplay = voiceArtifact?.turnReplay;
 
   if (finalTranscripts.length === 0 || taskEvents.length === 0) {
     return "not available";
@@ -665,7 +668,8 @@ function createVoiceTranscriptTaskEvidence(voiceArtifact) {
 
   return [
     `transcriptEvents: ${createJsonEvidence(finalTranscripts)}`,
-    `taskEvents: ${createJsonEvidence(taskEvents)}`
+    `taskEvents: ${createJsonEvidence(taskEvents)}`,
+    `turnReplay: ${createJsonEvidence(turnReplay)}`
   ].join("\n");
 }
 

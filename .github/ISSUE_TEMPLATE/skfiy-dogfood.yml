@@ -413,7 +413,7 @@ body:
     id: voice_and_stop
     attributes:
       label: Voice and panic stop notes
-      description: Include start/stop behavior, provider failure messages, native voice transcript-to-task evidence, no-transcript/cancellation evidence, and structured panic stop / global stop hotkey evidence from runtimeStatus.stopTurnHotkey.
+      description: Include start/stop behavior, provider failure messages, native voice transcript-to-task evidence, Ghostty turn replay evidence, no-transcript/cancellation evidence, and structured panic stop / global stop hotkey evidence from runtimeStatus.stopTurnHotkey.
       placeholder: |
         ASR provider:
         transcript observed:
@@ -421,6 +421,7 @@ body:
         Native voice no-transcript/cancellation evidence:
         transcriptEvents:
         taskEvents:
+        turnReplay:
         panic stop:
         accelerator: Control+Alt+Shift+Esc
         label: Ctrl Opt Shift Esc

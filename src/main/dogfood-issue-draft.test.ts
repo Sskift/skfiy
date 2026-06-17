@@ -221,6 +221,68 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("source: runtimeStatus.stopTurnHotkey");
   });
 
+  it("includes final native voice transcript task events and turn replay evidence", async () => {
+    const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodIssueDraft: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [manifestPath]: createManifest(),
+      [uiSmokePath]: createSmoke(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmoke(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmoke(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed", {
+        provider: "native-macos",
+        transcriptEvents: [
+          { providerId: "native-macos", isFinal: true, text: "pwd" }
+        ],
+        taskEvents: [
+          { status: "completed", message: "Command completed from voice transcript." }
+        ],
+        turnReplay: {
+          transcript: {
+            apps: [{ bundleId: "com.mitchellh.ghostty" }],
+            screenshots: [
+              { stage: "before", path: "/tmp/voice-before.png", bytes: 1200 },
+              { stage: "after", path: "/tmp/voice-after.png", bytes: 1400 }
+            ],
+            actions: [
+              { type: "type_text", text: "pwd" },
+              { type: "verify", actionType: "type_text", status: "passed" },
+              { type: "press_key", key: "enter" },
+              { type: "verify", actionType: "press_key", status: "passed" }
+            ],
+            outcome: "completed"
+          },
+          timeline: [{ status: "completed" }]
+        }
+      })
+    });
+
+    await createDogfoodIssueDraft({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal"],
+      uiSmokeArtifactPath: uiSmokePath,
+      smokeArtifactPath: ghosttySmokePath,
+      chromeSmokeArtifactPath: chromeSmokePath,
+      finderSmokeArtifactPath: finderSmokePath,
+      voiceSmokeArtifactPath: voiceSmokePath,
+      outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md"
+    }, io);
+
+    const body = io.files["/repo/.skfiy-dogfood/issues/tester-a.md"] as string;
+    expect(body).toContain("### Native voice transcript-to-task evidence");
+    expect(body).toContain("transcriptEvents:");
+    expect(body).toContain("taskEvents:");
+    expect(body).toContain("turnReplay:");
+    expect(body).toContain("com.mitchellh.ghostty");
+    expect(body).toContain("/tmp/voice-after.png");
+  });
+
   it("summarizes Computer Use result from the artifacts that match selected workflows", async () => {
     const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodIssueDraft: (
