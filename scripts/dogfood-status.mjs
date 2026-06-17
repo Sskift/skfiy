@@ -13,6 +13,7 @@ const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/\d+/g;
 const ASSIGNMENT_PACKET_HEADING = "# skfiy dogfood tester assignments";
 const ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING = "## Permission Preflight";
+const ASSIGNMENT_EVIDENCE_PREVIEW_HEADING = "## Evidence Preview Gate";
 const REQUIRED_PERMISSION_KEYS = [
   "screenRecording",
   "accessibility",
@@ -983,8 +984,11 @@ function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, m
   const matchingComments = normalizedComments.filter((comment) =>
     isCurrentAlphaAssignmentComment(comment.body, currentAlphaTag)
   );
-  const completeComments = matchingComments.filter((comment) =>
+  const commentsWithPermissionPreflight = matchingComments.filter((comment) =>
     comment.body.includes(ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING)
+  );
+  const completeComments = commentsWithPermissionPreflight.filter((comment) =>
+    comment.body.includes(ASSIGNMENT_EVIDENCE_PREVIEW_HEADING)
   );
   const reasons = [];
   const latestComment = completeComments.at(-1) ?? matchingComments.at(-1);
@@ -993,8 +997,10 @@ function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, m
     reasons.push("tracking issue comments were not loaded");
   } else if (matchingComments.length === 0) {
     reasons.push(`tracking issue does not have a current ${currentAlphaTag} tester assignment packet comment`);
-  } else if (completeComments.length === 0) {
+  } else if (commentsWithPermissionPreflight.length === 0) {
     reasons.push(`current ${currentAlphaTag} tester assignment packet comment is missing Permission Preflight`);
+  } else if (completeComments.length === 0) {
+    reasons.push(`current ${currentAlphaTag} tester assignment packet comment is missing Evidence Preview Gate`);
   }
 
   return {
