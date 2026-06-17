@@ -205,6 +205,81 @@ describe("GitHub alpha release publisher", () => {
     });
   });
 
+  it("refreshes latest alpha evidence when the GitHub release already exists with matching assets", async () => {
+    const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
+      runGitHubAlphaRelease: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({ releaseAlreadyExists: true });
+
+    await expect(runGitHubAlphaRelease({
+      rootDir: "/repo",
+      manifestPath,
+      repo: "Sskift/skfiy",
+      trackingIssueUrl,
+      dryRun: false,
+      now: () => "2026-06-17T08:20:00.000Z"
+    }, io)).resolves.toMatchObject({
+      status: "published",
+      dryRun: false,
+      releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1"
+    });
+
+    expect(io.commands).toEqual([
+      expect.objectContaining({
+        command: "gh",
+        args: expect.arrayContaining(["release", "create", "skfiy-alpha-abcdef1"])
+      }),
+      expect.objectContaining({
+        command: "gh",
+        args: [
+          "release",
+          "view",
+          "skfiy-alpha-abcdef1",
+          "--repo",
+          "Sskift/skfiy",
+          "--json",
+          "tagName,url,isPrerelease,isDraft,targetCommitish,assets"
+        ]
+      })
+    ]);
+    expect(JSON.parse(io.textFiles["/repo/docs/release-evidence/latest-alpha.json"])).toMatchObject({
+      tagName: "skfiy-alpha-abcdef1",
+      releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1",
+      commitSha: "abcdef1234567890",
+      zipSha256: empty1234ByteZipSha256,
+      publishedAt: "2026-06-17T08:20:00.000Z"
+    });
+  });
+
+  it("rejects release evidence when smoke artifacts belong to a different alpha", async () => {
+    const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
+      runGitHubAlphaRelease: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      manifest: {
+        ...createManifest(),
+        uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-72b7895.json"
+      }
+    });
+
+    await expect(runGitHubAlphaRelease({
+      rootDir: "/repo",
+      manifestPath,
+      repo: "Sskift/skfiy",
+      trackingIssueUrl,
+      dryRun: false
+    }, io)).rejects.toThrow(
+      "alpha manifest uiSmokeArtifactPath must reference current alpha abcdef1; got /repo/.skfiy-smoke/ui-72b7895.json."
+    );
+    expect(io.commands).toEqual([]);
+  });
+
   it("rejects a dry-run release when the zip bytes match but the SHA256 differs", async () => {
     const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
       runGitHubAlphaRelease: (
@@ -259,7 +334,10 @@ function createManifest() {
   };
 }
 
-function createMemoryIo(options: { manifest?: ReturnType<typeof createManifest> } = {}) {
+function createMemoryIo(options: {
+  manifest?: ReturnType<typeof createManifest>;
+  releaseAlreadyExists?: boolean;
+} = {}) {
   const commands: Array<{ command: string; args: string[] }> = [];
   const textFiles: Record<string, string> = {};
   const manifest = options.manifest ?? createManifest();
@@ -291,6 +369,34 @@ function createMemoryIo(options: { manifest?: ReturnType<typeof createManifest> 
     },
     async execFile(command: string, args: string[]) {
       commands.push({ command, args });
+      if (options.releaseAlreadyExists && args[0] === "release" && args[1] === "create") {
+        throw new Error("release already exists");
+      }
+      if (options.releaseAlreadyExists && args[0] === "release" && args[1] === "view") {
+        return {
+          stdout: JSON.stringify({
+            tagName: "skfiy-alpha-abcdef1",
+            url: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abcdef1",
+            isPrerelease: true,
+            isDraft: false,
+            targetCommitish: "abcdef1234567890",
+            assets: [
+              {
+                name: "skfiy-0.1.0-abcdef1-macos-unsigned.zip",
+                size: 1234,
+                digest: `sha256:${empty1234ByteZipSha256}`,
+                state: "uploaded"
+              },
+              {
+                name: "skfiy-0.1.0-abcdef1-macos-unsigned.json",
+                size: 512,
+                state: "uploaded"
+              }
+            ]
+          }),
+          stderr: ""
+        };
+      }
       return { stdout: "", stderr: "" };
     }
   };

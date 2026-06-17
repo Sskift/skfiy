@@ -117,7 +117,11 @@ export async function runGitHubAlphaRelease(options, io = createDefaultIo()) {
   };
 
   if (!options.dryRun) {
-    await io.execFile(plan.command.command, plan.command.args);
+    await publishOrVerifyExistingRelease({
+      plan,
+      manifest,
+      manifestPath: options.manifestPath
+    }, io);
     await writeLatestAlphaEvidence({
       manifest,
       manifestPath: options.manifestPath,
@@ -128,6 +132,67 @@ export async function runGitHubAlphaRelease(options, io = createDefaultIo()) {
   }
 
   return report;
+}
+
+async function publishOrVerifyExistingRelease({ plan, manifest, manifestPath }, io) {
+  try {
+    await io.execFile(plan.command.command, plan.command.args);
+    return;
+  } catch (error) {
+    if (!isReleaseAlreadyExistsError(error)) {
+      throw error;
+    }
+  }
+
+  const release = await readExistingGitHubRelease(plan, io);
+  await verifyExistingGitHubRelease({
+    release,
+    plan,
+    manifest,
+    manifestPath
+  }, io);
+}
+
+async function readExistingGitHubRelease(plan, io) {
+  const { stdout } = await io.execFile("gh", [
+    "release",
+    "view",
+    plan.tagName,
+    "--repo",
+    plan.repo,
+    "--json",
+    "tagName,url,isPrerelease,isDraft,targetCommitish,assets"
+  ]);
+
+  try {
+    return JSON.parse(String(stdout));
+  } catch (error) {
+    throw new Error(`Could not parse existing GitHub release metadata for ${plan.tagName}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function verifyExistingGitHubRelease({ release, plan, manifest, manifestPath }, io) {
+  const manifestStat = await io.statFile(manifestPath);
+
+  assertEqual(release?.tagName, plan.tagName, "existing release tag");
+  assertEqual(release?.url, plan.releaseUrl, "existing release URL");
+  assertEqual(release?.targetCommitish, manifest.commitSha, "existing release target commit");
+  if (release?.isPrerelease !== true) {
+    throw new Error(`existing release ${plan.tagName} must be a prerelease.`);
+  }
+  if (release?.isDraft === true) {
+    throw new Error(`existing release ${plan.tagName} is still a draft; publish it before refreshing release evidence.`);
+  }
+
+  verifyExistingReleaseAsset(release?.assets, {
+    name: path.basename(manifest.zip.path),
+    size: manifest.zip.bytes,
+    digest: `sha256:${manifest.zip.sha256}`
+  });
+  verifyExistingReleaseAsset(release?.assets, {
+    name: path.basename(manifestPath),
+    size: manifestStat.size
+  });
 }
 
 export function createGitHubAlphaReleasePlan({
@@ -365,6 +430,7 @@ function validateManifest(manifest) {
       throw new Error(`alpha manifest ${key} is required.`);
     }
   }
+  validateCurrentAlphaSmokeArtifacts(manifest);
 }
 
 async function assertReadableFile(filePath, label, io) {
@@ -387,6 +453,56 @@ async function assertZipIntegrity(manifest, io) {
     throw new Error(
       `alpha zip SHA256 mismatch: expected ${manifest.zip.sha256}, got ${actualSha256}.`
     );
+  }
+}
+
+function validateCurrentAlphaSmokeArtifacts(manifest) {
+  const shortSha = manifest.commitSha.slice(0, 7);
+  for (const key of [
+    "uiSmokeArtifactPath",
+    "smokeArtifactPath",
+    "chromeSmokeArtifactPath",
+    "finderSmokeArtifactPath",
+    "voiceSmokeArtifactPath"
+  ]) {
+    const artifactPath = manifest[key];
+    const artifactBaseName = path.basename(artifactPath);
+    if (!artifactBaseName.includes(`-${shortSha}`)) {
+      throw new Error(
+        `alpha manifest ${key} must reference current alpha ${shortSha}; got ${artifactPath}.`
+      );
+    }
+  }
+}
+
+function isReleaseAlreadyExistsError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /already[_ -]?exists/i.test(message) || /already exists/i.test(message);
+}
+
+function assertEqual(actual, expected, label) {
+  if (actual !== expected) {
+    throw new Error(`${label} must be ${expected}; got ${actual ?? "missing"}.`);
+  }
+}
+
+function verifyExistingReleaseAsset(assets, expected) {
+  if (!Array.isArray(assets)) {
+    throw new Error("existing release assets must be readable.");
+  }
+
+  const asset = assets.find((item) => item?.name === expected.name);
+  if (!asset) {
+    throw new Error(`existing release is missing asset ${expected.name}.`);
+  }
+  if (asset.state !== undefined && asset.state !== "uploaded") {
+    throw new Error(`existing release asset ${expected.name} must be uploaded.`);
+  }
+  if (Number.isFinite(expected.size) && asset.size !== expected.size) {
+    throw new Error(`existing release asset ${expected.name} size must be ${expected.size}; got ${asset.size ?? "missing"}.`);
+  }
+  if (expected.digest && asset.digest && asset.digest !== expected.digest) {
+    throw new Error(`existing release asset ${expected.name} digest must be ${expected.digest}; got ${asset.digest}.`);
   }
 }
 
