@@ -52,6 +52,7 @@ export function createDefaultDogfoodTesterOptions(rootDir = DEFAULT_ROOT_DIR) {
     appPath: undefined,
     finderTargetDir: undefined,
     chromeCurrentPageEndpoint: undefined,
+    trackingIssueUrl: undefined,
     fileIssue: false,
     requirePassed: false,
     allowSyntheticTesterId: false,
@@ -104,6 +105,10 @@ export function parseDogfoodTesterArgs(argv, defaults) {
         break;
       case "--chrome-current-page-endpoint":
         options.chromeCurrentPageEndpoint = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--tracking-issue-url":
+        options.trackingIssueUrl = readValue(argv, index, arg);
         index += 1;
         break;
       case "--file-issue":
@@ -216,6 +221,7 @@ export function createDogfoodTesterPlan(options) {
     manifestPath: options.manifestPath,
     testerId,
     workflows: [...options.workflows],
+    trackingIssueUrl: options.trackingIssueUrl,
     appPath,
     artifactsDir,
     artifacts,
@@ -385,6 +391,7 @@ export function createDogfoodTesterHelpText() {
     "  --finder-target-dir <path>     Parent directory for the isolated Finder fixture.",
     "  --chrome-current-page-endpoint <url>",
     "                                Attach Chrome BYO current-page mode to a consenting tester page.",
+    "  --tracking-issue-url <url>    Include the cohort tracking issue in the maintainer review command after --file-issue.",
     "  --file-issue                  After generating and checking the issue body, create the GitHub report issue.",
     "                                This creates only the report issue; it never adds accepted/workflow labels or edits the tracking issue.",
     "  --require-passed               Require Ghostty, Chrome, Finder, and voice smokes to pass.",
@@ -418,6 +425,13 @@ function validateDogfoodTesterOptions(options) {
   }
   if (options.fileIssue === true && options.allowSyntheticTesterId === true) {
     throw new Error("--file-issue cannot be used with --allow-synthetic-tester-id.");
+  }
+  if (
+    typeof options.trackingIssueUrl === "string"
+    && options.trackingIssueUrl.trim().length > 0
+    && !isGithubIssueUrl(options.trackingIssueUrl)
+  ) {
+    throw new Error("--tracking-issue-url must be a GitHub issue URL.");
   }
 }
 
@@ -591,9 +605,23 @@ function createMaintainerReviewCommand(plan, issueUrl) {
     plan.manifestPath,
     "--issue-url",
     issueUrl,
+    ...readOptionalPair("--tracking-issue-url", plan.trackingIssueUrl),
     "--summary",
     path.join(plan.rootDir, ".skfiy-dogfood", "reviews", `${plan.testerId}.md`)
   ]);
+}
+
+function isGithubIssueUrl(value) {
+  try {
+    const url = new URL(String(value));
+    const segments = url.pathname.split("/").filter(Boolean);
+    return url.hostname === "github.com"
+      && segments.length === 4
+      && segments[2] === "issues"
+      && /^\d+$/.test(segments[3]);
+  } catch {
+    return false;
+  }
 }
 
 function readSmokeResultRows(commandResults) {

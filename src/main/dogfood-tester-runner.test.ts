@@ -54,6 +54,8 @@ describe("dogfood tester runner", () => {
       "~/Desktop/skfiy-finder-dogfood",
       "--chrome-current-page-endpoint",
       "http://127.0.0.1:9222",
+      "--tracking-issue-url",
+      "https://github.com/Sskift/skfiy/issues/1",
       "--file-issue",
       "--require-passed",
       "--allow-synthetic-tester-id"
@@ -68,6 +70,7 @@ describe("dogfood tester runner", () => {
       appPath: "/Applications/skfiy.app",
       finderTargetDir: path.join(os.homedir(), "Desktop/skfiy-finder-dogfood"),
       chromeCurrentPageEndpoint: "http://127.0.0.1:9222",
+      trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
       fileIssue: true,
       requirePassed: true,
       allowSyntheticTesterId: true
@@ -79,6 +82,7 @@ describe("dogfood tester runner", () => {
     expect(createDogfoodTesterHelpText()).toContain("app bundle identity preflight");
     expect(createDogfoodTesterHelpText()).toContain("strict permission preflight");
     expect(createDogfoodTesterHelpText()).toContain("--file-issue");
+    expect(createDogfoodTesterHelpText()).toContain("--tracking-issue-url");
     expect(createDogfoodTesterHelpText()).toContain("Reserved tester id prefixes");
   });
 
@@ -365,6 +369,7 @@ describe("dogfood tester runner", () => {
       workflows: ["coding-terminal", "screenshot-inspection"],
       issueOutputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
       summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
+      trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
       fileIssue: true,
       now: () => "2026-06-16T12:00:00.000Z"
     }, io)).resolves.toMatchObject({
@@ -396,7 +401,7 @@ describe("dogfood tester runner", () => {
       "Maintainer review command:"
     );
     expect(summary).toContain(
-      "npm run dogfood:review -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --issue-url https://github.com/Sskift/skfiy/issues/211 --summary /repo/.skfiy-dogfood/reviews/tester-a.md"
+      "npm run dogfood:review -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --issue-url https://github.com/Sskift/skfiy/issues/211 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary /repo/.skfiy-dogfood/reviews/tester-a.md"
     );
     expect(summary).not.toContain(
       "gh issue create --repo Sskift/skfiy --title \"skfiy dogfood report: tester-a\""

@@ -129,6 +129,11 @@ describe("dogfood handoff generator", () => {
     expect(handoff).toContain("--workflows coding-terminal,screenshot-inspection,finder-file,browser-fallback");
     expect(handoff).toContain("--artifacts-dir .skfiy-smoke/dogfood/tester-b");
     expect(handoff).toContain("--issue-output .skfiy-dogfood/issues/tester-b.md");
+    const testerCommandSection = handoff.slice(
+      handoff.indexOf("## Tester Command"),
+      handoff.indexOf("## Filing")
+    );
+    expect(testerCommandSection).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
     expect(handoff).toContain("File a `skfiy dogfood report` issue");
     expect(handoff).toContain("gh issue create -- \\");
     expect(handoff).toContain("--repo Sskift/skfiy");

@@ -183,6 +183,7 @@ function createDogfoodHandoffMarkdown({
     ["--artifacts-dir", artifactsDir],
     ["--issue-output", issueOutput],
     ["--summary", summaryPath],
+    ["--tracking-issue-url", trackingIssueUrl],
     ["--file-issue"],
     ...optionalPair("--finder-target-dir", finderTargetDir),
     ...optionalPair("--chrome-current-page-endpoint", chromeCurrentPageEndpoint),

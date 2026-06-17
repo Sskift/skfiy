@@ -848,6 +848,7 @@ function createTesterAssignmentCommands({
     workflowList
   });
   const reviewTrackingIssueArgs = readReviewTrackingIssueArgs({ trackingIssueUrl });
+  const testerTrackingIssueArgs = readReviewTrackingIssueArgs({ trackingIssueUrl });
 
   return {
     prepareAlpha: [
@@ -876,6 +877,7 @@ function createTesterAssignmentCommands({
       `.skfiy-dogfood/issues/${testerId}.md`,
       "--summary",
       `.skfiy-dogfood/${testerId}-summary.md`,
+      ...testerTrackingIssueArgs,
       "--file-issue",
       ...(requirePassed ? ["--require-passed"] : [])
     ].join(" "),

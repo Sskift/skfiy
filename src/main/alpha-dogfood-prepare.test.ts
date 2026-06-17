@@ -246,6 +246,7 @@ describe("alpha dogfood preparation", () => {
     expect(result.plan.nextCommands.tester).toContain("--manifest /repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/<downloaded-alpha.json>");
     expect(result.plan.nextCommands.tester).toContain("--app /repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app");
     expect(result.plan.nextCommands.tester).toContain("--workflows finder-file,browser-fallback");
+    expect(result.plan.nextCommands.tester).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
     expect(result.plan.nextCommands.tester).toContain("--file-issue");
     expect(result.plan.nextCommands.review).toContain("--manifest /repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/<downloaded-alpha.json>");
   });
@@ -387,7 +388,7 @@ describe("alpha dogfood preparation", () => {
       appPath: "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app",
       handoffOutputPath: "/repo/.skfiy-dogfood/handoffs/tester-a.md",
       nextCommands: {
-        tester: "npm run dogfood:tester -- --manifest /repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.json --app /repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app --tester-id tester-a --workflows coding-terminal,screenshot-inspection --artifacts-dir .skfiy-smoke/dogfood/tester-a --issue-output .skfiy-dogfood/issues/tester-a.md --summary .skfiy-dogfood/tester-a-summary.md --file-issue",
+        tester: "npm run dogfood:tester -- --manifest /repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.json --app /repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app --tester-id tester-a --workflows coding-terminal,screenshot-inspection --artifacts-dir .skfiy-smoke/dogfood/tester-a --issue-output .skfiy-dogfood/issues/tester-a.md --summary .skfiy-dogfood/tester-a-summary.md --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --file-issue",
         review: "npm run dogfood:review -- --manifest /repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.json --issue-url <filed-dogfood-issue-url> --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --summary .skfiy-dogfood/reviews/tester-a.md"
       }
     });

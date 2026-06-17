@@ -247,6 +247,7 @@ export function createDogfoodTrackingIssueBody({
       ["--artifacts-dir", ".skfiy-smoke/dogfood/<stable-real-tester-id>"],
       ["--issue-output", ".skfiy-dogfood/issues/<stable-real-tester-id>.md"],
       ["--summary", ".skfiy-dogfood/<stable-real-tester-id>-summary.md"],
+      ["--tracking-issue-url", trackingIssueUrl],
       ["--file-issue"]
     ]),
     "```",
@@ -403,6 +404,7 @@ function createRecommendedTesterAssignmentLines({
         ["--artifacts-dir", `.skfiy-smoke/dogfood/${testerId}`],
         ["--issue-output", `.skfiy-dogfood/issues/${testerId}.md`],
         ["--summary", `.skfiy-dogfood/${testerId}-summary.md`],
+        ["--tracking-issue-url", trackingIssueUrl],
         ["--file-issue"]
       ])}\``,
       `  - Review: \`${formatSingleLineCommand("npm run dogfood:review --", [

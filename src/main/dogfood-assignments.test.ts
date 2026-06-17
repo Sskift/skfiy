@@ -111,6 +111,7 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("Workflows: coding-terminal, screenshot-inspection");
     expect(packet).toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc1234");
     expect(packet).toContain("npm run dogfood:tester -- --manifest <path-to-downloaded-alpha-manifest.json>");
+    expect(packet).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --file-issue");
     expect(packet).toContain("npm run dogfood:review -- --manifest <path-to-downloaded-alpha-manifest.json>");
     expect(packet).toContain("tester-2");
     expect(packet).toContain("finder-file");
@@ -250,7 +251,7 @@ function createAssignment(testerId: string, workflows: string[]) {
     purpose: "real-tester-count-and-workflow-coverage",
     commands: {
       prepareAlpha: `npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc1234 --tester-id ${testerId} --tracking-issue-url ${trackingIssueUrl} --execute`,
-      tester: `npm run dogfood:tester -- --manifest <path-to-downloaded-alpha-manifest.json> --app <path-to-unzipped-skfiy.app> --tester-id ${testerId} --workflows ${workflows.join(",")} --artifacts-dir .skfiy-smoke/dogfood/${testerId} --issue-output .skfiy-dogfood/issues/${testerId}.md --summary .skfiy-dogfood/${testerId}-summary.md --file-issue`,
+      tester: `npm run dogfood:tester -- --manifest <path-to-downloaded-alpha-manifest.json> --app <path-to-unzipped-skfiy.app> --tester-id ${testerId} --workflows ${workflows.join(",")} --artifacts-dir .skfiy-smoke/dogfood/${testerId} --issue-output .skfiy-dogfood/issues/${testerId}.md --summary .skfiy-dogfood/${testerId}-summary.md --tracking-issue-url ${trackingIssueUrl} --file-issue`,
       review: `npm run dogfood:review -- --manifest <path-to-downloaded-alpha-manifest.json> --issue-url <filed-dogfood-issue-url> --tracking-issue-url ${trackingIssueUrl} --summary .skfiy-dogfood/reviews/${testerId}.md`
     }
   };

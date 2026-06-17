@@ -141,6 +141,7 @@ npm run dogfood:tester -- \
   --app <path-to-unzipped-skfiy.app> \
   --tester-id tester-a \
   --workflows coding-terminal,screenshot-inspection \
+  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
   --file-issue
 npm run dogfood:review -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
@@ -200,8 +201,9 @@ Suggested `tester-N` ids avoid tester ids already parsed from linked reports, so
 new artifacts do not overwrite an existing tester's local evidence by accident.
 The tracking issue body includes a `Recommended Tester Assignments` section too,
 so the GitHub coordination page carries the same suggested split. Its copied
-prepare and review commands keep the same tracking issue URL, so workflow
-inference and accepted-report linking stay attached to the intended cohort.
+prepare, tester, and review commands keep the same tracking issue URL, so
+workflow inference, filed-run review handoff, and accepted-report linking stay
+attached to the intended cohort.
 Those GitHub commands also use the prepared-alpha manifest placeholder for
 tester/review steps, keeping the coordination issue portable across tester
 machines.
@@ -215,8 +217,10 @@ copied prepare commands and generated handoffs stay aligned.
 Its JSON result also includes `nextCommands.tester` and `nextCommands.review`
 with the prepared manifest path and app bundle path filled in, so testers can
 copy the next command without reconstructing paths by hand. The recommended
-tester command includes `--file-issue`, which creates only the dogfood report
-issue after local validation; maintainer acceptance still requires
+tester command includes `--tracking-issue-url` and `--file-issue`, which creates
+only the dogfood report issue after local validation and writes a summary whose
+maintainer review command is already linked to the same cohort issue; maintainer
+acceptance still requires
 `dogfood:review`, whose default dry-run can be promoted with `--execute` after
 the report validates.
 `dogfood:tester` summaries include a `Smoke Results` table with each packaged

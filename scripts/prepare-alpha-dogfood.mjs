@@ -224,6 +224,7 @@ export function createPrepareAlphaDogfoodPlan(options) {
           appPath,
           "--tester-id",
           testerId,
+          ...readTrackingIssueArgs(options.trackingIssueUrl),
           ...workflowArgs,
           "--output",
           handoffOutputPath,
@@ -356,7 +357,7 @@ function createPrepareAlphaNextCommands({
   const workflowList = Array.isArray(workflows) && workflows.length > 0
     ? workflows.join(",")
     : WORKFLOW_PLACEHOLDER;
-  const reviewTrackingIssueArgs = typeof trackingIssueUrl === "string" && trackingIssueUrl.trim().length > 0
+  const trackingIssueArgs = typeof trackingIssueUrl === "string" && trackingIssueUrl.trim().length > 0
     ? ["--tracking-issue-url", trackingIssueUrl.trim()]
     : [];
 
@@ -377,6 +378,7 @@ function createPrepareAlphaNextCommands({
       `.skfiy-dogfood/issues/${testerId}.md`,
       "--summary",
       `.skfiy-dogfood/${testerId}-summary.md`,
+      ...trackingIssueArgs,
       "--file-issue",
       ...(requirePassed ? ["--require-passed"] : [])
     ].join(" "),
@@ -386,7 +388,7 @@ function createPrepareAlphaNextCommands({
       manifestPath,
       "--issue-url",
       "<filed-dogfood-issue-url>",
-      ...reviewTrackingIssueArgs,
+      ...trackingIssueArgs,
       "--summary",
       `.skfiy-dogfood/reviews/${testerId}.md`
     ].join(" ")
@@ -619,6 +621,12 @@ function readSyntheticTesterHandoffArgs(testerId) {
   return readRealTesterDecision(testerId).ok
     ? []
     : ["--allow-synthetic-tester-id"];
+}
+
+function readTrackingIssueArgs(trackingIssueUrl) {
+  return typeof trackingIssueUrl === "string" && trackingIssueUrl.trim().length > 0
+    ? ["--tracking-issue-url", trackingIssueUrl.trim()]
+    : [];
 }
 
 function readValue(argv, index, flag) {
