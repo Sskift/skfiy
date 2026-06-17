@@ -209,9 +209,9 @@ The tracking issue and status summaries explicitly tell testers to copy
 `nextCommands.tester` and `nextCommands.review` from `dogfood:prepare-alpha`
 after the alpha is downloaded, so the app bundle path also comes from the
 prepared alpha instead of a guessed `/Applications/skfiy.app` install.
-`dogfood:prepare-alpha` can infer `--workflows` from the tracking issue when a
-tester id appears in that section, so copied prepare commands and generated
-handoffs stay aligned.
+`dogfood:prepare-alpha` can infer `--workflows` from the tracking issue body or
+the current alpha assignment packet comments when a tester id appears there, so
+copied prepare commands and generated handoffs stay aligned.
 Its JSON result also includes `nextCommands.tester` and `nextCommands.review`
 with the prepared manifest path and app bundle path filled in, so testers can
 copy the next command without reconstructing paths by hand. The recommended

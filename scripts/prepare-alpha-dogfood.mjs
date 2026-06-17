@@ -18,6 +18,9 @@ const DEFAULT_REPO = "Sskift/skfiy";
 const ALPHA_ZIP_PATTERN = "skfiy-*-macos-unsigned.zip";
 const ALPHA_MANIFEST_PATTERN = "skfiy-*-macos-unsigned.json";
 const WORKFLOW_PLACEHOLDER = "<comma-separated-workflow-ids>";
+const ASSIGNMENT_PACKET_HEADING = "# skfiy dogfood tester assignments";
+const ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING = "## Permission Preflight";
+const ASSIGNMENT_EVIDENCE_PREVIEW_HEADING = "## Evidence Preview Gate";
 
 export function createDefaultPrepareAlphaDogfoodOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -328,7 +331,7 @@ export function createPrepareAlphaDogfoodHelpText() {
     "  --tag <tag>               Release tag when --release-url is not used.",
     "  --tester-id <id>          Stable tester id for the generated handoff.",
     "  --workflows <ids>         Optional comma-separated workflow ids to pass into the handoff.",
-    "  --tracking-issue-url <url> Infer --workflows from Recommended Tester Assignments when omitted.",
+    "  --tracking-issue-url <url> Infer --workflows from Recommended Tester Assignments or assignment packet comments when omitted.",
     "  --tracking-issue-file <path> Infer --workflows from a local tracking issue body when omitted.",
     "  --app <path>              App bundle destination. Default: .skfiy-dogfood/apps/<tag>/skfiy.app.",
     "  --download-dir <path>     Release asset download directory.",
@@ -401,10 +404,10 @@ async function resolvePrepareAlphaDogfoodOptions(options, io) {
     return options;
   }
 
-  const body = await readTrackingIssueBody(options, io);
-  const workflows = readRecommendedAssignmentWorkflows(body, options.testerId);
+  const assignmentText = await readTrackingIssueAssignmentText(options, io);
+  const workflows = readRecommendedAssignmentWorkflows(assignmentText, options.testerId);
   if (workflows.length === 0) {
-    throw new Error(`Tracking issue has no Recommended Tester Assignments entry for ${options.testerId}.`);
+    throw new Error(`Tracking issue has no tester assignment entry for ${options.testerId}.`);
   }
 
   return {
@@ -413,13 +416,20 @@ async function resolvePrepareAlphaDogfoodOptions(options, io) {
   };
 }
 
-async function readTrackingIssueBody(options, io) {
+async function readTrackingIssueAssignmentText(options, io) {
   if (typeof options.trackingIssueFile === "string") {
     return await io.readText(options.trackingIssueFile);
   }
   if (typeof options.trackingIssueUrl === "string") {
     const issue = await io.readIssue(options.trackingIssueUrl);
-    return typeof issue?.body === "string" ? issue.body : "";
+    const body = typeof issue?.body === "string" ? issue.body : "";
+    const assignmentComments = Array.isArray(issue?.comments)
+      ? issue.comments
+        .map((comment) => typeof comment?.body === "string" ? comment.body : "")
+        .filter((commentBody) => isCurrentAlphaAssignmentPacket(commentBody, options.tagName))
+      : [];
+    const latestAssignmentComment = assignmentComments.at(-1);
+    return [body, latestAssignmentComment].filter(Boolean).join("\n\n");
   }
   return "";
 }
@@ -467,6 +477,11 @@ function readRecommendedAssignmentWorkflows(body, testerId) {
   if (typeof body !== "string" || body.length === 0 || typeof testerId !== "string") {
     return [];
   }
+  const workflowsFromAssignmentPacket = readAssignmentPacketWorkflows(body, testerId);
+  if (workflowsFromAssignmentPacket.length > 0) {
+    return workflowsFromAssignmentPacket;
+  }
+
   const section = readMarkdownSection(body, "Recommended Tester Assignments");
   const escapedTesterId = escapeRegExp(testerId.trim());
   const linePattern = new RegExp(
@@ -481,6 +496,33 @@ function readRecommendedAssignmentWorkflows(body, testerId) {
   return readWorkflowList(match[1]).filter((workflow) =>
     REQUIRED_DOGFOOD_WORKFLOWS.includes(workflow)
   );
+}
+
+function readAssignmentPacketWorkflows(body, testerId) {
+  const testerSection = readMarkdownSection(body, testerId.trim());
+  const match = /^Workflows:\s*([^\n]+)$/im.exec(testerSection);
+  if (!match) {
+    return [];
+  }
+
+  return readWorkflowList(match[1]).filter((workflow) =>
+    REQUIRED_DOGFOOD_WORKFLOWS.includes(workflow)
+  );
+}
+
+function isCurrentAlphaAssignmentPacket(body, tagName) {
+  if (typeof body !== "string" || body.length === 0 || typeof tagName !== "string") {
+    return false;
+  }
+  const alphaLinePattern = new RegExp(
+    `^Alpha:\\s*${escapeRegExp(tagName.trim())}\\s*$`,
+    "im"
+  );
+
+  return body.includes(ASSIGNMENT_PACKET_HEADING)
+    && body.includes(ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING)
+    && body.includes(ASSIGNMENT_EVIDENCE_PREVIEW_HEADING)
+    && alphaLinePattern.test(body);
 }
 
 function readMarkdownSection(body, title) {
