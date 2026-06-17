@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 
+const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const APP_BUNDLE_NAME = "skfiy.app";
@@ -22,6 +25,7 @@ export function createPackagePlan({
 
   return {
     appBundlePath,
+    adhocSignCommand: createAdhocCodeSignCommand(appBundlePath),
     bundleIdentifier: BUNDLE_IDENTIFIER,
     electronAppPath,
     infoPlistPath: path.join(appBundlePath, "Contents", "Info.plist"),
@@ -71,8 +75,22 @@ export async function packageMacosApp({
   );
   await fs.copyFile(plan.sourceHelperPath, plan.bundledHelperPath);
   await fs.chmod(plan.bundledHelperPath, 0o755);
+  await execFileAsync(plan.adhocSignCommand.command, plan.adhocSignCommand.args);
 
   return plan;
+}
+
+export function createAdhocCodeSignCommand(appPath) {
+  return {
+    command: "codesign",
+    args: [
+      "--force",
+      "--deep",
+      "--sign",
+      "-",
+      appPath
+    ]
+  };
 }
 
 function createRuntimePackageJson(rootDir) {

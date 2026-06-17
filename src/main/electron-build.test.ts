@@ -29,13 +29,25 @@ describe("Electron build wiring", () => {
         electronAppPath: string;
       }) => {
         appBundlePath: string;
+        adhocSignCommand: {
+          command: string;
+          args: string[];
+        };
         bundleIdentifier: string;
         bundledAppPath: string;
         bundledExecutablePath: string;
         bundledHelperPath: string;
       };
+      createAdhocCodeSignCommand: (appPath: string) => {
+        command: string;
+        args: string[];
+      };
       setInfoPlistString: (plist: string, key: string, value: string) => string;
     };
+    const packagePlan = packaging.createPackagePlan({
+      rootDir: "/repo",
+      electronAppPath: "/repo/node_modules/electron/dist/Electron.app"
+    });
 
     expect(packageJson.scripts["package:mac"]).toBe("node scripts/package-macos-app.mjs");
     expect(packageJson.scripts["alpha:artifact"]).toBe("node scripts/create-alpha-artifact.mjs");
@@ -44,18 +56,26 @@ describe("Electron build wiring", () => {
       recursive: true,
       verbatimSymlinks: true
     });
-    expect(
-      packaging.createPackagePlan({
-        rootDir: "/repo",
-        electronAppPath: "/repo/node_modules/electron/dist/Electron.app"
-      })
-    ).toMatchObject({
+    expect(packagePlan).toMatchObject({
       appBundlePath: "/repo/dist/skfiy.app",
+      adhocSignCommand: {
+        command: "codesign",
+        args: [
+          "--force",
+          "--deep",
+          "--sign",
+          "-",
+          "/repo/dist/skfiy.app"
+        ]
+      },
       bundleIdentifier: "com.sskift.skfiy",
       bundledAppPath: "/repo/dist/skfiy.app/Contents/Resources/app",
       bundledExecutablePath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy",
       bundledHelperPath: "/repo/dist/skfiy.app/Contents/Resources/skfiy-helper"
     });
+    expect(packaging.createAdhocCodeSignCommand("/repo/dist/skfiy.app")).toEqual(
+      packagePlan.adhocSignCommand
+    );
   });
 
   it("keeps the packaged app identity lowercase across bundle metadata and executable name", () => {
@@ -75,6 +95,7 @@ describe("Electron build wiring", () => {
     expect(packagingScript).toContain('name: "skfiy"');
     expect(packagingScript).toContain('path.join(plan.appBundlePath, "Contents", "MacOS", "Electron")');
     expect(packagingScript).toContain("await fs.rename(electronExecutablePath, plan.bundledExecutablePath)");
+    expect(packagingScript).toContain("await execFileAsync(plan.adhocSignCommand.command, plan.adhocSignCommand.args)");
   });
 
   it("sets the Electron app name to lowercase skfiy before creating windows", () => {

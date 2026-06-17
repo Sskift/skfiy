@@ -28,6 +28,13 @@ The app embeds the Swift helper at:
 dist/skfiy.app/Contents/Resources/skfiy-helper
 ```
 
+The package step rewrites the copied Electron bundle metadata to lowercase
+`skfiy` with `CFBundleIdentifier=com.sskift.skfiy`, then ad-hoc re-signs the
+app bundle so `codesign` binds the updated identifier. This keeps local dogfood
+permission prompts attached to the intended app identity instead of the copied
+Electron identity. The build is still unsigned for Developer ID and not
+notarized until the explicit release signing flow runs.
+
 Create a local unsigned dogfood artifact after `npm run build`:
 
 ```bash
@@ -47,6 +54,17 @@ This writes a versioned zip and manifest to `.skfiy-alpha/`, for example:
 ```
 
 The manifest records the exact commit SHA, bundle identifier, unsigned/notarized state, zip byte size, SHA256 checksum, the UI smoke artifact path, the Ghostty smoke artifact path, the Chrome smoke artifact path, the Finder smoke artifact path, the native voice smoke artifact path, permission setting direct-link evidence, native voice transcript-to-task evidence, native voice no-transcript/cancellation evidence, accepted GitHub dogfood issue source evidence, and required app policy, observe, semantic Finder, Finder plan preview, and Finder plan confirmation evidence used for dogfood.
+
+Before publishing an alpha, verify the local package identity:
+
+```bash
+codesign -dv --verbose=4 dist/skfiy.app 2>&1 | grep 'Identifier=com.sskift.skfiy'
+codesign --verify --deep --strict --verbose=2 dist/skfiy.app
+```
+
+If the identifier still says `Electron`, rebuild before asking testers to grant
+macOS permissions; otherwise Screen Recording, Accessibility, Microphone, and
+Speech Recognition prompts may attach to the wrong app identity.
 
 Verify the evidence chain before sharing an alpha:
 
