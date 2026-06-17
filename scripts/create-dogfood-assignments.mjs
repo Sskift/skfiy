@@ -249,9 +249,10 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
   }
 
   lines.push("", "## Permission Preflight", "");
-  lines.push("Grant Screen Recording, Accessibility, Microphone, and Speech Recognition to the extracted `skfiy.app` before using `--require-passed`.");
+  lines.push("Grant Screen Recording and Accessibility to the extracted `skfiy.app` before using `--require-passed` for default external Doubao + Computer Use evidence.");
+  lines.push("Grant Microphone and Speech Recognition only when intentionally testing the optional `native-macos` voice provider.");
   lines.push("If permissions are still blocked, run the normal tester command and file the blocked evidence instead of adding `--require-passed`.");
-  lines.push("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after all four permissions are granted.");
+  lines.push("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after the provider-relevant permissions are granted.");
   lines.push("");
   for (const [permission, label] of Object.entries(PERMISSION_LABELS)) {
     lines.push(`- ${label}: ${permissionStates[permission] ?? "unknown"}`);

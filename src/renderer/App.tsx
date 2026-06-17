@@ -765,9 +765,28 @@ function formatReplayAction(action: TurnTranscript["actions"][number]): string {
   return action.type;
 }
 
-function readMissingPermissionRows(permissions: PermissionSummary): typeof PERMISSION_ROWS {
+function readRequiredPermissionKeys(
+  provider: DictationProviderSelection
+): Array<keyof PermissionSummary> {
+  if (provider === "native-macos") {
+    return ["screenRecording", "accessibility", "microphone", "speechRecognition"];
+  }
+
+  if (provider === "browser") {
+    return ["screenRecording", "accessibility", "microphone"];
+  }
+
+  return ["screenRecording", "accessibility"];
+}
+
+function readMissingPermissionRows(
+  permissions: PermissionSummary,
+  provider: DictationProviderSelection
+): typeof PERMISSION_ROWS {
+  const requiredKeys = new Set(readRequiredPermissionKeys(provider));
   return PERMISSION_ROWS.filter((permission) =>
-    BLOCKING_PERMISSION_STATES.includes(permissions[permission.key].state)
+    requiredKeys.has(permission.key)
+    && BLOCKING_PERMISSION_STATES.includes(permissions[permission.key].state)
   );
 }
 
@@ -1309,7 +1328,10 @@ export default function App() {
     try {
       await api.openPermissionSettings(permission);
       const nextPermissions = await refreshPermissions();
-      if (permissionOnboardingOpen && readMissingPermissionRows(nextPermissions).length === 0) {
+      if (
+        permissionOnboardingOpen
+        && readMissingPermissionRows(nextPermissions, dictationSettings.provider).length === 0
+      ) {
         setPermissionOnboardingOpen(false);
       }
     } catch {
@@ -1322,7 +1344,7 @@ export default function App() {
 
   async function refreshPermissionOnboarding() {
     const nextPermissions = await refreshPermissions();
-    if (readMissingPermissionRows(nextPermissions).length === 0) {
+    if (readMissingPermissionRows(nextPermissions, dictationSettings.provider).length === 0) {
       setPermissionOnboardingOpen(false);
       setTask({
         status: "idle",
@@ -1427,7 +1449,10 @@ export default function App() {
 
   async function startDictationAfterPermissionCheck() {
     const nextPermissions = await refreshPermissions();
-    const missingPermissions = readMissingPermissionRows(nextPermissions);
+    const missingPermissions = readMissingPermissionRows(
+      nextPermissions,
+      dictationSettings.provider
+    );
 
     if (missingPermissions.length > 0) {
       lastDictationSubmitRef.current = "";
@@ -1483,7 +1508,10 @@ export default function App() {
     || task.status !== "idle"
     || showStartupWarning
     || showProviderStatus;
-  const permissionOnboardingRows = readMissingPermissionRows(permissions);
+  const permissionOnboardingRows = readMissingPermissionRows(
+    permissions,
+    dictationSettings.provider
+  );
 
   useEffect(() => {
     api.setWindowMode(showPanel ? "expanded" : "compact");

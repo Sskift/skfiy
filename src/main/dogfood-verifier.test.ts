@@ -13,9 +13,9 @@ describe("dogfood artifact verifier", () => {
     "npm run smoke:voice -- --output <path>",
     "Permission settings direct links",
     "Panic stop runtime hotkey evidence",
-    "Native voice transcript-to-task evidence",
-    "Native voice Ghostty turn replay evidence",
-    "Native voice no-transcript/cancellation evidence",
+    "External Doubao voice transcript-to-task evidence",
+    "External Doubao voice Ghostty turn replay evidence",
+    "External Doubao voice no-transcript/cancellation evidence",
     "Accepted GitHub dogfood issue source",
     "action verification events when Computer Use passes",
     "Ghostty app policy settings",
@@ -101,6 +101,7 @@ describe("dogfood artifact verifier", () => {
     ...clipboardApprovalRuns,
     ...nonComputerUseRouteGuardRuns
   ];
+  const doubaoVoiceProductPath = "renderer -> preload -> main -> external Doubao Input Method -> text bridge -> Computer Use";
   const empty42ByteZipSha256 = "094c4931fdb2f2af417c9e0322a9716006e8211fe9017f671ac6e3251300acca";
   const createFinderSmokeArtifact = (artifactPath: string) => ({
     result: "passed",
@@ -452,21 +453,58 @@ describe("dogfood artifact verifier", () => {
     runs: ghosttyMatrixRuns,
     processesAfterCleanup: []
   });
+  const createPassedGhosttySmokeArtifact = (artifactPath: string) => ({
+    result: "passed",
+    appLaunchViaOpen: true,
+    runnerHasTmux: false,
+    productPath: "renderer -> preload -> main -> helper -> Ghostty",
+    artifactPath,
+    appPolicySettings: ghosttyAppPolicySettings,
+    runs: ghosttyMatrixRuns,
+    screenshots: [
+      {
+        stage: "before",
+        path: "/repo/.skfiy-smoke/ghostty-before.png",
+        bundleId: "com.mitchellh.ghostty",
+        exists: true,
+        nonEmpty: true,
+        bytes: 1200
+      },
+      {
+        stage: "after",
+        path: "/repo/.skfiy-smoke/ghostty-after.png",
+        bundleId: "com.mitchellh.ghostty",
+        exists: true,
+        nonEmpty: true,
+        bytes: 1400
+      }
+    ],
+    events: [
+      { status: "executing", message: "Verified type_text: Helper accepted type_text." },
+      { status: "executing", message: "Verified press_key: Helper accepted press_key." },
+      { status: "completed", message: "Command completed in Ghostty." }
+    ],
+    processesAfterCleanup: []
+  });
   const createVoiceSmokeArtifact = (artifactPath: string) => ({
     result: "blocked",
     appLaunchViaOpen: true,
     runnerHasTmux: false,
-    productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+    productPath: doubaoVoiceProductPath,
     artifactPath,
-    provider: "native-macos",
-    speechStatus: {
-      locale: "zh-CN",
-      recognizerAvailable: true,
-      speechRecognition: { state: "not-determined" },
-      microphone: { state: "granted" }
+    provider: "doubao",
+    dictationSettings: {
+      provider: "doubao",
+      doubaoVoiceTrigger: "skfiy-shortcut",
+      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+    },
+    externalInput: {
+      source: "doubao-input-method",
+      embedded: false,
+      textBridge: "renderer-textarea"
     },
     providerEvents: [
-      { providerId: "native-macos", state: "unavailable" }
+      { providerId: "doubao", state: "failed", message: "Could not trigger skfiy Doubao voice shortcut: Accessibility permission denied." }
     ],
     processesAfterCleanup: []
   });
@@ -474,30 +512,34 @@ describe("dogfood artifact verifier", () => {
     result: "passed",
     appLaunchViaOpen: true,
     runnerHasTmux: false,
-    productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+    productPath: doubaoVoiceProductPath,
     artifactPath,
-    provider: "native-macos",
-    speechStatus: {
-      locale: "zh-CN",
-      recognizerAvailable: true,
-      speechRecognition: { state: "granted" },
-      microphone: { state: "granted" }
+    provider: "doubao",
+    dictationSettings: {
+      provider: "doubao",
+      doubaoVoiceTrigger: "skfiy-shortcut",
+      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space"
+    },
+    externalInput: {
+      source: "doubao-input-method",
+      embedded: false,
+      textBridge: "renderer-textarea"
     },
     providerEvents: [
       {
-        providerId: "native-macos",
+        providerId: "doubao",
         state: "listening",
-        message: "macOS system speech is listening."
+        message: "Triggered external Doubao Input Method."
       },
       {
-        providerId: "native-macos",
+        providerId: "doubao",
         state: "stopped",
-        message: "macOS system speech finished."
+        message: "External Doubao text was submitted."
       }
     ],
     transcriptEvents: [
       {
-        providerId: "native-macos",
+        providerId: "doubao",
         isFinal: true,
         text: "打开 Ghostty 执行 pwd",
         confidence: 0.9
@@ -549,8 +591,8 @@ describe("dogfood artifact verifier", () => {
       requireCurrentHead: true
     });
     expect(createDogfoodVerifyHelpText()).toContain("Chrome current-page observation evidence");
-    expect(createDogfoodVerifyHelpText()).toContain("native voice transcript-to-task evidence");
-    expect(createDogfoodVerifyHelpText()).toContain("native voice Ghostty turn replay evidence");
+    expect(createDogfoodVerifyHelpText()).toContain("external Doubao voice transcript-to-task evidence");
+    expect(createDogfoodVerifyHelpText()).toContain("external Doubao voice Ghostty turn replay evidence");
   });
 
   it("accepts a complete blocked dogfood evidence chain from the packaged app", async () => {
@@ -673,6 +715,123 @@ describe("dogfood artifact verifier", () => {
     });
   });
 
+  it("accepts UI no-onboarding evidence when only optional native voice permissions are missing", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        ...createUiSmokeArtifact(uiSmokePath),
+        result: "no-onboarding",
+        onboardingVisible: false,
+        permissions: {
+          screenRecording: { state: "granted" },
+          accessibility: { state: "granted" },
+          microphone: { state: "not-determined" },
+          speechRecognition: { state: "denied" }
+        }
+      },
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "passed",
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "ui.noOnboardingPermissions", ok: true })
+      ])
+    });
+  });
+
+  it("accepts UI onboarding evidence with default external Doubao permission rows", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        ...createUiSmokeArtifact(uiSmokePath),
+        permissionRows: [
+          { label: "屏幕录制", state: "denied", stateText: "未授权" },
+          { label: "辅助功能", state: "denied", stateText: "未授权" }
+        ],
+        permissionSettingTargets: [
+          { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
+          { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" }
+        ]
+      },
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "passed",
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "ui.permissionRows", ok: true }),
+        expect.objectContaining({ id: "ui.permissionSettings", ok: true })
+      ])
+    });
+  });
+
   it("fails UI evidence that omits the runtime stop-turn hotkey status", async () => {
     const {
       verifyDogfoodArtifacts
@@ -720,6 +879,107 @@ describe("dogfood artifact verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("ui.stopTurnHotkey")
+      ])
+    });
+  });
+
+  it("accepts passed external Doubao voice evidence without native Speech Recognition status", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: true
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createPassedGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createPassedVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "passed",
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "voice.provider", ok: true }),
+        expect.objectContaining({ id: "voice.externalInput", ok: true }),
+        expect.objectContaining({ id: "voice.transcript", ok: true }),
+        expect.objectContaining({ id: "voice.turnReplay", ok: true })
+      ])
+    });
+  });
+
+  it("fails passed external Doubao voice evidence without external input bridge proof", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const voice = createPassedVoiceSmokeArtifact(voiceSmokePath);
+    delete (voice as { externalInput?: unknown }).externalInput;
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createPassedGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: voice
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("voice.externalInput")
       ])
     });
   });

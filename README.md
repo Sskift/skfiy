@@ -19,21 +19,26 @@ floating desktop companion.
 
 ## macOS Permissions
 
-The app needs four system permissions before it can behave like a voice Computer Use app:
+The app needs two system permissions before it can execute Computer Use actions:
 
 - **Screen Recording**: allows screenshots of the desktop or target window.
 - **Accessibility**: allows synthetic clicks, typing, key presses, and window
   focus changes.
-- **Microphone**: allows voice turns when using a local speech provider.
-- **Speech Recognition**: allows the macOS native speech provider to transcribe
-  local voice commands.
+
+Voice input is provider-specific. The default path uses Doubao Input Method as
+an external text bridge, so skfiy does not embed Doubao and does not need
+macOS Speech Recognition permission for that default path. **Microphone** is
+needed only for browser or local native speech providers. **Speech Recognition**
+is needed only when intentionally selecting the optional `native-macos`
+provider.
 
 Open **System Settings > Privacy & Security** and grant these permissions to the
 compiled `skfiy.app` bundle used for local validation.
 
 Right-click the pet to view the current Screen Recording, Accessibility,
 Microphone, and Speech Recognition status, or to jump to the matching System
-Settings pane.
+Settings pane. The permission onboarding blocks only the permissions required by
+the selected voice provider.
 
 ## Doubao Dictation
 
@@ -102,13 +107,13 @@ npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
 npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
 npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json
 npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-item-drag-drop.json
-npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
+npm run smoke:voice -- --output .skfiy-smoke/voice-doubao.json
 npm run alpha:artifact -- \
   --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json \
   --smoke-artifact .skfiy-smoke/ghostty-matrix.json \
   --chrome-smoke-artifact .skfiy-smoke/chrome-page.json \
   --finder-smoke-artifact .skfiy-smoke/finder-item-drag-drop.json \
-  --voice-smoke-artifact .skfiy-smoke/voice-native.json
+  --voice-smoke-artifact .skfiy-smoke/voice-doubao.json
 npm run alpha:github-release -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --require-current-head
@@ -192,8 +197,10 @@ a GitHub issue comment on the tracking issue.
 The generated assignment packet includes a `Permission Preflight` section. It
 lists Screen Recording, Accessibility, Microphone, and Speech Recognition states
 from the current smoke evidence and tells testers to use `--require-passed` only
-after all four permissions are granted to the extracted `skfiy.app`; otherwise
-they should file normal blocked evidence for maintainer review.
+after the provider-relevant permissions are granted to the extracted
+`skfiy.app`. For the default external Doubao path, that means Screen Recording
+and Accessibility; Microphone and Speech Recognition are only required for
+browser or `native-macos` provider tests.
 It also includes an `Evidence Preview Gate` section that tells testers to confirm
 `reportPreviewEligibility.eligible=true` before filing and to preserve the
 blocking checks when it is false. That gate calls out UI pet drag evidence

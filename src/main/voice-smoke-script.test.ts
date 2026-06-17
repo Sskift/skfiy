@@ -3,7 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
-describe("native voice product smoke script", () => {
+describe("voice product smoke script", () => {
   it("is exposed as an npm script for packaged-app voice evidence", () => {
     const packageJson = JSON.parse(
       readFileSync(path.join(process.cwd(), "package.json"), "utf8")
@@ -33,11 +33,13 @@ describe("native voice product smoke script", () => {
 
     expect(defaults).toMatchObject({
       appPath: path.join("/repo", "dist", "skfiy.app"),
-      provider: "native-macos",
+      provider: "doubao",
       locale: "zh-CN",
-      productPath: "renderer -> preload -> main -> helper -> native macOS Speech"
+      productPath: "renderer -> preload -> main -> external Doubao Input Method -> text bridge -> Computer Use"
     });
     expect(parseVoiceSmokeArgs([
+      "--provider",
+      "native-macos",
       "--output",
       "artifacts/voice.json",
       "--listen-ms",
@@ -46,10 +48,12 @@ describe("native voice product smoke script", () => {
       "en-US",
       "--require-passed"
     ], defaults)).toMatchObject({
+      provider: "native-macos",
       outputPath: path.resolve("artifacts/voice.json"),
       listenMs: 1234,
       locale: "en-US",
-      requirePassed: true
+      requirePassed: true,
+      productPath: "renderer -> preload -> main -> helper -> native macOS Speech"
     });
   });
 
@@ -59,9 +63,11 @@ describe("native voice product smoke script", () => {
       classifyVoiceSmokeEvidence
     } = await import(pathToFileURL(modulePath).href) as {
       classifyVoiceSmokeEvidence: (input: {
+        provider?: string;
         providerEvents?: Array<{ state: string; message?: string }>;
         taskEvents?: Array<{ status: string; message?: string }>;
-        transcriptEvents?: Array<{ isFinal?: boolean; text?: string }>;
+        transcriptEvents?: Array<{ providerId?: string; isFinal?: boolean; text?: string }>;
+        externalInput?: unknown;
         turnReplay?: unknown;
         runnerHasTmux?: boolean;
         appLaunchViaOpen?: boolean;
@@ -70,6 +76,7 @@ describe("native voice product smoke script", () => {
     };
 
     expect(classifyVoiceSmokeEvidence({
+      provider: "native-macos",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
@@ -95,9 +102,11 @@ describe("native voice product smoke script", () => {
       classifyVoiceSmokeEvidence
     } = await import(pathToFileURL(modulePath).href) as {
       classifyVoiceSmokeEvidence: (input: {
+        provider?: string;
         providerEvents?: Array<{ state: string; message?: string }>;
         taskEvents?: Array<{ status: string; message?: string }>;
-        transcriptEvents?: Array<{ isFinal?: boolean; text?: string }>;
+        transcriptEvents?: Array<{ providerId?: string; isFinal?: boolean; text?: string }>;
+        externalInput?: unknown;
         turnReplay?: unknown;
         runnerHasTmux?: boolean;
         appLaunchViaOpen?: boolean;
@@ -116,6 +125,7 @@ describe("native voice product smoke script", () => {
     ];
 
     expect(classifyVoiceSmokeEvidence({
+      provider: "native-macos",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
@@ -124,6 +134,7 @@ describe("native voice product smoke script", () => {
       taskEvents
     })).toBe("failed");
     expect(classifyVoiceSmokeEvidence({
+      provider: "native-macos",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
@@ -135,6 +146,7 @@ describe("native voice product smoke script", () => {
       turnReplay: createPassedGhosttyTurnReplay()
     })).toBe("passed");
     expect(classifyVoiceSmokeEvidence({
+      provider: "native-macos",
       appLaunchViaOpen: true,
       runnerHasTmux: true,
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
@@ -144,6 +156,7 @@ describe("native voice product smoke script", () => {
       turnReplay: createPassedGhosttyTurnReplay()
     })).toBe("failed");
     expect(classifyVoiceSmokeEvidence({
+      provider: "native-macos",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
@@ -151,6 +164,7 @@ describe("native voice product smoke script", () => {
       transcriptEvents: []
     })).toBe("no-transcript");
     expect(classifyVoiceSmokeEvidence({
+      provider: "native-macos",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
@@ -159,6 +173,7 @@ describe("native voice product smoke script", () => {
       taskEvents: []
     })).toBe("failed");
     expect(classifyVoiceSmokeEvidence({
+      provider: "native-macos",
       appLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
@@ -170,7 +185,66 @@ describe("native voice product smoke script", () => {
     })).toBe("no-transcript");
   });
 
-  it("drives native voice through the preload API rather than the helper directly", () => {
+  it("classifies external Doubao input-method transcript evidence without Speech Recognition status", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-voice-plan.mjs");
+    const {
+      classifyVoiceSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyVoiceSmokeEvidence: (input: {
+        provider?: string;
+        providerEvents?: Array<{ providerId?: string; state: string; message?: string }>;
+        taskEvents?: Array<{ status: string; message?: string }>;
+        transcriptEvents?: Array<{ providerId?: string; isFinal?: boolean; text?: string }>;
+        externalInput?: unknown;
+        turnReplay?: unknown;
+        runnerHasTmux?: boolean;
+        appLaunchViaOpen?: boolean;
+        productPath?: string;
+      }) => string;
+    };
+    const productPath = "renderer -> preload -> main -> external Doubao Input Method -> text bridge -> Computer Use";
+    const providerEvents = [
+      { providerId: "doubao", state: "listening", message: "Triggered external Doubao Input Method." },
+      { providerId: "doubao", state: "stopped", message: "External Doubao text was submitted." }
+    ];
+    const transcriptEvents = [
+      { providerId: "doubao", isFinal: true, text: "打开 Ghostty 执行 pwd" }
+    ];
+    const externalInput = {
+      source: "doubao-input-method",
+      embedded: false,
+      textBridge: "renderer-textarea"
+    };
+
+    expect(classifyVoiceSmokeEvidence({
+      provider: "doubao",
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath,
+      providerEvents,
+      transcriptEvents,
+      taskEvents: [
+        { status: "completed", message: "Command completed from external Doubao transcript." }
+      ],
+      externalInput,
+      turnReplay: createPassedGhosttyTurnReplay()
+    })).toBe("passed");
+
+    expect(classifyVoiceSmokeEvidence({
+      provider: "doubao",
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath,
+      providerEvents,
+      transcriptEvents,
+      taskEvents: [
+        { status: "completed", message: "Command completed from external Doubao transcript." }
+      ],
+      turnReplay: createPassedGhosttyTurnReplay()
+    })).toBe("failed");
+  });
+
+  it("drives external Doubao text through the preload API while keeping native macOS speech optional", () => {
     const sourcePath = path.join(process.cwd(), "scripts", "smoke-voice-product.mjs");
 
     expect(existsSync(sourcePath)).toBe(true);
@@ -178,10 +252,12 @@ describe("native voice product smoke script", () => {
     const source = readFileSync(sourcePath, "utf8");
 
     expect(source).toContain("acquireSmokeLock");
+    expect(source).toContain("externalInput");
+    expect(source).toContain("window.skfiy.setDictationSettings({ provider: ${JSON.stringify(options.provider)}");
     expect(source).toContain("speechStatus");
-    expect(source).toContain("window.skfiy.getNativeSpeechStatus(${JSON.stringify(options.locale)})");
+    expect(source).toContain("options.provider === \"native-macos\"");
     expect(source).toContain(
-      "window.skfiy.setDictationSettings({ provider: \"native-macos\", nativeSpeechLocale: ${JSON.stringify(options.locale)} })"
+      "window.skfiy.getNativeSpeechStatus(${JSON.stringify(options.locale)})"
     );
     expect(source).toContain("window.skfiy.prepareDictation()");
     expect(source).toContain("window.skfiy.submitDictation(");

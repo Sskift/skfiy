@@ -12,7 +12,7 @@ skfiy should continue as a standalone experimental shell until it proves native 
 
 Option A: skfiy as standalone experimental shell.
 
-This keeps the product surface, permissions, dogfood gates, and native macOS Computer Use loop under one repo while the risk is still high. It is the right current choice because the missing evidence is still skfiy-owned: `dogfood:verify`, `dogfood:cohort`, Ghostty `require-passed`, native voice `require-passed`, and 3-5 user dogfood runs.
+This keeps the product surface, permissions, dogfood gates, and native macOS Computer Use loop under one repo while the risk is still high. It is the right current choice because the missing evidence is still skfiy-owned: `dogfood:verify`, `dogfood:cohort`, Ghostty `require-passed`, default external Doubao voice `require-passed`, optional `native-macos` provider evidence, and 3-5 user dogfood runs.
 
 Option B: skfiy as AIME native Computer Use plugin.
 

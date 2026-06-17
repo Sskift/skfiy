@@ -47,6 +47,7 @@ async function main() {
     startupWarnings: undefined,
     dictationSettingsBefore: undefined,
     dictationSettingsAfter: undefined,
+    externalInput: undefined,
     providerEvents: [],
     transcriptEvents: [],
     taskEvents: [],
@@ -88,32 +89,53 @@ async function main() {
         "window.skfiy.getDictationSettings()"
       );
       evidence.permissions = await evaluateValue(cdp, "window.skfiy.getPermissions()");
-      evidence.speechStatus = await evaluateValue(
-        cdp,
-        `window.skfiy.getNativeSpeechStatus(${JSON.stringify(options.locale)})`
-      );
+      if (options.provider === "native-macos") {
+        evidence.speechStatus = await evaluateValue(
+          cdp,
+          `window.skfiy.getNativeSpeechStatus(${JSON.stringify(options.locale)})`
+        );
+      }
       evidence.runtimeStatus = await evaluateValue(cdp, "window.skfiy.getRuntimeStatus()");
       evidence.startupWarnings = await evaluateValue(cdp, "window.skfiy.getStartupWarnings()");
 
       evidence.dictationSettingsAfter = await evaluateValue(
         cdp,
-        `window.skfiy.setDictationSettings({ provider: "native-macos", nativeSpeechLocale: ${JSON.stringify(options.locale)} })`
+        `window.skfiy.setDictationSettings({ provider: ${JSON.stringify(options.provider)}, nativeSpeechLocale: ${JSON.stringify(options.locale)} })`
       );
       evidence.preparation = await evaluateValue(cdp, "window.skfiy.prepareDictation()");
 
-      if (evidence.preparation?.nativeDictationActive) {
-        await sleep(options.listenMs);
-      } else {
+      if (options.provider === "doubao") {
         await sleep(Math.min(options.listenMs, 1_000));
-      }
-
-      const finalTranscript = readFinalTranscript(cdp.events);
-      if (finalTranscript) {
+        evidence.externalInput = {
+          source: "doubao-input-method",
+          embedded: false,
+          textBridge: "renderer-textarea",
+          trigger: evidence.dictationSettingsAfter?.doubaoVoiceTrigger ?? "skfiy-shortcut",
+          transcript: options.transcript
+        };
+        await evaluateValue(
+          cdp,
+          `window.skfiy.updateDictationTranscript(${JSON.stringify(evidence.preparation?.sessionId)}, { text: ${JSON.stringify(options.transcript)}, isFinal: true, confidence: 1 })`
+        );
+        await sleep(100);
         evidence.submission = await evaluateValue(
           cdp,
-          `window.skfiy.submitDictation(${JSON.stringify(evidence.preparation?.sessionId)}, ${JSON.stringify(finalTranscript)}, { stopNativeDictation: false })`
+          `window.skfiy.submitDictation(${JSON.stringify(evidence.preparation?.sessionId)}, ${JSON.stringify(options.transcript)}, { stopNativeDictation: true })`
         );
         await waitForTaskTerminalEvent(cdp.events, Math.min(options.timeoutMs, 5_000));
+      } else if (evidence.preparation?.nativeDictationActive) {
+        await sleep(options.listenMs);
+
+        const finalTranscript = readFinalTranscript(cdp.events);
+        if (finalTranscript) {
+          evidence.submission = await evaluateValue(
+            cdp,
+            `window.skfiy.submitDictation(${JSON.stringify(evidence.preparation?.sessionId)}, ${JSON.stringify(finalTranscript)}, { stopNativeDictation: false })`
+          );
+          await waitForTaskTerminalEvent(cdp.events, Math.min(options.timeoutMs, 5_000));
+        }
+      } else {
+        await sleep(Math.min(options.listenMs, 1_000));
       }
 
       await evaluateValue(

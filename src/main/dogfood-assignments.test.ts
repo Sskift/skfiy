@@ -103,7 +103,8 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("Tracking issue: https://github.com/Sskift/skfiy/issues/1");
     expect(packet).toContain("This packet is non-mutating: it does not create reports, add labels, update cohort JSON, or mark dogfood evidence accepted.");
     expect(packet).toContain("## Permission Preflight");
-    expect(packet).toContain("Grant Screen Recording, Accessibility, Microphone, and Speech Recognition to the extracted `skfiy.app` before using `--require-passed`.");
+    expect(packet).toContain("Grant Screen Recording and Accessibility to the extracted `skfiy.app` before using `--require-passed` for default external Doubao + Computer Use evidence.");
+    expect(packet).toContain("Grant Microphone and Speech Recognition only when intentionally testing the optional `native-macos` voice provider.");
     expect(packet).toContain("If permissions are still blocked, run the normal tester command and file the blocked evidence instead of adding `--require-passed`.");
     expect(packet).toContain("Screen Recording: denied");
     expect(packet).toContain("Accessibility: denied");
@@ -122,7 +123,7 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("finder-file");
     expect(packet).toContain("tester-3");
     expect(packet).toContain("browser-fallback");
-    expect(packet).toContain("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after all four permissions are granted.");
+    expect(packet).toContain("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after the provider-relevant permissions are granted.");
     expect(packet).not.toContain("--add-label dogfood:accepted");
   });
 

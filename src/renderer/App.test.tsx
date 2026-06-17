@@ -242,7 +242,7 @@ describe("App", () => {
     expect(api.openPermissionSettings).toHaveBeenCalledWith("screen-recording");
   });
 
-  it("opens permission onboarding when Speech Recognition is missing for voice", async () => {
+  it("does not require Speech Recognition for the default external Doubao voice path", async () => {
     const api = window.skfiy as DesktopApi;
     api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
       screenRecording: { state: "granted" },
@@ -252,6 +252,37 @@ describe("App", () => {
     });
 
     render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(api.prepareDictation).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByLabelText("权限引导")).not.toBeInTheDocument();
+    expect(api.openPermissionSettings).not.toHaveBeenCalled();
+  });
+
+  it("opens permission onboarding when native macOS Speech Recognition is missing", async () => {
+    const api = window.skfiy as DesktopApi;
+    api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
+      screenRecording: { state: "granted" },
+      accessibility: { state: "granted" },
+      microphone: { state: "granted" },
+      speechRecognition: { state: "not-determined" }
+    });
+    api.getDictationSettings = vi.fn<DesktopApi["getDictationSettings"]>().mockResolvedValue({
+      provider: "native-macos",
+      doubaoVoiceTrigger: "skfiy-shortcut",
+      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
+      nativeSpeechLocale: "zh-CN",
+      nativeSpeechMaxDurationMs: 7000,
+      nativeSpeechSilenceTimeoutMs: 900
+    });
+
+    render(<App />);
+    await waitFor(() => {
+      expect(api.getDictationSettings).toHaveBeenCalledTimes(1);
+    });
 
     fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
 

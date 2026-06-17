@@ -275,7 +275,7 @@ export function createGitHubAlphaReleaseNotes({
     "",
     "- Do not run dogfood from tmux, `npm start`, Vite, or direct Electron.",
     "- Use the packaged app from this release so macOS permissions attach to `skfiy.app`.",
-    "- Grant Screen Recording, Accessibility, Microphone, and Speech Recognition before expecting passed Computer Use or voice evidence.",
+    "- Grant Screen Recording and Accessibility before expecting passed Computer Use or default external Doubao voice evidence. Grant Microphone and Speech Recognition only for optional native/browser speech provider tests.",
     "- Permission-blocked reports are acceptable only when they preserve the real packaged-app artifact chain.",
     "",
     "## Tester Setup",

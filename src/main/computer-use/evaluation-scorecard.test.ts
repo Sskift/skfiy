@@ -57,12 +57,12 @@ describe("createComputerUseScorecard", () => {
     });
   });
 
-  it("counts Speech Recognition denial as a voice permission failure", () => {
+  it("does not count Speech Recognition denial as a Computer Use permission failure", () => {
     expect(createComputerUseScorecard([
       {
-        id: "voice-permission-blocked",
+        id: "external-doubao-computer-use-ready",
         events: [
-          { status: "failed", message: "macOS speech recognition is not authorized." }
+          { status: "completed", message: "Command submitted to Ghostty from external Doubao text." }
         ],
         permissions: {
           screenRecording: { state: "granted" },
@@ -72,7 +72,7 @@ describe("createComputerUseScorecard", () => {
         }
       }
     ])).toMatchObject({
-      permissionFailures: 1
+      permissionFailures: 0
     });
   });
 });

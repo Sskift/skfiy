@@ -18,12 +18,17 @@ const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_DOGFOOD_REPOSITORY = "Sskift/skfiy";
 const DEFAULT_LISTEN_MS = 9_000;
 const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
-const REQUIRED_STRICT_PERMISSION_KEYS = [
-  "screenRecording",
-  "accessibility",
-  "microphone",
-  "speechRecognition"
-];
+const DEFAULT_VOICE_PROVIDER = "doubao";
+const STRICT_PERMISSION_KEYS_BY_VOICE_PROVIDER = {
+  doubao: ["screenRecording", "accessibility"],
+  "native-macos": [
+    "screenRecording",
+    "accessibility",
+    "microphone",
+    "speechRecognition"
+  ]
+};
+const COMPUTER_USE_PERMISSION_FAILURE_KEYS = ["screenRecording", "accessibility"];
 const PRODUCT_SMOKE_COMMAND_IDS = new Set([
   "smoke:ui",
   "smoke:ghostty",
@@ -49,6 +54,7 @@ export function createDefaultDogfoodTesterOptions(rootDir = DEFAULT_ROOT_DIR) {
     issueOutputPath: undefined,
     summaryPath: undefined,
     listenMs: DEFAULT_LISTEN_MS,
+    voiceProvider: DEFAULT_VOICE_PROVIDER,
     appPath: undefined,
     finderTargetDir: undefined,
     chromeCurrentPageEndpoint: undefined,
@@ -93,6 +99,10 @@ export function parseDogfoodTesterArgs(argv, defaults) {
         break;
       case "--listen-ms":
         options.listenMs = readPositiveInteger(readValue(argv, index, arg), arg);
+        index += 1;
+        break;
+      case "--voice-provider":
+        options.voiceProvider = readVoiceProvider(readValue(argv, index, arg), arg);
         index += 1;
         break;
       case "--app":
@@ -149,6 +159,7 @@ export function createDogfoodTesterPlan(options) {
   const appPath = typeof options.appPath === "string" && options.appPath.trim().length > 0
     ? options.appPath
     : path.join(rootDir, "dist", "skfiy.app");
+  const voiceProvider = readVoiceProvider(options.voiceProvider ?? DEFAULT_VOICE_PROVIDER);
   const artifacts = {
     ui: path.join(artifactsDir, `${testerId}-ui.json`),
     ghostty: path.join(artifactsDir, `${testerId}-ghostty.json`),
@@ -189,6 +200,8 @@ export function createDogfoodTesterPlan(options) {
       ...appArgs,
       "--output",
       artifacts.voice,
+      "--provider",
+      voiceProvider,
       "--listen-ms",
       String(options.listenMs ?? DEFAULT_LISTEN_MS),
       ...readRequirePassedArgs("smoke:voice", options)
@@ -223,6 +236,7 @@ export function createDogfoodTesterPlan(options) {
     workflows: [...options.workflows],
     trackingIssueUrl: options.trackingIssueUrl,
     appPath,
+    voiceProvider,
     artifactsDir,
     artifacts,
     issueOutputPath,
@@ -384,7 +398,8 @@ export function createDogfoodTesterHelpText() {
     "  --artifacts-dir <path>         Directory for the five smoke JSON files.",
     "  --issue-output <path>          Markdown issue body path.",
     "  --summary <path>               Local run summary path.",
-    `  --listen-ms <number>           Native voice listen window. Default: ${DEFAULT_LISTEN_MS}.`,
+    `  --listen-ms <number>           Voice listen window. Default: ${DEFAULT_LISTEN_MS}.`,
+    `  --voice-provider <id>          Voice provider: doubao or native-macos. Default: ${DEFAULT_VOICE_PROVIDER}.`,
     "  --app <path>                   App bundle to test. Defaults to dist/skfiy.app.",
     "                                Use the alpha zip's skfiy.app when dogfooding a release.",
     "                                Runs an app bundle identity preflight before any product smoke.",
@@ -395,7 +410,7 @@ export function createDogfoodTesterHelpText() {
     "  --file-issue                  After generating and checking the issue body, create the GitHub report issue.",
     "                                This creates only the report issue; it never adds accepted/workflow labels or edits the tracking issue.",
     "  --require-passed               Require Ghostty, Chrome, Finder, and voice smokes to pass.",
-    "                                Runs a strict permission preflight after UI smoke and stops early when any required permission is missing.",
+    "                                Runs a strict provider-aware permission preflight after UI smoke and stops early when required permissions are missing.",
     "  --allow-synthetic-tester-id    Maintainer-only escape hatch for local/preflight evidence that will not count as a real tester.",
     "  -h, --help                     Show this help.",
     "",
@@ -417,6 +432,7 @@ function validateDogfoodTesterOptions(options) {
   if (!Array.isArray(options.workflows) || options.workflows.length === 0) {
     throw new Error("Missing --workflows <workflow[,workflow]>.");
   }
+  readVoiceProvider(options.voiceProvider ?? DEFAULT_VOICE_PROVIDER);
   const unknownWorkflow = options.workflows.find((workflow) =>
     !REQUIRED_DOGFOOD_WORKFLOWS.includes(workflow)
   );
@@ -710,7 +726,9 @@ function readComputerUseRuns(commandResult) {
     return [{
       id: commandResult.id,
       events: primaryEvents,
-      permissions: readScorecardPermissions(evidence)
+      permissions: readScorecardPermissions(evidence),
+      productPath: readSmokeProductPath(evidence),
+      provider: readNonEmptyString(evidence.provider)
     }];
   }
 
@@ -719,7 +737,9 @@ function readComputerUseRuns(commandResult) {
     .map(([name, value]) => ({
       id: `${commandResult.id}:${name}`,
       events: readEventArray(value.events),
-      permissions: readScorecardPermissions(value) ?? readScorecardPermissions(evidence)
+      permissions: readScorecardPermissions(value) ?? readScorecardPermissions(evidence),
+      productPath: readSmokeProductPath(value) ?? readSmokeProductPath(evidence),
+      provider: readNonEmptyString(value.provider) ?? readNonEmptyString(evidence.provider)
     }));
 }
 
@@ -752,18 +772,52 @@ function hasUnsafeActionBlock(run) {
 }
 
 function hasPermissionFailure(run) {
-  if (run.events.some((event) => {
-    const message = typeof event?.message === "string" ? event.message.toLowerCase() : "";
-    return event?.status === "failed" && message.includes("permission");
-  })) {
+  const relevantPermissions = readComputerUsePermissionFailureKeys(run);
+  if (run.events.some((event) =>
+    hasRelevantPermissionFailureEvent(event, relevantPermissions)
+  )) {
     return true;
   }
 
   const permissions = run.permissions;
   return Boolean(
     permissions
-    && Object.values(permissions).some((permission) => permission?.state === "denied")
+    && relevantPermissions.some((permission) => permissions?.[permission]?.state === "denied")
   );
+}
+
+function readComputerUsePermissionFailureKeys(run) {
+  if (isNativeMacosVoiceRun(run)) {
+    return STRICT_PERMISSION_KEYS_BY_VOICE_PROVIDER["native-macos"];
+  }
+  return COMPUTER_USE_PERMISSION_FAILURE_KEYS;
+}
+
+function isNativeMacosVoiceRun(run) {
+  const productPath = typeof run.productPath === "string" ? run.productPath.toLowerCase() : "";
+  return run.provider === "native-macos"
+    || productPath.includes("native speech")
+    || productPath.includes("native macos speech");
+}
+
+function hasRelevantPermissionFailureEvent(event, relevantPermissions) {
+  const message = typeof event?.message === "string" ? event.message.toLowerCase() : "";
+  if (event?.status !== "failed" || !message.includes("permission")) {
+    return false;
+  }
+  if (message.includes("speech recognition")) {
+    return relevantPermissions.includes("speechRecognition");
+  }
+  if (message.includes("microphone")) {
+    return relevantPermissions.includes("microphone");
+  }
+  if (message.includes("screen recording")) {
+    return relevantPermissions.includes("screenRecording");
+  }
+  if (message.includes("accessibility")) {
+    return relevantPermissions.includes("accessibility");
+  }
+  return true;
 }
 
 function formatPercent(value) {
@@ -882,22 +936,35 @@ function createStrictPermissionPreflight(commandId, commandResult, options) {
   }
 
   return {
-    blockers: readStrictPermissionBlockers(commandResult.stdout)
+    blockers: readStrictPermissionBlockers(commandResult.stdout, options)
   };
 }
 
-function readStrictPermissionBlockers(stdout) {
+function readStrictPermissionBlockers(stdout, options) {
   const evidence = parseJson(stdout);
   const permissions = evidence && typeof evidence.permissions === "object" && evidence.permissions
     ? evidence.permissions
     : undefined;
+  const requiredPermissions = readStrictPermissionKeys(options);
 
-  return REQUIRED_STRICT_PERMISSION_KEYS
+  return requiredPermissions
     .map((permission) => ({
       permission,
       state: readPermissionState(permissions, permission)
     }))
     .filter((blocker) => blocker.state !== "granted");
+}
+
+function readStrictPermissionKeys(options) {
+  const provider = readVoiceProvider(options.voiceProvider ?? DEFAULT_VOICE_PROVIDER);
+  return STRICT_PERMISSION_KEYS_BY_VOICE_PROVIDER[provider];
+}
+
+function readVoiceProvider(value, flag = "--voice-provider") {
+  if (value === "doubao" || value === "native-macos") {
+    return value;
+  }
+  throw new Error(`${flag} must be doubao or native-macos.`);
 }
 
 function readPermissionState(permissions, permission) {

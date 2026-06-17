@@ -292,7 +292,7 @@ export function createDogfoodTrackingIssueBody({
     ]),
     "```",
     "",
-    "Use `--require-passed` only after the tester grants Screen Recording, Accessibility, Microphone, and Speech Recognition to `skfiy.app`. In strict mode, `dogfood:tester` treats the UI smoke as a permission preflight and stops before the longer Computer Use smokes when those permissions are missing.",
+    "Use `--require-passed` only after the tester grants the provider-relevant permissions to `skfiy.app`: Screen Recording and Accessibility for default external Doubao + Computer Use evidence, plus Microphone and Speech Recognition only for optional native/browser speech provider tests. In strict mode, `dogfood:tester` treats the UI smoke as a permission preflight and stops before the longer Computer Use smokes when those permissions are missing.",
     "",
     "## Review Command",
     "```bash",
@@ -328,7 +328,7 @@ export function createDogfoodTrackingIssueBody({
     "",
     "## Current Known Gaps",
     ...currentKnownGapLines,
-    "- Passed native voice, Finder, Ghostty, screenshot, and browser product-path evidence still depends on testers granting macOS Screen Recording, Accessibility, Microphone, and Speech Recognition permissions to the alpha `skfiy.app` bundle.",
+    "- Passed default voice, Finder, Ghostty, screenshot, and browser product-path evidence still depends on testers granting macOS Screen Recording and Accessibility to the alpha `skfiy.app` bundle; Microphone and Speech Recognition are required only for optional native/browser speech provider tests.",
     "- Signing and notarization still require configured Apple Developer ID/notary credentials before broader distribution.",
     ""
   ].join("\n");

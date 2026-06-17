@@ -104,7 +104,7 @@ body:
     attributes:
       label: voice smoke artifact
       description: Path or attachment name for `npm run smoke:voice -- --output <path>` JSON evidence.
-      placeholder: .skfiy-smoke/voice-native.json
+      placeholder: .skfiy-smoke/voice-doubao.json
     validations:
       required: true
 
@@ -181,7 +181,7 @@ body:
     id: microphone
     attributes:
       label: Microphone
-      description: Permission state for the tested skfiy.app bundle.
+      description: Permission state for the tested skfiy.app bundle; required only for browser or native speech providers.
       options:
         - granted
         - denied
@@ -194,7 +194,7 @@ body:
     id: speech_recognition
     attributes:
       label: Speech Recognition
-      description: Permission state when testing the native macOS ASR provider.
+      description: Permission state when testing the optional native macOS ASR provider; not required for default external Doubao.
       options:
         - granted
         - denied
@@ -413,12 +413,12 @@ body:
     id: voice_and_stop
     attributes:
       label: Voice and panic stop notes
-      description: Include start/stop behavior, provider failure messages, native voice transcript-to-task evidence, Ghostty turn replay evidence, no-transcript/cancellation evidence, and structured panic stop / global stop hotkey evidence from runtimeStatus.stopTurnHotkey.
+      description: Include start/stop behavior, provider failure messages, external Doubao voice transcript-to-task evidence, Ghostty turn replay evidence, no-transcript/cancellation evidence, and structured panic stop / global stop hotkey evidence from runtimeStatus.stopTurnHotkey.
       placeholder: |
         ASR provider:
         transcript observed:
-        Native voice transcript-to-task evidence:
-        Native voice no-transcript/cancellation evidence:
+        External Doubao voice transcript-to-task evidence:
+        External Doubao voice no-transcript/cancellation evidence:
         transcriptEvents:
         taskEvents:
         turnReplay:
@@ -441,8 +441,8 @@ body:
         npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
         npm run smoke:chrome -- --require-passed --output .skfiy-smoke/chrome-page.json
         npm run smoke:finder -- --item-drag-drop --require-passed --output .skfiy-smoke/finder-item-drag-drop.json
-        npm run smoke:voice -- --output .skfiy-smoke/voice-native.json
-        npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json --smoke-artifact .skfiy-smoke/ghostty-matrix.json --chrome-smoke-artifact .skfiy-smoke/chrome-page.json --finder-smoke-artifact .skfiy-smoke/finder-item-drag-drop.json --voice-smoke-artifact .skfiy-smoke/voice-native.json
+        npm run smoke:voice -- --output .skfiy-smoke/voice-doubao.json
+        npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json --smoke-artifact .skfiy-smoke/ghostty-matrix.json --chrome-smoke-artifact .skfiy-smoke/chrome-page.json --finder-smoke-artifact .skfiy-smoke/finder-item-drag-drop.json --voice-smoke-artifact .skfiy-smoke/voice-doubao.json
     validations:
       required: true
 

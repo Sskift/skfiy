@@ -1,12 +1,15 @@
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 
-export const DEFAULT_VOICE_PROVIDER = "native-macos";
+export const DEFAULT_VOICE_PROVIDER = "doubao";
 export const DEFAULT_LOCALE = "zh-CN";
 export const DEFAULT_PORT = 9234;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_LISTEN_MS = 9_000;
-export const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
+export const DEFAULT_TRANSCRIPT = "打开 Ghostty 执行 pwd";
+export const DOUBAO_EXTERNAL_VOICE_PRODUCT_PATH = "renderer -> preload -> main -> external Doubao Input Method -> text bridge -> Computer Use";
+export const NATIVE_MACOS_VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
+export const VOICE_PRODUCT_PATH = DOUBAO_EXTERNAL_VOICE_PRODUCT_PATH;
 
 export function createDefaultVoiceSmokeOptions(rootDir) {
   return {
@@ -16,12 +19,13 @@ export function createDefaultVoiceSmokeOptions(rootDir) {
     port: DEFAULT_PORT,
     timeoutMs: DEFAULT_TIMEOUT_MS,
     listenMs: DEFAULT_LISTEN_MS,
+    transcript: DEFAULT_TRANSCRIPT,
     keepExisting: false,
     keepOpen: false,
     requirePassed: false,
     outputPath: undefined,
     help: false,
-    productPath: VOICE_PRODUCT_PATH
+    productPath: readVoiceProductPath(DEFAULT_VOICE_PROVIDER)
   };
 }
 
@@ -38,6 +42,15 @@ export function parseVoiceSmokeArgs(argv, defaults) {
         break;
       case "--locale":
         options.locale = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--provider":
+        options.provider = readProviderValue(readValue(argv, index, arg), arg);
+        options.productPath = readVoiceProductPath(options.provider);
+        index += 1;
+        break;
+      case "--transcript":
+        options.transcript = readValue(argv, index, arg);
         index += 1;
         break;
       case "--port":
@@ -78,14 +91,18 @@ export function parseVoiceSmokeArgs(argv, defaults) {
 }
 
 export function classifyVoiceSmokeEvidence({
+  provider,
   providerEvents = [],
   taskEvents = [],
   transcriptEvents = [],
+  externalInput,
   turnReplay,
   runnerHasTmux = false,
   appLaunchViaOpen = false,
   productPath
 }) {
+  const effectiveProvider = readEffectiveVoiceProvider(provider, productPath);
+
   if (hasPermissionBlockedEvent(providerEvents) || hasPermissionBlockedTask(taskEvents)) {
     return "blocked";
   }
@@ -97,12 +114,11 @@ export function classifyVoiceSmokeEvidence({
     return "failed";
   }
 
-  const hasListened = hasProviderState(providerEvents, "listening");
-  const hasStopped = hasProviderState(providerEvents, "stopped");
-  const hasFinalTranscript = transcriptEvents.some((event) =>
-    event?.isFinal === true
-    && typeof event.text === "string"
-    && event.text.trim().length > 0
+  const hasListened = hasProviderState(providerEvents, "listening", effectiveProvider);
+  const hasStopped = hasProviderState(providerEvents, "stopped", effectiveProvider);
+  const hasFinalTranscript = hasFinalTranscriptForProvider(
+    transcriptEvents,
+    effectiveProvider
   );
   const hasDownstreamTask = hasVoiceDownstreamTaskEvent(taskEvents);
 
@@ -114,6 +130,10 @@ export function classifyVoiceSmokeEvidence({
     return "no-transcript";
   }
 
+  if (effectiveProvider === "doubao" && !hasExternalDoubaoInputEvidence(externalInput)) {
+    return "failed";
+  }
+
   if (!hasListened || !hasStopped || !hasDownstreamTask) {
     return "failed";
   }
@@ -121,7 +141,7 @@ export function classifyVoiceSmokeEvidence({
   if (
     runnerHasTmux
     || appLaunchViaOpen !== true
-    || productPath !== VOICE_PRODUCT_PATH
+    || productPath !== readVoiceProductPath(effectiveProvider)
   ) {
     return "failed";
   }
@@ -129,8 +149,11 @@ export function classifyVoiceSmokeEvidence({
   return hasPassedGhosttyTurnReplay(turnReplay) ? "passed" : "failed";
 }
 
-function hasProviderState(events, state) {
-  return events.some((event) => event?.state === state);
+function hasProviderState(events, state, provider) {
+  return events.some((event) =>
+    event?.state === state
+    && (provider ? event.providerId === undefined || event.providerId === provider : true)
+  );
 }
 
 function hasTaskStatus(events, status) {
@@ -152,6 +175,26 @@ function hasVoiceDownstreamTaskEvent(events) {
       "completed",
       "failed"
     ].includes(event.status)
+  );
+}
+
+function hasFinalTranscriptForProvider(events, provider) {
+  return events.some((event) =>
+    event?.isFinal === true
+    && (provider ? event.providerId === undefined || event.providerId === provider : true)
+    && typeof event.text === "string"
+    && event.text.trim().length > 0
+  );
+}
+
+function hasExternalDoubaoInputEvidence(value) {
+  return Boolean(
+    value
+    && typeof value === "object"
+    && value.source === "doubao-input-method"
+    && value.embedded === false
+    && typeof value.textBridge === "string"
+    && value.textBridge.trim().length > 0
   );
 }
 
@@ -247,6 +290,7 @@ function isVoicePermissionMessage(message) {
       normalized.includes("speech recognition")
       || normalized.includes("microphone")
       || normalized.includes("speech")
+      || normalized.includes("accessibility")
     )
   );
 }
@@ -258,18 +302,22 @@ export function formatVoiceLaunchCommand(options) {
 export function createVoiceHelpText(defaults) {
   return `Usage: npm run smoke:voice -- [options]
 
-Runs the packaged skfiy app through the real native voice product path:
-renderer -> preload -> main -> helper -> native macOS Speech.
+Runs the packaged skfiy app through the default external Doubao voice path:
+renderer -> preload -> main -> external Doubao Input Method -> text bridge -> Computer Use.
+
+Use --provider native-macos only when intentionally testing macOS Speech Recognition.
 
 Options:
   --app <path>          App bundle path. Default: dist/skfiy.app
+  --provider <id>       Voice provider: doubao or native-macos. Default: ${defaults.provider}
   --locale <id>         Speech locale. Default: ${defaults.locale}
+  --transcript <text>   External Doubao transcript to submit. Default: ${defaults.transcript}
   --port <number>       Electron remote debugging port. Default: ${defaults.port}
   --timeout-ms <ms>     Wait time for the renderer CDP page. Default: ${defaults.timeoutMs}
   --listen-ms <ms>      Wait after prepareDictation for native transcript events. Default: ${defaults.listenMs}
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
-  --require-passed      Exit non-zero unless native voice reaches passed.
+  --require-passed      Exit non-zero unless the selected voice path reaches passed.
   --output <path>       Write the complete voice smoke JSON evidence to this file.
   -h, --help            Show this help.
 `;
@@ -292,6 +340,30 @@ function readValue(argv, index, name) {
   }
 
   return value;
+}
+
+function readProviderValue(value, name) {
+  if (value === "doubao" || value === "native-macos") {
+    return value;
+  }
+
+  throw new Error(`${name} must be doubao or native-macos.`);
+}
+
+export function readVoiceProductPath(provider) {
+  if (provider === "native-macos") {
+    return NATIVE_MACOS_VOICE_PRODUCT_PATH;
+  }
+
+  return DOUBAO_EXTERNAL_VOICE_PRODUCT_PATH;
+}
+
+function readEffectiveVoiceProvider(provider, productPath) {
+  if (provider === "native-macos" || productPath === NATIVE_MACOS_VOICE_PRODUCT_PATH) {
+    return "native-macos";
+  }
+
+  return "doubao";
 }
 
 function readPositiveInteger(value, name) {

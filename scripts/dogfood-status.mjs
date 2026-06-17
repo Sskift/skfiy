@@ -14,11 +14,15 @@ const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za
 const ASSIGNMENT_PACKET_HEADING = "# skfiy dogfood tester assignments";
 const ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING = "## Permission Preflight";
 const ASSIGNMENT_EVIDENCE_PREVIEW_HEADING = "## Evidence Preview Gate";
-const REQUIRED_PERMISSION_KEYS = [
+const REPORT_PERMISSION_KEYS = [
   "screenRecording",
   "accessibility",
   "microphone",
   "speechRecognition"
+];
+const COMPUTER_USE_PERMISSION_KEYS = [
+  "screenRecording",
+  "accessibility"
 ];
 const REQUIRED_WORKFLOW_IDS = [
   "coding-terminal",
@@ -479,8 +483,9 @@ function isMissingFileError(error) {
 
 function readPermissionBlockers(smokeArtifacts) {
   const permissions = readPermissionStates(smokeArtifacts);
+  const requiredPermissionKeys = readRequiredPermissionKeys(smokeArtifacts);
 
-  return REQUIRED_PERMISSION_KEYS
+  return requiredPermissionKeys
     .map((permission) => ({
       permission,
       state: permissions[permission]?.state ?? "unknown"
@@ -491,7 +496,7 @@ function readPermissionBlockers(smokeArtifacts) {
 function readPermissionStates(smokeArtifacts) {
   const permissionStates = {};
 
-  for (const key of REQUIRED_PERMISSION_KEYS) {
+  for (const key of REPORT_PERMISSION_KEYS) {
     const state = Object.values(smokeArtifacts)
       .map((artifact) =>
         artifact?.permissionStates?.[key]?.state
@@ -507,6 +512,20 @@ function readPermissionStates(smokeArtifacts) {
   }
 
   return permissionStates;
+}
+
+function readRequiredPermissionKeys(smokeArtifacts) {
+  const provider = smokeArtifacts?.voice?.provider;
+
+  if (provider === "native-macos") {
+    return REPORT_PERMISSION_KEYS;
+  }
+
+  if (provider === "browser") {
+    return [...COMPUTER_USE_PERMISSION_KEYS, "microphone"];
+  }
+
+  return COMPUTER_USE_PERMISSION_KEYS;
 }
 
 async function readManifestChecks(manifest, options, io) {

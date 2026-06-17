@@ -22,9 +22,9 @@ const DOGFOOD_EVIDENCE = [
   "Screen Recording permission state",
   "Accessibility permission state",
   "Microphone or ASR provider state",
-  "Native voice transcript-to-task evidence",
-  "Native voice Ghostty turn replay evidence",
-  "Native voice no-transcript/cancellation evidence",
+  "External Doubao voice transcript-to-task evidence",
+  "External Doubao voice Ghostty turn replay evidence",
+  "External Doubao voice no-transcript/cancellation evidence",
   "Accepted GitHub dogfood issue source",
   "before/after screenshot paths when Computer Use passes",
   "action verification events when Computer Use passes",
@@ -176,7 +176,7 @@ Options:
   --finder-smoke-artifact <path>
                             Finder smoke JSON artifact to reference in the manifest.
   --voice-smoke-artifact <path>
-                            Native voice smoke JSON artifact to reference in the manifest.
+                            Voice smoke JSON artifact to reference in the manifest.
   -h, --help                Show this help.
 `;
 }

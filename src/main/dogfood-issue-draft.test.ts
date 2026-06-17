@@ -212,7 +212,7 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("skfiy chrome smoke ready");
     expect(body).toContain("### Finder plan preview");
     expect(body).toContain("destructiveOperationCount: 0");
-    expect(body).toContain("### Native voice no-transcript/cancellation evidence");
+    expect(body).toContain("### External Doubao voice no-transcript/cancellation evidence");
     expect(body).toContain("no_transcript");
     expect(body).toContain("### panic stop");
     expect(body).toContain("accelerator: Control+Alt+Shift+Esc");
@@ -221,7 +221,7 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("source: runtimeStatus.stopTurnHotkey");
   });
 
-  it("includes final native voice transcript task events and turn replay evidence", async () => {
+  it("includes final voice transcript task events and turn replay evidence", async () => {
     const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodIssueDraft: (
         input: Record<string, unknown>,
@@ -275,7 +275,7 @@ describe("dogfood issue draft generator", () => {
     }, io);
 
     const body = io.files["/repo/.skfiy-dogfood/issues/tester-a.md"] as string;
-    expect(body).toContain("### Native voice transcript-to-task evidence");
+    expect(body).toContain("### External Doubao voice transcript-to-task evidence");
     expect(body).toContain("transcriptEvents:");
     expect(body).toContain("taskEvents:");
     expect(body).toContain("turnReplay:");

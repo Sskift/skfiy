@@ -213,7 +213,7 @@ function createDogfoodHandoffMarkdown({
     "",
     "- Do not run this from tmux, detached shell launchers, `npm start`, Vite, or direct Electron.",
     "- Use the packaged app identity from the alpha zip or the explicit `--app` path.",
-    "- Grant Screen Recording, Accessibility, Microphone, and Speech Recognition to `skfiy.app` before expecting passed evidence.",
+    "- Grant Screen Recording and Accessibility to `skfiy.app` before expecting passed Computer Use or default external Doubao voice evidence. Grant Microphone and Speech Recognition only for optional native/browser speech provider tests.",
     "- Blocked evidence is acceptable when it records the real permission state, packaged-app launch path, artifacts, and cleanup.",
     "- Do not edit generated artifact paths or alpha identity fields by hand.",
     "",

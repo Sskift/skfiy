@@ -16,18 +16,18 @@ const CHROME_PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
 const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
 const FINDER_ITEM_DRAG_DROP_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder";
 const FINDER_DRAG_PROBE_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
-const VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
+const DOUBAO_EXTERNAL_VOICE_PRODUCT_PATH = "renderer -> preload -> main -> external Doubao Input Method -> text bridge -> Computer Use";
+const NATIVE_MACOS_VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
 const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_CHROME_RESULTS = new Set(["passed", "blocked", "sensitive-paused"]);
 const ACCEPTED_FINDER_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_VOICE_RESULTS = new Set(["passed", "blocked", "no-transcript"]);
-const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
+const REQUIRED_COMPUTER_USE_PERMISSION_KEYS = ["screenRecording", "accessibility"];
+const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能"];
 const REQUIRED_UI_PERMISSION_SETTING_TARGETS = [
   { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
-  { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" },
-  { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
-  { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
+  { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" }
 ];
 const REQUIRED_STOP_TURN_HOTKEY = {
   accelerator: "Control+Alt+Shift+Esc",
@@ -186,28 +186,28 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     "manifest.requiredDogfoodEvidence.voice",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:voice -- --output <path>"),
-    "manifest must require native voice smoke evidence"
+    "manifest must require voice smoke evidence"
   );
   check(
     checks,
     "manifest.requiredDogfoodEvidence.voiceTranscriptTask",
     Array.isArray(manifest?.requiredDogfoodEvidence)
-      && manifest.requiredDogfoodEvidence.includes("Native voice transcript-to-task evidence"),
-    "manifest must require native voice transcript-to-task evidence"
+      && manifest.requiredDogfoodEvidence.includes("External Doubao voice transcript-to-task evidence"),
+    "manifest must require external Doubao voice transcript-to-task evidence"
   );
   check(
     checks,
     "manifest.requiredDogfoodEvidence.voiceTurnReplay",
     Array.isArray(manifest?.requiredDogfoodEvidence)
-      && manifest.requiredDogfoodEvidence.includes("Native voice Ghostty turn replay evidence"),
-    "manifest must require native voice Ghostty turn replay evidence"
+      && manifest.requiredDogfoodEvidence.includes("External Doubao voice Ghostty turn replay evidence"),
+    "manifest must require external Doubao voice Ghostty turn replay evidence"
   );
   check(
     checks,
     "manifest.requiredDogfoodEvidence.voiceNoTranscriptCancellation",
     Array.isArray(manifest?.requiredDogfoodEvidence)
-      && manifest.requiredDogfoodEvidence.includes("Native voice no-transcript/cancellation evidence"),
-    "manifest must require native voice no-transcript/cancellation evidence"
+      && manifest.requiredDogfoodEvidence.includes("External Doubao voice no-transcript/cancellation evidence"),
+    "manifest must require external Doubao voice no-transcript/cancellation evidence"
   );
   check(
     checks,
@@ -490,20 +490,20 @@ function verifyUiSmoke(artifact, expectedPath, options, checks) {
       checks,
       "ui.permissionRows",
       hasRequiredPermissionRows(artifact.permissionRows),
-      "UI smoke must include Screen Recording, Accessibility, Microphone, and Speech Recognition rows"
+      "UI smoke must include Screen Recording and Accessibility rows for the default external Doubao path"
     );
     check(
       checks,
       "ui.permissionSettings",
       hasRequiredPermissionSettingTargets(artifact.permissionSettingTargets),
-      "UI smoke must include direct System Settings targets for Screen Recording, Accessibility, Microphone, and Speech Recognition"
+      "UI smoke must include direct System Settings targets for Screen Recording and Accessibility"
     );
   } else {
     check(
       checks,
       "ui.noOnboardingPermissions",
       !hasBlockingPermission(artifact.permissions),
-      "UI smoke no-onboarding result requires all permission states to be non-blocking"
+      "UI smoke no-onboarding result requires Screen Recording and Accessibility to be non-blocking"
     );
   }
 
@@ -851,6 +851,9 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
 }
 
 function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
+  const provider = readVoiceProvider(artifact);
+  const expectedProductPath = readExpectedVoiceProductPath(provider);
+
   check(
     checks,
     "voice.artifactPath",
@@ -884,32 +887,41 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "voice.productPath",
-    artifact.productPath === VOICE_PRODUCT_PATH,
-    `voice smoke productPath must be ${VOICE_PRODUCT_PATH}`
+    artifact.productPath === expectedProductPath,
+    `voice smoke productPath must be ${expectedProductPath}`
   );
   check(
     checks,
     "voice.provider",
-    artifact.provider === "native-macos",
-    "voice smoke must use native-macos provider"
+    provider === "doubao" || provider === "native-macos",
+    "voice smoke must use doubao or native-macos provider"
   );
-  check(
-    checks,
-    "voice.speechStatus",
-    isNativeSpeechStatus(artifact.speechStatus),
-    "voice smoke must include structured native speech status"
-  );
+  if (provider === "native-macos") {
+    check(
+      checks,
+      "voice.speechStatus",
+      isNativeSpeechStatus(artifact.speechStatus),
+      "native macOS voice smoke must include structured speech status"
+    );
+  } else {
+    check(
+      checks,
+      "voice.externalInput",
+      hasExternalDoubaoInputEvidence(artifact.externalInput),
+      "external Doubao voice smoke must prove the input method stayed external and reached the renderer text bridge"
+    );
+  }
   if (artifact.result === "passed") {
     check(
       checks,
       "voice.providerLifecycle",
-      hasVoiceProviderLifecycleEvidence(artifact.providerEvents),
-      "passed voice smoke must include native listening and stopped provider events"
+      hasVoiceProviderLifecycleEvidence(artifact.providerEvents, provider),
+      "passed voice smoke must include listening and stopped provider events"
     );
     check(
       checks,
       "voice.transcript",
-      hasFinalVoiceTranscriptEvidence(artifact.transcriptEvents),
+      hasFinalVoiceTranscriptEvidence(artifact.transcriptEvents, provider),
       "passed voice smoke must include a final non-empty transcript event"
     );
     check(
@@ -932,9 +944,10 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
       hasNoTranscriptVoiceLifecycleEvidence(
         artifact.providerEvents,
         artifact.transcriptEvents,
-        artifact.taskEvents
+        artifact.taskEvents,
+        provider
       ),
-      "no-transcript voice smoke must include native listening plus no_transcript or cancelled provider state without final transcript or downstream task events"
+      "no-transcript voice smoke must include listening plus no_transcript or cancelled provider state without final transcript or downstream task events"
     );
   }
   check(
@@ -1123,9 +1136,12 @@ function hasBlockingPermission(permissions) {
     return true;
   }
 
-  return Object.values(permissions).some((status) =>
-    status?.state === "denied" || status?.state === "not-determined"
-  );
+  return REQUIRED_COMPUTER_USE_PERMISSION_KEYS.some((permission) => {
+    const status = permissions?.[permission];
+    return !status
+      || status.state === "denied"
+      || status.state === "not-determined";
+  });
 }
 
 function hasRequiredGhosttyActionVerification(events) {
@@ -1686,25 +1702,50 @@ function hasTaskEventMessage(events, text) {
   );
 }
 
-function hasVoiceProviderLifecycleEvidence(events) {
-  if (!Array.isArray(events)) {
-    return false;
+function readVoiceProvider(artifact) {
+  if (artifact?.provider === "native-macos") {
+    return "native-macos";
   }
 
-  return events.some((event) =>
-    event?.providerId === "native-macos" && event.state === "listening"
-  ) && events.some((event) =>
-    event?.providerId === "native-macos" && event.state === "stopped"
+  return "doubao";
+}
+
+function readExpectedVoiceProductPath(provider) {
+  return provider === "native-macos"
+    ? NATIVE_MACOS_VOICE_PRODUCT_PATH
+    : DOUBAO_EXTERNAL_VOICE_PRODUCT_PATH;
+}
+
+function hasExternalDoubaoInputEvidence(value) {
+  return Boolean(
+    value
+    && typeof value === "object"
+    && value.source === "doubao-input-method"
+    && value.embedded === false
+    && typeof value.textBridge === "string"
+    && value.textBridge.trim().length > 0
   );
 }
 
-function hasFinalVoiceTranscriptEvidence(events) {
+function hasVoiceProviderLifecycleEvidence(events, provider) {
   if (!Array.isArray(events)) {
     return false;
   }
 
   return events.some((event) =>
-    event?.providerId === "native-macos"
+    event?.providerId === provider && event.state === "listening"
+  ) && events.some((event) =>
+    event?.providerId === provider && event.state === "stopped"
+  );
+}
+
+function hasFinalVoiceTranscriptEvidence(events, provider) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) =>
+    event?.providerId === provider
       && event.isFinal === true
       && typeof event.text === "string"
       && event.text.trim().length > 0
@@ -1797,22 +1838,22 @@ function readOptionalPositiveNumber(value) {
   return Number.isFinite(value) ? value : 0;
 }
 
-function hasNoTranscriptVoiceLifecycleEvidence(providerEvents, transcriptEvents, taskEvents) {
+function hasNoTranscriptVoiceLifecycleEvidence(providerEvents, transcriptEvents, taskEvents, provider) {
   if (!Array.isArray(providerEvents)) {
     return false;
   }
 
   const listened = providerEvents.some((event) =>
-    event?.providerId === "native-macos" && event.state === "listening"
+    event?.providerId === provider && event.state === "listening"
   );
   const endedWithoutTranscript = providerEvents.some((event) =>
-    event?.providerId === "native-macos"
+    event?.providerId === provider
       && (event.state === "no_transcript" || event.state === "cancelled")
   );
 
   return listened
     && endedWithoutTranscript
-    && !hasFinalVoiceTranscriptEvidence(transcriptEvents)
+    && !hasFinalVoiceTranscriptEvidence(transcriptEvents, provider)
     && !hasVoiceDownstreamTaskEvidence(taskEvents);
 }
 
@@ -1904,7 +1945,7 @@ Validates that an alpha manifest references a coherent packaged-app dogfood evid
 
 Options:
   --manifest <path>     Alpha manifest JSON from npm run alpha:artifact.
-  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and native voice smoke results are passed, including panic stop runtime hotkey evidence, Chrome current-page observation evidence, native voice transcript-to-task evidence, and native voice Ghostty turn replay evidence.
+  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and selected voice smoke results are passed, including panic stop runtime hotkey evidence, Chrome current-page observation evidence, external Doubao voice transcript-to-task evidence, and external Doubao voice Ghostty turn replay evidence.
   --require-current-head
                        Fail unless manifest commitSha matches the current git HEAD.
   -h, --help            Show this help.

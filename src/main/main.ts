@@ -982,7 +982,16 @@ ipcMain.handle("skfiy:update-dictation-transcript", (event, sessionId: unknown, 
   }
 
   try {
+    const voiceTurnSession = readVoiceTurnSession(sessionId);
+    if (!voiceTurnSession) {
+      return;
+    }
     recordVoiceTranscriptCandidate(sessionId, transcriptUpdate);
+    emitDictationTranscriptEvent(window, {
+      providerId: voiceTurnSession.providerId,
+      sessionId: voiceTurnSession.id,
+      ...transcriptUpdate
+    });
   } catch (error) {
     emitTaskEvent(window, {
       status: "failed",
