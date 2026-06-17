@@ -106,6 +106,7 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("## Evidence Preview Gate");
     expect(packet).toContain("Before filing, confirm the generated `dogfood:issue -- --check-report` output shows `reportPreviewEligibility.eligible=true`.");
     expect(packet).toContain("The report preview must include UI pet drag evidence from the packaged app: renderer pointer events, before/after bounds, upward movement, and suppressed click-after-drag.");
+    expect(packet).toContain("The report preview must include panic stop evidence from `runtimeStatus.stopTurnHotkey`: accelerator, label, registered state, and source.");
     expect(packet).toContain("If `reportPreviewEligibility.eligible=false`, file the blocked evidence only after preserving the blocking checks for maintainer review.");
     expect(packet).toContain("## tester-1");
     expect(packet).toContain("Workflows: coding-terminal, screenshot-inspection");
@@ -182,6 +183,8 @@ describe("dogfood tester assignment packet", () => {
       expect(document).toContain("Evidence Preview Gate");
       expect(document).toContain("reportPreviewEligibility.eligible=true");
       expect(document).toContain("UI pet drag evidence");
+      expect(document).toContain("panic stop evidence");
+      expect(document).toContain("runtimeStatus.stopTurnHotkey");
       expect(document).toContain("`--require-passed`");
       expect(document).toContain("GitHub issue comment");
       expect(document).toContain("`--execute`");

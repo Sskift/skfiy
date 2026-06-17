@@ -189,7 +189,9 @@ It also includes an `Evidence Preview Gate` section that tells testers to confir
 `reportPreviewEligibility.eligible=true` before filing and to preserve the
 blocking checks when it is false. That gate calls out UI pet drag evidence
 explicitly, including renderer pointer events, before/after bounds, upward
-movement, and suppressed click-after-drag from the packaged app.
+movement, and suppressed click-after-drag from the packaged app. It also calls
+out panic stop evidence from `runtimeStatus.stopTurnHotkey`, including the
+accelerator, label, registered state, and source.
 The generated tester/review commands use
 `<path-to-downloaded-alpha-manifest.json>` so testers replace it with the
 manifest path produced by `dogfood:prepare-alpha` on their own machine, instead
