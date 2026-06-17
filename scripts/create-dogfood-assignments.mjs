@@ -25,6 +25,7 @@ export function createDefaultDogfoodAssignmentsOptions(rootDir = DEFAULT_ROOT_DI
     trackingIssueUrl: undefined,
     trackingIssueFile: undefined,
     outputPath: undefined,
+    jsonOutputPath: undefined,
     dryRun: true,
     requireCurrentHead: false,
     help: false
@@ -52,6 +53,10 @@ export function parseDogfoodAssignmentsArgs(argv, defaults) {
         break;
       case "--output":
         options.outputPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--json-output":
+        options.jsonOutputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--execute":
@@ -104,10 +109,24 @@ export async function runDogfoodAssignments(options, io = createDefaultIo()) {
 
   await io.mkdir(path.dirname(outputPath), { recursive: true });
   await io.writeText(outputPath, markdown);
+  let postedToTrackingIssue = false;
   if (options.dryRun === false && commentCommand) {
     await io.execFile(commentCommand.command, commentCommand.args);
+    postedToTrackingIssue = true;
   } else if (options.dryRun === false && !commentCommand) {
     throw new Error("--execute requires --tracking-issue-url so the assignment packet can be posted as a GitHub issue comment.");
+  }
+  if (typeof options.jsonOutputPath === "string") {
+    const json = createDogfoodAssignmentsJson(status, {
+      generatedAt,
+      markdownOutputPath: outputPath,
+      jsonOutputPath: options.jsonOutputPath,
+      dryRun: options.dryRun !== false,
+      commentCommand,
+      postedToTrackingIssue
+    });
+    await io.mkdir(path.dirname(options.jsonOutputPath), { recursive: true });
+    await io.writeText(options.jsonOutputPath, `${JSON.stringify(json, null, 2)}\n`);
   }
 
   return {
@@ -117,8 +136,72 @@ export async function runDogfoodAssignments(options, io = createDefaultIo()) {
       ? status.testerAssignments.length
       : 0,
     outputPath,
+    jsonOutputPath: options.jsonOutputPath,
     commentCommand,
-    postedToTrackingIssue: options.dryRun === false && Boolean(commentCommand)
+    postedToTrackingIssue
+  };
+}
+
+export function createDogfoodAssignmentsJson(status, {
+  generatedAt,
+  markdownOutputPath,
+  jsonOutputPath,
+  dryRun = true,
+  commentCommand,
+  postedToTrackingIssue = false
+} = {}) {
+  const assignments = Array.isArray(status.testerAssignments)
+    ? status.testerAssignments
+    : [];
+  const shortSha = readShortSha(status);
+  const blockers = Array.isArray(status.localSmoke?.permissionBlockers)
+    ? status.localSmoke.permissionBlockers
+    : [];
+  const permissionStates = readAssignmentPermissionStates(blockers);
+
+  return {
+    generatedAt: generatedAt ?? status.generatedAt ?? "unknown",
+    result: status.result ?? "unknown",
+    alphaTag: `skfiy-alpha-${shortSha}`,
+    releaseUrl: readReleaseUrl(status, shortSha),
+    manifestPath: status.manifestPath,
+    trackingIssueUrl: status.trackingIssueUrl ?? "local-tracking-issue",
+    markdownOutputPath,
+    jsonOutputPath,
+    dryRun,
+    postedToTrackingIssue,
+    assignmentCount: assignments.length,
+    currentGaps: {
+      acceptedRealTesterReports: status.trackingIssue?.verifiedRealAcceptedReportCount ?? 0,
+      minimumAcceptedRealTesterReports: 3,
+      missingWorkflowCoverage: Array.isArray(status.trackingIssue?.workflowCoverage?.missing)
+        ? status.trackingIssue.workflowCoverage.missing
+        : [],
+      missingPassedWorkflowCoverage: Array.isArray(status.trackingIssue?.passedWorkflowCoverage?.missing)
+        ? status.trackingIssue.passedWorkflowCoverage.missing
+        : []
+    },
+    permissionPreflight: {
+      states: permissionStates,
+      blockers,
+      requirePassedAllowed: blockers.length === 0
+    },
+    evidencePreviewGate: {
+      requiredEligible: true,
+      requiredChecks: [
+        "reportPreviewEligibility.eligible=true",
+        "ui-pet-drag",
+        "panic-stop-hotkey"
+      ]
+    },
+    assignments: assignments.map((assignment) => ({
+      testerId: assignment.testerId,
+      purpose: assignment.purpose,
+      workflows: Array.isArray(assignment.workflows) ? assignment.workflows : [],
+      commands: assignment.commands ?? {}
+    })),
+    nextActions: Array.isArray(status.nextActions) ? status.nextActions : [],
+    commentCommand
   };
 }
 
@@ -221,10 +304,11 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
 
 export function createDogfoodAssignmentsHelpText() {
   return [
-    "Usage: npm run dogfood:assignments -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--output <markdown-path>] [--execute] [--require-current-head]",
+    "Usage: npm run dogfood:assignments -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--output <markdown-path>] [--json-output <json-path>] [--execute] [--require-current-head]",
     "",
     "Creates a non-mutating tester assignment packet from dogfood:status.",
     "It packages recommended prepare/tester/review commands into copy-safe Markdown.",
+    "Use --json-output to persist the assignment packet, permission preflight, next actions, and comment command as machine-readable JSON.",
     "It does not create or accept reports, add labels, update cohort JSON, or weaken dogfood gates.",
     "By default it writes the local packet and reports a GitHub issue comment command without running it.",
     "Pass --execute with --tracking-issue-url to post the packet as a GitHub issue comment.",

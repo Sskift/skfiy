@@ -41,12 +41,15 @@ describe("dogfood tester assignment packet", () => {
       trackingIssueUrl,
       "--output",
       ".skfiy-dogfood/assignments/abc1234.md",
+      "--json-output",
+      ".skfiy-dogfood/assignments/abc1234.json",
       "--execute",
       "--require-current-head"
     ], defaults)).toMatchObject({
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc1234-macos-unsigned.json"),
       trackingIssueUrl,
       outputPath: path.resolve(".skfiy-dogfood/assignments/abc1234.md"),
+      jsonOutputPath: path.resolve(".skfiy-dogfood/assignments/abc1234.json"),
       dryRun: false,
       requireCurrentHead: true
     });
@@ -54,6 +57,7 @@ describe("dogfood tester assignment packet", () => {
     expect(createDogfoodAssignmentsHelpText()).toContain("non-mutating");
     expect(createDogfoodAssignmentsHelpText()).toContain("does not create or accept reports");
     expect(createDogfoodAssignmentsHelpText()).toContain("--execute");
+    expect(createDogfoodAssignmentsHelpText()).toContain("--json-output");
     expect(createDogfoodAssignmentsHelpText()).toContain("GitHub issue comment");
   });
 
@@ -122,6 +126,104 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).not.toContain("--add-label dogfood:accepted");
   });
 
+  it("writes machine-readable assignment JSON for automation without scraping Markdown", async () => {
+    const { runDogfoodAssignments } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodAssignments: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo();
+
+    await expect(runDogfoodAssignments({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      outputPath: "/repo/.skfiy-dogfood/assignments/abc1234.md",
+      jsonOutputPath: "/repo/.skfiy-dogfood/assignments/abc1234.json",
+      now: () => "2026-06-17T10:00:00.000Z"
+    }, io)).resolves.toMatchObject({
+      jsonOutputPath: "/repo/.skfiy-dogfood/assignments/abc1234.json"
+    });
+
+    const json = JSON.parse(io.textFiles["/repo/.skfiy-dogfood/assignments/abc1234.json"]);
+    expect(json).toMatchObject({
+      generatedAt: "2026-06-17T10:00:00.000Z",
+      result: "waiting-for-dogfood",
+      alphaTag: "skfiy-alpha-abc1234",
+      releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc1234",
+      manifestPath,
+      trackingIssueUrl,
+      markdownOutputPath: "/repo/.skfiy-dogfood/assignments/abc1234.md",
+      jsonOutputPath: "/repo/.skfiy-dogfood/assignments/abc1234.json",
+      dryRun: true,
+      postedToTrackingIssue: false,
+      assignmentCount: 3,
+      currentGaps: {
+        acceptedRealTesterReports: 0,
+        minimumAcceptedRealTesterReports: 3,
+        missingWorkflowCoverage: [
+          "coding-terminal",
+          "screenshot-inspection",
+          "finder-file",
+          "browser-fallback"
+        ],
+        missingPassedWorkflowCoverage: [
+          "coding-terminal",
+          "screenshot-inspection",
+          "finder-file",
+          "browser-fallback"
+        ]
+      },
+      permissionPreflight: {
+        states: {
+          screenRecording: "denied",
+          accessibility: "denied",
+          microphone: "unknown",
+          speechRecognition: "unknown"
+        },
+        requirePassedAllowed: false
+      },
+      evidencePreviewGate: {
+        requiredEligible: true,
+        requiredChecks: [
+          "reportPreviewEligibility.eligible=true",
+          "ui-pet-drag",
+          "panic-stop-hotkey"
+        ]
+      },
+      commentCommand: {
+        command: "gh",
+        args: [
+          "issue",
+          "comment",
+          "1",
+          "--repo",
+          "Sskift/skfiy",
+          "--body-file",
+          "/repo/.skfiy-dogfood/assignments/abc1234.md"
+        ]
+      }
+    });
+    expect(json.permissionPreflight.blockers).toEqual([
+      { permission: "screenRecording", state: "denied" },
+      { permission: "accessibility", state: "denied" }
+    ]);
+    expect(json.assignments).toHaveLength(3);
+    expect(json.assignments[0]).toMatchObject({
+      testerId: "tester-1",
+      purpose: "real-tester-count-and-workflow-coverage",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      commands: {
+        tester: expect.stringContaining("--file-issue"),
+        review: expect.stringContaining("dogfood:review")
+      }
+    });
+    expect(json.nextActions).toEqual([
+      "Collect at least 3 accepted real tester report issue URLs in GitHub issue #1."
+    ]);
+  });
+
   it("posts the assignment packet to the tracking issue only when execute is explicit", async () => {
     const { runDogfoodAssignments } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodAssignments: (
@@ -178,6 +280,7 @@ describe("dogfood tester assignment packet", () => {
     for (const document of [readme, workflow, longPlan]) {
       expect(document).toContain("npm run dogfood:assignments -- \\");
       expect(document).toContain("--output .skfiy-dogfood/assignments/");
+      expect(document).toContain("--json-output .skfiy-dogfood/assignments/");
       expect(document).toContain("non-mutating");
       expect(document).toContain("Permission Preflight");
       expect(document).toContain("Evidence Preview Gate");

@@ -125,7 +125,8 @@ npm run dogfood:status -- \
 npm run dogfood:assignments -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
-  --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md
+  --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md \
+  --json-output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.json
 npm run dogfood:prepare-alpha -- \
   --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-<commit> \
   --tester-id tester-a \
@@ -180,6 +181,9 @@ issue and adds a next action when that comment is missing.
 `dogfood:assignments` is also non-mutating. It packages those assignments into a
 copy-safe Markdown handoff for real testers without creating reports, adding
 labels, updating cohort JSON, or marking evidence accepted.
+Use `--json-output` to persist the same tester split, permission preflight,
+evidence preview gate, next actions, and comment command as machine-readable
+JSON for dashboards and follow-up agents.
 By default it writes the local packet and prints the GitHub issue comment command
 without running it; add `--execute` only when you want to publish that packet as
 a GitHub issue comment on the tracking issue.

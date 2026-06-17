@@ -445,10 +445,12 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
     npm run dogfood:assignments -- \
       --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
       --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
-      --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md
+      --output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.md \
+      --json-output .skfiy-dogfood/assignments/skfiy-alpha-<commit>.json
     ```
     - assignment packet now includes `Permission Preflight`, listing Screen Recording, Accessibility, Microphone, and Speech Recognition states and instructing testers to add `--require-passed` only after all four permissions are granted to the extracted `skfiy.app`
     - assignment packet now includes `Evidence Preview Gate`, instructing testers to confirm `reportPreviewEligibility.eligible=true` before filing and preserving UI pet drag evidence plus panic stop evidence from `runtimeStatus.stopTurnHotkey` when the preview is blocked
+    - assignment packet can now write `--json-output <path>` with the tester split, permission preflight, evidence preview gate, next actions, and GitHub issue comment command for dashboards and follow-up agents without scraping Markdown
     - assignment packet dry-run now exposes a GitHub issue comment command, while `--execute` posts the packet to the tracking issue as a GitHub issue comment without accepting evidence
   - [x] `dogfood:status` now reads GitHub tracking issue comments and reports whether the current `skfiy-alpha-<commit>` tester assignment packet with `Permission Preflight` and `Evidence Preview Gate` is already posted, adding a next action when assignments exist but the current packet comment is missing or stale
   - [x] `dogfood:status` now treats missing smoke artifact JSON as explicit `missing` local smoke evidence with a next action, instead of aborting the readiness report before maintainers can see what needs to be regenerated
