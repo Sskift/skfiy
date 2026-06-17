@@ -226,7 +226,10 @@ the report validates.
 `dogfood:tester` summaries include a `Smoke Results` table with each packaged
 smoke's result, product path, and permission states parsed from the smoke JSON
 stdout, so testers and maintainers can audit passed/blocked/no-transcript runs
-without opening every artifact by hand.
+without opening every artifact by hand. When smoke artifacts include Computer
+Use event logs, the same summary now adds a `Computer Use Scorecard` with total
+runs, task success rate, manual interventions, average steps, unsafe-action
+blocks, and permission failures.
 Workflow and passed workflow coverage in `dogfood:status` and
 `dogfood:cohort` count only verified accepted reports from real tester ids;
 `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` remain local evidence

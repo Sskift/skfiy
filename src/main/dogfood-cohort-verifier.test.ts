@@ -50,6 +50,7 @@ describe("dogfood cohort verifier", () => {
     expect(createDogfoodCohortHelpText()).toContain("artifactSource=github-issue-smoke-artifacts");
     expect(createDogfoodCohortHelpText()).toContain("issue alpha manifest/zip/commit identity");
     expect(createDogfoodCohortHelpText()).toContain("uiPetDragEvidence");
+    expect(createDogfoodCohortHelpText()).toContain("stopTurnEvidence");
     expect(createDogfoodCohortHelpText()).toContain("Workflow coverage counts only reports");
     expect(createDogfoodCohortHelpText()).toContain("--require-passed");
     expect(createDogfoodCohortHelpText()).toContain("local-*");
@@ -102,6 +103,7 @@ describe("dogfood cohort verifier", () => {
         expect.objectContaining({ id: "report.tester-a.manifestPath", ok: true }),
         expect.objectContaining({ id: "report.tester-a.artifacts", ok: true }),
         expect.objectContaining({ id: "report.tester-a.uiPetDragEvidence", ok: true }),
+        expect.objectContaining({ id: "report.tester-a.stopTurnEvidence", ok: true }),
         expect.objectContaining({ id: "report.tester-a.permissionStates", ok: true }),
         expect.objectContaining({ id: "report.tester-a.runnerHasTmux", ok: true }),
         expect.objectContaining({ id: "report.tester-a.source", ok: true })
@@ -405,6 +407,45 @@ describe("dogfood cohort verifier", () => {
     });
   });
 
+  it("fails reports without dogfood:report verified panic stop evidence", async () => {
+    const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const missingStopTurnReport = createReport("tester-a", [
+      "coding-terminal",
+      "screenshot-inspection"
+    ]);
+    delete (missingStopTurnReport as { stopTurnEvidence?: unknown }).stopTurnEvidence;
+
+    await expect(verifyDogfoodCohort({
+      cohortPath
+    }, createMemoryIo({
+      [cohortPath]: createCohort([
+        missingStopTurnReport,
+        createReport("tester-b", ["finder-file"]),
+        createReport("tester-c", ["browser-fallback"])
+      ])
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("report.tester-a.stopTurnEvidence"),
+        expect.stringContaining("cohort.workflowCoverage.coding-terminal"),
+        expect.stringContaining("cohort.workflowCoverage.screenshot-inspection")
+      ]),
+      summary: {
+        eligibleWorkflowCoverage: {
+          "coding-terminal": false,
+          "screenshot-inspection": false,
+          "finder-file": true,
+          "browser-fallback": true
+        }
+      }
+    });
+  });
+
   it("fails reports whose commitSha does not match the accepted issue source commit", async () => {
     const { verifyDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       verifyDogfoodCohort: (
@@ -661,6 +702,13 @@ describe("dogfood cohort verifier", () => {
         totalDeltaY: -88,
         upwardMovement: true,
         suppressedClickAfterDrag: true,
+        verifiedBy: "dogfood:report"
+      },
+      stopTurnEvidence: {
+        accelerator: "Control+Alt+Shift+Esc",
+        label: "Ctrl Opt Shift Esc",
+        registered: true,
+        source: "runtimeStatus.stopTurnHotkey",
         verifiedBy: "dogfood:report"
       }
     };

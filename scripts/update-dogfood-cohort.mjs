@@ -13,6 +13,9 @@ const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_COHORT_NAME = "internal-alpha";
 const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
 const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
+const STOP_TURN_ACCELERATOR = "Control+Alt+Shift+Esc";
+const STOP_TURN_LABEL = "Ctrl Opt Shift Esc";
+const STOP_TURN_EVIDENCE_SOURCE = "runtimeStatus.stopTurnHotkey";
 const DOGFOOD_SMOKE_ARTIFACT_SECTIONS = [
   ["uiSmokeArtifactPath", "UI smoke artifact"],
   ["ghosttySmokeArtifactPath", "smoke artifact"],
@@ -181,6 +184,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
   validateSmokeArtifactPaths(smokeArtifacts, smokePaths);
   validateIssueAppBundlePreflight(issue, smokeArtifacts.ui);
   validateIssueUiPetDragEvidence(issue, smokeArtifacts.ui);
+  const stopTurnEvidence = validateIssueStopTurnEvidence(issue, smokeArtifacts);
   const artifactResults = Object.fromEntries(
     Object.entries(smokeArtifacts).map(([key, artifact]) => [key, readSmokeResult(artifact)])
   );
@@ -205,7 +209,8 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
     permissionStates: readPermissionStates(smokeArtifacts),
     artifacts: smokePaths,
     artifactResults,
-    uiPetDragEvidence: createUiPetDragReportEvidence(smokeArtifacts.ui?.petDrag)
+    uiPetDragEvidence: createUiPetDragReportEvidence(smokeArtifacts.ui?.petDrag),
+    stopTurnEvidence
   };
 }
 
@@ -222,6 +227,7 @@ export function createDogfoodReportHelpText() {
     "The issue body must include all five issue smoke artifact paths.",
     "The issue body must include app bundle preflight evidence matching the UI smoke artifact appPath, launch, appLaunchViaOpen, runnerHasTmux, and productPath.",
     "The issue body must include UI pet drag evidence matching the UI smoke artifact petDrag window-bounds proof.",
+    "The issue body must include panic stop evidence matching runtimeStatus.stopTurnHotkey from the smoke artifacts.",
     "It also requires the issue alpha manifest, zip, and commit sha to match --manifest.",
     "Every smoke artifact JSON artifactPath must match the issue artifact path it was read from.",
     "Use --tester-id and --workflows only as explicit overrides for tester/workflow body fields.",
@@ -397,6 +403,54 @@ function createUiPetDragReportEvidence(petDrag) {
     totalDeltaY: petDrag.totalDeltaY,
     upwardMovement: petDrag.upwardMovement,
     suppressedClickAfterDrag: petDrag.suppressedClickAfterDrag,
+    verifiedBy: "dogfood:report"
+  };
+}
+
+function validateIssueStopTurnEvidence(issue, smokeArtifacts) {
+  const evidence = readIssueKeyValueSection(issue, "panic stop");
+  const accelerator = readRequiredIssueKeyValue(evidence, "panic stop evidence", "accelerator");
+  const label = readRequiredIssueKeyValue(evidence, "panic stop evidence", "label");
+  const registered = readRequiredIssueKeyValue(evidence, "panic stop evidence", "registered");
+  const source = readRequiredIssueKeyValue(evidence, "panic stop evidence", "source");
+  const status = readStopTurnHotkeyStatus(smokeArtifacts);
+
+  if (!status) {
+    throw new Error("Smoke artifacts must include runtimeStatus.stopTurnHotkey panic stop evidence.");
+  }
+  if (accelerator !== status.accelerator || accelerator !== STOP_TURN_ACCELERATOR) {
+    throw new Error("Issue panic stop evidence accelerator must match the smoke artifact stopTurnHotkey.");
+  }
+  if (label !== status.label || label !== STOP_TURN_LABEL) {
+    throw new Error("Issue panic stop evidence label must match the smoke artifact stopTurnHotkey.");
+  }
+  if (registered !== "true" || status.registered !== true) {
+    throw new Error("Issue panic stop evidence registered must be true and match the smoke artifact.");
+  }
+  if (source !== STOP_TURN_EVIDENCE_SOURCE) {
+    throw new Error("Issue panic stop evidence source must be runtimeStatus.stopTurnHotkey.");
+  }
+
+  return createStopTurnReportEvidence(status);
+}
+
+function readStopTurnHotkeyStatus(smokeArtifacts) {
+  for (const artifact of Object.values(smokeArtifacts)) {
+    const status = artifact?.runtimeStatus?.stopTurnHotkey;
+    if (status && typeof status === "object") {
+      return status;
+    }
+  }
+
+  return undefined;
+}
+
+function createStopTurnReportEvidence(status) {
+  return {
+    accelerator: status.accelerator,
+    label: status.label,
+    registered: status.registered,
+    source: STOP_TURN_EVIDENCE_SOURCE,
     verifiedBy: "dogfood:report"
   };
 }
@@ -602,6 +656,7 @@ function isCohortEligibleReport(report) {
     && report?.runnerHasTmux === false
     && hasRequiredArtifactPaths(report?.artifacts)
     && hasRequiredPermissionStates(report?.permissionStates)
+    && hasRequiredStopTurnEvidence(report?.stopTurnEvidence)
     && source?.type === "github-issue"
     && typeof source.issueUrl === "string"
     && isAcceptedIssueUrl(source.issueUrl)
@@ -636,6 +691,16 @@ function hasRequiredPermissionStates(value) {
   return ["screenRecording", "accessibility", "microphone", "speechRecognition"].every((key) =>
     typeof value[key]?.state === "string" && value[key].state.length > 0
   );
+}
+
+function hasRequiredStopTurnEvidence(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && value.accelerator === STOP_TURN_ACCELERATOR
+    && value.label === STOP_TURN_LABEL
+    && value.registered === true
+    && value.source === STOP_TURN_EVIDENCE_SOURCE
+    && value.verifiedBy === "dogfood:report";
 }
 
 function collectDistinctTesterIds(reports) {

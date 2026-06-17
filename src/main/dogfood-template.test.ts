@@ -34,9 +34,9 @@ describe("skfiy dogfood issue template", () => {
       "--issue-labels",
       "gh issue view",
       "readable accepted issue body",
-      "testerId, workflows, all five smoke artifact paths, app bundle preflight, UI pet drag evidence, and labels",
+      "testerId, workflows, all five smoke artifact paths, app bundle preflight, UI pet drag evidence, panic stop evidence, and labels",
       "missing/mismatched app bundle preflight",
-      "missing/mismatched app bundle preflight or UI pet drag evidence are rejected",
+      "missing/mismatched app bundle preflight or UI pet drag evidence or panic stop evidence are rejected",
       "app bundle preflight must match the UI smoke artifact",
       "must match the same alpha",
       "artifactPath must match",
@@ -114,7 +114,10 @@ describe("skfiy dogfood issue template", () => {
       "Verified item_drag_drop",
       "Verified create_folder",
       "Verified move_file",
-      "panic stop"
+      "panic stop",
+      "stopTurnHotkey",
+      "Control+Alt+Shift+Esc",
+      "runtimeStatus.stopTurnHotkey"
     ];
 
     for (const evidence of requiredEvidence) {

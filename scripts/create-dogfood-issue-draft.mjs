@@ -10,6 +10,7 @@ import {
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
+const STOP_TURN_EVIDENCE_SOURCE = "runtimeStatus.stopTurnHotkey";
 const SMOKE_ARTIFACT_OPTIONS = [
   ["uiSmokeArtifactPath", "uiSmokeArtifactPath", "UI smoke artifact", "--ui-smoke-artifact"],
   ["smokeArtifactPath", "smokeArtifactPath", "smoke artifact", "--smoke-artifact"],
@@ -145,7 +146,7 @@ export function createDogfoodIssueDraftHelpText() {
     "",
     "Creates a GitHub dogfood issue body draft from one real tester machine.",
     "The draft copies alpha identity, all five smoke artifact paths, app bundle preflight,",
-    "UI pet drag evidence, permission states, and core evidence",
+    "UI pet drag evidence, panic stop evidence, permission states, and core evidence",
     "from the manifest and smoke JSON files so maintainers can file an accepted GitHub dogfood issue",
     "without manually retyping fields that dogfood:report later verifies.",
     "Use --check-report to round-trip the generated draft through dogfood:report's parser locally.",
@@ -427,7 +428,7 @@ function createDogfoodIssueBody({
     "",
     "### panic stop",
     "",
-    "not available"
+    createStopTurnEvidence(smokeArtifacts)
   ].join("\n");
 }
 
@@ -580,6 +581,32 @@ function createUiPetDragEvidence(petDrag) {
     `upwardMovement: ${String(petDrag.upwardMovement === true)}`,
     `suppressedClickAfterDrag: ${String(petDrag.suppressedClickAfterDrag === true)}`
   ].join("\n");
+}
+
+function createStopTurnEvidence(smokeArtifacts) {
+  const status = readStopTurnHotkeyStatus(smokeArtifacts);
+
+  if (!status) {
+    return "not available";
+  }
+
+  return [
+    `accelerator: ${readFirstString([status.accelerator], "not available")}`,
+    `label: ${readFirstString([status.label], "not available")}`,
+    `registered: ${String(status.registered === true)}`,
+    `source: ${STOP_TURN_EVIDENCE_SOURCE}`
+  ].join("\n");
+}
+
+function readStopTurnHotkeyStatus(smokeArtifacts) {
+  for (const artifact of Object.values(smokeArtifacts)) {
+    const status = artifact?.runtimeStatus?.stopTurnHotkey;
+    if (status && typeof status === "object") {
+      return status;
+    }
+  }
+
+  return undefined;
 }
 
 function createChromeEvidence(chromeArtifact) {

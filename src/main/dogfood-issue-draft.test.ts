@@ -78,6 +78,7 @@ describe("dogfood issue draft generator", () => {
     expect(createDogfoodIssueDraftHelpText()).toContain("accepted GitHub dogfood issue");
     expect(createDogfoodIssueDraftHelpText()).toContain("app bundle preflight");
     expect(createDogfoodIssueDraftHelpText()).toContain("UI pet drag evidence");
+    expect(createDogfoodIssueDraftHelpText()).toContain("panic stop evidence");
   });
 
   it("creates a GitHub issue body that dogfood:report can parse without manual alpha or artifact copying", async () => {
@@ -213,6 +214,11 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("destructiveOperationCount: 0");
     expect(body).toContain("### Native voice no-transcript/cancellation evidence");
     expect(body).toContain("no_transcript");
+    expect(body).toContain("### panic stop");
+    expect(body).toContain("accelerator: Control+Alt+Shift+Esc");
+    expect(body).toContain("label: Ctrl Opt Shift Esc");
+    expect(body).toContain("registered: true");
+    expect(body).toContain("source: runtimeStatus.stopTurnHotkey");
   });
 
   it("summarizes Computer Use result from the artifacts that match selected workflows", async () => {
@@ -388,6 +394,13 @@ describe("dogfood issue draft generator", () => {
         totalDeltaY: -88,
         upwardMovement: true,
         suppressedClickAfterDrag: true
+      },
+      runtimeStatus: {
+        stopTurnHotkey: {
+          accelerator: "Control+Alt+Shift+Esc",
+          label: "Ctrl Opt Shift Esc",
+          registered: true
+        }
       },
       ...overrides
     };

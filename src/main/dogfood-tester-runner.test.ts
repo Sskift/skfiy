@@ -348,6 +348,81 @@ describe("dogfood tester runner", () => {
     expect(summary).toContain("| smoke:chrome | passed | renderer -> preload -> main -> CDP -> Chrome | screenRecording=granted |");
   });
 
+  it("adds a Computer Use scorecard from smoke event logs to the tester summary", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      "smoke:ghostty": {
+        stdout: JSON.stringify({
+          result: "blocked",
+          productPath: "renderer -> preload -> main -> helper -> Ghostty",
+          events: [
+            { status: "executing", message: "Risk medium: create a file." },
+            { status: "approval_required", message: "Approval required." }
+          ]
+        })
+      },
+      "smoke:chrome": {
+        stdout: JSON.stringify({
+          result: "passed",
+          productPath: "renderer -> preload -> main -> CDP -> Chrome",
+          events: [
+            { status: "observing", message: "Captured page text." },
+            { status: "completed", message: "Chrome task completed." }
+          ]
+        })
+      },
+      "smoke:finder": {
+        stdout: JSON.stringify({
+          result: "blocked",
+          productPath: "renderer -> preload -> main -> helper -> Finder",
+          permissions: {
+            screenRecording: { state: "denied" },
+            accessibility: { state: "granted" }
+          },
+          events: [
+            { status: "failed", message: "Screen Recording permission is required." }
+          ]
+        })
+      },
+      "smoke:voice": {
+        stdout: JSON.stringify({
+          result: "passed",
+          productPath: "renderer -> preload -> main -> native speech -> Computer Use",
+          taskEvents: [
+            { status: "executing", message: "Voice transcript accepted." },
+            { status: "completed", message: "Downstream task completed." }
+          ]
+        })
+      }
+    });
+
+    await runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      artifactsDir: "/repo/.skfiy-smoke/dogfood/tester-a",
+      issueOutputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
+      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    const summary = io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"];
+    expect(summary).toContain("## Computer Use Scorecard");
+    expect(summary).toContain("| total runs | 4 |");
+    expect(summary).toContain("| successful runs | 2 |");
+    expect(summary).toContain("| task success rate | 50.0% |");
+    expect(summary).toContain("| manual interventions | 1 |");
+    expect(summary).toContain("| average steps | 1.75 |");
+    expect(summary).toContain("| unsafe action blocks | 1 |");
+    expect(summary).toContain("| permission failures | 1 |");
+  });
+
   it("optionally files the generated report issue without accepting it", async () => {
     const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodTester: (

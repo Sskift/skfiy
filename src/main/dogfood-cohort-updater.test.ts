@@ -72,6 +72,7 @@ describe("dogfood cohort updater", () => {
     expect(createDogfoodReportHelpText()).toContain("must include app bundle preflight evidence");
     expect(createDogfoodReportHelpText()).toContain("must include UI pet drag evidence");
     expect(createDogfoodReportHelpText()).toContain("requires the issue alpha manifest, zip, and commit sha to match --manifest");
+    expect(createDogfoodReportHelpText()).toContain("must include panic stop evidence");
     expect(createDogfoodReportHelpText()).toContain("sourceEligibleReports");
     expect(createDogfoodReportHelpText()).toContain("3-5 distinct testers");
   });
@@ -247,6 +248,13 @@ describe("dogfood cohort updater", () => {
         totalDeltaY: -88,
         upwardMovement: true,
         suppressedClickAfterDrag: true,
+        verifiedBy: "dogfood:report"
+      },
+      stopTurnEvidence: {
+        accelerator: "Control+Alt+Shift+Esc",
+        label: "Ctrl Opt Shift Esc",
+        registered: true,
+        source: "runtimeStatus.stopTurnHotkey",
         verifiedBy: "dogfood:report"
       }
     });
@@ -459,6 +467,71 @@ describe("dogfood cohort updater", () => {
     })).rejects.toThrow("Issue UI pet drag evidence must include result.");
   });
 
+  it("rejects manifest report generation when the issue body omits panic stop evidence", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        zip: { path: alphaZipPath },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    });
+    const issueBody = createIssueBody("tester-a", ["coding-terminal", "browser-fallback"], {
+      uiSmokePath,
+      ghosttySmokePath,
+      chromeSmokePath,
+      finderSmokePath,
+      voiceSmokePath
+    }, "abc123", { includePanicStopEvidence: false });
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "browser-fallback"],
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      issueLabels: [
+        "dogfood:accepted",
+        "workflow:coding-terminal",
+        "workflow:browser-fallback"
+      ],
+      reportPath,
+      cohortPath
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: issueBody,
+          labels: [
+            "dogfood:accepted",
+            "workflow:coding-terminal",
+            "workflow:browser-fallback"
+          ]
+        };
+      }
+    })).rejects.toThrow("Issue panic stop evidence must include accelerator.");
+  });
+
   it.each([
     {
       name: "mismatched source",
@@ -636,7 +709,9 @@ describe("dogfood cohort updater", () => {
       "",
       ...createAppBundlePreflightLines(),
       "",
-      ...createUiPetDragEvidenceLines()
+      ...createUiPetDragEvidenceLines(),
+      "",
+      ...createPanicStopEvidenceLines()
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -757,7 +832,9 @@ describe("dogfood cohort updater", () => {
       "",
       ...createAppBundlePreflightLines(),
       "",
-      ...createUiPetDragEvidenceLines()
+      ...createUiPetDragEvidenceLines(),
+      "",
+      ...createPanicStopEvidenceLines()
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -1360,6 +1437,7 @@ describe("dogfood cohort updater", () => {
     options: {
       includeAppBundlePreflight?: boolean;
       includeUiPetDragEvidence?: boolean;
+      includePanicStopEvidence?: boolean;
       uiPetDragEvidenceLineOverrides?: string[];
       appPath?: string;
       launch?: string;
@@ -1432,6 +1510,13 @@ describe("dogfood cohort updater", () => {
       );
     }
 
+    if (options.includePanicStopEvidence !== false) {
+      issueBody.push(
+        "",
+        ...createPanicStopEvidenceLines()
+      );
+    }
+
     return issueBody.join("\n");
   }
 
@@ -1479,6 +1564,17 @@ describe("dogfood cohort updater", () => {
     });
   }
 
+  function createPanicStopEvidenceLines() {
+    return [
+      "### panic stop",
+      "",
+      "accelerator: Control+Alt+Shift+Esc",
+      "label: Ctrl Opt Shift Esc",
+      "registered: true",
+      "source: runtimeStatus.stopTurnHotkey"
+    ];
+  }
+
   function createReport(
     testerId: string,
     workflows: string[],
@@ -1514,6 +1610,13 @@ describe("dogfood cohort updater", () => {
         chromeSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-chrome.json`,
         finderSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-finder.json`,
         voiceSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-voice.json`
+      },
+      stopTurnEvidence: {
+        accelerator: "Control+Alt+Shift+Esc",
+        label: "Ctrl Opt Shift Esc",
+        registered: true,
+        source: "runtimeStatus.stopTurnHotkey",
+        verifiedBy: "dogfood:report"
       }
     };
   }
@@ -1546,6 +1649,13 @@ describe("dogfood cohort updater", () => {
         accessibility: { state: "denied" },
         microphone: { state: "not-determined" },
         speechRecognition: { state: "not-determined" }
+      },
+      runtimeStatus: {
+        stopTurnHotkey: {
+          accelerator: "Control+Alt+Shift+Esc",
+          label: "Ctrl Opt Shift Esc",
+          registered: true
+        }
       }
     };
   }

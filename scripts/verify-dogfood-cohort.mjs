@@ -47,6 +47,9 @@ const BLOCKING_PERMISSION_STATES = new Set([
 
 const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
 const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
+const STOP_TURN_ACCELERATOR = "Control+Alt+Shift+Esc";
+const STOP_TURN_LABEL = "Ctrl Opt Shift Esc";
+const STOP_TURN_EVIDENCE_SOURCE = "runtimeStatus.stopTurnHotkey";
 export function createDefaultDogfoodCohortOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     cohortPath: undefined,
@@ -196,6 +199,7 @@ export function createDogfoodCohortHelpText() {
     "permissionStates for Screen Recording, Accessibility, Microphone, and Speech Recognition,",
     "UI/Ghostty/Chrome/Finder/voice smoke artifact paths from the packaged app,",
     "uiPetDragEvidence verified by dogfood:report,",
+    "stopTurnEvidence verified by dogfood:report from runtimeStatus.stopTurnHotkey,",
     "source.issueUrl/source.collectedAt linking back to an accepted GitHub dogfood issue,",
     "artifactSource=github-issue-smoke-artifacts, and issue alpha manifest/zip/commit identity",
     "matching the report manifestPath and commitSha.",
@@ -357,6 +361,12 @@ function verifyReport(report, index, cohortManifestPath, checks) {
     hasRequiredUiPetDragEvidence(report?.uiPetDragEvidence),
     "report uiPetDragEvidence must prove a dogfood:report verified renderer-pointer-events-window-bounds upward drag with suppressed click-after-drag"
   );
+  check(
+    checks,
+    `${checkId}.stopTurnEvidence`,
+    hasRequiredStopTurnEvidence(report?.stopTurnEvidence),
+    "report stopTurnEvidence must prove a dogfood:report verified runtimeStatus.stopTurnHotkey registration"
+  );
 }
 
 function createCohortSummary(reports, testerIds, requiredWorkflowCoverage, passedWorkflowCoverage) {
@@ -413,6 +423,7 @@ function isWorkflowCoverageEligibleReport(report, cohortManifestPath) {
     && hasKnownWorkflow(report?.workflows)
     && hasRequiredArtifactPaths(report?.artifacts)
     && hasRequiredUiPetDragEvidence(report?.uiPetDragEvidence)
+    && hasRequiredStopTurnEvidence(report?.stopTurnEvidence)
     && hasRequiredPermissionStates(report?.permissionStates)
     && hasRequiredSource(report?.source, report?.workflows, {
       commitSha: report?.commitSha,
@@ -489,6 +500,16 @@ function hasRequiredUiPetDragEvidence(value) {
     && value.totalDeltaY < 0
     && value.upwardMovement === true
     && value.suppressedClickAfterDrag === true
+    && value.verifiedBy === "dogfood:report";
+}
+
+function hasRequiredStopTurnEvidence(value) {
+  return Boolean(value)
+    && typeof value === "object"
+    && value.accelerator === STOP_TURN_ACCELERATOR
+    && value.label === STOP_TURN_LABEL
+    && value.registered === true
+    && value.source === STOP_TURN_EVIDENCE_SOURCE
     && value.verifiedBy === "dogfood:report";
 }
 

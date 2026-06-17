@@ -367,6 +367,13 @@ describe("dogfood report reviewer", () => {
         accessibility: { state: "denied" },
         microphone: { state: "not-determined" },
         speechRecognition: { state: "not-determined" }
+      },
+      runtimeStatus: {
+        stopTurnHotkey: {
+          accelerator: "Control+Alt+Shift+Esc",
+          label: "Ctrl Opt Shift Esc",
+          registered: true
+        }
       }
     };
   }
@@ -427,7 +434,9 @@ describe("dogfood report reviewer", () => {
       "runnerHasTmux: false",
       "productPath: LaunchServices -> renderer DOM -> React permission onboarding",
       "",
-      ...createUiPetDragEvidenceLines()
+      ...createUiPetDragEvidenceLines(),
+      "",
+      ...createPanicStopEvidenceLines()
     ].join("\n");
   }
 
@@ -444,6 +453,17 @@ describe("dogfood report reviewer", () => {
       "totalDeltaY: -88",
       "upwardMovement: true",
       "suppressedClickAfterDrag: true"
+    ];
+  }
+
+  function createPanicStopEvidenceLines() {
+    return [
+      "### panic stop",
+      "",
+      "accelerator: Control+Alt+Shift+Esc",
+      "label: Ctrl Opt Shift Esc",
+      "registered: true",
+      "source: runtimeStatus.stopTurnHotkey"
     ];
   }
 

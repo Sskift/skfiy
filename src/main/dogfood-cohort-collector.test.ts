@@ -488,7 +488,9 @@ function createIssueBody(
     "runnerHasTmux: false",
     "productPath: LaunchServices -> renderer DOM -> React permission onboarding",
     "",
-    ...createUiPetDragEvidenceLines()
+    ...createUiPetDragEvidenceLines(),
+    "",
+    ...createPanicStopEvidenceLines()
   ].join("\n");
 }
 
@@ -517,6 +519,13 @@ function createSmokeArtifact(artifactPath: string, result: string) {
       accessibility: { state: "authorized" },
       microphone: { state: "authorized" },
       speechRecognition: { state: "authorized" }
+    },
+    runtimeStatus: {
+      stopTurnHotkey: {
+        accelerator: "Control+Alt+Shift+Esc",
+        label: "Ctrl Opt Shift Esc",
+        registered: true
+      }
     }
   };
 }
@@ -534,6 +543,17 @@ function createUiPetDragEvidenceLines() {
     "totalDeltaY: -88",
     "upwardMovement: true",
     "suppressedClickAfterDrag: true"
+  ];
+}
+
+function createPanicStopEvidenceLines() {
+  return [
+    "### panic stop",
+    "",
+    "accelerator: Control+Alt+Shift+Esc",
+    "label: Ctrl Opt Shift Esc",
+    "registered: true",
+    "source: runtimeStatus.stopTurnHotkey"
   ];
 }
 

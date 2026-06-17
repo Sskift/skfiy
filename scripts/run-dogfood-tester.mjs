@@ -501,6 +501,24 @@ function createDogfoodTesterSummary({
     );
   }
 
+  const scorecard = createComputerUseScorecard(commandResults);
+  if (scorecard.totalRuns > 0) {
+    lines.push(
+      "## Computer Use Scorecard",
+      "",
+      "| metric | value |",
+      "| --- | ---: |",
+      `| total runs | ${scorecard.totalRuns} |`,
+      `| successful runs | ${scorecard.successfulRuns} |`,
+      `| task success rate | ${formatPercent(scorecard.taskSuccessRate)} |`,
+      `| manual interventions | ${scorecard.manualInterventions} |`,
+      `| average steps | ${formatMetricNumber(scorecard.averageSteps)} |`,
+      `| unsafe action blocks | ${scorecard.unsafeActionBlocks} |`,
+      `| permission failures | ${scorecard.permissionFailures} |`,
+      ""
+    );
+  }
+
   lines.push(
     "## Commands",
     "",
@@ -660,6 +678,100 @@ function readSmokePermissionSummary(evidence) {
       return `${permission}=${state}`;
     });
   return entries.length > 0 ? entries.join(", ") : "unknown";
+}
+
+function createComputerUseScorecard(commandResults) {
+  const runs = commandResults
+    .filter((commandResult) => PRODUCT_SMOKE_COMMAND_IDS.has(commandResult.id))
+    .flatMap(readComputerUseRuns);
+  const totalRuns = runs.length;
+  const successfulRuns = runs.filter(isSuccessfulScorecardRun).length;
+  const totalSteps = runs.reduce((sum, run) => sum + run.events.length, 0);
+
+  return {
+    totalRuns,
+    successfulRuns,
+    taskSuccessRate: totalRuns === 0 ? 0 : successfulRuns / totalRuns,
+    manualInterventions: runs.filter(hasManualIntervention).length,
+    averageSteps: totalRuns === 0 ? 0 : totalSteps / totalRuns,
+    unsafeActionBlocks: runs.filter(hasUnsafeActionBlock).length,
+    permissionFailures: runs.filter(hasPermissionFailure).length
+  };
+}
+
+function readComputerUseRuns(commandResult) {
+  const evidence = parseJson(commandResult.stdout);
+  if (!evidence || typeof evidence !== "object") {
+    return [];
+  }
+
+  const primaryEvents = readEventArray(evidence.events) ?? readEventArray(evidence.taskEvents);
+  if (primaryEvents) {
+    return [{
+      id: commandResult.id,
+      events: primaryEvents,
+      permissions: readScorecardPermissions(evidence)
+    }];
+  }
+
+  return Object.entries(evidence)
+    .filter(([, value]) => value && typeof value === "object" && readEventArray(value.events))
+    .map(([name, value]) => ({
+      id: `${commandResult.id}:${name}`,
+      events: readEventArray(value.events),
+      permissions: readScorecardPermissions(value) ?? readScorecardPermissions(evidence)
+    }));
+}
+
+function readEventArray(value) {
+  return Array.isArray(value) && value.length > 0 ? value : undefined;
+}
+
+function readScorecardPermissions(evidence) {
+  if (evidence?.permissions && typeof evidence.permissions === "object") {
+    return evidence.permissions;
+  }
+  if (evidence?.permissionStates && typeof evidence.permissionStates === "object") {
+    return evidence.permissionStates;
+  }
+  return undefined;
+}
+
+function isSuccessfulScorecardRun(run) {
+  return run.events.some((event) => event?.status === "completed");
+}
+
+function hasManualIntervention(run) {
+  return run.events.some((event) =>
+    event?.status === "approval_required" || event?.status === "needs_confirmation"
+  );
+}
+
+function hasUnsafeActionBlock(run) {
+  return run.events.some((event) => event?.status === "approval_required");
+}
+
+function hasPermissionFailure(run) {
+  if (run.events.some((event) => {
+    const message = typeof event?.message === "string" ? event.message.toLowerCase() : "";
+    return event?.status === "failed" && message.includes("permission");
+  })) {
+    return true;
+  }
+
+  const permissions = run.permissions;
+  return Boolean(
+    permissions
+    && Object.values(permissions).some((permission) => permission?.state === "denied")
+  );
+}
+
+function formatPercent(value) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatMetricNumber(value) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 function readNonEmptyString(value) {
