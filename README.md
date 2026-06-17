@@ -120,7 +120,8 @@ npm run dogfood:tracking-issue -- \
 npm run dogfood:status -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
-  --summary .skfiy-dogfood/status-<commit>.md
+  --summary .skfiy-dogfood/status-<commit>.md \
+  --json-output .skfiy-dogfood/status-<commit>.json
 npm run dogfood:assignments -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
   --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 \
@@ -171,6 +172,8 @@ suppressed, and then clicks the pet to capture permission onboarding evidence.
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
+Use `--json-output` to persist the same status object as clean JSON for
+automation, dashboards, and follow-up agents without scraping npm stdout.
 When it can read GitHub comments, it also reports whether the current
 `skfiy-alpha-<commit>` assignment packet has already been posted to the tracking
 issue and adds a next action when that comment is missing.

@@ -20,7 +20,7 @@ describe("dogfood status reporter", () => {
     });
   });
 
-  it("parses manifest, tracking issue, and summary paths", async () => {
+  it("parses manifest, tracking issue, summary, and JSON output paths", async () => {
     const {
       createDefaultDogfoodStatusOptions,
       createDogfoodStatusHelpText,
@@ -42,11 +42,14 @@ describe("dogfood status reporter", () => {
       trackingIssueUrl,
       "--summary",
       ".skfiy-dogfood/status.md",
+      "--json-output",
+      ".skfiy-dogfood/status.json",
       "--require-current-head"
     ], defaults)).toMatchObject({
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
       trackingIssueUrl,
       summaryPath: path.resolve(".skfiy-dogfood/status.md"),
+      jsonOutputPath: path.resolve(".skfiy-dogfood/status.json"),
       requireCurrentHead: true
     });
     expect(createDogfoodStatusHelpText()).toContain("dogfood:status");
@@ -54,6 +57,62 @@ describe("dogfood status reporter", () => {
     expect(createDogfoodStatusHelpText()).toContain("accepted report URLs");
     expect(createDogfoodStatusHelpText()).toContain("real tester");
     expect(createDogfoodStatusHelpText()).toContain("tester assignments");
+    expect(createDogfoodStatusHelpText()).toContain("--json-output");
+  });
+
+  it("writes a machine-readable JSON status artifact for automation", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const jsonOutputPath = "/repo/.skfiy-dogfood/status.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed", {
+        screenRecording: "denied",
+        accessibility: "denied",
+        microphone: "not-determined",
+        speechRecognition: "not-determined"
+      }),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      jsonOutputPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(JSON.parse(io.textFiles[jsonOutputPath])).toMatchObject({
+      result: "waiting-for-dogfood",
+      generatedAt: "2026-06-16T12:00:00.000Z",
+      testerAssignments: status.testerAssignments,
+      nextActions: status.nextActions
+    });
+    expect(io.textFiles[jsonOutputPath]).toMatch(/\n$/);
   });
 
   it("parses a local tracking issue file for offline status checks", async () => {

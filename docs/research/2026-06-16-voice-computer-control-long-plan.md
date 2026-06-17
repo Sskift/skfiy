@@ -452,6 +452,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
     - assignment packet dry-run now exposes a GitHub issue comment command, while `--execute` posts the packet to the tracking issue as a GitHub issue comment without accepting evidence
   - [x] `dogfood:status` now reads GitHub tracking issue comments and reports whether the current `skfiy-alpha-<commit>` tester assignment packet with `Permission Preflight` and `Evidence Preview Gate` is already posted, adding a next action when assignments exist but the current packet comment is missing or stale
   - [x] `dogfood:status` now treats missing smoke artifact JSON as explicit `missing` local smoke evidence with a next action, instead of aborting the readiness report before maintainers can see what needs to be regenerated
+  - [x] `dogfood:status --json-output <path>` now persists the same machine-readable status object as clean JSON, so dashboards, follow-up agents, and assignment automation can consume tester assignments, next actions, alpha identity, and coverage without scraping npm stdout
   - [ ] `coding-terminal` workflow reports from actual testers
   - [ ] `screenshot-inspection` workflow reports from actual testers
   - [ ] `finder-file` workflow reports from actual testers

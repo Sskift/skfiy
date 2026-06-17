@@ -57,6 +57,7 @@ export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
     trackingIssueUrl: undefined,
     trackingIssueFile: undefined,
     summaryPath: undefined,
+    jsonOutputPath: undefined,
     requireCurrentHead: false,
     currentHeadSha: undefined,
     help: false
@@ -84,6 +85,10 @@ export function parseDogfoodStatusArgs(argv, defaults) {
         break;
       case "--summary":
         options.summaryPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--json-output":
+        options.jsonOutputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--require-current-head":
@@ -224,13 +229,16 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   if (typeof options.summaryPath === "string") {
     await io.writeText(options.summaryPath, createDogfoodStatusMarkdown(status));
   }
+  if (typeof options.jsonOutputPath === "string") {
+    await io.writeText(options.jsonOutputPath, `${JSON.stringify(status, null, 2)}\n`);
+  }
 
   return status;
 }
 
 export function createDogfoodStatusHelpText() {
   return [
-    "Usage: npm run dogfood:status -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--summary <markdown-path>] [--require-current-head]",
+    "Usage: npm run dogfood:status -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--summary <markdown-path>] [--json-output <json-path>] [--require-current-head]",
     "",
     "Creates a non-mutating dogfood readiness status report.",
     "It summarizes the alpha manifest, local smoke artifact results, permission blockers,",
@@ -240,6 +248,7 @@ export function createDogfoodStatusHelpText() {
     "It warns when app-build inputs changed after the selected alpha manifest commit.",
     "It reports whether the current alpha tester assignment packet is already posted as a tracking issue comment.",
     "It also emits recommended tester assignments with prepare/tester/review commands.",
+    "Use --json-output to persist the same machine-readable status object without relying on npm stdout capture.",
     "Assignments whose purpose is passed-workflow-evidence include --require-passed.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
   ].join("\n");
