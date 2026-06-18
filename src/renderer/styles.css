@@ -554,10 +554,19 @@ textarea:focus-visible {
   place-items: center;
   width: 22px;
   height: 22px;
+  padding: 0;
   border: 1px solid rgba(238, 247, 255, 0.14);
   border-radius: 7px;
   color: #eef7ff;
   background: rgba(13, 22, 36, 0.68);
+  line-height: 0;
+}
+
+.permissions-heading button svg,
+.permission-row button svg {
+  display: block;
+  width: 12px;
+  height: 12px;
 }
 
 .permissions-list {

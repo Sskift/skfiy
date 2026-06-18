@@ -1,4 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, {
   type AppPolicySettings,
@@ -1221,5 +1223,15 @@ describe("App", () => {
     }));
 
     expect(screen.queryByLabelText("Computer Use replay")).not.toBeInTheDocument();
+  });
+
+  it("keeps permission icon buttons visually centered", () => {
+    const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
+
+    expect(css).toContain(".permissions-heading button,\n.permission-row button");
+    expect(css).toContain("padding: 0;");
+    expect(css).toContain("line-height: 0;");
+    expect(css).toContain(".permissions-heading button svg,\n.permission-row button svg");
+    expect(css).toContain("display: block;");
   });
 });
