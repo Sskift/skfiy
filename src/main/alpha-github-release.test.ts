@@ -255,6 +255,31 @@ describe("GitHub alpha release publisher", () => {
     });
   });
 
+  it("rejects an existing GitHub release whose manifest asset digest is stale", async () => {
+    const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
+      runGitHubAlphaRelease: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      releaseAlreadyExists: true,
+      manifestAssetDigest: "sha256:stale-manifest"
+    });
+
+    await expect(runGitHubAlphaRelease({
+      rootDir: "/repo",
+      manifestPath,
+      repo: "Sskift/skfiy",
+      trackingIssueUrl,
+      dryRun: false,
+      now: () => "2026-06-17T08:20:00.000Z"
+    }, io)).rejects.toThrow(
+      "existing release asset skfiy-0.1.0-abcdef1-macos-unsigned.json digest must be"
+    );
+    expect(io.textFiles["/repo/docs/release-evidence/latest-alpha.json"]).toBeUndefined();
+  });
+
   it("rejects release evidence when smoke artifacts belong to a different alpha", async () => {
     const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
       runGitHubAlphaRelease: (
@@ -339,10 +364,12 @@ function createManifest() {
 function createMemoryIo(options: {
   manifest?: ReturnType<typeof createManifest>;
   releaseAlreadyExists?: boolean;
+  manifestAssetDigest?: string;
 } = {}) {
   const commands: Array<{ command: string; args: string[] }> = [];
   const textFiles: Record<string, string> = {};
   const manifest = options.manifest ?? createManifest();
+  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
 
   return {
     commands,
@@ -357,9 +384,12 @@ function createMemoryIo(options: {
       if (filePath !== manifestPath && filePath !== manifest.zip.path) {
         throw new Error(`Unexpected stat path: ${filePath}`);
       }
-      return { size: filePath === manifestPath ? 512 : 1234 };
+      return { size: filePath === manifestPath ? Buffer.byteLength(manifestText) : 1234 };
     },
     async readFile(filePath: string) {
+      if (filePath === manifestPath) {
+        return Buffer.from(manifestText);
+      }
       if (filePath !== manifest.zip.path) {
         throw new Error(`Unexpected file read path: ${filePath}`);
       }
@@ -391,7 +421,8 @@ function createMemoryIo(options: {
               },
               {
                 name: "skfiy-0.1.0-abcdef1-macos-unsigned.json",
-                size: 512,
+                size: Buffer.byteLength(manifestText),
+                digest: options.manifestAssetDigest,
                 state: "uploaded"
               }
             ]

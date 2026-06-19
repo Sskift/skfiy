@@ -687,6 +687,9 @@ function readReleaseEvidenceMismatchReasons({
     typeof manifest?.artifactBaseName === "string" ? manifest.artifactBaseName.trim() : "";
   const expectedZipPath = typeof manifest?.zip?.path === "string" ? manifest.zip.path : "";
   const expectedZipSha256 = typeof manifest?.zip?.sha256 === "string" ? manifest.zip.sha256.trim() : "";
+  const expectedMoneyRunSmokePath = typeof manifest?.moneyRunSmokeArtifactPath === "string"
+    ? manifest.moneyRunSmokeArtifactPath
+    : "";
 
   if (evidence?.tagName !== expectedTag) {
     reasons.push("release evidence tagName does not match manifest commit");
@@ -708,6 +711,15 @@ function readReleaseEvidenceMismatchReasons({
   }
   if (evidence?.zipSha256 !== expectedZipSha256) {
     reasons.push("release evidence zipSha256 does not match manifest zip.sha256");
+  }
+  if (
+    expectedMoneyRunSmokePath
+    && !matchesIssuePathOrBasename(
+      String(evidence?.smokeArtifacts?.moneyRun ?? ""),
+      expectedMoneyRunSmokePath
+    )
+  ) {
+    reasons.push("release evidence moneyRun smoke artifact does not match manifest moneyRunSmokeArtifactPath");
   }
 
   return reasons;

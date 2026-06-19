@@ -886,6 +886,87 @@ describe("dogfood status reporter", () => {
     );
   });
 
+  it("warns when docs release evidence omits the money-run smoke artifact from the selected manifest", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui-abc123.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty-abc123.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome-abc123.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder-abc123.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice-abc123.json";
+    const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run-supervision-abc123.json";
+    const manifest = {
+      ...createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath,
+        moneyRunSmokePath
+      }),
+      artifactBaseName: "skfiy-0.1.0-abc123-macos-unsigned"
+    };
+    const io = createMemoryIo({
+      [manifestPath]: manifest,
+      "/repo/docs/release-evidence/latest-alpha.json": {
+        tagName: "skfiy-alpha-abc123",
+        releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123",
+        commitSha: "abc123",
+        artifactBaseName: "skfiy-0.1.0-abc123-macos-unsigned",
+        manifestPath: ".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json",
+        zipPath: ".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.zip",
+        zipSha256: "feedface",
+        smokeArtifacts: {
+          ui: ".skfiy-smoke/ui-abc123.json",
+          ghostty: ".skfiy-smoke/ghostty-abc123.json",
+          chrome: ".skfiy-smoke/chrome-abc123.json",
+          finder: ".skfiy-smoke/finder-abc123.json",
+          voice: ".skfiy-smoke/voice-abc123.json"
+        }
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked"),
+      [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      manifest: {
+        checks: {
+          releaseEvidence: {
+            available: true,
+            ok: false,
+            reasons: [
+              "release evidence moneyRun smoke artifact does not match manifest moneyRunSmokeArtifactPath"
+            ]
+          }
+        }
+      }
+    });
+    expect(io.textFiles[summaryPath]).toContain(
+      "release evidence moneyRun smoke artifact does not match manifest moneyRunSmokeArtifactPath"
+    );
+  });
+
   it("recommends concrete tester assignments for missing real reports and workflow coverage", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

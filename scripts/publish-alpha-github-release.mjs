@@ -173,6 +173,7 @@ async function readExistingGitHubRelease(plan, io) {
 
 async function verifyExistingGitHubRelease({ release, plan, manifest, manifestPath }, io) {
   const manifestStat = await io.statFile(manifestPath);
+  const manifestSha256 = await sha256File(manifestPath, io);
 
   assertEqual(release?.tagName, plan.tagName, "existing release tag");
   assertEqual(release?.url, plan.releaseUrl, "existing release URL");
@@ -191,7 +192,8 @@ async function verifyExistingGitHubRelease({ release, plan, manifest, manifestPa
   });
   verifyExistingReleaseAsset(release?.assets, {
     name: path.basename(manifestPath),
-    size: manifestStat.size
+    size: manifestStat.size,
+    digest: `sha256:${manifestSha256}`
   });
 }
 
