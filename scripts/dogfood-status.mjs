@@ -12,6 +12,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/\d+/g;
 const ASSIGNMENT_PACKET_HEADING = "# skfiy dogfood tester assignments";
+const ASSIGNMENT_DESKTOP_SESSION_PREFLIGHT_HEADING = "## Desktop Session Preflight";
 const ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING = "## Permission Preflight";
 const ASSIGNMENT_EVIDENCE_PREVIEW_HEADING = "## Evidence Preview Gate";
 const ASSIGNMENT_PACKET_SCHEMA = "dogfood-assignments-v2";
@@ -1615,7 +1616,10 @@ function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, m
   const matchingComments = normalizedComments.filter((comment) =>
     isCurrentAlphaAssignmentComment(comment.body, currentAlphaTag)
   );
-  const commentsWithPermissionPreflight = matchingComments.filter((comment) =>
+  const commentsWithDesktopSessionPreflight = matchingComments.filter((comment) =>
+    comment.body.includes(ASSIGNMENT_DESKTOP_SESSION_PREFLIGHT_HEADING)
+  );
+  const commentsWithPermissionPreflight = commentsWithDesktopSessionPreflight.filter((comment) =>
     comment.body.includes(ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING)
   );
   const completeComments = commentsWithPermissionPreflight.filter((comment) =>
@@ -1625,12 +1629,17 @@ function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, m
     hasCurrentAssignmentPacketSchema(comment.body)
   );
   const reasons = [];
-  const latestComment = currentSchemaComments.at(-1) ?? completeComments.at(-1) ?? matchingComments.at(-1);
+  const latestComment = currentSchemaComments.at(-1)
+    ?? completeComments.at(-1)
+    ?? commentsWithDesktopSessionPreflight.at(-1)
+    ?? matchingComments.at(-1);
 
   if (commentsAvailable !== true) {
     reasons.push("tracking issue comments were not loaded");
   } else if (matchingComments.length === 0) {
     reasons.push(`tracking issue does not have a current ${currentAlphaTag} tester assignment packet comment`);
+  } else if (commentsWithDesktopSessionPreflight.length === 0) {
+    reasons.push(`current ${currentAlphaTag} tester assignment packet comment is missing Desktop Session Preflight`);
   } else if (commentsWithPermissionPreflight.length === 0) {
     reasons.push(`current ${currentAlphaTag} tester assignment packet comment is missing Permission Preflight`);
   } else if (completeComments.length === 0) {

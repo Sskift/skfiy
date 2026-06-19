@@ -124,7 +124,7 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("finder-file");
     expect(packet).toContain("tester-3");
     expect(packet).toContain("browser-fallback");
-    expect(packet).toContain("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after the provider-relevant permissions are granted.");
+    expect(packet).toContain("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after the provider-relevant permissions are granted and `smoke:desktop-session` passes on the tester machine.");
     expect(packet).not.toContain("--add-label dogfood:accepted");
   });
 
@@ -305,6 +305,68 @@ describe("dogfood tester assignment packet", () => {
     });
   });
 
+  it("blocks strict tester handoffs when the desktop session is locked", async () => {
+    const { runDogfoodAssignments } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodAssignments: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      localSmoke: {
+        permissionStates: {
+          screenRecording: { state: "granted" },
+          accessibility: { state: "granted" },
+          microphone: { state: "granted" },
+          speechRecognition: { state: "granted" }
+        },
+        permissionBlockers: [],
+        desktopSessionBlocker: {
+          state: "blocked",
+          frontmostBundleId: "com.apple.loginwindow",
+          frontmostProcessIdentifier: 591,
+          ioConsoleLocked: true,
+          cgSessionScreenIsLocked: true,
+          reason: "Desktop console is locked (IOConsoleLocked=true, CGSessionScreenIsLocked=true) and loginwindow is active (pid 591). Unlock the Mac and keep the display awake, then retry."
+        }
+      }
+    });
+
+    await runDogfoodAssignments({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      outputPath: "/repo/.skfiy-dogfood/assignments/abc1234.md",
+      jsonOutputPath: "/repo/.skfiy-dogfood/assignments/abc1234.json",
+      now: () => "2026-06-17T10:00:00.000Z"
+    }, io);
+
+    const packet = io.textFiles["/repo/.skfiy-dogfood/assignments/abc1234.md"];
+    const json = JSON.parse(io.textFiles["/repo/.skfiy-dogfood/assignments/abc1234.json"]);
+
+    expect(packet).toContain("## Desktop Session Preflight");
+    expect(packet).toContain("- state: blocked");
+    expect(packet).toContain("- frontmostBundleId: com.apple.loginwindow");
+    expect(packet).toContain("- frontmostProcessIdentifier: 591");
+    expect(packet).toContain("- ioConsoleLocked: true");
+    expect(packet).toContain("- cgSessionScreenIsLocked: true");
+    expect(packet).toContain("Desktop console is locked");
+    expect(packet).toContain("Do not use `--require-passed` until `smoke:desktop-session` passes on the tester machine.");
+    expect(packet).toContain("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after the provider-relevant permissions are granted and `smoke:desktop-session` passes on the tester machine.");
+    expect(json.permissionPreflight.requirePassedAllowed).toBe(false);
+    expect(json.desktopSessionPreflight).toMatchObject({
+      state: "blocked",
+      requirePassedAllowed: false,
+      blocker: {
+        state: "blocked",
+        frontmostBundleId: "com.apple.loginwindow",
+        frontmostProcessIdentifier: 591,
+        ioConsoleLocked: true,
+        cgSessionScreenIsLocked: true
+      }
+    });
+  });
+
   it("posts the assignment packet to the tracking issue only when execute is explicit", async () => {
     const { runDogfoodAssignments } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodAssignments: (
@@ -363,6 +425,7 @@ describe("dogfood tester assignment packet", () => {
       expect(document).toContain("--output .skfiy-dogfood/assignments/");
       expect(document).toContain("--json-output .skfiy-dogfood/assignments/");
       expect(document).toContain("non-mutating");
+      expect(document).toContain("Desktop Session Preflight");
       expect(document).toContain("Permission Preflight");
       expect(document).toContain("Evidence Preview Gate");
       expect(document).toContain("reportPreviewEligibility.eligible=true");

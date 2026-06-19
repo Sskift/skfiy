@@ -159,6 +159,10 @@ export function createDogfoodAssignmentsJson(status, {
     ? status.localSmoke.permissionBlockers
     : [];
   const permissionStates = readAssignmentPermissionStates(status.localSmoke?.permissionStates, blockers);
+  const desktopSessionBlocker = readAssignmentDesktopSessionBlocker(
+    status.localSmoke?.desktopSessionBlocker
+  );
+  const requirePassedAllowed = blockers.length === 0 && desktopSessionBlocker === null;
 
   return {
     generatedAt: generatedAt ?? status.generatedAt ?? "unknown",
@@ -186,7 +190,12 @@ export function createDogfoodAssignmentsJson(status, {
     permissionPreflight: {
       states: permissionStates,
       blockers,
-      requirePassedAllowed: blockers.length === 0
+      requirePassedAllowed
+    },
+    desktopSessionPreflight: {
+      state: desktopSessionBlocker?.state ?? "ready",
+      blocker: desktopSessionBlocker,
+      requirePassedAllowed
     },
     evidencePreviewGate: {
       requiredEligible: true,
@@ -218,6 +227,9 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
     ? status.localSmoke.permissionBlockers
     : [];
   const permissionStates = readAssignmentPermissionStates(status.localSmoke?.permissionStates, blockers);
+  const desktopSessionBlocker = readAssignmentDesktopSessionBlocker(
+    status.localSmoke?.desktopSessionBlocker
+  );
   const nextActions = Array.isArray(status.nextActions) ? status.nextActions : [];
   const lines = [
     "# skfiy dogfood tester assignments",
@@ -251,11 +263,35 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
     }
   }
 
+  lines.push("", "## Desktop Session Preflight", "");
+  if (desktopSessionBlocker === null) {
+    lines.push("- state: ready");
+    lines.push("- blocker: none");
+  } else {
+    lines.push(`- state: ${desktopSessionBlocker.state}`);
+    pushOptionalAssignmentLine(lines, "frontmostBundleId", desktopSessionBlocker.frontmostBundleId);
+    pushOptionalAssignmentLine(
+      lines,
+      "frontmostProcessIdentifier",
+      desktopSessionBlocker.frontmostProcessIdentifier
+    );
+    pushOptionalAssignmentLine(lines, "ioConsoleLocked", desktopSessionBlocker.ioConsoleLocked);
+    pushOptionalAssignmentLine(
+      lines,
+      "cgSessionScreenIsLocked",
+      desktopSessionBlocker.cgSessionScreenIsLocked
+    );
+    if (desktopSessionBlocker.reason) {
+      lines.push(`- reason: ${desktopSessionBlocker.reason}`);
+    }
+    lines.push("Do not use `--require-passed` until `smoke:desktop-session` passes on the tester machine.");
+  }
+
   lines.push("", "## Permission Preflight", "");
   lines.push("Grant Screen Recording and Accessibility to the extracted `skfiy.app` before using `--require-passed` for default external Doubao + Computer Use evidence.");
   lines.push("Grant Microphone and Speech Recognition only when intentionally testing the optional `native-macos` voice provider.");
   lines.push("If permissions are still blocked, run the normal tester command and file the blocked evidence instead of adding `--require-passed`.");
-  lines.push("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after the provider-relevant permissions are granted.");
+  lines.push("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after the provider-relevant permissions are granted and `smoke:desktop-session` passes on the tester machine.");
   lines.push("");
   for (const [permission, label] of Object.entries(PERMISSION_LABELS)) {
     lines.push(`- ${label}: ${permissionStates[permission] ?? "unknown"}`);
@@ -378,6 +414,62 @@ function readAssignmentPermissionStates(states, blockers) {
       return [permission, blocker?.state ?? "unknown"];
     })
   );
+}
+
+function readAssignmentDesktopSessionBlocker(blocker) {
+  if (!isPlainObject(blocker)) {
+    return null;
+  }
+
+  const normalized = {
+    state: readOptionalString(blocker.state) ?? "blocked"
+  };
+  const reason = readOptionalString(blocker.reason);
+  const frontmostBundleId = readOptionalString(blocker.frontmostBundleId);
+  const frontmostProcessIdentifier = readOptionalInteger(blocker.frontmostProcessIdentifier);
+  const ioConsoleLocked = readOptionalBoolean(blocker.ioConsoleLocked);
+  const cgSessionScreenIsLocked = readOptionalBoolean(blocker.cgSessionScreenIsLocked);
+
+  if (reason) {
+    normalized.reason = reason;
+  }
+  if (frontmostBundleId) {
+    normalized.frontmostBundleId = frontmostBundleId;
+  }
+  if (typeof frontmostProcessIdentifier === "number") {
+    normalized.frontmostProcessIdentifier = frontmostProcessIdentifier;
+  }
+  if (typeof ioConsoleLocked === "boolean") {
+    normalized.ioConsoleLocked = ioConsoleLocked;
+  }
+  if (typeof cgSessionScreenIsLocked === "boolean") {
+    normalized.cgSessionScreenIsLocked = cgSessionScreenIsLocked;
+  }
+
+  return normalized;
+}
+
+function pushOptionalAssignmentLine(lines, label, value) {
+  if (typeof value === "undefined") {
+    return;
+  }
+  lines.push(`- ${label}: ${value}`);
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readOptionalString(value) {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function readOptionalBoolean(value) {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function readOptionalInteger(value) {
+  return Number.isInteger(value) ? value : undefined;
 }
 
 function createTrackingIssueCommentCommand({ trackingIssueUrl, bodyFile }) {
