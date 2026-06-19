@@ -176,7 +176,14 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("stopTurnBehavior");
     expect(source).toContain("exerciseStopTurnBehavior.toString()");
     expect(source).toContain("new KeyboardEvent(\"keydown\"");
+    expect(source).toContain("Page.captureScreenshot");
+    expect(source).toContain("rendererScreenshot");
+    expect(source).toContain("layoutDiagnostics");
+    expect(source).toContain("readButtonIconAlignmentDiagnostics");
+    expect(source).toContain("scrollIntoView");
     expect(source).toContain("createInspectPermissionOnboardingExpression");
+    expect(source).toContain("createInspectSettingsLayoutExpression");
+    expect(source).toContain("roundMetric.toString()");
     expect(source).toContain("exercisePetDrag.toString()");
     expect(source).toContain("dispatchPetPointerEvent.toString()");
     expect(source).toContain("hasWindowBounds.toString()");

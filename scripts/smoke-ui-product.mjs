@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,6 +44,8 @@ async function main() {
     desktopSessionDiagnostics: undefined,
     startupWarnings: undefined,
     runtimeStatus: undefined,
+    rendererScreenshot: undefined,
+    layoutDiagnostics: undefined,
     petClicked: false,
     petDrag: undefined,
     stopTurnBehavior: undefined,
@@ -73,6 +76,7 @@ async function main() {
 
     try {
       await cdp.send("Runtime.enable");
+      await cdp.send("Page.enable");
 
       evidence.permissions = await evaluateValue(cdp, "window.skfiy.getPermissions()");
       evidence.permissionDiagnostics = await evaluateValue(
@@ -93,6 +97,11 @@ async function main() {
           createInspectPermissionOnboardingExpression(options.settleMs)
         )
       );
+      evidence.layoutDiagnostics = await evaluateValue(
+        cdp,
+        createInspectSettingsLayoutExpression(options.settleMs)
+      );
+      evidence.rendererScreenshot = await captureRendererScreenshot(cdp, options);
       evidence.result = classifyUiSmokeEvidence(evidence);
     } finally {
       cdp.close();
@@ -243,6 +252,51 @@ function createInspectPermissionOnboardingExpression(settleMs) {
   ].join("\n");
 }
 
+function createInspectSettingsLayoutExpression(settleMs) {
+  return [
+    "(() => {",
+    inspectSettingsLayoutExpression.toString(),
+    readButtonIconAlignmentDiagnostics.toString(),
+    rectToPlainObject.toString(),
+    roundMetric.toString(),
+    `return inspectSettingsLayoutExpression(${JSON.stringify(settleMs)});`,
+    "})()"
+  ].join("\n");
+}
+
+async function captureRendererScreenshot(cdp, options) {
+  if (!options.outputPath) {
+    return {
+      source: "cdp Page.captureScreenshot",
+      path: null,
+      exists: false,
+      bytes: 0
+    };
+  }
+
+  const outputPath = replaceOutputExtension(options.outputPath, ".png");
+  const response = await cdp.send("Page.captureScreenshot", {
+    format: "png",
+    fromSurface: true
+  });
+  const bytes = Buffer.from(String(response.data ?? ""), "base64");
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.writeFile(outputPath, bytes);
+
+  return {
+    source: "cdp Page.captureScreenshot",
+    path: outputPath,
+    exists: true,
+    bytes: bytes.length
+  };
+}
+
+function replaceOutputExtension(outputPath, extension) {
+  const parsed = path.parse(outputPath);
+  return path.join(parsed.dir, `${parsed.name}${extension}`);
+}
+
 function formatRuntimeExceptionDetails(exceptionDetails) {
   const parts = [
     exceptionDetails.exception?.description,
@@ -331,6 +385,96 @@ async function inspectPermissionOnboardingExpression(settleMs) {
     permissionSettingTargets,
     visibleText: document.body.innerText.slice(0, 2_000)
   };
+}
+
+async function inspectSettingsLayoutExpression(settleMs) {
+  const pet = Array.from(document.querySelectorAll("[aria-label]")).find((element) =>
+    /skfiy codex-style pet/i.test(element.getAttribute("aria-label") ?? "")
+  );
+
+  if (pet) {
+    pet.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }));
+  }
+
+  await new Promise((resolve) => window.setTimeout(resolve, settleMs));
+  document.querySelector('[aria-label="权限"]')?.scrollIntoView({
+    block: "nearest",
+    inline: "nearest"
+  });
+  await new Promise((resolve) => window.setTimeout(resolve, 120));
+
+  return {
+    settingsVisible: Boolean(document.querySelector('[aria-label="skfiy settings"]')),
+    permissionPanelVisible: Boolean(document.querySelector('[aria-label="权限"]')),
+    buttonIconAlignment: readButtonIconAlignmentDiagnostics(),
+    visibleText: document.body.innerText.slice(0, 2_000)
+  };
+}
+
+function readButtonIconAlignmentDiagnostics() {
+  const items = Array.from(document.querySelectorAll("button"))
+    .flatMap((button) => {
+      const icon = button.querySelector("svg");
+
+      if (!icon) {
+        return [];
+      }
+
+      const buttonRect = button.getBoundingClientRect();
+      const iconRect = icon.getBoundingClientRect();
+      const centerDeltaX = roundMetric(
+        iconRect.left + iconRect.width / 2 - (buttonRect.left + buttonRect.width / 2)
+      );
+      const centerDeltaY = roundMetric(
+        iconRect.top + iconRect.height / 2 - (buttonRect.top + buttonRect.height / 2)
+      );
+      const maxCenterDelta = roundMetric(Math.max(Math.abs(centerDeltaX), Math.abs(centerDeltaY)));
+
+      return [{
+        label: button.getAttribute("aria-label") || button.textContent.trim().slice(0, 80),
+        button: rectToPlainObject(buttonRect),
+        icon: rectToPlainObject(iconRect),
+        centerDeltaX,
+        centerDeltaY,
+        maxCenterDelta,
+        aligned: maxCenterDelta <= 1.5
+      }];
+    });
+  const maxCenterDelta = roundMetric(
+    Math.max(0, ...items.map((item) => item.maxCenterDelta))
+  );
+
+  return {
+    result: items.length === 0
+      ? "missing"
+      : items.every((item) => item.aligned)
+        ? "passed"
+        : "misaligned",
+    maxCenterDelta,
+    threshold: 1.5,
+    items
+  };
+}
+
+function rectToPlainObject(rect) {
+  return {
+    x: roundMetric(rect.x),
+    y: roundMetric(rect.y),
+    width: roundMetric(rect.width),
+    height: roundMetric(rect.height),
+    top: roundMetric(rect.top),
+    right: roundMetric(rect.right),
+    bottom: roundMetric(rect.bottom),
+    left: roundMetric(rect.left)
+  };
+}
+
+function roundMetric(value) {
+  return Math.round(value * 100) / 100;
 }
 
 async function exercisePetDrag(pet) {
