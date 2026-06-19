@@ -182,6 +182,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
     voice: await io.readJson(smokePaths.voiceSmokeArtifactPath)
   };
   validateSmokeArtifactPaths(smokeArtifacts, smokePaths);
+  validateNoLockedDesktopPreflight(smokeArtifacts);
   validateIssueAppBundlePreflight(issue, smokeArtifacts.ui);
   validateIssueUiPetDragEvidence(issue, smokeArtifacts.ui);
   const stopTurnEvidence = validateIssueStopTurnEvidence(issue, smokeArtifacts);
@@ -272,6 +273,32 @@ function validateSmokeArtifactPath(label, artifact, expectedPath) {
   if (!samePath(artifact?.artifactPath, expectedPath)) {
     throw new Error(`${label} artifactPath must match the issue artifact path.`);
   }
+}
+
+function validateNoLockedDesktopPreflight(smokeArtifacts) {
+  for (const [name, artifact] of Object.entries(smokeArtifacts)) {
+    const preflight = artifact?.desktopPreflight;
+    if (!isLockedDesktopPreflight(preflight)) {
+      continue;
+    }
+
+    throw new Error(
+      `${name} smoke artifact is blocked by a locked desktop session. Unlock the Mac and rerun the product smoke before collecting this report.`
+    );
+  }
+}
+
+function isLockedDesktopPreflight(preflight) {
+  if (!preflight || preflight.result !== "blocked") {
+    return false;
+  }
+  const reason = typeof preflight.reason === "string" ? preflight.reason.toLowerCase() : "";
+
+  return preflight.frontmost?.bundleId === "com.apple.loginwindow"
+    || preflight.display?.mainDisplayAsleep === true
+    || reason.includes("loginwindow")
+    || reason.includes("unlock")
+    || reason.includes("display is asleep");
 }
 
 function validateIssueAppBundlePreflight(issue, uiArtifact) {

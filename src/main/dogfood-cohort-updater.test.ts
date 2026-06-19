@@ -271,6 +271,77 @@ describe("dogfood cohort updater", () => {
     });
   });
 
+  it("rejects report generation when a workflow smoke is blocked by a locked desktop preflight", async () => {
+    const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
+      updateDogfoodCohort: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/tester-a-ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        zip: { path: alphaZipPath },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: {
+        ...createSmokeArtifact(ghosttySmokePath, "blocked"),
+        desktopPreflight: createLockedDesktopPreflight()
+      },
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+    });
+    const issueBody = createIssueBody("tester-a", ["coding-terminal", "screenshot-inspection"], {
+      uiSmokePath,
+      ghosttySmokePath,
+      chromeSmokePath,
+      finderSmokePath,
+      voiceSmokePath
+    });
+
+    await expect(updateDogfoodCohort({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      issueUrl: "https://github.com/Sskift/skfiy/issues/123",
+      issueLabels: [
+        "dogfood:accepted",
+        "workflow:coding-terminal",
+        "workflow:screenshot-inspection"
+      ],
+      reportPath,
+      cohortPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, {
+      ...io,
+      async readIssue() {
+        return {
+          body: issueBody,
+          labels: [
+            "dogfood:accepted",
+            "workflow:coding-terminal",
+            "workflow:screenshot-inspection"
+          ]
+        };
+      }
+    })).rejects.toThrow(/desktop session.*unlock/i);
+    expect(io.files[reportPath]).toBeUndefined();
+    expect(io.files[cohortPath]).toBeUndefined();
+  });
+
   it("fetches accepted issue labels from GitHub when issue labels are not passed explicitly", async () => {
     const { updateDogfoodCohort } = await import(pathToFileURL(modulePath).href) as {
       updateDogfoodCohort: (
@@ -1675,6 +1746,26 @@ describe("dogfood cohort updater", () => {
         afterStatus: "idle",
         afterMessage: "Task stopped."
       }
+    };
+  }
+
+  function createLockedDesktopPreflight() {
+    return {
+      timestamp: "2026-06-19T12:00:00.000Z",
+      appPath: "/repo/dist/skfiy.app",
+      helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+      productPath: "packaged helper -> desktop-session-status",
+      frontmost: {
+        bundleId: "com.apple.loginwindow",
+        localizedName: "loginwindow",
+        processIdentifier: 591
+      },
+      display: {
+        mainDisplayAsleep: false
+      },
+      controllable: false,
+      result: "blocked",
+      reason: "Desktop session is not controllable before target app launch: frontmostBundleId=com.apple.loginwindow frontmostProcessIdentifier=591. Unlock the Mac and keep the display awake, then retry."
     };
   }
 });

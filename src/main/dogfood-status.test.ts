@@ -1518,6 +1518,92 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain(`--manifest ${preparedManifestPath} --app ${preparedAppPath}`);
   });
 
+  it("does not recommend prepared tester commands when the downloaded manifest is stale", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
+    const preparedManifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc123/skfiy-0.1.0-abc123-macos-unsigned.json";
+    const preparedAppPath = "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc123/skfiy.app";
+    const selectedManifest = createManifest({
+      uiSmokePath,
+      ghosttySmokePath,
+      chromeSmokePath,
+      finderSmokePath,
+      voiceSmokePath,
+      moneyRunSmokePath
+    });
+    const stalePreparedManifest = {
+      ...selectedManifest,
+      commitSha: "old9999",
+      zip: {
+        path: "/repo/.skfiy-alpha/skfiy-0.1.0-old9999-macos-unsigned.zip",
+        sha256: "oldhash"
+      }
+    };
+    const io = createMemoryIo({
+      [manifestPath]: selectedManifest,
+      [preparedManifestPath]: stalePreparedManifest,
+      [preparedAppPath]: "prepared app bundle",
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: {
+        ...createSmokeArtifact(voiceSmokePath, "blocked"),
+        provider: "doubao"
+      },
+      [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"],
+        comments: [
+          createAssignmentComment("abc123")
+        ]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, io) as {
+      testerAssignments: Array<{
+        preparedAlpha?: {
+          ok: boolean;
+          manifestPath: string;
+          appPath: string;
+        };
+        commands: {
+          prepareAlpha: string;
+          tester: string;
+        };
+      }>;
+      nextActions: string[];
+    };
+
+    expect(status.testerAssignments[0].preparedAlpha).toBeUndefined();
+    expect(status.testerAssignments[0].commands.tester).toContain("<path-to-downloaded-alpha-manifest.json>");
+    expect(status.testerAssignments[0].commands.tester).toContain("<path-to-unzipped-skfiy.app>");
+    expect(status.nextActions).toContain(
+      "Run npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute to prepare tester-1 for workflows coding-terminal,screenshot-inspection."
+    );
+    expect(status.nextActions).not.toContain(
+      `Run ${status.testerAssignments[0].commands.tester} to collect tester-1 evidence for workflows coding-terminal,screenshot-inspection after desktop preflight passes.`
+    );
+  });
+
   it("reports whether the current alpha tester assignment packet is already posted as a tracking issue comment", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

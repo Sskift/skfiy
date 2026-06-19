@@ -1323,11 +1323,47 @@ async function readPreparedAlphaPaths({ manifest, rootDir, io }) {
   const appPath = path.join(rootDir, ".skfiy-dogfood", "apps", alphaTag, "skfiy.app");
   const manifestExists = await io.exists(manifestPath);
   const appExists = await io.exists(appPath);
+  const manifestMatches = manifestExists === true
+    ? await readPreparedAlphaManifestMatchesSelected({ preparedManifestPath: manifestPath, manifest, io })
+    : false;
 
   return {
-    ok: manifestExists === true && appExists === true,
+    ok: manifestExists === true && appExists === true && manifestMatches === true,
     manifestPath,
     appPath
+  };
+}
+
+async function readPreparedAlphaManifestMatchesSelected({ preparedManifestPath, manifest, io }) {
+  if (typeof io.readJson !== "function") {
+    return false;
+  }
+
+  try {
+    const preparedManifest = await io.readJson(preparedManifestPath);
+    return alphaManifestIdentityMatches(preparedManifest, manifest);
+  } catch {
+    return false;
+  }
+}
+
+function alphaManifestIdentityMatches(candidate, selected) {
+  const candidateIdentity = readAlphaManifestIdentity(candidate);
+  const selectedIdentity = readAlphaManifestIdentity(selected);
+
+  return Object.keys(selectedIdentity).every((key) => {
+    const expected = selectedIdentity[key];
+    return expected.length > 0 && candidateIdentity[key] === expected;
+  });
+}
+
+function readAlphaManifestIdentity(manifest) {
+  return {
+    appName: typeof manifest?.appName === "string" ? manifest.appName.trim() : "",
+    bundleIdentifier: typeof manifest?.bundleIdentifier === "string" ? manifest.bundleIdentifier.trim() : "",
+    commitSha: typeof manifest?.commitSha === "string" ? manifest.commitSha.trim() : "",
+    artifactBaseName: readManifestArtifactBaseName(manifest),
+    zipSha256: typeof manifest?.zip?.sha256 === "string" ? manifest.zip.sha256.trim() : ""
   };
 }
 

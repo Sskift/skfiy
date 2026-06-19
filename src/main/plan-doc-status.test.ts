@@ -152,6 +152,16 @@ describe("implementation plan status docs", () => {
     expect(readme).toContain("--require-passed");
   });
 
+  it("documents that locked desktop preflight artifacts cannot count as dogfood workflow coverage", () => {
+    const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
+    const internalAlpha = readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8");
+    const workflowText = workflow.replace(/\s+/g, " ");
+    const internalAlphaText = internalAlpha.replace(/\s+/g, " ");
+
+    expect(workflowText).toContain("Desktop-session preflight blocked artifacts from `loginwindow`, display sleep, or an otherwise locked console are rejected by `dogfood:report` and cannot cover workflow source evidence.");
+    expect(internalAlphaText).toContain("Desktop-session preflight blocked artifacts from `loginwindow`, display sleep, or a locked console are rejected by `dogfood:report` and cannot cover workflow source-quality evidence.");
+  });
+
   it("documents panic stop behavior evidence in alpha and report instructions", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
