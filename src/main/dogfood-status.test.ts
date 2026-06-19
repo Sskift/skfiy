@@ -1097,7 +1097,10 @@ describe("dogfood status reporter", () => {
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
-        labels: ["skfiy", "dogfood"]
+        labels: ["skfiy", "dogfood"],
+        comments: [
+          createAssignmentComment("abc123")
+        ]
       }
     });
 
@@ -1108,12 +1111,15 @@ describe("dogfood status reporter", () => {
       now: () => "2026-06-16T12:00:00.000Z"
     }, io) as {
       testerAssignments: Array<{
+        testerId: string;
+        workflows: string[];
         commands: {
           prepareAlpha: string;
           tester: string;
           review: string;
         };
       }>;
+      nextActions: string[];
     };
 
     expect(status).toMatchObject({
@@ -1141,6 +1147,11 @@ describe("dogfood status reporter", () => {
       ]
     });
     expect(status.testerAssignments[0].commands.prepareAlpha).not.toContain("--workflows");
+    expect(status.nextActions).toEqual(expect.arrayContaining([
+      "Run npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute to prepare tester-1 for workflows coding-terminal,screenshot-inspection.",
+      "Run npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-2 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute to prepare tester-2 for workflows finder-file.",
+      "Run npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-3 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute to prepare tester-3 for workflows browser-fallback."
+    ]));
     expect(io.textFiles[summaryPath]).toContain("## Recommended Tester Assignments");
     expect(io.textFiles[summaryPath]).toContain("- tester-1: coding-terminal, screenshot-inspection");
     expect(io.textFiles[summaryPath]).toContain("npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute");

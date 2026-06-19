@@ -209,7 +209,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     passedWorkflowCoverage,
     invalidReportIssueCount,
     assignmentComment,
-    testerAssignmentCount: testerAssignments.length,
+    testerAssignments,
     smokeArtifactProblems,
     desktopSessionBlocker,
     requiredEvidenceCheck: manifestChecks.requiredEvidence
@@ -887,7 +887,7 @@ function createNextActions({
   passedWorkflowCoverage,
   invalidReportIssueCount,
   assignmentComment,
-  testerAssignmentCount,
+  testerAssignments = [],
   smokeArtifactProblems = [],
   desktopSessionBlocker,
   requiredEvidenceCheck
@@ -903,7 +903,7 @@ function createNextActions({
   if (
     assignmentComment?.available === true
     && assignmentComment.ok !== true
-    && testerAssignmentCount > 0
+    && testerAssignments.length > 0
   ) {
     actions.push(`Post the current ${assignmentComment.currentAlphaTag} tester assignment packet to ${trackingIssueTarget} before asking more testers to run it.`);
     const assignmentsCommand = createDogfoodAssignmentsCommand({
@@ -914,6 +914,9 @@ function createNextActions({
     if (assignmentsCommand) {
       actions.push(`${assignmentsCommand} to post the current ${assignmentComment.currentAlphaTag} packet.`);
     }
+  }
+  if (assignmentComment?.ok !== false) {
+    actions.push(...createTesterPrepareNextActions(testerAssignments));
   }
   if (invalidReportIssueCount > 0) {
     actions.push("Review or replace stale/invalid dogfood report issue URLs before collecting the cohort.");
@@ -986,6 +989,25 @@ function createNextActions({
   }
 
   return actions;
+}
+
+function createTesterPrepareNextActions(testerAssignments) {
+  if (!Array.isArray(testerAssignments) || testerAssignments.length === 0) {
+    return [];
+  }
+
+  return testerAssignments
+    .filter((assignment) =>
+      typeof assignment?.testerId === "string"
+      && assignment.testerId.trim().length > 0
+      && Array.isArray(assignment.workflows)
+      && assignment.workflows.length > 0
+      && typeof assignment.commands?.prepareAlpha === "string"
+      && assignment.commands.prepareAlpha.trim().length > 0
+    )
+    .map((assignment) =>
+      `Run ${assignment.commands.prepareAlpha.trim()} to prepare ${assignment.testerId.trim()} for workflows ${assignment.workflows.join(",")}.`
+    );
 }
 
 function createDogfoodCollectCommand({ manifestPath, trackingIssueUrl }) {

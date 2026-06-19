@@ -193,6 +193,10 @@ differ from app-scoped `smoke:ui` speech evidence.
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
+Its JSON `nextActions` list also repeats the current `dogfood:prepare-alpha`
+commands when the assignment packet is current, so follow-up agents and
+dashboards can dispatch tester preparation without scraping the Markdown
+summary.
 When local smoke evidence shows `loginwindow`, display sleep, or black-screen
 desktop blockers, `dogfood:status` also prints the `smoke:desktop-session`
 preflight command to rerun after unlocking plus the passed-smoke follow-up.
