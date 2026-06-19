@@ -266,6 +266,9 @@ treat locked console, `com.apple.loginwindow`, display sleep, or black-screen
 evidence as desktop-session blockers.
 `dogfood:status` validates that the tracking issue body still includes `Desktop Session Preflight`
 and adds a refresh command when that guidance is missing.
+A stale `docs/release-evidence/latest-alpha.json` now blocks collect readiness, so
+`dogfood:status` will keep returning waiting status until the release evidence
+points at the selected alpha.
 Those GitHub commands also use the prepared-alpha manifest placeholder for
 tester/review steps, keeping the coordination issue portable across tester
 machines.
@@ -297,6 +300,10 @@ without opening every artifact by hand. When smoke artifacts include Computer
 Use event logs, the same summary now adds a `Computer Use Scorecard` with total
 runs, task success rate, manual interventions, average steps, unsafe-action
 blocks, and permission failures.
+The `dogfood:tester app bundle preflight` verifies the selected `skfiy.app` with
+`codesign --verify --deep --strict` and confirms the designated requirement
+contains `designated => identifier "com.sskift.skfiy"` before any product smoke
+runs.
 `dogfood:tester --require-passed` also runs a strict desktop-session preflight
 from the first UI smoke. If that smoke reports locked console,
 `com.apple.loginwindow`, display sleep, or black-screen evidence, the runner

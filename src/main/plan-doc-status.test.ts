@@ -150,6 +150,9 @@ describe("implementation plan status docs", () => {
     expect(workflow).toContain("It also validates that the tracking issue body still includes `Desktop Session Preflight`");
     expect(longPlan).toContain("tracking issue body now includes `Desktop Session Preflight`");
     expect(longPlan).toContain("dogfood status now validates tracking issue body `Desktop Session Preflight`");
+    expect(readmeText).toContain("stale `docs/release-evidence/latest-alpha.json` now blocks collect readiness");
+    expect(workflowText).toContain("stale `docs/release-evidence/latest-alpha.json` blocks `dogfood:status` collect readiness");
+    expect(longPlan).toContain("stale `docs/release-evidence/latest-alpha.json` now blocks `dogfood:status` collect readiness");
     expect(readmeText).toContain("When the downloaded manifest and prepared app already exist locally, `dogfood:status` replaces tester placeholders with the prepared paths and surfaces direct `dogfood:tester` next actions.");
     expect(workflowText).toContain("When local prepared alpha assets already exist, `dogfood:status` replaces the tester command placeholders with those manifest and app paths and emits direct `dogfood:tester` next actions.");
     expect(readme).toContain("--tester-id tester-a \\\n  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
@@ -189,6 +192,25 @@ describe("implementation plan status docs", () => {
       expect(document).toContain("stops before Ghostty/Chrome/Finder/voice");
       expect(document).toContain("locked console, `com.apple.loginwindow`, display sleep, or black-screen evidence");
       expect(document).toContain("Desktop Session Preflight");
+    }
+  });
+
+  it("documents the dogfood tester code-signature app bundle preflight", () => {
+    const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
+    const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
+    const internalAlpha = readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8");
+    const longPlan = readFileSync(
+      path.join(process.cwd(), "docs", "research", "2026-06-16-voice-computer-control-long-plan.md"),
+      "utf8"
+    );
+    const documents = [readme, workflow, internalAlpha, longPlan].map((document) =>
+      document.replace(/\s+/g, " ")
+    );
+
+    for (const document of documents) {
+      expect(document).toContain("dogfood:tester app bundle preflight");
+      expect(document).toContain("codesign --verify --deep --strict");
+      expect(document).toContain('designated => identifier "com.sskift.skfiy"');
     }
   });
 

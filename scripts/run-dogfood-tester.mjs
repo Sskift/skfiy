@@ -43,6 +43,7 @@ const EXPECTED_APP_BUNDLE_IDENTITY = {
   CFBundleDisplayName: "skfiy",
   CFBundleExecutable: "skfiy"
 };
+const EXPECTED_DESIGNATED_REQUIREMENT = 'designated => identifier "com.sskift.skfiy"';
 
 export function createDefaultDogfoodTesterOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -968,7 +969,70 @@ async function createAppBundlePreflight(plan, io) {
     }
   }
 
+  blockers.push(...await readCodeSignatureBlockers(appPath, io));
+
   return { appPath, blockers };
+}
+
+async function readCodeSignatureBlockers(appPath, io) {
+  const blockers = [];
+  const verifyResult = await runPreflightCommand(io, "codesign", [
+    "--verify",
+    "--deep",
+    "--strict",
+    "--verbose=2",
+    appPath
+  ]);
+
+  if (normalizeExitCode(verifyResult.exitCode) !== 0) {
+    blockers.push({
+      field: "codesign.verify",
+      actual: readCommandOutput(verifyResult),
+      expected: "codesign --verify --deep --strict exits 0"
+    });
+  }
+
+  const requirementResult = await runPreflightCommand(io, "codesign", [
+    "-dr",
+    "-",
+    appPath
+  ]);
+  const requirementOutput = readCommandOutput(requirementResult);
+
+  if (
+    normalizeExitCode(requirementResult.exitCode) !== 0
+    || !requirementOutput.includes(EXPECTED_DESIGNATED_REQUIREMENT)
+  ) {
+    blockers.push({
+      field: "codesign.designatedRequirement",
+      actual: requirementOutput || "missing",
+      expected: EXPECTED_DESIGNATED_REQUIREMENT
+    });
+  }
+
+  return blockers;
+}
+
+async function runPreflightCommand(io, command, args) {
+  if (typeof io.runPreflightCommand === "function") {
+    return io.runPreflightCommand(command, args);
+  }
+
+  return io.runCommand(command, args);
+}
+
+function readCommandOutput(result) {
+  const stderr = String(result?.stderr ?? "").trim();
+  if (stderr) {
+    return stderr;
+  }
+
+  const stdout = String(result?.stdout ?? "").trim();
+  if (stdout) {
+    return stdout;
+  }
+
+  return `exit ${normalizeExitCode(result?.exitCode)}`;
 }
 
 function readInfoPlistString(infoPlist, key) {

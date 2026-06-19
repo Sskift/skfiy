@@ -2106,6 +2106,105 @@ describe("dogfood status reporter", () => {
     expect(status.testerAssignments[0].commands.tester).toContain("--require-passed");
   });
 
+  it("does not claim collect readiness when release evidence points at an older alpha", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const reportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102",
+      "https://github.com/Sskift/skfiy/issues/103"
+    ];
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      "/repo/docs/release-evidence/latest-alpha.json": {
+        tagName: "skfiy-alpha-old9999",
+        releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-old9999",
+        commitSha: "old9999",
+        artifactBaseName: "skfiy-0.1.0-old9999-macos-unsigned",
+        manifestPath: ".skfiy-alpha/skfiy-0.1.0-old9999-macos-unsigned.json",
+        zipPath: ".skfiy-alpha/skfiy-0.1.0-old9999-macos-unsigned.zip",
+        zipSha256: "oldhash"
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
+        screenRecording: "authorized",
+        accessibility: "authorized",
+        microphone: "authorized",
+        speechRecognition: "authorized"
+      }),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody(reportUrls, {
+          testerSectionTitle: "Required Real Tester Count"
+        }),
+        labels: ["skfiy", "dogfood"]
+      },
+      [reportUrls[0]]: createAcceptedReportIssue(
+        "tester-1",
+        ["coding-terminal", "screenshot-inspection"],
+        { result: "passed" }
+      ),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["finder-file"], {
+        result: "passed"
+      }),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-3", ["browser-fallback"], {
+        result: "passed"
+      })
+    });
+
+    const status = await createDogfoodStatus({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      result: "waiting-for-dogfood",
+      manifest: {
+        checks: {
+          releaseEvidence: {
+            available: true,
+            ok: false
+          }
+        }
+      },
+      readiness: {
+        canRunCollect: false,
+        canRunPassedCohort: false,
+        cohortReady: false
+      },
+      nextActions: expect.arrayContaining([
+        "Refresh docs/release-evidence/latest-alpha.json so it points at the selected skfiy-alpha-abc123 release before handing off the alpha."
+      ])
+    });
+    expect(status.nextActions).not.toContain(
+      "Run npm run dogfood:collect with the current manifest and tracking issue."
+    );
+    expect(status.nextActions).not.toContain(
+      "Run npm run dogfood:collect, then npm run dogfood:cohort on the collected cohort JSON."
+    );
+  });
+
   it("does not count accepted report issues without app bundle preflight or panic stop evidence", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

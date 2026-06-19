@@ -188,12 +188,15 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const currentHeadGateOk = !manifestChecks.currentHead?.required
     || manifestChecks.currentHead.ok === true;
   const requiredEvidenceGateOk = manifestChecks.requiredEvidence?.ok === true;
+  const releaseEvidenceGateOk = manifestChecks.releaseEvidence?.available !== true
+    || manifestChecks.releaseEvidence.ok === true;
   const canRunCollect = verifiedRealAcceptedReportIssueUrls.length >= 3
     && verifiedRealAcceptedReportIssueUrls.length <= 5
     && invalidReportIssueCount === 0
     && currentAlpha.ok
     && currentHeadGateOk
     && requiredEvidenceGateOk
+    && releaseEvidenceGateOk
     && workflowCoverage.missing.length === 0;
   const canRunPassedCohort = canRunCollect && passedWorkflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";

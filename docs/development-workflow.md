@@ -134,6 +134,9 @@ When `dogfood:status` sees this blocker in local smoke artifacts, its next
 actions include the exact `smoke:desktop-session` command to rerun and a reminder
 to rerun Ghostty, Finder, and voice product smokes with `--require-passed` only
 after the preflight passes.
+stale `docs/release-evidence/latest-alpha.json` blocks `dogfood:status` collect
+readiness when that file points at an older alpha than the selected manifest;
+refresh release evidence before handing off collection or running cohort gates.
 The preflight's `permissions.speechRecognition` field is direct-helper scoped
 and can differ from app-scoped Speech Recognition grants. Use
 `permissionInterpretation.defaultExternalDoubaoReady` for the default external
@@ -369,7 +372,7 @@ npm run dogfood:tester -- \
   --summary .skfiy-dogfood/tester-a-summary.md
 ```
 
-This runner is only a local evidence collector. It refuses tmux, defaults `--app` to `dist/skfiy.app` when omitted, validates the selected app path as lowercase `skfiy.app` with bundle id `com.sskift.skfiy` before running product smokes, runs product smokes sequentially, generates the `dogfood:issue -- --check-report` draft from the artifacts it just wrote, and leaves GitHub filing plus `dogfood:accepted` label review to maintainers. When `--require-passed` is used, the runner treats the first UI smoke as a strict permission preflight and stops before Ghostty/Chrome/Finder/voice if provider-relevant permissions are still missing. It also runs a strict desktop-session preflight from that UI smoke: locked console, `com.apple.loginwindow`, display sleep, or black-screen evidence stops before Ghostty/Chrome/Finder/voice and writes a failed `Desktop Session Preflight` section in the summary instead of collecting misleading product smoke failures. For the default external Doubao path, Microphone and Speech Recognition are not strict blockers.
+This runner is only a local evidence collector. It refuses tmux, defaults `--app` to `dist/skfiy.app` when omitted, validates the selected app path as lowercase `skfiy.app` with bundle id `com.sskift.skfiy` before running product smokes, runs product smokes sequentially, generates the `dogfood:issue -- --check-report` draft from the artifacts it just wrote, and leaves GitHub filing plus `dogfood:accepted` label review to maintainers. The `dogfood:tester app bundle preflight` also runs `codesign --verify --deep --strict` and checks for `designated => identifier "com.sskift.skfiy"` before any product smoke runs. When `--require-passed` is used, the runner treats the first UI smoke as a strict permission preflight and stops before Ghostty/Chrome/Finder/voice if provider-relevant permissions are still missing. It also runs a strict desktop-session preflight from that UI smoke: locked console, `com.apple.loginwindow`, display sleep, or black-screen evidence stops before Ghostty/Chrome/Finder/voice and writes a failed `Desktop Session Preflight` section in the summary instead of collecting misleading product smoke failures. For the default external Doubao path, Microphone and Speech Recognition are not strict blockers.
 The runner summary prints a copy-safe `gh issue create --body-file ...` command that files only the report body. It does not add labels; testers must leave `dogfood:accepted` and `workflow:*` labels to maintainers after `dogfood:review`. Reserved synthetic tester ids (`local-*`, `prepare-*`, `preflight-*`, and `synthetic-*`) are rejected for normal tester runs; use `--allow-synthetic-tester-id` only for maintainer local/preflight evidence that will not count toward the real-user cohort gate.
 
 Before adding `dogfood:accepted` to a filed tester issue, run:

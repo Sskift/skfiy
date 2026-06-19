@@ -761,6 +761,43 @@ describe("dogfood tester runner", () => {
     );
   });
 
+  it("rejects an app bundle with an invalid code signature before running product smokes", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo();
+    io.preflightCommandOverrides["codesign --verify --deep --strict --verbose=2 /Applications/skfiy.app"] = {
+      stderr: "code object is not signed at all",
+      exitCode: 1
+    };
+
+    await expect(runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal"],
+      appPath: "/Applications/skfiy.app",
+      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md"
+    }, io)).rejects.toThrow(
+      "dogfood:tester app bundle preflight failed before product smokes"
+    );
+
+    expect(io.preflightCommands).toContainEqual({
+      command: "codesign",
+      args: ["--verify", "--deep", "--strict", "--verbose=2", "/Applications/skfiy.app"]
+    });
+    expect(io.commands).toEqual([]);
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "codesign.verify: code object is not signed at all"
+    );
+    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
+      "expected codesign --verify --deep --strict exits 0"
+    );
+  });
+
   it("parses npm-wrapped UI smoke stdout for the strict permission preflight", async () => {
     const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodTester: (
@@ -891,10 +928,17 @@ function createMemoryIo(
   commandOverrides: Record<string, { stdout?: string; stderr?: string; exitCode?: number }> = {}
 ) {
   const commands: Array<{ command: string; args: string[]; options?: unknown }> = [];
+  const preflightCommands: Array<{ command: string; args: string[] }> = [];
+  const preflightCommandOverrides: Record<
+    string,
+    { stdout?: string; stderr?: string; exitCode?: number }
+  > = {};
   const textFiles: Record<string, string> = {};
 
   return {
     commands,
+    preflightCommands,
+    preflightCommandOverrides,
     textFiles,
     async mkdir() {},
     async writeText(filePath: string, text: string) {
@@ -911,6 +955,29 @@ function createMemoryIo(
         "</dict>",
         "</plist>"
       ].join("\n");
+    },
+    async runPreflightCommand(command: string, args: string[]) {
+      preflightCommands.push({ command, args });
+      const override = preflightCommandOverrides[[command, ...args].join(" ")];
+      if (override) {
+        return {
+          stdout: override.stdout ?? "",
+          stderr: override.stderr ?? "",
+          exitCode: override.exitCode ?? 0
+        };
+      }
+      if (command === "codesign" && args[0] === "-dr") {
+        return {
+          stdout: "",
+          stderr: 'Executable=/Applications/skfiy.app/Contents/MacOS/skfiy\ndesignated => identifier "com.sskift.skfiy"',
+          exitCode: 0
+        };
+      }
+      return {
+        stdout: "",
+        stderr: "",
+        exitCode: 0
+      };
     },
     async runCommand(command: string, args: string[], options?: unknown) {
       commands.push({ command, args, options });
