@@ -281,7 +281,7 @@ body:
     id: chrome_extraction
     attributes:
       label: Chrome extracted text
-      description: Paste Chrome smoke product path, extractedText, navigate/extract verification events, current-page observation evidence, optional real current-page BYO observation evidence, sensitive-page pause evidence, and screenshot fallback switching evidence.
+      description: Paste Chrome smoke product path, extractedText, navigate/extract verification events, current-page observation evidence, optional real current-page BYO observation evidence, sensitive-page/form pause evidence, and screenshot fallback switching evidence.
       placeholder: |
         productPath: renderer -> preload -> main -> CDP -> Chrome
         extractedText: skfiy chrome smoke ready
@@ -310,6 +310,9 @@ body:
         Verified fill_selector: Filled #email.
         Verified fill_selector: Filled #role.
         Verified click_selector: Clicked #submit.
+        Chrome sensitive form prefill pause:
+        sensitiveFormRun.result: sensitive-paused
+        Verification failed (sensitive): Sensitive form input is not allowed for Chrome Computer Use.
         Chrome screenshot fallback:
         fallbackRun.result: fallback-observed or fallback-blocked
         fallbackRun.productPath: renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback

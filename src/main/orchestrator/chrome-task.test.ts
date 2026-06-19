@@ -445,6 +445,30 @@ describe("runChromePageTask", () => {
     ]));
   });
 
+  it("blocks sensitive form fields before navigating or filling selectors", async () => {
+    const client = createChromeClient();
+
+    const events = await collectEvents(
+      runChromePageTask(
+        "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #password=hunter2 点击 #submit 并提取正文",
+        client,
+        { approved: true }
+      )
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "approval_required",
+      "verification_failed"
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "sensitive",
+      reason: "Sensitive form input is not allowed for Chrome Computer Use."
+    });
+    expect(client.sendCdpCommand).not.toHaveBeenCalled();
+  });
+
   it("reports form fill failures as interaction verification failures", async () => {
     const client = createChromeClient();
     client.sendCdpCommand.mockImplementation(async (command) => {

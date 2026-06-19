@@ -406,7 +406,10 @@ function hasTaskEventMessage(events, prefix) {
 
 function isChromeSensitivePauseMessage(message) {
   return typeof message === "string"
-    && message.includes("Verification failed (sensitive): Sensitive UI text is visible.");
+    && (
+      message.includes("Verification failed (sensitive): Sensitive UI text is visible.")
+      || message.includes("Verification failed (sensitive): Sensitive form input is not allowed for Chrome Computer Use.")
+    );
 }
 
 function isChromeBlockedMessage(message) {

@@ -126,6 +126,15 @@ describe("dogfood issue draft generator", () => {
       [chromeSmokePath]: createSmoke(chromeSmokePath, "passed", {
         extractedText: "skfiy chrome smoke ready",
         currentPageRun: { result: "passed" },
+        sensitiveFormRun: {
+          result: "sensitive-paused",
+          events: [
+            {
+              status: "needs_confirmation",
+              message: "Verification failed (sensitive): Sensitive form input is not allowed for Chrome Computer Use."
+            }
+          ]
+        },
         appPolicySettings: [
           { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" }
         ]
@@ -210,6 +219,8 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("unsupported-desktop-route-guard");
     expect(body).toContain("### Chrome extracted text");
     expect(body).toContain("skfiy chrome smoke ready");
+    expect(body).toContain("sensitiveFormRun");
+    expect(body).toContain("Sensitive form input is not allowed for Chrome Computer Use.");
     expect(body).toContain("### Finder plan preview");
     expect(body).toContain("destructiveOperationCount: 0");
     expect(body).toContain("### External Doubao voice no-transcript/cancellation evidence");

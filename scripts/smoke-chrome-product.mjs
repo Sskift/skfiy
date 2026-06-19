@@ -35,6 +35,9 @@ const FORM_FIELDS = [
   { selector: "#email", value: "agent@skfiy.test" },
   { selector: "#role", value: "operator" }
 ];
+const SENSITIVE_FORM_FIELDS = [
+  { selector: "#password", value: "skfiy-test-secret" }
+];
 const EXPECTED_CURRENT_PAGE_COMMAND = "观察 Chrome 当前页面并提取正文";
 
 async function main() {
@@ -74,12 +77,14 @@ async function main() {
     currentPageCommand: CURRENT_PAGE_COMMAND,
     sensitiveCommand: undefined,
     formCommand: undefined,
+    sensitiveFormCommand: undefined,
     extractedText: "",
     events: [],
     realCurrentPageRun: undefined,
     currentPageRun: undefined,
     sensitiveRun: undefined,
     formRun: undefined,
+    sensitiveFormRun: undefined,
     fallbackRun: undefined,
     fallbackSwitchRun: undefined,
     permissions: undefined,
@@ -146,6 +151,7 @@ async function main() {
     evidence.command = `打开 Chrome 测试页面 ${fixture.url} 并提取正文`;
     evidence.sensitiveCommand = `打开 Chrome 测试页面 ${fixture.sensitiveUrl} 并提取正文`;
     evidence.formCommand = `填写 Chrome 测试表单 ${fixture.formUrl} 字段 ${formatFormAssignments(FORM_FIELDS)} 点击 #submit 并提取正文`;
+    evidence.sensitiveFormCommand = `填写 Chrome 测试表单 ${fixture.formUrl} 字段 ${formatFormAssignments(SENSITIVE_FORM_FIELDS)} 点击 #submit 并提取正文`;
 
     if (!options.keepExisting) {
       await quitSkfiy();
@@ -271,6 +277,27 @@ async function main() {
       };
 
       if (evidence.result === "passed" && evidence.formRun.result !== "passed") {
+        evidence.result = "failed";
+      }
+
+      const sensitiveFormEvents = await runChromeProductCommand(
+        cdp,
+        evidence.sensitiveFormCommand,
+        options
+      );
+      evidence.sensitiveFormRun = {
+        pageUrl: evidence.formPageUrl,
+        command: evidence.sensitiveFormCommand,
+        fields: SENSITIVE_FORM_FIELDS,
+        events: sensitiveFormEvents,
+        result: classifyChromeSmokeEvidence({
+          ...evidence,
+          events: sensitiveFormEvents,
+          extractedText: ""
+        })
+      };
+
+      if (evidence.result === "passed" && evidence.sensitiveFormRun.result !== "sensitive-paused") {
         evidence.result = "failed";
       }
 

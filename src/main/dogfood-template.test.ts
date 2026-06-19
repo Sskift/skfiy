@@ -92,6 +92,8 @@ describe("skfiy dogfood issue template", () => {
       "Chrome current page extracted",
       "Chrome sensitive-page pause",
       "Chrome form action",
+      "Chrome sensitive form prefill pause",
+      "sensitiveFormRun.result: sensitive-paused",
       "formRun.fields: #name, #email, #role",
       "Verified fill_selector: Filled #email.",
       "Verified fill_selector: Filled #role.",

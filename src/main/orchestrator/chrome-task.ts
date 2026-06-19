@@ -151,6 +151,15 @@ export async function* runChromePageTask(
     return;
   }
 
+  if (isChromeFormIntent(parsed) && hasSensitiveFormInput(parsed.fields)) {
+    yield {
+      type: "verification_failed",
+      stage: "sensitive",
+      reason: "Sensitive form input is not allowed for Chrome Computer Use."
+    };
+    return;
+  }
+
   yield {
     type: "locating_app",
     appName: CHROME_APP_NAME
@@ -286,6 +295,12 @@ export async function* runChromePageTask(
 
 function hasSensitiveText(value: string): boolean {
   return SENSITIVE_CHROME_TEXT_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function hasSensitiveFormInput(fields: readonly ChromeFormField[]): boolean {
+  return fields.some((field) =>
+    hasSensitiveText(field.selector) || hasSensitiveText(field.value)
+  );
 }
 
 async function* captureChromeScreenshotFallback(

@@ -253,6 +253,19 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("classifyChromeFallbackSwitchEvidence");
   });
 
+  it("records a sensitive Chrome form prefill pause run in the product smoke source", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
+      "utf8"
+    );
+
+    expect(source).toContain("sensitiveFormRun");
+    expect(source).toContain("sensitiveFormCommand");
+    expect(source).toContain("SENSITIVE_FORM_FIELDS");
+    expect(source).toContain("#password");
+    expect(source).toContain("formatFormAssignments(SENSITIVE_FORM_FIELDS)");
+  });
+
   it("records a current Chrome page observation run in the product smoke source", () => {
     const source = readFileSync(
       path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
@@ -337,6 +350,29 @@ describe("Chrome product smoke script", () => {
         {
           status: "needs_confirmation",
           message: "Verification failed (sensitive): Sensitive UI text is visible."
+        }
+      ]
+    })).toBe("sensitive-paused");
+  });
+
+  it("classifies a Chrome sensitive-form prefill pause as safety evidence", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-chrome-plan.mjs");
+    const {
+      classifyChromeSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyChromeSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyChromeSmokeEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      extractedText: "",
+      events: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (sensitive): Sensitive form input is not allowed for Chrome Computer Use."
         }
       ]
     })).toBe("sensitive-paused");

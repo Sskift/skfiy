@@ -312,6 +312,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - the Chrome smoke now runs a second sensitive-page fixture, expects `sensitiveRun.result: sensitive-paused`, and verifies `Verification failed (sensitive): Sensitive UI text is visible.` instead of completing with sensitive text
   - [x] product-path form action evidence
     - the Chrome smoke now runs a multi-field form fixture through `填写 Chrome 测试表单 <url> 字段 #name=skfiy; #email=agent@skfiy.test; #role=operator 点击 #submit 并提取正文`, verifies `fill_selector` for every field plus `click_selector`, and checks `formRun.extractedText: skfiy agent@skfiy.test operator form submitted`
+    - the Chrome runtime now rejects sensitive form fields/values such as `#password` before navigation or `fill_selector`, and the Chrome smoke records `sensitiveFormRun.result: sensitive-paused` as prefill safety evidence
   - [x] product-path screenshot fallback evidence
     - the Chrome smoke now relaunches `dist/skfiy.app` without `--skfiy-chrome-cdp-endpoint`, routes the same page command through renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback, and records either `fallbackRun.result: fallback-observed` with screenshot replay evidence or `fallbackRun.result: fallback-blocked` with a concrete permission reason
   - [x] product-path fallback switching evidence

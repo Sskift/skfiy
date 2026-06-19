@@ -634,6 +634,7 @@ function createChromeEvidence(chromeArtifact) {
     `realCurrentPageRun: ${createJsonEvidence(chromeArtifact?.realCurrentPageRun)}`,
     `sensitiveRun: ${createJsonEvidence(chromeArtifact?.sensitiveRun)}`,
     `formRun: ${createJsonEvidence(chromeArtifact?.formRun)}`,
+    `sensitiveFormRun: ${createJsonEvidence(chromeArtifact?.sensitiveFormRun)}`,
     `fallbackRun: ${createJsonEvidence(chromeArtifact?.fallbackRun)}`,
     `fallbackSwitchRun: ${createJsonEvidence(chromeArtifact?.fallbackSwitchRun)}`
   ].join("\n");
