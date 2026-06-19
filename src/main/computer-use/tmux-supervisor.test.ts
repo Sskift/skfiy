@@ -329,11 +329,12 @@ describe("money-run supervision smoke script", () => {
   it("prints help that explains the scaffold is read-only", async () => {
     const { stdout } = await runMoneyRunScript(["--help"]);
 
-    expect(stdout).toContain("Read-only tmux supervision scaffold for the money-run session.");
+    expect(stdout).toContain("Product-path read-only supervision smoke for the money-run session.");
+    expect(stdout).toContain("--direct-tmux");
     expect(stdout).toContain("This script does not create sessions, send keys, kill panes");
   });
 
-  it("describes only read-only tmux probe commands for dry runs", async () => {
+  it("describes the packaged app product path for dry runs", async () => {
     const { stdout } = await runMoneyRunScript([
       "--session",
       "money-run",
@@ -343,8 +344,70 @@ describe("money-run supervision smoke script", () => {
     ]);
     const dryRun = JSON.parse(stdout) as Record<string, unknown>;
 
+    expect(dryRun).toMatchObject({
+      sessionName: "money-run",
+      command: "监督 tmux money-run 这个 session",
+      launch: expect.stringContaining("open -na"),
+      appLaunchViaOpen: true,
+      productPath: "LaunchServices -> renderer -> preload -> main -> tmux supervision -> tmux read-only probes",
+      approvalRequired: true,
+      mutatesSession: false
+    });
+    expect(dryRun.probePlan).toEqual([
+      {
+        id: "has-session",
+        command: "tmux",
+        args: ["has-session", "-t", "money-run"],
+        mutatesSession: false
+      },
+      {
+        id: "list-windows",
+        command: "tmux",
+        args: [
+          "list-windows",
+          "-t",
+          "money-run",
+          "-F",
+          "#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_panes}"
+        ],
+        mutatesSession: false
+      },
+      {
+        id: "list-panes",
+        command: "tmux",
+        args: [
+          "list-panes",
+          "-t",
+          "money-run",
+          "-s",
+          "-F",
+          "#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_dead}\t#{pane_current_command}\t#{pane_title}"
+        ],
+        mutatesSession: false
+      },
+      {
+        id: "capture-pane-template",
+        command: "tmux",
+        args: ["capture-pane", "-p", "-t", "<pane-id>", "-S", "-80"],
+        mutatesSession: false
+      }
+    ]);
+  });
+
+  it("keeps a direct tmux diagnostic dry-run for parser debugging", async () => {
+    const { stdout } = await runMoneyRunScript([
+      "--session",
+      "money-run",
+      "--tail-lines",
+      "80",
+      "--direct-tmux",
+      "--dry-run"
+    ]);
+    const dryRun = JSON.parse(stdout) as Record<string, unknown>;
+
     expect(dryRun).toEqual({
       sessionName: "money-run",
+      mode: "direct-tmux",
       mutatesSession: false,
       probePlan: [
         {
@@ -386,6 +449,17 @@ describe("money-run supervision smoke script", () => {
         }
       ]
     });
+  });
+
+  it("copies the renderer tmux report into the product smoke evidence", () => {
+    const scriptSource = readFileSync(
+      path.join(process.cwd(), "scripts/smoke-money-run-supervision.mjs"),
+      "utf8"
+    );
+
+    expect(scriptSource).toContain("tmuxSupervisionReport");
+    expect(scriptSource).toContain("readFinalTmuxSupervisionReport");
+    expect(scriptSource).toContain("event.status === \"completed\"");
   });
 
   it("supports a custom session in dry-run mode", async () => {

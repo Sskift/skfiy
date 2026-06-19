@@ -272,13 +272,14 @@ coverage is still missing, its recommended tester assignment purpose becomes
 `passed-workflow-evidence`, and the generated prepare/tester commands include
 `--require-passed`.
 
-`smoke:money-run` is the first long-horizon supervision scaffold for the
-post-release field task. It inspects the existing `tmux` session named
-`money-run` with read-only `tmux has-session`, `list-windows`, `list-panes`,
-and `capture-pane -p` probes, then emits a non-mutating recommendation such as
-`continue_observing`, `inspect_output`, or `manual_recovery`. This does not make
-tmux a skfiy backend and it must not be used as evidence that the skfiy app
-itself was launched correctly.
+`smoke:money-run` is the first long-horizon supervision smoke for the
+post-release field task. By default it launches the compiled `dist/skfiy.app`
+with LaunchServices, sends the money-run supervision command through the
+renderer/preload/main IPC path, approves the read-only tmux probe, and records
+the task events plus the final `tmuxSupervisionReport`. The probes remain
+non-mutating: `tmux has-session`, `list-windows`, `list-panes`, and
+`capture-pane -p`. Use `--direct-tmux` only for parser diagnostics when you
+explicitly want to bypass the app product path.
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main
 process in another terminal with `npm run dev:electron`.

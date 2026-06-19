@@ -233,6 +233,7 @@ export interface TaskEvent {
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
   finderPlanPreview?: FinderPlanPreview;
+  tmuxSupervisionReport?: unknown;
 }
 
 export interface FinderPlanPreview {

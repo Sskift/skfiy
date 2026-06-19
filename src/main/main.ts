@@ -15,6 +15,7 @@ import type {
   PermissionSummary,
   PermissionSettingsTarget
 } from "./computer-use/types.js";
+import type { TmuxSupervisionReport } from "./computer-use/tmux-supervisor.js";
 import {
   createAppPolicySettingsStore,
   decideAppPolicy,
@@ -109,6 +110,7 @@ interface TaskEvent {
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
   finderPlanPreview?: FinderPlanPreview;
+  tmuxSupervisionReport?: TmuxSupervisionReport;
 }
 
 interface PendingApproval {
@@ -438,7 +440,8 @@ function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEve
     case "completed":
       return {
         status: "completed",
-        message: event.summary
+        message: event.summary,
+        ...("report" in event ? { tmuxSupervisionReport: event.report } : {})
       };
   }
 

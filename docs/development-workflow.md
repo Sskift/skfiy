@@ -434,18 +434,22 @@ includes supervising the existing `tmux` session `money-run`. This is different
 from launching skfiy through tmux: skfiy must still be a compiled app bundle,
 while `money-run` is only the external target being inspected.
 
-The current scaffold is read-only and can be run with:
+The current product smoke is read-only and can be run with:
 
 ```bash
 npm run smoke:money-run -- --json-output .skfiy-smoke/money-run-supervision.json
 ```
 
-It checks `tmux has-session`, summarizes windows/panes, captures recent pane
-output, detects obvious blockers such as missing sessions, dead panes, approval
-prompts, and error markers, then emits a recommendation with
-`mutatesSession:false`. It must not create sessions, send keys, kill panes,
-attach/detach, or count as passed Computer Use evidence until a compiled skfiy
-app turn is supervising the session through the product path.
+By default it launches `dist/skfiy.app` through LaunchServices, sends the
+supervision command through renderer/preload/main, waits for approval, approves
+the read-only tmux probe, then records task events and the final
+`tmuxSupervisionReport`. The report checks `tmux has-session`, summarizes
+windows/panes, captures recent pane output, detects blockers such as missing
+sessions, dead panes, approval prompts, and error markers, then emits a
+recommendation with `mutatesSession:false`. It must not create sessions, send
+keys, kill panes, attach/detach, or substitute for the broader real-user
+dogfood cohort. Use `--direct-tmux` only for parser diagnostics that intentionally
+bypass the app product path.
 
 ### macOS Release Signing
 

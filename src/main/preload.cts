@@ -47,6 +47,7 @@ interface TaskEvent {
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
   finderPlanPreview?: FinderPlanPreview;
+  tmuxSupervisionReport?: unknown;
 }
 
 interface FinderPlanPreview {
