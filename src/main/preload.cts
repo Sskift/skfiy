@@ -220,6 +220,24 @@ interface PermissionSummary {
   speechRecognition: { state: PermissionState };
 }
 
+interface PermissionDiagnostics {
+  active: PermissionSummary;
+  appProcess: PermissionSummary;
+  helperProcess: PermissionSummary;
+  mismatches: Array<{
+    permission: keyof PermissionSummary;
+    appProcess: PermissionState;
+    helperProcess: PermissionState;
+  }>;
+  identity: {
+    appPath: string;
+    executablePath: string;
+    helperPath: string;
+    resourcesPath: string;
+    isPackaged: boolean;
+  };
+}
+
 interface NativeSpeechStatus {
   locale: string;
   recognizerAvailable: boolean;
@@ -266,6 +284,7 @@ interface DesktopApi {
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
   getPermissions: () => Promise<PermissionSummary>;
+  getPermissionDiagnostics: () => Promise<PermissionDiagnostics>;
   getNativeSpeechStatus: (locale: string) => Promise<NativeSpeechStatus>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
@@ -349,6 +368,12 @@ const api: DesktopApi = {
   async getPermissions() {
     const payload = await ipcRenderer.invoke("skfiy:get-permissions");
     return isPermissionSummary(payload) ? payload : createUnknownPermissionSummary();
+  },
+  async getPermissionDiagnostics() {
+    const payload = await ipcRenderer.invoke("skfiy:get-permission-diagnostics");
+    return isPermissionDiagnostics(payload)
+      ? payload
+      : createUnknownPermissionDiagnostics();
   },
   async getNativeSpeechStatus(locale) {
     const payload = await ipcRenderer.invoke("skfiy:get-native-speech-status", locale);
@@ -846,6 +871,61 @@ function isPermissionSummary(value: unknown): value is PermissionSummary {
   );
 }
 
+function isPermissionDiagnostics(value: unknown): value is PermissionDiagnostics {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const diagnostics = value as Partial<PermissionDiagnostics>;
+  return (
+    isPermissionSummary(diagnostics.active)
+    && isPermissionSummary(diagnostics.appProcess)
+    && isPermissionSummary(diagnostics.helperProcess)
+    && Array.isArray(diagnostics.mismatches)
+    && diagnostics.mismatches.every(isPermissionMismatch)
+    && isPermissionDiagnosticsIdentity(diagnostics.identity)
+  );
+}
+
+function isPermissionMismatch(value: unknown): value is PermissionDiagnostics["mismatches"][number] {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const mismatch = value as Partial<PermissionDiagnostics["mismatches"][number]>;
+  return (
+    isPermissionDiagnosticsKey(mismatch.permission)
+    && isPermissionState(mismatch.appProcess)
+    && isPermissionState(mismatch.helperProcess)
+  );
+}
+
+function isPermissionDiagnosticsKey(value: unknown): value is keyof PermissionSummary {
+  return (
+    value === "screenRecording"
+    || value === "accessibility"
+    || value === "microphone"
+    || value === "speechRecognition"
+  );
+}
+
+function isPermissionDiagnosticsIdentity(
+  value: unknown
+): value is PermissionDiagnostics["identity"] {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const identity = value as Partial<PermissionDiagnostics["identity"]>;
+  return (
+    typeof identity.appPath === "string"
+    && typeof identity.executablePath === "string"
+    && typeof identity.helperPath === "string"
+    && typeof identity.resourcesPath === "string"
+    && typeof identity.isPackaged === "boolean"
+  );
+}
+
 function isNativeSpeechStatus(value: unknown): value is NativeSpeechStatus {
   if (!value || typeof value !== "object") {
     return false;
@@ -926,6 +1006,24 @@ function createUnknownPermissionSummary(): PermissionSummary {
     accessibility: { state: "unknown" },
     microphone: { state: "unknown" },
     speechRecognition: { state: "unknown" }
+  };
+}
+
+function createUnknownPermissionDiagnostics(): PermissionDiagnostics {
+  const unknown = createUnknownPermissionSummary();
+
+  return {
+    active: unknown,
+    appProcess: unknown,
+    helperProcess: unknown,
+    mismatches: [],
+    identity: {
+      appPath: "",
+      executablePath: "",
+      helperPath: "",
+      resourcesPath: "",
+      isPackaged: false
+    }
   };
 }
 

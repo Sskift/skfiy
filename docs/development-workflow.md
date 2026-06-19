@@ -55,6 +55,7 @@ open -na /absolute/path/to/skfiy.app
 The app must have a stable bundle identifier and embed the Swift helper. Screen Recording, Accessibility, and Microphone permissions must be granted to that app identity.
 The embedded helper must live beside the app executable at `Contents/MacOS/skfiy-helper`; this keeps permission-sensitive calls on the packaged app's execution path for user-facing tests.
 Local unsigned builds must also carry the stable designated requirement `identifier "com.sskift.skfiy"`. A plain ad-hoc `cdhash` signature changes on every build and invalidates existing TCC grants even when the visible app path and name are unchanged.
+The packaged bundle must pass `codesign --verify --deep --strict` before any permission test. If nested Electron code or `skfiy-helper` invalidates the app signature, System Settings can show a stale `skfiy` row while Electron's own `systemPreferences` APIs still report Screen Recording and Accessibility as denied.
 
 ### Temporary Engineering Debug Only
 

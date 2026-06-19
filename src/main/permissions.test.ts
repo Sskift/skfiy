@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readPermissionsForRenderer } from "./permissions";
+import { readPermissionDiagnosticsForRenderer, readPermissionsForRenderer } from "./permissions";
 import type { PermissionSummary } from "./computer-use/types";
 
 describe("readPermissionsForRenderer", () => {
@@ -41,6 +41,71 @@ describe("readPermissionsForRenderer", () => {
       accessibility: { state: "granted" },
       microphone: { state: "granted" },
       speechRecognition: { state: "not-determined" }
+    });
+  });
+
+  it("reports app-process and helper-process permission attribution separately", async () => {
+    await expect(
+      readPermissionDiagnosticsForRenderer({
+        active: {
+          screenRecording: { state: "denied" },
+          accessibility: { state: "denied" },
+          microphone: { state: "not-determined" },
+          speechRecognition: { state: "not-determined" }
+        },
+        appProcess: {
+          screenRecording: { state: "granted" },
+          accessibility: { state: "granted" },
+          microphone: { state: "not-determined" },
+          speechRecognition: { state: "unknown" }
+        },
+        helper: {
+          getPermissions: async (): Promise<PermissionSummary> => ({
+            screenRecording: { state: "denied" },
+            accessibility: { state: "denied" },
+            microphone: { state: "not-determined" },
+            speechRecognition: { state: "not-determined" }
+          })
+        },
+        identity: {
+          appPath: "/repo/dist/skfiy.app/Contents/Resources/app",
+          executablePath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy",
+          helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+          resourcesPath: "/repo/dist/skfiy.app/Contents/Resources",
+          isPackaged: false
+        }
+      })
+    ).resolves.toEqual({
+      active: {
+        screenRecording: { state: "denied" },
+        accessibility: { state: "denied" },
+        microphone: { state: "not-determined" },
+        speechRecognition: { state: "not-determined" }
+      },
+      appProcess: {
+        screenRecording: { state: "granted" },
+        accessibility: { state: "granted" },
+        microphone: { state: "not-determined" },
+        speechRecognition: { state: "unknown" }
+      },
+      helperProcess: {
+        screenRecording: { state: "denied" },
+        accessibility: { state: "denied" },
+        microphone: { state: "not-determined" },
+        speechRecognition: { state: "not-determined" }
+      },
+      mismatches: [
+        { permission: "screenRecording", appProcess: "granted", helperProcess: "denied" },
+        { permission: "accessibility", appProcess: "granted", helperProcess: "denied" },
+        { permission: "speechRecognition", appProcess: "unknown", helperProcess: "not-determined" }
+      ],
+      identity: {
+        appPath: "/repo/dist/skfiy.app/Contents/Resources/app",
+        executablePath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        resourcesPath: "/repo/dist/skfiy.app/Contents/Resources",
+        isPackaged: false
+      }
     });
   });
 });

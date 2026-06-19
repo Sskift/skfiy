@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, screen } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain, screen, systemPreferences } from "electron";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,8 @@ import type {
   DesktopActionResult,
   DesktopAppState,
   FinderSelectionResult,
+  PermissionState,
+  PermissionSummary,
   PermissionSettingsTarget
 } from "./computer-use/types.js";
 import {
@@ -60,6 +62,7 @@ import {
 } from "./orchestrator/finder-task.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
 import {
+  readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
 import { selectCommandRoute } from "./task-routing.js";
@@ -503,6 +506,33 @@ function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget 
     || value === "speech-recognition"
     ? value
     : undefined;
+}
+
+function readAppProcessPermissions(): PermissionSummary {
+  return {
+    screenRecording: {
+      state: readElectronMediaPermissionState(systemPreferences.getMediaAccessStatus("screen"))
+    },
+    accessibility: {
+      state: systemPreferences.isTrustedAccessibilityClient(false) ? "granted" : "denied"
+    },
+    microphone: {
+      state: readElectronMediaPermissionState(systemPreferences.getMediaAccessStatus("microphone"))
+    },
+    speechRecognition: {
+      state: "unknown"
+    }
+  };
+}
+
+function readElectronMediaPermissionState(
+  state: "not-determined" | "granted" | "denied" | "restricted" | "unknown"
+): PermissionState {
+  if (state === "restricted") {
+    return "denied";
+  }
+
+  return state;
 }
 
 function readFiniteNumber(value: unknown): number | undefined {
@@ -1133,6 +1163,26 @@ ipcMain.handle("skfiy:stop-task", async (event) => {
 
 ipcMain.handle("skfiy:get-permissions", async (event) => {
   return readPermissionsForRenderer({ helper: createDesktopHelper() });
+});
+
+ipcMain.handle("skfiy:get-permission-diagnostics", async () => {
+  const helper = createDesktopHelper();
+  const active = await readPermissionsForRenderer({ helper });
+
+  return readPermissionDiagnosticsForRenderer({
+    active,
+    appProcess: readAppProcessPermissions(),
+    helper: {
+      getPermissions: async () => active
+    },
+    identity: {
+      appPath: app.getAppPath(),
+      executablePath: process.execPath,
+      helperPath: resolveHelperPath(),
+      resourcesPath: process.resourcesPath,
+      isPackaged: app.isPackaged
+    }
+  });
 });
 
 ipcMain.handle("skfiy:get-native-speech-status", async (_event, locale: unknown) => {

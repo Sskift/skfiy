@@ -39,6 +39,7 @@ async function main() {
     artifactPath: options.outputPath,
     requiredPermissionLabels: options.requiredPermissionLabels,
     permissions: undefined,
+    permissionDiagnostics: undefined,
     startupWarnings: undefined,
     runtimeStatus: undefined,
     petClicked: false,
@@ -72,6 +73,10 @@ async function main() {
       await cdp.send("Runtime.enable");
 
       evidence.permissions = await evaluateValue(cdp, "window.skfiy.getPermissions()");
+      evidence.permissionDiagnostics = await evaluateValue(
+        cdp,
+        "window.skfiy.getPermissionDiagnostics()"
+      );
       evidence.runtimeStatus = await evaluateValue(cdp, "window.skfiy.getRuntimeStatus()");
       evidence.startupWarnings = await evaluateValue(cdp, "window.skfiy.getStartupWarnings()");
 

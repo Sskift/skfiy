@@ -172,6 +172,24 @@ export interface PermissionSummary {
   speechRecognition: { state: PermissionState };
 }
 
+export interface PermissionDiagnostics {
+  active: PermissionSummary;
+  appProcess: PermissionSummary;
+  helperProcess: PermissionSummary;
+  mismatches: Array<{
+    permission: keyof PermissionSummary;
+    appProcess: PermissionState;
+    helperProcess: PermissionState;
+  }>;
+  identity: {
+    appPath: string;
+    executablePath: string;
+    helperPath: string;
+    resourcesPath: string;
+    isPackaged: boolean;
+  };
+}
+
 export interface StartupWarning {
   id: StartupWarningId;
   title: string;
@@ -273,6 +291,7 @@ export interface DesktopApi {
   takeScreenshot: () => Promise<void>;
   stopTask: () => Promise<void>;
   getPermissions: () => Promise<PermissionSummary>;
+  getPermissionDiagnostics: () => Promise<PermissionDiagnostics>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
   getDictationSettings: () => Promise<DictationSettings>;
@@ -481,6 +500,19 @@ const fallbackApi: DesktopApi = {
   takeScreenshot: async () => undefined,
   stopTask: async () => undefined,
   getPermissions: async () => UNKNOWN_PERMISSIONS,
+  getPermissionDiagnostics: async () => ({
+    active: UNKNOWN_PERMISSIONS,
+    appProcess: UNKNOWN_PERMISSIONS,
+    helperProcess: UNKNOWN_PERMISSIONS,
+    mismatches: [],
+    identity: {
+      appPath: "",
+      executablePath: "",
+      helperPath: "",
+      resourcesPath: "",
+      isPackaged: false
+    }
+  }),
   openPermissionSettings: async () => undefined,
   getStartupWarnings: async () => [],
   getDictationSettings: async () => DEFAULT_DICTATION_SETTINGS,

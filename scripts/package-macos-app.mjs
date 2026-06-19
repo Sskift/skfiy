@@ -21,14 +21,18 @@ export function createPackagePlan({
   electronAppPath = path.join(rootDir, "node_modules/electron/dist/Electron.app")
 }) {
   const appBundlePath = path.join(rootDir, "dist", APP_BUNDLE_NAME);
+  const frameworksPath = path.join(appBundlePath, "Contents", "Frameworks");
   const resourcesPath = path.join(appBundlePath, "Contents", "Resources");
 
   return {
     appBundlePath,
     adhocSignCommand: createAdhocCodeSignCommand(appBundlePath),
+    verifyCodeSignCommand: createVerifyCodeSignCommand(appBundlePath),
     bundleIdentifier: BUNDLE_IDENTIFIER,
     electronAppPath,
+    nestedCodePaths: createNestedCodePaths(appBundlePath),
     infoPlistPath: path.join(appBundlePath, "Contents", "Info.plist"),
+    frameworksPath,
     resourcesPath,
     bundledAppPath: path.join(resourcesPath, "app"),
     bundledExecutablePath: path.join(appBundlePath, "Contents", "MacOS", "skfiy"),
@@ -75,7 +79,9 @@ export async function packageMacosApp({
   );
   await fs.copyFile(plan.sourceHelperPath, plan.bundledHelperPath);
   await fs.chmod(plan.bundledHelperPath, 0o755);
+  await signNestedCode(plan.nestedCodePaths);
   await execFileAsync(plan.adhocSignCommand.command, plan.adhocSignCommand.args);
+  await execFileAsync(plan.verifyCodeSignCommand.command, plan.verifyCodeSignCommand.args);
 
   return plan;
 }
@@ -85,7 +91,6 @@ export function createAdhocCodeSignCommand(appPath) {
     command: "codesign",
     args: [
       "--force",
-      "--deep",
       "--sign",
       "-",
       "--requirements",
@@ -93,6 +98,52 @@ export function createAdhocCodeSignCommand(appPath) {
       appPath
     ]
   };
+}
+
+export function createVerifyCodeSignCommand(appPath) {
+  return {
+    command: "codesign",
+    args: [
+      "--verify",
+      "--deep",
+      "--strict",
+      "--verbose=4",
+      appPath
+    ]
+  };
+}
+
+function createNestedCodePaths(appBundlePath) {
+  const frameworksPath = path.join(appBundlePath, "Contents", "Frameworks");
+  const electronFrameworkPath = path.join(frameworksPath, "Electron Framework.framework");
+
+  return [
+    path.join(electronFrameworkPath, "Versions", "A", "Libraries", "libEGL.dylib"),
+    path.join(electronFrameworkPath, "Versions", "A", "Libraries", "libvk_swiftshader.dylib"),
+    path.join(electronFrameworkPath, "Versions", "A", "Libraries", "libGLESv2.dylib"),
+    path.join(electronFrameworkPath, "Versions", "A", "Libraries", "libffmpeg.dylib"),
+    path.join(electronFrameworkPath, "Versions", "A", "Helpers", "chrome_crashpad_handler"),
+    electronFrameworkPath,
+    path.join(frameworksPath, "ReactiveObjC.framework"),
+    path.join(frameworksPath, "Squirrel.framework"),
+    path.join(frameworksPath, "Mantle.framework"),
+    path.join(frameworksPath, "Electron Helper (Plugin).app"),
+    path.join(frameworksPath, "Electron Helper (GPU).app"),
+    path.join(frameworksPath, "Electron Helper (Renderer).app"),
+    path.join(frameworksPath, "Electron Helper.app"),
+    path.join(appBundlePath, "Contents", "MacOS", "skfiy-helper")
+  ];
+}
+
+async function signNestedCode(nestedCodePaths) {
+  for (const nestedCodePath of nestedCodePaths) {
+    await execFileAsync("codesign", [
+      "--force",
+      "--sign",
+      "-",
+      nestedCodePath
+    ]);
+  }
 }
 
 function createRuntimePackageJson(rootDir) {

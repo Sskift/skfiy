@@ -146,6 +146,7 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("aria-label=\"权限引导\"");
     expect(source).toContain("permissionSettingTargets");
     expect(source).toContain("window.skfiy.getPermissions()");
+    expect(source).toContain("window.skfiy.getPermissionDiagnostics()");
     expect(source).toContain("getWindowBounds");
     expect(source).toContain("dispatchPetPointerEvent(pet, \"pointerdown\"");
     expect(source).toContain("dispatchPetPointerEvent(pet, \"pointermove\"");

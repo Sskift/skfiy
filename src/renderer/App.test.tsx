@@ -99,6 +99,34 @@ beforeEach(() => {
       microphone: { state: "unknown" },
       speechRecognition: { state: "unknown" }
     }),
+    getPermissionDiagnostics: vi.fn<DesktopApi["getPermissionDiagnostics"]>().mockResolvedValue({
+      active: {
+        screenRecording: { state: "unknown" },
+        accessibility: { state: "unknown" },
+        microphone: { state: "unknown" },
+        speechRecognition: { state: "unknown" }
+      },
+      appProcess: {
+        screenRecording: { state: "unknown" },
+        accessibility: { state: "unknown" },
+        microphone: { state: "unknown" },
+        speechRecognition: { state: "unknown" }
+      },
+      helperProcess: {
+        screenRecording: { state: "unknown" },
+        accessibility: { state: "unknown" },
+        microphone: { state: "unknown" },
+        speechRecognition: { state: "unknown" }
+      },
+      mismatches: [],
+      identity: {
+        appPath: "",
+        executablePath: "",
+        helperPath: "",
+        resourcesPath: "",
+        isPackaged: false
+      }
+    }),
     openPermissionSettings: vi.fn<DesktopApi["openPermissionSettings"]>().mockResolvedValue(
       undefined
     ),

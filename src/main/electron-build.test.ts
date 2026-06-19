@@ -33,10 +33,15 @@ describe("Electron build wiring", () => {
           command: string;
           args: string[];
         };
+        verifyCodeSignCommand: {
+          command: string;
+          args: string[];
+        };
         bundleIdentifier: string;
         bundledAppPath: string;
         bundledExecutablePath: string;
         bundledHelperPath: string;
+        nestedCodePaths: string[];
       };
       createAdhocCodeSignCommand: (appPath: string) => {
         command: string;
@@ -62,7 +67,6 @@ describe("Electron build wiring", () => {
         command: "codesign",
         args: [
           "--force",
-          "--deep",
           "--sign",
           "-",
           "--requirements",
@@ -75,6 +79,25 @@ describe("Electron build wiring", () => {
       bundledExecutablePath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy",
       bundledHelperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
     });
+    expect(packagePlan.verifyCodeSignCommand).toEqual({
+      command: "codesign",
+      args: [
+        "--verify",
+        "--deep",
+        "--strict",
+        "--verbose=4",
+        "/repo/dist/skfiy.app"
+      ]
+    });
+    expect(packagePlan.nestedCodePaths).toContain(
+      "/repo/dist/skfiy.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Helpers/chrome_crashpad_handler"
+    );
+    expect(packagePlan.nestedCodePaths).toContain(
+      "/repo/dist/skfiy.app/Contents/Frameworks/Electron Framework.framework"
+    );
+    expect(packagePlan.nestedCodePaths).toContain(
+      "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+    );
     expect(packaging.createAdhocCodeSignCommand("/repo/dist/skfiy.app")).toEqual(
       packagePlan.adhocSignCommand
     );
