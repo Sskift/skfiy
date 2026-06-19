@@ -421,6 +421,12 @@ function createReportIssue({
       path.basename(manifestPath),
       "### alpha zip",
       "skfiy-0.1.0-abcdef1-macos-unsigned.zip",
+      "### app bundle preflight",
+      "appPath: /Applications/skfiy.app",
+      "launch: open -na /Applications/skfiy.app --args --remote-debugging-port=9310",
+      "appLaunchViaOpen: true",
+      "runnerHasTmux: false",
+      "productPath: LaunchServices -> renderer DOM -> React permission onboarding",
       "### UI pet drag evidence",
       "result: passed",
       "source: renderer-pointer-events-window-bounds",
@@ -428,7 +434,12 @@ function createReportIssue({
       "afterBounds: {\"x\":1200,\"y\":732,\"width\":320,\"height\":224}",
       "totalDeltaY: -88",
       "upwardMovement: true",
-      "suppressedClickAfterDrag: true"
+      "suppressedClickAfterDrag: true",
+      "### panic stop",
+      "accelerator: Control+Alt+Shift+Esc",
+      "label: Ctrl Opt Shift Esc",
+      "registered: true",
+      "source: runtimeStatus.stopTurnHotkey"
     ].join("\n")
   };
 }

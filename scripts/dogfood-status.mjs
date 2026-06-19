@@ -1425,6 +1425,8 @@ function validateAcceptedReportIssue({ manifest, manifestPath, issue }) {
   }
 
   reasons.push(...validateIssueUiPetDragEvidence(issue.body));
+  reasons.push(...validateIssueAppBundlePreflightEvidence(issue.body));
+  reasons.push(...validateIssuePanicStopEvidence(issue.body));
 
   return {
     reasons,
@@ -1468,6 +1470,80 @@ function validateIssueUiPetDragEvidence(body) {
   }
 
   return [];
+}
+
+function validateIssueAppBundlePreflightEvidence(body) {
+  const section = readIssueSection(body, "app bundle preflight");
+  if (section.length === 0) {
+    return ["missing app bundle preflight evidence"];
+  }
+
+  const evidence = readIssueKeyValueSection(section);
+  const appPath = evidence.get("appPath");
+  const launch = evidence.get("launch");
+  const appLaunchViaOpen = evidence.get("appLaunchViaOpen");
+  const runnerHasTmux = evidence.get("runnerHasTmux");
+  const productPath = evidence.get("productPath");
+  const reasons = [];
+
+  if (!appPath) {
+    reasons.push("app bundle preflight evidence must include appPath");
+  } else if (!path.isAbsolute(appPath)) {
+    reasons.push("app bundle preflight appPath must be absolute");
+  } else if (path.basename(appPath) !== "skfiy.app") {
+    reasons.push("app bundle preflight appPath must point to lowercase skfiy.app");
+  }
+
+  if (!launch) {
+    reasons.push("app bundle preflight evidence must include launch");
+  } else if (!launch.includes("open -na")) {
+    reasons.push("app bundle preflight launch must use LaunchServices open -na");
+  } else if (appPath && !launch.includes(appPath)) {
+    reasons.push("app bundle preflight launch must include appPath");
+  }
+
+  if (appLaunchViaOpen !== "true") {
+    reasons.push("app bundle preflight appLaunchViaOpen must be true");
+  }
+
+  if (runnerHasTmux !== "false") {
+    reasons.push("app bundle preflight runnerHasTmux must be false");
+  }
+
+  if (!productPath || productPath === "not available") {
+    reasons.push("app bundle preflight productPath must be recorded");
+  }
+
+  return reasons;
+}
+
+function validateIssuePanicStopEvidence(body) {
+  const section = readIssueSection(body, "panic stop");
+  if (section.length === 0) {
+    return ["missing panic stop evidence"];
+  }
+
+  const evidence = readIssueKeyValueSection(section);
+  const accelerator = evidence.get("accelerator");
+  const label = evidence.get("label");
+  const registered = evidence.get("registered");
+  const source = evidence.get("source");
+  const reasons = [];
+
+  if (accelerator !== "Control+Alt+Shift+Esc") {
+    reasons.push("panic stop evidence accelerator must match runtime hotkey");
+  }
+  if (label !== "Ctrl Opt Shift Esc") {
+    reasons.push("panic stop evidence label must match runtime hotkey");
+  }
+  if (registered !== "true") {
+    reasons.push("panic stop evidence registered must be true");
+  }
+  if (source !== "runtimeStatus.stopTurnHotkey") {
+    reasons.push("panic stop evidence source must be runtimeStatus.stopTurnHotkey");
+  }
+
+  return reasons;
 }
 
 function readIssueKeyValueSection(section) {

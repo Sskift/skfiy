@@ -1459,6 +1459,99 @@ describe("dogfood status reporter", () => {
     expect(status.testerAssignments[0].commands.tester).toContain("--require-passed");
   });
 
+  it("does not count accepted report issues without app bundle preflight or panic stop evidence", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const reportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102",
+      "https://github.com/Sskift/skfiy/issues/103"
+    ];
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
+        screenRecording: "authorized",
+        accessibility: "authorized",
+        microphone: "authorized",
+        speechRecognition: "authorized"
+      }),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody(reportUrls, {
+          testerSectionTitle: "Required Real Tester Count"
+        }),
+        labels: ["skfiy", "dogfood"]
+      },
+      [reportUrls[0]]: createAcceptedReportIssue(
+        "tester-1",
+        ["coding-terminal", "screenshot-inspection"],
+        { result: "passed", includeAppBundlePreflightEvidence: false }
+      ),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["finder-file"], {
+        result: "blocked",
+        includePanicStopEvidence: false
+      }),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-3", ["browser-fallback"], {
+        result: "blocked"
+      })
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      result: "waiting-for-dogfood",
+      trackingIssue: {
+        verifiedAcceptedReportCount: 1,
+        missingRequiredReports: 2,
+        reportIssueValidation: [
+          {
+            issueUrl: reportUrls[0],
+            ok: false,
+            reasons: expect.arrayContaining(["missing app bundle preflight evidence"])
+          },
+          {
+            issueUrl: reportUrls[1],
+            ok: false,
+            reasons: expect.arrayContaining(["missing panic stop evidence"])
+          },
+          {
+            issueUrl: reportUrls[2],
+            ok: true
+          }
+        ]
+      },
+      readiness: {
+        canRunCollect: false
+      },
+      nextActions: expect.not.arrayContaining([
+        "Run npm run dogfood:collect with the current manifest and tracking issue."
+      ])
+    });
+  });
+
   it("marks the strict passed cohort gate ready only after all required workflows have passed evidence", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
@@ -2269,7 +2362,14 @@ function createTrackingIssueBody(
 function createAcceptedReportIssue(
   testerId: string,
   workflows: string[],
-  options: { commitSha?: string; labels?: string[]; result?: string; includeUiPetDragEvidence?: boolean } = {}
+  options: {
+    commitSha?: string;
+    labels?: string[];
+    result?: string;
+    includeUiPetDragEvidence?: boolean;
+    includeAppBundlePreflightEvidence?: boolean;
+    includePanicStopEvidence?: boolean;
+  } = {}
 ) {
   const body = [
       "### alpha manifest",
@@ -2297,6 +2397,19 @@ function createAcceptedReportIssue(
       ""
     ];
 
+  if (options.includeAppBundlePreflightEvidence !== false) {
+    body.push(
+      "### app bundle preflight",
+      "",
+      "appPath: /Applications/skfiy.app",
+      "launch: open -na /Applications/skfiy.app --args --remote-debugging-port=9310",
+      "appLaunchViaOpen: true",
+      "runnerHasTmux: false",
+      "productPath: LaunchServices -> renderer DOM -> React permission onboarding",
+      ""
+    );
+  }
+
   if (options.includeUiPetDragEvidence !== false) {
     body.push(
       "### UI pet drag evidence",
@@ -2310,6 +2423,18 @@ function createAcceptedReportIssue(
       "totalDeltaY: -88",
       "upwardMovement: true",
       "suppressedClickAfterDrag: true",
+      ""
+    );
+  }
+
+  if (options.includePanicStopEvidence !== false) {
+    body.push(
+      "### panic stop",
+      "",
+      "accelerator: Control+Alt+Shift+Esc",
+      "label: Ctrl Opt Shift Esc",
+      "registered: true",
+      "source: runtimeStatus.stopTurnHotkey",
       ""
     );
   }
