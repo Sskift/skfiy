@@ -187,6 +187,15 @@ export function createDogfoodAssignmentsJson(status, {
         ? status.trackingIssue.passedWorkflowCoverage.missing
         : []
     },
+    appBundlePreflight: {
+      required: true,
+      requiredChecks: [
+        "Info.plist bundle identifier is com.sskift.skfiy",
+        "Info.plist display name is skfiy",
+        "codesign --verify --deep --strict",
+        'designated => identifier "com.sskift.skfiy"'
+      ]
+    },
     permissionPreflight: {
       states: permissionStates,
       blockers,
@@ -262,6 +271,11 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
       lines.push(`- ${blocker.permission}: ${blocker.state}`);
     }
   }
+
+  lines.push("", "## App Bundle Preflight", "");
+  lines.push("Before product smokes, `dogfood:tester` verifies the selected `skfiy.app` bundle identity and code signature.");
+  lines.push("It checks the Info.plist bundle identifier is `com.sskift.skfiy`, the display name is `skfiy`, runs `codesign --verify --deep --strict`, and confirms `designated => identifier \"com.sskift.skfiy\"`.");
+  lines.push("If this preflight fails, do not run product smokes; rerun `dogfood:prepare-alpha` and use the extracted app path from `nextCommands.tester`.");
 
   lines.push("", "## Desktop Session Preflight", "");
   if (desktopSessionBlocker === null) {

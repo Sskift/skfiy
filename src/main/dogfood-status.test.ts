@@ -1922,6 +1922,67 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("- invalid: current skfiy-alpha-abc123 tester assignment packet comment is missing Desktop Session Preflight");
   });
 
+  it("recommends reposting the current alpha tester assignment packet when it lacks the app bundle preflight", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"],
+        comments: [
+          createAssignmentComment("abc123", { includeAppBundlePreflight: false })
+        ]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      trackingIssue: {
+        assignmentComment: {
+          ok: false,
+          currentAlphaTag: "skfiy-alpha-abc123",
+          matchingCommentCount: 1,
+          reasons: [
+            "current skfiy-alpha-abc123 tester assignment packet comment is missing App Bundle Preflight"
+          ]
+        }
+      },
+      nextActions: expect.arrayContaining([
+        "Post the current skfiy-alpha-abc123 tester assignment packet to GitHub issue #1 before asking more testers to run it.",
+        "Run npm run dogfood:assignments -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --output .skfiy-dogfood/assignments/skfiy-alpha-abc123.md --json-output .skfiy-dogfood/assignments/skfiy-alpha-abc123.json --execute to post the current skfiy-alpha-abc123 packet."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("- invalid: current skfiy-alpha-abc123 tester assignment packet comment is missing App Bundle Preflight");
+  });
+
   it("recommends reposting a current alpha tester assignment packet from an older schema", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
@@ -3312,6 +3373,7 @@ function createAssignmentComment(
   options: {
     url?: string;
     createdAt?: string;
+    includeAppBundlePreflight?: boolean;
     includePermissionPreflight?: boolean;
     includeDesktopSessionPreflight?: boolean;
     includeEvidencePreviewGate?: boolean;
@@ -3329,6 +3391,8 @@ function createAssignmentComment(
       "Release: https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123",
       "Manifest: /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json",
       "Tracking issue: https://github.com/Sskift/skfiy/issues/1",
+      "",
+      options.includeAppBundlePreflight === false ? "" : "## App Bundle Preflight",
       "",
       options.includeDesktopSessionPreflight === false ? "" : "## Desktop Session Preflight",
       "",

@@ -219,23 +219,28 @@ labels, updating cohort JSON, or marking evidence accepted.
 Assignment packets include a schema marker, and `dogfood:status` treats current
 alpha packet comments without that marker as stale so maintainers know to repost
 the latest tester handoff before asking more testers to run it.
-Use `--json-output` to persist the same tester split, desktop session preflight,
-permission preflight, evidence preview gate, next actions, and comment command
-as machine-readable JSON for dashboards and follow-up agents.
+Use `--json-output` to persist the same tester split, app bundle preflight,
+desktop session preflight, permission preflight, evidence preview gate, next
+actions, and comment command as machine-readable JSON for dashboards and
+follow-up agents.
 By default it writes the local packet and prints the GitHub issue comment command
 without running it; add `--execute` only when you want to publish that packet as
 a GitHub issue comment on the tracking issue.
-The generated assignment packet includes a `Desktop Session Preflight` section
-plus a `Permission Preflight` section. The desktop section surfaces locked
-console, `com.apple.loginwindow`, and display-sleep blockers from the current
-smoke evidence; testers should not use `--require-passed` until
-`smoke:desktop-session` passes on their machine. The permission section lists
-Screen Recording, Accessibility, Microphone, and Speech Recognition states and
-tells testers to use `--require-passed` only after the provider-relevant
-permissions are granted to the extracted `skfiy.app` and the desktop session
-preflight is clear. For the default external Doubao path, that means Screen
-Recording and Accessibility; Microphone and Speech Recognition are only required
-for browser or `native-macos` provider tests.
+The generated assignment packet includes an `App Bundle Preflight` section, a
+`Desktop Session Preflight` section, and a `Permission Preflight` section. The
+app bundle section tells testers that `dogfood:tester` verifies the extracted
+`skfiy.app` identity, runs `codesign --verify --deep --strict`, and requires
+`designated => identifier "com.sskift.skfiy"` before product smokes, so
+permission rows are checked against the same app identity that will run. The
+desktop section surfaces locked console, `com.apple.loginwindow`, and
+display-sleep blockers from the current smoke evidence; testers should not use
+`--require-passed` until `smoke:desktop-session` passes on their machine. The
+permission section lists Screen Recording, Accessibility, Microphone, and Speech
+Recognition states and tells testers to use `--require-passed` only after the
+provider-relevant permissions are granted to the extracted `skfiy.app` and the
+desktop session preflight is clear. For the default external Doubao path, that
+means Screen Recording and Accessibility; Microphone and Speech Recognition are
+only required for browser or `native-macos` provider tests.
 It also includes an `Evidence Preview Gate` section that tells testers to confirm
 `reportPreviewEligibility.eligible=true` before filing and to preserve the
 blocking checks when it is false. That gate calls out UI pet drag evidence

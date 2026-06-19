@@ -12,6 +12,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/\d+/g;
 const ASSIGNMENT_PACKET_HEADING = "# skfiy dogfood tester assignments";
+const ASSIGNMENT_APP_BUNDLE_PREFLIGHT_HEADING = "## App Bundle Preflight";
 const ASSIGNMENT_DESKTOP_SESSION_PREFLIGHT_HEADING = "## Desktop Session Preflight";
 const TRACKING_ISSUE_DESKTOP_SESSION_PREFLIGHT_HEADING = "## Desktop Session Preflight";
 const TRACKING_ISSUE_STRICT_DESKTOP_SESSION_PREFLIGHT_TEXT = "strict desktop-session preflight";
@@ -1685,7 +1686,10 @@ function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, m
   const matchingComments = normalizedComments.filter((comment) =>
     isCurrentAlphaAssignmentComment(comment.body, currentAlphaTag)
   );
-  const commentsWithDesktopSessionPreflight = matchingComments.filter((comment) =>
+  const commentsWithAppBundlePreflight = matchingComments.filter((comment) =>
+    comment.body.includes(ASSIGNMENT_APP_BUNDLE_PREFLIGHT_HEADING)
+  );
+  const commentsWithDesktopSessionPreflight = commentsWithAppBundlePreflight.filter((comment) =>
     comment.body.includes(ASSIGNMENT_DESKTOP_SESSION_PREFLIGHT_HEADING)
   );
   const commentsWithPermissionPreflight = commentsWithDesktopSessionPreflight.filter((comment) =>
@@ -1701,12 +1705,15 @@ function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, m
   const latestComment = currentSchemaComments.at(-1)
     ?? completeComments.at(-1)
     ?? commentsWithDesktopSessionPreflight.at(-1)
+    ?? commentsWithAppBundlePreflight.at(-1)
     ?? matchingComments.at(-1);
 
   if (commentsAvailable !== true) {
     reasons.push("tracking issue comments were not loaded");
   } else if (matchingComments.length === 0) {
     reasons.push(`tracking issue does not have a current ${currentAlphaTag} tester assignment packet comment`);
+  } else if (commentsWithAppBundlePreflight.length === 0) {
+    reasons.push(`current ${currentAlphaTag} tester assignment packet comment is missing App Bundle Preflight`);
   } else if (commentsWithDesktopSessionPreflight.length === 0) {
     reasons.push(`current ${currentAlphaTag} tester assignment packet comment is missing Desktop Session Preflight`);
   } else if (commentsWithPermissionPreflight.length === 0) {

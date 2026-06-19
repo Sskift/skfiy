@@ -103,6 +103,11 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("Packet schema: dogfood-assignments-v2");
     expect(packet).toContain("Tracking issue: https://github.com/Sskift/skfiy/issues/1");
     expect(packet).toContain("This packet is non-mutating: it does not create reports, add labels, update cohort JSON, or mark dogfood evidence accepted.");
+    expect(packet).toContain("## App Bundle Preflight");
+    expect(packet).toContain("Before product smokes, `dogfood:tester` verifies the selected `skfiy.app` bundle identity and code signature.");
+    expect(packet).toContain("`codesign --verify --deep --strict`");
+    expect(packet).toContain("`designated => identifier \"com.sskift.skfiy\"`");
+    expect(packet).toContain("If this preflight fails, do not run product smokes; rerun `dogfood:prepare-alpha` and use the extracted app path from `nextCommands.tester`.");
     expect(packet).toContain("## Permission Preflight");
     expect(packet).toContain("Grant Screen Recording and Accessibility to the extracted `skfiy.app` before using `--require-passed` for default external Doubao + Computer Use evidence.");
     expect(packet).toContain("Grant Microphone and Speech Recognition only when intentionally testing the optional `native-macos` voice provider.");
@@ -176,6 +181,15 @@ describe("dogfood tester assignment packet", () => {
           "screenshot-inspection",
           "finder-file",
           "browser-fallback"
+        ]
+      },
+      appBundlePreflight: {
+        required: true,
+        requiredChecks: [
+          "Info.plist bundle identifier is com.sskift.skfiy",
+          "Info.plist display name is skfiy",
+          "codesign --verify --deep --strict",
+          "designated => identifier \"com.sskift.skfiy\""
         ]
       },
       permissionPreflight: {
@@ -425,6 +439,9 @@ describe("dogfood tester assignment packet", () => {
       expect(document).toContain("--output .skfiy-dogfood/assignments/");
       expect(document).toContain("--json-output .skfiy-dogfood/assignments/");
       expect(document).toContain("non-mutating");
+      expect(document).toContain("App Bundle Preflight");
+      expect(document).toContain("codesign --verify --deep --strict");
+      expect(document).toContain("designated => identifier \"com.sskift.skfiy\"");
       expect(document).toContain("Desktop Session Preflight");
       expect(document).toContain("Permission Preflight");
       expect(document).toContain("Evidence Preview Gate");
