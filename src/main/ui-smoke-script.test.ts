@@ -147,6 +147,7 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("permissionSettingTargets");
     expect(source).toContain("window.skfiy.getPermissions()");
     expect(source).toContain("window.skfiy.getPermissionDiagnostics()");
+    expect(source).toContain("window.skfiy.getDesktopSessionDiagnostics()");
     expect(source).toContain("getWindowBounds");
     expect(source).toContain("dispatchPetPointerEvent(pet, \"pointerdown\"");
     expect(source).toContain("dispatchPetPointerEvent(pet, \"pointermove\"");

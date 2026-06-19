@@ -127,6 +127,13 @@ beforeEach(() => {
         isPackaged: false
       }
     }),
+    getDesktopSessionDiagnostics: vi
+      .fn<DesktopApi["getDesktopSessionDiagnostics"]>()
+      .mockResolvedValue({
+        state: "unknown",
+        status: null,
+        reason: "Desktop session status is unknown."
+      }),
     openPermissionSettings: vi.fn<DesktopApi["openPermissionSettings"]>().mockResolvedValue(
       undefined
     ),
@@ -546,6 +553,40 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "打开语音识别设置" }));
 
     expect(api.openPermissionSettings).toHaveBeenCalledWith("speech-recognition");
+  });
+
+  it("shows desktop session blockers in settings when permissions are granted", async () => {
+    const api = window.skfiy as DesktopApi;
+    api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
+      screenRecording: { state: "granted" },
+      accessibility: { state: "granted" },
+      microphone: { state: "granted" },
+      speechRecognition: { state: "not-determined" }
+    });
+    api.getDesktopSessionDiagnostics = vi
+      .fn<DesktopApi["getDesktopSessionDiagnostics"]>()
+      .mockResolvedValue({
+        state: "blocked",
+        status: {
+          controllable: false,
+          frontmostBundleId: "com.apple.loginwindow",
+          frontmostLocalizedName: "loginwindow",
+          frontmostProcessIdentifier: 591
+        },
+        reason: "Desktop session is locked by loginwindow (pid 591). Unlock the Mac and keep the display awake, then retry."
+      });
+
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(screen.getByText("桌面会话")).toBeInTheDocument();
+    });
+    expect(screen.getByText("不可控")).toBeInTheDocument();
+    expect(screen.getByLabelText("桌面会话阻塞原因")).toHaveTextContent(
+      "Desktop session is locked by loginwindow"
+    );
   });
 
   it("shows ASR provider choices and Doubao shortcut instructions in settings", async () => {

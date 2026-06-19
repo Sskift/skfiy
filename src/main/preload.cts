@@ -13,6 +13,7 @@ type TaskStatus =
 type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 type DictationProviderSelection = "doubao" | "browser" | "native-macos";
 type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
+type DesktopSessionDiagnosticState = "controllable" | "blocked" | "unknown";
 type PermissionSettingsTarget =
   | "screen-recording"
   | "accessibility"
@@ -238,6 +239,19 @@ interface PermissionDiagnostics {
   };
 }
 
+interface DesktopSessionStatus {
+  frontmostBundleId?: string;
+  frontmostLocalizedName?: string;
+  frontmostProcessIdentifier?: number;
+  controllable: boolean;
+}
+
+interface DesktopSessionDiagnostics {
+  state: DesktopSessionDiagnosticState;
+  status: DesktopSessionStatus | null;
+  reason: string;
+}
+
 interface NativeSpeechStatus {
   locale: string;
   recognizerAvailable: boolean;
@@ -285,6 +299,7 @@ interface DesktopApi {
   stopTask: () => Promise<void>;
   getPermissions: () => Promise<PermissionSummary>;
   getPermissionDiagnostics: () => Promise<PermissionDiagnostics>;
+  getDesktopSessionDiagnostics: () => Promise<DesktopSessionDiagnostics>;
   getNativeSpeechStatus: (locale: string) => Promise<NativeSpeechStatus>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
@@ -374,6 +389,12 @@ const api: DesktopApi = {
     return isPermissionDiagnostics(payload)
       ? payload
       : createUnknownPermissionDiagnostics();
+  },
+  async getDesktopSessionDiagnostics() {
+    const payload = await ipcRenderer.invoke("skfiy:get-desktop-session-diagnostics");
+    return isDesktopSessionDiagnostics(payload)
+      ? payload
+      : createUnknownDesktopSessionDiagnostics();
   },
   async getNativeSpeechStatus(locale) {
     const payload = await ipcRenderer.invoke("skfiy:get-native-speech-status", locale);
@@ -926,6 +947,48 @@ function isPermissionDiagnosticsIdentity(
   );
 }
 
+function isDesktopSessionDiagnostics(value: unknown): value is DesktopSessionDiagnostics {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const diagnostics = value as Partial<DesktopSessionDiagnostics>;
+  return (
+    isDesktopSessionDiagnosticState(diagnostics.state)
+    && (diagnostics.status === null || isDesktopSessionStatus(diagnostics.status))
+    && typeof diagnostics.reason === "string"
+  );
+}
+
+function isDesktopSessionStatus(value: unknown): value is DesktopSessionStatus {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const status = value as Partial<DesktopSessionStatus>;
+  return (
+    typeof status.controllable === "boolean"
+    && (
+      status.frontmostBundleId === undefined
+      || typeof status.frontmostBundleId === "string"
+    )
+    && (
+      status.frontmostLocalizedName === undefined
+      || typeof status.frontmostLocalizedName === "string"
+    )
+    && (
+      status.frontmostProcessIdentifier === undefined
+      || typeof status.frontmostProcessIdentifier === "number"
+    )
+  );
+}
+
+function isDesktopSessionDiagnosticState(
+  value: unknown
+): value is DesktopSessionDiagnosticState {
+  return value === "controllable" || value === "blocked" || value === "unknown";
+}
+
 function isNativeSpeechStatus(value: unknown): value is NativeSpeechStatus {
   if (!value || typeof value !== "object") {
     return false;
@@ -1024,6 +1087,14 @@ function createUnknownPermissionDiagnostics(): PermissionDiagnostics {
       resourcesPath: "",
       isPackaged: false
     }
+  };
+}
+
+function createUnknownDesktopSessionDiagnostics(): DesktopSessionDiagnostics {
+  return {
+    state: "unknown",
+    status: null,
+    reason: "Desktop session status is unknown."
   };
 }
 

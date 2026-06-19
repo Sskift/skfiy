@@ -40,6 +40,7 @@ import {
   createNativeMacOSDictationProvider,
   type DictationProviderEvent
 } from "./dictation-provider.js";
+import { readDesktopSessionDiagnosticsForRenderer } from "./desktop-session-diagnostics.js";
 import {
   createVoiceTurnSessionStore,
   decideVoiceIntentAdmission,
@@ -1239,6 +1240,10 @@ ipcMain.handle("skfiy:get-permission-diagnostics", async () => {
       isPackaged: app.isPackaged
     }
   });
+});
+
+ipcMain.handle("skfiy:get-desktop-session-diagnostics", async () => {
+  return readDesktopSessionDiagnosticsForRenderer({ helper: createDesktopHelper() });
 });
 
 ipcMain.handle("skfiy:get-native-speech-status", async (_event, locale: unknown) => {

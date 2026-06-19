@@ -40,6 +40,7 @@ async function main() {
     requiredPermissionLabels: options.requiredPermissionLabels,
     permissions: undefined,
     permissionDiagnostics: undefined,
+    desktopSessionDiagnostics: undefined,
     startupWarnings: undefined,
     runtimeStatus: undefined,
     petClicked: false,
@@ -76,6 +77,10 @@ async function main() {
       evidence.permissionDiagnostics = await evaluateValue(
         cdp,
         "window.skfiy.getPermissionDiagnostics()"
+      );
+      evidence.desktopSessionDiagnostics = await evaluateValue(
+        cdp,
+        "window.skfiy.getDesktopSessionDiagnostics()"
       );
       evidence.runtimeStatus = await evaluateValue(cdp, "window.skfiy.getRuntimeStatus()");
       evidence.startupWarnings = await evaluateValue(cdp, "window.skfiy.getStartupWarnings()");

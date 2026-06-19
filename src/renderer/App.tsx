@@ -24,6 +24,7 @@ export type PetWindowMode = "compact" | "expanded";
 export type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
 export type DictationProviderSelection = "doubao" | "browser" | "native-macos";
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
+export type DesktopSessionDiagnosticState = "controllable" | "blocked" | "unknown";
 export type PermissionSettingsTarget =
   | "screen-recording"
   | "accessibility"
@@ -190,6 +191,19 @@ export interface PermissionDiagnostics {
   };
 }
 
+export interface DesktopSessionStatus {
+  frontmostBundleId?: string;
+  frontmostLocalizedName?: string;
+  frontmostProcessIdentifier?: number;
+  controllable: boolean;
+}
+
+export interface DesktopSessionDiagnostics {
+  state: DesktopSessionDiagnosticState;
+  status: DesktopSessionStatus | null;
+  reason: string;
+}
+
 export interface StartupWarning {
   id: StartupWarningId;
   title: string;
@@ -292,6 +306,7 @@ export interface DesktopApi {
   stopTask: () => Promise<void>;
   getPermissions: () => Promise<PermissionSummary>;
   getPermissionDiagnostics: () => Promise<PermissionDiagnostics>;
+  getDesktopSessionDiagnostics: () => Promise<DesktopSessionDiagnostics>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
   getDictationSettings: () => Promise<DictationSettings>;
@@ -434,6 +449,12 @@ const PERMISSION_STATE_COPY: Record<PermissionState, string> = {
   unknown: "未知"
 };
 
+const DESKTOP_SESSION_STATE_COPY: Record<DesktopSessionDiagnosticState, string> = {
+  controllable: "可控",
+  blocked: "不可控",
+  unknown: "未知"
+};
+
 const BLOCKING_PERMISSION_STATES: readonly PermissionState[] = ["denied", "not-determined"];
 
 const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
@@ -463,6 +484,12 @@ const UNKNOWN_PERMISSIONS: PermissionSummary = {
   accessibility: { state: "unknown" },
   microphone: { state: "unknown" },
   speechRecognition: { state: "unknown" }
+};
+
+const UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS: DesktopSessionDiagnostics = {
+  state: "unknown",
+  status: null,
+  reason: "Desktop session status is unknown."
 };
 
 const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
@@ -513,6 +540,7 @@ const fallbackApi: DesktopApi = {
       isPackaged: false
     }
   }),
+  getDesktopSessionDiagnostics: async () => UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS,
   openPermissionSettings: async () => undefined,
   getStartupWarnings: async () => [],
   getDictationSettings: async () => DEFAULT_DICTATION_SETTINGS,
@@ -822,6 +850,20 @@ function readMissingPermissionRows(
   );
 }
 
+function readDesktopSessionPermissionState(
+  diagnostics: DesktopSessionDiagnostics
+): PermissionState {
+  if (diagnostics.state === "controllable") {
+    return "granted";
+  }
+
+  if (diagnostics.state === "blocked") {
+    return "denied";
+  }
+
+  return "unknown";
+}
+
 function DesktopPet({
   state,
   onClick,
@@ -868,6 +910,8 @@ export default function App() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [permissionOnboardingOpen, setPermissionOnboardingOpen] = useState(false);
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
+  const [desktopSessionDiagnostics, setDesktopSessionDiagnostics] =
+    useState<DesktopSessionDiagnostics>(UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [startupWarnings, setStartupWarnings] = useState<StartupWarning[]>([]);
   const [dictationSettings, setDictationSettings] = useState<DictationSettings>(
@@ -1096,11 +1140,16 @@ export default function App() {
     setPermissionsLoading(true);
 
     try {
-      const nextPermissions = await api.getPermissions();
+      const [nextPermissions, nextDesktopSessionDiagnostics] = await Promise.all([
+        api.getPermissions(),
+        api.getDesktopSessionDiagnostics()
+      ]);
       setPermissions(nextPermissions);
+      setDesktopSessionDiagnostics(nextDesktopSessionDiagnostics);
       return nextPermissions;
     } catch {
       setPermissions(UNKNOWN_PERMISSIONS);
+      setDesktopSessionDiagnostics(UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS);
       return UNKNOWN_PERMISSIONS;
     } finally {
       setPermissionsLoading(false);
@@ -1670,6 +1719,19 @@ export default function App() {
                   </button>
                 </div>
                 <div className="permissions-list">
+                  <div className="permission-row desktop-session-row">
+                    <span>桌面会话</span>
+                    <strong data-state={readDesktopSessionPermissionState(desktopSessionDiagnostics)}>
+                      {permissionsLoading
+                        ? "检查中"
+                        : DESKTOP_SESSION_STATE_COPY[desktopSessionDiagnostics.state]}
+                    </strong>
+                  </div>
+                  {desktopSessionDiagnostics.state === "blocked" ? (
+                    <p className="permission-hint" aria-label="桌面会话阻塞原因">
+                      {desktopSessionDiagnostics.reason}
+                    </p>
+                  ) : null}
                   {PERMISSION_ROWS.map((permission) => {
                     const state = permissions[permission.key].state;
                     return (
