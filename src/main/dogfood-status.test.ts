@@ -1674,6 +1674,69 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("https://github.com/Sskift/skfiy/issues/1#issuecomment-2");
   });
 
+  it("recommends refreshing the tracking issue body when it lacks desktop-session preflight guidance", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([], { includeDesktopSessionPreflight: false }),
+        labels: ["skfiy", "dogfood"],
+        comments: [
+          createAssignmentComment("abc123")
+        ]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      trackingIssue: {
+        bodyPreflight: {
+          ok: false,
+          reasons: [
+            "tracking issue body is missing Desktop Session Preflight"
+          ]
+        },
+        assignmentComment: {
+          ok: true
+        }
+      },
+      nextActions: expect.arrayContaining([
+        "Refresh GitHub issue #1 with dogfood:tracking-issue before asking testers to use --require-passed.",
+        "Run npm run dogfood:tracking-issue -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --output .skfiy-dogfood/tracking-issue-abc123.md --execute to refresh GitHub issue #1."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("## Tracking Issue Body Preflight");
+    expect(io.textFiles[summaryPath]).toContain("- invalid: tracking issue body is missing Desktop Session Preflight");
+  });
+
   it("recommends posting the current alpha tester assignment packet when GitHub comments do not contain it", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
@@ -2979,6 +3042,7 @@ function createTrackingIssueBody(
       bundleId?: string;
       appName?: string;
     };
+    includeDesktopSessionPreflight?: boolean;
   } = {}
 ) {
   const currentAlpha = options.currentAlpha ?? {
@@ -3009,6 +3073,14 @@ function createTrackingIssueBody(
     "finder-file",
     "browser-fallback"
   ].map((workflow) => `- [${covered.has(workflow) ? "x" : " "}] \`${workflow}\``);
+  const desktopSessionPreflightLines = options.includeDesktopSessionPreflight === false
+    ? []
+    : [
+      "",
+      "## Desktop Session Preflight",
+      "Run `npm run smoke:desktop-session` before using `--require-passed`.",
+      "In strict mode, `dogfood:tester` uses a strict desktop-session preflight before Ghostty/Chrome/Finder/voice."
+    ];
 
   return [
     "## Goal",
@@ -3028,6 +3100,7 @@ function createTrackingIssueBody(
     "",
     `## ${options.testerSectionTitle ?? "Required Tester Count"}`,
     ...testerLines,
+    ...desktopSessionPreflightLines,
     "",
     "## Cohort Gate",
     "Run dogfood:cohort after collecting reports."

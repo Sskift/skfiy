@@ -13,6 +13,8 @@ const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/\d+/g;
 const ASSIGNMENT_PACKET_HEADING = "# skfiy dogfood tester assignments";
 const ASSIGNMENT_DESKTOP_SESSION_PREFLIGHT_HEADING = "## Desktop Session Preflight";
+const TRACKING_ISSUE_DESKTOP_SESSION_PREFLIGHT_HEADING = "## Desktop Session Preflight";
+const TRACKING_ISSUE_STRICT_DESKTOP_SESSION_PREFLIGHT_TEXT = "strict desktop-session preflight";
 const ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING = "## Permission Preflight";
 const ASSIGNMENT_EVIDENCE_PREVIEW_HEADING = "## Evidence Preview Gate";
 const ASSIGNMENT_PACKET_SCHEMA = "dogfood-assignments-v2";
@@ -148,6 +150,9 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     manifest,
     manifestPath: options.manifestPath
   });
+  const bodyPreflight = validateTrackingIssueBodyPreflight({
+    body: trackingIssue.body
+  });
   const assignmentComment = validateTrackingIssueAssignmentComment({
     comments: trackingIssue.comments,
     commentsAvailable: trackingIssue.commentsAvailable,
@@ -223,6 +228,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     passedWorkflowCoverage,
     invalidReportIssueCount,
     assignmentComment,
+    bodyPreflight,
     testerAssignments,
     smokeArtifactProblems,
     desktopSessionBlocker,
@@ -245,6 +251,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     },
     trackingIssue: {
       currentAlpha,
+      bodyPreflight,
       assignmentComment,
       acceptedReportIssueUrls,
       acceptedReportCount: acceptedReportIssueUrls.length,
@@ -334,6 +341,12 @@ export function createDogfoodStatusMarkdown(status) {
     ...(status.trackingIssue.currentAlpha.ok
       ? ["- ok"]
       : status.trackingIssue.currentAlpha.reasons.map((reason) => `- invalid: ${reason}`)),
+    "",
+    "## Tracking Issue Body Preflight",
+    "",
+    ...(status.trackingIssue.bodyPreflight.ok
+      ? ["- ok"]
+      : status.trackingIssue.bodyPreflight.reasons.map((reason) => `- invalid: ${reason}`)),
     "",
     "## Assignment Comment",
     "",
@@ -999,6 +1012,7 @@ function createNextActions({
   passedWorkflowCoverage,
   invalidReportIssueCount,
   assignmentComment,
+  bodyPreflight,
   testerAssignments = [],
   smokeArtifactProblems = [],
   desktopSessionBlocker,
@@ -1008,6 +1022,17 @@ function createNextActions({
 
   if (currentAlpha.ok !== true) {
     actions.push(`Update ${trackingIssueTarget} Current Alpha section to match the selected manifest before collecting reports.`);
+  }
+  if (bodyPreflight?.ok === false) {
+    actions.push(`Refresh ${trackingIssueTarget} with dogfood:tracking-issue before asking testers to use --require-passed.`);
+    const trackingIssueCommand = createDogfoodTrackingIssueCommand({
+      manifestPath,
+      trackingIssueUrl,
+      currentAlphaTag: assignmentComment?.currentAlphaTag
+    });
+    if (trackingIssueCommand) {
+      actions.push(`${trackingIssueCommand} to refresh ${trackingIssueTarget}.`);
+    }
   }
   if (missingRequiredReports > 0) {
     actions.push(`Collect at least 3 accepted real tester report issue URLs in ${trackingIssueTarget}.`);
@@ -1207,6 +1232,31 @@ function createDogfoodAssignmentsCommand({ manifestPath, trackingIssueUrl, curre
     `.skfiy-dogfood/assignments/${alphaTag}.md`,
     "--json-output",
     `.skfiy-dogfood/assignments/${alphaTag}.json`,
+    "--execute"
+  ].join(" ");
+}
+
+function createDogfoodTrackingIssueCommand({ manifestPath, trackingIssueUrl, currentAlphaTag }) {
+  if (
+    typeof manifestPath !== "string"
+    || manifestPath.trim().length === 0
+    || typeof trackingIssueUrl !== "string"
+    || !isGitHubIssueUrl(trackingIssueUrl)
+    || typeof currentAlphaTag !== "string"
+    || currentAlphaTag.trim().length === 0
+  ) {
+    return "";
+  }
+
+  const shortSha = currentAlphaTag.trim().replace(/^skfiy-alpha-/, "");
+  return [
+    "Run npm run dogfood:tracking-issue --",
+    "--manifest",
+    manifestPath.trim(),
+    "--tracking-issue-url",
+    trackingIssueUrl.trim(),
+    "--output",
+    `.skfiy-dogfood/tracking-issue-${shortSha}.md`,
     "--execute"
   ].join(" ");
 }
@@ -1605,6 +1655,22 @@ function validateTrackingIssueCurrentAlpha({ body, manifest, manifestPath }) {
     ok: reasons.length === 0,
     reasons,
     fields
+  };
+}
+
+function validateTrackingIssueBodyPreflight({ body }) {
+  const issueBody = typeof body === "string" ? body : "";
+  const reasons = [];
+
+  if (!issueBody.includes(TRACKING_ISSUE_DESKTOP_SESSION_PREFLIGHT_HEADING)) {
+    reasons.push("tracking issue body is missing Desktop Session Preflight");
+  } else if (!issueBody.includes(TRACKING_ISSUE_STRICT_DESKTOP_SESSION_PREFLIGHT_TEXT)) {
+    reasons.push("tracking issue body is missing strict desktop-session preflight guidance");
+  }
+
+  return {
+    ok: reasons.length === 0,
+    reasons
   };
 }
 

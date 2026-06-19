@@ -264,6 +264,8 @@ The tracking issue body includes a `Desktop Session Preflight` section too,
 telling testers to run `smoke:desktop-session` before `--require-passed` and to
 treat locked console, `com.apple.loginwindow`, display sleep, or black-screen
 evidence as desktop-session blockers.
+`dogfood:status` validates that the tracking issue body still includes `Desktop Session Preflight`
+and adds a refresh command when that guidance is missing.
 Those GitHub commands also use the prepared-alpha manifest placeholder for
 tester/review steps, keeping the coordination issue portable across tester
 machines.

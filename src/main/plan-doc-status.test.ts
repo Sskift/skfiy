@@ -145,8 +145,11 @@ describe("implementation plan status docs", () => {
     expect(readme).toContain("tracking issue body includes a `Recommended Tester Assignments` section");
     expect(readme).toContain("`dogfood:prepare-alpha` can infer `--workflows` from the tracking issue");
     expect(readme).toContain("tracking issue body includes a `Desktop Session Preflight` section");
+    expect(readme).toContain("`dogfood:status` validates that the tracking issue body still includes `Desktop Session Preflight`");
     expect(workflow).toContain("The generated tracking issue body includes a `Desktop Session Preflight` section");
+    expect(workflow).toContain("It also validates that the tracking issue body still includes `Desktop Session Preflight`");
     expect(longPlan).toContain("tracking issue body now includes `Desktop Session Preflight`");
+    expect(longPlan).toContain("dogfood status now validates tracking issue body `Desktop Session Preflight`");
     expect(readmeText).toContain("When the downloaded manifest and prepared app already exist locally, `dogfood:status` replaces tester placeholders with the prepared paths and surfaces direct `dogfood:tester` next actions.");
     expect(workflowText).toContain("When local prepared alpha assets already exist, `dogfood:status` replaces the tester command placeholders with those manifest and app paths and emits direct `dogfood:tester` next actions.");
     expect(readme).toContain("--tester-id tester-a \\\n  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
