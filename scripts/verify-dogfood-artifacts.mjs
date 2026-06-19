@@ -974,6 +974,14 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
       hasFinalVoiceTranscriptEvidence(artifact.transcriptEvents, provider),
       "passed voice smoke must include a final non-empty transcript event"
     );
+    if (provider === "doubao") {
+      check(
+        checks,
+        "voice.doubaoTranscript",
+        hasConsistentExternalDoubaoTranscript(artifact),
+        "passed external Doubao voice smoke must bind external input transcript to the final submitted transcript"
+      );
+    }
     check(
       checks,
       "voice.downstreamTask",
@@ -1927,6 +1935,17 @@ function hasExternalDoubaoInputEvidence(value) {
   );
 }
 
+function hasConsistentExternalDoubaoTranscript(artifact) {
+  const externalTranscript = readTrimmedString(artifact?.externalInput?.transcript);
+  const finalTranscript = readFinalVoiceTranscriptText(artifact?.transcriptEvents, "doubao");
+
+  return Boolean(
+    externalTranscript
+    && finalTranscript
+    && externalTranscript === finalTranscript
+  );
+}
+
 function hasVoiceProviderLifecycleEvidence(events, provider) {
   if (!Array.isArray(events)) {
     return false;
@@ -1950,6 +1969,25 @@ function hasFinalVoiceTranscriptEvidence(events, provider) {
       && typeof event.text === "string"
       && event.text.trim().length > 0
   );
+}
+
+function readFinalVoiceTranscriptText(events, provider) {
+  if (!Array.isArray(events)) {
+    return "";
+  }
+
+  const finalEvent = events.find((event) =>
+    event?.providerId === provider
+      && event.isFinal === true
+      && typeof event.text === "string"
+      && event.text.trim().length > 0
+  );
+
+  return readTrimmedString(finalEvent?.text);
+}
+
+function readTrimmedString(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function hasVoiceDownstreamTaskEvidence(events) {
