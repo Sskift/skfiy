@@ -14,16 +14,16 @@ describe("resolveHelperPath", () => {
     ).toBe("/tmp/custom-helper");
   });
 
-  it("uses the helper embedded beside Resources/app even when Electron reports unpackaged", () => {
+  it("uses the helper embedded beside the packaged app executable", () => {
     expect(
       resolveHelperPath({
         env: {},
         appPath: "/repo/dist/skfiy.app/Contents/Resources/app",
         isPackaged: false,
         resourcesPath: "/repo/dist/skfiy.app/Contents/Resources",
-        exists: (candidate) => candidate.endsWith("/Resources/skfiy-helper")
+        exists: (candidate) => candidate.endsWith("/Contents/MacOS/skfiy-helper")
       })
-    ).toBe("/repo/dist/skfiy.app/Contents/Resources/skfiy-helper");
+    ).toBe("/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper");
   });
 
   it("falls back to the development dist helper", () => {

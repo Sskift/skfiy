@@ -32,7 +32,7 @@ export function createPackagePlan({
     resourcesPath,
     bundledAppPath: path.join(resourcesPath, "app"),
     bundledExecutablePath: path.join(appBundlePath, "Contents", "MacOS", "skfiy"),
-    bundledHelperPath: path.join(resourcesPath, "skfiy-helper"),
+    bundledHelperPath: path.join(appBundlePath, "Contents", "MacOS", "skfiy-helper"),
     appPackageJsonPath: path.join(resourcesPath, "app", "package.json"),
     sourceHelperPath: path.join(rootDir, "dist", "skfiy-helper"),
     sourceMainPath: path.join(rootDir, "dist", "main"),
@@ -88,6 +88,8 @@ export function createAdhocCodeSignCommand(appPath) {
       "--deep",
       "--sign",
       "-",
+      "--requirements",
+      `=designated => identifier "${BUNDLE_IDENTIFIER}"`,
       appPath
     ]
   };

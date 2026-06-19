@@ -65,13 +65,15 @@ describe("Electron build wiring", () => {
           "--deep",
           "--sign",
           "-",
+          "--requirements",
+          '=designated => identifier "com.sskift.skfiy"',
           "/repo/dist/skfiy.app"
         ]
       },
       bundleIdentifier: "com.sskift.skfiy",
       bundledAppPath: "/repo/dist/skfiy.app/Contents/Resources/app",
       bundledExecutablePath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy",
-      bundledHelperPath: "/repo/dist/skfiy.app/Contents/Resources/skfiy-helper"
+      bundledHelperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
     });
     expect(packaging.createAdhocCodeSignCommand("/repo/dist/skfiy.app")).toEqual(
       packagePlan.adhocSignCommand

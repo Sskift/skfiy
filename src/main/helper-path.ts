@@ -20,9 +20,14 @@ export function resolveHelperPath({
     return env.SKFIY_HELPER_PATH;
   }
 
-  const bundledHelperPath = path.join(resourcesPath, "skfiy-helper");
+  const bundledHelperPath = path.join(resourcesPath, "..", "MacOS", "skfiy-helper");
   if (isPackaged || exists(bundledHelperPath)) {
     return bundledHelperPath;
+  }
+
+  const legacyBundledHelperPath = path.join(resourcesPath, "skfiy-helper");
+  if (exists(legacyBundledHelperPath)) {
+    return legacyBundledHelperPath;
   }
 
   return path.join(appPath, "dist", "skfiy-helper");

@@ -33,6 +33,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 
 1. **Launch and permission model is wrong for product use.**
    Development launch through tmux caused macOS Accessibility prompts to be attributed to tw-dashboard. Product launch must be a real app bundle with stable identity, signing, and permission onboarding.
+   2026-06-19 update: direct `skfiy-helper` probes can report authorized through the Codex/terminal parent chain while the product-launched `skfiy.app -> helper` path still reports denied. Permission-sensitive helper calls must be validated only through `skfiy.app`, and the helper must be embedded beside the app executable so TCC can associate the call chain with the app bundle instead of a loose helper binary.
 
 2. **Voice is not a fully proven voice stack yet.**
    Current implementation has Doubao shortcut bridging, Chromium Web Speech fallback, and a native macOS Speech framework one-shot prototype with silence timeout. Native stop/cancel now aborts the in-flight helper recording process, but the stack still needs native provider dogfood after Speech Recognition permission is granted, long-running VAD polish, and broader real-audio failure-state testing.
@@ -147,6 +148,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 Goal: remove permission confusion, make voice lifecycle explicit, make app identity stable.
 
 - [x] Package a local macOS app bundle with fixed bundle ID and embedded Swift helper.
+- [x] Move the Swift helper into `skfiy.app/Contents/MacOS/skfiy-helper` so product-path permission checks use the app bundle execution identity instead of a loose `Resources` helper.
 - [x] Add a startup guard that warns when running under tmux/dev shell for user testing.
 - [x] Build a permissions center:
   - [x] Screen Recording status.

@@ -25,6 +25,7 @@ This document is mandatory for all skfiy work. It exists because desktop agents 
 
 5. **Computer Use must be tested through the product path, not only the helper path.**
    Direct helper tests prove low-level capability. They do not prove skfiy works. A valid Computer Use test must go through renderer -> preload -> main -> helper -> target app.
+   Permission evidence is valid only when collected through `skfiy.app`; direct `skfiy-helper` probes can inherit the terminal/Codex parent chain and must not be used to claim Screen Recording or Accessibility readiness. The packaged helper belongs in `skfiy.app/Contents/MacOS/skfiy-helper`, not as a loose `Contents/Resources` executable.
 
 6. **Global hotkey automation must verify registration separately from behavior.**
    Electron can report a global shortcut as registered while macOS ignores synthetic keyboard events from helper tools or System Events. For stop-turn work, query `window.skfiy.getRuntimeStatus()` from the packaged app to verify registration, then verify stop behavior through a focused product state such as approval_required -> Escape -> idle.
@@ -52,6 +53,8 @@ open -na /absolute/path/to/skfiy.app
 ```
 
 The app must have a stable bundle identifier and embed the Swift helper. Screen Recording, Accessibility, and Microphone permissions must be granted to that app identity.
+The embedded helper must live beside the app executable at `Contents/MacOS/skfiy-helper`; this keeps permission-sensitive calls on the packaged app's execution path for user-facing tests.
+Local unsigned builds must also carry the stable designated requirement `identifier "com.sskift.skfiy"`. A plain ad-hoc `cdhash` signature changes on every build and invalidates existing TCC grants even when the visible app path and name are unchanged.
 
 ### Temporary Engineering Debug Only
 

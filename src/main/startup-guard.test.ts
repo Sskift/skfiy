@@ -10,7 +10,7 @@ describe("readStartupWarnings", () => {
         env: {},
         isPackaged: false,
         resourcesPath: "/repo/dist/skfiy.app/Contents/Resources",
-        exists: (candidate) => candidate.endsWith("/Resources/skfiy-helper")
+        exists: (candidate) => candidate.endsWith("/Contents/MacOS/skfiy-helper")
       })
     ).toEqual([]);
   });
