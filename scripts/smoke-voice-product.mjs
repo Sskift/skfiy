@@ -14,7 +14,12 @@ import {
   writeVoiceSmokeEvidence
 } from "./smoke-voice-plan.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
-import { SKFIY_APP_PROCESS_PATTERN } from "./skfiy-process-matching.mjs";
+import {
+  filterSkfiyGhosttySessionProcessLines,
+  parseProcessIds,
+  SKFIY_APP_PROCESS_PATTERN,
+  SKFIY_GHOSTTY_SESSION_PROCESS_PATTERN
+} from "./skfiy-process-matching.mjs";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -66,6 +71,7 @@ async function main() {
 
     if (!options.keepExisting) {
       await quitSkfiy();
+      await quitSkfiyGhosttySessions();
       await sleep(700);
     }
 
@@ -169,8 +175,10 @@ async function main() {
   } finally {
     if (!options.keepOpen) {
       await quitSkfiy();
+      await quitSkfiyGhosttySessions();
       await sleep(700);
       evidence.processesAfterCleanup = await readSkfiyProcesses();
+      evidence.skfiyGhosttyProcessesAfterCleanup = await readSkfiyGhosttyProcesses();
     }
     await smokeLock?.release();
 
@@ -398,6 +406,20 @@ async function quitSkfiy() {
   ]).catch(() => undefined);
 }
 
+async function quitSkfiyGhosttySessions() {
+  const remaining = parseProcessIds(await readSkfiyGhosttyProcesses());
+  if (remaining.length > 0) {
+    await terminateProcesses(remaining, "SIGTERM");
+    await waitForSkfiyGhosttySessionsExit(2_000);
+  }
+
+  const stubborn = parseProcessIds(await readSkfiyGhosttyProcesses());
+  if (stubborn.length > 0) {
+    await terminateProcesses(stubborn, "SIGKILL");
+    await waitForSkfiyGhosttySessionsExit(1_000);
+  }
+}
+
 async function readSkfiyProcesses() {
   try {
     const { stdout } = await execFileAsync("pgrep", [
@@ -407,6 +429,40 @@ async function readSkfiyProcesses() {
     return stdout.trim().split("\n").filter(Boolean);
   } catch {
     return [];
+  }
+}
+
+async function readSkfiyGhosttyProcesses() {
+  try {
+    const { stdout } = await execFileAsync("pgrep", [
+      "-fl",
+      SKFIY_GHOSTTY_SESSION_PROCESS_PATTERN
+    ]);
+    return filterSkfiyGhosttySessionProcessLines(stdout.trim().split("\n").filter(Boolean));
+  } catch {
+    return [];
+  }
+}
+
+async function waitForSkfiyGhosttySessionsExit(timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if ((await readSkfiyGhosttyProcesses()).length === 0) {
+      return;
+    }
+
+    await sleep(100);
+  }
+}
+
+async function terminateProcesses(pids, signal) {
+  for (const pid of pids) {
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // Process already exited.
+    }
   }
 }
 

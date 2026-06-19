@@ -46,16 +46,20 @@ describe("smoke process matching", () => {
     expect(parseProcessIds(matches)).toEqual([24984, 25022]);
   });
 
-  it("terminates skfiy-owned Ghostty smoke sessions during Ghostty smoke cleanup", () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts", "smoke-ghostty-product.mjs"),
-      "utf8"
+  it("terminates skfiy-owned Ghostty sessions during product smoke cleanup", () => {
+    const sources = [
+      "smoke-ghostty-product.mjs",
+      "smoke-voice-product.mjs"
+    ].map((scriptName) =>
+      readFileSync(path.join(process.cwd(), "scripts", scriptName), "utf8")
     );
 
-    expect(source).toContain("quitSkfiyGhosttySessions");
-    expect(source).toContain("terminateProcesses");
-    expect(source).toContain("SIGTERM");
-    expect(source).toContain("SIGKILL");
+    for (const source of sources) {
+      expect(source).toContain("quitSkfiyGhosttySessions");
+      expect(source).toContain("terminateProcesses");
+      expect(source).toContain("SIGTERM");
+      expect(source).toContain("SIGKILL");
+    }
   });
 
   it("keeps product smoke scripts off the broad dist/skfiy.app process pattern", () => {
