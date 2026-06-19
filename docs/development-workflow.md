@@ -130,6 +130,10 @@ still presenting an uncontrollable sleep/lock/login session to Computer Use even
 if System Settings says permissions are granted. Wake the display, unlock the
 Mac, and rerun this preflight before claiming Ghostty, Finder, Chrome screenshot
 fallback, or voice-driven Computer Use works.
+When `dogfood:status` sees this blocker in local smoke artifacts, its next
+actions include the exact `smoke:desktop-session` command to rerun and a reminder
+to rerun Ghostty, Finder, and voice product smokes with `--require-passed` only
+after the preflight passes.
 The preflight's `permissions.speechRecognition` field is direct-helper scoped
 and can differ from app-scoped Speech Recognition grants. Use
 `permissionInterpretation.defaultExternalDoubaoReady` for the default external

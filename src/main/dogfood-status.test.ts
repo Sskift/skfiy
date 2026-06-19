@@ -438,11 +438,14 @@ describe("dogfood status reporter", () => {
         }
       },
       nextActions: expect.arrayContaining([
-        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence."
+        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.",
+        "After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.",
+        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
     expect(io.textFiles[summaryPath]).toContain("blocked: Desktop session is locked by loginwindow");
+    expect(io.textFiles[summaryPath]).toContain("npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json");
   });
 
   it("reports desktop session blockers from Ghostty/Finder/voice smoke preflight artifacts", async () => {
@@ -516,11 +519,14 @@ describe("dogfood status reporter", () => {
         }
       },
       nextActions: expect.arrayContaining([
-        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence."
+        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.",
+        "After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.",
+        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
     expect(io.textFiles[summaryPath]).toContain("blocked: Main display is asleep before target app launch");
+    expect(io.textFiles[summaryPath]).toContain("npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json");
   });
 
   it("reports missing manifest smoke artifacts without aborting status", async () => {

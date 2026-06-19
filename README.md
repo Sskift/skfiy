@@ -193,6 +193,9 @@ differ from app-scoped `smoke:ui` speech evidence.
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
 review commands for the next real tester slots and missing workflow coverage.
+When local smoke evidence shows `loginwindow`, display sleep, or black-screen
+desktop blockers, `dogfood:status` also prints the `smoke:desktop-session`
+preflight command to rerun after unlocking plus the passed-smoke follow-up.
 Use `--json-output` to persist the same status object as clean JSON for
 automation, dashboards, and follow-up agents without scraping npm stdout.
 When it can read GitHub comments, it also reports whether the current
