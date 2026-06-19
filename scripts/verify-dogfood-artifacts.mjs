@@ -1556,12 +1556,18 @@ function hasPermissionBlockedFinderSemanticObservation(value) {
 
 function isPermissionBlockedMessage(message) {
   const normalized = message.toLowerCase();
-  return normalized.includes("permission")
-    && (
-      normalized.includes("accessibility")
-      || normalized.includes("screen recording")
-      || normalized.includes("automation")
-    );
+  return (
+    normalized.includes("desktop session is not controllable")
+    || normalized.includes("loginwindow is frontmost")
+    || (
+      normalized.includes("permission")
+      && (
+        normalized.includes("accessibility")
+        || normalized.includes("screen recording")
+        || normalized.includes("automation")
+      )
+    )
+  );
 }
 
 function hasFinderOrganizationActionVerification(events) {

@@ -290,6 +290,24 @@ export function createPermissionBlockedFinderEvidence(permissions) {
   };
 }
 
+export function createBlockedEnvironmentFinderEvidence(events) {
+  const blockedEvent = Array.isArray(events)
+    ? events.find((event) =>
+        typeof event?.message === "string"
+          && isBlockedEnvironmentMessage(event.message)
+      )
+    : undefined;
+
+  if (!blockedEvent) {
+    return undefined;
+  }
+
+  return {
+    result: "blocked",
+    reason: `Finder Computer Use environment blocked: ${blockedEvent.message}`
+  };
+}
+
 export function readFinderProductPath(targetMode) {
   if (targetMode === "drag-probe") {
     return DRAG_PROBE_PRODUCT_PATH;

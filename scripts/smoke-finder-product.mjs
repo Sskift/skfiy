@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
   classifyFinderSmokeEvidence,
+  createBlockedEnvironmentFinderEvidence,
   createFinderTargetDirSafetyEvidence,
   createPermissionBlockedFinderEvidence,
   createDefaultFinderSmokeOptions,
@@ -708,7 +709,8 @@ function readFinderItemDragDrop(events, finderObservation, fixtureRoot) {
 }
 
 function applyPermissionBlockedFinderEvidence(evidence) {
-  const permissionBlock = createPermissionBlockedFinderEvidence(evidence.permissions);
+  const permissionBlock = createPermissionBlockedFinderEvidence(evidence.permissions)
+    ?? createBlockedEnvironmentFinderEvidence(evidence.events);
   if (!permissionBlock) {
     return;
   }

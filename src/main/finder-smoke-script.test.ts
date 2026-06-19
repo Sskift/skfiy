@@ -283,6 +283,25 @@ describe("Finder product smoke script", () => {
     });
   });
 
+  it("creates blocked Finder evidence when loginwindow prevents desktop control", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      createBlockedEnvironmentFinderEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      createBlockedEnvironmentFinderEvidence: (events: Array<Record<string, unknown>>) => Record<string, unknown> | undefined;
+    };
+
+    expect(createBlockedEnvironmentFinderEvidence([
+      {
+        status: "needs_confirmation",
+        message: "Verification failed (activate): Desktop session is not controllable because loginwindow is frontmost. Unlock the Mac and keep the display awake, then try again."
+      }
+    ])).toMatchObject({
+      result: "blocked",
+      reason: expect.stringContaining("loginwindow is frontmost")
+    });
+  });
+
   it("times out stalled Finder smoke async operations with a labelled error", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
     const {
