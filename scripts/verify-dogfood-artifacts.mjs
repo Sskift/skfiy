@@ -1107,7 +1107,7 @@ function hasDesktopPreflightBlockedEvidence(artifact) {
     || typeof preflight.appPath !== "string"
     || typeof preflight.helperPath !== "string"
     || typeof preflight.reason !== "string"
-    || !preflight.reason.includes("Desktop session is not controllable")
+    || !isDesktopPreflightBlockedReason(preflight)
   ) {
     return false;
   }
@@ -1127,6 +1127,15 @@ function hasDesktopPreflightBlockedEvidence(artifact) {
         )
       )
   );
+}
+
+function isDesktopPreflightBlockedReason(preflight) {
+  if (preflight.reason.includes("Desktop session is not controllable")) {
+    return true;
+  }
+
+  return preflight.display?.mainDisplayAsleep === true
+    && preflight.reason.includes("Main display is asleep");
 }
 
 function isNativeSpeechStatus(value) {
@@ -1646,6 +1655,7 @@ function isPermissionBlockedMessage(message) {
   const normalized = message.toLowerCase();
   return (
     normalized.includes("desktop session is not controllable")
+    || normalized.includes("main display is asleep")
     || normalized.includes("loginwindow is frontmost")
     || (
       normalized.includes("permission")

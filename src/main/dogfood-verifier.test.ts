@@ -463,6 +463,13 @@ describe("dogfood artifact verifier", () => {
     result: "blocked",
     reason: "Desktop session is not controllable before target app launch: frontmostBundleId=com.apple.loginwindow frontmostProcessIdentifier=591. Unlock the Mac and keep the display awake, then retry."
   });
+  const createDisplayAsleepPreflightBlockedEvidence = () => ({
+    ...createDesktopPreflightBlockedEvidence(),
+    display: {
+      mainDisplayAsleep: true
+    },
+    reason: "Main display is asleep before target app launch and frontmostBundleId=com.apple.loginwindow frontmostProcessIdentifier=591. Wake and unlock the Mac, then retry."
+  });
   const createDesktopPreflightBlockedEvent = () => {
     const desktopPreflight = createDesktopPreflightBlockedEvidence();
 
@@ -827,6 +834,92 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "ghostty.processesAfterCleanup", ok: true }),
         expect.objectContaining({ id: "finder.processesAfterCleanup", ok: true }),
         expect.objectContaining({ id: "voice.processesAfterCleanup", ok: true })
+      ])
+    });
+  });
+
+  it("accepts display-asleep desktop preflight blocked evidence before target app launch", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const desktopPreflight = createDisplayAsleepPreflightBlockedEvidence();
+    const desktopPreflightEvent = {
+      status: "failed",
+      message: desktopPreflight.reason,
+      desktopPreflight
+    };
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> Ghostty",
+        artifactPath: ghosttySmokePath,
+        desktopPreflight,
+        events: [desktopPreflightEvent]
+      },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder",
+        artifactPath: finderSmokePath,
+        targetMode: "item-drag-drop",
+        desktopPreflight,
+        events: [desktopPreflightEvent],
+        finderObservation: {
+          result: "blocked",
+          reason: desktopPreflight.reason
+        }
+      },
+      [voiceSmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: doubaoVoiceProductPath,
+        artifactPath: voiceSmokePath,
+        provider: "doubao",
+        desktopPreflight,
+        taskEvents: [desktopPreflightEvent]
+      }
+    }))).resolves.toMatchObject({
+      result: "passed",
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "ghostty.desktopPreflight", ok: true }),
+        expect.objectContaining({ id: "finder.desktopPreflight", ok: true }),
+        expect.objectContaining({ id: "voice.desktopPreflight", ok: true })
       ])
     });
   });
