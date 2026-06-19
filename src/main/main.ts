@@ -175,6 +175,7 @@ function emitDictationTranscriptEvent(
     text: string;
     isFinal: boolean;
     confidence?: number;
+    provenance?: object;
   }
 ) {
   if (!window || window.isDestroyed()) {
@@ -501,6 +502,9 @@ function readVoiceTranscriptCandidate(value: unknown): VoiceTurnTranscriptCandid
     isFinal: candidate.isFinal,
     confidence: typeof candidate.confidence === "number" && Number.isFinite(candidate.confidence)
       ? candidate.confidence
+      : undefined,
+    provenance: candidate.provenance && typeof candidate.provenance === "object"
+      ? candidate.provenance
       : undefined
   };
 }
@@ -977,7 +981,8 @@ ipcMain.handle("skfiy:prepare-dictation", async (event) => {
         const update = {
           text: transcript.text,
           isFinal: transcript.isFinal,
-          confidence: transcript.confidence
+          confidence: transcript.confidence,
+          provenance: transcript.provenance
         };
 
         try {

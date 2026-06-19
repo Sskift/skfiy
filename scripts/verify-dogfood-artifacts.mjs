@@ -998,6 +998,14 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
       hasFinalVoiceTranscriptEvidence(artifact.transcriptEvents, provider),
       "passed voice smoke must include a final non-empty transcript event"
     );
+    if (provider === "native-macos") {
+      check(
+        checks,
+        "voice.nativeTranscriptProvenance",
+        hasNativeTranscriptProvenance(artifact.transcriptEvents),
+        "passed native macOS voice smoke must include native helper transcript provenance with source, locale, duration, silence timeout, and configured limits"
+      );
+    }
     if (provider === "doubao") {
       check(
         checks,
@@ -2052,11 +2060,19 @@ function hasVoiceProviderLifecycleEvidence(events, provider) {
 }
 
 function hasFinalVoiceTranscriptEvidence(events, provider) {
+  return Boolean(readFinalVoiceTranscriptEvent(events, provider));
+}
+
+function readFinalVoiceTranscriptText(events, provider) {
+  return readTrimmedString(readFinalVoiceTranscriptEvent(events, provider)?.text);
+}
+
+function readFinalVoiceTranscriptEvent(events, provider) {
   if (!Array.isArray(events)) {
-    return false;
+    return undefined;
   }
 
-  return events.some((event) =>
+  return events.find((event) =>
     event?.providerId === provider
       && event.isFinal === true
       && typeof event.text === "string"
@@ -2064,19 +2080,20 @@ function hasFinalVoiceTranscriptEvidence(events, provider) {
   );
 }
 
-function readFinalVoiceTranscriptText(events, provider) {
-  if (!Array.isArray(events)) {
-    return "";
-  }
+function hasNativeTranscriptProvenance(events) {
+  const provenance = readFinalVoiceTranscriptEvent(events, "native-macos")?.provenance;
 
-  const finalEvent = events.find((event) =>
-    event?.providerId === provider
-      && event.isFinal === true
-      && typeof event.text === "string"
-      && event.text.trim().length > 0
+  return Boolean(
+    provenance
+      && typeof provenance === "object"
+      && provenance.source === "native-macos-speech-helper"
+      && typeof provenance.locale === "string"
+      && provenance.locale.trim().length > 0
+      && readOptionalPositiveNumber(provenance.durationMs) > 0
+      && typeof provenance.silenceTimedOut === "boolean"
+      && readOptionalPositiveNumber(provenance.maxDurationMs) > 0
+      && readOptionalPositiveNumber(provenance.silenceTimeoutMs) > 0
   );
-
-  return readTrimmedString(finalEvent?.text);
 }
 
 function readTrimmedString(value) {

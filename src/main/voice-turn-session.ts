@@ -36,6 +36,7 @@ export interface VoiceTurnTranscriptInput {
 
 export interface VoiceTurnTranscriptCandidateInput extends VoiceTurnTranscriptInput {
   isFinal: boolean;
+  provenance?: object;
 }
 
 export interface VoiceTurnSessionStoreOptions {

@@ -66,7 +66,12 @@ describe("voice product smoke script", () => {
         provider?: string;
         providerEvents?: Array<{ state: string; message?: string }>;
         taskEvents?: Array<{ status: string; message?: string }>;
-        transcriptEvents?: Array<{ providerId?: string; isFinal?: boolean; text?: string }>;
+        transcriptEvents?: Array<{
+          providerId?: string;
+          isFinal?: boolean;
+          text?: string;
+          provenance?: Record<string, unknown>;
+        }>;
         externalInput?: unknown;
         turnReplay?: unknown;
         runnerHasTmux?: boolean;
@@ -118,7 +123,18 @@ describe("voice product smoke script", () => {
       { state: "stopped", message: "macOS system speech finished." }
     ];
     const transcriptEvents = [
-      { isFinal: true, text: "打开 Ghostty 执行 pwd" }
+      {
+        isFinal: true,
+        text: "打开 Ghostty 执行 pwd",
+        provenance: {
+          source: "native-macos-speech-helper",
+          locale: "zh-CN",
+          durationMs: 1400,
+          silenceTimedOut: true,
+          maxDurationMs: 12000,
+          silenceTimeoutMs: 1500
+        }
+      }
     ];
     const taskEvents = [
       { status: "observing", message: "Preparing Computer Use command from voice transcript." }
@@ -145,6 +161,20 @@ describe("voice product smoke script", () => {
       ],
       turnReplay: createPassedGhosttyTurnReplay()
     })).toBe("passed");
+    expect(classifyVoiceSmokeEvidence({
+      provider: "native-macos",
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper -> native macOS Speech",
+      providerEvents,
+      transcriptEvents: [
+        { isFinal: true, text: "打开 Ghostty 执行 pwd" }
+      ],
+      taskEvents: [
+        { status: "completed", message: "Task completed from voice transcript." }
+      ],
+      turnReplay: createPassedGhosttyTurnReplay()
+    })).toBe("failed");
     expect(classifyVoiceSmokeEvidence({
       provider: "native-macos",
       appLaunchViaOpen: true,

@@ -224,7 +224,17 @@ export function createNativeMacOSDictationProvider({
 
         lifecycleState = "stopped";
         transcriptionAbortController = undefined;
-        emitTranscript(transcript);
+        emitTranscript({
+          ...transcript,
+          provenance: {
+            source: "native-macos-speech-helper",
+            locale,
+            durationMs: transcript.durationMs,
+            silenceTimedOut: transcript.silenceTimedOut,
+            maxDurationMs,
+            silenceTimeoutMs
+          }
+        });
         emit({
           providerId: "native-macos",
           state: "stopped",

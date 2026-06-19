@@ -239,7 +239,15 @@ describe("createNativeMacOSDictationProvider", () => {
         isFinal: true,
         confidence: 0.83,
         durationMs: 1400,
-        silenceTimedOut: true
+        silenceTimedOut: true,
+        provenance: {
+          source: "native-macos-speech-helper",
+          locale: "zh-CN",
+          durationMs: 1400,
+          silenceTimedOut: true,
+          maxDurationMs: 12000,
+          silenceTimeoutMs: 1500
+        }
       }
     ]);
     expect(transcriptionOptions).toEqual([

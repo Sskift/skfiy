@@ -139,6 +139,13 @@ export function classifyVoiceSmokeEvidence({
     return "no-transcript";
   }
 
+  if (
+    effectiveProvider === "native-macos"
+    && !hasNativeTranscriptProvenanceForProvider(transcriptEvents, effectiveProvider)
+  ) {
+    return "failed";
+  }
+
   if (effectiveProvider === "doubao" && !hasExternalDoubaoInputEvidence(externalInput)) {
     return "failed";
   }
@@ -193,6 +200,30 @@ function hasFinalTranscriptForProvider(events, provider) {
     && (provider ? event.providerId === undefined || event.providerId === provider : true)
     && typeof event.text === "string"
     && event.text.trim().length > 0
+  );
+}
+
+function hasNativeTranscriptProvenanceForProvider(events, provider) {
+  return events.some((event) =>
+    event?.isFinal === true
+    && (provider ? event.providerId === undefined || event.providerId === provider : true)
+    && typeof event.text === "string"
+    && event.text.trim().length > 0
+    && hasNativeTranscriptProvenance(event.provenance)
+  );
+}
+
+function hasNativeTranscriptProvenance(value) {
+  return Boolean(
+    value
+    && typeof value === "object"
+    && value.source === "native-macos-speech-helper"
+    && typeof value.locale === "string"
+    && value.locale.trim().length > 0
+    && readOptionalPositiveNumber(value.durationMs) > 0
+    && typeof value.silenceTimedOut === "boolean"
+    && readOptionalPositiveNumber(value.maxDurationMs) > 0
+    && readOptionalPositiveNumber(value.silenceTimeoutMs) > 0
   );
 }
 

@@ -80,12 +80,22 @@ export interface NativeSpeechTranscriptionOptions {
   signal?: AbortSignal;
 }
 
+export interface NativeSpeechTranscriptProvenance {
+  source: "native-macos-speech-helper";
+  locale: string;
+  durationMs: number;
+  silenceTimedOut: boolean;
+  maxDurationMs: number;
+  silenceTimeoutMs: number;
+}
+
 export interface NativeSpeechTranscriptionResult {
   text: string;
   isFinal: boolean;
   confidence?: number;
   durationMs: number;
   silenceTimedOut: boolean;
+  provenance?: NativeSpeechTranscriptProvenance;
 }
 
 export type FinderSelectionSource = "finder-applescript";

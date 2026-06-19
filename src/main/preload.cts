@@ -120,6 +120,7 @@ interface DictationTranscriptUpdate {
   text: string;
   isFinal: boolean;
   confidence?: number;
+  provenance?: object;
 }
 
 interface DictationTranscriptEvent extends DictationTranscriptUpdate {
@@ -572,6 +573,9 @@ function isDictationTranscriptEvent(value: unknown): value is DictationTranscrip
     && typeof event.isFinal === "boolean"
     && (event.sessionId === undefined || typeof event.sessionId === "string")
     && (event.confidence === undefined || typeof event.confidence === "number")
+    && (event.provenance === undefined || (
+      typeof event.provenance === "object" && event.provenance !== null
+    ))
   );
 }
 
