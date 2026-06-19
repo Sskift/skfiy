@@ -54,6 +54,11 @@ const APP_RELEVANT_PATHS = new Set([
   "scripts/create-alpha-artifact.mjs",
   "scripts/package-macos-app.mjs"
 ]);
+const LATEST_ALPHA_EVIDENCE_RELATIVE_PATH = path.join(
+  "docs",
+  "release-evidence",
+  "latest-alpha.json"
+);
 export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     rootDir,
@@ -277,6 +282,10 @@ export function createDogfoodStatusMarkdown(status) {
         `Alpha is current HEAD: ${status.manifest.checks.currentHead.ok ? "yes" : "no"}`,
         `Alpha app code current: ${readCurrentHeadAppCodeLabel(status.manifest.checks.currentHead)}`
       ]
+      : []),
+    `Release evidence current: ${readReleaseEvidenceLabel(status.manifest.checks.releaseEvidence)}`,
+    ...(status.manifest.checks.releaseEvidence?.ok === false
+      ? status.manifest.checks.releaseEvidence.reasons.map((reason) => `Release evidence invalid: ${reason}`)
       : []),
     `Accepted report URLs: ${status.trackingIssue.acceptedReportCount}/3 minimum`,
     `Verified accepted report URLs: ${status.trackingIssue.verifiedAcceptedReportCount}/3 minimum`,
@@ -561,7 +570,8 @@ function readRequiredPermissionKeys(smokeArtifacts) {
 async function readManifestChecks(manifest, options, io) {
   const checks = {
     currentHead: undefined,
-    zipReadable: false
+    zipReadable: false,
+    releaseEvidence: await readReleaseEvidenceCheck(manifest, options, io)
   };
 
   if (options.requireCurrentHead || typeof io.readCurrentHead === "function") {
@@ -616,6 +626,89 @@ async function readManifestChecks(manifest, options, io) {
   }
 
   return checks;
+}
+
+async function readReleaseEvidenceCheck(manifest, options, io) {
+  const evidencePath = readReleaseEvidencePath(options);
+
+  try {
+    const evidence = await io.readJson(evidencePath);
+    const reasons = readReleaseEvidenceMismatchReasons({
+      evidence,
+      manifest,
+      manifestPath: options.manifestPath,
+      trackingIssueUrl: options.trackingIssueUrl
+    });
+
+    return {
+      available: true,
+      ok: reasons.length === 0,
+      path: evidencePath,
+      expectedTag: readManifestAlphaTag(manifest),
+      actualTag: typeof evidence?.tagName === "string" ? evidence.tagName : undefined,
+      reasons
+    };
+  } catch (error) {
+    return {
+      available: false,
+      ok: null,
+      path: evidencePath,
+      reason: isMissingFileError(error)
+        ? "release evidence file is missing"
+        : error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+function readReleaseEvidencePath(options) {
+  if (typeof options.releaseEvidencePath === "string" && options.releaseEvidencePath.trim().length > 0) {
+    return options.releaseEvidencePath;
+  }
+
+  return path.join(
+    options.rootDir ?? DEFAULT_ROOT_DIR,
+    LATEST_ALPHA_EVIDENCE_RELATIVE_PATH
+  );
+}
+
+function readReleaseEvidenceMismatchReasons({
+  evidence,
+  manifest,
+  manifestPath,
+  trackingIssueUrl
+}) {
+  const reasons = [];
+  const expectedTag = readManifestAlphaTag(manifest);
+  const expectedReleaseUrl = readManifestReleaseUrl(manifest, trackingIssueUrl);
+  const expectedCommitSha = typeof manifest?.commitSha === "string" ? manifest.commitSha.trim() : "";
+  const expectedArtifactBaseName =
+    typeof manifest?.artifactBaseName === "string" ? manifest.artifactBaseName.trim() : "";
+  const expectedZipPath = typeof manifest?.zip?.path === "string" ? manifest.zip.path : "";
+  const expectedZipSha256 = typeof manifest?.zip?.sha256 === "string" ? manifest.zip.sha256.trim() : "";
+
+  if (evidence?.tagName !== expectedTag) {
+    reasons.push("release evidence tagName does not match manifest commit");
+  }
+  if (evidence?.releaseUrl !== expectedReleaseUrl) {
+    reasons.push("release evidence releaseUrl does not match manifest commit");
+  }
+  if (evidence?.commitSha !== expectedCommitSha) {
+    reasons.push("release evidence commitSha does not match manifest commitSha");
+  }
+  if (evidence?.artifactBaseName !== expectedArtifactBaseName) {
+    reasons.push("release evidence artifactBaseName does not match manifest artifactBaseName");
+  }
+  if (!matchesIssuePathOrBasename(String(evidence?.manifestPath ?? ""), manifestPath)) {
+    reasons.push("release evidence manifestPath does not match selected manifest");
+  }
+  if (!matchesIssuePathOrBasename(String(evidence?.zipPath ?? ""), expectedZipPath)) {
+    reasons.push("release evidence zipPath does not match manifest zip.path");
+  }
+  if (evidence?.zipSha256 !== expectedZipSha256) {
+    reasons.push("release evidence zipSha256 does not match manifest zip.sha256");
+  }
+
+  return reasons;
 }
 
 function normalizeRepoPath(filePath) {
@@ -692,6 +785,13 @@ function readCurrentHeadAppCodeLabel(currentHead) {
     return "no";
   }
   return "unknown";
+}
+
+function readReleaseEvidenceLabel(releaseEvidence) {
+  if (!releaseEvidence || releaseEvidence.available !== true) {
+    return "unavailable";
+  }
+  return releaseEvidence.ok === true ? "yes" : "no";
 }
 
 async function readOptionalCurrentHead(options, io) {
@@ -772,6 +872,11 @@ function createNextActions({
       manifestChecks.currentHead.required === true
         ? "Regenerate the alpha artifact so manifest commitSha matches the current HEAD."
         : "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha."
+    );
+  }
+  if (manifestChecks.releaseEvidence?.available === true && manifestChecks.releaseEvidence.ok !== true) {
+    actions.push(
+      `Refresh ${LATEST_ALPHA_EVIDENCE_RELATIVE_PATH} so it points at the selected ${manifestChecks.releaseEvidence.expectedTag} release before handing off the alpha.`
     );
   }
   if (canRunCollect) {

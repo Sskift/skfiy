@@ -677,6 +677,84 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("Alpha app code current: yes");
   });
 
+  it("warns when docs release evidence still points at an older alpha", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      "/repo/docs/release-evidence/latest-alpha.json": {
+        tagName: "skfiy-alpha-old9999",
+        releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-old9999",
+        commitSha: "old9999",
+        artifactBaseName: "skfiy-0.1.0-old9999-macos-unsigned",
+        manifestPath: ".skfiy-alpha/skfiy-0.1.0-old9999-macos-unsigned.json",
+        zipPath: ".skfiy-alpha/skfiy-0.1.0-old9999-macos-unsigned.zip",
+        zipSha256: "oldhash"
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      manifest: {
+        checks: {
+          releaseEvidence: {
+            available: true,
+            ok: false,
+            path: "/repo/docs/release-evidence/latest-alpha.json",
+            reasons: [
+              "release evidence tagName does not match manifest commit",
+              "release evidence releaseUrl does not match manifest commit",
+              "release evidence commitSha does not match manifest commitSha",
+              "release evidence artifactBaseName does not match manifest artifactBaseName",
+              "release evidence manifestPath does not match selected manifest",
+              "release evidence zipPath does not match manifest zip.path",
+              "release evidence zipSha256 does not match manifest zip.sha256"
+            ]
+          }
+        }
+      },
+      nextActions: expect.arrayContaining([
+        "Refresh docs/release-evidence/latest-alpha.json so it points at the selected skfiy-alpha-abc123 release before handing off the alpha."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("Release evidence current: no");
+    expect(io.textFiles[summaryPath]).toContain(
+      "release evidence tagName does not match manifest commit"
+    );
+  });
+
   it("recommends concrete tester assignments for missing real reports and workflow coverage", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
