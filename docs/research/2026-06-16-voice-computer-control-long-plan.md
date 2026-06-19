@@ -508,17 +508,15 @@ With one engineer, the same scope is closer to 6-8 weeks because packaging, ASR,
 
 ## Recommended Next Move
 
-Do not add more random UI features. The next implementation milestone should be:
+Do not add more random UI features. The native desktop-control foundation now exists: stable app identity, permission onboarding, packaged helper attribution, dedicated Ghostty session isolation, replay logs, and fail-closed desktop-session preflight are implemented. The next implementation milestone is field proof:
 
-1. Package stable app identity.
-2. Fix permissions onboarding.
-   - current state: permission center plus left-click onboarding and Computer Use preflight now name missing grants before voice or target-app actions; the right-click diagnostics panel and UI smoke artifact also surface locked/black-screen desktop-session blockers separately from TCC permission state
-   - current state: Ghostty and Finder runtime task generators now read packaged helper desktop-session status before opening, activating, or observing target apps, and fail closed with the same loginwindow/display-asleep reason used by UI diagnostics
-3. Implement dedicated Ghostty session.
-4. Build minimal observe-plan-act-verify loop with replay logs.
-5. Keep voice provider pluggable and make Doubao setup explicit.
+1. Complete the product-path native speech turn after Speech Recognition permission is granted.
+2. Unlock and keep the tester Mac awake, rerun `smoke:desktop-session`, then rerun Ghostty, Finder, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes.
+3. Collect 3-5 accepted real tester reports covering `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`.
+4. Run `dogfood:collect`, `dogfood:cohort`, and the strict `dogfood:cohort --require-passed` gate on those accepted reports.
+5. Run the long-horizon `money-run` supervision field task after release gates pass, preserving product-path launch, approval, screenshot/action verification, stop behavior, and `tmuxSupervisionReport` evidence.
 
-This gives us a real Computer Use foundation and a clear competitive story against AIME: AIME owns assistant workflows and browser extension control; skfiy proves native desktop control with voice-first, pet-visible, permissioned execution.
+This moves skfiy from a locally demonstrated Computer Use foundation to the evidence AIME does not yet cover: native desktop control with voice-first, pet-visible, permissioned execution that survives real tester machines and long-horizon supervision.
 
 ## Sources Checked
 
