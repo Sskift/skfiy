@@ -708,6 +708,56 @@ describe("DesktopHelperClient", () => {
     });
   });
 
+  it("explains activate-app failures when macOS keeps loginwindow frontmost", async () => {
+    const { client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "activate-app",
+          data: {
+            bundleId: "com.mitchellh.ghostty",
+            processIdentifier: 54502,
+            activated: false,
+            requestedActivation: false,
+            frontmostBundleId: "com.apple.loginwindow"
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(client.activateApp("com.mitchellh.ghostty", 54502)).resolves.toEqual({
+      ok: false,
+      message: "Desktop session is not controllable because loginwindow is frontmost. Unlock the Mac and keep the display awake, then try again."
+    });
+  });
+
+  it("explains activate-app failures with the app that stayed frontmost", async () => {
+    const { client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "activate-app",
+          data: {
+            bundleId: "com.mitchellh.ghostty",
+            processIdentifier: 54502,
+            activated: false,
+            requestedActivation: true,
+            frontmostBundleId: "com.apple.finder"
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(client.activateApp("com.mitchellh.ghostty", 54502)).resolves.toEqual({
+      ok: false,
+      message: "Target app did not become frontmost; current frontmost app is com.apple.finder."
+    });
+  });
+
   it("throws useful errors when the helper exits non-zero", async () => {
     const { client } = createClientWithResponses([
       {

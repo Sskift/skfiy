@@ -170,7 +170,7 @@ export function classifySmokeResult(events) {
   if (
     last.status === "failed"
     && typeof last.message === "string"
-    && isPermissionBlockedMessage(last.message)
+    && isBlockedEnvironmentMessage(last.message)
   ) {
     return "blocked";
   }
@@ -210,13 +210,21 @@ export function classifySmokeRunEvidence({
   return "passed";
 }
 
-function isPermissionBlockedMessage(message) {
+function isBlockedEnvironmentMessage(message) {
   const normalized = message.toLowerCase();
   return (
-    normalized.includes("permission")
+    isPermissionBlockedMessage(normalized)
+    || normalized.includes("desktop session is not controllable")
+    || normalized.includes("loginwindow is frontmost")
+  );
+}
+
+function isPermissionBlockedMessage(normalizedMessage) {
+  return (
+    normalizedMessage.includes("permission")
     && (
-      normalized.includes("accessibility")
-      || normalized.includes("screen recording")
+      normalizedMessage.includes("accessibility")
+      || normalizedMessage.includes("screen recording")
     )
   );
 }

@@ -197,6 +197,24 @@ describe("Ghostty product smoke script", () => {
     ])).toBe("blocked");
   });
 
+  it("classifies locked or unavailable desktop sessions as blocked", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      classifySmokeResult
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifySmokeResult: (
+        events: Array<{ status: string; message?: string }>
+      ) => string;
+    };
+
+    expect(classifySmokeResult([
+      {
+        status: "failed",
+        message: "Desktop session is not controllable because loginwindow is frontmost. Unlock the Mac and keep the display awake, then try again."
+      }
+    ])).toBe("blocked");
+  });
+
   it("requires product-path screenshot and action verification evidence before classifying a completed run as passed", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
     const {

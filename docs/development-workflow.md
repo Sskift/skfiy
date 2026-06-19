@@ -56,6 +56,7 @@ The app must have a stable bundle identifier and embed the Swift helper. Screen 
 The embedded helper must live beside the app executable at `Contents/MacOS/skfiy-helper`; this keeps permission-sensitive calls on the packaged app's execution path for user-facing tests.
 Local unsigned builds must also carry the stable designated requirement `identifier "com.sskift.skfiy"`. A plain ad-hoc `cdhash` signature changes on every build and invalidates existing TCC grants even when the visible app path and name are unchanged.
 The packaged bundle must pass `codesign --verify --deep --strict` before any permission test. If nested Electron code or `skfiy-helper` invalidates the app signature, System Settings can show a stale `skfiy` row while Electron's own `systemPreferences` APIs still report Screen Recording and Accessibility as denied.
+Permission grants are necessary but not sufficient for Computer Use. The real desktop session must be unlocked and controllable: if `skfiy-helper` reports `frontmostBundleId: com.apple.loginwindow`, or screenshots are black while Screen Recording/Accessibility are granted, product smoke must report `blocked` with that concrete session-state reason instead of a generic helper failure.
 
 ### Temporary Engineering Debug Only
 
@@ -154,6 +155,7 @@ npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
 Run product smoke commands sequentially. `smoke:ui`, `smoke:ghostty`, `smoke:chrome`, `smoke:finder`, and `smoke:voice` share a `.skfiy-smoke/product-smoke.lock` guard so concurrent packaged-app runs fail instead of producing contaminated cleanup evidence.
 
 Use `npm run smoke:ghostty -- --require-passed` only when Screen Recording and Accessibility are already granted to `dist/skfiy.app`; otherwise the expected result is `blocked` with fail-closed evidence.
+Use `--require-passed` only when the active macOS desktop is also unlocked and awake. When LaunchServices starts the app successfully but the helper still sees `com.apple.loginwindow` as frontmost, the valid result is `blocked`; unlock the Mac and rerun before claiming Ghostty execution works.
 The smoke output is JSON and includes launch identity, task events, permissions, startup warnings, runtime hotkey status, app policy settings, replay records, screenshot file sizes, matrix run results, and cleanup process checks. Use `--matrix --output <path>` to persist the exact JSON evidence for dogfood reports. Dogfood Ghostty evidence must include `clipboard-read-approval` and `clipboard-write-approval` runs with `needs-user-confirmation` and the high-risk clipboard approval message. A `passed` result requires LaunchServices app launch, `runnerHasTmux=false`, the product path `renderer -> preload -> main -> helper -> Ghostty`, visible Ghostty app policy settings, a completed task event, `Verified type_text` and `Verified press_key` action verification events, and non-empty before/after screenshot files.
 
 ### Safety Smoke

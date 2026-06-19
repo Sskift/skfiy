@@ -40,7 +40,13 @@ import Vision
      activationPolicy: "regular" | "accessory" | "prohibited" | "unknown"
    }
  - activate-app --bundle-id <id> [--pid <process-id>]:
-   data = { bundleId: String, activated: Boolean }
+   data = {
+     bundleId: String,
+     processIdentifier: Number,
+     activated: Boolean,
+     requestedActivation: Boolean,
+     frontmostBundleId: String | null
+   }
  - open-ghostty-session --title <title> [--working-directory <path>]:
    data = {
      bundleId: "com.mitchellh.ghostty",
@@ -239,7 +245,10 @@ struct ListAppsPayload: Encodable {
 
 struct ActivateAppPayload: Encodable {
     let bundleId: String
+    let processIdentifier: Int
     let activated: Bool
+    let requestedActivation: Bool
+    let frontmostBundleId: String?
 }
 
 struct OpenGhosttySessionPayload: Encodable {
@@ -1711,7 +1720,13 @@ func handleActivateApp(_ arguments: ArraySlice<String>) throws -> ActivateAppPay
     let requested = app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
     try focusAppWindows(app)
     let activated = requested && waitForFrontmost(bundleId: bundleId)
-    return ActivateAppPayload(bundleId: bundleId, activated: activated)
+    return ActivateAppPayload(
+        bundleId: bundleId,
+        processIdentifier: Int(app.processIdentifier),
+        activated: activated,
+        requestedActivation: requested,
+        frontmostBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    )
 }
 
 func ghosttyApplicationURL() throws -> URL {

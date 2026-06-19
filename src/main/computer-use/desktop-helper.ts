@@ -514,7 +514,10 @@ function readActionResult(payload: unknown, commandName: string): DesktopHelperA
   }
 
   if (typeof record.activated === "boolean") {
-    return message === undefined ? { ok: record.activated } : { ok: record.activated, message };
+    const activationMessage = message ?? readActivationMessage(record);
+    return activationMessage === undefined
+      ? { ok: record.activated }
+      : { ok: record.activated, message: activationMessage };
   }
 
   if (typeof record.opened === "boolean") {
@@ -522,6 +525,33 @@ function readActionResult(payload: unknown, commandName: string): DesktopHelperA
   }
 
   return message === undefined ? { ok: true } : { ok: true, message };
+}
+
+function readActivationMessage(record: Record<string, unknown>): string | undefined {
+  if (record.activated !== false) {
+    return undefined;
+  }
+
+  const frontmostBundleId = typeof record.frontmostBundleId === "string"
+    ? record.frontmostBundleId
+    : undefined;
+  const requestedActivation = typeof record.requestedActivation === "boolean"
+    ? record.requestedActivation
+    : undefined;
+
+  if (frontmostBundleId === "com.apple.loginwindow") {
+    return "Desktop session is not controllable because loginwindow is frontmost. Unlock the Mac and keep the display awake, then try again.";
+  }
+
+  if (frontmostBundleId && frontmostBundleId.length > 0) {
+    return `Target app did not become frontmost; current frontmost app is ${frontmostBundleId}.`;
+  }
+
+  if (requestedActivation === false) {
+    return "Target app activation request was rejected by macOS.";
+  }
+
+  return "Target app did not become frontmost.";
 }
 
 function readOpenGhosttySessionResult(
