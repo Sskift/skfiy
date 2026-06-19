@@ -96,8 +96,7 @@ describe("readPermissionsForRenderer", () => {
       },
       mismatches: [
         { permission: "screenRecording", appProcess: "granted", helperProcess: "denied" },
-        { permission: "accessibility", appProcess: "granted", helperProcess: "denied" },
-        { permission: "speechRecognition", appProcess: "unknown", helperProcess: "not-determined" }
+        { permission: "accessibility", appProcess: "granted", helperProcess: "denied" }
       ],
       identity: {
         appPath: "/repo/dist/skfiy.app/Contents/Resources/app",
@@ -106,6 +105,42 @@ describe("readPermissionsForRenderer", () => {
         resourcesPath: "/repo/dist/skfiy.app/Contents/Resources",
         isPackaged: false
       }
+    });
+  });
+
+  it("does not report a mismatch when the app process cannot read a permission state", async () => {
+    await expect(
+      readPermissionDiagnosticsForRenderer({
+        active: {
+          screenRecording: { state: "granted" },
+          accessibility: { state: "granted" },
+          microphone: { state: "granted" },
+          speechRecognition: { state: "granted" }
+        },
+        appProcess: {
+          screenRecording: { state: "granted" },
+          accessibility: { state: "granted" },
+          microphone: { state: "granted" },
+          speechRecognition: { state: "unknown" }
+        },
+        helper: {
+          getPermissions: async (): Promise<PermissionSummary> => ({
+            screenRecording: { state: "granted" },
+            accessibility: { state: "granted" },
+            microphone: { state: "granted" },
+            speechRecognition: { state: "granted" }
+          })
+        },
+        identity: {
+          appPath: "/repo/dist/skfiy.app/Contents/Resources/app",
+          executablePath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy",
+          helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+          resourcesPath: "/repo/dist/skfiy.app/Contents/Resources",
+          isPackaged: true
+        }
+      })
+    ).resolves.toMatchObject({
+      mismatches: []
     });
   });
 });

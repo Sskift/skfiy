@@ -4,6 +4,88 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("desktop session preflight script", () => {
+  it("marks permission reads as direct-helper scoped", async () => {
+    const {
+      runDesktopSessionPreflight
+    } = await importPreflightScript();
+    const screenshotPath = "/tmp/skfiy-session.png";
+
+    const evidence = await runDesktopSessionPreflight({
+      appPath: "/repo/dist/skfiy.app",
+      helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+      outputPath: "/repo/.skfiy-smoke/session.json",
+      screenshotOutputPath: screenshotPath
+    }, {
+      exists() {
+        return true;
+      },
+      async mkdir() {},
+      async execFile(_file: string, args: string[]) {
+        switch (args[0]) {
+          case "permissions-status":
+            return {
+              stdout: JSON.stringify({
+                ok: true,
+                command: "permissions-status",
+                data: {
+                  screenRecording: { status: "authorized", granted: true },
+                  accessibility: { status: "authorized", granted: true },
+                  microphone: { status: "authorized", granted: true },
+                  speechRecognition: { status: "notDetermined", granted: false }
+                }
+              }),
+              stderr: ""
+            };
+          case "desktop-session-status":
+            return {
+              stdout: JSON.stringify({
+                ok: true,
+                command: "desktop-session-status",
+                data: {
+                  controllable: true,
+                  frontmostBundleId: "com.openai.codex",
+                  frontmostLocalizedName: "Codex",
+                  frontmostProcessIdentifier: 4744,
+                  mainDisplayAsleep: false
+                }
+              }),
+              stderr: ""
+            };
+          case "screenshot":
+            return {
+              stdout: JSON.stringify({
+                ok: true,
+                command: "screenshot",
+                data: { output: screenshotPath }
+              }),
+              stderr: ""
+            };
+          default:
+            throw new Error(`unexpected helper command: ${args[0]}`);
+        }
+      },
+      async stat() {
+        return { size: 1200 };
+      },
+      async readFile() {
+        return createPng({
+          width: 1,
+          height: 1,
+          rgba: [[255, 255, 255, 255]]
+        });
+      }
+    });
+
+    expect(evidence).toMatchObject({
+      permissionProbe: {
+        scope: "direct-helper",
+        speechRecognitionStatusSource: "direct-helper",
+        appScopedSpeechRecognitionStatusSource: "smoke:ui permissionDiagnostics.active"
+      },
+      result: "passed"
+    });
+  });
+
   it("classifies loginwindow as blocked even when a screenshot exists", async () => {
     const {
       classifyDesktopSessionPreflightEvidence,
@@ -94,6 +176,21 @@ async function importPreflightScript() {
     };
     classifyDesktopSessionPreflightEvidence: (evidence: Record<string, unknown>) => string;
     explainDesktopSessionPreflightEvidence: (evidence: Record<string, unknown>) => string;
+    runDesktopSessionPreflight: (options: {
+      appPath: string;
+      helperPath: string;
+      outputPath?: string;
+      screenshotOutputPath: string;
+    }, io: {
+      mkdir: (path: string, options: { recursive: boolean }) => Promise<void>;
+      execFile: (file: string, args: string[], options: { maxBuffer: number }) => Promise<{
+        stdout: string;
+        stderr: string;
+      }>;
+      exists: (path: string) => boolean;
+      stat: (path: string) => Promise<{ size: number }>;
+      readFile: (path: string) => Promise<Buffer>;
+    }) => Promise<Record<string, unknown>>;
   };
 }
 

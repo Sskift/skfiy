@@ -94,6 +94,12 @@ export async function runDesktopSessionPreflight(options, io = defaultIo) {
     helperPath: options.helperPath,
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: "packaged helper -> permissions-status/desktop-session-status/screenshot",
+    permissionProbe: {
+      scope: "direct-helper",
+      speechRecognitionStatusSource: "direct-helper",
+      appScopedSpeechRecognitionStatusSource: "smoke:ui permissionDiagnostics.active",
+      note: "This preflight executes skfiy-helper directly for session diagnostics. Speech Recognition can be scoped differently when the helper is launched from skfiy.app; use smoke:ui permissionDiagnostics.active for app-scoped speech status."
+    },
     artifactPath: options.outputPath,
     screenshotOutputPath: options.screenshotOutputPath,
     permissions: undefined,

@@ -89,6 +89,10 @@ function readPermissionMismatches(
     const appState = appProcess[permission].state;
     const helperState = helperProcess[permission].state;
 
+    if (appState === "unknown" || helperState === "unknown") {
+      return [];
+    }
+
     if (appState === helperState) {
       return [];
     }
