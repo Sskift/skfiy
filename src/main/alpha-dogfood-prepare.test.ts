@@ -76,6 +76,7 @@ describe("alpha dogfood preparation", () => {
     expect(createPrepareAlphaDogfoodHelpText()).toContain("assignment packet comments");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--require-passed");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--allow-synthetic-tester-id");
+    expect(createPrepareAlphaDogfoodHelpText()).toContain("Existing app bundle destinations are reused");
   });
 
   it("passes strict passed evidence mode into handoff and next tester command", async () => {
@@ -493,6 +494,39 @@ describe("alpha dogfood preparation", () => {
     expect(io.commands.at(-1)?.args).toContain("/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app");
   });
 
+  it("reuses an existing prepared app bundle for another tester handoff", async () => {
+    const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
+      runPrepareAlphaDogfood: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      existingPreparedApp: true
+    });
+
+    await expect(runPrepareAlphaDogfood({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "tester-b",
+      workflows: ["finder-file"],
+      trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
+      dryRun: false
+    }, io)).resolves.toMatchObject({
+      status: "prepared",
+      appPath: "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app",
+      handoffOutputPath: "/repo/.skfiy-dogfood/handoffs/tester-b.md"
+    });
+    expect(io.commands.map((entry) => entry.id)).toEqual([
+      "release:download",
+      "zip:extract",
+      "handoff:create"
+    ]);
+    expect(io.commands.at(-1)?.args).toContain("/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app");
+  });
+
   it("rejects downloaded alpha manifests missing long-horizon money-run evidence", async () => {
     const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
       runPrepareAlphaDogfood: (
@@ -588,6 +622,7 @@ describe("alpha dogfood preparation", () => {
 
 function createMemoryIo(options: {
   extractedInfoPlist?: string;
+  existingPreparedApp?: boolean;
   manifest?: ReturnType<typeof createDownloadedManifest>;
   trackingIssueBody?: string;
   trackingIssueComments?: string[];
@@ -620,10 +655,15 @@ function createMemoryIo(options: {
     async exists(filePath: string) {
       return filePath === zipPath
         || filePath === manifestPath
-        || filePath === "/repo/.skfiy-dogfood/extracted/skfiy-alpha-abc1234/skfiy.app";
+        || filePath === "/repo/.skfiy-dogfood/extracted/skfiy-alpha-abc1234/skfiy.app"
+        || (options.existingPreparedApp === true
+          && filePath === "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app");
     },
     async readText(filePath: string) {
-      if (filePath !== "/repo/.skfiy-dogfood/extracted/skfiy-alpha-abc1234/skfiy.app/Contents/Info.plist") {
+      if (
+        filePath !== "/repo/.skfiy-dogfood/extracted/skfiy-alpha-abc1234/skfiy.app/Contents/Info.plist"
+        && filePath !== "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app/Contents/Info.plist"
+      ) {
         throw new Error(`Unexpected text path: ${filePath}`);
       }
       return options.extractedInfoPlist ?? createInfoPlist({

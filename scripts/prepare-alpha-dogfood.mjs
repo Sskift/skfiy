@@ -263,11 +263,13 @@ export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
   await io.mkdir(path.dirname(plan.appPath), { recursive: true });
   await io.mkdir(path.dirname(plan.handoffOutputPath), { recursive: true });
 
-  if (await io.exists(plan.appPath)) {
+  const reuseExistingApp = await io.exists(plan.appPath);
+  if (reuseExistingApp) {
     if (!plan.replaceExisting) {
-      throw new Error(`App bundle already exists at ${plan.appPath}. Pass --replace-existing to overwrite it.`);
+      await validateAppBundleIdentity(plan.appPath, io);
+    } else {
+      await io.rm(plan.appPath, { recursive: true, force: true });
     }
-    await io.rm(plan.appPath, { recursive: true, force: true });
   }
   await io.rm(plan.extractDir, { recursive: true, force: true });
   await io.mkdir(plan.extractDir, { recursive: true });
@@ -292,9 +294,11 @@ export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
   if (!(await io.exists(extractedAppPath))) {
     throw new Error(`Downloaded alpha zip did not contain skfiy.app at ${extractedAppPath}.`);
   }
-  await validateExtractedAppBundleIdentity(extractedAppPath, io);
+  await validateAppBundleIdentity(extractedAppPath, io);
 
-  await io.execPlanCommand(plan.commands[2]);
+  if (!reuseExistingApp || plan.replaceExisting) {
+    await io.execPlanCommand(plan.commands[2]);
+  }
   const handoffCommand = replaceCommandArgs(plan.commands[3], {
     [path.join(plan.downloadDir, "<downloaded-alpha.json>")]: downloaded.manifestPath
   });
@@ -329,6 +333,8 @@ export function createPrepareAlphaDogfoodHelpText() {
     "app install, and handoff plan without mutating local files.",
     "Pass --execute to download the release assets, verify the zip SHA256 against",
     "the manifest, extract skfiy.app, and create the dogfood handoff.",
+    "Existing app bundle destinations are reused after identity validation; pass",
+    "--replace-existing only when you intentionally want to overwrite that app.",
     "The result includes nextCommands.tester with the prepared manifest path",
     "and app bundle path filled in for copy/paste. Real tester preparations",
     "also include nextCommands.review; maintainer synthetic preflights stay local-only.",
@@ -345,7 +351,7 @@ export function createPrepareAlphaDogfoodHelpText() {
     "  --download-dir <path>     Release asset download directory.",
     "  --extract-dir <path>      Temporary extraction directory.",
     "  --handoff-output <path>   Generated handoff Markdown path.",
-    "  --replace-existing        Allow overwriting an existing app bundle destination.",
+    "  --replace-existing        Overwrite instead of reusing an existing app bundle destination.",
     "  --require-passed          Pass strict passed evidence mode into the handoff and tester command.",
     "  --allow-synthetic-tester-id",
     "                            Maintainer-only escape hatch for local/preflight release preparation that will not count as a real tester.",
@@ -625,7 +631,7 @@ function validateManifest(manifest) {
   }
 }
 
-async function validateExtractedAppBundleIdentity(appPath, io) {
+async function validateAppBundleIdentity(appPath, io) {
   const infoPlistPath = path.join(appPath, "Contents", "Info.plist");
   const infoPlist = await io.readText(infoPlistPath);
   const expected = {
