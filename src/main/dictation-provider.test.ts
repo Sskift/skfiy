@@ -426,4 +426,46 @@ describe("createNativeMacOSDictationProvider", () => {
       }
     ]);
   });
+
+  it("starts native transcription when macOS speech permissions are not determined", async () => {
+    const events: DictationProviderEvent[] = [];
+    let transcriptionStarted = false;
+    const deferredTranscript = createDeferred<NativeSpeechTranscriptionResult>();
+    const provider = createNativeMacOSDictationProvider({
+      helper: {
+        async getSpeechStatus(): Promise<SpeechStatusResult> {
+          return {
+            locale: "zh-CN",
+            recognizerAvailable: true,
+            speechRecognition: { state: "not-determined" },
+            microphone: { state: "not-determined" }
+          };
+        },
+        transcribeSpeech(): Promise<NativeSpeechTranscriptionResult> {
+          transcriptionStarted = true;
+          return deferredTranscript.promise;
+        }
+      },
+      locale: "zh-CN",
+      emit: (event) => events.push(event),
+      emitTranscript: () => undefined
+    });
+
+    await expect(provider.prepare()).resolves.toEqual({
+      providerId: "native-macos",
+      voiceTrigger: "none",
+      nativeDictationActive: true
+    });
+
+    expect(transcriptionStarted).toBe(true);
+    expect(events).toEqual([
+      {
+        providerId: "native-macos",
+        state: "listening",
+        message: "macOS 系统语音正在听."
+      }
+    ]);
+
+    await provider.stop();
+  });
 });

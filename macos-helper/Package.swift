@@ -14,12 +14,19 @@ let package = Package(
         .executableTarget(
             name: "skfiyHelper",
             path: "Sources/skfiy-helper",
+            exclude: ["Info.plist"],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("CoreGraphics"),
                 .linkedFramework("Speech"),
-                .linkedFramework("Vision")
+                .linkedFramework("Vision"),
+                .unsafeFlags([
+                    "-Xlinker", "-sectcreate",
+                    "-Xlinker", "__TEXT",
+                    "-Xlinker", "__info_plist",
+                    "-Xlinker", "Sources/skfiy-helper/Info.plist"
+                ])
             ]
         )
     ]

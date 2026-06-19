@@ -139,6 +139,24 @@ describe("Electron build wiring", () => {
     expect(packagingScript).toContain("NSSpeechRecognitionUsageDescription");
   });
 
+  it("embeds microphone and speech usage descriptions into the Swift helper identity", () => {
+    const packageManifest = readFileSync(
+      path.join(process.cwd(), "macos-helper/Package.swift"),
+      "utf8"
+    );
+    const helperInfoPlist = readFileSync(
+      path.join(process.cwd(), "macos-helper/Sources/skfiy-helper/Info.plist"),
+      "utf8"
+    );
+
+    expect(packageManifest).toContain("__info_plist");
+    expect(packageManifest).toContain("Sources/skfiy-helper/Info.plist");
+    expect(helperInfoPlist).toContain("<key>CFBundleIdentifier</key>");
+    expect(helperInfoPlist).toContain("<string>com.sskift.skfiy</string>");
+    expect(helperInfoPlist).toContain("<key>NSMicrophoneUsageDescription</key>");
+    expect(helperInfoPlist).toContain("<key>NSSpeechRecognitionUsageDescription</key>");
+  });
+
   it("inserts new Info.plist strings at the root dictionary instead of nested dictionaries", async () => {
     const packagingModuleUrl = pathToFileURL(
       path.join(process.cwd(), "scripts/package-macos-app.mjs")

@@ -275,11 +275,11 @@ export function createNativeMacOSDictationProvider({
 }
 
 function readNativeSpeechUnavailableMessage(status: SpeechStatusResult): string | undefined {
-  if (status.speechRecognition.state !== "granted") {
+  if (isBlockingNativePermissionState(status.speechRecognition.state)) {
     return `macOS speech recognition permission is ${status.speechRecognition.state}.`;
   }
 
-  if (status.microphone.state !== "granted") {
+  if (isBlockingNativePermissionState(status.microphone.state)) {
     return `Microphone permission is ${status.microphone.state}.`;
   }
 
@@ -288,6 +288,10 @@ function readNativeSpeechUnavailableMessage(status: SpeechStatusResult): string 
   }
 
   return undefined;
+}
+
+function isBlockingNativePermissionState(state: string): boolean {
+  return state === "denied" || state === "unknown";
 }
 
 async function runDictationStep(
