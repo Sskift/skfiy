@@ -16,6 +16,11 @@ import {
   PRODUCT_PATH,
   writeSmokeEvidence
 } from "./smoke-ghostty-plan.mjs";
+import {
+  createDesktopSessionBlockedEvent,
+  createDesktopSessionPreflightEvidence,
+  isDesktopSessionPreflightBlocked
+} from "./smoke-desktop-preflight.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
 import {
   filterSkfiyGhosttySessionProcessLines,
@@ -49,6 +54,7 @@ async function main() {
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
     artifactPath: options.outputPath,
+    desktopPreflight: undefined,
     events: [],
     permissions: undefined,
     runtimeStatus: undefined,
@@ -60,6 +66,8 @@ async function main() {
     result: "not-run"
   };
   let smokeLock;
+  let launchedSkfiy = false;
+  let shouldCleanupGhosttySessions = false;
 
   try {
     assertSmokeReady(options);
@@ -67,14 +75,25 @@ async function main() {
       rootDir: ROOT_DIR,
       scriptName: "smoke:ghostty"
     });
+    evidence.desktopPreflight = await createDesktopSessionPreflightEvidence({
+      appPath: options.appPath
+    });
+    if (isDesktopSessionPreflightBlocked(evidence.desktopPreflight)) {
+      evidence.events = [createDesktopSessionBlockedEvent(evidence.desktopPreflight)];
+      evidence.result = "blocked";
+      return;
+    }
 
     if (!options.keepExisting) {
       await quitSkfiy();
+      shouldCleanupGhosttySessions = true;
       await quitSkfiyGhosttySessions();
       await sleep(700);
     }
 
     await launchSkfiy(options);
+    launchedSkfiy = true;
+    shouldCleanupGhosttySessions = true;
     evidence.processesAfterLaunch = await readSkfiyProcesses();
 
     const page = await waitForRendererPage(options.port, options.timeoutMs);
@@ -102,6 +121,7 @@ async function main() {
       for (const run of buildSmokeRunPlan(options)) {
         runs.push(await runSmokeCommand(cdp, options, run, {
           appLaunchViaOpen: evidence.appLaunchViaOpen,
+          desktopPreflight: evidence.desktopPreflight,
           productPath: evidence.productPath,
           runnerHasTmux: evidence.runnerHasTmux
         }));
@@ -157,9 +177,13 @@ async function main() {
     evidence.error = error instanceof Error ? error.message : String(error);
     process.exitCode = 1;
   } finally {
-    if (!options.keepOpen) {
+    if (!options.keepOpen && launchedSkfiy) {
       await quitSkfiy();
+    }
+    if (!options.keepOpen && shouldCleanupGhosttySessions) {
       await quitSkfiyGhosttySessions();
+    }
+    if (!options.keepOpen && (launchedSkfiy || shouldCleanupGhosttySessions)) {
       await sleep(700);
       evidence.processesAfterCleanup = await readSkfiyProcesses();
       evidence.skfiyGhosttyProcessesAfterCleanup = await readSkfiyGhosttyProcesses();
@@ -255,6 +279,7 @@ async function runSmokeCommand(cdp, options, run, context) {
 
   return {
     ...run,
+    desktopPreflight: context.desktopPreflight,
     events,
     replayRecords,
     screenshots,

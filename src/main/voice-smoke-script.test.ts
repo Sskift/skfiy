@@ -290,6 +290,25 @@ describe("voice product smoke script", () => {
     })).toBe("blocked");
   });
 
+  it("lets desktop preflight block voice smoke classification before target apps open", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-voice-plan.mjs");
+    const {
+      classifyVoiceSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyVoiceSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyVoiceSmokeEvidence({
+      desktopPreflight: {
+        result: "blocked",
+        reason: "Desktop session is not controllable because loginwindow is frontmost."
+      },
+      providerEvents: [],
+      transcriptEvents: [],
+      taskEvents: []
+    })).toBe("blocked");
+  });
+
   it("drives external Doubao text through the preload API while keeping native macOS speech optional", () => {
     const sourcePath = path.join(process.cwd(), "scripts", "smoke-voice-product.mjs");
 

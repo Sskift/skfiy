@@ -66,6 +66,6 @@ Implemented evidence:
 - [x] Commit and push directly to `main`.
 
 Implemented evidence:
-- Full verification is part of the release workflow and is tracked in `docs/release-evidence/latest-alpha.json`; current alpha `skfiy-alpha-55e6534` ran full tests, typecheck, build, UI/Ghostty/Chrome/Finder/voice packaged smokes, dogfood verifier, GitHub release publishing, and tracking issue sync.
-- Product-path smoke evidence for the current alpha: `.skfiy-smoke/ui-55e6534.json`, `.skfiy-smoke/ghostty-55e6534.json`, `.skfiy-smoke/chrome-55e6534.json`, `.skfiy-smoke/finder-55e6534.json`, and `.skfiy-smoke/voice-55e6534.json`.
-- Product-path UI evidence: `npm run smoke:ui -- --output .skfiy-smoke/ui-55e6534.json` launched `dist/skfiy.app` via LaunchServices, dragged the real renderer pet upward, recorded `petDrag.beforeBounds`, `petDrag.afterBounds`, `petDrag.totalDeltaY=-88`, `petClicked=true`, permission onboarding rows, transparent pet product path, `runnerHasTmux=false`, and empty cleanup process lists.
+- Full verification is part of the release workflow and is tracked in `docs/release-evidence/latest-alpha.json`; current alpha `skfiy-alpha-e9197d5` ran full tests, typecheck, build, UI/Ghostty/Chrome/Finder/voice packaged smokes, dogfood verifier, GitHub release publishing, and tracking issue sync.
+- Product-path smoke evidence for the current alpha: `.skfiy-smoke/ui-e9197d5.json`, `.skfiy-smoke/ghostty-e9197d5.json`, `.skfiy-smoke/chrome-e9197d5.json`, `.skfiy-smoke/finder-e9197d5.json`, and `.skfiy-smoke/voice-e9197d5.json`.
+- Product-path UI evidence: `npm run smoke:ui -- --output .skfiy-smoke/ui-e9197d5.json` launched `dist/skfiy.app` via LaunchServices, dragged the real renderer pet upward, recorded `petDrag.beforeBounds`, `petDrag.afterBounds`, `petDrag.totalDeltaY=-88`, `petClicked=true`, permission onboarding rows, transparent pet product path, `runnerHasTmux=false`, and empty cleanup process lists.

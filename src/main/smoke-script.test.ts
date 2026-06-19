@@ -215,6 +215,77 @@ describe("Ghostty product smoke script", () => {
     ])).toBe("blocked");
   });
 
+  it("collects blocked desktop preflight evidence before launching target apps", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-desktop-preflight.mjs");
+
+    expect(existsSync(modulePath)).toBe(true);
+
+    const {
+      createDesktopSessionPreflightEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      createDesktopSessionPreflightEvidence: (options: {
+        appPath: string;
+        runner: (
+          file: string,
+          args: readonly string[]
+        ) => Promise<{ stdout: string; stderr: string }>;
+      }) => Promise<Record<string, unknown>>;
+    };
+    const calls: Array<{ file: string; args: readonly string[] }> = [];
+
+    await expect(createDesktopSessionPreflightEvidence({
+      appPath: "/Applications/skfiy.app",
+      async runner(file, args) {
+        calls.push({ file, args });
+        return {
+          stdout: JSON.stringify({
+            ok: true,
+            command: "desktop-session-status",
+            data: {
+              frontmostBundleId: "com.apple.loginwindow",
+              frontmostLocalizedName: "loginwindow",
+              frontmostProcessIdentifier: 88,
+              controllable: false
+            }
+          }),
+          stderr: ""
+        };
+      }
+    })).resolves.toMatchObject({
+      result: "blocked",
+      helperPath: "/Applications/skfiy.app/Contents/MacOS/skfiy-helper",
+      frontmost: {
+        bundleId: "com.apple.loginwindow",
+        localizedName: "loginwindow",
+        processIdentifier: 88
+      },
+      reason: expect.stringContaining("frontmostBundleId=com.apple.loginwindow")
+    });
+    expect(calls).toEqual([
+      {
+        file: "/Applications/skfiy.app/Contents/MacOS/skfiy-helper",
+        args: ["desktop-session-status"]
+      }
+    ]);
+  });
+
+  it("lets desktop preflight block Ghostty smoke classification", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      classifySmokeRunEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifySmokeRunEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifySmokeRunEvidence({
+      desktopPreflight: {
+        result: "blocked",
+        reason: "Desktop session is not controllable because loginwindow is frontmost."
+      },
+      events: []
+    })).toBe("blocked");
+  });
+
   it("requires product-path screenshot and action verification evidence before classifying a completed run as passed", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
     const {

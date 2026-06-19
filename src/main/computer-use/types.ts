@@ -25,6 +25,13 @@ export interface DesktopAppInfo {
   pid?: number;
 }
 
+export interface DesktopSessionStatus {
+  frontmostBundleId?: string;
+  frontmostLocalizedName?: string;
+  frontmostProcessIdentifier?: number;
+  controllable: boolean;
+}
+
 export type DesktopExecutableAction =
   | { type: "screenshot"; outputPath: string }
   | { type: "click"; x: number; y: number }
@@ -186,6 +193,7 @@ export type DesktopActionResult =
   | OcrImageResult
   | SpeechStatusResult
   | NativeSpeechTranscriptionResult
+  | DesktopSessionStatus
   | DesktopHelperActionResult
   | OpenGhosttySessionResult
   | DesktopAppState

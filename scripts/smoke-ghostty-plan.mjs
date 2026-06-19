@@ -179,6 +179,7 @@ export function classifySmokeResult(events) {
 }
 
 export function classifySmokeRunEvidence({
+  desktopPreflight,
   events,
   screenshots = [],
   runnerHasTmux = false,
@@ -186,6 +187,10 @@ export function classifySmokeRunEvidence({
   productPath,
   requiresComputerUseEvidence = true
 }) {
+  if (desktopPreflight?.result === "blocked") {
+    return "blocked";
+  }
+
   const eventResult = classifySmokeResult(events);
 
   if (eventResult !== "passed") {

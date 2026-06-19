@@ -173,6 +173,7 @@ export function parseProcessIds(lines) {
 }
 
 export function classifyFinderSmokeEvidence({
+  desktopPreflight,
   events = [],
   afterTree = [],
   finderObservation,
@@ -190,6 +191,10 @@ export function classifyFinderSmokeEvidence({
   appLaunchViaOpen = false,
   productPath
 }) {
+  if (desktopPreflight?.result === "blocked") {
+    return "blocked";
+  }
+
   const last = events.at(-1);
 
   if (!last) {

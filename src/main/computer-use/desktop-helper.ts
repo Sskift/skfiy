@@ -3,6 +3,7 @@ import type {
   DesktopActionResult,
   DesktopAppInfo,
   DesktopAppState,
+  DesktopSessionStatus,
   DesktopExecutableAction,
   FinderSelectionItem,
   FinderSelectionItemKind,
@@ -83,6 +84,14 @@ export class DesktopHelperClient {
   async listApps(): Promise<DesktopAppInfo[]> {
     const response = await this.runJson("list-apps", ["list-apps"], readListAppsResponse);
     return response.apps;
+  }
+
+  async getDesktopSessionStatus(): Promise<DesktopSessionStatus> {
+    return this.runJson(
+      "desktop-session-status",
+      ["desktop-session-status"],
+      readDesktopSessionStatus
+    );
   }
 
   async activateApp(bundleId: string, pid?: number): Promise<DesktopHelperActionResult> {
@@ -450,6 +459,37 @@ function readListAppsResponse(payload: unknown, commandName: string): ListAppsRe
   }
 
   return { apps: apps.map((app) => readAppInfo(app, commandName)) };
+}
+
+function readDesktopSessionStatus(
+  payload: unknown,
+  commandName: string
+): DesktopSessionStatus {
+  const record = readRecord(payload, commandName);
+  const status: DesktopSessionStatus = {
+    controllable: readBoolean(record, "controllable", commandName)
+  };
+  const frontmostBundleId = readOptionalString(record, "frontmostBundleId", commandName);
+  const frontmostLocalizedName = readOptionalString(record, "frontmostLocalizedName", commandName);
+  const frontmostProcessIdentifier = readOptionalNumber(
+    record,
+    "frontmostProcessIdentifier",
+    commandName
+  );
+
+  if (frontmostBundleId !== undefined) {
+    status.frontmostBundleId = frontmostBundleId;
+  }
+
+  if (frontmostLocalizedName !== undefined) {
+    status.frontmostLocalizedName = frontmostLocalizedName;
+  }
+
+  if (frontmostProcessIdentifier !== undefined) {
+    status.frontmostProcessIdentifier = frontmostProcessIdentifier;
+  }
+
+  return status;
 }
 
 function readAppInfo(payload: unknown, commandName: string): DesktopAppInfo {

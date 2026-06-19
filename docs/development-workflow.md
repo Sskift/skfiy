@@ -116,6 +116,21 @@ Run from the compiled app bundle and verify:
 - Accessibility: activate app, click, type, and press key succeed.
 - Microphone: permission state is available and provider-specific listening starts.
 
+Before running target-app smokes, verify the desktop session itself is usable:
+
+```bash
+npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session.json
+```
+
+This uses the packaged helper inside `dist/skfiy.app` to read permission state,
+the active application, and a screenshot. A `blocked` result with
+`activeApp.bundleId: com.apple.loginwindow` or `screenshot.png.isLikelyBlack:
+true` means macOS is still presenting an uncontrollable lock/login/sleep
+session to Computer Use even if System Settings says permissions are granted.
+Keep the display awake, unlock the Mac, and rerun this preflight before
+claiming Ghostty, Finder, Chrome screenshot fallback, or voice-driven Computer
+Use works.
+
 ### Pet UI Smoke
 
 - Pet appears as a desktop companion, not a normal dialog.
@@ -411,6 +426,26 @@ npm run dogfood:cohort -- \
 ```
 
 This strict mode keeps all source/artifact checks and also fails unless each required workflow has at least one accepted report whose `Computer Use result` is `passed`. Use the default mode while collecting permission-blocked source evidence; use `--require-passed` only when deciding whether the dogfood cohort proves the product path works.
+
+### Long-Horizon money-run Supervision
+
+After the packaged app evidence and dogfood gates are ready, skfiy's field task
+includes supervising the existing `tmux` session `money-run`. This is different
+from launching skfiy through tmux: skfiy must still be a compiled app bundle,
+while `money-run` is only the external target being inspected.
+
+The current scaffold is read-only and can be run with:
+
+```bash
+npm run smoke:money-run -- --json-output .skfiy-smoke/money-run-supervision.json
+```
+
+It checks `tmux has-session`, summarizes windows/panes, captures recent pane
+output, detects obvious blockers such as missing sessions, dead panes, approval
+prompts, and error markers, then emits a recommendation with
+`mutatesSession:false`. It must not create sessions, send keys, kill panes,
+attach/detach, or count as passed Computer Use evidence until a compiled skfiy
+app turn is supervising the session through the product path.
 
 ### macOS Release Signing
 

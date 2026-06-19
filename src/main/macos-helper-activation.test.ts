@@ -19,4 +19,21 @@ describe("macOS helper activate-app diagnostics", () => {
     expect(source).toContain("frontmostProcessIdentifier");
     expect(source).toContain("frontmost.matches(bundleId: bundleId, processIdentifier: processIdentifier)");
   });
+
+  it("exposes a non-activating desktop-session-status preflight command", () => {
+    const helperPath = path.join(
+      process.cwd(),
+      "macos-helper",
+      "Sources",
+      "skfiy-helper",
+      "main.swift"
+    );
+    const source = readFileSync(helperPath, "utf8");
+
+    expect(source).toContain("desktop-session-status");
+    expect(source).toContain("struct DesktopSessionStatusPayload");
+    expect(source).toContain("func handleDesktopSessionStatus");
+    expect(source).toContain("frontmostLocalizedName");
+    expect(source).toContain("frontmostBundleId: frontmost.bundleId");
+  });
 });

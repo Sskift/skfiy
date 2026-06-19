@@ -91,6 +91,7 @@ export function parseVoiceSmokeArgs(argv, defaults) {
 }
 
 export function classifyVoiceSmokeEvidence({
+  desktopPreflight,
   provider,
   providerEvents = [],
   taskEvents = [],
@@ -101,6 +102,10 @@ export function classifyVoiceSmokeEvidence({
   appLaunchViaOpen = false,
   productPath
 }) {
+  if (desktopPreflight?.result === "blocked") {
+    return "blocked";
+  }
+
   const effectiveProvider = readEffectiveVoiceProvider(provider, productPath);
 
   if (hasPermissionBlockedEvent(providerEvents) || hasPermissionBlockedTask(taskEvents)) {

@@ -19,6 +19,11 @@ import {
   withSmokeTimeout
 } from "./smoke-finder-plan.mjs";
 import { writeSmokeEvidence } from "./smoke-ghostty-plan.mjs";
+import {
+  createDesktopSessionBlockedEvent,
+  createDesktopSessionPreflightEvidence,
+  isDesktopSessionPreflightBlocked
+} from "./smoke-desktop-preflight.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
 import { SKFIY_APP_PROCESS_PATTERN } from "./skfiy-process-matching.mjs";
 
@@ -44,6 +49,7 @@ async function main() {
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: readFinderProductPath(options.targetMode),
     artifactPath: options.outputPath,
+    desktopPreflight: undefined,
     targetMode: options.targetMode,
     targetDir: options.targetDir,
     resolvedTargetDir: undefined,
@@ -66,6 +72,7 @@ async function main() {
     result: "not-run"
   };
   let smokeLock;
+  let launchedSkfiy = false;
 
   try {
     assertSmokeReady(options);
@@ -73,6 +80,19 @@ async function main() {
       rootDir: ROOT_DIR,
       scriptName: "smoke:finder"
     });
+    evidence.desktopPreflight = await createDesktopSessionPreflightEvidence({
+      appPath: options.appPath
+    });
+    if (isDesktopSessionPreflightBlocked(evidence.desktopPreflight)) {
+      evidence.events = [createDesktopSessionBlockedEvent(evidence.desktopPreflight)];
+      evidence.finderObservation = {
+        result: "blocked",
+        reason: evidence.desktopPreflight.reason
+      };
+      evidence.result = "blocked";
+      return;
+    }
+
     evidence.resolvedTargetDir = options.targetDir
       ? readFinderTargetDirectory(options.targetDir)
       : undefined;
@@ -105,6 +125,7 @@ async function main() {
     }
 
     await launchSkfiy(options);
+    launchedSkfiy = true;
     evidence.processesAfterLaunch = await readSkfiyProcesses();
 
     const page = await waitForRendererPage(options.port, options.timeoutMs);
@@ -209,7 +230,7 @@ async function main() {
     evidence.error = error instanceof Error ? error.message : String(error);
     process.exitCode = 1;
   } finally {
-    if (!options.keepOpen) {
+    if (!options.keepOpen && launchedSkfiy) {
       await quitSkfiy();
       await sleep(700);
       evidence.processesAfterCleanup = await readSkfiyProcesses();

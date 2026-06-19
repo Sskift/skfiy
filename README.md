@@ -103,6 +103,7 @@ npm install
 npm test -- --run
 npm run typecheck
 npm run build
+npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session.json
 npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
 npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
 npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json
@@ -171,11 +172,19 @@ npm run dogfood:cohort -- \
   --summary .skfiy-dogfood/internal-alpha-summary-strict.md \
   --json-output .skfiy-dogfood/internal-alpha-summary-strict.json \
   --require-passed
+npm run smoke:money-run -- \
+  --json-output .skfiy-smoke/money-run-supervision.json
 ```
 
 The UI smoke uses the compiled app bundle, drags the real desktop pet upward,
 checks the native window bounds changed, verifies the post-drag click is
 suppressed, and then clicks the pet to capture permission onboarding evidence.
+
+Run `smoke:desktop-session` before Computer Use product smokes when the machine
+has just been unlocked or permission state looks inconsistent. It records the
+packaged helper's active app and a screenshot black-screen analysis; `blocked`
+with `com.apple.loginwindow` or `isLikelyBlack=true` is an environment blocker,
+not a missing TCC grant.
 
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
@@ -262,6 +271,14 @@ cohort verifier". When accepted report coverage is complete but passed workflow
 coverage is still missing, its recommended tester assignment purpose becomes
 `passed-workflow-evidence`, and the generated prepare/tester commands include
 `--require-passed`.
+
+`smoke:money-run` is the first long-horizon supervision scaffold for the
+post-release field task. It inspects the existing `tmux` session named
+`money-run` with read-only `tmux has-session`, `list-windows`, `list-panes`,
+and `capture-pane -p` probes, then emits a non-mutating recommendation such as
+`continue_observing`, `inspect_output`, or `manual_recovery`. This does not make
+tmux a skfiy backend and it must not be used as evidence that the skfiy app
+itself was launched correctly.
 
 For renderer iteration, run `npm run dev:renderer`, then launch the built main
 process in another terminal with `npm run dev:electron`.

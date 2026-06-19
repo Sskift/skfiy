@@ -39,6 +39,13 @@ import Vision
      isActive: Boolean,
      activationPolicy: "regular" | "accessory" | "prohibited" | "unknown"
    }
+ - desktop-session-status:
+   data = {
+     frontmostBundleId: String | null,
+     frontmostLocalizedName: String | null,
+     frontmostProcessIdentifier: Number | null,
+     controllable: Boolean
+   }
  - activate-app --bundle-id <id> [--pid <process-id>]:
    data = {
      bundleId: String,
@@ -156,6 +163,7 @@ import Vision
 
 let supportedCommands = [
     "list-apps",
+    "desktop-session-status",
     "activate-app",
     "open-ghostty-session",
     "screenshot",
@@ -242,6 +250,13 @@ struct AppInfo: Encodable {
 
 struct ListAppsPayload: Encodable {
     let apps: [AppInfo]
+}
+
+struct DesktopSessionStatusPayload: Encodable {
+    let frontmostBundleId: String?
+    let frontmostLocalizedName: String?
+    let frontmostProcessIdentifier: Int?
+    let controllable: Bool
 }
 
 struct ActivateAppPayload: Encodable {
@@ -404,6 +419,7 @@ struct OpenPermissionSettingsPayload: Encodable {
 
 struct FrontmostApplicationSnapshot {
     let bundleId: String?
+    let localizedName: String?
     let processIdentifier: Int?
 
     func matches(bundleId: String, processIdentifier: Int?) -> Bool {
@@ -610,11 +626,12 @@ func focusAppWindows(_ app: NSRunningApplication) throws {
 
 func readFrontmostApplication() -> FrontmostApplicationSnapshot {
     guard let app = NSWorkspace.shared.frontmostApplication else {
-        return FrontmostApplicationSnapshot(bundleId: nil, processIdentifier: nil)
+        return FrontmostApplicationSnapshot(bundleId: nil, localizedName: nil, processIdentifier: nil)
     }
 
     return FrontmostApplicationSnapshot(
         bundleId: app.bundleIdentifier,
+        localizedName: app.localizedName,
         processIdentifier: Int(app.processIdentifier)
     )
 }
@@ -1747,6 +1764,18 @@ func handleListApps(_ arguments: ArraySlice<String>) throws -> ListAppsPayload {
     return ListAppsPayload(apps: apps)
 }
 
+func handleDesktopSessionStatus(_ arguments: ArraySlice<String>) throws -> DesktopSessionStatusPayload {
+    _ = try parseOptions(arguments, allowed: [])
+    let frontmost = readFrontmostApplication()
+
+    return DesktopSessionStatusPayload(
+        frontmostBundleId: frontmost.bundleId,
+        frontmostLocalizedName: frontmost.localizedName,
+        frontmostProcessIdentifier: frontmost.processIdentifier,
+        controllable: frontmost.bundleId != "com.apple.loginwindow"
+    )
+}
+
 func handleActivateApp(_ arguments: ArraySlice<String>) throws -> ActivateAppPayload {
     let options = try parseOptions(arguments, allowed: ["--bundle-id", "--pid"])
     let bundleId = try requiredOption("--bundle-id", in: options)
@@ -2074,6 +2103,8 @@ do {
     switch commandName {
     case "list-apps":
         succeed(command: commandName, data: try handleListApps(arguments))
+    case "desktop-session-status":
+        succeed(command: commandName, data: try handleDesktopSessionStatus(arguments))
     case "activate-app":
         succeed(command: commandName, data: try handleActivateApp(arguments))
     case "open-ghostty-session":

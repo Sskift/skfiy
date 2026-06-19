@@ -302,6 +302,23 @@ describe("Finder product smoke script", () => {
     });
   });
 
+  it("lets desktop preflight block Finder smoke classification before target GUI setup", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      desktopPreflight: {
+        result: "blocked",
+        reason: "Desktop session is not controllable because loginwindow is frontmost."
+      },
+      events: []
+    })).toBe("blocked");
+  });
+
   it("times out stalled Finder smoke async operations with a labelled error", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
     const {

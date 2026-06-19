@@ -295,6 +295,38 @@ describe("DesktopHelperClient", () => {
     });
   });
 
+  it("reads desktop session preflight diagnostics from the helper", async () => {
+    const { calls, client } = createClientWithResponses([
+      {
+        stdout: JSON.stringify({
+          ok: true,
+          command: "desktop-session-status",
+          data: {
+            frontmostBundleId: "com.apple.loginwindow",
+            frontmostLocalizedName: "loginwindow",
+            frontmostProcessIdentifier: 123,
+            controllable: false
+          }
+        }),
+        stderr: "",
+        exitCode: 0
+      }
+    ]);
+
+    await expect(client.getDesktopSessionStatus()).resolves.toEqual({
+      frontmostBundleId: "com.apple.loginwindow",
+      frontmostLocalizedName: "loginwindow",
+      frontmostProcessIdentifier: 123,
+      controllable: false
+    });
+    expect(calls).toEqual([
+      {
+        command: "/tmp/skfiy-helper",
+        args: ["desktop-session-status"]
+      }
+    ]);
+  });
+
   it("reads native macOS speech recognition readiness from the helper", async () => {
     const { calls, client } = createClientWithResponses([
       {

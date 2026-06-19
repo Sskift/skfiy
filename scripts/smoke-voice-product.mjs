@@ -13,6 +13,11 @@ import {
   parseVoiceSmokeArgs,
   writeVoiceSmokeEvidence
 } from "./smoke-voice-plan.mjs";
+import {
+  createDesktopSessionBlockedEvent,
+  createDesktopSessionPreflightEvidence,
+  isDesktopSessionPreflightBlocked
+} from "./smoke-desktop-preflight.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
 import {
   filterSkfiyGhosttySessionProcessLines,
@@ -45,6 +50,7 @@ async function main() {
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: options.productPath,
     artifactPath: options.outputPath,
+    desktopPreflight: undefined,
     preparation: undefined,
     permissions: undefined,
     speechStatus: undefined,
@@ -61,6 +67,8 @@ async function main() {
     result: "not-run"
   };
   let smokeLock;
+  let launchedSkfiy = false;
+  let shouldCleanupGhosttySessions = false;
 
   try {
     assertVoiceSmokeReady(options);
@@ -68,14 +76,25 @@ async function main() {
       rootDir: ROOT_DIR,
       scriptName: "smoke:voice"
     });
+    evidence.desktopPreflight = await createDesktopSessionPreflightEvidence({
+      appPath: options.appPath
+    });
+    if (isDesktopSessionPreflightBlocked(evidence.desktopPreflight)) {
+      evidence.taskEvents = [createDesktopSessionBlockedEvent(evidence.desktopPreflight)];
+      evidence.result = "blocked";
+      return;
+    }
 
     if (!options.keepExisting) {
       await quitSkfiy();
+      shouldCleanupGhosttySessions = true;
       await quitSkfiyGhosttySessions();
       await sleep(700);
     }
 
     await launchSkfiy(options);
+    launchedSkfiy = true;
+    shouldCleanupGhosttySessions = true;
     evidence.processesAfterLaunch = await readSkfiyProcesses();
 
     const page = await waitForRendererPage(options.port, options.timeoutMs);
@@ -173,9 +192,13 @@ async function main() {
     evidence.error = error instanceof Error ? error.message : String(error);
     process.exitCode = 1;
   } finally {
-    if (!options.keepOpen) {
+    if (!options.keepOpen && launchedSkfiy) {
       await quitSkfiy();
+    }
+    if (!options.keepOpen && shouldCleanupGhosttySessions) {
       await quitSkfiyGhosttySessions();
+    }
+    if (!options.keepOpen && (launchedSkfiy || shouldCleanupGhosttySessions)) {
       await sleep(700);
       evidence.processesAfterCleanup = await readSkfiyProcesses();
       evidence.skfiyGhosttyProcessesAfterCleanup = await readSkfiyGhosttyProcesses();
