@@ -133,12 +133,14 @@ describe("implementation plan status docs", () => {
   it("documents the maintainer dogfood collection and cohort verification loop", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
+    const internalAlpha = readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8");
     const longPlan = readFileSync(
       path.join(process.cwd(), "docs", "research", "2026-06-16-voice-computer-control-long-plan.md"),
       "utf8"
     );
     const readmeText = readme.replace(/\s+/g, " ");
     const workflowText = workflow.replace(/\s+/g, " ");
+    const internalAlphaText = internalAlpha.replace(/\s+/g, " ");
 
     expect(readme).toContain("npm run dogfood:status -- \\");
     expect(readme).toContain("Recommended Tester Assignments");
@@ -155,6 +157,8 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("stale `docs/release-evidence/latest-alpha.json` now blocks `dogfood:status` collect readiness");
     expect(readmeText).toContain("When the downloaded manifest and prepared app already exist locally, `dogfood:status` replaces tester placeholders with the prepared paths and surfaces direct `dogfood:tester` next actions.");
     expect(workflowText).toContain("When local prepared alpha assets already exist, `dogfood:status` replaces the tester command placeholders with those manifest and app paths and emits direct `dogfood:tester` next actions.");
+    expect(workflowText).toContain("current `skfiy-alpha-<commit>` assignment packet comment with `App Bundle Preflight`, `Desktop Session Preflight`, `Permission Preflight`, and `Evidence Preview Gate`");
+    expect(internalAlphaText).toContain("current alpha assignment packet comments with `App Bundle Preflight`, `Desktop Session Preflight`, `Permission Preflight`, and `Evidence Preview Gate`");
     expect(readme).toContain("--tester-id tester-a \\\n  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
     expect(readme).toContain("npm run dogfood:collect -- \\");
     expect(readme).toContain("--tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
