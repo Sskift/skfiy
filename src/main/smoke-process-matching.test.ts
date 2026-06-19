@@ -22,6 +22,42 @@ describe("smoke process matching", () => {
     ]);
   });
 
+  it("matches only skfiy-owned Ghostty smoke sessions", async () => {
+    const {
+      filterSkfiyGhosttySessionProcessLines,
+      parseProcessIds
+    } = await import(pathToFileURL(modulePath).href) as {
+      filterSkfiyGhosttySessionProcessLines: (lines: string[]) => string[];
+      parseProcessIds: (lines: string[]) => number[];
+    };
+    const lines = [
+      "24984 /Applications/Ghostty.app/Contents/MacOS/ghostty --title=skfiy-shell --shell-integration-features=no-title",
+      "25020 /Applications/Ghostty.app/Contents/MacOS/ghostty --title=user-terminal",
+      "25021 node scripts/smoke-ghostty-product.mjs --pattern /Applications/Ghostty.app/Contents/MacOS/ghostty --title=skfiy-shell",
+      "25022 /Applications/Ghostty.app/Contents/MacOS/ghostty --shell-integration-features=no-title --title=skfiy-shell"
+    ];
+
+    const matches = filterSkfiyGhosttySessionProcessLines(lines);
+
+    expect(matches).toEqual([
+      lines[0],
+      lines[3]
+    ]);
+    expect(parseProcessIds(matches)).toEqual([24984, 25022]);
+  });
+
+  it("terminates skfiy-owned Ghostty smoke sessions during Ghostty smoke cleanup", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "scripts", "smoke-ghostty-product.mjs"),
+      "utf8"
+    );
+
+    expect(source).toContain("quitSkfiyGhosttySessions");
+    expect(source).toContain("terminateProcesses");
+    expect(source).toContain("SIGTERM");
+    expect(source).toContain("SIGKILL");
+  });
+
   it("keeps product smoke scripts off the broad dist/skfiy.app process pattern", () => {
     const productScripts = [
       "smoke-ui-product.mjs",
