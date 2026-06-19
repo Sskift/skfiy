@@ -115,6 +115,10 @@ describe("dogfood tracking issue sync", () => {
     expect(body).toContain("Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`, Speech Recognition `not-determined`");
     expect(body).toContain("npm run dogfood:status -- \\");
     expect(body).toContain("--manifest .skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json");
+    expect(body).toContain("## Desktop Session Preflight");
+    expect(body).toContain("Run `npm run smoke:desktop-session` before using `--require-passed`");
+    expect(body).toContain("locked console, `com.apple.loginwindow`, display sleep, or black-screen evidence");
+    expect(body).toContain("strict desktop-session preflight");
     expect(body).toContain("## Recommended Tester Assignments");
     expect(body).toContain("- `tester-1`: `coding-terminal,screenshot-inspection`");
     expect(body).toContain("- `tester-2`: `finder-file`");

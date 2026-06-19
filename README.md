@@ -260,6 +260,10 @@ so the GitHub coordination page carries the same suggested split. Its copied
 prepare, tester, and review commands keep the same tracking issue URL, so
 workflow inference, filed-run review handoff, and accepted-report linking stay
 attached to the intended cohort.
+The tracking issue body includes a `Desktop Session Preflight` section too,
+telling testers to run `smoke:desktop-session` before `--require-passed` and to
+treat locked console, `com.apple.loginwindow`, display sleep, or black-screen
+evidence as desktop-session blockers.
 Those GitHub commands also use the prepared-alpha manifest placeholder for
 tester/review steps, keeping the coordination issue portable across tester
 machines.

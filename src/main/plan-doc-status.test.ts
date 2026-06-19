@@ -133,6 +133,10 @@ describe("implementation plan status docs", () => {
   it("documents the maintainer dogfood collection and cohort verification loop", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
+    const longPlan = readFileSync(
+      path.join(process.cwd(), "docs", "research", "2026-06-16-voice-computer-control-long-plan.md"),
+      "utf8"
+    );
     const readmeText = readme.replace(/\s+/g, " ");
     const workflowText = workflow.replace(/\s+/g, " ");
 
@@ -140,6 +144,9 @@ describe("implementation plan status docs", () => {
     expect(readme).toContain("Recommended Tester Assignments");
     expect(readme).toContain("tracking issue body includes a `Recommended Tester Assignments` section");
     expect(readme).toContain("`dogfood:prepare-alpha` can infer `--workflows` from the tracking issue");
+    expect(readme).toContain("tracking issue body includes a `Desktop Session Preflight` section");
+    expect(workflow).toContain("The generated tracking issue body includes a `Desktop Session Preflight` section");
+    expect(longPlan).toContain("tracking issue body now includes `Desktop Session Preflight`");
     expect(readmeText).toContain("When the downloaded manifest and prepared app already exist locally, `dogfood:status` replaces tester placeholders with the prepared paths and surfaces direct `dogfood:tester` next actions.");
     expect(workflowText).toContain("When local prepared alpha assets already exist, `dogfood:status` replaces the tester command placeholders with those manifest and app paths and emits direct `dogfood:tester` next actions.");
     expect(readme).toContain("--tester-id tester-a \\\n  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
