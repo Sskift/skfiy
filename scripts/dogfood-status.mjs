@@ -191,17 +191,22 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     && workflowCoverage.missing.length === 0;
   const canRunPassedCohort = canRunCollect && passedWorkflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
-  const testerAssignments = createTesterAssignments({
+  const testerAssignments = await readPreparedTesterAssignments({
+    assignments: createTesterAssignments({
+      manifest,
+      manifestPath: options.manifestPath,
+      trackingIssueUrl: options.trackingIssueUrl,
+      trackingIssueFile: options.trackingIssueFile,
+      currentAlpha,
+      verifiedRealAcceptedReportCount: verifiedRealAcceptedReportIssueUrls.length,
+      usedTesterIds: readUsedTesterIds(reportIssueValidation),
+      missingRequiredReports,
+      workflowCoverage,
+      passedWorkflowCoverage
+    }),
     manifest,
-    manifestPath: options.manifestPath,
-    trackingIssueUrl: options.trackingIssueUrl,
-    trackingIssueFile: options.trackingIssueFile,
-    currentAlpha,
-    verifiedRealAcceptedReportCount: verifiedRealAcceptedReportIssueUrls.length,
-    usedTesterIds: readUsedTesterIds(reportIssueValidation),
-    missingRequiredReports,
-    workflowCoverage,
-    passedWorkflowCoverage
+    rootDir: options.rootDir ?? DEFAULT_ROOT_DIR,
+    io
   });
   const nextActions = createNextActions({
     canRunCollect,
@@ -1118,9 +1123,16 @@ function createTesterPrepareNextActions(testerAssignments) {
       && typeof assignment.commands?.prepareAlpha === "string"
       && assignment.commands.prepareAlpha.trim().length > 0
     )
-    .map((assignment) =>
-      `Run ${assignment.commands.prepareAlpha.trim()} to prepare ${assignment.testerId.trim()} for workflows ${assignment.workflows.join(",")}.`
-    );
+    .map((assignment) => {
+      if (
+        assignment.preparedAlpha?.ok === true
+        && typeof assignment.commands?.tester === "string"
+        && assignment.commands.tester.trim().length > 0
+      ) {
+        return `Run ${assignment.commands.tester.trim()} to collect ${assignment.testerId.trim()} evidence for workflows ${assignment.workflows.join(",")} after desktop preflight passes.`;
+      }
+      return `Run ${assignment.commands.prepareAlpha.trim()} to prepare ${assignment.testerId.trim()} for workflows ${assignment.workflows.join(",")}.`;
+    });
 }
 
 function createDesktopSessionStatusRefreshCommand({ manifestPath, trackingIssueUrl }) {
@@ -1277,6 +1289,65 @@ function createTesterAssignments({
       })
     };
   });
+}
+
+async function readPreparedTesterAssignments({ assignments, manifest, rootDir, io }) {
+  if (!Array.isArray(assignments) || assignments.length === 0 || typeof io.exists !== "function") {
+    return assignments;
+  }
+
+  const preparedAlpha = await readPreparedAlphaPaths({ manifest, rootDir, io });
+  if (preparedAlpha.ok !== true) {
+    return assignments;
+  }
+
+  return assignments.map((assignment) => ({
+    ...assignment,
+    preparedAlpha,
+    commands: {
+      ...assignment.commands,
+      tester: replacePreparedAlphaCommandPlaceholders(assignment.commands?.tester, preparedAlpha),
+      review: replacePreparedAlphaCommandPlaceholders(assignment.commands?.review, preparedAlpha)
+    }
+  }));
+}
+
+async function readPreparedAlphaPaths({ manifest, rootDir, io }) {
+  const alphaTag = readManifestAlphaTag(manifest);
+  const artifactBaseName = readManifestArtifactBaseName(manifest);
+  if (!artifactBaseName) {
+    return { ok: false };
+  }
+
+  const manifestPath = path.join(rootDir, ".skfiy-dogfood", "downloads", alphaTag, `${artifactBaseName}.json`);
+  const appPath = path.join(rootDir, ".skfiy-dogfood", "apps", alphaTag, "skfiy.app");
+  const manifestExists = await io.exists(manifestPath);
+  const appExists = await io.exists(appPath);
+
+  return {
+    ok: manifestExists === true && appExists === true,
+    manifestPath,
+    appPath
+  };
+}
+
+function readManifestArtifactBaseName(manifest) {
+  if (typeof manifest?.artifactBaseName === "string" && manifest.artifactBaseName.trim().length > 0) {
+    return manifest.artifactBaseName.trim();
+  }
+  if (typeof manifest?.zip?.path !== "string" || manifest.zip.path.trim().length === 0) {
+    return "";
+  }
+  return path.basename(manifest.zip.path.trim(), ".zip");
+}
+
+function replacePreparedAlphaCommandPlaceholders(command, preparedAlpha) {
+  if (typeof command !== "string") {
+    return command;
+  }
+  return command
+    .replace(PREPARED_ALPHA_MANIFEST_PLACEHOLDER, preparedAlpha.manifestPath)
+    .replace("<path-to-unzipped-skfiy.app>", preparedAlpha.appPath);
 }
 
 function readTesterAssignmentReleaseUrl({ currentAlpha, manifest, trackingIssueUrl }) {
@@ -2081,6 +2152,14 @@ function createDefaultIo() {
     },
     async statFile(filePath) {
       return await stat(filePath);
+    },
+    async exists(filePath) {
+      try {
+        await stat(filePath);
+        return true;
+      } catch {
+        return false;
+      }
     },
     async writeText(filePath, value) {
       await mkdir(path.dirname(filePath), { recursive: true });

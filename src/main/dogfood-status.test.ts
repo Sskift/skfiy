@@ -1349,6 +1349,97 @@ describe("dogfood status reporter", () => {
     expect(status.testerAssignments[0].commands.review).not.toContain("/repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json");
   });
 
+  it("recommends prepared tester commands when local alpha assets already exist", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
+    const preparedManifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc123/skfiy-0.1.0-abc123-macos-unsigned.json";
+    const preparedAppPath = "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc123/skfiy.app";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath,
+        moneyRunSmokePath
+      }),
+      [preparedManifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath,
+        moneyRunSmokePath
+      }),
+      [preparedAppPath]: "prepared app bundle",
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: {
+        ...createSmokeArtifact(voiceSmokePath, "blocked"),
+        provider: "doubao"
+      },
+      [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"],
+        comments: [
+          createAssignmentComment("abc123")
+        ]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io) as {
+      testerAssignments: Array<{
+        preparedAlpha?: {
+          ok: boolean;
+          manifestPath: string;
+          appPath: string;
+        };
+        commands: {
+          tester: string;
+          review: string;
+        };
+      }>;
+      nextActions: string[];
+    };
+
+    expect(status.testerAssignments[0].preparedAlpha).toEqual({
+      ok: true,
+      manifestPath: preparedManifestPath,
+      appPath: preparedAppPath
+    });
+    expect(status.testerAssignments[0].commands.tester).toContain(
+      `--manifest ${preparedManifestPath} --app ${preparedAppPath}`
+    );
+    expect(status.testerAssignments[0].commands.review).toContain(`--manifest ${preparedManifestPath}`);
+    expect(status.nextActions).toContain(
+      `Run ${status.testerAssignments[0].commands.tester} to collect tester-1 evidence for workflows coding-terminal,screenshot-inspection after desktop preflight passes.`
+    );
+    expect(status.nextActions).not.toContain(
+      "Run npm run dogfood:prepare-alpha -- --release-url https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123 --tester-id tester-1 --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --execute to prepare tester-1 for workflows coding-terminal,screenshot-inspection."
+    );
+    expect(io.textFiles[summaryPath]).toContain(`--manifest ${preparedManifestPath} --app ${preparedAppPath}`);
+  });
+
   it("reports whether the current alpha tester assignment packet is already posted as a tracking issue comment", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
@@ -2885,6 +2976,9 @@ function createMemoryIo(
       }
 
       return { size: 1024 };
+    },
+    async exists(filePath: string) {
+      return files[filePath] !== undefined;
     },
     async readIssue(issueUrl: string) {
       const issue = issues[issueUrl];
