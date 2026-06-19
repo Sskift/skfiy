@@ -457,6 +457,144 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("npm run dogfood:status -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --desktop-session-artifact .skfiy-smoke/desktop-session-current.json");
   });
 
+  it("asks for product-path native speech proof after speech permissions are granted", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const nativeVoiceAction = "Run npm run smoke:voice -- --app dist/skfiy.app --provider native-macos --require-passed --output .skfiy-smoke/voice-native-current.json after desktop preflight passes to prove the product-path native speech turn after Speech Recognition permission is granted.";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: {
+        ...createSmokeArtifact(uiSmokePath, "no-onboarding", {
+          screenRecording: "authorized",
+          accessibility: "authorized",
+          microphone: "authorized",
+          speechRecognition: "authorized"
+        }),
+        desktopSessionDiagnostics: {
+          state: "blocked",
+          status: {
+            controllable: false,
+            frontmostBundleId: "com.apple.loginwindow",
+            frontmostProcessIdentifier: 591
+          },
+          reason: "Desktop session is locked by loginwindow (pid 591). Unlock the Mac and keep the display awake, then retry."
+        }
+      },
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: {
+        ...createSmokeArtifact(voiceSmokePath, "blocked"),
+        provider: "doubao"
+      }
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io) as {
+      localSmoke: {
+        permissionBlockers: Array<{ permission: string; state: string }>;
+      };
+      nextActions: string[];
+    };
+
+    expect(status.localSmoke.permissionBlockers).toEqual([]);
+    expect(status.nextActions).toContain(nativeVoiceAction);
+    expect(io.textFiles[summaryPath]).toContain(nativeVoiceAction);
+  });
+
+  it("does not ask for native speech proof once native macOS voice smoke has passed", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const nativeVoiceAction = "Run npm run smoke:voice -- --app dist/skfiy.app --provider native-macos --require-passed --output .skfiy-smoke/voice-native-current.json after desktop preflight passes to prove the product-path native speech turn after Speech Recognition permission is granted.";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: {
+        ...createSmokeArtifact(uiSmokePath, "no-onboarding", {
+          screenRecording: "authorized",
+          accessibility: "authorized",
+          microphone: "authorized",
+          speechRecognition: "authorized"
+        }),
+        desktopSessionDiagnostics: {
+          state: "blocked",
+          status: {
+            controllable: false,
+            frontmostBundleId: "com.apple.loginwindow",
+            frontmostProcessIdentifier: 591
+          },
+          reason: "Desktop session is locked by loginwindow (pid 591). Unlock the Mac and keep the display awake, then retry."
+        }
+      },
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: {
+        ...createSmokeArtifact(voiceSmokePath, "passed"),
+        provider: "native-macos",
+        speechStatus: {
+          speechRecognition: { state: "authorized" },
+          microphone: { state: "authorized" }
+        }
+      }
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io) as {
+      nextActions: string[];
+    };
+
+    expect(status.nextActions).not.toContain(nativeVoiceAction);
+    expect(io.textFiles[summaryPath]).not.toContain(nativeVoiceAction);
+  });
+
   it("uses an explicit passed desktop-session artifact to clear stale loginwindow blockers", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

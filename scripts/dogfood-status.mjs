@@ -72,6 +72,8 @@ const PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS = [
   "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes.",
   "Run npm run smoke:voice -- --app dist/skfiy.app --provider doubao --require-passed --output .skfiy-smoke/voice-current.json after desktop preflight passes."
 ];
+const PASSED_NATIVE_SPEECH_SMOKE_COMMAND_ACTION = "Run npm run smoke:voice -- --app dist/skfiy.app --provider native-macos --require-passed --output .skfiy-smoke/voice-native-current.json after desktop preflight passes to prove the product-path native speech turn after Speech Recognition permission is granted.";
+const NATIVE_SPEECH_PERMISSION_KEYS = ["microphone", "speechRecognition"];
 const DEFAULT_DOGFOOD_COHORT_PATH = ".skfiy-dogfood/internal-alpha-cohort.json";
 const DEFAULT_DOGFOOD_COHORT_SUMMARY_PATH = ".skfiy-dogfood/internal-alpha-summary.md";
 const DEFAULT_STRICT_DOGFOOD_COHORT_SUMMARY_PATH = ".skfiy-dogfood/internal-alpha-summary-strict.md";
@@ -234,6 +236,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     assignmentComment,
     bodyPreflight,
     testerAssignments,
+    smokeArtifacts,
+    permissionStates,
     smokeArtifactProblems,
     desktopSessionBlocker,
     requiredEvidenceCheck: manifestChecks.requiredEvidence
@@ -1008,6 +1012,8 @@ function createNextActions({
   manifestPath,
   trackingIssueUrl,
   trackingIssueTarget,
+  smokeArtifacts,
+  permissionStates,
   permissionBlockers,
   missingRequiredReports,
   manifestChecks,
@@ -1085,6 +1091,9 @@ function createNextActions({
     actions.push("When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.");
     actions.push(...PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS);
   }
+  if (needsNativeSpeechProductPathEvidence({ smokeArtifacts, permissionStates })) {
+    actions.push(PASSED_NATIVE_SPEECH_SMOKE_COMMAND_ACTION);
+  }
   if (workflowCoverage.missing.length > 0) {
     actions.push(`Collect accepted reports covering missing workflows: ${workflowCoverage.missing.join(", ")}.`);
   }
@@ -1137,6 +1146,20 @@ function createNextActions({
   }
 
   return actions;
+}
+
+function needsNativeSpeechProductPathEvidence({ smokeArtifacts, permissionStates }) {
+  if (smokeArtifacts?.voice?.provider === "native-macos" && smokeArtifacts.voice.result === "passed") {
+    return false;
+  }
+
+  return NATIVE_SPEECH_PERMISSION_KEYS.every((permission) => {
+    const state = permissionStates?.[permission]?.state;
+    return typeof state === "string"
+      && state.trim().length > 0
+      && state !== "unknown"
+      && !BLOCKING_PERMISSION_STATES.has(state);
+  });
 }
 
 function createTesterPrepareNextActions(testerAssignments) {
