@@ -238,6 +238,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - [x] packaged product-path smoke matrix: `npm run smoke:ghostty -- --matrix`
   - [x] persistent product-path smoke artifact: `npm run smoke:ghostty -- --output .skfiy-smoke/ghostty-smoke.json`
   - [x] activation diagnostics distinguish granted permissions from an unavailable macOS desktop session (`frontmostBundleId: com.apple.loginwindow`)
+  - [x] activation verification is pid-aware and reports the observed `frontmostProcessIdentifier`, so skfiy-owned Ghostty sessions are not confused with another Ghostty process
   - [ ] passing product-path task scripts after Accessibility is granted
 - Week-2 acceptance evidence:
   - launch command: `open -na /Users/bytedance/Desktop/test/skfiy/dist/skfiy.app`
@@ -252,7 +253,7 @@ Goal: make the first native app scenario reliable enough to demo without embarra
   - result: passed, blocked, or needs-user-confirmation
   - current local run on 2026-06-16: blocked before opening Ghostty because `dist/skfiy.app` permission state is Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`; observed events were `executing(replayReset)` -> `observing` -> `failed`, no Ghostty command was typed, and no before/after replay screenshots were produced yet
   - current matrix run on 2026-06-16: `npm run smoke:ghostty -- --matrix --port 9260 --output .skfiy-smoke/ghostty-matrix-9260.json` used the packaged app path with `runnerHasTmux=false`; `pwd-readonly` and `date-readonly` were blocked by Computer Use permission preflight before opening Ghostty, `mkdir-approval` reached `approval_required`, and `rm-rf-deny` reached `approval_required` then `Task denied.` The persisted artifact was `/Users/bytedance/Desktop/test/skfiy/.skfiy-smoke/ghostty-matrix-9260.json` at 5377 bytes.
-  - current matrix run on 2026-06-19 after TCC grants: `npm run smoke:ghostty -- --matrix --settle-ms 1500 --timeout-ms 15000 --output .skfiy-smoke/ghostty-matrix-loginwindow-blocked-final.json` launched `dist/skfiy.app` through LaunchServices with `runnerHasTmux=false`; Screen Recording and Accessibility were granted, approval/deny guard runs behaved correctly, but read-only Ghostty execution was blocked because the helper observed `frontmostBundleId: com.apple.loginwindow` and black screenshots, so the artifact result is `blocked` until the Mac is unlocked and awake.
+  - current matrix run on 2026-06-19 after TCC grants and pid-aware activation diagnostics: `npm run smoke:ghostty -- --matrix --settle-ms 1500 --timeout-ms 15000 --output .skfiy-smoke/ghostty-matrix-pid-aware-loginwindow-blocked.json` launched `dist/skfiy.app` through LaunchServices with `runnerHasTmux=false`; Screen Recording and Accessibility were granted, approval/deny guard runs behaved correctly, but read-only Ghostty execution was blocked because the helper observed `frontmostBundleId: com.apple.loginwindow` and black screenshots, so the artifact result is `blocked` until the Mac is unlocked and awake.
   - `passed` smoke classification now requires LaunchServices app launch, `runnerHasTmux=false`, the product path, a completed event, and non-empty before/after screenshot files
   - repeat command: `npm run smoke:ghostty`
   - repeat matrix command: `npm run smoke:ghostty -- --matrix`

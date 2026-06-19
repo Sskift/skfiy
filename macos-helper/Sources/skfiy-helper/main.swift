@@ -45,7 +45,8 @@ import Vision
      processIdentifier: Number,
      activated: Boolean,
      requestedActivation: Boolean,
-     frontmostBundleId: String | null
+     frontmostBundleId: String | null,
+     frontmostProcessIdentifier: Number | null
    }
  - open-ghostty-session --title <title> [--working-directory <path>]:
    data = {
@@ -249,6 +250,7 @@ struct ActivateAppPayload: Encodable {
     let activated: Bool
     let requestedActivation: Bool
     let frontmostBundleId: String?
+    let frontmostProcessIdentifier: Int?
 }
 
 struct OpenGhosttySessionPayload: Encodable {
@@ -398,6 +400,23 @@ struct OpenPermissionSettingsPayload: Encodable {
     let permission: String
     let url: String
     let opened: Bool
+}
+
+struct FrontmostApplicationSnapshot {
+    let bundleId: String?
+    let processIdentifier: Int?
+
+    func matches(bundleId: String, processIdentifier: Int?) -> Bool {
+        guard self.bundleId == bundleId else {
+            return false
+        }
+
+        guard let processIdentifier else {
+            return true
+        }
+
+        return self.processIdentifier == processIdentifier
+    }
 }
 
 func writeJSON<T: Encodable>(_ value: T) {
@@ -589,18 +608,34 @@ func focusAppWindows(_ app: NSRunningApplication) throws {
     }
 }
 
-func waitForFrontmost(bundleId: String, timeoutSeconds: TimeInterval = 1.5) -> Bool {
+func readFrontmostApplication() -> FrontmostApplicationSnapshot {
+    guard let app = NSWorkspace.shared.frontmostApplication else {
+        return FrontmostApplicationSnapshot(bundleId: nil, processIdentifier: nil)
+    }
+
+    return FrontmostApplicationSnapshot(
+        bundleId: app.bundleIdentifier,
+        processIdentifier: Int(app.processIdentifier)
+    )
+}
+
+func waitForFrontmost(
+    bundleId: String,
+    processIdentifier: Int? = nil,
+    timeoutSeconds: TimeInterval = 1.5
+) -> FrontmostApplicationSnapshot {
     let deadline = Date().addingTimeInterval(timeoutSeconds)
 
     while Date() < deadline {
-        if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleId {
-            return true
+        let frontmost = readFrontmostApplication()
+        if frontmost.matches(bundleId: bundleId, processIdentifier: processIdentifier) {
+            return frontmost
         }
 
         RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
     }
 
-    return NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleId
+    return readFrontmostApplication()
 }
 
 func captureScreenshot(outputPath: String) throws -> String {
@@ -1717,15 +1752,32 @@ func handleActivateApp(_ arguments: ArraySlice<String>) throws -> ActivateAppPay
     let bundleId = try requiredOption("--bundle-id", in: options)
     let pid = try optionalPositiveIntOption("--pid", in: options)
     let app = try findRunningApp(bundleId: bundleId, processIdentifier: pid)
-    let requested = app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
-    try focusAppWindows(app)
-    let activated = requested && waitForFrontmost(bundleId: bundleId)
+    let processIdentifier = Int(app.processIdentifier)
+    var requested = false
+    var frontmost = readFrontmostApplication()
+
+    for _ in 0..<3 {
+        requested = app.activate(options: [.activateAllWindows, .activateIgnoringOtherApps]) || requested
+        try focusAppWindows(app)
+        frontmost = waitForFrontmost(
+            bundleId: bundleId,
+            processIdentifier: processIdentifier,
+            timeoutSeconds: 0.75
+        )
+
+        if frontmost.matches(bundleId: bundleId, processIdentifier: processIdentifier) {
+            break
+        }
+    }
+
+    let activated = frontmost.matches(bundleId: bundleId, processIdentifier: processIdentifier)
     return ActivateAppPayload(
         bundleId: bundleId,
-        processIdentifier: Int(app.processIdentifier),
+        processIdentifier: processIdentifier,
         activated: activated,
         requestedActivation: requested,
-        frontmostBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        frontmostBundleId: frontmost.bundleId,
+        frontmostProcessIdentifier: frontmost.processIdentifier
     )
 }
 

@@ -544,7 +544,13 @@ function readActivationMessage(record: Record<string, unknown>): string | undefi
   }
 
   if (frontmostBundleId && frontmostBundleId.length > 0) {
-    return `Target app did not become frontmost; current frontmost app is ${frontmostBundleId}.`;
+    const frontmostProcessIdentifier = typeof record.frontmostProcessIdentifier === "number"
+      ? record.frontmostProcessIdentifier
+      : undefined;
+    const processLabel = frontmostProcessIdentifier === undefined
+      ? ""
+      : ` (pid ${frontmostProcessIdentifier})`;
+    return `Target app did not become frontmost; current frontmost app is ${frontmostBundleId}${processLabel}.`;
   }
 
   if (requestedActivation === false) {

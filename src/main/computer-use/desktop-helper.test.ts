@@ -744,7 +744,8 @@ describe("DesktopHelperClient", () => {
             processIdentifier: 54502,
             activated: false,
             requestedActivation: true,
-            frontmostBundleId: "com.apple.finder"
+            frontmostBundleId: "com.apple.finder",
+            frontmostProcessIdentifier: 4312
           }
         }),
         stderr: "",
@@ -754,7 +755,7 @@ describe("DesktopHelperClient", () => {
 
     await expect(client.activateApp("com.mitchellh.ghostty", 54502)).resolves.toEqual({
       ok: false,
-      message: "Target app did not become frontmost; current frontmost app is com.apple.finder."
+      message: "Target app did not become frontmost; current frontmost app is com.apple.finder (pid 4312)."
     });
   });
 
