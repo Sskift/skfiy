@@ -305,6 +305,7 @@ describe("DesktopHelperClient", () => {
             frontmostBundleId: "com.apple.loginwindow",
             frontmostLocalizedName: "loginwindow",
             frontmostProcessIdentifier: 123,
+            mainDisplayAsleep: true,
             controllable: false
           }
         }),
@@ -317,6 +318,7 @@ describe("DesktopHelperClient", () => {
       frontmostBundleId: "com.apple.loginwindow",
       frontmostLocalizedName: "loginwindow",
       frontmostProcessIdentifier: 123,
+      mainDisplayAsleep: true,
       controllable: false
     });
     expect(calls).toEqual([

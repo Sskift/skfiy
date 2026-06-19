@@ -27,6 +27,28 @@ describe("readDesktopSessionDiagnosticsForRenderer", () => {
     });
   });
 
+  it("calls out display sleep separately from loginwindow lock state", async () => {
+    const status = {
+      controllable: false,
+      frontmostBundleId: "com.apple.loginwindow",
+      frontmostLocalizedName: "loginwindow",
+      frontmostProcessIdentifier: 591,
+      mainDisplayAsleep: true
+    } as DesktopSessionStatus & { mainDisplayAsleep: true };
+
+    await expect(
+      readDesktopSessionDiagnosticsForRenderer({
+        helper: {
+          getDesktopSessionStatus: async () => status
+        }
+      })
+    ).resolves.toEqual({
+      state: "blocked",
+      status,
+      reason: "Main display is asleep and desktop session is locked by loginwindow (pid 591). Wake and unlock the Mac, then retry."
+    });
+  });
+
   it("returns an unknown diagnostic when the helper cannot read desktop state", async () => {
     const messages: string[] = [];
 

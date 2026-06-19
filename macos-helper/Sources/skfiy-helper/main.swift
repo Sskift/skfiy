@@ -44,6 +44,7 @@ import Vision
      frontmostBundleId: String | null,
      frontmostLocalizedName: String | null,
      frontmostProcessIdentifier: Number | null,
+     mainDisplayAsleep: Boolean,
      controllable: Boolean
    }
  - activate-app --bundle-id <id> [--pid <process-id>]:
@@ -256,6 +257,7 @@ struct DesktopSessionStatusPayload: Encodable {
     let frontmostBundleId: String?
     let frontmostLocalizedName: String?
     let frontmostProcessIdentifier: Int?
+    let mainDisplayAsleep: Bool
     let controllable: Bool
 }
 
@@ -1772,6 +1774,7 @@ func handleDesktopSessionStatus(_ arguments: ArraySlice<String>) throws -> Deskt
         frontmostBundleId: frontmost.bundleId,
         frontmostLocalizedName: frontmost.localizedName,
         frontmostProcessIdentifier: frontmost.processIdentifier,
+        mainDisplayAsleep: CGDisplayIsAsleep(CGMainDisplayID()) != 0,
         controllable: frontmost.bundleId != "com.apple.loginwindow"
     )
 }

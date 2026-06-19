@@ -49,10 +49,26 @@ function createDesktopSessionDiagnostics(
       ? ` (pid ${status.frontmostProcessIdentifier})`
       : "";
 
+    if (status.mainDisplayAsleep === true) {
+      return {
+        state: "blocked",
+        status,
+        reason: `Main display is asleep and desktop session is locked by loginwindow${pid}. Wake and unlock the Mac, then retry.`
+      };
+    }
+
     return {
       state: "blocked",
       status,
       reason: `Desktop session is locked by loginwindow${pid}. Unlock the Mac and keep the display awake, then retry.`
+    };
+  }
+
+  if (status.mainDisplayAsleep === true) {
+    return {
+      state: "blocked",
+      status,
+      reason: "Main display is asleep. Wake and unlock the Mac, then retry."
     };
   }
 

@@ -29,6 +29,7 @@ export interface DesktopSessionStatus {
   frontmostBundleId?: string;
   frontmostLocalizedName?: string;
   frontmostProcessIdentifier?: number;
+  mainDisplayAsleep?: boolean;
   controllable: boolean;
 }
 

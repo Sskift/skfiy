@@ -25,7 +25,7 @@ com.sskift.skfiy
 The app embeds the Swift helper at:
 
 ```text
-dist/skfiy.app/Contents/Resources/skfiy-helper
+dist/skfiy.app/Contents/MacOS/skfiy-helper
 ```
 
 The package step rewrites the copied Electron bundle metadata to lowercase

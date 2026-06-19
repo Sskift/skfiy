@@ -110,6 +110,7 @@ export async function runDesktopSessionPreflight(options, io = defaultIo) {
     io
   );
   evidence.desktopSessionStatus = desktopSessionStatus;
+  evidence.display = readDisplayStatusFromDesktopSessionStatus(desktopSessionStatus);
   evidence.activeApp = readActiveAppFromDesktopSessionStatus(desktopSessionStatus);
   const screenshotPayload = await runHelperJson(
     options.helperPath,
@@ -149,9 +150,20 @@ export function classifyDesktopSessionPreflightEvidence(evidence) {
 }
 
 export function explainDesktopSessionPreflightEvidence(evidence) {
+  const mainDisplayAsleep = readMainDisplayAsleep(evidence);
+
   if (evidence.activeApp?.bundleId === LOGINWINDOW_BUNDLE_ID) {
     const pid = Number.isInteger(evidence.activeApp.pid) ? ` (pid ${evidence.activeApp.pid})` : "";
+
+    if (mainDisplayAsleep) {
+      return `Main display is asleep and loginwindow is active${pid}. Wake and unlock the Mac, then retry.`;
+    }
+
     return `Desktop session is not controllable because loginwindow is active${pid}. Unlock the Mac and keep the display awake, then retry.`;
+  }
+
+  if (mainDisplayAsleep) {
+    return "Main display is asleep. Wake and unlock the Mac, then retry.";
   }
 
   if (evidence.screenshot?.png?.isLikelyBlack === true) {
@@ -257,6 +269,17 @@ function readActiveAppFromDesktopSessionStatus(status) {
       : undefined,
     controllable: status?.controllable === true
   };
+}
+
+function readDisplayStatusFromDesktopSessionStatus(status) {
+  return typeof status?.mainDisplayAsleep === "boolean"
+    ? { mainDisplayAsleep: status.mainDisplayAsleep }
+    : undefined;
+}
+
+function readMainDisplayAsleep(evidence) {
+  return evidence?.display?.mainDisplayAsleep === true
+    || evidence?.desktopSessionStatus?.mainDisplayAsleep === true;
 }
 
 function readScreenshotOutput(payload, fallback) {

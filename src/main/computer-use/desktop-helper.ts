@@ -476,6 +476,7 @@ function readDesktopSessionStatus(
     "frontmostProcessIdentifier",
     commandName
   );
+  const mainDisplayAsleep = readOptionalBoolean(record, "mainDisplayAsleep", commandName);
 
   if (frontmostBundleId !== undefined) {
     status.frontmostBundleId = frontmostBundleId;
@@ -487,6 +488,10 @@ function readDesktopSessionStatus(
 
   if (frontmostProcessIdentifier !== undefined) {
     status.frontmostProcessIdentifier = frontmostProcessIdentifier;
+  }
+
+  if (mainDisplayAsleep !== undefined) {
+    status.mainDisplayAsleep = mainDisplayAsleep;
   }
 
   return status;

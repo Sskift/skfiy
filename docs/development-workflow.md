@@ -56,7 +56,7 @@ The app must have a stable bundle identifier and embed the Swift helper. Screen 
 The embedded helper must live beside the app executable at `Contents/MacOS/skfiy-helper`; this keeps permission-sensitive calls on the packaged app's execution path for user-facing tests.
 Local unsigned builds must also carry the stable designated requirement `identifier "com.sskift.skfiy"`. A plain ad-hoc `cdhash` signature changes on every build and invalidates existing TCC grants even when the visible app path and name are unchanged.
 The packaged bundle must pass `codesign --verify --deep --strict` before any permission test. If nested Electron code or `skfiy-helper` invalidates the app signature, System Settings can show a stale `skfiy` row while Electron's own `systemPreferences` APIs still report Screen Recording and Accessibility as denied.
-Permission grants are necessary but not sufficient for Computer Use. The real desktop session must be unlocked and controllable: if `skfiy-helper` reports `frontmostBundleId: com.apple.loginwindow`, or screenshots are black while Screen Recording/Accessibility are granted, product smoke must report `blocked` with that concrete session-state reason instead of a generic helper failure. Activation diagnostics must include the requested process id and the observed frontmost process id so multi-process apps such as Ghostty are validated against the skfiy-owned process, not just a shared bundle id.
+Permission grants are necessary but not sufficient for Computer Use. The real desktop session must be awake, unlocked, and controllable: if `skfiy-helper` reports `mainDisplayAsleep: true`, `frontmostBundleId: com.apple.loginwindow`, or screenshots are black while Screen Recording/Accessibility are granted, product smoke must report `blocked` with that concrete session-state reason instead of a generic helper failure. Activation diagnostics must include the requested process id and the observed frontmost process id so multi-process apps such as Ghostty are validated against the skfiy-owned process, not just a shared bundle id.
 
 ### Temporary Engineering Debug Only
 
@@ -123,13 +123,13 @@ npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session.json
 ```
 
 This uses the packaged helper inside `dist/skfiy.app` to read permission state,
-the active application, and a screenshot. A `blocked` result with
-`activeApp.bundleId: com.apple.loginwindow` or `screenshot.png.isLikelyBlack:
-true` means macOS is still presenting an uncontrollable lock/login/sleep
-session to Computer Use even if System Settings says permissions are granted.
-Keep the display awake, unlock the Mac, and rerun this preflight before
-claiming Ghostty, Finder, Chrome screenshot fallback, or voice-driven Computer
-Use works.
+display sleep state, the active application, and a screenshot. A `blocked`
+result with `display.mainDisplayAsleep: true`, `activeApp.bundleId` equal to
+`com.apple.loginwindow`, or `screenshot.png.isLikelyBlack: true` means macOS is
+still presenting an uncontrollable sleep/lock/login session to Computer Use even
+if System Settings says permissions are granted. Wake the display, unlock the
+Mac, and rerun this preflight before claiming Ghostty, Finder, Chrome screenshot
+fallback, or voice-driven Computer Use works.
 
 ### Pet UI Smoke
 

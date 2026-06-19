@@ -5,16 +5,25 @@ import { describe, expect, it } from "vitest";
 
 describe("desktop session preflight script", () => {
   it("classifies loginwindow as blocked even when a screenshot exists", async () => {
-    const { classifyDesktopSessionPreflightEvidence } = await importPreflightScript();
+    const {
+      classifyDesktopSessionPreflightEvidence,
+      explainDesktopSessionPreflightEvidence
+    } = await importPreflightScript();
 
-    expect(classifyDesktopSessionPreflightEvidence({
+    const evidence = {
       activeApp: { bundleId: "com.apple.loginwindow", pid: 591 },
+      desktopSessionStatus: { mainDisplayAsleep: true },
       screenshot: {
         exists: true,
         bytes: 1200,
         png: { isLikelyBlack: false }
       }
-    })).toBe("blocked");
+    };
+
+    expect(classifyDesktopSessionPreflightEvidence(evidence)).toBe("blocked");
+    expect(explainDesktopSessionPreflightEvidence(evidence)).toBe(
+      "Main display is asleep and loginwindow is active (pid 591). Wake and unlock the Mac, then retry."
+    );
   });
 
   it("classifies an all-black screenshot as blocked", async () => {
@@ -84,6 +93,7 @@ async function importPreflightScript() {
       nonBlackCount: number;
     };
     classifyDesktopSessionPreflightEvidence: (evidence: Record<string, unknown>) => string;
+    explainDesktopSessionPreflightEvidence: (evidence: Record<string, unknown>) => string;
   };
 }
 
