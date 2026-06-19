@@ -906,6 +906,14 @@ function createNextActions({
     && testerAssignmentCount > 0
   ) {
     actions.push(`Post the current ${assignmentComment.currentAlphaTag} tester assignment packet to ${trackingIssueTarget} before asking more testers to run it.`);
+    const assignmentsCommand = createDogfoodAssignmentsCommand({
+      manifestPath,
+      trackingIssueUrl,
+      currentAlphaTag: assignmentComment.currentAlphaTag
+    });
+    if (assignmentsCommand) {
+      actions.push(`${assignmentsCommand} to post the current ${assignmentComment.currentAlphaTag} packet.`);
+    }
   }
   if (invalidReportIssueCount > 0) {
     actions.push("Review or replace stale/invalid dogfood report issue URLs before collecting the cohort.");
@@ -1000,6 +1008,33 @@ function createDogfoodCollectCommand({ manifestPath, trackingIssueUrl }) {
     DEFAULT_DOGFOOD_COHORT_PATH,
     "--summary",
     DEFAULT_DOGFOOD_COHORT_SUMMARY_PATH
+  ].join(" ");
+}
+
+function createDogfoodAssignmentsCommand({ manifestPath, trackingIssueUrl, currentAlphaTag }) {
+  if (
+    typeof manifestPath !== "string"
+    || manifestPath.trim().length === 0
+    || typeof trackingIssueUrl !== "string"
+    || !isGitHubIssueUrl(trackingIssueUrl)
+    || typeof currentAlphaTag !== "string"
+    || currentAlphaTag.trim().length === 0
+  ) {
+    return "";
+  }
+
+  const alphaTag = currentAlphaTag.trim();
+  return [
+    "Run npm run dogfood:assignments --",
+    "--manifest",
+    manifestPath.trim(),
+    "--tracking-issue-url",
+    trackingIssueUrl.trim(),
+    "--output",
+    `.skfiy-dogfood/assignments/${alphaTag}.md`,
+    "--json-output",
+    `.skfiy-dogfood/assignments/${alphaTag}.json`,
+    "--execute"
   ].join(" ");
 }
 

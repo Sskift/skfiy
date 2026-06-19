@@ -1281,7 +1281,8 @@ describe("dogfood status reporter", () => {
         }
       },
       nextActions: expect.arrayContaining([
-        "Post the current skfiy-alpha-abc123 tester assignment packet to GitHub issue #1 before asking more testers to run it."
+        "Post the current skfiy-alpha-abc123 tester assignment packet to GitHub issue #1 before asking more testers to run it.",
+        "Run npm run dogfood:assignments -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --output .skfiy-dogfood/assignments/skfiy-alpha-abc123.md --json-output .skfiy-dogfood/assignments/skfiy-alpha-abc123.json --execute to post the current skfiy-alpha-abc123 packet."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("## Assignment Comment");
@@ -1342,7 +1343,8 @@ describe("dogfood status reporter", () => {
         }
       },
       nextActions: expect.arrayContaining([
-        "Post the current skfiy-alpha-abc123 tester assignment packet to GitHub issue #1 before asking more testers to run it."
+        "Post the current skfiy-alpha-abc123 tester assignment packet to GitHub issue #1 before asking more testers to run it.",
+        "Run npm run dogfood:assignments -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --output .skfiy-dogfood/assignments/skfiy-alpha-abc123.md --json-output .skfiy-dogfood/assignments/skfiy-alpha-abc123.json --execute to post the current skfiy-alpha-abc123 packet."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("- invalid: current skfiy-alpha-abc123 tester assignment packet comment is missing Evidence Preview Gate");
