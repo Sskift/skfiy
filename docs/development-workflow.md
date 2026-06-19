@@ -130,6 +130,11 @@ still presenting an uncontrollable sleep/lock/login session to Computer Use even
 if System Settings says permissions are granted. Wake the display, unlock the
 Mac, and rerun this preflight before claiming Ghostty, Finder, Chrome screenshot
 fallback, or voice-driven Computer Use works.
+The preflight's `permissions.speechRecognition` field is direct-helper scoped
+and can differ from app-scoped Speech Recognition grants. Use
+`permissionInterpretation.defaultExternalDoubaoReady` for the default external
+Doubao path, and use `smoke:ui` `permissionDiagnostics.active` when app-scoped
+speech evidence is required.
 
 ### Pet UI Smoke
 

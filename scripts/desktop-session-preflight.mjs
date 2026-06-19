@@ -11,6 +11,9 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 const LOGINWINDOW_BUNDLE_ID = "com.apple.loginwindow";
 const BLACK_PIXEL_THRESHOLD = 8;
 const NON_BLACK_RATIO_THRESHOLD = 0.002;
+const DEFAULT_EXTERNAL_DOUBAO_REQUIRED_PERMISSIONS = ["screenRecording", "accessibility"];
+const NON_AUTHORITATIVE_APP_SCOPED_PERMISSION_CHECKS = ["speechRecognition"];
+const APP_SCOPED_SPEECH_RECOGNITION_SOURCE = "smoke:ui permissionDiagnostics.active";
 
 export function createDefaultDesktopSessionPreflightOptions(rootDir) {
   const appPath = path.join(rootDir, "dist", "skfiy.app");
@@ -97,7 +100,9 @@ export async function runDesktopSessionPreflight(options, io = defaultIo) {
     permissionProbe: {
       scope: "direct-helper",
       speechRecognitionStatusSource: "direct-helper",
-      appScopedSpeechRecognitionStatusSource: "smoke:ui permissionDiagnostics.active",
+      appScopedSpeechRecognitionStatusSource: APP_SCOPED_SPEECH_RECOGNITION_SOURCE,
+      defaultExternalDoubaoRequiredPermissions: DEFAULT_EXTERNAL_DOUBAO_REQUIRED_PERMISSIONS,
+      nonAuthoritativeForAppScopedPermissionChecks: NON_AUTHORITATIVE_APP_SCOPED_PERMISSION_CHECKS,
       note: "This preflight executes skfiy-helper directly for session diagnostics. Speech Recognition can be scoped differently when the helper is launched from skfiy.app; use smoke:ui permissionDiagnostics.active for app-scoped speech status."
     },
     artifactPath: options.outputPath,
@@ -110,6 +115,7 @@ export async function runDesktopSessionPreflight(options, io = defaultIo) {
 
   await io.mkdir(path.dirname(options.screenshotOutputPath), { recursive: true });
   evidence.permissions = await runHelperJson(options.helperPath, ["permissions-status"], io);
+  evidence.permissionInterpretation = interpretPermissionEvidence(evidence.permissions);
   const desktopSessionStatus = await runHelperJson(
     options.helperPath,
     ["desktop-session-status"],
@@ -137,6 +143,31 @@ export async function runDesktopSessionPreflight(options, io = defaultIo) {
   evidence.result = classifyDesktopSessionPreflightEvidence(evidence);
 
   return evidence;
+}
+
+export function interpretPermissionEvidence(permissions) {
+  const blockers = DEFAULT_EXTERNAL_DOUBAO_REQUIRED_PERMISSIONS.flatMap((permission) => {
+    const status = readPermissionStatus(permissions?.[permission]);
+
+    if (isGrantedPermissionStatus(permissions?.[permission], status)) {
+      return [];
+    }
+
+    return [{
+      permission,
+      status
+    }];
+  });
+
+  return {
+    defaultExternalDoubaoReady: blockers.length === 0,
+    blockers,
+    nonAuthoritative: NON_AUTHORITATIVE_APP_SCOPED_PERMISSION_CHECKS.map((permission) => ({
+      permission,
+      status: readPermissionStatus(permissions?.[permission]),
+      reason: "Direct helper Speech Recognition status can differ from app-scoped status; use smoke:ui permissionDiagnostics.active for app-scoped speech evidence."
+    }))
+  };
 }
 
 export function classifyDesktopSessionPreflightEvidence(evidence) {
@@ -286,6 +317,24 @@ function readDisplayStatusFromDesktopSessionStatus(status) {
 function readMainDisplayAsleep(evidence) {
   return evidence?.display?.mainDisplayAsleep === true
     || evidence?.desktopSessionStatus?.mainDisplayAsleep === true;
+}
+
+function readPermissionStatus(permission) {
+  if (typeof permission?.state === "string" && permission.state.length > 0) {
+    return permission.state;
+  }
+
+  if (typeof permission?.status === "string" && permission.status.length > 0) {
+    return permission.status;
+  }
+
+  return "unknown";
+}
+
+function isGrantedPermissionStatus(permission, status) {
+  return permission?.granted === true
+    || status === "authorized"
+    || status === "granted";
 }
 
 function readScreenshotOutput(payload, fallback) {

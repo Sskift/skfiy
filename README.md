@@ -185,6 +185,10 @@ has just been unlocked or permission state looks inconsistent. It records the
 packaged helper's display sleep state, active app, and a screenshot black-screen
 analysis; `blocked` with `mainDisplayAsleep=true`, `com.apple.loginwindow`, or
 `isLikelyBlack=true` is an environment blocker, not a missing TCC grant.
+For the default external Doubao path, read
+`permissionInterpretation.defaultExternalDoubaoReady` from that artifact; its
+direct-helper `permissions.speechRecognition` value is diagnostic only and can
+differ from app-scoped `smoke:ui` speech evidence.
 
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and

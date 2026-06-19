@@ -80,7 +80,20 @@ describe("desktop session preflight script", () => {
       permissionProbe: {
         scope: "direct-helper",
         speechRecognitionStatusSource: "direct-helper",
-        appScopedSpeechRecognitionStatusSource: "smoke:ui permissionDiagnostics.active"
+        appScopedSpeechRecognitionStatusSource: "smoke:ui permissionDiagnostics.active",
+        defaultExternalDoubaoRequiredPermissions: ["screenRecording", "accessibility"],
+        nonAuthoritativeForAppScopedPermissionChecks: ["speechRecognition"]
+      },
+      permissionInterpretation: {
+        defaultExternalDoubaoReady: true,
+        blockers: [],
+        nonAuthoritative: [
+          {
+            permission: "speechRecognition",
+            status: "notDetermined",
+            reason: "Direct helper Speech Recognition status can differ from app-scoped status; use smoke:ui permissionDiagnostics.active for app-scoped speech evidence."
+          }
+        ]
       },
       result: "passed"
     });
