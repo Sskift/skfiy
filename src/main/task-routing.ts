@@ -10,10 +10,18 @@ export type CommandRoute =
   | { kind: "ghostty"; bundleId: typeof GHOSTTY_BUNDLE_ID }
   | { kind: "chrome"; bundleId: typeof CHROME_BUNDLE_ID }
   | { kind: "finder"; bundleId: typeof FINDER_BUNDLE_ID }
+  | { kind: "tmux_supervision"; sessionName: "money-run" }
   | { kind: "chat"; reason: string }
   | { kind: "needs_clarification"; reason: string };
 
 export function selectCommandRoute(command: string): CommandRoute {
+  if (isMoneyRunSupervisionRequest(command)) {
+    return {
+      kind: "tmux_supervision",
+      sessionName: "money-run"
+    };
+  }
+
   const chromeIntent = parseChromePageIntent(command);
   if (chromeIntent.ok) {
     return {
@@ -65,4 +73,27 @@ function isConversationalPrompt(command: string): boolean {
     "hello",
     "hi"
   ].some((phrase) => normalized.includes(phrase));
+}
+
+function isMoneyRunSupervisionRequest(command: string): boolean {
+  const normalized = command.trim().toLowerCase();
+
+  if (!normalized.includes("money-run")) {
+    return false;
+  }
+
+  const mentionsTmuxContext = /\btmux\b|\bsession\b|会话/u.test(normalized);
+  const asksForSupervision = [
+    "监督",
+    "观察",
+    "监控",
+    "看着",
+    "盯着",
+    "supervise",
+    "monitor",
+    "watch",
+    "observe"
+  ].some((phrase) => normalized.includes(phrase));
+
+  return mentionsTmuxContext && asksForSupervision;
 }

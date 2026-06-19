@@ -22,6 +22,7 @@ import {
 } from "./app-policy-settings.js";
 import { createChromeCdpClient } from "./chrome-cdp-client.js";
 import { readChromeCdpEndpoint } from "./chrome-cdp-settings.js";
+import { createTmuxSupervisionClient } from "./tmux-supervision-client.js";
 import {
   createDictationSettingsStore,
   readInitialDictationSettings,
@@ -62,6 +63,10 @@ import {
 } from "./orchestrator/finder-task.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
 import {
+  runTmuxSupervisionTask,
+  type TmuxSupervisionTaskEvent
+} from "./orchestrator/tmux-supervision-task.js";
+import {
   readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
@@ -89,7 +94,11 @@ type TaskStatus =
   | "completed"
   | "failed";
 type PetWindowMode = "compact" | "expanded";
-type ComputerUseTaskEvent = GhosttyTaskEvent | ChromeTaskEvent | FinderTaskEvent;
+type ComputerUseTaskEvent =
+  | GhosttyTaskEvent
+  | ChromeTaskEvent
+  | FinderTaskEvent
+  | TmuxSupervisionTaskEvent;
 
 interface TaskEvent {
   status: TaskStatus;
@@ -328,7 +337,12 @@ function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEve
       return {
         status: "approval_required",
         message: `Approval required (${event.risk.level}): ${event.risk.reason}`,
-        command: event.command
+        command: "command" in event ? event.command : `监督 tmux ${event.sessionName}`
+      };
+    case "observing":
+      return {
+        status: "observing",
+        message: `${prefix}${event.message}`
       };
     case "locating_app":
       return {
@@ -597,6 +611,48 @@ async function runCommandTask(
       status: "needs_confirmation",
       message: `${route.reason} 请明确目标应用和动作。`
     });
+    return;
+  }
+
+  if (route.kind === "tmux_supervision") {
+    const taskId = currentTaskId + 1;
+    currentTaskId = taskId;
+    pendingApproval = null;
+    activeTaskController?.abort();
+
+    const controller = new AbortController();
+    activeTaskController = controller;
+
+    try {
+      for await (const taskEvent of runTmuxSupervisionTask(
+        route.sessionName,
+        createTmuxSupervisionClient(),
+        { approved }
+      )) {
+        if (controller.signal.aborted || taskId !== currentTaskId) {
+          return;
+        }
+
+        if (taskEvent.type === "approval_required" && !approved) {
+          pendingApproval = { command, mode };
+        }
+
+        emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));
+      }
+    } catch (error) {
+      if (controller.signal.aborted || taskId !== currentTaskId) {
+        return;
+      }
+
+      emitTurnReplayTaskEvent(window, {
+        status: "failed",
+        message: error instanceof Error ? error.message : "tmux supervision failed."
+      });
+    } finally {
+      if (activeTaskController === controller) {
+        activeTaskController = null;
+      }
+    }
     return;
   }
 

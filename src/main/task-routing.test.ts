@@ -60,6 +60,13 @@ describe("selectCommandRoute", () => {
     });
   });
 
+  it("routes money-run supervision commands to tmux supervision", () => {
+    expect(selectCommandRoute("监督 tmux money-run 这个 session")).toEqual({
+      kind: "tmux_supervision",
+      sessionName: "money-run"
+    });
+  });
+
   it("keeps terminal commands on the Ghostty route", () => {
     expect(selectCommandRoute("打开 Ghostty 执行 pwd 并截图")).toEqual({
       kind: "ghostty",

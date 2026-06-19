@@ -45,13 +45,14 @@ export interface VoiceTurnSessionStoreOptions {
 
 export type VoiceIntentAdmissionRoute =
   | { kind: "ghostty" | "chrome" | "finder"; bundleId: string }
+  | { kind: "tmux_supervision"; sessionName: string }
   | { kind: "chat"; reason: string }
   | { kind: "needs_clarification"; reason: string };
 
 export type VoiceIntentAdmissionDecision =
   | {
     decision: "computer_use";
-    routeKind: "ghostty" | "chrome" | "finder";
+    routeKind: "ghostty" | "chrome" | "finder" | "tmux_supervision";
     transcript: string;
     confidence?: number;
   }
