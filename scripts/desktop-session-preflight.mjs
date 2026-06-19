@@ -123,6 +123,7 @@ export async function runDesktopSessionPreflight(options, io = defaultIo) {
   );
   evidence.desktopSessionStatus = desktopSessionStatus;
   evidence.display = readDisplayStatusFromDesktopSessionStatus(desktopSessionStatus);
+  evidence.consoleLock = readConsoleLockStatusFromDesktopSessionStatus(desktopSessionStatus);
   evidence.activeApp = readActiveAppFromDesktopSessionStatus(desktopSessionStatus);
   const screenshotPayload = await runHelperJson(
     options.helperPath,
@@ -175,6 +176,10 @@ export function classifyDesktopSessionPreflightEvidence(evidence) {
     return "blocked";
   }
 
+  if (readConsoleLocked(evidence)) {
+    return "blocked";
+  }
+
   if (evidence.screenshot?.png?.isLikelyBlack === true) {
     return "blocked";
   }
@@ -197,6 +202,10 @@ export function explainDesktopSessionPreflightEvidence(evidence) {
     }
 
     return `Desktop session is not controllable because loginwindow is active${pid}. Unlock the Mac and keep the display awake, then retry.`;
+  }
+
+  if (readConsoleLocked(evidence)) {
+    return "Desktop console is locked. Unlock the Mac and keep the display awake, then retry.";
   }
 
   if (mainDisplayAsleep) {
@@ -314,9 +323,30 @@ function readDisplayStatusFromDesktopSessionStatus(status) {
     : undefined;
 }
 
+function readConsoleLockStatusFromDesktopSessionStatus(status) {
+  const hasIoConsoleLocked = typeof status?.ioConsoleLocked === "boolean";
+  const hasCgSessionScreenIsLocked = typeof status?.cgSessionScreenIsLocked === "boolean";
+
+  if (!hasIoConsoleLocked && !hasCgSessionScreenIsLocked) {
+    return undefined;
+  }
+
+  return {
+    ioConsoleLocked: hasIoConsoleLocked ? status.ioConsoleLocked : undefined,
+    cgSessionScreenIsLocked: hasCgSessionScreenIsLocked ? status.cgSessionScreenIsLocked : undefined
+  };
+}
+
 function readMainDisplayAsleep(evidence) {
   return evidence?.display?.mainDisplayAsleep === true
     || evidence?.desktopSessionStatus?.mainDisplayAsleep === true;
+}
+
+function readConsoleLocked(evidence) {
+  return evidence?.consoleLock?.ioConsoleLocked === true
+    || evidence?.consoleLock?.cgSessionScreenIsLocked === true
+    || evidence?.desktopSessionStatus?.ioConsoleLocked === true
+    || evidence?.desktopSessionStatus?.cgSessionScreenIsLocked === true;
 }
 
 function readPermissionStatus(permission) {

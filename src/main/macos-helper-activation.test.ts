@@ -36,4 +36,21 @@ describe("macOS helper activate-app diagnostics", () => {
     expect(source).toContain("frontmostLocalizedName");
     expect(source).toContain("frontmostBundleId: frontmost.bundleId");
   });
+
+  it("reports console lock diagnostics in desktop-session-status", () => {
+    const helperPath = path.join(
+      process.cwd(),
+      "macos-helper",
+      "Sources",
+      "skfiy-helper",
+      "main.swift"
+    );
+    const source = readFileSync(helperPath, "utf8");
+
+    expect(source).toContain("import IOKit");
+    expect(source).toContain("ioConsoleLocked");
+    expect(source).toContain("cgSessionScreenIsLocked");
+    expect(source).toContain("IOConsoleLocked");
+    expect(source).toContain("CGSSessionScreenIsLocked");
+  });
 });

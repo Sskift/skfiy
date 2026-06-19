@@ -19,6 +19,7 @@ let package = Package(
                 .linkedFramework("AppKit"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("CoreGraphics"),
+                .linkedFramework("IOKit"),
                 .linkedFramework("Speech"),
                 .linkedFramework("Vision"),
                 .unsafeFlags([

@@ -121,6 +121,36 @@ describe("desktop session preflight script", () => {
     );
   });
 
+  it("classifies a console-locked session as blocked even when frontmost app is visible", async () => {
+    const {
+      classifyDesktopSessionPreflightEvidence,
+      explainDesktopSessionPreflightEvidence
+    } = await importPreflightScript();
+
+    const evidence = {
+      activeApp: { bundleId: "com.openai.codex", name: "Codex", pid: 4744 },
+      desktopSessionStatus: {
+        frontmostBundleId: "com.openai.codex",
+        frontmostLocalizedName: "Codex",
+        frontmostProcessIdentifier: 4744,
+        mainDisplayAsleep: false,
+        ioConsoleLocked: true,
+        cgSessionScreenIsLocked: true
+      },
+      display: { mainDisplayAsleep: false },
+      screenshot: {
+        exists: true,
+        bytes: 1200,
+        png: { isLikelyBlack: false }
+      }
+    };
+
+    expect(classifyDesktopSessionPreflightEvidence(evidence)).toBe("blocked");
+    expect(explainDesktopSessionPreflightEvidence(evidence)).toBe(
+      "Desktop console is locked. Unlock the Mac and keep the display awake, then retry."
+    );
+  });
+
   it("classifies an all-black screenshot as blocked", async () => {
     const {
       analyzePngImage,

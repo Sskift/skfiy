@@ -5,6 +5,7 @@ import Carbon
 import CoreGraphics
 import Dispatch
 import Foundation
+import IOKit
 import Speech
 import Vision
 
@@ -45,6 +46,8 @@ import Vision
      frontmostLocalizedName: String | null,
      frontmostProcessIdentifier: Number | null,
      mainDisplayAsleep: Boolean,
+     ioConsoleLocked: Boolean | null,
+     cgSessionScreenIsLocked: Boolean | null,
      controllable: Boolean
    }
  - activate-app --bundle-id <id> [--pid <process-id>]:
@@ -258,6 +261,8 @@ struct DesktopSessionStatusPayload: Encodable {
     let frontmostLocalizedName: String?
     let frontmostProcessIdentifier: Int?
     let mainDisplayAsleep: Bool
+    let ioConsoleLocked: Bool?
+    let cgSessionScreenIsLocked: Bool?
     let controllable: Bool
 }
 
@@ -435,6 +440,11 @@ struct FrontmostApplicationSnapshot {
 
         return self.processIdentifier == processIdentifier
     }
+}
+
+struct ConsoleLockStatus {
+    let ioConsoleLocked: Bool?
+    let cgSessionScreenIsLocked: Bool?
 }
 
 func writeJSON<T: Encodable>(_ value: T) {
@@ -635,6 +645,48 @@ func readFrontmostApplication() -> FrontmostApplicationSnapshot {
         bundleId: app.bundleIdentifier,
         localizedName: app.localizedName,
         processIdentifier: Int(app.processIdentifier)
+    )
+}
+
+func optionalBoolValue(_ value: Any?) -> Bool? {
+    if let bool = value as? Bool {
+        return bool
+    }
+
+    if let number = value as? NSNumber {
+        return number.boolValue
+    }
+
+    return nil
+}
+
+func rootIORegistryProperty(_ key: String) -> Any? {
+    let root = IORegistryGetRootEntry(kIOMainPortDefault)
+    guard root != MACH_PORT_NULL else {
+        return nil
+    }
+    defer {
+        IOObjectRelease(root)
+    }
+
+    return IORegistryEntryCreateCFProperty(
+        root,
+        key as CFString,
+        kCFAllocatorDefault,
+        0
+    )?.takeRetainedValue()
+}
+
+func readConsoleLockStatus() -> ConsoleLockStatus {
+    let ioConsoleLocked = optionalBoolValue(rootIORegistryProperty("IOConsoleLocked"))
+    let users = rootIORegistryProperty("IOConsoleUsers") as? [[String: Any]]
+    let consoleSession = users?.first {
+        optionalBoolValue($0["kCGSSessionOnConsoleKey"]) == true
+    }
+
+    return ConsoleLockStatus(
+        ioConsoleLocked: ioConsoleLocked,
+        cgSessionScreenIsLocked: optionalBoolValue(consoleSession?["CGSSessionScreenIsLocked"])
     )
 }
 
@@ -1769,12 +1821,15 @@ func handleListApps(_ arguments: ArraySlice<String>) throws -> ListAppsPayload {
 func handleDesktopSessionStatus(_ arguments: ArraySlice<String>) throws -> DesktopSessionStatusPayload {
     _ = try parseOptions(arguments, allowed: [])
     let frontmost = readFrontmostApplication()
+    let consoleLock = readConsoleLockStatus()
 
     return DesktopSessionStatusPayload(
         frontmostBundleId: frontmost.bundleId,
         frontmostLocalizedName: frontmost.localizedName,
         frontmostProcessIdentifier: frontmost.processIdentifier,
         mainDisplayAsleep: CGDisplayIsAsleep(CGMainDisplayID()) != 0,
+        ioConsoleLocked: consoleLock.ioConsoleLocked,
+        cgSessionScreenIsLocked: consoleLock.cgSessionScreenIsLocked,
         controllable: frontmost.bundleId != "com.apple.loginwindow"
     )
 }
