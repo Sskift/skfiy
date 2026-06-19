@@ -1113,11 +1113,15 @@ describe("dogfood artifact verifier", () => {
         ...createUiSmokeArtifact(uiSmokePath),
         permissionRows: [
           { label: "屏幕录制", state: "denied", stateText: "未授权" },
-          { label: "辅助功能", state: "denied", stateText: "未授权" }
+          { label: "辅助功能", state: "denied", stateText: "未授权" },
+          { label: "麦克风", state: "not-determined", stateText: "待授权" },
+          { label: "语音识别", state: "not-determined", stateText: "待授权" }
         ],
         permissionSettingTargets: [
           { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
-          { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" }
+          { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" },
+          { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
+          { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
         ]
       },
       [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
@@ -2365,6 +2369,61 @@ describe("dogfood artifact verifier", () => {
         providerEvents: [{ providerId: "native-macos", state: "unavailable" }],
         processesAfterCleanup: []
       }
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("ui.permissionSettings")
+      ])
+    });
+  });
+
+  it("fails when permission onboarding lacks voice permission System Settings targets", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const uiArtifact = createUiSmokeArtifact(uiSmokePath);
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: {
+        ...uiArtifact,
+        permissionSettingTargets: [
+          { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
+          { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" }
+        ]
+      },
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
     }))).resolves.toMatchObject({
       result: "failed",
       errors: expect.arrayContaining([
