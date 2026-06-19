@@ -204,6 +204,9 @@ issue and adds a next action when that comment is missing.
 `dogfood:assignments` is also non-mutating. It packages those assignments into a
 copy-safe Markdown handoff for real testers without creating reports, adding
 labels, updating cohort JSON, or marking evidence accepted.
+Assignment packets include a schema marker, and `dogfood:status` treats current
+alpha packet comments without that marker as stale so maintainers know to repost
+the latest tester handoff before asking more testers to run it.
 Use `--json-output` to persist the same tester split, permission preflight,
 evidence preview gate, next actions, and comment command as machine-readable
 JSON for dashboards and follow-up agents.

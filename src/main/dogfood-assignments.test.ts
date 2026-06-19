@@ -100,6 +100,7 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("# skfiy dogfood tester assignments");
     expect(packet).toContain("Generated: 2026-06-17T10:00:00.000Z");
     expect(packet).toContain("Alpha: skfiy-alpha-abc1234");
+    expect(packet).toContain("Packet schema: dogfood-assignments-v2");
     expect(packet).toContain("Tracking issue: https://github.com/Sskift/skfiy/issues/1");
     expect(packet).toContain("This packet is non-mutating: it does not create reports, add labels, update cohort JSON, or mark dogfood evidence accepted.");
     expect(packet).toContain("## Permission Preflight");
@@ -152,6 +153,7 @@ describe("dogfood tester assignment packet", () => {
       generatedAt: "2026-06-17T10:00:00.000Z",
       result: "waiting-for-dogfood",
       alphaTag: "skfiy-alpha-abc1234",
+      packetSchema: "dogfood-assignments-v2",
       releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc1234",
       manifestPath,
       trackingIssueUrl,

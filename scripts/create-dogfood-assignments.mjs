@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const GITHUB_ISSUE_URL_PATTERN = /^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/issues\/(\d+)$/;
+const ASSIGNMENT_PACKET_SCHEMA = "dogfood-assignments-v2";
 const PERMISSION_LABELS = {
   screenRecording: "Screen Recording",
   accessibility: "Accessibility",
@@ -163,6 +164,7 @@ export function createDogfoodAssignmentsJson(status, {
     generatedAt: generatedAt ?? status.generatedAt ?? "unknown",
     result: status.result ?? "unknown",
     alphaTag: `skfiy-alpha-${shortSha}`,
+    packetSchema: ASSIGNMENT_PACKET_SCHEMA,
     releaseUrl: readReleaseUrl(status, shortSha),
     manifestPath: status.manifestPath,
     trackingIssueUrl: status.trackingIssueUrl ?? "local-tracking-issue",
@@ -223,6 +225,7 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
     `Generated: ${generatedAt ?? status.generatedAt ?? "unknown"}`,
     `Status: ${status.result ?? "unknown"}`,
     `Alpha: skfiy-alpha-${shortSha}`,
+    `Packet schema: ${ASSIGNMENT_PACKET_SCHEMA}`,
     `Release: ${releaseUrl}`,
     `Manifest: ${status.manifestPath ?? "unknown"}`,
     `Tracking issue: ${trackingIssueUrl}`,

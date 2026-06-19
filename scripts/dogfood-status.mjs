@@ -14,6 +14,7 @@ const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za
 const ASSIGNMENT_PACKET_HEADING = "# skfiy dogfood tester assignments";
 const ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING = "## Permission Preflight";
 const ASSIGNMENT_EVIDENCE_PREVIEW_HEADING = "## Evidence Preview Gate";
+const ASSIGNMENT_PACKET_SCHEMA = "dogfood-assignments-v2";
 const REPORT_PERMISSION_KEYS = [
   "screenRecording",
   "accessibility",
@@ -1263,8 +1264,11 @@ function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, m
   const completeComments = commentsWithPermissionPreflight.filter((comment) =>
     comment.body.includes(ASSIGNMENT_EVIDENCE_PREVIEW_HEADING)
   );
+  const currentSchemaComments = completeComments.filter((comment) =>
+    hasCurrentAssignmentPacketSchema(comment.body)
+  );
   const reasons = [];
-  const latestComment = completeComments.at(-1) ?? matchingComments.at(-1);
+  const latestComment = currentSchemaComments.at(-1) ?? completeComments.at(-1) ?? matchingComments.at(-1);
 
   if (commentsAvailable !== true) {
     reasons.push("tracking issue comments were not loaded");
@@ -1274,6 +1278,8 @@ function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, m
     reasons.push(`current ${currentAlphaTag} tester assignment packet comment is missing Permission Preflight`);
   } else if (completeComments.length === 0) {
     reasons.push(`current ${currentAlphaTag} tester assignment packet comment is missing Evidence Preview Gate`);
+  } else if (currentSchemaComments.length === 0) {
+    reasons.push(`current ${currentAlphaTag} tester assignment packet comment is from an older schema`);
   }
 
   return {
@@ -1286,6 +1292,15 @@ function validateTrackingIssueAssignmentComment({ comments, commentsAvailable, m
     latestCommentCreatedAt: latestComment?.createdAt,
     reasons
   };
+}
+
+function hasCurrentAssignmentPacketSchema(body) {
+  const schemaLinePattern = new RegExp(
+    `^Packet schema:\\s*${escapeRegExp(ASSIGNMENT_PACKET_SCHEMA)}\\s*$`,
+    "im"
+  );
+
+  return schemaLinePattern.test(body);
 }
 
 function normalizeIssueComment(comment) {
