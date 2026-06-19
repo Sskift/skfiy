@@ -63,6 +63,11 @@ const LATEST_ALPHA_EVIDENCE_RELATIVE_PATH = path.join(
   "release-evidence",
   "latest-alpha.json"
 );
+const PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS = [
+  "Run npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output .skfiy-smoke/ghostty-current.json after desktop preflight passes.",
+  "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes.",
+  "Run npm run smoke:voice -- --app dist/skfiy.app --provider doubao --require-passed --output .skfiy-smoke/voice-current.json after desktop preflight passes."
+];
 export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     rootDir,
@@ -911,6 +916,7 @@ function createNextActions({
     actions.push("Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.");
     actions.push("After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.");
     actions.push("When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.");
+    actions.push(...PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS);
   }
   if (workflowCoverage.missing.length > 0) {
     actions.push(`Collect accepted reports covering missing workflows: ${workflowCoverage.missing.join(", ")}.`);

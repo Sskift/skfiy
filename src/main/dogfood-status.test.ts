@@ -440,7 +440,10 @@ describe("dogfood status reporter", () => {
       nextActions: expect.arrayContaining([
         "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.",
         "After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.",
-        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice."
+        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.",
+        "Run npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output .skfiy-smoke/ghostty-current.json after desktop preflight passes.",
+        "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes.",
+        "Run npm run smoke:voice -- --app dist/skfiy.app --provider doubao --require-passed --output .skfiy-smoke/voice-current.json after desktop preflight passes."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
@@ -521,7 +524,10 @@ describe("dogfood status reporter", () => {
       nextActions: expect.arrayContaining([
         "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.",
         "After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.",
-        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice."
+        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.",
+        "Run npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output .skfiy-smoke/ghostty-current.json after desktop preflight passes.",
+        "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes.",
+        "Run npm run smoke:voice -- --app dist/skfiy.app --provider doubao --require-passed --output .skfiy-smoke/voice-current.json after desktop preflight passes."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
