@@ -205,23 +205,26 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     && workflowCoverage.missing.length === 0;
   const canRunPassedCohort = canRunCollect && passedWorkflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
-  const testerAssignments = await readPreparedTesterAssignments({
-    assignments: createTesterAssignments({
+  const freshAlphaAction = readFreshAlphaBeforeTesterAssignmentAction(manifestChecks.currentHead);
+  const testerAssignments = freshAlphaAction
+    ? []
+    : await readPreparedTesterAssignments({
+      assignments: createTesterAssignments({
+        manifest,
+        manifestPath: options.manifestPath,
+        trackingIssueUrl: options.trackingIssueUrl,
+        trackingIssueFile: options.trackingIssueFile,
+        currentAlpha,
+        verifiedRealAcceptedReportCount: verifiedRealAcceptedReportIssueUrls.length,
+        usedTesterIds: readUsedTesterIds(reportIssueValidation),
+        missingRequiredReports,
+        workflowCoverage,
+        passedWorkflowCoverage
+      }),
       manifest,
-      manifestPath: options.manifestPath,
-      trackingIssueUrl: options.trackingIssueUrl,
-      trackingIssueFile: options.trackingIssueFile,
-      currentAlpha,
-      verifiedRealAcceptedReportCount: verifiedRealAcceptedReportIssueUrls.length,
-      usedTesterIds: readUsedTesterIds(reportIssueValidation),
-      missingRequiredReports,
-      workflowCoverage,
-      passedWorkflowCoverage
-    }),
-    manifest,
-    rootDir: options.rootDir ?? DEFAULT_ROOT_DIR,
-    io
-  });
+      rootDir: options.rootDir ?? DEFAULT_ROOT_DIR,
+      io
+    });
   const nextActions = createNextActions({
     canRunCollect,
     canRunPassedCohort,
@@ -1179,6 +1182,7 @@ function createNextActions({
   requiredEvidenceCheck
 }) {
   const actions = [];
+  const freshAlphaAction = readFreshAlphaBeforeTesterAssignmentAction(manifestChecks.currentHead);
 
   if (currentAlpha.ok !== true) {
     actions.push(`Update ${trackingIssueTarget} Current Alpha section to match the selected manifest before collecting reports.`);
@@ -1193,6 +1197,9 @@ function createNextActions({
     if (trackingIssueCommand) {
       actions.push(`${trackingIssueCommand} to refresh ${trackingIssueTarget}.`);
     }
+  }
+  if (freshAlphaAction) {
+    actions.push(freshAlphaAction);
   }
   if (missingRequiredReports > 0) {
     actions.push(`Collect at least 3 accepted real tester report issue URLs in ${trackingIssueTarget}.`);
@@ -1212,7 +1219,7 @@ function createNextActions({
       actions.push(`${assignmentsCommand} to post the current ${assignmentComment.currentAlphaTag} packet.`);
     }
   }
-  if (assignmentComment?.ok !== false) {
+  if (!freshAlphaAction && assignmentComment?.ok !== false) {
     actions.push(...createTesterPrepareNextActions(testerAssignments));
   }
   if (invalidReportIssueCount > 0) {
@@ -1264,17 +1271,6 @@ function createNextActions({
   if (permissionBlockers.some((item) => item.permission === "speechRecognition")) {
     actions.push("Grant Speech Recognition to dist/skfiy.app or the alpha app bundle before requiring passed native speech evidence.");
   }
-  if (
-    manifestChecks.currentHead
-    && manifestChecks.currentHead.ok !== true
-    && (manifestChecks.currentHead.required === true || manifestChecks.currentHead.appCodeOk !== true)
-  ) {
-    actions.push(
-      manifestChecks.currentHead.required === true
-        ? "Regenerate the alpha artifact so manifest commitSha matches the current HEAD."
-        : "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha."
-    );
-  }
   if (manifestChecks.releaseEvidence?.available === true && manifestChecks.releaseEvidence.ok !== true) {
     actions.push(
       `Refresh ${LATEST_ALPHA_EVIDENCE_RELATIVE_PATH} so it points at the selected ${manifestChecks.releaseEvidence.expectedTag} release before handing off the alpha.`
@@ -1298,6 +1294,20 @@ function createNextActions({
   }
 
   return actions;
+}
+
+function readFreshAlphaBeforeTesterAssignmentAction(currentHead) {
+  if (
+    !currentHead
+    || currentHead.ok === true
+    || (currentHead.required !== true && currentHead.appCodeOk === true)
+  ) {
+    return undefined;
+  }
+
+  return currentHead.required === true
+    ? "Regenerate the alpha artifact so manifest commitSha matches the current HEAD."
+    : "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha.";
 }
 
 function needsNativeSpeechProductPathEvidence({ smokeArtifacts, permissionEvidence }) {

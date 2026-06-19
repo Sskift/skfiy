@@ -476,6 +476,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] `dogfood:status --json-output <path>` now persists the same machine-readable status object as clean JSON, so dashboards, follow-up agents, and assignment automation can consume tester assignments, next actions, alpha identity, and coverage without scraping npm stdout
   - [x] `dogfood:status` now turns locked/loginwindow/black-screen desktop-session blockers into executable next actions, including the `smoke:desktop-session` rerun command and the reminder to rerun Ghostty, Finder, and voice product smokes with `--require-passed` only after desktop preflight passes
   - [x] `dogfood:status` now treats authoritative `smoke:desktop-session` direct-helper Screen Recording, Accessibility, and Microphone `status` fields as permission evidence while keeping non-authoritative Speech Recognition readings diagnostic-only, so a locked desktop is not mistaken for missing Computer Use permissions
+  - [x] `dogfood:status` now suppresses tester assignment commands when the selected alpha is behind current HEAD app-code changes, forcing maintainers to publish a fresh alpha before collecting new dogfood evidence against stale binaries
   - [ ] `coding-terminal` workflow reports from actual testers
   - [ ] `screenshot-inspection` workflow reports from actual testers
   - [ ] `finder-file` workflow reports from actual testers

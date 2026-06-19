@@ -1986,6 +1986,97 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain(`--manifest ${preparedManifestPath} --app ${preparedAppPath}`);
   });
 
+  it("does not recommend tester commands when selected alpha is behind app-code changes", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
+    const preparedManifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc123/skfiy-0.1.0-abc123-macos-unsigned.json";
+    const preparedAppPath = "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc123/skfiy.app";
+    const memoryIo = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath,
+        moneyRunSmokePath
+      }),
+      [preparedManifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath,
+        moneyRunSmokePath
+      }),
+      [preparedAppPath]: "prepared app bundle",
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: {
+        ...createSmokeArtifact(voiceSmokePath, "blocked"),
+        provider: "doubao"
+      },
+      [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"],
+        comments: [
+          createAssignmentComment("abc123")
+        ]
+      }
+    });
+    const io = {
+      ...memoryIo,
+      async readCurrentHead() {
+        return "newhead";
+      },
+      async readChangedFilesBetween(base: string, head: string) {
+        return base === "abc123" && head === "newhead"
+          ? ["src/main/main.ts"]
+          : [];
+      }
+    };
+    const freshAlphaAction = "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha.";
+
+    const status = await createDogfoodStatus({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io) as {
+      testerAssignments: unknown[];
+      nextActions: string[];
+    };
+
+    expect(status.testerAssignments).toEqual([]);
+    expect(status.nextActions).toContain(freshAlphaAction);
+    expect(status.nextActions).not.toEqual(expect.arrayContaining([
+      expect.stringContaining("to collect tester-1 evidence"),
+      expect.stringContaining("to prepare tester-1")
+    ]));
+    expect(status.nextActions.indexOf(freshAlphaAction)).toBeLessThan(
+      status.nextActions.findIndex((action) =>
+        action.includes("Collect accepted reports covering missing workflows")
+      )
+    );
+    expect(io.textFiles[summaryPath]).toContain("Alpha app code current: no");
+    expect(io.textFiles[summaryPath]).not.toContain(`Run npm run dogfood:tester -- --manifest ${preparedManifestPath}`);
+    expect(io.textFiles[summaryPath]).toContain("## Recommended Tester Assignments\n\n- none");
+  });
+
   it("does not recommend prepared tester commands when the downloaded manifest is stale", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
