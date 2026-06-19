@@ -114,7 +114,7 @@ describe("implementation plan status docs", () => {
         .map((match) => match[0]);
       expect(new Set(alphaTags)).toEqual(new Set([evidence.tagName]));
 
-      const smokeArtifactShas = [...plan.matchAll(/\.skfiy-smoke\/(?:ui|ghostty|chrome|finder|voice|money-run-supervision)-([a-f0-9]{7})\.json/g)]
+      const smokeArtifactShas = [...plan.matchAll(/\.skfiy-smoke\/(?:ui|ghostty|chrome|finder|voice|money-run(?:-supervision)?)-([a-f0-9]{7})\.json/g)]
         .map((match) => match[1]);
       expect(new Set(smokeArtifactShas)).toEqual(new Set([shortSha]));
     }

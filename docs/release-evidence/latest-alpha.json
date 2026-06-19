@@ -1,21 +1,21 @@
 {
   "schemaVersion": 1,
   "appName": "skfiy",
-  "tagName": "skfiy-alpha-396486c",
-  "releaseUrl": "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-396486c",
-  "commitSha": "396486c6987cb9593feb14c906d30a6201025c03",
-  "artifactBaseName": "skfiy-0.1.0-396486c-macos-unsigned",
-  "manifestPath": ".skfiy-alpha/skfiy-0.1.0-396486c-macos-unsigned.json",
-  "zipPath": ".skfiy-alpha/skfiy-0.1.0-396486c-macos-unsigned.zip",
-  "zipSha256": "cae8ee8e55b08a695508f8d8260e2252f69ff8632f781c170afa7d5830b20c80",
+  "tagName": "skfiy-alpha-8616269",
+  "releaseUrl": "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-8616269",
+  "commitSha": "861626953ee3c7c4a6c2890020913cd43ba86a40",
+  "artifactBaseName": "skfiy-0.1.0-8616269-macos-unsigned",
+  "manifestPath": ".skfiy-alpha/skfiy-0.1.0-8616269-macos-unsigned.json",
+  "zipPath": ".skfiy-alpha/skfiy-0.1.0-8616269-macos-unsigned.zip",
+  "zipSha256": "efca9567b94752d5ef42db0abac881421fa2774ddcd65fb63bd323599badd3c7",
   "smokeArtifacts": {
-    "ui": ".skfiy-smoke/ui-396486c.json",
-    "ghostty": ".skfiy-smoke/ghostty-396486c.json",
-    "chrome": ".skfiy-smoke/chrome-396486c.json",
-    "finder": ".skfiy-smoke/finder-396486c.json",
-    "voice": ".skfiy-smoke/voice-396486c.json",
-    "moneyRun": ".skfiy-smoke/money-run-supervision-396486c.json"
+    "ui": ".skfiy-smoke/ui-8616269.json",
+    "ghostty": ".skfiy-smoke/ghostty-8616269.json",
+    "chrome": ".skfiy-smoke/chrome-8616269.json",
+    "finder": ".skfiy-smoke/finder-8616269.json",
+    "voice": ".skfiy-smoke/voice-8616269.json",
+    "moneyRun": ".skfiy-smoke/money-run-8616269.json"
   },
   "dogfoodStatus": "waiting-for-dogfood",
-  "publishedAt": "2026-06-19T13:41:44.076Z"
+  "publishedAt": "2026-06-19T15:13:25.679Z"
 }
