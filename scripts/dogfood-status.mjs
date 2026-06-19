@@ -2054,15 +2054,23 @@ function matchesIssuePathOrBasename(issueValue, expectedPath) {
   if (typeof expectedPath !== "string" || expectedPath.trim().length === 0) {
     return false;
   }
-  const normalizedIssueValue = issueValue.trim();
-  const normalizedExpectedPath = expectedPath.trim();
-  const suffixIssueValue = normalizedIssueValue
-    .replace(/^\.\//, "")
-    .replace(/^\/+/, "");
+  const normalizedIssueValue = normalizeComparableIssuePath(issueValue);
+  const normalizedExpectedPath = normalizeComparableIssuePath(expectedPath);
+  const issueBasename = path.posix.basename(normalizedIssueValue);
+  const expectedBasename = path.posix.basename(normalizedExpectedPath);
 
   return normalizedIssueValue === normalizedExpectedPath
-    || normalizedIssueValue === path.basename(normalizedExpectedPath)
-    || normalizedExpectedPath.endsWith(`/${suffixIssueValue}`);
+    || normalizedIssueValue === expectedBasename
+    || issueBasename === expectedBasename
+    || normalizedExpectedPath.endsWith(`/${normalizedIssueValue}`);
+}
+
+function normalizeComparableIssuePath(value) {
+  return String(value ?? "")
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "");
 }
 
 function readWorkflowCoverage(body) {

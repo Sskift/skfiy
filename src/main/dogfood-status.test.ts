@@ -1158,6 +1158,84 @@ describe("dogfood status reporter", () => {
     );
   });
 
+  it("treats a prepared downloaded manifest as the same current alpha release evidence", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const preparedManifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc123/skfiy-0.1.0-abc123-macos-unsigned.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = createMemoryIo({
+      [preparedManifestPath]: {
+        ...createManifest({
+          uiSmokePath,
+          ghosttySmokePath,
+          chromeSmokePath,
+          finderSmokePath,
+          voiceSmokePath
+        }),
+        artifactBaseName: "skfiy-0.1.0-abc123-macos-unsigned"
+      },
+      "/repo/docs/release-evidence/latest-alpha.json": {
+        tagName: "skfiy-alpha-abc123",
+        releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc123",
+        commitSha: "abc123",
+        artifactBaseName: "skfiy-0.1.0-abc123-macos-unsigned",
+        manifestPath: ".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json",
+        zipPath: ".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.zip",
+        zipSha256: "feedface"
+      },
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      rootDir: "/repo",
+      manifestPath: preparedManifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      manifest: {
+        checks: {
+          releaseEvidence: {
+            available: true,
+            ok: true,
+            reasons: []
+          }
+        }
+      },
+      trackingIssue: {
+        currentAlpha: {
+          ok: true,
+          reasons: []
+        }
+      }
+    });
+    expect(status.nextActions).not.toContain(
+      "Update GitHub issue #1 Current Alpha section to match the selected manifest before collecting reports."
+    );
+    expect(status.nextActions).not.toContain(
+      "Refresh docs/release-evidence/latest-alpha.json so it points at the selected skfiy-alpha-abc123 release before handing off the alpha."
+    );
+  });
+
   it("warns when docs release evidence omits the money-run smoke artifact from the selected manifest", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
