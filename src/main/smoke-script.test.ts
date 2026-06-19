@@ -245,6 +245,7 @@ describe("Ghostty product smoke script", () => {
               frontmostBundleId: "com.apple.loginwindow",
               frontmostLocalizedName: "loginwindow",
               frontmostProcessIdentifier: 88,
+              mainDisplayAsleep: true,
               controllable: false
             }
           }),
@@ -259,7 +260,10 @@ describe("Ghostty product smoke script", () => {
         localizedName: "loginwindow",
         processIdentifier: 88
       },
-      reason: expect.stringContaining("frontmostBundleId=com.apple.loginwindow")
+      display: {
+        mainDisplayAsleep: true
+      },
+      reason: "Main display is asleep before target app launch and frontmostBundleId=com.apple.loginwindow frontmostProcessIdentifier=88. Wake and unlock the Mac, then retry."
     });
     expect(calls).toEqual([
       {

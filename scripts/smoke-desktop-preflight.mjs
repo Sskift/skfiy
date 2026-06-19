@@ -30,6 +30,9 @@ export async function createDesktopSessionPreflightEvidence({
       ? data.frontmostProcessIdentifier
       : undefined
   };
+  const display = typeof data.mainDisplayAsleep === "boolean"
+    ? { mainDisplayAsleep: data.mainDisplayAsleep }
+    : undefined;
   const resultName = data.controllable === false || frontmost.bundleId === "com.apple.loginwindow"
     ? "blocked"
     : "passed";
@@ -40,9 +43,10 @@ export async function createDesktopSessionPreflightEvidence({
     helperPath,
     productPath: "packaged helper -> desktop-session-status",
     frontmost,
+    display,
     controllable: data.controllable === true,
     result: resultName,
-    reason: createDesktopSessionPreflightReason(frontmost, data.controllable === true)
+    reason: createDesktopSessionPreflightReason(frontmost, data.controllable === true, display)
   };
 }
 
@@ -59,16 +63,22 @@ export function createDesktopSessionBlockedEvent(preflight) {
   };
 }
 
-function createDesktopSessionPreflightReason(frontmost, controllable) {
+function createDesktopSessionPreflightReason(frontmost, controllable, display) {
   if (controllable) {
     return "Desktop session preflight passed.";
   }
 
-  return "Desktop session is not controllable before target app launch: "
-    + `frontmostBundleId=${frontmost.bundleId ?? "unknown"}`
+  const frontmostText = `frontmostBundleId=${frontmost.bundleId ?? "unknown"}`
     + (frontmost.processIdentifier === undefined
       ? ""
-      : ` frontmostProcessIdentifier=${frontmost.processIdentifier}`)
+      : ` frontmostProcessIdentifier=${frontmost.processIdentifier}`);
+
+  if (display?.mainDisplayAsleep === true) {
+    return `Main display is asleep before target app launch and ${frontmostText}. Wake and unlock the Mac, then retry.`;
+  }
+
+  return "Desktop session is not controllable before target app launch: "
+    + frontmostText
     + ". Unlock the Mac and keep the display awake, then retry.";
 }
 
