@@ -585,6 +585,17 @@ function validateManifest(manifest) {
   if (typeof manifest.zip?.path !== "string" || typeof manifest.zip?.sha256 !== "string") {
     throw new Error("alpha manifest must include zip.path and zip.sha256.");
   }
+  const evidence = Array.isArray(manifest.requiredDogfoodEvidence)
+    ? manifest.requiredDogfoodEvidence
+    : [];
+  if (
+    typeof manifest.moneyRunSmokeArtifactPath !== "string"
+    || manifest.moneyRunSmokeArtifactPath.trim().length === 0
+    || !evidence.includes("npm run smoke:money-run -- --json-output <path>")
+    || !evidence.includes("Long-horizon money-run supervision evidence")
+  ) {
+    throw new Error("alpha manifest must include moneyRunSmokeArtifactPath and long-horizon money-run evidence.");
+  }
 }
 
 async function validateExtractedAppBundleIdentity(appPath, io) {

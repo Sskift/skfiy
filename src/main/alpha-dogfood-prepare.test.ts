@@ -443,6 +443,33 @@ describe("alpha dogfood preparation", () => {
     expect(io.commands.at(-1)?.args).toContain("/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app");
   });
 
+  it("rejects downloaded alpha manifests missing long-horizon money-run evidence", async () => {
+    const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
+      runPrepareAlphaDogfood: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const staleManifest = createDownloadedManifest();
+    delete (staleManifest as { moneyRunSmokeArtifactPath?: unknown }).moneyRunSmokeArtifactPath;
+    staleManifest.requiredDogfoodEvidence = staleManifest.requiredDogfoodEvidence.filter(
+      (entry) => !entry.includes("money-run") && !entry.includes("Long-horizon")
+    );
+
+    await expect(runPrepareAlphaDogfood({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "tester-a",
+      dryRun: false
+    }, createMemoryIo({
+      manifest: staleManifest
+    }))).rejects.toThrow(
+      "alpha manifest must include moneyRunSmokeArtifactPath and long-horizon money-run evidence."
+    );
+  });
+
   it("rejects downloaded alpha zips whose app bundle identity is not lowercase skfiy", async () => {
     const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
       runPrepareAlphaDogfood: (
@@ -485,6 +512,7 @@ describe("alpha dogfood preparation", () => {
 
 function createMemoryIo(options: {
   extractedInfoPlist?: string;
+  manifest?: ReturnType<typeof createDownloadedManifest>;
   trackingIssueBody?: string;
   trackingIssueComments?: string[];
 } = {}) {
@@ -502,18 +530,7 @@ function createMemoryIo(options: {
       if (filePath !== manifestPath) {
         throw new Error(`Unexpected manifest path: ${filePath}`);
       }
-      return {
-        schemaVersion: 1,
-        appName: "skfiy",
-        version: "0.1.0",
-        commitSha: "abc1234",
-        bundleIdentifier: "com.sskift.skfiy",
-        zip: {
-          path: "/build/.skfiy-alpha/skfiy-0.1.0-abc1234-macos-unsigned.zip",
-          bytes: 1234,
-          sha256: "feedface"
-        }
-      };
+      return options.manifest ?? createDownloadedManifest();
     },
     async listFiles(dirPath: string) {
       if (dirPath !== "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234") {
@@ -558,6 +575,36 @@ function createMemoryIo(options: {
       commands.push(command);
       return { stdout: "", stderr: "", exitCode: 0 };
     }
+  };
+}
+
+function createDownloadedManifest() {
+  return {
+    schemaVersion: 1,
+    appName: "skfiy",
+    version: "0.1.0",
+    commitSha: "abc1234",
+    bundleIdentifier: "com.sskift.skfiy",
+    zip: {
+      path: "/build/.skfiy-alpha/skfiy-0.1.0-abc1234-macos-unsigned.zip",
+      bytes: 1234,
+      sha256: "feedface"
+    },
+    uiSmokeArtifactPath: "/build/.skfiy-smoke/ui-abc1234.json",
+    smokeArtifactPath: "/build/.skfiy-smoke/ghostty-abc1234.json",
+    chromeSmokeArtifactPath: "/build/.skfiy-smoke/chrome-abc1234.json",
+    finderSmokeArtifactPath: "/build/.skfiy-smoke/finder-abc1234.json",
+    voiceSmokeArtifactPath: "/build/.skfiy-smoke/voice-abc1234.json",
+    moneyRunSmokeArtifactPath: "/build/.skfiy-smoke/money-run-supervision-abc1234.json",
+    requiredDogfoodEvidence: [
+      "npm run smoke:ui -- --output <path>",
+      "npm run smoke:ghostty -- --output <path>",
+      "npm run smoke:chrome -- --output <path>",
+      "npm run smoke:finder -- --output <path>",
+      "npm run smoke:voice -- --output <path>",
+      "npm run smoke:money-run -- --json-output <path>",
+      "Long-horizon money-run supervision evidence"
+    ]
   };
 }
 
