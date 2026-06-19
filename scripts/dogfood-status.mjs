@@ -73,6 +73,7 @@ const PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS = [
   "Run npm run smoke:voice -- --app dist/skfiy.app --provider doubao --require-passed --output .skfiy-smoke/voice-current.json after desktop preflight passes."
 ];
 const PASSED_NATIVE_SPEECH_SMOKE_COMMAND_ACTION = "Run npm run smoke:voice -- --app dist/skfiy.app --provider native-macos --require-passed --output .skfiy-smoke/voice-native-current.json after desktop preflight passes to prove the product-path native speech turn after Speech Recognition permission is granted.";
+const APP_SCOPED_NATIVE_SPEECH_PERMISSION_ACTION = "Collect app-scoped Microphone and Speech Recognition evidence from smoke:ui permissionDiagnostics.active or the native voice smoke before requiring passed native speech evidence.";
 const NATIVE_SPEECH_PERMISSION_KEYS = ["microphone", "speechRecognition"];
 const DEFAULT_DOGFOOD_COHORT_PATH = ".skfiy-dogfood/internal-alpha-cohort.json";
 const DEFAULT_DOGFOOD_COHORT_SUMMARY_PATH = ".skfiy-dogfood/internal-alpha-summary.md";
@@ -182,7 +183,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const smokeArtifacts = await readSmokeArtifacts(manifest, options, io);
   const artifactResults = readArtifactResults(smokeArtifacts);
   const smokeArtifactProblems = readSmokeArtifactProblems(smokeArtifacts);
-  const permissionStates = readPermissionStates(smokeArtifacts);
+  const permissionEvidence = readPermissionEvidence(smokeArtifacts);
+  const permissionStates = readPermissionStates(smokeArtifacts, permissionEvidence);
   const permissionBlockers = readPermissionBlockers(smokeArtifacts, permissionStates);
   const desktopSessionBlocker = readDesktopSessionBlocker(smokeArtifacts);
   const manifestChecks = await readManifestChecks(manifest, options, io);
@@ -238,6 +240,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     testerAssignments,
     smokeArtifacts,
     permissionStates,
+    permissionEvidence,
     smokeArtifactProblems,
     desktopSessionBlocker,
     requiredEvidenceCheck: manifestChecks.requiredEvidence
@@ -275,6 +278,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     localSmoke: {
       artifactResults,
       permissionStates,
+      permissionEvidence,
       permissionBlockers,
       desktopSessionBlocker
     },
@@ -377,6 +381,11 @@ export function createDogfoodStatusMarkdown(status) {
     }
   }
 
+  lines.push("", "## Permission Evidence", "");
+  for (const permission of REPORT_PERMISSION_KEYS) {
+    lines.push(formatPermissionEvidenceMarkdown(permission, status.localSmoke.permissionEvidence?.[permission]));
+  }
+
   lines.push("", "## Desktop Session", "");
   if (status.localSmoke.desktopSessionBlocker) {
     lines.push(
@@ -449,6 +458,23 @@ export function createDogfoodStatusMarkdown(status) {
   }
 
   return `${lines.join("\n")}\n`;
+}
+
+function formatPermissionEvidenceMarkdown(permission, evidence) {
+  if (!evidence) {
+    return `- ${permission}: unknown via none`;
+  }
+
+  const appScope = evidence.appScoped === true ? " (app-scoped)" : "";
+  const directHelper = evidence.directHelper
+    ? `; direct-helper ${evidence.directHelper.artifact} reports ${evidence.directHelper.state}, ${
+      evidence.directHelper.authoritativeForAppScopedPermission === false
+        ? "not authoritative for app-scoped permission"
+        : "authoritative for app-scoped permission"
+    }`
+    : "";
+
+  return `- ${permission}: ${evidence.state} via ${evidence.source}${appScope}${directHelper}`;
 }
 
 function validateStatusOptions(options) {
@@ -710,25 +736,128 @@ function readDesktopPreflightBlocker(smokeArtifacts) {
   return undefined;
 }
 
-function readPermissionStates(smokeArtifacts) {
+function readPermissionStates(smokeArtifacts, permissionEvidence = readPermissionEvidence(smokeArtifacts)) {
   const permissionStates = {};
 
   for (const key of REPORT_PERMISSION_KEYS) {
-    const state = Object.values(smokeArtifacts)
-      .map((artifact) =>
-        artifact?.permissionStates?.[key]?.state
-        ?? artifact?.permissions?.[key]?.state
-        ?? artifact?.speechStatus?.[key]?.state
-      )
-      .find((value) =>
-        typeof value === "string"
-          && value.trim().length > 0
-          && value !== "unknown"
-      );
-    permissionStates[key] = { state: state ?? "unknown" };
+    permissionStates[key] = { state: permissionEvidence[key]?.state ?? "unknown" };
   }
 
   return permissionStates;
+}
+
+function readPermissionEvidence(smokeArtifacts) {
+  return Object.fromEntries(REPORT_PERMISSION_KEYS.map((permission) => [
+    permission,
+    readPermissionEvidenceForPermission(smokeArtifacts, permission)
+  ]));
+}
+
+function readPermissionEvidenceForPermission(smokeArtifacts, permission) {
+  const directHelper = readDirectHelperPermissionEvidence(smokeArtifacts, permission);
+  const candidates = [];
+
+  for (const [artifactName, artifact] of Object.entries(smokeArtifacts)) {
+    candidates.push(
+      readPermissionCandidate({
+        artifact,
+        artifactName,
+        permission,
+        source: `${artifactName}.permissionDiagnostics.active`,
+        value: artifact?.permissionDiagnostics?.active?.[permission]?.state,
+        appScoped: artifactName === "ui"
+      }),
+      readPermissionCandidate({
+        artifact,
+        artifactName,
+        permission,
+        source: `${artifactName}.permissionStates`,
+        value: artifact?.permissionStates?.[permission]?.state,
+        appScoped: artifactName === "ui"
+      }),
+      readPermissionCandidate({
+        artifact,
+        artifactName,
+        permission,
+        source: `${artifactName}.permissions`,
+        value: artifact?.permissions?.[permission]?.state,
+        appScoped: artifactName === "ui"
+      }),
+      readPermissionCandidate({
+        artifact,
+        artifactName,
+        permission,
+        source: `${artifactName}.speechStatus`,
+        value: artifact?.speechStatus?.[permission]?.state
+      })
+    );
+  }
+
+  const selected = candidates.find((candidate) => candidate?.state !== "unknown")
+    ?? candidates.find(Boolean)
+    ?? {
+      state: "unknown",
+      source: "none",
+      artifact: undefined,
+      artifactPath: undefined
+    };
+
+  return {
+    ...selected,
+    ...(directHelper ? { directHelper } : {})
+  };
+}
+
+function readPermissionCandidate({
+  artifact,
+  artifactName,
+  source,
+  value,
+  appScoped = false
+}) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return undefined;
+  }
+
+  return {
+    state: value,
+    source,
+    artifact: artifactName,
+    artifactPath: artifact?.artifactPath,
+    appScoped
+  };
+}
+
+function readDirectHelperPermissionEvidence(smokeArtifacts, permission) {
+  for (const [artifactName, artifact] of Object.entries(smokeArtifacts)) {
+    if (artifact?.permissionProbe?.scope !== "direct-helper") {
+      continue;
+    }
+
+    const helperPermission = artifact?.permissions?.[permission];
+    const state = readDirectHelperPermissionState(helperPermission);
+    if (state === undefined) {
+      continue;
+    }
+
+    return {
+      artifact: artifactName,
+      artifactPath: artifact.artifactPath,
+      state,
+      authoritativeForAppScopedPermission:
+        !artifact.permissionProbe.nonAuthoritativeForAppScopedPermissionChecks?.includes(permission)
+    };
+  }
+
+  return undefined;
+}
+
+function readDirectHelperPermissionState(permission) {
+  return typeof permission?.state === "string" && permission.state.trim().length > 0
+    ? permission.state
+    : typeof permission?.status === "string" && permission.status.trim().length > 0
+      ? permission.status
+      : undefined;
 }
 
 function readRequiredPermissionKeys(smokeArtifacts) {
@@ -1014,6 +1143,7 @@ function createNextActions({
   trackingIssueTarget,
   smokeArtifacts,
   permissionStates,
+  permissionEvidence,
   permissionBlockers,
   missingRequiredReports,
   manifestChecks,
@@ -1091,8 +1221,10 @@ function createNextActions({
     actions.push("When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.");
     actions.push(...PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS);
   }
-  if (needsNativeSpeechProductPathEvidence({ smokeArtifacts, permissionStates })) {
+  if (needsNativeSpeechProductPathEvidence({ smokeArtifacts, permissionEvidence })) {
     actions.push(PASSED_NATIVE_SPEECH_SMOKE_COMMAND_ACTION);
+  } else if (needsAppScopedNativeSpeechPermissionEvidence({ smokeArtifacts, permissionEvidence })) {
+    actions.push(APP_SCOPED_NATIVE_SPEECH_PERMISSION_ACTION);
   }
   if (workflowCoverage.missing.length > 0) {
     actions.push(`Collect accepted reports covering missing workflows: ${workflowCoverage.missing.join(", ")}.`);
@@ -1148,18 +1280,44 @@ function createNextActions({
   return actions;
 }
 
-function needsNativeSpeechProductPathEvidence({ smokeArtifacts, permissionStates }) {
+function needsNativeSpeechProductPathEvidence({ smokeArtifacts, permissionEvidence }) {
   if (smokeArtifacts?.voice?.provider === "native-macos" && smokeArtifacts.voice.result === "passed") {
     return false;
   }
 
-  return NATIVE_SPEECH_PERMISSION_KEYS.every((permission) => {
-    const state = permissionStates?.[permission]?.state;
-    return typeof state === "string"
-      && state.trim().length > 0
-      && state !== "unknown"
-      && !BLOCKING_PERMISSION_STATES.has(state);
+  return NATIVE_SPEECH_PERMISSION_KEYS.every((permission) =>
+    isUsableNativeSpeechPermissionEvidence(permissionEvidence?.[permission])
+  );
+}
+
+function needsAppScopedNativeSpeechPermissionEvidence({ smokeArtifacts, permissionEvidence }) {
+  if (smokeArtifacts?.voice?.provider === "native-macos" && smokeArtifacts.voice.result === "passed") {
+    return false;
+  }
+
+  return NATIVE_SPEECH_PERMISSION_KEYS.some((permission) => {
+    const evidence = permissionEvidence?.[permission];
+    return isNonBlockingPermissionEvidence(evidence)
+      && !isAppLaunchedPermissionEvidence(evidence);
   });
+}
+
+function isUsableNativeSpeechPermissionEvidence(evidence) {
+  return isNonBlockingPermissionEvidence(evidence) && isAppLaunchedPermissionEvidence(evidence);
+}
+
+function isNonBlockingPermissionEvidence(evidence) {
+  const state = evidence?.state;
+  return typeof state === "string"
+    && state.trim().length > 0
+    && state !== "unknown"
+    && !BLOCKING_PERMISSION_STATES.has(state);
+}
+
+function isAppLaunchedPermissionEvidence(evidence) {
+  return evidence?.appScoped === true
+    || evidence?.artifact === "voice"
+    || evidence?.source === "voice.speechStatus";
 }
 
 function createTesterPrepareNextActions(testerAssignments) {

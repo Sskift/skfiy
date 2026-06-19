@@ -157,6 +157,9 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("stale `docs/release-evidence/latest-alpha.json` now blocks `dogfood:status` collect readiness");
     expect(readmeText).toContain("When the downloaded manifest and prepared app already exist locally, `dogfood:status` replaces tester placeholders with the prepared paths and surfaces direct `dogfood:tester` next actions.");
     expect(workflowText).toContain("When local prepared alpha assets already exist, `dogfood:status` replaces the tester command placeholders with those manifest and app paths and emits direct `dogfood:tester` next actions.");
+    expect(workflowText).toContain("`dogfood:status` writes a `Permission Evidence` section");
+    expect(workflowText).toContain("app-scoped `smoke:ui` `permissionDiagnostics.active` source");
+    expect(workflowText).toContain("direct-helper Speech Recognition readings from `smoke:desktop-session` are diagnostic only");
     expect(workflowText).toContain("current `skfiy-alpha-<commit>` assignment packet comment with `App Bundle Preflight`, `Desktop Session Preflight`, `Permission Preflight`, and `Evidence Preview Gate`");
     expect(internalAlphaText).toContain("current alpha assignment packet comments with `App Bundle Preflight`, `Desktop Session Preflight`, `Permission Preflight`, and `Evidence Preview Gate`");
     expect(readme).toContain("--tester-id tester-a \\\n  --tracking-issue-url https://github.com/Sskift/skfiy/issues/1");
