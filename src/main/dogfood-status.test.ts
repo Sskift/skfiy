@@ -44,12 +44,15 @@ describe("dogfood status reporter", () => {
       ".skfiy-dogfood/status.md",
       "--json-output",
       ".skfiy-dogfood/status.json",
+      "--desktop-session-artifact",
+      ".skfiy-smoke/desktop-session-current.json",
       "--require-current-head"
     ], defaults)).toMatchObject({
       manifestPath: path.resolve(".skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json"),
       trackingIssueUrl,
       summaryPath: path.resolve(".skfiy-dogfood/status.md"),
       jsonOutputPath: path.resolve(".skfiy-dogfood/status.json"),
+      desktopSessionArtifactPath: path.resolve(".skfiy-smoke/desktop-session-current.json"),
       requireCurrentHead: true
     });
     expect(createDogfoodStatusHelpText()).toContain("dogfood:status");
@@ -58,6 +61,7 @@ describe("dogfood status reporter", () => {
     expect(createDogfoodStatusHelpText()).toContain("real tester");
     expect(createDogfoodStatusHelpText()).toContain("tester assignments");
     expect(createDogfoodStatusHelpText()).toContain("--json-output");
+    expect(createDogfoodStatusHelpText()).toContain("--desktop-session-artifact");
   });
 
   it("writes a machine-readable JSON status artifact for automation", async () => {
@@ -449,6 +453,92 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
     expect(io.textFiles[summaryPath]).toContain("blocked: Desktop session is locked by loginwindow");
     expect(io.textFiles[summaryPath]).toContain("npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json");
+  });
+
+  it("uses an explicit passed desktop-session artifact to clear stale loginwindow blockers", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const desktopSessionArtifactPath = "/repo/.skfiy-smoke/desktop-session-current.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: {
+        ...createSmokeArtifact(uiSmokePath, "no-onboarding"),
+        desktopSessionDiagnostics: {
+          state: "blocked",
+          status: {
+            controllable: false,
+            frontmostBundleId: "com.apple.loginwindow",
+            frontmostProcessIdentifier: 591
+          },
+          reason: "Desktop session is locked by loginwindow (pid 591)."
+        }
+      },
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked"),
+      [desktopSessionArtifactPath]: {
+        artifactPath: desktopSessionArtifactPath,
+        result: "passed",
+        desktopSessionStatus: {
+          controllable: true,
+          frontmostBundleId: "com.apple.finder",
+          frontmostLocalizedName: "Finder",
+          frontmostProcessIdentifier: 42,
+          mainDisplayAsleep: false
+        },
+        display: {
+          mainDisplayAsleep: false
+        },
+        screenshot: {
+          png: {
+            isLikelyBlack: false
+          }
+        }
+      }
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      desktopSessionArtifactPath,
+      summaryPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, io) as {
+      localSmoke: {
+        artifactResults: Record<string, string>;
+        desktopSessionBlocker: unknown;
+      };
+      nextActions: string[];
+    };
+
+    expect(status.localSmoke.artifactResults.desktopSession).toBe("passed");
+    expect(status.localSmoke.desktopSessionBlocker).toBeNull();
+    expect(status.nextActions).not.toContain(
+      "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence."
+    );
+    expect(io.textFiles[summaryPath]).toContain("- desktopSession: passed");
+    expect(io.textFiles[summaryPath]).toContain("## Desktop Session\n\n- none");
   });
 
   it("reports desktop session blockers from Ghostty/Finder/voice smoke preflight artifacts", async () => {

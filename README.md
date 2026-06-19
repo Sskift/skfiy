@@ -202,6 +202,10 @@ desktop blockers, `dogfood:status` also prints the `smoke:desktop-session`
 preflight command to rerun after unlocking plus the passed-smoke follow-up.
 Use `--json-output` to persist the same status object as clean JSON for
 automation, dashboards, and follow-up agents without scraping npm stdout.
+After running `smoke:desktop-session`, pass
+`--desktop-session-artifact .skfiy-smoke/desktop-session-current.json` so the
+status report refreshes stale loginwindow/display-sleep blockers from the latest
+preflight instead of relying only on older product smoke artifacts.
 When it can read GitHub comments, it also reports whether the current
 `skfiy-alpha-<commit>` assignment packet has already been posted to the tracking
 issue and adds a next action when that comment is missing.

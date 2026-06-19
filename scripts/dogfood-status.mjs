@@ -80,6 +80,7 @@ export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
     trackingIssueFile: undefined,
     summaryPath: undefined,
     jsonOutputPath: undefined,
+    desktopSessionArtifactPath: undefined,
     requireCurrentHead: false,
     currentHeadSha: undefined,
     help: false
@@ -111,6 +112,10 @@ export function parseDogfoodStatusArgs(argv, defaults) {
         break;
       case "--json-output":
         options.jsonOutputPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--desktop-session-artifact":
+        options.desktopSessionArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--require-current-head":
@@ -162,7 +167,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     .map((issue) => issue.issueUrl);
   const workflowCoverage = readVerifiedReportWorkflowCoverage(reportIssueValidation);
   const passedWorkflowCoverage = readPassedReportWorkflowCoverage(reportIssueValidation);
-  const smokeArtifacts = await readSmokeArtifacts(manifest, io);
+  const smokeArtifacts = await readSmokeArtifacts(manifest, options, io);
   const artifactResults = readArtifactResults(smokeArtifacts);
   const smokeArtifactProblems = readSmokeArtifactProblems(smokeArtifacts);
   const permissionStates = readPermissionStates(smokeArtifacts);
@@ -270,7 +275,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
 
 export function createDogfoodStatusHelpText() {
   return [
-    "Usage: npm run dogfood:status -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--summary <markdown-path>] [--json-output <json-path>] [--require-current-head]",
+    "Usage: npm run dogfood:status -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--summary <markdown-path>] [--json-output <json-path>] [--desktop-session-artifact <json-path>] [--require-current-head]",
     "",
     "Creates a non-mutating dogfood readiness status report.",
     "It summarizes the alpha manifest, local smoke artifact results, permission blockers,",
@@ -281,6 +286,7 @@ export function createDogfoodStatusHelpText() {
     "It reports whether the current alpha tester assignment packet is already posted as a tracking issue comment.",
     "It also emits recommended tester assignments with prepare/tester/review commands.",
     "Use --json-output to persist the same machine-readable status object without relying on npm stdout capture.",
+    "Use --desktop-session-artifact with the latest smoke:desktop-session JSON to refresh stale loginwindow/display blockers.",
     "Assignments whose purpose is passed-workflow-evidence include --require-passed.",
     "Use this before dogfood:collect to see what is still missing without fabricating evidence."
   ].join("\n");
@@ -470,13 +476,16 @@ function readGitHubIssueNumber(issueUrl) {
   }
 }
 
-async function readSmokeArtifacts(manifest, io) {
+async function readSmokeArtifacts(manifest, options, io) {
   return {
     ui: await readOptionalJson(manifest?.uiSmokeArtifactPath, io),
     ghostty: await readOptionalJson(manifest?.smokeArtifactPath, io),
     chrome: await readOptionalJson(manifest?.chromeSmokeArtifactPath, io),
     finder: await readOptionalJson(manifest?.finderSmokeArtifactPath, io),
     voice: await readOptionalJson(manifest?.voiceSmokeArtifactPath, io),
+    ...(typeof options.desktopSessionArtifactPath === "string"
+      ? { desktopSession: await readOptionalJson(options.desktopSessionArtifactPath, io) }
+      : {}),
     ...(typeof manifest?.moneyRunSmokeArtifactPath === "string"
       ? { "money-run": await readOptionalJson(manifest.moneyRunSmokeArtifactPath, io) }
       : {})
@@ -541,6 +550,11 @@ function readPermissionBlockers(smokeArtifacts, permissionStates = readPermissio
 }
 
 function readDesktopSessionBlocker(smokeArtifacts) {
+  const explicitDesktopSessionBlocker = readExplicitDesktopSessionBlocker(smokeArtifacts?.desktopSession);
+  if (explicitDesktopSessionBlocker !== undefined) {
+    return explicitDesktopSessionBlocker;
+  }
+
   const diagnostics = smokeArtifacts?.ui?.desktopSessionDiagnostics;
 
   if (diagnostics?.state === "blocked") {
@@ -555,6 +569,39 @@ function readDesktopSessionBlocker(smokeArtifacts) {
   }
 
   return readDesktopPreflightBlocker(smokeArtifacts) ?? null;
+}
+
+function readExplicitDesktopSessionBlocker(artifact) {
+  if (!artifact || artifact.artifactReadStatus) {
+    return undefined;
+  }
+
+  const session = artifact.desktopSessionStatus ?? {};
+  const frontmostBundleId = session.frontmostBundleId ?? artifact.activeApp?.bundleId;
+  const frontmostProcessIdentifier =
+    session.frontmostProcessIdentifier ?? artifact.activeApp?.pid;
+  const displayAsleep = artifact.display?.mainDisplayAsleep === true
+    || session.mainDisplayAsleep === true;
+  const loginwindowActive = frontmostBundleId === "com.apple.loginwindow";
+  const blackScreenshot = artifact.screenshot?.png?.isLikelyBlack === true;
+  const blocked = artifact.result === "blocked"
+    || session.controllable === false
+    || displayAsleep
+    || loginwindowActive
+    || blackScreenshot;
+
+  if (!blocked) {
+    return null;
+  }
+
+  return {
+    state: "blocked",
+    frontmostBundleId,
+    frontmostProcessIdentifier,
+    reason: typeof artifact.reason === "string" && artifact.reason.trim().length > 0
+      ? artifact.reason
+      : "Desktop session artifact reports an uncontrollable desktop session."
+  };
 }
 
 function readDesktopPreflightBlocker(smokeArtifacts) {
