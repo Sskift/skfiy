@@ -107,6 +107,10 @@ export function classifyVoiceSmokeEvidence({
     return "blocked";
   }
 
+  if (hasBlockedEnvironmentTask(taskEvents)) {
+    return "blocked";
+  }
+
   if (
     hasProviderState(providerEvents, "failed")
     || hasTaskStatus(taskEvents, "failed")
@@ -282,6 +286,14 @@ function hasPermissionBlockedTask(events) {
   );
 }
 
+function hasBlockedEnvironmentTask(events) {
+  return events.some((event) =>
+    event?.status === "failed"
+    && typeof event.message === "string"
+    && isBlockedEnvironmentMessage(event.message)
+  );
+}
+
 function isVoicePermissionMessage(message) {
   const normalized = message.toLowerCase();
   return (
@@ -292,6 +304,14 @@ function isVoicePermissionMessage(message) {
       || normalized.includes("speech")
       || normalized.includes("accessibility")
     )
+  );
+}
+
+function isBlockedEnvironmentMessage(message) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("desktop session is not controllable")
+    || normalized.includes("loginwindow is frontmost")
   );
 }
 

@@ -157,7 +157,7 @@ export function createDogfoodAssignmentsJson(status, {
   const blockers = Array.isArray(status.localSmoke?.permissionBlockers)
     ? status.localSmoke.permissionBlockers
     : [];
-  const permissionStates = readAssignmentPermissionStates(blockers);
+  const permissionStates = readAssignmentPermissionStates(status.localSmoke?.permissionStates, blockers);
 
   return {
     generatedAt: generatedAt ?? status.generatedAt ?? "unknown",
@@ -215,7 +215,7 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
   const blockers = Array.isArray(status.localSmoke?.permissionBlockers)
     ? status.localSmoke.permissionBlockers
     : [];
-  const permissionStates = readAssignmentPermissionStates(blockers);
+  const permissionStates = readAssignmentPermissionStates(status.localSmoke?.permissionStates, blockers);
   const nextActions = Array.isArray(status.nextActions) ? status.nextActions : [];
   const lines = [
     "# skfiy dogfood tester assignments",
@@ -353,7 +353,8 @@ function readShortSha(status) {
 }
 
 function readReleaseUrl(status, shortSha) {
-  const release = status.trackingIssue?.currentAlpha?.fields?.release;
+  const currentAlpha = status.trackingIssue?.currentAlpha;
+  const release = currentAlpha?.ok === true ? currentAlpha.fields?.release : undefined;
   return typeof release === "string" && release.trim().length > 0
     ? release
     : `https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-${shortSha}`;
@@ -363,9 +364,13 @@ function formatList(values) {
   return Array.isArray(values) && values.length > 0 ? values.join(", ") : "none";
 }
 
-function readAssignmentPermissionStates(blockers) {
+function readAssignmentPermissionStates(states, blockers) {
   return Object.fromEntries(
     Object.keys(PERMISSION_LABELS).map((permission) => {
+      const state = states?.[permission]?.state;
+      if (typeof state === "string" && state.trim().length > 0) {
+        return [permission, state];
+      }
       const blocker = blockers.find((item) => item?.permission === permission);
       return [permission, blocker?.state ?? "unknown"];
     })

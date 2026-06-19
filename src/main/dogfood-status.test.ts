@@ -285,6 +285,12 @@ describe("dogfood status reporter", () => {
           finder: "blocked",
           voice: "blocked"
         },
+        permissionStates: {
+          screenRecording: { state: "denied" },
+          accessibility: { state: "denied" },
+          microphone: { state: "not-determined" },
+          speechRecognition: { state: "not-determined" }
+        },
         permissionBlockers: [
           { permission: "screenRecording", state: "denied" },
           { permission: "accessibility", state: "denied" },

@@ -244,6 +244,52 @@ describe("voice product smoke script", () => {
     })).toBe("failed");
   });
 
+  it("classifies external Doubao voice runs blocked when downstream Computer Use is lockscreen-blocked", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-voice-plan.mjs");
+    const {
+      classifyVoiceSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyVoiceSmokeEvidence: (input: {
+        provider?: string;
+        providerEvents?: Array<{ providerId?: string; state: string; message?: string }>;
+        taskEvents?: Array<{ status: string; message?: string }>;
+        transcriptEvents?: Array<{ providerId?: string; isFinal?: boolean; text?: string }>;
+        externalInput?: unknown;
+        turnReplay?: unknown;
+        runnerHasTmux?: boolean;
+        appLaunchViaOpen?: boolean;
+        productPath?: string;
+      }) => string;
+    };
+    const productPath = "renderer -> preload -> main -> external Doubao Input Method -> text bridge -> Computer Use";
+
+    expect(classifyVoiceSmokeEvidence({
+      provider: "doubao",
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath,
+      providerEvents: [
+        { providerId: "doubao", state: "listening", message: "Triggered external Doubao Input Method." },
+        { providerId: "doubao", state: "stopped", message: "External Doubao text was submitted." }
+      ],
+      transcriptEvents: [
+        { providerId: "doubao", isFinal: true, text: "打开 Ghostty 执行 pwd" }
+      ],
+      externalInput: {
+        source: "doubao-input-method",
+        embedded: false,
+        textBridge: "renderer-textarea"
+      },
+      taskEvents: [
+        { status: "observing", message: "Opened Ghostty session: skfiy-shell." },
+        {
+          status: "failed",
+          message: "Desktop session is not controllable because loginwindow is frontmost. Unlock the Mac and keep the display awake, then try again."
+        }
+      ]
+    })).toBe("blocked");
+  });
+
   it("drives external Doubao text through the preload API while keeping native macOS speech optional", () => {
     const sourcePath = path.join(process.cwd(), "scripts", "smoke-voice-product.mjs");
 

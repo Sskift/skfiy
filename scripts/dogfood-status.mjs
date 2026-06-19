@@ -147,7 +147,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const smokeArtifacts = await readSmokeArtifacts(manifest, io);
   const artifactResults = readArtifactResults(smokeArtifacts);
   const smokeArtifactProblems = readSmokeArtifactProblems(smokeArtifacts);
-  const permissionBlockers = readPermissionBlockers(smokeArtifacts);
+  const permissionStates = readPermissionStates(smokeArtifacts);
+  const permissionBlockers = readPermissionBlockers(smokeArtifacts, permissionStates);
   const manifestChecks = await readManifestChecks(manifest, options, io);
   const missingRequiredReports = Math.max(0, 3 - verifiedRealAcceptedReportIssueUrls.length);
   const invalidReportIssueCount = reportIssueValidation.filter((issue) => !issue.ok).length;
@@ -219,6 +220,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     },
     localSmoke: {
       artifactResults,
+      permissionStates,
       permissionBlockers
     },
     readiness: {
@@ -481,14 +483,13 @@ function isMissingFileError(error) {
     || (error instanceof Error && /\bmissing\b|no such file/i.test(error.message));
 }
 
-function readPermissionBlockers(smokeArtifacts) {
-  const permissions = readPermissionStates(smokeArtifacts);
+function readPermissionBlockers(smokeArtifacts, permissionStates = readPermissionStates(smokeArtifacts)) {
   const requiredPermissionKeys = readRequiredPermissionKeys(smokeArtifacts);
 
   return requiredPermissionKeys
     .map((permission) => ({
       permission,
-      state: permissions[permission]?.state ?? "unknown"
+      state: permissionStates[permission]?.state ?? "unknown"
     }))
     .filter((item) => BLOCKING_PERMISSION_STATES.has(item.state));
 }

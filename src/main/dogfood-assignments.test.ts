@@ -225,6 +225,84 @@ describe("dogfood tester assignment packet", () => {
     ]);
   });
 
+  it("does not reuse a stale tracking issue release URL for the current assignment packet", async () => {
+    const { runDogfoodAssignments } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodAssignments: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      trackingIssue: {
+        currentAlpha: {
+          ok: false,
+          fields: {
+            release: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-old1234"
+          }
+        }
+      }
+    });
+
+    await runDogfoodAssignments({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      outputPath: "/repo/.skfiy-dogfood/assignments/abc1234.md",
+      jsonOutputPath: "/repo/.skfiy-dogfood/assignments/abc1234.json",
+      now: () => "2026-06-17T10:00:00.000Z"
+    }, io);
+
+    const packet = io.textFiles["/repo/.skfiy-dogfood/assignments/abc1234.md"];
+    const json = JSON.parse(io.textFiles["/repo/.skfiy-dogfood/assignments/abc1234.json"]);
+
+    expect(packet).toContain("Release: https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc1234");
+    expect(packet).not.toContain("skfiy-alpha-old1234");
+    expect(json.releaseUrl).toBe("https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-abc1234");
+  });
+
+  it("uses complete local smoke permission states for the assignment preflight", async () => {
+    const { runDogfoodAssignments } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodAssignments: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      localSmoke: {
+        permissionStates: {
+          screenRecording: { state: "granted" },
+          accessibility: { state: "granted" },
+          microphone: { state: "not-determined" },
+          speechRecognition: { state: "not-determined" }
+        },
+        permissionBlockers: []
+      }
+    });
+
+    await runDogfoodAssignments({
+      rootDir: "/repo",
+      manifestPath,
+      trackingIssueUrl,
+      outputPath: "/repo/.skfiy-dogfood/assignments/abc1234.md",
+      jsonOutputPath: "/repo/.skfiy-dogfood/assignments/abc1234.json",
+      now: () => "2026-06-17T10:00:00.000Z"
+    }, io);
+
+    const packet = io.textFiles["/repo/.skfiy-dogfood/assignments/abc1234.md"];
+    const json = JSON.parse(io.textFiles["/repo/.skfiy-dogfood/assignments/abc1234.json"]);
+
+    expect(packet).toContain("- Screen Recording: granted");
+    expect(packet).toContain("- Accessibility: granted");
+    expect(packet).toContain("- Microphone: not-determined");
+    expect(packet).toContain("- Speech Recognition: not-determined");
+    expect(json.permissionPreflight.states).toEqual({
+      screenRecording: "granted",
+      accessibility: "granted",
+      microphone: "not-determined",
+      speechRecognition: "not-determined"
+    });
+  });
+
   it("posts the assignment packet to the tracking issue only when execute is explicit", async () => {
     const { runDogfoodAssignments } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodAssignments: (
@@ -296,10 +374,10 @@ describe("dogfood tester assignment packet", () => {
   });
 });
 
-function createMemoryIo() {
+function createMemoryIo(statusOverride: Record<string, unknown> = {}) {
   const commands: Array<{ command: string; args: string[] }> = [];
   const textFiles: Record<string, string> = {};
-  const status = {
+  const status = mergeStatus({
     result: "waiting-for-dogfood",
     generatedAt: "2026-06-17T09:59:00.000Z",
     manifestPath,
@@ -332,7 +410,7 @@ function createMemoryIo() {
     nextActions: [
       "Collect at least 3 accepted real tester report issue URLs in GitHub issue #1."
     ]
-  };
+  }, statusOverride);
 
   return {
     commands,
@@ -349,6 +427,26 @@ function createMemoryIo() {
       return { stdout: "", stderr: "" };
     }
   };
+}
+
+function mergeStatus(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>
+): Record<string, unknown> {
+  const merged = { ...base };
+
+  for (const [key, value] of Object.entries(override)) {
+    const current = merged[key];
+    merged[key] = isPlainRecord(current) && isPlainRecord(value)
+      ? mergeStatus(current, value)
+      : value;
+  }
+
+  return merged;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function createAssignment(testerId: string, workflows: string[]) {
