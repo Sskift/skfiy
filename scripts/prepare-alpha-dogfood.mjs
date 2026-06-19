@@ -596,6 +596,9 @@ function validateManifest(manifest) {
   ) {
     throw new Error("alpha manifest must include moneyRunSmokeArtifactPath and long-horizon money-run evidence.");
   }
+  if (!evidence.includes("Panic stop product-path behavior evidence")) {
+    throw new Error("alpha manifest must include panic stop product-path behavior evidence.");
+  }
 }
 
 async function validateExtractedAppBundleIdentity(appPath, io) {

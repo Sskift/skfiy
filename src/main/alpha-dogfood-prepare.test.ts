@@ -470,6 +470,32 @@ describe("alpha dogfood preparation", () => {
     );
   });
 
+  it("rejects downloaded alpha manifests missing panic stop behavior evidence", async () => {
+    const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
+      runPrepareAlphaDogfood: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const staleManifest = createDownloadedManifest();
+    staleManifest.requiredDogfoodEvidence = staleManifest.requiredDogfoodEvidence.filter(
+      (entry) => entry !== "Panic stop product-path behavior evidence"
+    );
+
+    await expect(runPrepareAlphaDogfood({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "tester-a",
+      dryRun: false
+    }, createMemoryIo({
+      manifest: staleManifest
+    }))).rejects.toThrow(
+      "alpha manifest must include panic stop product-path behavior evidence."
+    );
+  });
+
   it("rejects downloaded alpha zips whose app bundle identity is not lowercase skfiy", async () => {
     const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
       runPrepareAlphaDogfood: (
@@ -603,6 +629,7 @@ function createDownloadedManifest() {
       "npm run smoke:finder -- --output <path>",
       "npm run smoke:voice -- --output <path>",
       "npm run smoke:money-run -- --json-output <path>",
+      "Panic stop product-path behavior evidence",
       "Long-horizon money-run supervision evidence"
     ]
   };
