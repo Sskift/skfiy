@@ -167,6 +167,7 @@ describe("alpha artifact packaging", () => {
         "npm run smoke:money-run -- --json-output <path>",
         "Permission settings direct links",
         "Panic stop runtime hotkey evidence",
+        "Panic stop product-path behavior evidence",
         "Screen Recording permission state",
         "Accessibility permission state",
         "Microphone or ASR provider state",

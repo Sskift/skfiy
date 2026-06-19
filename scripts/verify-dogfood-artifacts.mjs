@@ -180,6 +180,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   );
   check(
     checks,
+    "manifest.requiredDogfoodEvidence.stopTurnBehavior",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Panic stop product-path behavior evidence"),
+    "manifest must require panic stop product-path behavior evidence"
+  );
+  check(
+    checks,
     "manifest.requiredDogfoodEvidence.ghostty",
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:ghostty -- --output <path>"),
@@ -2206,7 +2213,7 @@ Validates that an alpha manifest references a coherent packaged-app dogfood evid
 
 Options:
   --manifest <path>     Alpha manifest JSON from npm run alpha:artifact.
-  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and selected voice smoke results are passed, including panic stop runtime hotkey evidence, Chrome current-page observation evidence, external Doubao voice transcript-to-task evidence, and external Doubao voice Ghostty turn replay evidence.
+  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and selected voice smoke results are passed, including panic stop runtime hotkey and stopTurnBehavior evidence, Chrome current-page observation evidence, external Doubao voice transcript-to-task evidence, and external Doubao voice Ghostty turn replay evidence.
   --require-current-head
                        Fail unless manifest commitSha matches the current git HEAD.
   -h, --help            Show this help.

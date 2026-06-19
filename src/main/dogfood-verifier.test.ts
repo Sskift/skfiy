@@ -14,6 +14,7 @@ describe("dogfood artifact verifier", () => {
     "npm run smoke:money-run -- --json-output <path>",
     "Permission settings direct links",
     "Panic stop runtime hotkey evidence",
+    "Panic stop product-path behavior evidence",
     "External Doubao voice transcript-to-task evidence",
     "External Doubao voice Ghostty turn replay evidence",
     "External Doubao voice no-transcript/cancellation evidence",
@@ -2176,6 +2177,7 @@ describe("dogfood artifact verifier", () => {
       errors: expect.arrayContaining([
         expect.stringContaining("manifest.requiredDogfoodEvidence.ui"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.stopTurnHotkey"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.stopTurnBehavior"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.actionVerification"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.appPolicy"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.clipboardApproval"),

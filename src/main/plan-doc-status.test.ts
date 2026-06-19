@@ -146,4 +146,25 @@ describe("implementation plan status docs", () => {
     expect(readme).toContain("npm run dogfood:cohort -- \\");
     expect(readme).toContain("--require-passed");
   });
+
+  it("documents panic stop behavior evidence in alpha and report instructions", () => {
+    const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
+    const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
+    const alphaBuild = readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8");
+    const longPlan = readFileSync(
+      path.join(process.cwd(), "docs", "research", "2026-06-16-voice-computer-control-long-plan.md"),
+      "utf8"
+    );
+    const issueTemplate = readFileSync(
+      path.join(process.cwd(), ".github", "ISSUE_TEMPLATE", "skfiy-dogfood.yml"),
+      "utf8"
+    );
+
+    for (const document of [readme, workflow, alphaBuild, longPlan, issueTemplate]) {
+      expect(document).toContain("stopTurnBehavior");
+      expect(document).toContain("behaviorResult");
+      expect(document).toContain("approval_required");
+      expect(document).toContain("Task stopped");
+    }
+  });
 });

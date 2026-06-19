@@ -215,8 +215,11 @@ It also includes an `Evidence Preview Gate` section that tells testers to confir
 blocking checks when it is false. That gate calls out UI pet drag evidence
 explicitly, including renderer pointer events, before/after bounds, upward
 movement, and suppressed click-after-drag from the packaged app. It also calls
-out panic stop evidence from `runtimeStatus.stopTurnHotkey`, including the
-accelerator, label, registered state, and source.
+out panic stop evidence from `runtimeStatus.stopTurnHotkey` plus the UI smoke
+`stopTurnBehavior`: `behaviorResult: passed`,
+`behaviorSource: renderer-escape-key-product-path`,
+`behaviorBeforeStatus: approval_required`, `behaviorAfterStatus: idle`, and
+`behaviorAfterMessage: Task stopped.`.
 The generated tester/review commands use
 `<path-to-downloaded-alpha-manifest.json>` so testers replace it with the
 manifest path produced by `dogfood:prepare-alpha` on their own machine, instead
