@@ -68,6 +68,10 @@ const PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS = [
   "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes.",
   "Run npm run smoke:voice -- --app dist/skfiy.app --provider doubao --require-passed --output .skfiy-smoke/voice-current.json after desktop preflight passes."
 ];
+const DEFAULT_DOGFOOD_COHORT_PATH = ".skfiy-dogfood/internal-alpha-cohort.json";
+const DEFAULT_DOGFOOD_COHORT_SUMMARY_PATH = ".skfiy-dogfood/internal-alpha-summary.md";
+const DEFAULT_STRICT_DOGFOOD_COHORT_SUMMARY_PATH = ".skfiy-dogfood/internal-alpha-summary-strict.md";
+const DEFAULT_STRICT_DOGFOOD_COHORT_JSON_PATH = ".skfiy-dogfood/internal-alpha-summary-strict.json";
 export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     rootDir,
@@ -194,6 +198,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const nextActions = createNextActions({
     canRunCollect,
     canRunPassedCohort,
+    manifestPath: options.manifestPath,
+    trackingIssueUrl: options.trackingIssueUrl,
     trackingIssueTarget: readTrackingIssueTarget(options),
     permissionBlockers,
     missingRequiredReports,
@@ -870,6 +876,8 @@ async function readOptionalCurrentHead(options, io) {
 function createNextActions({
   canRunCollect,
   canRunPassedCohort,
+  manifestPath,
+  trackingIssueUrl,
   trackingIssueTarget,
   permissionBlockers,
   missingRequiredReports,
@@ -954,8 +962,13 @@ function createNextActions({
   }
   if (canRunCollect) {
     actions.push("Run npm run dogfood:collect with the current manifest and tracking issue.");
+    const collectCommand = createDogfoodCollectCommand({ manifestPath, trackingIssueUrl });
+    if (collectCommand) {
+      actions.push(`${collectCommand}.`);
+    }
     if (canRunPassedCohort) {
       actions.push("After collecting, run npm run dogfood:cohort -- --require-passed on the collected cohort JSON.");
+      actions.push(`${createStrictDogfoodCohortCommand()} after dogfood:collect succeeds.`);
     } else {
       actions.push("Do not run npm run dogfood:cohort -- --require-passed until passed workflow coverage is complete.");
     }
@@ -965,6 +978,42 @@ function createNextActions({
   }
 
   return actions;
+}
+
+function createDogfoodCollectCommand({ manifestPath, trackingIssueUrl }) {
+  if (
+    typeof manifestPath !== "string"
+    || manifestPath.trim().length === 0
+    || typeof trackingIssueUrl !== "string"
+    || !isGitHubIssueUrl(trackingIssueUrl)
+  ) {
+    return "";
+  }
+
+  return [
+    "Run npm run dogfood:collect --",
+    "--manifest",
+    manifestPath.trim(),
+    "--tracking-issue-url",
+    trackingIssueUrl.trim(),
+    "--cohort",
+    DEFAULT_DOGFOOD_COHORT_PATH,
+    "--summary",
+    DEFAULT_DOGFOOD_COHORT_SUMMARY_PATH
+  ].join(" ");
+}
+
+function createStrictDogfoodCohortCommand() {
+  return [
+    "Run npm run dogfood:cohort --",
+    "--cohort",
+    DEFAULT_DOGFOOD_COHORT_PATH,
+    "--summary",
+    DEFAULT_STRICT_DOGFOOD_COHORT_SUMMARY_PATH,
+    "--json-output",
+    DEFAULT_STRICT_DOGFOOD_COHORT_JSON_PATH,
+    "--require-passed"
+  ].join(" ");
 }
 
 function createTesterAssignments({

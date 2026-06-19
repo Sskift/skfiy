@@ -1516,6 +1516,7 @@ describe("dogfood status reporter", () => {
       },
       nextActions: expect.arrayContaining([
         "Run npm run dogfood:collect with the current manifest and tracking issue.",
+        "Run npm run dogfood:collect -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --cohort .skfiy-dogfood/internal-alpha-cohort.json --summary .skfiy-dogfood/internal-alpha-summary.md.",
         "Do not run npm run dogfood:cohort -- --require-passed until passed workflow coverage is complete.",
         "Collect passed product-path evidence for workflows: finder-file, browser-fallback."
       ])
@@ -1780,7 +1781,9 @@ describe("dogfood status reporter", () => {
       },
       nextActions: expect.arrayContaining([
         "Run npm run dogfood:collect with the current manifest and tracking issue.",
-        "After collecting, run npm run dogfood:cohort -- --require-passed on the collected cohort JSON."
+        "Run npm run dogfood:collect -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --cohort .skfiy-dogfood/internal-alpha-cohort.json --summary .skfiy-dogfood/internal-alpha-summary.md.",
+        "After collecting, run npm run dogfood:cohort -- --require-passed on the collected cohort JSON.",
+        "Run npm run dogfood:cohort -- --cohort .skfiy-dogfood/internal-alpha-cohort.json --summary .skfiy-dogfood/internal-alpha-summary-strict.md --json-output .skfiy-dogfood/internal-alpha-summary-strict.json --require-passed after dogfood:collect succeeds."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("Passed cohort gate ready: yes");
