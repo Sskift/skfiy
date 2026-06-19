@@ -206,6 +206,8 @@ After running `smoke:desktop-session`, pass
 `--desktop-session-artifact .skfiy-smoke/desktop-session-current.json` so the
 status report refreshes stale loginwindow/display-sleep blockers from the latest
 preflight instead of relying only on older product smoke artifacts.
+When a desktop blocker is present, `nextActions` includes the exact follow-up
+`dogfood:status` command with that desktop-session artifact wired in.
 When it can read GitHub comments, it also reports whether the current
 `skfiy-alpha-<commit>` assignment packet has already been posted to the tracking
 issue and adds a next action when that comment is missing.

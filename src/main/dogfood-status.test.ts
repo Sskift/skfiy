@@ -444,6 +444,7 @@ describe("dogfood status reporter", () => {
       nextActions: expect.arrayContaining([
         "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.",
         "After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.",
+        "Run npm run dogfood:status -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --desktop-session-artifact .skfiy-smoke/desktop-session-current.json --summary .skfiy-dogfood/status-current.md --json-output .skfiy-dogfood/status-current.json after smoke:desktop-session rerun to refresh desktop readiness.",
         "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.",
         "Run npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output .skfiy-smoke/ghostty-current.json after desktop preflight passes.",
         "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes.",
@@ -453,6 +454,7 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
     expect(io.textFiles[summaryPath]).toContain("blocked: Desktop session is locked by loginwindow");
     expect(io.textFiles[summaryPath]).toContain("npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json");
+    expect(io.textFiles[summaryPath]).toContain("npm run dogfood:status -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --desktop-session-artifact .skfiy-smoke/desktop-session-current.json");
   });
 
   it("uses an explicit passed desktop-session artifact to clear stale loginwindow blockers", async () => {

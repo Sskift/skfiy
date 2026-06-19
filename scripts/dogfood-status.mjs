@@ -72,6 +72,9 @@ const DEFAULT_DOGFOOD_COHORT_PATH = ".skfiy-dogfood/internal-alpha-cohort.json";
 const DEFAULT_DOGFOOD_COHORT_SUMMARY_PATH = ".skfiy-dogfood/internal-alpha-summary.md";
 const DEFAULT_STRICT_DOGFOOD_COHORT_SUMMARY_PATH = ".skfiy-dogfood/internal-alpha-summary-strict.md";
 const DEFAULT_STRICT_DOGFOOD_COHORT_JSON_PATH = ".skfiy-dogfood/internal-alpha-summary-strict.json";
+const DEFAULT_DESKTOP_SESSION_ARTIFACT_PATH = ".skfiy-smoke/desktop-session-current.json";
+const DEFAULT_DOGFOOD_STATUS_SUMMARY_PATH = ".skfiy-dogfood/status-current.md";
+const DEFAULT_DOGFOOD_STATUS_JSON_PATH = ".skfiy-dogfood/status-current.json";
 export function createDefaultDogfoodStatusOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
     rootDir,
@@ -981,6 +984,13 @@ function createNextActions({
   if (desktopSessionBlocker) {
     actions.push("Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.");
     actions.push("After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.");
+    const desktopStatusCommand = createDesktopSessionStatusRefreshCommand({
+      manifestPath,
+      trackingIssueUrl
+    });
+    if (desktopStatusCommand) {
+      actions.push(`${desktopStatusCommand} after smoke:desktop-session rerun to refresh desktop readiness.`);
+    }
     actions.push("When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.");
     actions.push(...PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS);
   }
@@ -1055,6 +1065,31 @@ function createTesterPrepareNextActions(testerAssignments) {
     .map((assignment) =>
       `Run ${assignment.commands.prepareAlpha.trim()} to prepare ${assignment.testerId.trim()} for workflows ${assignment.workflows.join(",")}.`
     );
+}
+
+function createDesktopSessionStatusRefreshCommand({ manifestPath, trackingIssueUrl }) {
+  if (
+    typeof manifestPath !== "string"
+    || manifestPath.trim().length === 0
+    || typeof trackingIssueUrl !== "string"
+    || !isGitHubIssueUrl(trackingIssueUrl)
+  ) {
+    return "";
+  }
+
+  return [
+    "Run npm run dogfood:status --",
+    "--manifest",
+    manifestPath.trim(),
+    "--tracking-issue-url",
+    trackingIssueUrl.trim(),
+    "--desktop-session-artifact",
+    DEFAULT_DESKTOP_SESSION_ARTIFACT_PATH,
+    "--summary",
+    DEFAULT_DOGFOOD_STATUS_SUMMARY_PATH,
+    "--json-output",
+    DEFAULT_DOGFOOD_STATUS_JSON_PATH
+  ].join(" ");
 }
 
 function createDogfoodCollectCommand({ manifestPath, trackingIssueUrl }) {
