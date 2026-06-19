@@ -133,12 +133,12 @@ describe("alpha artifact packaging", () => {
       createdAt: "2026-06-16T00:00:00.000Z",
       sha256: "f".repeat(64),
       zipBytes: 4096,
-      uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-permission-onboarding.json",
-      smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
-      chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-page.json",
-      finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-item-drag-drop.json",
-      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json",
-      moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision.json"
+      uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-abcdef1.json",
+      smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abcdef1.json",
+      chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abcdef1.json",
+      finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
+      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-abcdef1.json",
+      moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision-abcdef1.json"
     })).toMatchObject({
       schemaVersion: 1,
       appName: "skfiy",
@@ -152,12 +152,12 @@ describe("alpha artifact packaging", () => {
         bytes: 4096,
         sha256: "f".repeat(64)
       },
-      uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-permission-onboarding.json",
-      smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
-      chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-page.json",
-      finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-item-drag-drop.json",
-      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json",
-      moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision.json",
+      uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-abcdef1.json",
+      smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abcdef1.json",
+      chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abcdef1.json",
+      finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
+      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-abcdef1.json",
+      moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision-abcdef1.json",
       requiredDogfoodEvidence: [
         "npm run smoke:ui -- --output <path>",
         "npm run smoke:ghostty -- --output <path>",
@@ -197,5 +197,51 @@ describe("alpha artifact packaging", () => {
         "Long-horizon money-run supervision evidence"
       ]
     });
+  });
+
+  it("rejects smoke artifacts from a different alpha when creating a manifest", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/create-alpha-artifact.mjs");
+    const {
+      createAlphaManifest
+    } = await import(pathToFileURL(modulePath).href) as {
+      createAlphaManifest: (input: {
+        plan: {
+          appPath: string;
+          artifactBaseName: string;
+          bundleIdentifier: string;
+          manifestPath: string;
+          zipPath: string;
+        };
+        version: string;
+        commitSha: string;
+        createdAt: string;
+        sha256: string;
+        zipBytes: number;
+        uiSmokeArtifactPath?: string;
+        smokeArtifactPath?: string;
+        chromeSmokeArtifactPath?: string;
+        finderSmokeArtifactPath?: string;
+        voiceSmokeArtifactPath?: string;
+        moneyRunSmokeArtifactPath?: string;
+      }) => Record<string, unknown>;
+    };
+
+    expect(() => createAlphaManifest({
+      plan: {
+        appPath: "/repo/dist/skfiy.app",
+        artifactBaseName: "skfiy-0.1.0-abcdef1-macos-unsigned",
+        bundleIdentifier: "com.sskift.skfiy",
+        manifestPath: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json",
+        zipPath: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.zip"
+      },
+      version: "0.1.0",
+      commitSha: "abcdef1234567890",
+      createdAt: "2026-06-16T00:00:00.000Z",
+      sha256: "f".repeat(64),
+      zipBytes: 4096,
+      uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-old9999.json"
+    })).toThrow(
+      "alpha manifest uiSmokeArtifactPath must reference current alpha abcdef1; got /repo/.skfiy-smoke/ui-old9999.json."
+    );
   });
 });

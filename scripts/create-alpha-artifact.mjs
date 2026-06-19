@@ -91,6 +91,16 @@ export function createAlphaManifest({
   voiceSmokeArtifactPath,
   moneyRunSmokeArtifactPath
 }) {
+  validateCurrentAlphaSmokeArtifactPaths({
+    commitSha,
+    uiSmokeArtifactPath,
+    smokeArtifactPath,
+    chromeSmokeArtifactPath,
+    finderSmokeArtifactPath,
+    voiceSmokeArtifactPath,
+    moneyRunSmokeArtifactPath
+  });
+
   return {
     schemaVersion: 1,
     appName: "skfiy",
@@ -116,6 +126,35 @@ export function createAlphaManifest({
     moneyRunSmokeArtifactPath,
     requiredDogfoodEvidence: DOGFOOD_EVIDENCE
   };
+}
+
+function validateCurrentAlphaSmokeArtifactPaths({
+  commitSha,
+  uiSmokeArtifactPath,
+  smokeArtifactPath,
+  chromeSmokeArtifactPath,
+  finderSmokeArtifactPath,
+  voiceSmokeArtifactPath,
+  moneyRunSmokeArtifactPath
+}) {
+  const shortSha = commitSha.slice(0, 7);
+  for (const [key, artifactPath] of Object.entries({
+    uiSmokeArtifactPath,
+    smokeArtifactPath,
+    chromeSmokeArtifactPath,
+    finderSmokeArtifactPath,
+    voiceSmokeArtifactPath,
+    moneyRunSmokeArtifactPath
+  })) {
+    if (typeof artifactPath !== "string" || artifactPath.trim().length === 0) {
+      continue;
+    }
+    if (!path.basename(artifactPath).includes(`-${shortSha}`)) {
+      throw new Error(
+        `alpha manifest ${key} must reference current alpha ${shortSha}; got ${artifactPath}.`
+      );
+    }
+  }
 }
 
 export function parseAlphaArtifactArgs(argv, defaults) {

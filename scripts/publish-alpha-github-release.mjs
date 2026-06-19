@@ -11,6 +11,10 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_REPO = "Sskift/skfiy";
 const DEFAULT_TRACKING_ISSUE_URL = "https://github.com/Sskift/skfiy/issues/1";
+const REQUIRED_RELEASE_DOGFOOD_EVIDENCE = [
+  "Panic stop product-path behavior evidence",
+  "Long-horizon money-run supervision evidence"
+];
 
 export function createDefaultGitHubAlphaReleaseOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -435,7 +439,22 @@ function validateManifest(manifest) {
       throw new Error(`alpha manifest ${key} is required.`);
     }
   }
+  validateRequiredDogfoodEvidence(manifest);
   validateCurrentAlphaSmokeArtifacts(manifest);
+}
+
+function validateRequiredDogfoodEvidence(manifest) {
+  const evidence = Array.isArray(manifest.requiredDogfoodEvidence)
+    ? manifest.requiredDogfoodEvidence
+    : [];
+
+  for (const requiredEvidence of REQUIRED_RELEASE_DOGFOOD_EVIDENCE) {
+    if (!evidence.includes(requiredEvidence)) {
+      throw new Error(
+        `alpha manifest requiredDogfoodEvidence must include ${requiredEvidence}.`
+      );
+    }
+  }
 }
 
 async function assertReadableFile(filePath, label, io) {

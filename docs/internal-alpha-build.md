@@ -55,6 +55,7 @@ This writes a versioned zip and manifest to `.skfiy-alpha/`, for example:
 ```
 
 The manifest records the exact commit SHA, bundle identifier, unsigned/notarized state, zip byte size, SHA256 checksum, the UI smoke artifact path, the Ghostty smoke artifact path, the Chrome smoke artifact path, the Finder smoke artifact path, the voice smoke artifact path, the long-horizon money-run supervision artifact path, permission setting direct-link evidence, external Doubao voice transcript-to-task evidence, external Doubao voice Ghostty turn replay evidence, external Doubao voice no-transcript/cancellation evidence, accepted GitHub dogfood issue source evidence, and required app policy, observe, semantic Finder, Finder plan preview, and Finder plan confirmation evidence used for dogfood.
+Smoke artifact filenames that already carry an alpha short SHA must match the manifest commit; regenerate the packaged smokes for the same commit before creating or publishing a new alpha.
 
 Before publishing an alpha, verify the local package identity:
 
@@ -94,7 +95,7 @@ npm run alpha:github-release -- \
   --require-current-head
 ```
 
-Add `--execute` only after checking the generated release notes and confirming the manifest belongs to the current HEAD. The release uploads the alpha zip and manifest; it does not sign, notarize, or claim cohort readiness.
+Add `--execute` only after checking the generated release notes and confirming the manifest belongs to the current HEAD. The release uploads the alpha zip and manifest; it rejects manifests that do not require panic stop product-path behavior evidence and long-horizon money-run supervision evidence. It does not sign, notarize, or claim cohort readiness.
 When `--execute` succeeds, it also refreshes `docs/release-evidence/latest-alpha.json` from the same manifest and release URL so plan evidence stays attached to the published alpha. Dry-runs do not modify that evidence file.
 
 After the GitHub release is published, generate and optionally update the tracking issue from the same manifest:

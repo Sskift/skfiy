@@ -306,6 +306,35 @@ describe("GitHub alpha release publisher", () => {
     expect(io.commands).toEqual([]);
   });
 
+  it("rejects a release when the manifest omits required dogfood evidence gates", async () => {
+    const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
+      runGitHubAlphaRelease: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      manifest: {
+        ...createManifest(),
+        requiredDogfoodEvidence: [
+          "Long-horizon money-run supervision evidence"
+        ]
+      }
+    });
+
+    await expect(runGitHubAlphaRelease({
+      rootDir: "/repo",
+      manifestPath,
+      repo: "Sskift/skfiy",
+      trackingIssueUrl,
+      dryRun: true
+    }, io)).rejects.toThrow(
+      "alpha manifest requiredDogfoodEvidence must include Panic stop product-path behavior evidence."
+    );
+    expect(io.commands).toEqual([]);
+    expect(io.textFiles["/repo/docs/release-evidence/latest-alpha.json"]).toBeUndefined();
+  });
+
   it("rejects a dry-run release when the zip bytes match but the SHA256 differs", async () => {
     const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
       runGitHubAlphaRelease: (
@@ -353,6 +382,10 @@ function createManifest() {
     finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
     voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-abcdef1.json",
     moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-abcdef1.json",
+    requiredDogfoodEvidence: [
+      "Panic stop product-path behavior evidence",
+      "Long-horizon money-run supervision evidence"
+    ],
     zip: {
       path: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.zip",
       bytes: 1234,

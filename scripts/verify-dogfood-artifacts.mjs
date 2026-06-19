@@ -384,6 +384,15 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     "manifest must require Finder item drag/drop evidence"
   );
   await verifyCurrentHead(manifest, options, io, checks);
+  verifyCurrentAlphaSmokeArtifactPaths({
+    manifest,
+    uiSmokeArtifactPath,
+    smokeArtifactPath,
+    chromeSmokeArtifactPath,
+    finderSmokeArtifactPath,
+    voiceSmokeArtifactPath,
+    moneyRunSmokeArtifactPath
+  }, checks);
 
   if (zipPath) {
     await verifyZip(zipPath, manifest, io, checks);
@@ -1194,6 +1203,60 @@ function samePath(actual, expected) {
   return typeof actual === "string"
     && typeof expected === "string"
     && path.resolve(actual) === path.resolve(expected);
+}
+
+function verifyCurrentAlphaSmokeArtifactPaths({
+  manifest,
+  uiSmokeArtifactPath,
+  smokeArtifactPath,
+  chromeSmokeArtifactPath,
+  finderSmokeArtifactPath,
+  voiceSmokeArtifactPath,
+  moneyRunSmokeArtifactPath
+}, checks) {
+  const commitSha = readString(manifest?.commitSha);
+  const shortSha = commitSha ? commitSha.slice(0, 7) : "";
+  const mismatched = [];
+
+  if (shortSha.length === 0) {
+    check(
+      checks,
+      "manifest.currentAlphaSmokeArtifactPaths",
+      false,
+      "manifest smoke artifact paths cannot be matched without commitSha"
+    );
+    return;
+  }
+
+  for (const [key, artifactPath] of Object.entries({
+    uiSmokeArtifactPath,
+    smokeArtifactPath,
+    chromeSmokeArtifactPath,
+    finderSmokeArtifactPath,
+    voiceSmokeArtifactPath,
+    moneyRunSmokeArtifactPath
+  })) {
+    if (!artifactPathHasAlphaSuffix(artifactPath)) {
+      continue;
+    }
+    if (!path.basename(artifactPath).includes(`-${shortSha}`)) {
+      mismatched.push(`${key}=${artifactPath}`);
+    }
+  }
+
+  check(
+    checks,
+    "manifest.currentAlphaSmokeArtifactPaths",
+    mismatched.length === 0,
+    mismatched.length === 0
+      ? `manifest smoke artifact paths with alpha suffixes reference current alpha ${shortSha}`
+      : `manifest smoke artifact paths with alpha suffixes must reference current alpha ${shortSha}; mismatched ${mismatched.join(", ")}`
+  );
+}
+
+function artifactPathHasAlphaSuffix(artifactPath) {
+  return typeof artifactPath === "string"
+    && /-[0-9a-f]{7}(?=[^/]*\.json$)/i.test(path.basename(artifactPath));
 }
 
 function readString(value) {

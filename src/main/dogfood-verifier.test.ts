@@ -798,6 +798,50 @@ describe("dogfood artifact verifier", () => {
     });
   });
 
+  it("fails when manifest smoke artifact filenames point at another alpha sha", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc1234567890",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: "/repo/.skfiy-smoke/ui-deadbee.json",
+        smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abc1234.json",
+        chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abc1234.json",
+        finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abc1234.json",
+        voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-abc1234.json",
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        "manifest.currentAlphaSmokeArtifactPaths: manifest smoke artifact paths with alpha suffixes must reference current alpha abc1234; mismatched uiSmokeArtifactPath=/repo/.skfiy-smoke/ui-deadbee.json"
+      ]),
+      checks: expect.arrayContaining([
+        expect.objectContaining({
+          id: "manifest.currentAlphaSmokeArtifactPaths",
+          ok: false
+        })
+      ])
+    });
+  });
+
   it("accepts desktop-session preflight blocked evidence before target app launch", async () => {
     const {
       verifyDogfoodArtifacts
