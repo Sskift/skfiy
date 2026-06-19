@@ -439,6 +439,29 @@ describe("dogfood artifact verifier", () => {
     ],
     processesAfterCleanup: []
   });
+  const createDesktopPreflightBlockedEvidence = () => ({
+    timestamp: "2026-06-19T08:33:23.556Z",
+    appPath: "/repo/dist/skfiy.app",
+    helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+    productPath: "packaged helper -> desktop-session-status",
+    frontmost: {
+      bundleId: "com.apple.loginwindow",
+      localizedName: "loginwindow",
+      processIdentifier: 591
+    },
+    controllable: false,
+    result: "blocked",
+    reason: "Desktop session is not controllable before target app launch: frontmostBundleId=com.apple.loginwindow frontmostProcessIdentifier=591. Unlock the Mac and keep the display awake, then retry."
+  });
+  const createDesktopPreflightBlockedEvent = () => {
+    const desktopPreflight = createDesktopPreflightBlockedEvidence();
+
+    return {
+      status: "failed",
+      message: desktopPreflight.reason,
+      desktopPreflight
+    };
+  };
   const createGhosttySmokeArtifact = (artifactPath: string) => ({
     result: "blocked",
     appLaunchViaOpen: true,
@@ -711,6 +734,89 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "finder.planPreview", ok: true }),
         expect.objectContaining({ id: "finder.itemDragDrop", ok: true }),
         expect.objectContaining({ id: "voice.productPath", ok: true })
+      ])
+    });
+  });
+
+  it("accepts desktop-session preflight blocked evidence before target app launch", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper -> Ghostty",
+        artifactPath: ghosttySmokePath,
+        desktopPreflight: createDesktopPreflightBlockedEvidence(),
+        events: [createDesktopPreflightBlockedEvent()]
+      },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder",
+        artifactPath: finderSmokePath,
+        targetMode: "item-drag-drop",
+        desktopPreflight: createDesktopPreflightBlockedEvidence(),
+        events: [createDesktopPreflightBlockedEvent()],
+        finderObservation: {
+          result: "blocked",
+          reason: createDesktopPreflightBlockedEvidence().reason
+        }
+      },
+      [voiceSmokePath]: {
+        result: "blocked",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: doubaoVoiceProductPath,
+        artifactPath: voiceSmokePath,
+        provider: "doubao",
+        desktopPreflight: createDesktopPreflightBlockedEvidence(),
+        taskEvents: [createDesktopPreflightBlockedEvent()]
+      }
+    }))).resolves.toMatchObject({
+      result: "passed",
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "ghostty.desktopPreflight", ok: true }),
+        expect.objectContaining({ id: "finder.desktopPreflight", ok: true }),
+        expect.objectContaining({ id: "voice.desktopPreflight", ok: true }),
+        expect.objectContaining({ id: "ghostty.processesAfterCleanup", ok: true }),
+        expect.objectContaining({ id: "finder.processesAfterCleanup", ok: true }),
+        expect.objectContaining({ id: "voice.processesAfterCleanup", ok: true })
       ])
     });
   });

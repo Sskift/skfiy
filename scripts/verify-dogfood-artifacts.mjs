@@ -533,6 +533,8 @@ async function verifyCurrentHead(manifest, options, io, checks) {
 }
 
 function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
+  const desktopPreflightBlocked = hasDesktopPreflightBlockedEvidence(artifact);
+
   check(
     checks,
     "ghostty.artifactPath",
@@ -572,25 +574,31 @@ function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "ghostty.appPolicySettings",
-    hasGhosttyAppPolicyEvidence(artifact.appPolicySettings),
+    desktopPreflightBlocked || hasGhosttyAppPolicyEvidence(artifact.appPolicySettings),
     "Ghostty smoke must include Ghostty app policy settings evidence"
   );
   check(
     checks,
     "ghostty.clipboardApprovalRuns",
-    hasRequiredGhosttyClipboardApprovalRuns(artifact.runs),
+    desktopPreflightBlocked || hasRequiredGhosttyClipboardApprovalRuns(artifact.runs),
     "Ghostty matrix smoke must include pbpaste and pbcopy high-risk approval runs"
   );
   check(
     checks,
     "ghostty.nonComputerUseRouteGuards",
-    hasRequiredGhosttyNonComputerUseRouteGuardRuns(artifact.runs),
+    desktopPreflightBlocked || hasRequiredGhosttyNonComputerUseRouteGuardRuns(artifact.runs),
     "Ghostty matrix smoke must include non-terminal voice route guard runs"
   );
   check(
     checks,
+    "ghostty.desktopPreflight",
+    !artifact.desktopPreflight || desktopPreflightBlocked,
+    "Ghostty blocked desktop preflight must prove loginwindow/frontmost session is not controllable"
+  );
+  check(
+    checks,
     "ghostty.processesAfterCleanup",
-    isEmptyArray(artifact.processesAfterCleanup),
+    desktopPreflightBlocked || isEmptyArray(artifact.processesAfterCleanup),
     "Ghostty smoke must clean up skfiy app processes"
   );
 
@@ -722,7 +730,8 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
 }
 
 function verifyFinderSmoke(artifact, expectedPath, options, checks) {
-  const permissionBlocked = hasPermissionBlockedFinderSmoke(artifact);
+  const desktopPreflightBlocked = hasDesktopPreflightBlockedEvidence(artifact);
+  const permissionBlocked = desktopPreflightBlocked || hasPermissionBlockedFinderSmoke(artifact);
 
   check(
     checks,
@@ -763,25 +772,25 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "finder.appPolicySettings",
-    hasFinderAppPolicyEvidence(artifact.appPolicySettings),
+    desktopPreflightBlocked || hasFinderAppPolicyEvidence(artifact.appPolicySettings),
     "Finder smoke must include Finder app policy settings evidence"
   );
   check(
     checks,
     "finder.approval",
-    hasFinderApprovalEvidence(artifact.events),
+    desktopPreflightBlocked || hasFinderApprovalEvidence(artifact.events),
     "Finder smoke must include app policy approval evidence"
   );
   check(
     checks,
     "finder.observation",
-    hasFinderObservationEvidence(artifact.finderObservation, artifact.result),
+    desktopPreflightBlocked || hasFinderObservationEvidence(artifact.finderObservation, artifact.result),
     "Finder smoke must include observe_app screenshot evidence or a permission-blocked observation"
   );
   check(
     checks,
     "finder.semanticObservation",
-    hasFinderSemanticObservationEvidence(artifact.finderSemanticObservation, artifact.result),
+    desktopPreflightBlocked || hasFinderSemanticObservationEvidence(artifact.finderSemanticObservation, artifact.result),
     "Finder smoke must include Finder semantic selection evidence or a permission-blocked semantic observation"
   );
   check(
@@ -823,17 +832,19 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "finder.itemDragDrop",
-    hasFinderItemDragDropEvidence(artifact.finderItemDragDrop, artifact.result)
+    desktopPreflightBlocked || (
+      hasFinderItemDragDropEvidence(artifact.finderItemDragDrop, artifact.result)
       && (
         artifact.finderItemDragDrop?.result === "blocked"
         || hasFinderItemDragDropActionEvidence(artifact.events, artifact.result)
-      ),
+      )
+    ),
     "Finder smoke must include item drag/drop evidence or a permission-blocked layout/drag reason"
   );
   check(
     checks,
     "finder.beforeTree",
-    hasFinderBeforeTree(artifact.beforeTree),
+    desktopPreflightBlocked || hasFinderBeforeTree(artifact.beforeTree),
     "Finder smoke must include the unorganized test-folder before tree"
   );
   check(
@@ -845,14 +856,21 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "finder.processesAfterCleanup",
-    isEmptyArray(artifact.processesAfterCleanup),
+    desktopPreflightBlocked || isEmptyArray(artifact.processesAfterCleanup),
     "Finder smoke must clean up skfiy app processes"
+  );
+  check(
+    checks,
+    "finder.desktopPreflight",
+    !artifact.desktopPreflight || desktopPreflightBlocked,
+    "Finder blocked desktop preflight must prove loginwindow/frontmost session is not controllable"
   );
 }
 
 function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
   const provider = readVoiceProvider(artifact);
   const expectedProductPath = readExpectedVoiceProductPath(provider);
+  const desktopPreflightBlocked = hasDesktopPreflightBlockedEvidence(artifact);
 
   check(
     checks,
@@ -900,14 +918,14 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
     check(
       checks,
       "voice.speechStatus",
-      isNativeSpeechStatus(artifact.speechStatus),
+      desktopPreflightBlocked || isNativeSpeechStatus(artifact.speechStatus),
       "native macOS voice smoke must include structured speech status"
     );
   } else {
     check(
       checks,
       "voice.externalInput",
-      hasExternalDoubaoInputEvidence(artifact.externalInput),
+      desktopPreflightBlocked || hasExternalDoubaoInputEvidence(artifact.externalInput),
       "external Doubao voice smoke must prove the input method stayed external and reached the renderer text bridge"
     );
   }
@@ -953,8 +971,14 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "voice.processesAfterCleanup",
-    isEmptyArray(artifact.processesAfterCleanup),
+    desktopPreflightBlocked || isEmptyArray(artifact.processesAfterCleanup),
     "voice smoke must clean up skfiy app processes"
+  );
+  check(
+    checks,
+    "voice.desktopPreflight",
+    !artifact.desktopPreflight || desktopPreflightBlocked,
+    "voice blocked desktop preflight must prove loginwindow/frontmost session is not controllable"
   );
 }
 
@@ -1061,6 +1085,42 @@ function readString(value) {
 
 function isEmptyArray(value) {
   return Array.isArray(value) && value.length === 0;
+}
+
+function hasDesktopPreflightBlockedEvidence(artifact) {
+  const preflight = artifact?.desktopPreflight;
+  if (
+    artifact?.result !== "blocked"
+    || !preflight
+    || typeof preflight !== "object"
+    || preflight.result !== "blocked"
+    || preflight.controllable !== false
+    || preflight.productPath !== "packaged helper -> desktop-session-status"
+    || preflight.frontmost?.bundleId !== "com.apple.loginwindow"
+    || typeof preflight.frontmost?.processIdentifier !== "number"
+    || typeof preflight.appPath !== "string"
+    || typeof preflight.helperPath !== "string"
+    || typeof preflight.reason !== "string"
+    || !preflight.reason.includes("Desktop session is not controllable")
+  ) {
+    return false;
+  }
+
+  const events = [
+    ...(Array.isArray(artifact.events) ? artifact.events : []),
+    ...(Array.isArray(artifact.taskEvents) ? artifact.taskEvents : [])
+  ];
+
+  return events.some((event) =>
+    event?.status === "failed"
+      && (
+        event.desktopPreflight?.result === "blocked"
+        || (
+          typeof event.message === "string"
+          && event.message.includes(preflight.reason)
+        )
+      )
+  );
 }
 
 function isNativeSpeechStatus(value) {
