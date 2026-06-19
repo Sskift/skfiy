@@ -189,6 +189,40 @@ describe("dogfood handoff generator", () => {
       testerId: "prepare-abc123"
     });
   });
+
+  it("makes synthetic maintainer handoffs local-only and non-filing", async () => {
+    const { createDogfoodHandoff } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodHandoff: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo();
+
+    await expect(createDogfoodHandoff({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "preflight-abc123",
+      workflows: ["coding-terminal"],
+      outputPath,
+      allowSyntheticTesterId: true
+    }, io)).resolves.toMatchObject({
+      result: "created",
+      testerId: "preflight-abc123"
+    });
+
+    const handoff = io.textFiles[outputPath];
+    const testerCommandSection = handoff.slice(
+      handoff.indexOf("## Tester Command"),
+      handoff.indexOf("## Filing")
+    );
+    expect(testerCommandSection).toContain("--allow-synthetic-tester-id");
+    expect(testerCommandSection).not.toContain("--file-issue");
+    expect(handoff).toContain("This is a maintainer synthetic preflight handoff and does not count as a real tester report.");
+    expect(handoff).not.toContain("gh issue create --");
+    expect(handoff).not.toContain("npm run dogfood:review");
+    expect(handoff).not.toContain("npm run dogfood:report");
+  });
 });
 
 function createMemoryIo() {

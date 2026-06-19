@@ -329,6 +329,13 @@ npm run dogfood:prepare-alpha -- \
 ```
 
 `dogfood:prepare-alpha` downloads the release zip and manifest, verifies the zip SHA256 against the manifest, rejects manifests missing long-horizon money-run evidence or `Panic stop product-path behavior evidence`, extracts `skfiy.app` under `.skfiy-dogfood/apps/<tag>/`, and creates a handoff whose `dogfood:tester` command points at that extracted app bundle. It defaults to dry-run; `--execute` is required before it downloads or writes local files. If `--workflows` is omitted but `--tracking-issue-url` or `--tracking-issue-file` is provided, it reads `Recommended Tester Assignments` from the tracking issue body and, for GitHub URLs, the current alpha assignment packet comments with `Permission Preflight` and `Evidence Preview Gate`; it then passes the tester's workflows into the generated handoff. Add `--require-passed` only for permission-ready tester machines; it propagates to the handoff and `nextCommands.tester`.
+Maintainers can validate release download, SHA256, extraction, app identity, and
+handoff generation without consuming a real tester slot by using a reserved id
+with `--allow-synthetic-tester-id`, for example `--tester-id
+preflight-<commit>`. In that mode `dogfood:prepare-alpha` skips tracking issue
+assignment lookup, defaults to all required workflows, and the generated tester
+command is local-only: it includes `--allow-synthetic-tester-id` and omits
+`--file-issue`.
 
 Maintainers can still generate a handoff manually when the tester has already unpacked the app:
 

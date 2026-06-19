@@ -248,11 +248,16 @@ prepared alpha instead of a guessed `/Applications/skfiy.app` install.
 `dogfood:prepare-alpha` can infer `--workflows` from the tracking issue body or
 the current alpha assignment packet comments when a tester id appears there, so
 copied prepare commands and generated handoffs stay aligned.
-Its JSON result also includes `nextCommands.tester` and `nextCommands.review`
-with the prepared manifest path and app bundle path filled in, so testers can
-copy the next command without reconstructing paths by hand. The recommended
-tester command includes `--tracking-issue-url` and `--file-issue`, which creates
-only the dogfood report issue after local validation and writes a summary whose
+For maintainer-only release download and app identity preflight, use a reserved
+id such as `preflight-<commit>` together with
+`--allow-synthetic-tester-id`; that local command skips assignment lookup,
+omits `--file-issue`, and cannot satisfy the real tester gate.
+Its JSON result always includes `nextCommands.tester` with the prepared manifest
+path and app bundle path filled in; real tester preparations also include
+`nextCommands.review`. Synthetic preflights stay local-only and expose no review
+command. The recommended tester command includes `--tracking-issue-url` and
+`--file-issue`, which creates only the dogfood report issue after local
+validation and writes a summary whose
 maintainer review command is already linked to the same cohort issue; maintainer
 acceptance still requires
 `dogfood:review`, whose default dry-run can be promoted with `--execute` after

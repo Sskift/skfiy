@@ -50,6 +50,7 @@ describe("alpha dogfood preparation", () => {
       "--handoff-output",
       ".skfiy-dogfood/handoffs/tester-a.md",
       "--require-passed",
+      "--allow-synthetic-tester-id",
       "--replace-existing",
       "--execute"
     ], defaults)).toMatchObject({
@@ -63,6 +64,7 @@ describe("alpha dogfood preparation", () => {
       downloadDir: path.resolve(".skfiy-dogfood/downloads/tester-a"),
       handoffOutputPath: path.resolve(".skfiy-dogfood/handoffs/tester-a.md"),
       requirePassed: true,
+      allowSyntheticTesterId: true,
       replaceExisting: true,
       dryRun: false
     });
@@ -73,6 +75,7 @@ describe("alpha dogfood preparation", () => {
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--tracking-issue-url");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("assignment packet comments");
     expect(createPrepareAlphaDogfoodHelpText()).toContain("--require-passed");
+    expect(createPrepareAlphaDogfoodHelpText()).toContain("--allow-synthetic-tester-id");
   });
 
   it("passes strict passed evidence mode into handoff and next tester command", async () => {
@@ -296,6 +299,7 @@ describe("alpha dogfood preparation", () => {
         commands: Array<{ id: string; command: string; args: string[] }>;
         nextCommands: {
           tester: string;
+          review?: string;
         };
       };
     };
@@ -399,6 +403,52 @@ describe("alpha dogfood preparation", () => {
     expect(plan.commands.find((command) => command.id === "handoff:create")?.args).toEqual(
       expect.arrayContaining(["--allow-synthetic-tester-id"])
     );
+  });
+
+  it("allows explicit synthetic preflight prepare runs without a tracking assignment", async () => {
+    const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
+      runPrepareAlphaDogfood: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      trackingIssueBody: [
+        "## Recommended Tester Assignments",
+        "- `tester-a`: `finder-file,browser-fallback`"
+      ].join("\n")
+    });
+
+    const result = await runPrepareAlphaDogfood({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "preflight-abc1234",
+      trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
+      allowSyntheticTesterId: true,
+      dryRun: true
+    }, io) as {
+      plan: {
+        commands: Array<{ id: string; command: string; args: string[] }>;
+        nextCommands: {
+          tester: string;
+        };
+      };
+    };
+
+    expect(result.plan.commands.find((command) => command.id === "handoff:create")?.args).toEqual(
+      expect.arrayContaining([
+        "--workflows",
+        "coding-terminal,screenshot-inspection,finder-file,browser-fallback",
+        "--allow-synthetic-tester-id"
+      ])
+    );
+    expect(result.plan.nextCommands.tester).toContain("--tester-id preflight-abc1234");
+    expect(result.plan.nextCommands.tester).toContain("--workflows coding-terminal,screenshot-inspection,finder-file,browser-fallback");
+    expect(result.plan.nextCommands.tester).toContain("--allow-synthetic-tester-id");
+    expect(result.plan.nextCommands.tester).not.toContain("--file-issue");
+    expect(result.plan.nextCommands).not.toHaveProperty("review");
   });
 
   it("executes with checksum validation before installing the app bundle", async () => {

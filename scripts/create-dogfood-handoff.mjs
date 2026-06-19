@@ -6,7 +6,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   assertRealDogfoodTesterId,
-  formatReservedDogfoodTesterIdPrefixes
+  formatReservedDogfoodTesterIdPrefixes,
+  readRealTesterDecision
 } from "./dogfood-tester-id.mjs";
 import { REQUIRED_DOGFOOD_WORKFLOWS } from "./verify-dogfood-cohort.mjs";
 
@@ -98,6 +99,8 @@ export async function createDogfoodHandoff(options, io = createDefaultIo()) {
   const rootDir = options.rootDir ?? DEFAULT_ROOT_DIR;
   const testerId = options.testerId.trim();
   const manifest = await io.readJson(options.manifestPath);
+  const syntheticTester = options.allowSyntheticTesterId === true
+    && readRealTesterDecision(testerId).ok !== true;
   const outputPath = typeof options.outputPath === "string"
     ? options.outputPath
     : path.join(rootDir, ".skfiy-dogfood", "handoffs", `${testerId}.md`);
@@ -113,6 +116,7 @@ export async function createDogfoodHandoff(options, io = createDefaultIo()) {
     finderTargetDir: options.finderTargetDir,
     chromeCurrentPageEndpoint: options.chromeCurrentPageEndpoint,
     requirePassed: options.requirePassed,
+    syntheticTester,
     generatedAt: typeof options.now === "function" ? options.now() : new Date().toISOString()
   });
 
@@ -169,6 +173,7 @@ function createDogfoodHandoffMarkdown({
   finderTargetDir,
   chromeCurrentPageEndpoint,
   requirePassed,
+  syntheticTester,
   generatedAt
 }) {
   const relativeManifestPath = relativePath(rootDir, manifestPath);
@@ -184,7 +189,7 @@ function createDogfoodHandoffMarkdown({
     ["--issue-output", issueOutput],
     ["--summary", summaryPath],
     ["--tracking-issue-url", trackingIssueUrl],
-    ["--file-issue"],
+    ...(syntheticTester ? [["--allow-synthetic-tester-id"]] : [["--file-issue"]]),
     ...optionalPair("--finder-target-dir", finderTargetDir),
     ...optionalPair("--chrome-current-page-endpoint", chromeCurrentPageEndpoint),
     ...(requirePassed ? [["--require-passed"]] : [])
@@ -216,6 +221,9 @@ function createDogfoodHandoffMarkdown({
     "- Grant Screen Recording and Accessibility to `skfiy.app` before expecting passed Computer Use or default external Doubao voice evidence. Grant Microphone and Speech Recognition only for optional native/browser speech provider tests.",
     "- Blocked evidence is acceptable when it records the real permission state, packaged-app launch path, artifacts, and cleanup.",
     "- Do not edit generated artifact paths or alpha identity fields by hand.",
+    ...(syntheticTester
+      ? ["- This is a maintainer synthetic preflight handoff and does not count as a real tester report."]
+      : []),
     "",
     "## Tester Command",
     "",
@@ -225,55 +233,67 @@ function createDogfoodHandoffMarkdown({
     "",
     "## Filing",
     "",
-    `File a \`skfiy dogfood report\` issue using the generated body at \`${issueOutput}\`.`,
-    "",
-    "```bash",
-    formatMultilineCommand("gh issue create --", [
-      ["--repo", repository],
-      ["--title", `skfiy dogfood report: ${testerId}`],
-      ["--body-file", issueOutput]
-    ]),
-    "```",
-    "",
-    "Do not add `dogfood:accepted` or `workflow:*` labels yourself.",
-    `Then add the filed issue URL to ${trackingIssueUrl} only after maintainer review accepts it.`,
-    "",
-    "## Maintainer Review",
-    "",
-    "```bash",
-    formatMultilineCommand("npm run dogfood:review --", [
-      ["--manifest", relativeManifestPath],
-      ["--issue-url", "<filed-dogfood-issue-url>"],
-      ["--tracking-issue-url", trackingIssueUrl],
-      ["--summary", reviewSummaryPath]
-    ]),
-    "```",
-    "",
-    "If review returns `eligibleForAcceptance=true`, rerun the same review command with `--execute` to apply `dogfood:accepted` plus:",
-    "",
-    ...workflows.map((workflow) => `- \`workflow:${workflow}\``),
-    "",
-    "```bash",
-    formatMultilineCommand("npm run dogfood:review --", [
-      ["--manifest", relativeManifestPath],
-      ["--issue-url", "<filed-dogfood-issue-url>"],
-      ["--tracking-issue-url", trackingIssueUrl],
-      ["--summary", reviewSummaryPath],
-      ["--execute"]
-    ]),
-    "```",
-    "",
-    "Then collect the accepted report:",
-    "",
-    "```bash",
-    formatMultilineCommand("npm run dogfood:report --", [
-      ["--manifest", relativeManifestPath],
-      ["--issue-url", "<accepted-dogfood-issue-url>"],
-      ["--report", `.skfiy-dogfood/reports/${testerId}.json`],
-      ["--cohort", ".skfiy-dogfood/internal-alpha-cohort.json"]
-    ]),
-    "```",
-    ""
+    ...(syntheticTester
+      ? [
+          "This is a maintainer synthetic preflight handoff and does not create a GitHub dogfood report.",
+          "Keep any generated artifacts local; they can help debug release preparation but cannot satisfy the real tester gate.",
+          ""
+        ]
+      : [
+          `File a \`skfiy dogfood report\` issue using the generated body at \`${issueOutput}\`.`,
+          "",
+          "```bash",
+          formatMultilineCommand("gh issue create --", [
+            ["--repo", repository],
+            ["--title", `skfiy dogfood report: ${testerId}`],
+            ["--body-file", issueOutput]
+          ]),
+          "```",
+          "",
+          "Do not add `dogfood:accepted` or `workflow:*` labels yourself.",
+          `Then add the filed issue URL to ${trackingIssueUrl} only after maintainer review accepts it.`,
+          ""
+        ]),
+    ...(syntheticTester
+      ? []
+      : [
+          "## Maintainer Review",
+          "",
+          "```bash",
+          formatMultilineCommand("npm run dogfood:review --", [
+            ["--manifest", relativeManifestPath],
+            ["--issue-url", "<filed-dogfood-issue-url>"],
+            ["--tracking-issue-url", trackingIssueUrl],
+            ["--summary", reviewSummaryPath]
+          ]),
+          "```",
+          "",
+          "If review returns `eligibleForAcceptance=true`, rerun the same review command with `--execute` to apply `dogfood:accepted` plus:",
+          "",
+          ...workflows.map((workflow) => `- \`workflow:${workflow}\``),
+          "",
+          "```bash",
+          formatMultilineCommand("npm run dogfood:review --", [
+            ["--manifest", relativeManifestPath],
+            ["--issue-url", "<filed-dogfood-issue-url>"],
+            ["--tracking-issue-url", trackingIssueUrl],
+            ["--summary", reviewSummaryPath],
+            ["--execute"]
+          ]),
+          "```",
+          "",
+          "Then collect the accepted report:",
+          "",
+          "```bash",
+          formatMultilineCommand("npm run dogfood:report --", [
+            ["--manifest", relativeManifestPath],
+            ["--issue-url", "<accepted-dogfood-issue-url>"],
+            ["--report", `.skfiy-dogfood/reports/${testerId}.json`],
+            ["--cohort", ".skfiy-dogfood/internal-alpha-cohort.json"]
+          ]),
+          "```",
+          ""
+        ])
   ].join("\n");
 }
 

@@ -39,6 +39,7 @@ export function createDefaultPrepareAlphaDogfoodOptions(rootDir = DEFAULT_ROOT_D
     dryRun: true,
     replaceExisting: false,
     requirePassed: false,
+    allowSyntheticTesterId: false,
     help: false
   };
 }
@@ -105,6 +106,9 @@ export function parsePrepareAlphaDogfoodArgs(argv, defaults) {
       case "--require-passed":
         options.requirePassed = true;
         break;
+      case "--allow-synthetic-tester-id":
+        options.allowSyntheticTesterId = true;
+        break;
       case "--dry-run":
         options.dryRun = true;
         break;
@@ -157,7 +161,8 @@ export function createPrepareAlphaDogfoodPlan(options) {
     testerId,
     workflows: options.workflows,
     trackingIssueUrl: options.trackingIssueUrl,
-    requirePassed: options.requirePassed
+    requirePassed: options.requirePassed,
+    allowSyntheticTesterId: options.allowSyntheticTesterId
   });
 
   return {
@@ -309,7 +314,8 @@ export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
       testerId: plan.testerId,
       workflows: resolvedOptions.workflows,
       trackingIssueUrl: resolvedOptions.trackingIssueUrl,
-      requirePassed: resolvedOptions.requirePassed
+      requirePassed: resolvedOptions.requirePassed,
+      allowSyntheticTesterId: resolvedOptions.allowSyntheticTesterId
     })
   };
 }
@@ -323,8 +329,9 @@ export function createPrepareAlphaDogfoodHelpText() {
     "app install, and handoff plan without mutating local files.",
     "Pass --execute to download the release assets, verify the zip SHA256 against",
     "the manifest, extract skfiy.app, and create the dogfood handoff.",
-    "The result includes nextCommands.tester and nextCommands.review with the",
-    "prepared manifest path and app bundle path filled in for copy/paste.",
+    "The result includes nextCommands.tester with the prepared manifest path",
+    "and app bundle path filled in for copy/paste. Real tester preparations",
+    "also include nextCommands.review; maintainer synthetic preflights stay local-only.",
     "",
     "Options:",
     "  --release-url <url>       GitHub release URL, for example https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-xxxxxxx.",
@@ -340,6 +347,8 @@ export function createPrepareAlphaDogfoodHelpText() {
     "  --handoff-output <path>   Generated handoff Markdown path.",
     "  --replace-existing        Allow overwriting an existing app bundle destination.",
     "  --require-passed          Pass strict passed evidence mode into the handoff and tester command.",
+    "  --allow-synthetic-tester-id",
+    "                            Maintainer-only escape hatch for local/preflight release preparation that will not count as a real tester.",
     "  --execute                 Actually download, verify, extract, install, and create handoff.",
     "  --dry-run                 Force dry-run planning mode.",
     "  -h, --help                Show this help."
@@ -352,7 +361,8 @@ function createPrepareAlphaNextCommands({
   testerId,
   workflows,
   trackingIssueUrl,
-  requirePassed = false
+  requirePassed = false,
+  allowSyntheticTesterId = false
 }) {
   const workflowList = Array.isArray(workflows) && workflows.length > 0
     ? workflows.join(",")
@@ -360,8 +370,10 @@ function createPrepareAlphaNextCommands({
   const trackingIssueArgs = typeof trackingIssueUrl === "string" && trackingIssueUrl.trim().length > 0
     ? ["--tracking-issue-url", trackingIssueUrl.trim()]
     : [];
+  const testerDecision = readRealTesterDecision(testerId);
+  const syntheticTester = testerDecision.ok !== true && allowSyntheticTesterId === true;
 
-  return {
+  const nextCommands = {
     tester: [
       "npm run dogfood:tester --",
       "--manifest",
@@ -379,10 +391,13 @@ function createPrepareAlphaNextCommands({
       "--summary",
       `.skfiy-dogfood/${testerId}-summary.md`,
       ...trackingIssueArgs,
-      "--file-issue",
+      ...(syntheticTester ? ["--allow-synthetic-tester-id"] : ["--file-issue"]),
       ...(requirePassed ? ["--require-passed"] : [])
-    ].join(" "),
-    review: [
+    ].join(" ")
+  };
+
+  if (!syntheticTester) {
+    nextCommands.review = [
       "npm run dogfood:review --",
       "--manifest",
       manifestPath,
@@ -391,8 +406,10 @@ function createPrepareAlphaNextCommands({
       ...trackingIssueArgs,
       "--summary",
       `.skfiy-dogfood/reviews/${testerId}.md`
-    ].join(" ")
-  };
+    ].join(" ");
+  }
+
+  return nextCommands;
 }
 
 async function resolvePrepareAlphaDogfoodOptions(options, io) {
@@ -409,6 +426,13 @@ async function resolvePrepareAlphaDogfoodOptions(options, io) {
   const assignmentText = await readTrackingIssueAssignmentText(options, io);
   const workflows = readRecommendedAssignmentWorkflows(assignmentText, options.testerId);
   if (workflows.length === 0) {
+    const testerDecision = readRealTesterDecision(options.testerId);
+    if (options.allowSyntheticTesterId === true && testerDecision.ok !== true) {
+      return {
+        ...options,
+        workflows: [...REQUIRED_DOGFOOD_WORKFLOWS]
+      };
+    }
     throw new Error(`Tracking issue has no tester assignment entry for ${options.testerId}.`);
   }
 
