@@ -445,6 +445,84 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("blocked: Desktop session is locked by loginwindow");
   });
 
+  it("reports desktop session blockers from Ghostty/Finder/voice smoke preflight artifacts", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const desktopPreflight = {
+      result: "blocked",
+      frontmost: {
+        bundleId: "com.apple.loginwindow",
+        localizedName: "loginwindow",
+        processIdentifier: 591
+      },
+      display: {
+        mainDisplayAsleep: true
+      },
+      controllable: false,
+      reason: "Main display is asleep before target app launch and frontmostBundleId=com.apple.loginwindow frontmostProcessIdentifier=591. Wake and unlock the Mac, then retry."
+    };
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
+        screenRecording: "authorized",
+        accessibility: "authorized",
+        microphone: "authorized",
+        speechRecognition: "authorized"
+      }),
+      [ghosttySmokePath]: {
+        ...createSmokeArtifact(ghosttySmokePath, "blocked"),
+        desktopPreflight
+      },
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      localSmoke: {
+        permissionBlockers: [],
+        desktopSessionBlocker: {
+          state: "blocked",
+          frontmostBundleId: "com.apple.loginwindow",
+          frontmostProcessIdentifier: 591,
+          reason: expect.stringContaining("Main display is asleep")
+        }
+      },
+      nextActions: expect.arrayContaining([
+        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
+    expect(io.textFiles[summaryPath]).toContain("blocked: Main display is asleep before target app launch");
+  });
+
   it("reports missing manifest smoke artifacts without aborting status", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

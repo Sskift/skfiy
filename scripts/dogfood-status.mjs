@@ -520,18 +520,38 @@ function readPermissionBlockers(smokeArtifacts, permissionStates = readPermissio
 function readDesktopSessionBlocker(smokeArtifacts) {
   const diagnostics = smokeArtifacts?.ui?.desktopSessionDiagnostics;
 
-  if (!diagnostics || diagnostics.state !== "blocked") {
-    return null;
+  if (diagnostics?.state === "blocked") {
+    return {
+      state: "blocked",
+      frontmostBundleId: diagnostics.status?.frontmostBundleId,
+      frontmostProcessIdentifier: diagnostics.status?.frontmostProcessIdentifier,
+      reason: typeof diagnostics.reason === "string" && diagnostics.reason.trim().length > 0
+        ? diagnostics.reason
+        : "Desktop session is blocked."
+    };
   }
 
-  return {
-    state: "blocked",
-    frontmostBundleId: diagnostics.status?.frontmostBundleId,
-    frontmostProcessIdentifier: diagnostics.status?.frontmostProcessIdentifier,
-    reason: typeof diagnostics.reason === "string" && diagnostics.reason.trim().length > 0
-      ? diagnostics.reason
-      : "Desktop session is blocked."
-  };
+  return readDesktopPreflightBlocker(smokeArtifacts) ?? null;
+}
+
+function readDesktopPreflightBlocker(smokeArtifacts) {
+  for (const name of ["ghostty", "finder", "voice"]) {
+    const preflight = smokeArtifacts?.[name]?.desktopPreflight;
+    if (!preflight || preflight.result !== "blocked") {
+      continue;
+    }
+
+    return {
+      state: "blocked",
+      frontmostBundleId: preflight.frontmost?.bundleId,
+      frontmostProcessIdentifier: preflight.frontmost?.processIdentifier,
+      reason: typeof preflight.reason === "string" && preflight.reason.trim().length > 0
+        ? preflight.reason
+        : "Desktop session is blocked before target app launch."
+    };
+  }
+
+  return undefined;
 }
 
 function readPermissionStates(smokeArtifacts) {
