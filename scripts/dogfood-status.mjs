@@ -30,6 +30,10 @@ const REQUIRED_WORKFLOW_IDS = [
   "finder-file",
   "browser-fallback"
 ];
+const REQUIRED_STATUS_DOGFOOD_EVIDENCE = [
+  "Panic stop product-path behavior evidence",
+  "Long-horizon money-run supervision evidence"
+];
 const PREPARED_ALPHA_MANIFEST_PLACEHOLDER = "<path-to-downloaded-alpha-manifest.json>";
 const BLOCKING_PERMISSION_STATES = new Set([
   "denied",
@@ -159,11 +163,13 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const invalidReportIssueCount = reportIssueValidation.filter((issue) => !issue.ok).length;
   const currentHeadGateOk = !manifestChecks.currentHead?.required
     || manifestChecks.currentHead.ok === true;
+  const requiredEvidenceGateOk = manifestChecks.requiredEvidence?.ok === true;
   const canRunCollect = verifiedRealAcceptedReportIssueUrls.length >= 3
     && verifiedRealAcceptedReportIssueUrls.length <= 5
     && invalidReportIssueCount === 0
     && currentAlpha.ok
     && currentHeadGateOk
+    && requiredEvidenceGateOk
     && workflowCoverage.missing.length === 0;
   const canRunPassedCohort = canRunCollect && passedWorkflowCoverage.missing.length === 0;
   const result = canRunCollect ? "ready-to-collect" : "waiting-for-dogfood";
@@ -193,7 +199,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     assignmentComment,
     testerAssignmentCount: testerAssignments.length,
     smokeArtifactProblems,
-    desktopSessionBlocker
+    desktopSessionBlocker,
+    requiredEvidenceCheck: manifestChecks.requiredEvidence
   });
 
   const status = {
@@ -281,6 +288,10 @@ export function createDogfoodStatusMarkdown(status) {
         `Alpha is current HEAD: ${status.manifest.checks.currentHead.ok ? "yes" : "no"}`,
         `Alpha app code current: ${readCurrentHeadAppCodeLabel(status.manifest.checks.currentHead)}`
       ]
+      : []),
+    `Required evidence current: ${status.manifest.checks.requiredEvidence?.ok ? "yes" : "no"}`,
+    ...(status.manifest.checks.requiredEvidence?.missing?.length > 0
+      ? status.manifest.checks.requiredEvidence.missing.map((evidence) => `Missing required evidence: ${evidence}`)
       : []),
     `Release evidence current: ${readReleaseEvidenceLabel(status.manifest.checks.releaseEvidence)}`,
     ...(status.manifest.checks.releaseEvidence?.ok === false
@@ -592,6 +603,7 @@ function readRequiredPermissionKeys(smokeArtifacts) {
 async function readManifestChecks(manifest, options, io) {
   const checks = {
     currentHead: undefined,
+    requiredEvidence: readRequiredDogfoodEvidenceCheck(manifest),
     zipReadable: false,
     releaseEvidence: await readReleaseEvidenceCheck(manifest, options, io)
   };
@@ -648,6 +660,19 @@ async function readManifestChecks(manifest, options, io) {
   }
 
   return checks;
+}
+
+function readRequiredDogfoodEvidenceCheck(manifest) {
+  const evidence = Array.isArray(manifest?.requiredDogfoodEvidence)
+    ? manifest.requiredDogfoodEvidence
+    : [];
+  const missing = REQUIRED_STATUS_DOGFOOD_EVIDENCE.filter((item) => !evidence.includes(item));
+
+  return {
+    ok: missing.length === 0,
+    required: [...REQUIRED_STATUS_DOGFOOD_EVIDENCE],
+    missing
+  };
 }
 
 async function readReleaseEvidenceCheck(manifest, options, io) {
@@ -850,7 +875,8 @@ function createNextActions({
   assignmentComment,
   testerAssignmentCount,
   smokeArtifactProblems = [],
-  desktopSessionBlocker
+  desktopSessionBlocker,
+  requiredEvidenceCheck
 }) {
   const actions = [];
 
@@ -875,6 +901,10 @@ function createNextActions({
       .map((problem) => `${problem.name} (${problem.path})`)
       .join(", ");
     actions.push(`Regenerate or attach missing smoke artifacts before relying on local readiness: ${summary}.`);
+  }
+  if (requiredEvidenceCheck?.missing?.length > 0) {
+    const summary = requiredEvidenceCheck.missing.join(", ");
+    actions.push(`Regenerate the alpha artifact so the manifest requires ${summary} before assigning dogfood testers.`);
   }
   if (desktopSessionBlocker) {
     actions.push("Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.");

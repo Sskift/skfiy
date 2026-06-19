@@ -1552,6 +1552,84 @@ describe("dogfood status reporter", () => {
     });
   });
 
+  it("surfaces stale alpha manifests missing product-path panic stop behavior evidence", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const reportUrls = [
+      "https://github.com/Sskift/skfiy/issues/101",
+      "https://github.com/Sskift/skfiy/issues/102",
+      "https://github.com/Sskift/skfiy/issues/103"
+    ];
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath,
+        includePanicStopProductPathEvidence: false
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody(reportUrls),
+        labels: ["skfiy", "dogfood"]
+      },
+      [reportUrls[0]]: createAcceptedReportIssue(
+        "tester-1",
+        ["coding-terminal", "screenshot-inspection"],
+        { result: "passed" }
+      ),
+      [reportUrls[1]]: createAcceptedReportIssue("tester-2", ["finder-file"], {
+        result: "passed"
+      }),
+      [reportUrls[2]]: createAcceptedReportIssue("tester-3", ["browser-fallback"], {
+        result: "passed"
+      })
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      result: "waiting-for-dogfood",
+      manifest: {
+        checks: {
+          requiredEvidence: {
+            ok: false,
+            missing: ["Panic stop product-path behavior evidence"]
+          }
+        }
+      },
+      readiness: {
+        canRunCollect: false,
+        canRunPassedCohort: false
+      },
+      nextActions: expect.arrayContaining([
+        "Regenerate the alpha artifact so the manifest requires Panic stop product-path behavior evidence before assigning dogfood testers."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("Required evidence current: no");
+    expect(io.textFiles[summaryPath]).toContain("Missing required evidence: Panic stop product-path behavior evidence");
+  });
+
   it("marks the strict passed cohort gate ready only after all required workflows have passed evidence", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
@@ -2242,7 +2320,8 @@ function createManifest({
   chromeSmokePath,
   finderSmokePath,
   voiceSmokePath,
-  moneyRunSmokePath
+  moneyRunSmokePath,
+  includePanicStopProductPathEvidence = true
 }: {
   uiSmokePath: string;
   ghosttySmokePath: string;
@@ -2250,7 +2329,16 @@ function createManifest({
   finderSmokePath: string;
   voiceSmokePath: string;
   moneyRunSmokePath?: string;
+  includePanicStopProductPathEvidence?: boolean;
 }) {
+  const requiredEvidence = [
+    "Long-horizon money-run supervision evidence"
+  ];
+
+  if (includePanicStopProductPathEvidence) {
+    requiredEvidence.push("Panic stop product-path behavior evidence");
+  }
+
   return {
     schemaVersion: 1,
     appName: "skfiy",
@@ -2265,7 +2353,8 @@ function createManifest({
     chromeSmokeArtifactPath: chromeSmokePath,
     finderSmokeArtifactPath: finderSmokePath,
     voiceSmokeArtifactPath: voiceSmokePath,
-    moneyRunSmokeArtifactPath: moneyRunSmokePath
+    moneyRunSmokeArtifactPath: moneyRunSmokePath,
+    requiredDogfoodEvidence: requiredEvidence
   };
 }
 
