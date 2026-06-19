@@ -224,6 +224,10 @@ export function classifyFinderSmokeEvidence({
     return "blocked";
   }
 
+  if (hasBlockedEnvironmentEvent(events)) {
+    return "blocked";
+  }
+
   if (last.status === "executing" && hasDeniedComputerUsePermission(permissions)) {
     return "blocked";
   }
@@ -455,6 +459,21 @@ function isPermissionBlockedMessage(message) {
       || normalized.includes("screen recording")
       || normalized.includes("automation")
     );
+}
+
+function hasBlockedEnvironmentEvent(events) {
+  return events.some((event) =>
+    typeof event?.message === "string"
+    && isBlockedEnvironmentMessage(event.message)
+  );
+}
+
+function isBlockedEnvironmentMessage(message) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("desktop session is not controllable")
+    || normalized.includes("loginwindow is frontmost")
+  );
 }
 
 function readPositiveInteger(value, name) {

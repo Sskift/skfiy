@@ -359,6 +359,37 @@ describe("Finder product smoke script", () => {
     })).toBe("passed");
   });
 
+  it("classifies completed Finder filesystem work as blocked when lockscreen prevents UI evidence", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+
+    expect(classifyFinderSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      targetMode: "explicit-path",
+      finderObservation: { result: "missing" },
+      finderSemanticObservation: { result: "missing" },
+      finderPlanPreview: createFinderPlanPreviewEvidence(),
+      events: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (activate): Desktop session is not controllable because loginwindow is frontmost. Unlock the Mac and keep the display awake, then try again."
+        },
+        { status: "completed", message: "Finder test folder organized." }
+      ],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    })).toBe("blocked");
+  });
+
   it("classifies a current Finder folder organization only when semantic target matches the fixture", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
     const {
