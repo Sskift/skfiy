@@ -898,6 +898,114 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("direct-helper desktopSession reports notDetermined, not authoritative for app-scoped permission");
   });
 
+  it("uses authoritative desktop-session helper status fields as permission evidence", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const desktopSessionArtifactPath = "/repo/.skfiy-smoke/desktop-session-current.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: { artifactPath: uiSmokePath, result: "missing" },
+      [ghosttySmokePath]: { artifactPath: ghosttySmokePath, result: "missing" },
+      [chromeSmokePath]: { artifactPath: chromeSmokePath, result: "missing" },
+      [finderSmokePath]: { artifactPath: finderSmokePath, result: "missing" },
+      [voiceSmokePath]: { artifactPath: voiceSmokePath, result: "missing" },
+      [desktopSessionArtifactPath]: {
+        artifactPath: desktopSessionArtifactPath,
+        result: "blocked",
+        permissionProbe: {
+          scope: "direct-helper",
+          nonAuthoritativeForAppScopedPermissionChecks: ["speechRecognition"]
+        },
+        permissions: {
+          screenRecording: { status: "authorized", granted: true },
+          accessibility: { status: "authorized", granted: true },
+          microphone: { status: "authorized", granted: true },
+          speechRecognition: { status: "notDetermined", granted: false }
+        },
+        desktopSessionStatus: {
+          frontmostBundleId: "com.apple.loginwindow",
+          frontmostProcessIdentifier: 591,
+          ioConsoleLocked: true,
+          cgSessionScreenIsLocked: true
+        },
+        consoleLock: {
+          ioConsoleLocked: true,
+          cgSessionScreenIsLocked: true
+        },
+        screenshot: {
+          png: {
+            isLikelyBlack: true
+          }
+        }
+      }
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      desktopSessionArtifactPath,
+      summaryPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, io) as {
+      localSmoke: {
+        permissionStates: Record<string, { state: string }>;
+        permissionEvidence: Record<string, unknown>;
+      };
+    };
+
+    expect(status.localSmoke.permissionStates).toMatchObject({
+      screenRecording: { state: "authorized" },
+      accessibility: { state: "authorized" },
+      microphone: { state: "authorized" },
+      speechRecognition: { state: "unknown" }
+    });
+    expect(status.localSmoke.permissionEvidence).toMatchObject({
+      screenRecording: {
+        state: "authorized",
+        source: "desktopSession.permissions",
+        artifact: "desktopSession",
+        artifactPath: desktopSessionArtifactPath,
+        appScoped: false,
+        directHelper: {
+          artifact: "desktopSession",
+          state: "authorized",
+          authoritativeForAppScopedPermission: true
+        }
+      },
+      speechRecognition: {
+        state: "unknown",
+        source: "none",
+        directHelper: {
+          artifact: "desktopSession",
+          state: "notDetermined",
+          authoritativeForAppScopedPermission: false
+        }
+      }
+    });
+    expect(io.textFiles[summaryPath]).toContain("- screenRecording: authorized via desktopSession.permissions");
+    expect(io.textFiles[summaryPath]).toContain("- speechRecognition: unknown via none; direct-helper desktopSession reports notDetermined, not authoritative for app-scoped permission");
+  });
+
   it("does not trigger native speech proof from direct-helper-only speech permission evidence", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

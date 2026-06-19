@@ -795,6 +795,7 @@ function readPermissionEvidenceForPermission(smokeArtifacts, permission) {
 
   const selected = candidates.find((candidate) => candidate?.state !== "unknown")
     ?? candidates.find(Boolean)
+    ?? readAuthoritativeDirectHelperPermissionCandidate(directHelper)
     ?? {
       state: "unknown",
       source: "none",
@@ -805,6 +806,25 @@ function readPermissionEvidenceForPermission(smokeArtifacts, permission) {
   return {
     ...selected,
     ...(directHelper ? { directHelper } : {})
+  };
+}
+
+function readAuthoritativeDirectHelperPermissionCandidate(directHelper) {
+  if (
+    !directHelper
+    || directHelper.authoritativeForAppScopedPermission === false
+    || typeof directHelper.state !== "string"
+    || directHelper.state.trim().length === 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    state: directHelper.state,
+    source: `${directHelper.artifact}.permissions`,
+    artifact: directHelper.artifact,
+    artifactPath: directHelper.artifactPath,
+    appScoped: false
   };
 }
 
