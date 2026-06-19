@@ -196,7 +196,9 @@ review commands for the next real tester slots and missing workflow coverage.
 Its JSON `nextActions` list also repeats the current `dogfood:prepare-alpha`
 commands when the assignment packet is current, so follow-up agents and
 dashboards can dispatch tester preparation without scraping the Markdown
-summary.
+summary. When the downloaded manifest and prepared app already exist locally,
+`dogfood:status` replaces tester placeholders with the prepared paths and
+surfaces direct `dogfood:tester` next actions.
 When local smoke evidence shows `loginwindow`, display sleep, or black-screen
 desktop blockers, `dogfood:status` also prints the `smoke:desktop-session`
 preflight command to rerun after unlocking plus the passed-smoke follow-up.
