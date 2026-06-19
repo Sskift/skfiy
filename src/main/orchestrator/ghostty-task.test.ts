@@ -44,6 +44,12 @@ function createDesktopClient(): DesktopClient & {
             confidence: 0.93,
             bounds: { x: 36, y: 420, width: 180, height: 18 }
           }]
+        : inputPath.includes("before")
+          ? [{
+              text: "SKFIY_READY",
+              confidence: 0.92,
+              bounds: { x: 36, y: 120, width: 120, height: 18 }
+            }]
         : []
     })),
     executeAction: vi.fn(async (action: DesktopExecutableAction): Promise<DesktopActionResult> => {
@@ -207,15 +213,26 @@ describe("runGhosttyCommandTask", () => {
 
   it("adds OCR labels to screenshot observations without turning OCR into a desktop action", async () => {
     const client = createDesktopClient();
-    client.ocrImage.mockResolvedValue({
-      labels: [
-        {
-          text: "pwd",
-          confidence: 0.88,
-          bounds: { x: 36, y: 88, width: 42, height: 18 }
-        }
-      ]
-    });
+    client.ocrImage.mockImplementation(async (inputPath: string) => ({
+      labels: inputPath.includes("after")
+        ? [{
+            text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_0",
+            confidence: 0.93,
+            bounds: { x: 36, y: 420, width: 180, height: 18 }
+          }]
+        : [
+            {
+              text: "SKFIY_READY",
+              confidence: 0.92,
+              bounds: { x: 36, y: 120, width: 120, height: 18 }
+            },
+            {
+              text: "pwd",
+              confidence: 0.88,
+              bounds: { x: 36, y: 88, width: 42, height: 18 }
+            }
+          ]
+    }));
 
     const events = await collectEvents(
       runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
@@ -224,6 +241,11 @@ describe("runGhosttyCommandTask", () => {
     expect(events.find((event) => event.type === "screenshot_before")).toMatchObject({
       observation: {
         ocrLabels: [
+          {
+            text: "SKFIY_READY",
+            confidence: 0.92,
+            bounds: { x: 36, y: 120, width: 120, height: 18 }
+          },
           {
             text: "pwd",
             confidence: 0.88,
@@ -287,6 +309,27 @@ describe("runGhosttyCommandTask", () => {
     expect(userTypeIndex).toBeGreaterThan(beforeObserveIndex);
   });
 
+  it("does not type the user command until the Ghostty shell ready marker is visible", async () => {
+    const client = createDesktopClient();
+    client.ocrImage.mockResolvedValue({ labels: [] });
+
+    const events = await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+    const typedTexts = client.executeAction.mock.calls
+      .map(([action]) => action as DesktopExecutableAction)
+      .filter((action): action is Extract<DesktopExecutableAction, { type: "type_text" }> =>
+        action.type === "type_text"
+      )
+      .map((action) => action.text);
+
+    expect(typedTexts).toContainEqual(expect.stringContaining("SKFIY_SESSION=1"));
+    expect(typedTexts).not.toContainEqual(expect.stringMatching(/^pwd; printf/));
+    expect(events.at(-1)).toMatchObject({
+      type: "verification_failed",
+      stage: "initialize",
+      reason: "Ghostty shell ready marker was not observed."
+    });
+  });
+
   it("plans a voice request into the terminal command before typing", async () => {
     const client = createDesktopClient();
 
@@ -310,7 +353,15 @@ describe("runGhosttyCommandTask", () => {
 
   it("fails after submission when the completion marker is not observed", async () => {
     const client = createDesktopClient();
-    client.ocrImage.mockResolvedValue({ labels: [] });
+    client.ocrImage.mockImplementation(async (inputPath: string) => ({
+      labels: inputPath.includes("before")
+        ? [{
+            text: "SKFIY_READY",
+            confidence: 0.92,
+            bounds: { x: 36, y: 120, width: 120, height: 18 }
+          }]
+        : []
+    }));
 
     const events = await collectEvents(
       runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
@@ -335,6 +386,46 @@ describe("runGhosttyCommandTask", () => {
       stage: "after",
       reason: "Command completion marker was not observed in Ghostty output."
     });
+  });
+
+  it("retries after-submit observation until the command completion marker is visible", async () => {
+    const client = createDesktopClient();
+    let afterObservationCount = 0;
+
+    client.ocrImage.mockImplementation(async (inputPath: string) => {
+      if (inputPath.includes("before")) {
+        return {
+          labels: [{
+            text: "SKFIY_READY",
+            confidence: 0.92,
+            bounds: { x: 36, y: 120, width: 120, height: 18 }
+          }]
+        };
+      }
+
+      afterObservationCount += 1;
+      if (afterObservationCount < 2) {
+        return { labels: [] };
+      }
+
+      return {
+        labels: [{
+          text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_0",
+          confidence: 0.93,
+          bounds: { x: 36, y: 420, width: 180, height: 18 }
+        }]
+      };
+    });
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
+    );
+
+    expect(events.at(-1)).toMatchObject({
+      type: "completed",
+      command: "pwd"
+    });
+    expect(afterObservationCount).toBeGreaterThan(1);
   });
 
   it("pauses before typing when OCR reveals sensitive terminal content", async () => {

@@ -22,15 +22,20 @@ const GHOSTTY_APP_NAME = "Ghostty";
 const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";
 const SKFIY_GHOSTTY_SESSION_MARKER = "skfiy";
 const SKFIY_GHOSTTY_SESSION_TITLE = "skfiy-shell";
+const SKFIY_GHOSTTY_READY_MARKER = "SKFIY_READY";
 const SKFIY_GHOSTTY_INIT_COMMAND = [
   "export SKFIY_SESSION=1",
   "PROMPT='[skfiy] %~ %# '",
   "PS1='[skfiy] \\w \\$ '",
+  `printf '\\n${SKFIY_GHOSTTY_READY_MARKER}\\n'`,
   `printf '\\033]0;${SKFIY_GHOSTTY_SESSION_TITLE}\\007'`
 ].join("; ");
 const SESSION_INIT_SETTLE_WAIT_MS = 90;
 const TYPE_SETTLE_WAIT_MS = 90;
 const SUBMIT_SETTLE_WAIT_MS = 300;
+const OBSERVE_RETRY_WAIT_MS = 350;
+const SHELL_READY_OBSERVE_ATTEMPTS = 8;
+const COMMAND_COMPLETION_OBSERVE_ATTEMPTS = 8;
 const SENSITIVE_GHOSTTY_TITLE_PATTERNS = [/password/i, /keychain/i];
 const SENSITIVE_GHOSTTY_TEXT_PATTERNS = [
   /password/i,
@@ -303,6 +308,35 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
+  if (!hasTerminalTextMarker(before, SKFIY_GHOSTTY_READY_MARKER)) {
+    const readyResult = await observeAppUntilMarker(
+      client,
+      session.bundleId,
+      createScreenshotPath("before", options),
+      options.signal,
+      OBSERVE_RETRY_WAIT_MS,
+      session.pid,
+      SKFIY_GHOSTTY_READY_MARKER,
+      SHELL_READY_OBSERVE_ATTEMPTS
+    );
+    before = readyResult.observation;
+
+    if (readyResult.markerObserved) {
+      yield {
+        type: "screenshot_before",
+        path: before.screenshotPath,
+        observation: before
+      };
+    } else {
+      yield {
+        type: "verification_failed",
+        stage: "initialize",
+        reason: "Ghostty shell ready marker was not observed."
+      };
+      return;
+    }
+  }
+
   const typingResults = await runDesktopActionPlan(
     client,
     [
@@ -344,14 +378,17 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  const after = await observeApp(
+  const afterResult = await observeAppUntilMarker(
     client,
     session.bundleId,
     createScreenshotPath("after", options),
     options.signal,
     SUBMIT_SETTLE_WAIT_MS,
-    session.pid
+    session.pid,
+    completionMarker,
+    COMMAND_COMPLETION_OBSERVE_ATTEMPTS
   );
+  const after = afterResult.observation;
   yield {
     type: "screenshot_after",
     path: after.screenshotPath,
@@ -368,7 +405,9 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
-  const commandVerificationFailure = readCommandCompletionFailure(after, completionMarker);
+  const commandVerificationFailure = afterResult.markerObserved
+    ? undefined
+    : readCommandCompletionFailure(after, completionMarker);
   if (commandVerificationFailure) {
     yield {
       type: "verification_failed",
@@ -470,6 +509,51 @@ async function observeApp(
   } catch {
     return observation;
   }
+}
+
+async function observeAppUntilMarker(
+  client: DesktopClient,
+  bundleId: string,
+  screenshotOutputPath: string,
+  signal: AbortSignal | undefined,
+  initialWaitMs: number,
+  pid: number | undefined,
+  marker: string,
+  maxAttempts: number
+): Promise<{ observation: DesktopAppState; markerObserved: boolean }> {
+  let observation = await observeApp(
+    client,
+    bundleId,
+    screenshotOutputPath,
+    signal,
+    initialWaitMs,
+    pid
+  );
+
+  if (hasTerminalTextMarker(observation, marker)) {
+    return { observation, markerObserved: true };
+  }
+
+  for (let attempt = 1; attempt < maxAttempts; attempt += 1) {
+    if (isAborted(signal)) {
+      break;
+    }
+
+    observation = await observeApp(
+      client,
+      bundleId,
+      screenshotOutputPath,
+      signal,
+      OBSERVE_RETRY_WAIT_MS,
+      pid
+    );
+
+    if (hasTerminalTextMarker(observation, marker)) {
+      return { observation, markerObserved: true };
+    }
+  }
+
+  return { observation, markerObserved: false };
 }
 
 function readAppStateResult(step: DesktopActionPlanStepResult): DesktopAppState {
@@ -608,16 +692,20 @@ function readCommandCompletionFailure(
   observation: DesktopAppState,
   completionMarker: string
 ): string | undefined {
-  const normalizedMarker = normalizeTerminalText(completionMarker);
-  const labelText = (observation.ocrLabels ?? [])
-    .map((label) => label.text)
-    .join("\n");
-
-  if (normalizeTerminalText(labelText).includes(normalizedMarker)) {
+  if (hasTerminalTextMarker(observation, completionMarker)) {
     return undefined;
   }
 
   return "Command completion marker was not observed in Ghostty output.";
+}
+
+function hasTerminalTextMarker(observation: DesktopAppState, marker: string): boolean {
+  const normalizedMarker = normalizeTerminalText(marker);
+  const labelText = (observation.ocrLabels ?? [])
+    .map((label) => label.text)
+    .join("\n");
+
+  return normalizeTerminalText(labelText).includes(normalizedMarker);
 }
 
 function normalizeTerminalText(value: string): string {
