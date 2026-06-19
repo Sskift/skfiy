@@ -492,10 +492,27 @@ function readWorkflowArtifactResults(workflows, smokeArtifacts) {
     results.push(smokeArtifacts.finder?.result);
   }
   if (workflows.includes("browser-fallback")) {
-    results.push(smokeArtifacts.chrome?.result);
+    results.push(readBrowserFallbackWorkflowResult(smokeArtifacts.chrome));
   }
 
   return results.filter((result) => typeof result === "string" && result.length > 0);
+}
+
+function readBrowserFallbackWorkflowResult(chromeArtifact) {
+  const fallbackResult = readFirstString([chromeArtifact?.fallbackRun?.result], "");
+  const fallbackSwitchResult = readFirstString([chromeArtifact?.fallbackSwitchRun?.result], "");
+  const results = [fallbackResult, fallbackSwitchResult].filter(Boolean);
+
+  if (results.includes("fallback-blocked") || results.includes("fallback-switched-blocked")) {
+    return "blocked";
+  }
+  if (
+    results.includes("fallback-observed")
+    && results.includes("fallback-switched-observed")
+  ) {
+    return "passed";
+  }
+  return "not tested";
 }
 
 function createScreenshotEvidence(smokeArtifacts) {

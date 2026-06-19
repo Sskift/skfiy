@@ -14,6 +14,7 @@ interface LatestAlphaEvidence {
     chrome: string;
     finder: string;
     voice: string;
+    moneyRun: string;
   };
 }
 
@@ -105,6 +106,7 @@ describe("implementation plan status docs", () => {
       expect(plan).toContain(evidence.smokeArtifacts.chrome);
       expect(plan).toContain(evidence.smokeArtifacts.finder);
       expect(plan).toContain(evidence.smokeArtifacts.voice);
+      expect(plan).toContain(evidence.smokeArtifacts.moneyRun);
       expect(plan).not.toContain("skfiy-alpha-9102f9a");
       expect(plan).not.toContain(".skfiy-smoke/ui-9102f9a.json");
 
@@ -112,7 +114,7 @@ describe("implementation plan status docs", () => {
         .map((match) => match[0]);
       expect(new Set(alphaTags)).toEqual(new Set([evidence.tagName]));
 
-      const smokeArtifactShas = [...plan.matchAll(/\.skfiy-smoke\/(?:ui|ghostty|chrome|finder|voice)-([a-f0-9]{7})\.json/g)]
+      const smokeArtifactShas = [...plan.matchAll(/\.skfiy-smoke\/(?:ui|ghostty|chrome|finder|voice|money-run-supervision)-([a-f0-9]{7})\.json/g)]
         .map((match) => match[1]);
       expect(new Set(smokeArtifactShas)).toEqual(new Set([shortSha]));
     }

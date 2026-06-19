@@ -323,6 +323,51 @@ describe("dogfood issue draft generator", () => {
     ].join("\n"));
   });
 
+  it("uses Chrome fallback sub-run status for browser-fallback workflow reports", async () => {
+    const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodIssueDraft: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      [manifestPath]: createManifest(),
+      [uiSmokePath]: createSmoke(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmoke(ghosttySmokePath, "passed"),
+      [chromeSmokePath]: createSmoke(chromeSmokePath, "passed", {
+        fallbackRun: {
+          result: "fallback-blocked",
+          reason: "Screen Recording permission is required for screenshot fallback."
+        }
+      }),
+      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
+      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed")
+    });
+
+    const result = await createDogfoodIssueDraft({
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["browser-fallback"],
+      uiSmokeArtifactPath: uiSmokePath,
+      smokeArtifactPath: ghosttySmokePath,
+      chromeSmokeArtifactPath: chromeSmokePath,
+      finderSmokeArtifactPath: finderSmokePath,
+      voiceSmokeArtifactPath: voiceSmokePath,
+      outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md"
+    }, io);
+
+    expect(result).toMatchObject({
+      summary: {
+        computerUseResult: "blocked"
+      }
+    });
+    expect(io.files["/repo/.skfiy-dogfood/issues/tester-a.md"]).toContain([
+      "### Computer Use result",
+      "",
+      "blocked"
+    ].join("\n"));
+  });
+
   it("round-trips generated drafts through the dogfood:report parser when requested", async () => {
     const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodIssueDraft: (
