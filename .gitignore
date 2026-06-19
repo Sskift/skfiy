@@ -4,6 +4,7 @@ macos-helper/.build/
 .skfiy-smoke/
 .skfiy-alpha/
 .skfiy-dogfood/
+.skfiy-release/
 .DS_Store
 *.log
 .env

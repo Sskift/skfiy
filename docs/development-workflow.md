@@ -369,7 +369,7 @@ npm run dogfood:tester -- \
   --summary .skfiy-dogfood/tester-a-summary.md
 ```
 
-This runner is only a local evidence collector. It refuses tmux, defaults `--app` to `dist/skfiy.app` when omitted, validates the selected app path as lowercase `skfiy.app` with bundle id `com.sskift.skfiy` before running product smokes, runs product smokes sequentially, generates the `dogfood:issue -- --check-report` draft from the artifacts it just wrote, and leaves GitHub filing plus `dogfood:accepted` label review to maintainers. When `--require-passed` is used, the runner treats the first UI smoke as a strict permission preflight and stops before Ghostty/Chrome/Finder/voice if provider-relevant permissions are still missing. For the default external Doubao path, Microphone and Speech Recognition are not strict blockers.
+This runner is only a local evidence collector. It refuses tmux, defaults `--app` to `dist/skfiy.app` when omitted, validates the selected app path as lowercase `skfiy.app` with bundle id `com.sskift.skfiy` before running product smokes, runs product smokes sequentially, generates the `dogfood:issue -- --check-report` draft from the artifacts it just wrote, and leaves GitHub filing plus `dogfood:accepted` label review to maintainers. When `--require-passed` is used, the runner treats the first UI smoke as a strict permission preflight and stops before Ghostty/Chrome/Finder/voice if provider-relevant permissions are still missing. It also runs a strict desktop-session preflight from that UI smoke: locked console, `com.apple.loginwindow`, display sleep, or black-screen evidence stops before Ghostty/Chrome/Finder/voice and writes a failed `Desktop Session Preflight` section in the summary instead of collecting misleading product smoke failures. For the default external Doubao path, Microphone and Speech Recognition are not strict blockers.
 The runner summary prints a copy-safe `gh issue create --body-file ...` command that files only the report body. It does not add labels; testers must leave `dogfood:accepted` and `workflow:*` labels to maintainers after `dogfood:review`. Reserved synthetic tester ids (`local-*`, `prepare-*`, `preflight-*`, and `synthetic-*`) are rejected for normal tester runs; use `--allow-synthetic-tester-id` only for maintainer local/preflight evidence that will not count toward the real-user cohort gate.
 
 Before adding `dogfood:accepted` to a filed tester issue, run:
@@ -474,9 +474,10 @@ Use the read-only release check before any broader internal package:
 
 ```bash
 npm run release:mac:check
+npm run release:mac:check -- --json-output .skfiy-release/mac-release-check.json
 ```
 
-The check reports missing Developer ID or Apple notary credentials and prints the planned release commands without mutating the app bundle. The signing plan uses the hardened-runtime entitlements file at `release/skfiy.entitlements.plist`. Actual signing and notarization require a packaged app from `npm run build` plus `SKFIY_DEVELOPER_ID_APPLICATION` and either `APPLE_KEYCHAIN_PROFILE` or all of `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
+The check runs as a dry-run full signing/notarization plan: it reports missing Developer ID or Apple notary credentials and prints the planned `codesign`, verification, notary zip, `notarytool`, and stapling commands without mutating the app bundle. Use `--json-output` to persist the same readiness report as machine-readable JSON for release dashboards and follow-up automation. The signing plan uses the hardened-runtime entitlements file at `release/skfiy.entitlements.plist`. Actual signing and notarization require a packaged app from `npm run build` plus `SKFIY_DEVELOPER_ID_APPLICATION` and either `APPLE_KEYCHAIN_PROFILE` or all of `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`.
 
 Run the mutating release steps only after the check is clean:
 

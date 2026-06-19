@@ -595,6 +595,67 @@ describe("dogfood tester runner", () => {
     ]);
   });
 
+  it("stops strict passed evidence after UI smoke when the desktop session is locked", async () => {
+    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
+      runDogfoodTester: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      "smoke:ui": {
+        stdout: JSON.stringify({
+          result: "no-onboarding",
+          permissions: {
+            screenRecording: { state: "granted" },
+            accessibility: { state: "granted" },
+            microphone: { state: "granted" },
+            speechRecognition: { state: "granted" }
+          },
+          desktopSessionDiagnostics: {
+            state: "blocked",
+            reason: "Desktop console is locked (IOConsoleLocked=true, CGSessionScreenIsLocked=true) and loginwindow is active (pid 591).",
+            status: {
+              frontmostBundleId: "com.apple.loginwindow",
+              frontmostProcessIdentifier: 591,
+              ioConsoleLocked: true,
+              cgSessionScreenIsLocked: true,
+              mainDisplayAsleep: true
+            }
+          }
+        }),
+        exitCode: 0
+      }
+    });
+
+    await expect(runDogfoodTester({
+      rootDir: "/repo",
+      manifestPath,
+      testerId: "tester-a",
+      workflows: ["coding-terminal", "screenshot-inspection"],
+      artifactsDir: "/repo/.skfiy-smoke/dogfood/tester-a",
+      issueOutputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
+      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
+      requirePassed: true,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io)).rejects.toThrow(
+      "dogfood:tester desktop session preflight failed before strict passed smokes"
+    );
+
+    expect(io.commands.map((command) => command.args.slice(0, 2).join(" "))).toEqual([
+      "run smoke:ui"
+    ]);
+    const summary = io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"];
+    expect(summary).toContain("## Desktop Session Preflight");
+    expect(summary).toContain("Result: failed");
+    expect(summary).toContain("frontmostBundleId: com.apple.loginwindow");
+    expect(summary).toContain("frontmostProcessIdentifier: 591");
+    expect(summary).toContain("ioConsoleLocked: true");
+    expect(summary).toContain("cgSessionScreenIsLocked: true");
+    expect(summary).toContain("mainDisplayAsleep: true");
+    expect(summary).toContain("Desktop console is locked");
+  });
+
   it("requires microphone and speech recognition only for explicit native macOS voice strict evidence", async () => {
     const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodTester: (

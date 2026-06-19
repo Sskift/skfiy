@@ -162,6 +162,26 @@ describe("implementation plan status docs", () => {
     expect(internalAlphaText).toContain("Desktop-session preflight blocked artifacts from `loginwindow`, display sleep, or a locked console are rejected by `dogfood:report` and cannot cover workflow source-quality evidence.");
   });
 
+  it("documents the strict dogfood tester desktop-session preflight", () => {
+    const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
+    const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
+    const internalAlpha = readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8");
+    const longPlan = readFileSync(
+      path.join(process.cwd(), "docs", "research", "2026-06-16-voice-computer-control-long-plan.md"),
+      "utf8"
+    );
+    const documents = [readme, workflow, internalAlpha, longPlan].map((document) =>
+      document.replace(/\s+/g, " ")
+    );
+
+    for (const document of documents) {
+      expect(document).toContain("strict desktop-session preflight");
+      expect(document).toContain("stops before Ghostty/Chrome/Finder/voice");
+      expect(document).toContain("locked console, `com.apple.loginwindow`, display sleep, or black-screen evidence");
+      expect(document).toContain("Desktop Session Preflight");
+    }
+  });
+
   it("documents panic stop behavior evidence in alpha and report instructions", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");

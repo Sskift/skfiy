@@ -37,6 +37,7 @@ describe("mac release signing and notarization scripts", () => {
         dryRun: boolean;
         sign: boolean;
         notarize: boolean;
+        jsonOutputPath?: string;
       };
       createCodeSignCommand: (input: {
         appPath: string;
@@ -78,6 +79,7 @@ describe("mac release signing and notarization scripts", () => {
         dryRun: boolean;
         sign: boolean;
         notarize: boolean;
+        jsonOutputPath?: string;
       }) => Array<{
         name: string;
         command: { command: string; args: string[] };
@@ -116,7 +118,20 @@ describe("mac release signing and notarization scripts", () => {
         dryRun: boolean;
         sign: boolean;
         notarize: boolean;
+        jsonOutputPath?: string;
       };
+    };
+  }
+
+  async function loadCliModule() {
+    const modulePath = path.join(process.cwd(), "scripts/sign-notarize-macos.mjs");
+    return await import(pathToFileURL(modulePath).href) as {
+      runMacReleaseCli: (input: {
+        rootDir?: string;
+        argv?: string[];
+        env?: Record<string, string | undefined>;
+        io?: Record<string, unknown>;
+      }) => Promise<Record<string, unknown>>;
     };
   }
 
@@ -236,7 +251,9 @@ describe("mac release signing and notarization scripts", () => {
       "--app",
       "dist/custom.app",
       "--zip",
-      ".skfiy-alpha/custom.zip"
+      ".skfiy-alpha/custom.zip",
+      "--json-output",
+      ".skfiy-release/check.json"
     ], createDefaultMacReleaseOptions({
       rootDir: "/repo",
       env: {}
@@ -250,9 +267,71 @@ describe("mac release signing and notarization scripts", () => {
       dryRun: false,
       sign: true,
       notarize: true,
+      jsonOutputPath: path.resolve(".skfiy-release/check.json"),
       plan: {
         appPath: path.resolve("dist/custom.app"),
         zipPath: path.resolve(".skfiy-alpha/custom.zip")
+      }
+    });
+  });
+
+  it("writes release readiness to a json output file without executing commands", async () => {
+    const { runMacReleaseCli } = await loadCliModule();
+    const textFiles: Record<string, string> = {};
+    const mkdirs: Array<{ dirPath: string; options: unknown }> = [];
+    const writes: string[] = [];
+    const execs: Array<{ command: string; args: string[] }> = [];
+
+    await expect(runMacReleaseCli({
+      rootDir: "/repo",
+      argv: [
+        "--sign",
+        "--notarize",
+        "--json-output",
+        "/repo/.skfiy-release/check.json"
+      ],
+      env: {},
+      io: {
+        exists: () => false,
+        async mkdir(dirPath: string, options: unknown) {
+          mkdirs.push({ dirPath, options });
+        },
+        async writeText(filePath: string, value: string) {
+          textFiles[filePath] = value;
+        },
+        async execFile(command: string, args: string[]) {
+          execs.push({ command, args });
+        },
+        write(message: string) {
+          writes.push(message);
+        }
+      }
+    })).resolves.toMatchObject({
+      status: "checked",
+      dryRun: true,
+      sign: true,
+      notarize: true,
+      jsonOutputPath: "/repo/.skfiy-release/check.json"
+    });
+
+    expect(mkdirs).toEqual([
+      { dirPath: "/repo/.skfiy-release", options: { recursive: true } }
+    ]);
+    expect(execs).toEqual([]);
+    expect(writes).toHaveLength(1);
+    const stdoutReport = JSON.parse(writes[0]);
+    const fileReport = JSON.parse(textFiles["/repo/.skfiy-release/check.json"]);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(fileReport).toMatchObject({
+      status: "checked",
+      readiness: {
+        ready: false,
+        missing: [
+          "SKFIY_DEVELOPER_ID_APPLICATION",
+          "APPLE_ID",
+          "APPLE_TEAM_ID",
+          "APPLE_APP_SPECIFIC_PASSWORD or APPLE_KEYCHAIN_PROFILE"
+        ]
       }
     });
   });
@@ -332,9 +411,71 @@ describe("mac release signing and notarization scripts", () => {
     ) as { scripts?: Record<string, string> };
 
     expect(packageJson.scripts).toMatchObject({
-      "release:mac:check": "node scripts/sign-notarize-macos.mjs --dry-run",
+      "release:mac:check": "node scripts/sign-notarize-macos.mjs --dry-run --sign --notarize",
       "release:mac:sign": "node scripts/sign-notarize-macos.mjs --sign --execute",
       "release:mac:notarize": "node scripts/sign-notarize-macos.mjs --sign --notarize --execute"
     });
+  });
+
+  it("the default release check plans the full signing and notarization workflow", async () => {
+    const { runMacReleaseCli } = await loadCliModule();
+    const writes: string[] = [];
+
+    await runMacReleaseCli({
+      rootDir: "/repo",
+      argv: ["--dry-run", "--sign", "--notarize"],
+      env: {},
+      io: {
+        exists: () => false,
+        async mkdir() {},
+        async writeText() {},
+        async execFile() {},
+        write(message: string) {
+          writes.push(message);
+        }
+      }
+    });
+
+    const report = JSON.parse(writes[0]);
+    expect(report).toMatchObject({
+      sign: true,
+      notarize: true,
+      readiness: {
+        ready: false
+      }
+    });
+    expect(report.steps.map((step: { name: string }) => step.name)).toEqual([
+      "codesign-app",
+      "verify-codesign",
+      "verify-spctl",
+      "zip-for-notary",
+      "submit-notary",
+      "staple-ticket"
+    ]);
+  });
+
+  it("documents json output for release readiness workflow", async () => {
+    const workflow = await import("node:fs").then(({ readFileSync }) =>
+      readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8")
+    );
+    const internalAlpha = await import("node:fs").then(({ readFileSync }) =>
+      readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8")
+    );
+    const longPlan = await import("node:fs").then(({ readFileSync }) =>
+      readFileSync(
+        path.join(
+          process.cwd(),
+          "docs",
+          "research",
+          "2026-06-16-voice-computer-control-long-plan.md"
+        ),
+        "utf8"
+      )
+    );
+
+    for (const document of [workflow, internalAlpha, longPlan]) {
+      expect(document).toContain("npm run release:mac:check -- --json-output .skfiy-release/mac-release-check.json");
+      expect(document).toContain("machine-readable JSON");
+    }
   });
 });

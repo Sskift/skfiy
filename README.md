@@ -291,6 +291,12 @@ without opening every artifact by hand. When smoke artifacts include Computer
 Use event logs, the same summary now adds a `Computer Use Scorecard` with total
 runs, task success rate, manual interventions, average steps, unsafe-action
 blocks, and permission failures.
+`dogfood:tester --require-passed` also runs a strict desktop-session preflight
+from the first UI smoke. If that smoke reports locked console,
+`com.apple.loginwindow`, display sleep, or black-screen evidence, the runner
+stops before Ghostty/Chrome/Finder/voice and writes a failed `Desktop Session
+Preflight` section in the summary instead of collecting misleading product smoke
+failures.
 Workflow and passed workflow coverage in `dogfood:status` and
 `dogfood:cohort` count only verified accepted reports from real tester ids;
 `local-*`, `prepare-*`, `preflight-*`, and `synthetic-*` remain local evidence

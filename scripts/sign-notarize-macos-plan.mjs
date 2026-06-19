@@ -29,7 +29,8 @@ export function createDefaultMacReleaseOptions({ rootDir, env }) {
     keychainProfile: normalizeOptional(env.APPLE_KEYCHAIN_PROFILE),
     dryRun: true,
     sign: false,
-    notarize: false
+    notarize: false,
+    jsonOutputPath: undefined
   };
 }
 
@@ -55,6 +56,10 @@ export function parseMacReleaseArgs(argv, defaults) {
       case "--zip":
         options.plan.zipPath = path.resolve(readValue(argv, index, arg));
         options.plan.outputDir = path.dirname(options.plan.zipPath);
+        index += 1;
+        break;
+      case "--json-output":
+        options.jsonOutputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--identity":
@@ -282,6 +287,7 @@ Options:
   --app <path>                    App bundle path. Default: ${defaults.plan.appPath}
   --zip <path>                    Notarization zip path. Default: ${defaults.plan.zipPath}
   --output-dir <path>             Output directory for default notary zip.
+  --json-output <path>            Write the readiness report as machine-readable JSON.
   --identity <name>               Override SKFIY_DEVELOPER_ID_APPLICATION.
   --keychain-profile <name>       Override APPLE_KEYCHAIN_PROFILE.
   --apple-id <email>              Override APPLE_ID.

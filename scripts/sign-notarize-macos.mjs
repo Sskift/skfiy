@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -38,6 +38,7 @@ export async function runMacReleaseCli({
     dryRun: options.dryRun,
     sign: options.sign,
     notarize: options.notarize,
+    jsonOutputPath: options.jsonOutputPath,
     plan: options.plan,
     readiness,
     steps: steps.map((step) => ({
@@ -49,6 +50,7 @@ export async function runMacReleaseCli({
   io.write(`${JSON.stringify(report, null, 2)}\n`);
 
   if (options.dryRun) {
+    await writeJsonOutput(options, report, io);
     return report;
   }
 
@@ -66,10 +68,13 @@ export async function runMacReleaseCli({
     await io.execFile(step.command.command, step.command.args);
   }
 
-  return {
+  const executedReport = {
     ...report,
     status: "executed"
   };
+  await writeJsonOutput(options, executedReport, io);
+
+  return executedReport;
 }
 
 function missingForRequestedActions(options, readiness) {
@@ -98,11 +103,21 @@ function redactCommand(command) {
   };
 }
 
+async function writeJsonOutput(options, report, io) {
+  if (typeof options.jsonOutputPath !== "string") {
+    return;
+  }
+
+  await io.mkdir(path.dirname(options.jsonOutputPath), { recursive: true });
+  await io.writeText(options.jsonOutputPath, `${JSON.stringify(report, null, 2)}\n`);
+}
+
 function createDefaultIo() {
   return {
     exists: existsSync,
     mkdir,
     execFile: execFileAsync,
+    writeText: writeFile,
     write: (message) => process.stdout.write(message)
   };
 }

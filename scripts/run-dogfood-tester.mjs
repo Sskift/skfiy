@@ -354,6 +354,39 @@ export async function runDogfoodTester(options, io = createDefaultIo()) {
       };
       throw error;
     }
+
+    const desktopSessionPreflight = createStrictDesktopSessionPreflight(
+      command.id,
+      normalizedResult,
+      options
+    );
+    if (desktopSessionPreflight.blocker) {
+      result = "failed";
+      const summary = createDogfoodTesterSummary({
+        plan,
+        result,
+        commandResults,
+        generatedAt: readNow(options),
+        appBundlePreflight,
+        permissionPreflight,
+        desktopSessionPreflight
+      });
+      await io.writeText(plan.summaryPath, summary);
+      const error = new Error(
+        "dogfood:tester desktop session preflight failed before strict passed smokes: "
+          + `${desktopSessionPreflight.blocker.reason}. See ${plan.summaryPath}.`
+      );
+      error.result = {
+        result,
+        plan,
+        commandResults,
+        issueOutputPath: plan.issueOutputPath,
+        summaryPath: plan.summaryPath,
+        permissionPreflight,
+        desktopSessionPreflight
+      };
+      throw error;
+    }
   }
 
   const filedIssue = options.fileIssue === true
@@ -482,6 +515,7 @@ function createDogfoodTesterSummary({
   generatedAt,
   appBundlePreflight,
   permissionPreflight,
+  desktopSessionPreflight,
   filedIssue
 }) {
   const lines = [
@@ -582,6 +616,24 @@ function createDogfoodTesterSummary({
         ...permissionPreflight.blockers.map((blocker) =>
           `- ${blocker.permission}: ${blocker.state}`
         ),
+        ""
+      );
+    }
+  }
+
+  if (desktopSessionPreflight) {
+    lines.push(
+      "## Desktop Session Preflight",
+      "",
+      `Result: ${desktopSessionPreflight.blocker ? "failed" : "passed"}`,
+      ""
+    );
+
+    if (desktopSessionPreflight.blocker) {
+      lines.push(
+        "Desktop session blocker for strict passed evidence:",
+        "",
+        ...formatDesktopSessionBlockerLines(desktopSessionPreflight.blocker),
         ""
       );
     }
@@ -940,6 +992,16 @@ function createStrictPermissionPreflight(commandId, commandResult, options) {
   };
 }
 
+function createStrictDesktopSessionPreflight(commandId, commandResult, options) {
+  if (options.requirePassed !== true || commandId !== "smoke:ui") {
+    return { blocker: null };
+  }
+
+  return {
+    blocker: readStrictDesktopSessionBlocker(commandResult.stdout)
+  };
+}
+
 function readStrictPermissionBlockers(stdout, options) {
   const evidence = parseJson(stdout);
   const permissions = evidence && typeof evidence.permissions === "object" && evidence.permissions
@@ -953,6 +1015,61 @@ function readStrictPermissionBlockers(stdout, options) {
       state: readPermissionState(permissions, permission)
     }))
     .filter((blocker) => blocker.state !== "granted");
+}
+
+function readStrictDesktopSessionBlocker(stdout) {
+  const evidence = parseJson(stdout);
+  const diagnostics = evidence && typeof evidence.desktopSessionDiagnostics === "object"
+    ? evidence.desktopSessionDiagnostics
+    : undefined;
+  const state = readNonEmptyString(diagnostics?.state);
+  if (state !== "blocked") {
+    return null;
+  }
+
+  const status = diagnostics?.status && typeof diagnostics.status === "object"
+    ? diagnostics.status
+    : {};
+
+  return {
+    state,
+    reason: readNonEmptyString(diagnostics.reason) ?? "Desktop session is blocked.",
+    frontmostBundleId: readNonEmptyString(status.frontmostBundleId),
+    frontmostProcessIdentifier: readOptionalNumber(status.frontmostProcessIdentifier),
+    ioConsoleLocked: readOptionalBoolean(status.ioConsoleLocked),
+    cgSessionScreenIsLocked: readOptionalBoolean(status.cgSessionScreenIsLocked),
+    mainDisplayAsleep: readOptionalBoolean(status.mainDisplayAsleep)
+  };
+}
+
+function formatDesktopSessionBlockerLines(blocker) {
+  return [
+    `- state: ${blocker.state}`,
+    ...formatOptionalDesktopSessionField("frontmostBundleId", blocker.frontmostBundleId),
+    ...formatOptionalDesktopSessionField(
+      "frontmostProcessIdentifier",
+      blocker.frontmostProcessIdentifier
+    ),
+    ...formatOptionalDesktopSessionField("ioConsoleLocked", blocker.ioConsoleLocked),
+    ...formatOptionalDesktopSessionField(
+      "cgSessionScreenIsLocked",
+      blocker.cgSessionScreenIsLocked
+    ),
+    ...formatOptionalDesktopSessionField("mainDisplayAsleep", blocker.mainDisplayAsleep),
+    `- reason: ${blocker.reason}`
+  ];
+}
+
+function formatOptionalDesktopSessionField(name, value) {
+  return typeof value === "undefined" ? [] : [`- ${name}: ${value}`];
+}
+
+function readOptionalNumber(value) {
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function readOptionalBoolean(value) {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function readStrictPermissionKeys(options) {
