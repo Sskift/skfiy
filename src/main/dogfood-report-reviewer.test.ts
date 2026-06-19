@@ -374,6 +374,14 @@ describe("dogfood report reviewer", () => {
           label: "Ctrl Opt Shift Esc",
           registered: true
         }
+      },
+      stopTurnBehavior: {
+        result: "passed",
+        source: "renderer-escape-key-product-path",
+        command: "mkdir skfiy-stop-smoke",
+        beforeStatus: "approval_required",
+        afterStatus: "idle",
+        afterMessage: "Task stopped."
       }
     };
   }
@@ -463,7 +471,13 @@ describe("dogfood report reviewer", () => {
       "accelerator: Control+Alt+Shift+Esc",
       "label: Ctrl Opt Shift Esc",
       "registered: true",
-      "source: runtimeStatus.stopTurnHotkey"
+      "source: runtimeStatus.stopTurnHotkey",
+      "behaviorResult: passed",
+      "behaviorSource: renderer-escape-key-product-path",
+      "behaviorCommand: mkdir skfiy-stop-smoke",
+      "behaviorBeforeStatus: approval_required",
+      "behaviorAfterStatus: idle",
+      "behaviorAfterMessage: Task stopped."
     ];
   }
 

@@ -526,6 +526,14 @@ function createSmokeArtifact(artifactPath: string, result: string) {
         label: "Ctrl Opt Shift Esc",
         registered: true
       }
+    },
+    stopTurnBehavior: {
+      result: "passed",
+      source: "renderer-escape-key-product-path",
+      command: "mkdir skfiy-stop-smoke",
+      beforeStatus: "approval_required",
+      afterStatus: "idle",
+      afterMessage: "Task stopped."
     }
   };
 }
@@ -550,12 +558,18 @@ function createPanicStopEvidenceLines() {
   return [
     "### panic stop",
     "",
-    "accelerator: Control+Alt+Shift+Esc",
-    "label: Ctrl Opt Shift Esc",
-    "registered: true",
-    "source: runtimeStatus.stopTurnHotkey"
-  ];
-}
+      "accelerator: Control+Alt+Shift+Esc",
+      "label: Ctrl Opt Shift Esc",
+      "registered: true",
+      "source: runtimeStatus.stopTurnHotkey",
+      "behaviorResult: passed",
+      "behaviorSource: renderer-escape-key-product-path",
+      "behaviorCommand: mkdir skfiy-stop-smoke",
+      "behaviorBeforeStatus: approval_required",
+      "behaviorAfterStatus: idle",
+      "behaviorAfterMessage: Task stopped."
+    ];
+  }
 
 function createMemoryIo(
   initialFiles: Record<string, unknown>,

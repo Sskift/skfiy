@@ -255,6 +255,11 @@ describe("dogfood cohort updater", () => {
         label: "Ctrl Opt Shift Esc",
         registered: true,
         source: "runtimeStatus.stopTurnHotkey",
+        behaviorResult: "passed",
+        behaviorSource: "renderer-escape-key-product-path",
+        behaviorBeforeStatus: "approval_required",
+        behaviorAfterStatus: "idle",
+        behaviorAfterMessage: "Task stopped.",
         verifiedBy: "dogfood:report"
       }
     });
@@ -1571,7 +1576,12 @@ describe("dogfood cohort updater", () => {
       "accelerator: Control+Alt+Shift+Esc",
       "label: Ctrl Opt Shift Esc",
       "registered: true",
-      "source: runtimeStatus.stopTurnHotkey"
+      "source: runtimeStatus.stopTurnHotkey",
+      "behaviorResult: passed",
+      "behaviorSource: renderer-escape-key-product-path",
+      "behaviorBeforeStatus: approval_required",
+      "behaviorAfterStatus: idle",
+      "behaviorAfterMessage: Task stopped."
     ];
   }
 
@@ -1656,6 +1666,14 @@ describe("dogfood cohort updater", () => {
           label: "Ctrl Opt Shift Esc",
           registered: true
         }
+      },
+      stopTurnBehavior: {
+        result: "passed",
+        source: "renderer-escape-key-product-path",
+        command: "mkdir skfiy-stop-smoke",
+        beforeStatus: "approval_required",
+        afterStatus: "idle",
+        afterMessage: "Task stopped."
       }
     };
   }

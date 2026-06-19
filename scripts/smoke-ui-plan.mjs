@@ -87,6 +87,10 @@ export function classifyUiSmokeEvidence(evidence) {
     return "missing-pet-drag";
   }
 
+  if (!hasStopTurnBehaviorEvidence(evidence.stopTurnBehavior)) {
+    return "missing-stop-turn-behavior";
+  }
+
   if (!evidence.onboardingVisible) {
     return hasBlockingPermission(evidence.permissions) ? "missing-onboarding" : "no-onboarding";
   }
@@ -200,6 +204,20 @@ function hasPetDragEvidence(petDrag) {
     && petDrag.totalDeltaY < 0
     && petDrag.upwardMovement === true
     && petDrag.suppressedClickAfterDrag === true;
+}
+
+function hasStopTurnBehaviorEvidence(value) {
+  if (!value || value.result !== "passed") {
+    return false;
+  }
+
+  return value.source === "renderer-escape-key-product-path"
+    && typeof value.command === "string"
+    && value.command.trim().length > 0
+    && value.beforeStatus === "approval_required"
+    && value.afterStatus === "idle"
+    && typeof value.afterMessage === "string"
+    && value.afterMessage.includes("Task stopped");
 }
 
 function hasWindowBounds(bounds) {

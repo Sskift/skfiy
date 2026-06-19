@@ -776,6 +776,11 @@ describe("dogfood cohort verifier", () => {
         label: "Ctrl Opt Shift Esc",
         registered: true,
         source: "runtimeStatus.stopTurnHotkey",
+        behaviorResult: "passed",
+        behaviorSource: "renderer-escape-key-product-path",
+        behaviorBeforeStatus: "approval_required",
+        behaviorAfterStatus: "idle",
+        behaviorAfterMessage: "Task stopped.",
         verifiedBy: "dogfood:report"
       }
     };

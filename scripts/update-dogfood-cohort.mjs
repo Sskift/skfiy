@@ -413,10 +413,19 @@ function validateIssueStopTurnEvidence(issue, smokeArtifacts) {
   const label = readRequiredIssueKeyValue(evidence, "panic stop evidence", "label");
   const registered = readRequiredIssueKeyValue(evidence, "panic stop evidence", "registered");
   const source = readRequiredIssueKeyValue(evidence, "panic stop evidence", "source");
+  const behaviorResult = readRequiredIssueKeyValue(evidence, "panic stop evidence", "behaviorResult");
+  const behaviorSource = readRequiredIssueKeyValue(evidence, "panic stop evidence", "behaviorSource");
+  const behaviorBeforeStatus = readRequiredIssueKeyValue(evidence, "panic stop evidence", "behaviorBeforeStatus");
+  const behaviorAfterStatus = readRequiredIssueKeyValue(evidence, "panic stop evidence", "behaviorAfterStatus");
+  const behaviorAfterMessage = readRequiredIssueKeyValue(evidence, "panic stop evidence", "behaviorAfterMessage");
   const status = readStopTurnHotkeyStatus(smokeArtifacts);
+  const behavior = readStopTurnBehavior(smokeArtifacts);
 
   if (!status) {
     throw new Error("Smoke artifacts must include runtimeStatus.stopTurnHotkey panic stop evidence.");
+  }
+  if (!behavior) {
+    throw new Error("Smoke artifacts must include stopTurnBehavior panic stop evidence.");
   }
   if (accelerator !== status.accelerator || accelerator !== STOP_TURN_ACCELERATOR) {
     throw new Error("Issue panic stop evidence accelerator must match the smoke artifact stopTurnHotkey.");
@@ -430,8 +439,23 @@ function validateIssueStopTurnEvidence(issue, smokeArtifacts) {
   if (source !== STOP_TURN_EVIDENCE_SOURCE) {
     throw new Error("Issue panic stop evidence source must be runtimeStatus.stopTurnHotkey.");
   }
+  if (behaviorResult !== "passed" || behavior.result !== "passed") {
+    throw new Error("Issue panic stop behaviorResult must be passed and match the smoke artifact.");
+  }
+  if (behaviorSource !== "renderer-escape-key-product-path" || behavior.source !== "renderer-escape-key-product-path") {
+    throw new Error("Issue panic stop behaviorSource must match the smoke artifact stopTurnBehavior.");
+  }
+  if (behaviorBeforeStatus !== "approval_required" || behavior.beforeStatus !== "approval_required") {
+    throw new Error("Issue panic stop behaviorBeforeStatus must be approval_required and match the smoke artifact.");
+  }
+  if (behaviorAfterStatus !== "idle" || behavior.afterStatus !== "idle") {
+    throw new Error("Issue panic stop behaviorAfterStatus must be idle and match the smoke artifact.");
+  }
+  if (behaviorAfterMessage !== behavior.afterMessage || !behaviorAfterMessage.includes("Task stopped")) {
+    throw new Error("Issue panic stop behaviorAfterMessage must match the smoke artifact stopTurnBehavior.");
+  }
 
-  return createStopTurnReportEvidence(status);
+  return createStopTurnReportEvidence(status, behavior);
 }
 
 function readStopTurnHotkeyStatus(smokeArtifacts) {
@@ -445,12 +469,28 @@ function readStopTurnHotkeyStatus(smokeArtifacts) {
   return undefined;
 }
 
-function createStopTurnReportEvidence(status) {
+function readStopTurnBehavior(smokeArtifacts) {
+  for (const artifact of Object.values(smokeArtifacts)) {
+    const behavior = artifact?.stopTurnBehavior;
+    if (behavior && typeof behavior === "object") {
+      return behavior;
+    }
+  }
+
+  return undefined;
+}
+
+function createStopTurnReportEvidence(status, behavior) {
   return {
     accelerator: status.accelerator,
     label: status.label,
     registered: status.registered,
     source: STOP_TURN_EVIDENCE_SOURCE,
+    behaviorResult: behavior.result,
+    behaviorSource: behavior.source,
+    behaviorBeforeStatus: behavior.beforeStatus,
+    behaviorAfterStatus: behavior.afterStatus,
+    behaviorAfterMessage: behavior.afterMessage,
     verifiedBy: "dogfood:report"
   };
 }

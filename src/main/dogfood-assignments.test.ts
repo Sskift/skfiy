@@ -111,7 +111,7 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("## Evidence Preview Gate");
     expect(packet).toContain("Before filing, confirm the generated `dogfood:issue -- --check-report` output shows `reportPreviewEligibility.eligible=true`.");
     expect(packet).toContain("The report preview must include UI pet drag evidence from the packaged app: renderer pointer events, before/after bounds, upward movement, and suppressed click-after-drag.");
-    expect(packet).toContain("The report preview must include panic stop evidence from `runtimeStatus.stopTurnHotkey`: accelerator, label, registered state, and source.");
+    expect(packet).toContain("The report preview must include panic stop evidence from `runtimeStatus.stopTurnHotkey` plus product-path behavior evidence: accelerator, label, registered state, source, behaviorResult, behaviorSource, before/after status, and stop message.");
     expect(packet).toContain("If `reportPreviewEligibility.eligible=false`, file the blocked evidence only after preserving the blocking checks for maintainer review.");
     expect(packet).toContain("## tester-1");
     expect(packet).toContain("Workflows: coding-terminal, screenshot-inspection");

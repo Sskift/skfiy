@@ -506,6 +506,12 @@ function verifyUiSmoke(artifact, expectedPath, options, checks) {
     hasStopTurnHotkeyEvidence(artifact.runtimeStatus?.stopTurnHotkey),
     "UI smoke must record the registered panic stop hotkey from runtimeStatus.stopTurnHotkey"
   );
+  check(
+    checks,
+    "ui.stopTurnBehavior",
+    hasStopTurnBehaviorEvidence(artifact.stopTurnBehavior),
+    "UI smoke must prove stop-turn behavior by returning an approval_required task to idle"
+  );
 
   if (artifact.result === "passed") {
     check(
@@ -1293,6 +1299,21 @@ function hasStopTurnHotkeyEvidence(value) {
   return value.accelerator === REQUIRED_STOP_TURN_HOTKEY.accelerator
     && value.label === REQUIRED_STOP_TURN_HOTKEY.label
     && value.registered === true;
+}
+
+function hasStopTurnBehaviorEvidence(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  return value.result === "passed"
+    && value.source === "renderer-escape-key-product-path"
+    && typeof value.command === "string"
+    && value.command.trim().length > 0
+    && value.beforeStatus === "approval_required"
+    && value.afterStatus === "idle"
+    && typeof value.afterMessage === "string"
+    && value.afterMessage.includes("Task stopped");
 }
 
 function hasWindowBounds(bounds) {

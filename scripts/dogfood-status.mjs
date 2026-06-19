@@ -1528,6 +1528,11 @@ function validateIssuePanicStopEvidence(body) {
   const label = evidence.get("label");
   const registered = evidence.get("registered");
   const source = evidence.get("source");
+  const behaviorResult = evidence.get("behaviorResult");
+  const behaviorSource = evidence.get("behaviorSource");
+  const behaviorBeforeStatus = evidence.get("behaviorBeforeStatus");
+  const behaviorAfterStatus = evidence.get("behaviorAfterStatus");
+  const behaviorAfterMessage = evidence.get("behaviorAfterMessage");
   const reasons = [];
 
   if (accelerator !== "Control+Alt+Shift+Esc") {
@@ -1541,6 +1546,21 @@ function validateIssuePanicStopEvidence(body) {
   }
   if (source !== "runtimeStatus.stopTurnHotkey") {
     reasons.push("panic stop evidence source must be runtimeStatus.stopTurnHotkey");
+  }
+  if (behaviorResult !== "passed") {
+    reasons.push("panic stop behaviorResult must be passed");
+  }
+  if (behaviorSource !== "renderer-escape-key-product-path") {
+    reasons.push("panic stop behaviorSource must be renderer-escape-key-product-path");
+  }
+  if (behaviorBeforeStatus !== "approval_required") {
+    reasons.push("panic stop behaviorBeforeStatus must be approval_required");
+  }
+  if (behaviorAfterStatus !== "idle") {
+    reasons.push("panic stop behaviorAfterStatus must be idle");
+  }
+  if (!behaviorAfterMessage || !behaviorAfterMessage.includes("Task stopped")) {
+    reasons.push("panic stop behaviorAfterMessage must include Task stopped");
   }
 
   return reasons;

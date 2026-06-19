@@ -417,6 +417,14 @@ describe("dogfood artifact verifier", () => {
       registered: true
     }
   });
+  const createStopTurnBehavior = () => ({
+    result: "passed",
+    source: "renderer-escape-key-product-path",
+    command: "mkdir skfiy-stop-smoke",
+    beforeStatus: "approval_required",
+    afterStatus: "idle",
+    afterMessage: "Task stopped."
+  });
   const createUiSmokeArtifact = (artifactPath: string) => ({
     result: "passed",
     appLaunchViaOpen: true,
@@ -426,6 +434,7 @@ describe("dogfood artifact verifier", () => {
     petClicked: true,
     petDrag: createUiPetDragEvidence(),
     runtimeStatus: createStopTurnRuntimeStatus(),
+    stopTurnBehavior: createStopTurnBehavior(),
     onboardingVisible: true,
     permissionRows: [
       { label: "屏幕录制", state: "denied", stateText: "未授权" },
@@ -684,6 +693,7 @@ describe("dogfood artifact verifier", () => {
         petClicked: true,
         petDrag: createUiPetDragEvidence(),
         runtimeStatus: createStopTurnRuntimeStatus(),
+        stopTurnBehavior: createStopTurnBehavior(),
         onboardingVisible: true,
         permissionRows: [
           { label: "屏幕录制", state: "denied", stateText: "未授权" },
@@ -1184,6 +1194,57 @@ describe("dogfood artifact verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("ui.stopTurnHotkey")
+      ])
+    });
+  });
+
+  it("fails UI evidence that omits stop-turn behavior evidence", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const uiArtifact = createUiSmokeArtifact(uiSmokePath);
+
+    delete (uiArtifact as { stopTurnBehavior?: unknown }).stopTurnBehavior;
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: uiArtifact,
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("ui.stopTurnBehavior")
       ])
     });
   });

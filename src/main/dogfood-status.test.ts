@@ -2435,6 +2435,12 @@ function createAcceptedReportIssue(
       "label: Ctrl Opt Shift Esc",
       "registered: true",
       "source: runtimeStatus.stopTurnHotkey",
+      "behaviorResult: passed",
+      "behaviorSource: renderer-escape-key-product-path",
+      "behaviorCommand: mkdir skfiy-stop-smoke",
+      "behaviorBeforeStatus: approval_required",
+      "behaviorAfterStatus: idle",
+      "behaviorAfterMessage: Task stopped.",
       ""
     );
   }

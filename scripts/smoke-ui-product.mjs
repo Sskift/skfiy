@@ -45,6 +45,7 @@ async function main() {
     runtimeStatus: undefined,
     petClicked: false,
     petDrag: undefined,
+    stopTurnBehavior: undefined,
     onboardingVisible: false,
     permissionRows: [],
     permissionSettingTargets: [],
@@ -233,6 +234,8 @@ function createInspectPermissionOnboardingExpression(settleMs) {
     "(() => {",
     inspectPermissionOnboardingExpression.toString(),
     exercisePetDrag.toString(),
+    exerciseStopTurnBehavior.toString(),
+    waitForTaskEvent.toString(),
     dispatchPetPointerEvent.toString(),
     hasWindowBounds.toString(),
     `return inspectPermissionOnboardingExpression(${JSON.stringify(settleMs)});`,
@@ -292,42 +295,42 @@ async function inspectPermissionOnboardingExpression(settleMs) {
     }));
   }
 
-  return new Promise((resolve) => {
-    window.setTimeout(() => {
-      const onboarding = document.querySelector('[aria-label="权限引导"]');
-      const permissionRows = onboarding
-        ? Array.from(onboarding.querySelectorAll(".permission-row")).map((row) => {
-            const label = row.querySelector("span")?.textContent?.trim() ?? "";
-            const stateText = row.querySelector("strong")?.textContent?.trim() ?? "";
-            const state = row.querySelector("strong")?.getAttribute("data-state") ?? "";
-            const buttonLabel = row.querySelector("button")?.getAttribute("aria-label") ?? "";
+  await new Promise((resolve) => window.setTimeout(resolve, settleMs));
 
-            return {
-              label,
-              state,
-              stateText,
-              buttonLabel
-            };
-          })
-        : [];
-      const permissionSettingTargets = permissionRows
-        .filter((row) => row.buttonLabel)
-        .map((row) => ({
-          label: row.label,
-          target: permissionTargets[row.label] ?? "unknown",
-          buttonLabel: row.buttonLabel
-        }));
+  const onboarding = document.querySelector('[aria-label="权限引导"]');
+  const permissionRows = onboarding
+    ? Array.from(onboarding.querySelectorAll(".permission-row")).map((row) => {
+        const label = row.querySelector("span")?.textContent?.trim() ?? "";
+        const stateText = row.querySelector("strong")?.textContent?.trim() ?? "";
+        const state = row.querySelector("strong")?.getAttribute("data-state") ?? "";
+        const buttonLabel = row.querySelector("button")?.getAttribute("aria-label") ?? "";
 
-      resolve({
-        petClicked: Boolean(pet),
-        petDrag,
-        onboardingVisible: Boolean(onboarding),
-        permissionRows,
-        permissionSettingTargets,
-        visibleText: document.body.innerText.slice(0, 2_000)
-      });
-    }, settleMs);
-  });
+        return {
+          label,
+          state,
+          stateText,
+          buttonLabel
+        };
+      })
+    : [];
+  const permissionSettingTargets = permissionRows
+    .filter((row) => row.buttonLabel)
+    .map((row) => ({
+      label: row.label,
+      target: permissionTargets[row.label] ?? "unknown",
+      buttonLabel: row.buttonLabel
+    }));
+  const stopTurnBehavior = await exerciseStopTurnBehavior();
+
+  return {
+    petClicked: Boolean(pet),
+    petDrag,
+    stopTurnBehavior,
+    onboardingVisible: Boolean(onboarding),
+    permissionRows,
+    permissionSettingTargets,
+    visibleText: document.body.innerText.slice(0, 2_000)
+  };
 }
 
 async function exercisePetDrag(pet) {
@@ -412,6 +415,87 @@ function dispatchPetPointerEvent(pet, type, { screenX, screenY, buttons }) {
     clientX: 48,
     clientY: 48
   }));
+}
+
+async function exerciseStopTurnBehavior() {
+  const skfiy = window.skfiy;
+  const command = "mkdir skfiy-stop-smoke";
+
+  if (
+    !skfiy
+    || typeof skfiy.runCommand !== "function"
+    || typeof skfiy.onTaskEvent !== "function"
+  ) {
+    return {
+      result: "missing",
+      source: "renderer-escape-key-product-path",
+      command,
+      beforeStatus: "missing",
+      afterStatus: "missing",
+      beforeMessage: "",
+      afterMessage: ""
+    };
+  }
+
+  const events = [];
+  const unsubscribe = skfiy.onTaskEvent((event) => {
+    events.push(event);
+  });
+
+  try {
+    await skfiy.runCommand(command, { mode: "active" });
+    const before = await waitForTaskEvent(events, (event) => event.status === "approval_required");
+
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true
+    }));
+
+    const after = await waitForTaskEvent(
+      events,
+      (event) => event.status === "idle" && typeof event.message === "string"
+        && event.message.includes("Task stopped")
+    );
+
+    return {
+      result: before?.status === "approval_required" && after?.status === "idle" ? "passed" : "failed",
+      source: "renderer-escape-key-product-path",
+      command,
+      beforeStatus: before?.status ?? "missing",
+      afterStatus: after?.status ?? "missing",
+      beforeMessage: before?.message ?? "",
+      afterMessage: after?.message ?? "",
+      eventCount: events.length
+    };
+  } catch (error) {
+    return {
+      result: "failed",
+      source: "renderer-escape-key-product-path",
+      command,
+      beforeStatus: "error",
+      afterStatus: "error",
+      beforeMessage: "",
+      afterMessage: error instanceof Error ? error.message : String(error),
+      eventCount: events.length
+    };
+  } finally {
+    unsubscribe();
+  }
+}
+
+async function waitForTaskEvent(events, predicate) {
+  const deadline = Date.now() + 3_000;
+
+  while (Date.now() < deadline) {
+    const event = events.find(predicate);
+    if (event) {
+      return event;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+  }
+
+  return undefined;
 }
 
 function hasWindowBounds(bounds) {

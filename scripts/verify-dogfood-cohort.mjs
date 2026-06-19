@@ -520,6 +520,12 @@ function hasRequiredStopTurnEvidence(value) {
     && value.label === STOP_TURN_LABEL
     && value.registered === true
     && value.source === STOP_TURN_EVIDENCE_SOURCE
+    && value.behaviorResult === "passed"
+    && value.behaviorSource === "renderer-escape-key-product-path"
+    && value.behaviorBeforeStatus === "approval_required"
+    && value.behaviorAfterStatus === "idle"
+    && typeof value.behaviorAfterMessage === "string"
+    && value.behaviorAfterMessage.includes("Task stopped")
     && value.verifiedBy === "dogfood:report";
 }
 

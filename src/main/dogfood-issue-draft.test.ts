@@ -230,6 +230,11 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("label: Ctrl Opt Shift Esc");
     expect(body).toContain("registered: true");
     expect(body).toContain("source: runtimeStatus.stopTurnHotkey");
+    expect(body).toContain("behaviorResult: passed");
+    expect(body).toContain("behaviorSource: renderer-escape-key-product-path");
+    expect(body).toContain("behaviorBeforeStatus: approval_required");
+    expect(body).toContain("behaviorAfterStatus: idle");
+    expect(body).toContain("behaviorAfterMessage: Task stopped.");
   });
 
   it("includes final voice transcript task events and turn replay evidence", async () => {
@@ -519,6 +524,14 @@ describe("dogfood issue draft generator", () => {
           label: "Ctrl Opt Shift Esc",
           registered: true
         }
+      },
+      stopTurnBehavior: {
+        result: "passed",
+        source: "renderer-escape-key-product-path",
+        command: "mkdir skfiy-stop-smoke",
+        beforeStatus: "approval_required",
+        afterStatus: "idle",
+        afterMessage: "Task stopped."
       },
       ...overrides
     };

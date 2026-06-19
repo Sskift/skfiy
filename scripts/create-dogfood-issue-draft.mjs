@@ -602,6 +602,7 @@ function createUiPetDragEvidence(petDrag) {
 
 function createStopTurnEvidence(smokeArtifacts) {
   const status = readStopTurnHotkeyStatus(smokeArtifacts);
+  const behavior = readStopTurnBehavior(smokeArtifacts);
 
   if (!status) {
     return "not available";
@@ -611,7 +612,13 @@ function createStopTurnEvidence(smokeArtifacts) {
     `accelerator: ${readFirstString([status.accelerator], "not available")}`,
     `label: ${readFirstString([status.label], "not available")}`,
     `registered: ${String(status.registered === true)}`,
-    `source: ${STOP_TURN_EVIDENCE_SOURCE}`
+    `source: ${STOP_TURN_EVIDENCE_SOURCE}`,
+    `behaviorResult: ${readFirstString([behavior?.result], "not available")}`,
+    `behaviorSource: ${readFirstString([behavior?.source], "not available")}`,
+    `behaviorCommand: ${readFirstString([behavior?.command], "not available")}`,
+    `behaviorBeforeStatus: ${readFirstString([behavior?.beforeStatus], "not available")}`,
+    `behaviorAfterStatus: ${readFirstString([behavior?.afterStatus], "not available")}`,
+    `behaviorAfterMessage: ${readFirstString([behavior?.afterMessage], "not available")}`
   ].join("\n");
 }
 
@@ -620,6 +627,17 @@ function readStopTurnHotkeyStatus(smokeArtifacts) {
     const status = artifact?.runtimeStatus?.stopTurnHotkey;
     if (status && typeof status === "object") {
       return status;
+    }
+  }
+
+  return undefined;
+}
+
+function readStopTurnBehavior(smokeArtifacts) {
+  for (const artifact of Object.values(smokeArtifacts)) {
+    const behavior = artifact?.stopTurnBehavior;
+    if (behavior && typeof behavior === "object") {
+      return behavior;
     }
   }
 

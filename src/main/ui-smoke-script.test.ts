@@ -91,7 +91,15 @@ describe("packaged UI product smoke script", () => {
         { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
         { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
       ],
-      requiredPermissionLabels: ["屏幕录制", "辅助功能", "麦克风", "语音识别"]
+      requiredPermissionLabels: ["屏幕录制", "辅助功能", "麦克风", "语音识别"],
+      stopTurnBehavior: {
+        result: "passed",
+        source: "renderer-escape-key-product-path",
+        command: "mkdir skfiy-stop-smoke",
+        beforeStatus: "approval_required",
+        afterStatus: "idle",
+        afterMessage: "Task stopped."
+      }
     };
 
     expect(classifyUiSmokeEvidence(passedEvidence)).toBe("passed");
@@ -103,6 +111,10 @@ describe("packaged UI product smoke script", () => {
       ...passedEvidence,
       petDrag: undefined
     })).toBe("missing-pet-drag");
+    expect(classifyUiSmokeEvidence({
+      ...passedEvidence,
+      stopTurnBehavior: undefined
+    })).toBe("missing-stop-turn-behavior");
     expect(classifyUiSmokeEvidence({
       ...passedEvidence,
       petDrag: {
@@ -161,6 +173,9 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("pet.dispatchEvent(new PointerEvent(type");
     expect(source).toContain("petDrag");
     expect(source).toContain("suppressedClickAfterDrag");
+    expect(source).toContain("stopTurnBehavior");
+    expect(source).toContain("exerciseStopTurnBehavior.toString()");
+    expect(source).toContain("new KeyboardEvent(\"keydown\"");
     expect(source).toContain("createInspectPermissionOnboardingExpression");
     expect(source).toContain("exercisePetDrag.toString()");
     expect(source).toContain("dispatchPetPointerEvent.toString()");
