@@ -1,9 +1,13 @@
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runFinderOrganizationTask } from "./finder-task";
-import type { DesktopActionResult, DesktopExecutableAction } from "../computer-use/types";
+import type {
+  DesktopActionResult,
+  DesktopExecutableAction,
+  DesktopSessionStatus
+} from "../computer-use/types";
 
 async function collectEvents(task: AsyncGenerator<{ type: string }>) {
   const events: Array<Record<string, unknown>> = [];
@@ -236,6 +240,49 @@ describe("runFinderOrganizationTask", () => {
       await expect(stat(path.join(rootPath, "photo.png"))).rejects.toThrow();
       await expect(stat(path.join(rootPath, "notes.pdf"))).rejects.toThrow();
       await expect(stat(path.join(rootPath, "script.ts"))).rejects.toThrow();
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks before activating Finder when the desktop session is locked", async () => {
+    const rootPath = await createFixture();
+    const executeAction = vi.fn(async (_action: DesktopExecutableAction): Promise<DesktopActionResult> => ({
+      ok: true
+    }));
+    const getDesktopSessionStatus = vi.fn(async (): Promise<DesktopSessionStatus> => ({
+      controllable: false,
+      frontmostBundleId: "com.apple.loginwindow",
+      frontmostLocalizedName: "loginwindow",
+      frontmostProcessIdentifier: 591,
+      mainDisplayAsleep: true
+    }));
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask(`整理 Finder 测试文件夹 ${rootPath}`, {
+          approved: true,
+          desktopClient: {
+            executeAction,
+            getDesktopSessionStatus
+          },
+          createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
+        })
+      );
+
+      expect(events.map((event) => event.type)).toEqual([
+        "started",
+        "plan_preview",
+        "locating_app",
+        "verification_failed"
+      ]);
+      expect(events.at(-1)).toMatchObject({
+        type: "verification_failed",
+        stage: "desktop_session",
+        reason: "Main display is asleep and desktop session is locked by loginwindow (pid 591). Wake and unlock the Mac, then retry."
+      });
+      expect(executeAction).not.toHaveBeenCalled();
+      expect(await readdir(rootPath)).toEqual(["notes.pdf", "photo.png", "script.ts"]);
     } finally {
       await rm(rootPath, { recursive: true, force: true });
     }

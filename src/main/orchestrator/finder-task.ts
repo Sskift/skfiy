@@ -4,10 +4,12 @@ import {
   createFinderOrganizationPlan,
   type FinderOrganizationOperation
 } from "../computer-use/finder-organizer.js";
+import { createDesktopSessionDiagnostics } from "../desktop-session-diagnostics.js";
 import type {
   DesktopActionResult,
   DesktopExecutableAction,
   DesktopAppState,
+  DesktopSessionStatus,
   FinderItemLayoutResult,
   FinderSelectionResult
 } from "../computer-use/types.js";
@@ -93,7 +95,7 @@ export type FinderTaskEvent =
     }
   | {
       type: "verification_failed";
-      stage: "input" | "file_operation" | "activate" | "observe" | "selection" | "layout" | "drag";
+      stage: "input" | "file_operation" | "desktop_session" | "activate" | "observe" | "selection" | "layout" | "drag";
       reason: string;
     }
   | {
@@ -119,6 +121,7 @@ export interface FinderPlanPreview {
 
 export interface FinderDesktopClient {
   executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult>;
+  getDesktopSessionStatus?(): Promise<DesktopSessionStatus>;
   getFinderSelection?(): Promise<FinderSelectionResult>;
   getFinderItemLayout?(folderPath: string, itemNames: readonly string[]): Promise<FinderItemLayoutResult>;
 }
@@ -231,6 +234,9 @@ export async function* runFinderOrganizationTask(
     };
 
     observation = yield* observeFinder(options);
+    if (!observation.ok) {
+      return;
+    }
   }
 
   if (parsed.target.kind === "drag_probe") {
@@ -332,9 +338,21 @@ function createFinderPlanPreview(
   };
 }
 
-async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<FinderTaskEvent> {
+async function* observeFinder(
+  options: FinderTaskOptions
+): AsyncGenerator<FinderTaskEvent, FinderObservationOutcome, unknown> {
   if (!options.desktopClient) {
     return { ok: true };
+  }
+
+  const desktopSessionFailure = await readDesktopSessionFailure(options.desktopClient);
+  if (desktopSessionFailure) {
+    yield {
+      type: "verification_failed",
+      stage: "desktop_session",
+      reason: desktopSessionFailure
+    };
+    return { ok: false };
   }
 
   const activationResult = await executeFinderAction(
@@ -394,6 +412,15 @@ async function* observeFinder(options: FinderTaskOptions): AsyncGenerator<Finder
 
   const selection = yield* observeFinderSelection(options.desktopClient);
   return { ok: true, appState: observationResult.result, selection };
+}
+
+async function readDesktopSessionFailure(client: FinderDesktopClient): Promise<string | undefined> {
+  if (!client.getDesktopSessionStatus) {
+    return undefined;
+  }
+
+  const diagnostics = createDesktopSessionDiagnostics(await client.getDesktopSessionStatus());
+  return diagnostics.state === "blocked" ? diagnostics.reason : undefined;
 }
 
 async function* performFinderDragProbe(

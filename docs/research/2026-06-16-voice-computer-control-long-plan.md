@@ -503,6 +503,7 @@ Do not add more random UI features. The next implementation milestone should be:
 1. Package stable app identity.
 2. Fix permissions onboarding.
    - current state: permission center plus left-click onboarding and Computer Use preflight now name missing grants before voice or target-app actions; the right-click diagnostics panel and UI smoke artifact also surface locked/black-screen desktop-session blockers separately from TCC permission state
+   - current state: Ghostty and Finder runtime task generators now read packaged helper desktop-session status before opening, activating, or observing target apps, and fail closed with the same loginwindow/display-asleep reason used by UI diagnostics
 3. Implement dedicated Ghostty session.
 4. Build minimal observe-plan-act-verify loop with replay logs.
 5. Keep voice provider pluggable and make Doubao setup explicit.

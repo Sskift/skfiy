@@ -42,7 +42,7 @@ export type GhosttyTaskEvent =
     }
   | {
       type: "verification_failed";
-      stage: "permissions" | "activate" | "initialize" | "before" | "after";
+      stage: "permissions" | "desktop_session" | "activate" | "initialize" | "before" | "after";
       reason: string;
     }
   | {

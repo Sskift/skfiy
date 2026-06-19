@@ -33,7 +33,7 @@ export async function readDesktopSessionDiagnosticsForRenderer({
   }
 }
 
-function createDesktopSessionDiagnostics(
+export function createDesktopSessionDiagnostics(
   status: DesktopSessionStatus
 ): DesktopSessionDiagnostics {
   if (status.controllable) {

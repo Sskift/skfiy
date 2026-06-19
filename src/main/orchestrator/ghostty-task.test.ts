@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   DesktopActionResult,
   DesktopExecutableAction,
+  DesktopSessionStatus,
   PermissionSummary
 } from "../computer-use/types";
 import { runGhosttyCommandTask, type DesktopClient } from "./ghostty-task";
@@ -20,11 +21,13 @@ async function collectEvents(
 
 function createDesktopClient(): DesktopClient & {
   executeAction: ReturnType<typeof vi.fn>;
+  getDesktopSessionStatus: ReturnType<typeof vi.fn<() => Promise<DesktopSessionStatus>>>;
   getPermissions: ReturnType<typeof vi.fn<() => Promise<PermissionSummary>>>;
   ocrImage: ReturnType<typeof vi.fn>;
 } {
   const client: DesktopClient & {
     executeAction: ReturnType<typeof vi.fn>;
+    getDesktopSessionStatus: ReturnType<typeof vi.fn<() => Promise<DesktopSessionStatus>>>;
     getPermissions: ReturnType<typeof vi.fn<() => Promise<PermissionSummary>>>;
     ocrImage: ReturnType<typeof vi.fn>;
   } = {
@@ -36,6 +39,13 @@ function createDesktopClient(): DesktopClient & {
       accessibility: { state: "granted" },
       microphone: { state: "unknown" },
       speechRecognition: { state: "unknown" }
+    })),
+    getDesktopSessionStatus: vi.fn(async () => ({
+      controllable: true,
+      frontmostBundleId: "com.mitchellh.ghostty",
+      frontmostLocalizedName: "Ghostty",
+      frontmostProcessIdentifier: 54502,
+      mainDisplayAsleep: false
     })),
     ocrImage: vi.fn(async (inputPath: string) => ({
       labels: inputPath.includes("after")
@@ -209,6 +219,34 @@ describe("runGhosttyCommandTask", () => {
       pid: 54502,
       screenshotOutputPath: "/tmp/after.png"
     });
+  });
+
+  it("blocks before opening Ghostty when the desktop session is locked", async () => {
+    const client = createDesktopClient();
+    client.getDesktopSessionStatus.mockResolvedValue({
+      controllable: false,
+      frontmostBundleId: "com.apple.loginwindow",
+      frontmostLocalizedName: "loginwindow",
+      frontmostProcessIdentifier: 591,
+      mainDisplayAsleep: true
+    });
+
+    const events = await collectEvents(
+      runGhosttyCommandTask(client, "pwd", { createScreenshotPath })
+    );
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: "started",
+        command: "pwd"
+      }),
+      {
+        type: "verification_failed",
+        stage: "desktop_session",
+        reason: "Main display is asleep and desktop session is locked by loginwindow (pid 591). Wake and unlock the Mac, then retry."
+      }
+    ]);
+    expect(client.executeAction).not.toHaveBeenCalled();
   });
 
   it("adds OCR labels to screenshot observations without turning OCR into a desktop action", async () => {

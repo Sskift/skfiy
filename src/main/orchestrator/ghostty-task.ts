@@ -1,6 +1,7 @@
 import { classifyTerminalCommand } from "../../shared/risk-policy.js";
 import type { RiskDecision } from "../../shared/types.js";
 import { parseTerminalIntent } from "../../shared/terminal-intent.js";
+import { createDesktopSessionDiagnostics } from "../desktop-session-diagnostics.js";
 import {
   runDesktopActionPlan,
   type DesktopActionExecutor,
@@ -12,6 +13,7 @@ import type {
   DesktopAction,
   DesktopActionResult,
   DesktopAppState,
+  DesktopSessionStatus,
   OcrImageResult,
   OpenGhosttySessionResult,
   PermissionSummary,
@@ -56,6 +58,7 @@ export interface DesktopApp {
 
 export interface DesktopClient extends DesktopActionExecutor {
   listApps(): Promise<DesktopApp[]>;
+  getDesktopSessionStatus?(): Promise<DesktopSessionStatus>;
   getPermissions?(): Promise<PermissionSummary>;
   ocrImage?(inputPath: string): Promise<OcrImageResult>;
 }
@@ -106,6 +109,16 @@ export async function* runGhosttyCommandTask(
       type: "verification_failed",
       stage: "permissions",
       reason: createPermissionFailureReason(missingPermissions)
+    };
+    return;
+  }
+
+  const desktopSessionFailure = await readDesktopSessionFailure(client);
+  if (desktopSessionFailure) {
+    yield {
+      type: "verification_failed",
+      stage: "desktop_session",
+      reason: desktopSessionFailure
     };
     return;
   }
@@ -796,6 +809,15 @@ function createPermissionFailureReason(
     .join("; ");
 
   return `Computer Use permissions required: ${details}. Grant them to skfiy.app in System Settings, then retry.`;
+}
+
+async function readDesktopSessionFailure(client: DesktopClient): Promise<string | undefined> {
+  if (!client.getDesktopSessionStatus) {
+    return undefined;
+  }
+
+  const diagnostics = createDesktopSessionDiagnostics(await client.getDesktopSessionStatus());
+  return diagnostics.state === "blocked" ? diagnostics.reason : undefined;
 }
 
 function blockedDecision(reason: string): RiskDecision {
