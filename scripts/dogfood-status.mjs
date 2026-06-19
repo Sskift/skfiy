@@ -585,11 +585,15 @@ function readExplicitDesktopSessionBlocker(artifact) {
     session.frontmostProcessIdentifier ?? artifact.activeApp?.pid;
   const displayAsleep = artifact.display?.mainDisplayAsleep === true
     || session.mainDisplayAsleep === true;
+  const consoleLock = readConsoleLockStatus(artifact, session);
+  const consoleLocked = consoleLock.ioConsoleLocked === true
+    || consoleLock.cgSessionScreenIsLocked === true;
   const loginwindowActive = frontmostBundleId === "com.apple.loginwindow";
   const blackScreenshot = artifact.screenshot?.png?.isLikelyBlack === true;
   const blocked = artifact.result === "blocked"
     || session.controllable === false
     || displayAsleep
+    || consoleLocked
     || loginwindowActive
     || blackScreenshot;
 
@@ -601,10 +605,62 @@ function readExplicitDesktopSessionBlocker(artifact) {
     state: "blocked",
     frontmostBundleId,
     frontmostProcessIdentifier,
-    reason: typeof artifact.reason === "string" && artifact.reason.trim().length > 0
-      ? artifact.reason
-      : "Desktop session artifact reports an uncontrollable desktop session."
+    ioConsoleLocked: consoleLock.ioConsoleLocked,
+    cgSessionScreenIsLocked: consoleLock.cgSessionScreenIsLocked,
+    reason: createDesktopSessionArtifactBlockerReason({
+      artifact,
+      consoleLock,
+      displayAsleep,
+      frontmostBundleId,
+      frontmostProcessIdentifier,
+      loginwindowActive
+    })
   };
+}
+
+function readConsoleLockStatus(artifact, session) {
+  return {
+    ioConsoleLocked: readOptionalBoolean(
+      artifact.consoleLock?.ioConsoleLocked ?? session.ioConsoleLocked
+    ),
+    cgSessionScreenIsLocked: readOptionalBoolean(
+      artifact.consoleLock?.cgSessionScreenIsLocked ?? session.cgSessionScreenIsLocked
+    )
+  };
+}
+
+function readOptionalBoolean(value) {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function createDesktopSessionArtifactBlockerReason({
+  artifact,
+  consoleLock,
+  displayAsleep,
+  frontmostBundleId,
+  frontmostProcessIdentifier,
+  loginwindowActive
+}) {
+  const consoleLockEvidence = [];
+  if (consoleLock.ioConsoleLocked === true) {
+    consoleLockEvidence.push("IOConsoleLocked=true");
+  }
+  if (consoleLock.cgSessionScreenIsLocked === true) {
+    consoleLockEvidence.push("CGSessionScreenIsLocked=true");
+  }
+
+  if (consoleLockEvidence.length > 0) {
+    const pid = Number.isInteger(frontmostProcessIdentifier)
+      ? ` (pid ${frontmostProcessIdentifier})`
+      : "";
+    const loginwindow = loginwindowActive ? ` and loginwindow is active${pid}` : "";
+    const asleep = displayAsleep ? " while the main display is asleep" : "";
+    return `Desktop console is locked (${consoleLockEvidence.join(", ")})${loginwindow}${asleep}. Unlock the Mac and keep the display awake, then retry.`;
+  }
+
+  return typeof artifact.reason === "string" && artifact.reason.trim().length > 0
+    ? artifact.reason
+    : "Desktop session artifact reports an uncontrollable desktop session.";
 }
 
 function readDesktopPreflightBlocker(smokeArtifacts) {

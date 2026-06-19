@@ -543,6 +543,96 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session\n\n- none");
   });
 
+  it("surfaces console lock diagnostics from explicit desktop-session artifacts", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const desktopSessionArtifactPath = "/repo/.skfiy-smoke/desktop-session-current.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
+        screenRecording: "authorized",
+        accessibility: "authorized",
+        microphone: "authorized",
+        speechRecognition: "authorized"
+      }),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked"),
+      [desktopSessionArtifactPath]: {
+        artifactPath: desktopSessionArtifactPath,
+        result: "blocked",
+        reason: "Desktop session is not controllable because loginwindow is active (pid 591). Unlock the Mac and keep the display awake, then retry.",
+        desktopSessionStatus: {
+          controllable: false,
+          frontmostBundleId: "com.apple.loginwindow",
+          frontmostLocalizedName: "loginwindow",
+          frontmostProcessIdentifier: 591,
+          mainDisplayAsleep: false,
+          ioConsoleLocked: true,
+          cgSessionScreenIsLocked: true
+        },
+        consoleLock: {
+          ioConsoleLocked: true,
+          cgSessionScreenIsLocked: true
+        },
+        display: {
+          mainDisplayAsleep: false
+        },
+        screenshot: {
+          png: {
+            isLikelyBlack: false
+          }
+        }
+      }
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      desktopSessionArtifactPath,
+      summaryPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      localSmoke: {
+        permissionBlockers: [],
+        desktopSessionBlocker: {
+          state: "blocked",
+          frontmostBundleId: "com.apple.loginwindow",
+          frontmostProcessIdentifier: 591,
+          ioConsoleLocked: true,
+          cgSessionScreenIsLocked: true,
+          reason: "Desktop console is locked (IOConsoleLocked=true, CGSessionScreenIsLocked=true) and loginwindow is active (pid 591). Unlock the Mac and keep the display awake, then retry."
+        }
+      }
+    });
+    expect(io.textFiles[summaryPath]).toContain(
+      "blocked: Desktop console is locked (IOConsoleLocked=true, CGSessionScreenIsLocked=true) and loginwindow is active (pid 591)."
+    );
+  });
+
   it("reports desktop session blockers from Ghostty/Finder/voice smoke preflight artifacts", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
