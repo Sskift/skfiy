@@ -21,6 +21,8 @@ const WORKFLOW_PLACEHOLDER = "<comma-separated-workflow-ids>";
 const ASSIGNMENT_PACKET_HEADING = "# skfiy dogfood tester assignments";
 const ASSIGNMENT_PERMISSION_PREFLIGHT_HEADING = "## Permission Preflight";
 const ASSIGNMENT_EVIDENCE_PREVIEW_HEADING = "## Evidence Preview Gate";
+const APP_INSTALL_LOCK_RETRY_MS = 250;
+const APP_INSTALL_LOCK_TIMEOUT_MS = 120_000;
 
 export function createDefaultPrepareAlphaDogfoodOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -263,14 +265,6 @@ export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
   await io.mkdir(path.dirname(plan.appPath), { recursive: true });
   await io.mkdir(path.dirname(plan.handoffOutputPath), { recursive: true });
 
-  const reuseExistingApp = await io.exists(plan.appPath);
-  if (reuseExistingApp) {
-    if (!plan.replaceExisting) {
-      await validateAppBundleIdentity(plan.appPath, io);
-    } else {
-      await io.rm(plan.appPath, { recursive: true, force: true });
-    }
-  }
   await io.rm(plan.extractDir, { recursive: true, force: true });
   await io.mkdir(plan.extractDir, { recursive: true });
 
@@ -296,9 +290,17 @@ export async function runPrepareAlphaDogfood(options, io = createDefaultIo()) {
   }
   await validateAppBundleIdentity(extractedAppPath, io);
 
-  if (!reuseExistingApp || plan.replaceExisting) {
+  await withAppInstallLock(plan, io, async () => {
+    const reuseExistingApp = await io.exists(plan.appPath);
+    if (reuseExistingApp) {
+      if (!plan.replaceExisting) {
+        await validateAppBundleIdentity(plan.appPath, io);
+        return;
+      }
+      await io.rm(plan.appPath, { recursive: true, force: true });
+    }
     await io.execPlanCommand(plan.commands[2]);
-  }
+  });
   const handoffCommand = replaceCommandArgs(plan.commands[3], {
     [path.join(plan.downloadDir, "<downloaded-alpha.json>")]: downloaded.manifestPath
   });
@@ -661,6 +663,36 @@ function replaceCommandArgs(command, replacements) {
   };
 }
 
+async function withAppInstallLock(plan, io, operation) {
+  const lockDir = path.join(path.dirname(plan.appPath), ".install.lock");
+  const releaseLock = await acquireDirectoryLock(lockDir, io);
+  try {
+    return await operation();
+  } finally {
+    await releaseLock();
+  }
+}
+
+async function acquireDirectoryLock(lockDir, io) {
+  const startedAt = Date.now();
+  while (true) {
+    try {
+      await io.mkdir(lockDir);
+      return async () => {
+        await io.rm(lockDir, { recursive: true, force: true });
+      };
+    } catch (error) {
+      if (error?.code !== "EEXIST") {
+        throw error;
+      }
+      if (Date.now() - startedAt >= APP_INSTALL_LOCK_TIMEOUT_MS) {
+        throw new Error(`Timed out waiting for alpha app install lock at ${lockDir}.`);
+      }
+      await io.sleep(APP_INSTALL_LOCK_RETRY_MS);
+    }
+  }
+}
+
 function readSyntheticTesterHandoffArgs(testerId) {
   return readRealTesterDecision(testerId).ok
     ? []
@@ -712,6 +744,9 @@ function createDefaultIo() {
         maxBuffer: 64 * 1024 * 1024
       });
       return { stdout, stderr, exitCode: 0 };
+    },
+    async sleep(ms) {
+      await new Promise((resolve) => setTimeout(resolve, ms));
     },
     async readIssue(issueUrl) {
       const command = createGitHubIssueViewCommand(issueUrl);

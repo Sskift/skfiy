@@ -527,6 +527,40 @@ describe("alpha dogfood preparation", () => {
     expect(io.commands.at(-1)?.args).toContain("/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app");
   });
 
+  it("waits for a concurrent app install and reuses the completed app bundle", async () => {
+    const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
+      runPrepareAlphaDogfood: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const io = createMemoryIo({
+      appInstallLockBusyOnce: true
+    });
+
+    await expect(runPrepareAlphaDogfood({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "tester-b",
+      workflows: ["finder-file"],
+      trackingIssueUrl: "https://github.com/Sskift/skfiy/issues/1",
+      dryRun: false
+    }, io)).resolves.toMatchObject({
+      status: "prepared",
+      appPath: "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app"
+    });
+    expect(io.sleepCalls).toEqual([250]);
+    expect(io.mkdirCalls).toContain("/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/.install.lock");
+    expect(io.rmCalls).toContain("/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/.install.lock");
+    expect(io.commands.map((entry) => entry.id)).toEqual([
+      "release:download",
+      "zip:extract",
+      "handoff:create"
+    ]);
+  });
+
   it("rejects downloaded alpha manifests missing long-horizon money-run evidence", async () => {
     const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
       runPrepareAlphaDogfood: (
@@ -623,20 +657,45 @@ describe("alpha dogfood preparation", () => {
 function createMemoryIo(options: {
   extractedInfoPlist?: string;
   existingPreparedApp?: boolean;
+  appInstallLockBusyOnce?: boolean;
   manifest?: ReturnType<typeof createDownloadedManifest>;
   trackingIssueBody?: string;
   trackingIssueComments?: string[];
 } = {}) {
   const commands: Array<{ id: string; command: string; args: string[] }> = [];
+  const mkdirCalls: string[] = [];
+  const rmCalls: string[] = [];
+  const sleepCalls: number[] = [];
   const sha256Inputs: string[] = [];
   const manifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.json";
   const zipPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc1234/skfiy-0.1.0-abc1234-macos-unsigned.zip";
+  const preparedAppPath = "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app";
+  const appInstallLockPath = "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/.install.lock";
+  let preparedAppExists = options.existingPreparedApp === true;
+  let appInstallLockAttempts = 0;
 
   return {
     commands,
+    mkdirCalls,
+    rmCalls,
+    sleepCalls,
     sha256Inputs,
-    async mkdir() {},
-    async rm() {},
+    async mkdir(dirPath: string) {
+      mkdirCalls.push(dirPath);
+      if (dirPath === appInstallLockPath && options.appInstallLockBusyOnce === true && appInstallLockAttempts === 0) {
+        appInstallLockAttempts += 1;
+        preparedAppExists = true;
+        const error = new Error("lock exists") as NodeJS.ErrnoException;
+        error.code = "EEXIST";
+        throw error;
+      }
+    },
+    async rm(targetPath: string) {
+      rmCalls.push(targetPath);
+      if (targetPath === preparedAppPath) {
+        preparedAppExists = false;
+      }
+    },
     async readJson(filePath: string) {
       if (filePath !== manifestPath) {
         throw new Error(`Unexpected manifest path: ${filePath}`);
@@ -656,8 +715,7 @@ function createMemoryIo(options: {
       return filePath === zipPath
         || filePath === manifestPath
         || filePath === "/repo/.skfiy-dogfood/extracted/skfiy-alpha-abc1234/skfiy.app"
-        || (options.existingPreparedApp === true
-          && filePath === "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc1234/skfiy.app");
+        || (preparedAppExists && filePath === preparedAppPath);
     },
     async readText(filePath: string) {
       if (
@@ -690,6 +748,9 @@ function createMemoryIo(options: {
     async execPlanCommand(command: { id: string; command: string; args: string[] }) {
       commands.push(command);
       return { stdout: "", stderr: "", exitCode: 0 };
+    },
+    async sleep(ms: number) {
+      sleepCalls.push(ms);
     }
   };
 }
