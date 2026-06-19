@@ -505,6 +505,12 @@ function verifyUiSmoke(artifact, expectedPath, options, checks) {
       !hasBlockingPermission(artifact.permissions),
       "UI smoke no-onboarding result requires Screen Recording and Accessibility to be non-blocking"
     );
+    check(
+      checks,
+      "ui.desktopSessionDiagnostics",
+      hasDesktopSessionDiagnostics(artifact.desktopSessionDiagnostics),
+      "UI smoke no-onboarding result must include structured desktop-session diagnostics"
+    );
   }
 
   check(
@@ -1202,6 +1208,28 @@ function hasBlockingPermission(permissions) {
       || status.state === "denied"
       || status.state === "not-determined";
   });
+}
+
+function hasDesktopSessionDiagnostics(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  if (!["controllable", "blocked", "unknown"].includes(value.state)) {
+    return false;
+  }
+
+  if (typeof value.reason !== "string" || value.reason.length === 0) {
+    return false;
+  }
+
+  if (value.status === null) {
+    return value.state === "unknown";
+  }
+
+  return Boolean(value.status)
+    && typeof value.status === "object"
+    && typeof value.status.controllable === "boolean";
 }
 
 function hasRequiredGhosttyActionVerification(events) {

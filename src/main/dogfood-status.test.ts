@@ -312,6 +312,79 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("screenRecording: denied");
   });
 
+  it("reports desktop session blockers separately from permission blockers", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath
+      }),
+      [uiSmokePath]: {
+        ...createSmokeArtifact(uiSmokePath, "no-onboarding", {
+          screenRecording: "authorized",
+          accessibility: "authorized",
+          microphone: "authorized",
+          speechRecognition: "authorized"
+        }),
+        desktopSessionDiagnostics: {
+          state: "blocked",
+          status: {
+            controllable: false,
+            frontmostBundleId: "com.apple.loginwindow",
+            frontmostLocalizedName: "loginwindow",
+            frontmostProcessIdentifier: 591
+          },
+          reason: "Desktop session is locked by loginwindow (pid 591). Unlock the Mac and keep the display awake, then retry."
+        }
+      },
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      localSmoke: {
+        permissionBlockers: [],
+        desktopSessionBlocker: {
+          state: "blocked",
+          frontmostBundleId: "com.apple.loginwindow",
+          reason: expect.stringContaining("loginwindow")
+        }
+      },
+      nextActions: expect.arrayContaining([
+        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
+    expect(io.textFiles[summaryPath]).toContain("blocked: Desktop session is locked by loginwindow");
+  });
+
   it("reports missing manifest smoke artifacts without aborting status", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (

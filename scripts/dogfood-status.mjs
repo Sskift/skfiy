@@ -149,6 +149,7 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   const smokeArtifactProblems = readSmokeArtifactProblems(smokeArtifacts);
   const permissionStates = readPermissionStates(smokeArtifacts);
   const permissionBlockers = readPermissionBlockers(smokeArtifacts, permissionStates);
+  const desktopSessionBlocker = readDesktopSessionBlocker(smokeArtifacts);
   const manifestChecks = await readManifestChecks(manifest, options, io);
   const missingRequiredReports = Math.max(0, 3 - verifiedRealAcceptedReportIssueUrls.length);
   const invalidReportIssueCount = reportIssueValidation.filter((issue) => !issue.ok).length;
@@ -187,7 +188,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     invalidReportIssueCount,
     assignmentComment,
     testerAssignmentCount: testerAssignments.length,
-    smokeArtifactProblems
+    smokeArtifactProblems,
+    desktopSessionBlocker
   });
 
   const status = {
@@ -221,7 +223,8 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
     localSmoke: {
       artifactResults,
       permissionStates,
-      permissionBlockers
+      permissionBlockers,
+      desktopSessionBlocker
     },
     readiness: {
       canRunCollect,
@@ -305,6 +308,15 @@ export function createDogfoodStatusMarkdown(status) {
     for (const blocker of status.localSmoke.permissionBlockers) {
       lines.push(`- ${blocker.permission}: ${blocker.state}`);
     }
+  }
+
+  lines.push("", "## Desktop Session", "");
+  if (status.localSmoke.desktopSessionBlocker) {
+    lines.push(
+      `- ${status.localSmoke.desktopSessionBlocker.state}: ${status.localSmoke.desktopSessionBlocker.reason}`
+    );
+  } else {
+    lines.push("- none");
   }
 
   lines.push("", "## Accepted Report Issue URLs", "");
@@ -492,6 +504,23 @@ function readPermissionBlockers(smokeArtifacts, permissionStates = readPermissio
       state: permissionStates[permission]?.state ?? "unknown"
     }))
     .filter((item) => BLOCKING_PERMISSION_STATES.has(item.state));
+}
+
+function readDesktopSessionBlocker(smokeArtifacts) {
+  const diagnostics = smokeArtifacts?.ui?.desktopSessionDiagnostics;
+
+  if (!diagnostics || diagnostics.state !== "blocked") {
+    return null;
+  }
+
+  return {
+    state: "blocked",
+    frontmostBundleId: diagnostics.status?.frontmostBundleId,
+    frontmostProcessIdentifier: diagnostics.status?.frontmostProcessIdentifier,
+    reason: typeof diagnostics.reason === "string" && diagnostics.reason.trim().length > 0
+      ? diagnostics.reason
+      : "Desktop session is blocked."
+  };
 }
 
 function readPermissionStates(smokeArtifacts) {
@@ -686,7 +715,8 @@ function createNextActions({
   invalidReportIssueCount,
   assignmentComment,
   testerAssignmentCount,
-  smokeArtifactProblems = []
+  smokeArtifactProblems = [],
+  desktopSessionBlocker
 }) {
   const actions = [];
 
@@ -711,6 +741,9 @@ function createNextActions({
       .map((problem) => `${problem.name} (${problem.path})`)
       .join(", ");
     actions.push(`Regenerate or attach missing smoke artifacts before relying on local readiness: ${summary}.`);
+  }
+  if (desktopSessionBlocker) {
+    actions.push("Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.");
   }
   if (workflowCoverage.missing.length > 0) {
     actions.push(`Collect accepted reports covering missing workflows: ${workflowCoverage.missing.join(", ")}.`);

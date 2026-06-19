@@ -437,6 +437,16 @@ describe("dogfood artifact verifier", () => {
       { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
       { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
     ],
+    desktopSessionDiagnostics: {
+      state: "controllable",
+      status: {
+        controllable: true,
+        frontmostBundleId: "com.sskift.skfiy",
+        frontmostLocalizedName: "skfiy",
+        frontmostProcessIdentifier: 123
+      },
+      reason: "Desktop session is controllable."
+    },
     processesAfterCleanup: []
   });
   const createDesktopPreflightBlockedEvidence = () => ({
@@ -875,6 +885,66 @@ describe("dogfood artifact verifier", () => {
       result: "passed",
       checks: expect.arrayContaining([
         expect.objectContaining({ id: "ui.noOnboardingPermissions", ok: true })
+      ])
+    });
+  });
+
+  it("fails UI smoke evidence that omits desktop session diagnostics", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const uiArtifact = {
+      ...createUiSmokeArtifact(uiSmokePath),
+      result: "no-onboarding",
+      onboardingVisible: false,
+      permissions: {
+        screenRecording: { state: "granted" },
+        accessibility: { state: "granted" },
+        microphone: { state: "granted" },
+        speechRecognition: { state: "granted" }
+      }
+    };
+    delete (uiArtifact as { desktopSessionDiagnostics?: unknown }).desktopSessionDiagnostics;
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: uiArtifact,
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "ui.desktopSessionDiagnostics", ok: false })
       ])
     });
   });
