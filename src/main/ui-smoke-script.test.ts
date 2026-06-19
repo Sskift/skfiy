@@ -37,12 +37,15 @@ describe("packaged UI product smoke script", () => {
       requiredPermissionLabels: ["屏幕录制", "辅助功能"]
     });
     expect(parseUiSmokeArgs([
+      "--app",
+      "dist/skfiy.app",
       "--output",
       "artifacts/ui.json",
       "--settle-ms",
       "1500",
       "--require-passed"
     ], defaults)).toMatchObject({
+      appPath: path.resolve("dist/skfiy.app"),
       outputPath: path.resolve("artifacts/ui.json"),
       settleMs: 1500,
       requirePassed: true

@@ -115,6 +115,66 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[jsonOutputPath]).toMatch(/\n$/);
   });
 
+  it("includes long-horizon money-run supervision smoke in local readiness status", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        voiceSmokePath,
+        moneyRunSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked"),
+      [moneyRunSmokePath]: {
+        ...createSmokeArtifact(moneyRunSmokePath, "passed"),
+        productPath: "LaunchServices -> renderer -> preload -> main -> tmux supervision -> tmux read-only probes",
+        tmuxSupervisionReport: {
+          sessionName: "money-run",
+          mutatesSession: false,
+          status: "observing"
+        }
+      }
+    }, {
+      [trackingIssueUrl]: {
+        body: createTrackingIssueBody([]),
+        labels: ["skfiy", "dogfood"]
+      }
+    });
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      localSmoke: {
+        artifactResults: {
+          "money-run": "passed"
+        }
+      }
+    });
+    expect(io.textFiles[summaryPath]).toContain("- money-run: passed");
+  });
+
   it("parses a local tracking issue file for offline status checks", async () => {
     const {
       createDefaultDogfoodStatusOptions,
@@ -675,6 +735,77 @@ describe("dogfood status reporter", () => {
       "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha."
     );
     expect(io.textFiles[summaryPath]).toContain("Alpha app code current: yes");
+  });
+
+  it("does not ask for a fresh app alpha when only alpha release evidence tooling changed", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const io = {
+      ...createMemoryIo({
+        [manifestPath]: createManifest({
+          uiSmokePath,
+          ghosttySmokePath,
+          chromeSmokePath,
+          finderSmokePath,
+          voiceSmokePath
+        }),
+        [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+        [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+        [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+        [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+        [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
+      }, {
+        [trackingIssueUrl]: {
+          body: createTrackingIssueBody([]),
+          labels: ["skfiy", "dogfood"]
+        }
+      }),
+      async readCurrentHead() {
+        return "releasehead";
+      },
+      async readChangedFilesBetween(base: string, head: string) {
+        return base === "abc123" && head === "releasehead"
+          ? [
+            "scripts/create-alpha-artifact.mjs",
+            "scripts/publish-alpha-github-release.mjs",
+            "src/main/alpha-artifact.test.ts",
+            "src/main/alpha-github-release.test.ts",
+            "docs/internal-alpha-build.md"
+          ]
+          : [];
+      }
+    };
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-19T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      manifest: {
+        checks: {
+          currentHead: {
+            ok: false,
+            appCodeOk: true,
+            appRelevantChangedFiles: []
+          }
+        }
+      }
+    });
+    expect(status.nextActions).not.toContain(
+      "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha."
+    );
   });
 
   it("warns when docs release evidence still points at an older alpha", async () => {
@@ -1858,13 +1989,15 @@ function createManifest({
   ghosttySmokePath,
   chromeSmokePath,
   finderSmokePath,
-  voiceSmokePath
+  voiceSmokePath,
+  moneyRunSmokePath
 }: {
   uiSmokePath: string;
   ghosttySmokePath: string;
   chromeSmokePath: string;
   finderSmokePath: string;
   voiceSmokePath: string;
+  moneyRunSmokePath?: string;
 }) {
   return {
     schemaVersion: 1,
@@ -1879,7 +2012,8 @@ function createManifest({
     smokeArtifactPath: ghosttySmokePath,
     chromeSmokeArtifactPath: chromeSmokePath,
     finderSmokeArtifactPath: finderSmokePath,
-    voiceSmokeArtifactPath: voiceSmokePath
+    voiceSmokeArtifactPath: voiceSmokePath,
+    moneyRunSmokeArtifactPath: moneyRunSmokePath
   };
 }
 

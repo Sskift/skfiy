@@ -168,6 +168,7 @@ export function createMoneyRunProductDryRun(options) {
     sessionName: readSessionName(options),
     command: options.command,
     appPath: options.appPath,
+    artifactPath: options.jsonOutputPath,
     launch: formatLaunchCommand(options),
     appLaunchViaOpen: true,
     runnerHasTmux: Boolean(process.env.TMUX),
@@ -332,6 +333,7 @@ async function runMoneyRunProductSmoke(options) {
   const evidence = {
     timestamp: new Date().toISOString(),
     appPath: options.appPath,
+    artifactPath: options.jsonOutputPath,
     command: options.command,
     sessionName: readSessionName(options),
     launch: formatLaunchCommand(options),
@@ -388,7 +390,10 @@ async function runMoneyRunProductSmoke(options) {
       await waitForTerminalTaskEvent(cdp, options.timeoutMs);
 
       evidence.events = cdp.events.slice(startIndex);
-      evidence.tmuxSupervisionReport = readFinalTmuxSupervisionReport(evidence.events);
+      const tmuxSupervisionReport = readFinalTmuxSupervisionReport(evidence.events);
+      evidence.tmuxSupervisionReport = tmuxSupervisionReport
+        ? { ...tmuxSupervisionReport, mutatesSession: false }
+        : undefined;
       evidence.permissions = await evaluateValue(cdp, "window.skfiy.getPermissions()");
       evidence.runtimeStatus = await evaluateValue(cdp, "window.skfiy.getRuntimeStatus()");
       evidence.startupWarnings = await evaluateValue(cdp, "window.skfiy.getStartupWarnings()");

@@ -80,6 +80,7 @@ describe("alpha artifact packaging", () => {
         chromeSmokeArtifactPath?: string;
         finderSmokeArtifactPath?: string;
         voiceSmokeArtifactPath?: string;
+        moneyRunSmokeArtifactPath?: string;
       }) => Record<string, unknown>;
       parseAlphaArtifactArgs: (
         argv: string[],
@@ -97,7 +98,9 @@ describe("alpha artifact packaging", () => {
       "--finder-smoke-artifact",
       ".skfiy-smoke/finder-item-drag-drop.json",
       "--voice-smoke-artifact",
-      ".skfiy-smoke/voice-native.json"
+      ".skfiy-smoke/voice-native.json",
+      "--money-run-smoke-artifact",
+      ".skfiy-smoke/money-run-supervision.json"
     ], {
       appPath: "/repo/dist/skfiy.app",
       outputDir: "/repo/.skfiy-alpha",
@@ -106,13 +109,15 @@ describe("alpha artifact packaging", () => {
       chromeSmokeArtifactPath: undefined,
       finderSmokeArtifactPath: undefined,
       voiceSmokeArtifactPath: undefined,
+      moneyRunSmokeArtifactPath: undefined,
       help: false
     })).toMatchObject({
       uiSmokeArtifactPath: path.resolve(".skfiy-smoke/ui-permission-onboarding.json"),
       smokeArtifactPath: path.resolve(".skfiy-smoke/ghostty-matrix.json"),
       chromeSmokeArtifactPath: path.resolve(".skfiy-smoke/chrome-page.json"),
       finderSmokeArtifactPath: path.resolve(".skfiy-smoke/finder-item-drag-drop.json"),
-      voiceSmokeArtifactPath: path.resolve(".skfiy-smoke/voice-native.json")
+      voiceSmokeArtifactPath: path.resolve(".skfiy-smoke/voice-native.json"),
+      moneyRunSmokeArtifactPath: path.resolve(".skfiy-smoke/money-run-supervision.json")
     });
 
     expect(createAlphaManifest({
@@ -132,7 +137,8 @@ describe("alpha artifact packaging", () => {
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-matrix.json",
       chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-page.json",
       finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-item-drag-drop.json",
-      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json"
+      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json",
+      moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision.json"
     })).toMatchObject({
       schemaVersion: 1,
       appName: "skfiy",
@@ -151,12 +157,14 @@ describe("alpha artifact packaging", () => {
       chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-page.json",
       finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-item-drag-drop.json",
       voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-native.json",
+      moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision.json",
       requiredDogfoodEvidence: [
         "npm run smoke:ui -- --output <path>",
         "npm run smoke:ghostty -- --output <path>",
         "npm run smoke:chrome -- --output <path>",
         "npm run smoke:finder -- --output <path>",
         "npm run smoke:voice -- --output <path>",
+        "npm run smoke:money-run -- --json-output <path>",
         "Permission settings direct links",
         "Panic stop runtime hotkey evidence",
         "Screen Recording permission state",
@@ -184,7 +192,8 @@ describe("alpha artifact packaging", () => {
         "Finder plan preview evidence",
         "Finder plan confirmation evidence",
         "Finder test-folder organization evidence",
-        "Finder item drag/drop evidence"
+        "Finder item drag/drop evidence",
+        "Long-horizon money-run supervision evidence"
       ]
     });
   });

@@ -11,6 +11,7 @@ describe("dogfood artifact verifier", () => {
     "npm run smoke:chrome -- --output <path>",
     "npm run smoke:finder -- --output <path>",
     "npm run smoke:voice -- --output <path>",
+    "npm run smoke:money-run -- --json-output <path>",
     "Permission settings direct links",
     "Panic stop runtime hotkey evidence",
     "External Doubao voice transcript-to-task evidence",
@@ -34,7 +35,8 @@ describe("dogfood artifact verifier", () => {
     "Finder plan preview evidence",
     "Finder plan confirmation evidence",
     "Finder test-folder organization evidence",
-    "Finder item drag/drop evidence"
+    "Finder item drag/drop evidence",
+    "Long-horizon money-run supervision evidence"
   ];
   const ghosttyAppPolicySettings = {
     apps: [
@@ -650,6 +652,7 @@ describe("dogfood artifact verifier", () => {
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
     const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
 
     await expect(verifyDogfoodArtifacts({
@@ -667,6 +670,7 @@ describe("dogfood artifact verifier", () => {
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
         voiceSmokeArtifactPath: voiceSmokePath,
+        moneyRunSmokeArtifactPath: moneyRunSmokePath,
         requiredDogfoodEvidence: requiredManifestEvidence
       },
       [zipPath]: Buffer.alloc(42),
@@ -727,6 +731,30 @@ describe("dogfood artifact verifier", () => {
           { providerId: "native-macos", state: "unavailable" }
         ],
         processesAfterCleanup: []
+      },
+      [moneyRunSmokePath]: {
+        result: "passed",
+        appLaunchViaOpen: true,
+        runnerHasTmux: false,
+        productPath: "LaunchServices -> renderer -> preload -> main -> tmux supervision -> tmux read-only probes",
+        artifactPath: moneyRunSmokePath,
+        events: [
+          {
+            status: "approval_required",
+            message: "Approval required: money-run tmux supervision is read-only but requires user approval."
+          }
+        ],
+        mutatesSession: false,
+        tmuxSupervisionReport: {
+          sessionName: "money-run",
+          mutatesSession: false,
+          status: "observing",
+          summary: {
+            windowCount: 1,
+            paneCount: 1
+          }
+        },
+        processesAfterCleanup: []
       }
     }))).resolves.toMatchObject({
       result: "passed",
@@ -750,7 +778,10 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "finder.actionVerification", ok: true }),
         expect.objectContaining({ id: "finder.planPreview", ok: true }),
         expect.objectContaining({ id: "finder.itemDragDrop", ok: true }),
-        expect.objectContaining({ id: "voice.productPath", ok: true })
+        expect.objectContaining({ id: "voice.productPath", ok: true }),
+        expect.objectContaining({ id: "moneyRun.productPath", ok: true }),
+        expect.objectContaining({ id: "moneyRun.readOnly", ok: true }),
+        expect.objectContaining({ id: "moneyRun.report", ok: true })
       ])
     });
   });

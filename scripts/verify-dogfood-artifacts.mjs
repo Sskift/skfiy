@@ -18,6 +18,7 @@ const FINDER_ITEM_DRAG_DROP_PRODUCT_PATH = "renderer -> preload -> main -> helpe
 const FINDER_DRAG_PROBE_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
 const DOUBAO_EXTERNAL_VOICE_PRODUCT_PATH = "renderer -> preload -> main -> external Doubao Input Method -> text bridge -> Computer Use";
 const NATIVE_MACOS_VOICE_PRODUCT_PATH = "renderer -> preload -> main -> helper -> native macOS Speech";
+const MONEY_RUN_PRODUCT_PATH = "LaunchServices -> renderer -> preload -> main -> tmux supervision -> tmux read-only probes";
 const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_CHROME_RESULTS = new Set(["passed", "blocked", "sensitive-paused"]);
@@ -109,6 +110,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   const chromeSmokeArtifactPath = readString(manifest?.chromeSmokeArtifactPath);
   const finderSmokeArtifactPath = readString(manifest?.finderSmokeArtifactPath);
   const voiceSmokeArtifactPath = readString(manifest?.voiceSmokeArtifactPath);
+  const moneyRunSmokeArtifactPath = readString(manifest?.moneyRunSmokeArtifactPath);
 
   check(checks, "manifest.appName", manifest?.appName === "skfiy", "manifest appName must be skfiy");
   check(
@@ -188,6 +190,22 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:voice -- --output <path>"),
     "manifest must require voice smoke evidence"
   );
+  if (moneyRunSmokeArtifactPath) {
+    check(
+      checks,
+      "manifest.requiredDogfoodEvidence.moneyRun",
+      Array.isArray(manifest?.requiredDogfoodEvidence)
+        && manifest.requiredDogfoodEvidence.includes("npm run smoke:money-run -- --json-output <path>"),
+      "manifest must require money-run supervision smoke evidence"
+    );
+    check(
+      checks,
+      "manifest.requiredDogfoodEvidence.moneyRunSupervision",
+      Array.isArray(manifest?.requiredDogfoodEvidence)
+        && manifest.requiredDogfoodEvidence.includes("Long-horizon money-run supervision evidence"),
+      "manifest must require long-horizon money-run supervision evidence"
+    );
+  }
   check(
     checks,
     "manifest.requiredDogfoodEvidence.voiceTranscriptTask",
@@ -377,6 +395,9 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   const voice = voiceSmokeArtifactPath
     ? await readArtifactJson(voiceSmokeArtifactPath, "voice", io, checks)
     : undefined;
+  const moneyRun = moneyRunSmokeArtifactPath
+    ? await readArtifactJson(moneyRunSmokeArtifactPath, "moneyRun", io, checks)
+    : undefined;
 
   if (ui) {
     verifyUiSmoke(ui, uiSmokeArtifactPath, options, checks);
@@ -398,6 +419,10 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     verifyVoiceSmoke(voice, voiceSmokeArtifactPath, options, checks);
   }
 
+  if (moneyRun) {
+    verifyMoneyRunSmoke(moneyRun, moneyRunSmokeArtifactPath, checks);
+  }
+
   check(
     checks,
     "manifest.paths.absolute",
@@ -407,7 +432,8 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && (!smokeArtifactPath || path.isAbsolute(smokeArtifactPath))
       && (!chromeSmokeArtifactPath || path.isAbsolute(chromeSmokeArtifactPath))
       && (!finderSmokeArtifactPath || path.isAbsolute(finderSmokeArtifactPath))
-      && (!voiceSmokeArtifactPath || path.isAbsolute(voiceSmokeArtifactPath)),
+      && (!voiceSmokeArtifactPath || path.isAbsolute(voiceSmokeArtifactPath))
+      && (!moneyRunSmokeArtifactPath || path.isAbsolute(moneyRunSmokeArtifactPath)),
     `manifest and artifact paths should be absolute; manifest is in ${manifestDir}`
   );
 
@@ -985,6 +1011,68 @@ function verifyVoiceSmoke(artifact, expectedPath, options, checks) {
     "voice.desktopPreflight",
     !artifact.desktopPreflight || desktopPreflightBlocked,
     "voice blocked desktop preflight must prove loginwindow/frontmost session is not controllable"
+  );
+}
+
+function verifyMoneyRunSmoke(artifact, expectedPath, checks) {
+  check(
+    checks,
+    "moneyRun.artifactPath",
+    samePath(artifact.artifactPath, expectedPath),
+    "money-run artifactPath must match manifest moneyRunSmokeArtifactPath"
+  );
+  check(
+    checks,
+    "moneyRun.result",
+    artifact.result === "passed",
+    "money-run supervision smoke must pass before it can count as long-horizon evidence"
+  );
+  check(
+    checks,
+    "moneyRun.appLaunchViaOpen",
+    artifact.appLaunchViaOpen === true,
+    "money-run smoke must launch skfiy through open/LaunchServices"
+  );
+  check(
+    checks,
+    "moneyRun.runnerHasTmux",
+    artifact.runnerHasTmux === false,
+    "money-run smoke runner must not be inside tmux"
+  );
+  check(
+    checks,
+    "moneyRun.productPath",
+    artifact.productPath === MONEY_RUN_PRODUCT_PATH,
+    `money-run smoke productPath must be ${MONEY_RUN_PRODUCT_PATH}`
+  );
+  check(
+    checks,
+    "moneyRun.readOnly",
+    artifact.mutatesSession === false
+      && artifact.tmuxSupervisionReport?.mutatesSession === false,
+    "money-run supervision evidence must prove it is read-only and does not mutate the tmux session"
+  );
+  check(
+    checks,
+    "moneyRun.approval",
+    artifact.approvalRequired === true
+      || hasTaskEventStatus(artifact.taskEvents, "approval_required")
+      || hasTaskEventStatus(artifact.events, "approval_required"),
+    "money-run supervision evidence must include approval before reading the tmux session"
+  );
+  check(
+    checks,
+    "moneyRun.report",
+    artifact.tmuxSupervisionReport?.sessionName === "money-run"
+      && typeof artifact.tmuxSupervisionReport?.status === "string"
+      && typeof artifact.tmuxSupervisionReport?.summary === "object",
+    "money-run supervision evidence must include a tmuxSupervisionReport for the money-run session"
+  );
+  check(
+    checks,
+    "moneyRun.processesAfterCleanup",
+    isEmptyArray(artifact.processesAfterCleanup),
+    "money-run smoke must clean up skfiy app processes"
   );
 }
 
@@ -1804,6 +1892,14 @@ function hasTaskEventMessage(events, text) {
   return events.some((event) =>
     typeof event?.message === "string" && event.message.includes(text)
   );
+}
+
+function hasTaskEventStatus(events, status) {
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  return events.some((event) => event?.status === status);
 }
 
 function readVoiceProvider(artifact) {

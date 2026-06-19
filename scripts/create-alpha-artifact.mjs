@@ -17,6 +17,7 @@ const DOGFOOD_EVIDENCE = [
   "npm run smoke:chrome -- --output <path>",
   "npm run smoke:finder -- --output <path>",
   "npm run smoke:voice -- --output <path>",
+  "npm run smoke:money-run -- --json-output <path>",
   "Permission settings direct links",
   "Panic stop runtime hotkey evidence",
   "Screen Recording permission state",
@@ -44,7 +45,8 @@ const DOGFOOD_EVIDENCE = [
   "Finder plan preview evidence",
   "Finder plan confirmation evidence",
   "Finder test-folder organization evidence",
-  "Finder item drag/drop evidence"
+  "Finder item drag/drop evidence",
+  "Long-horizon money-run supervision evidence"
 ];
 
 export function createAlphaArtifactPlan({
@@ -85,7 +87,8 @@ export function createAlphaManifest({
   smokeArtifactPath,
   chromeSmokeArtifactPath,
   finderSmokeArtifactPath,
-  voiceSmokeArtifactPath
+  voiceSmokeArtifactPath,
+  moneyRunSmokeArtifactPath
 }) {
   return {
     schemaVersion: 1,
@@ -109,6 +112,7 @@ export function createAlphaManifest({
     chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
     voiceSmokeArtifactPath,
+    moneyRunSmokeArtifactPath,
     requiredDogfoodEvidence: DOGFOOD_EVIDENCE
   };
 }
@@ -148,6 +152,10 @@ export function parseAlphaArtifactArgs(argv, defaults) {
         options.voiceSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
+      case "--money-run-smoke-artifact":
+        options.moneyRunSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
       case "--help":
       case "-h":
         options.help = true;
@@ -177,6 +185,8 @@ Options:
                             Finder smoke JSON artifact to reference in the manifest.
   --voice-smoke-artifact <path>
                             Voice smoke JSON artifact to reference in the manifest.
+  --money-run-smoke-artifact <path>
+                            Long-horizon money-run supervision smoke JSON artifact to reference in the manifest.
   -h, --help                Show this help.
 `;
 }
@@ -197,6 +207,7 @@ export async function createAlphaArtifact({
     chromeSmokeArtifactPath: undefined,
     finderSmokeArtifactPath: undefined,
     voiceSmokeArtifactPath: undefined,
+    moneyRunSmokeArtifactPath: undefined,
     help: false
   });
 
@@ -233,7 +244,8 @@ export async function createAlphaArtifact({
     smokeArtifactPath: options.smokeArtifactPath,
     chromeSmokeArtifactPath: options.chromeSmokeArtifactPath,
     finderSmokeArtifactPath: options.finderSmokeArtifactPath,
-    voiceSmokeArtifactPath: options.voiceSmokeArtifactPath
+    voiceSmokeArtifactPath: options.voiceSmokeArtifactPath,
+    moneyRunSmokeArtifactPath: options.moneyRunSmokeArtifactPath
   });
   await io.writeFile(plan.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;

@@ -460,6 +460,8 @@ describe("money-run supervision smoke script", () => {
     expect(scriptSource).toContain("tmuxSupervisionReport");
     expect(scriptSource).toContain("readFinalTmuxSupervisionReport");
     expect(scriptSource).toContain("event.status === \"completed\"");
+    expect(scriptSource).toContain("artifactPath: options.jsonOutputPath");
+    expect(scriptSource).toContain("mutatesSession: false");
   });
 
   it("supports a custom session in dry-run mode", async () => {

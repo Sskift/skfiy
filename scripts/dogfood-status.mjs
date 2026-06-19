@@ -51,7 +51,6 @@ const APP_RELEVANT_PATHS = new Set([
   "vite.config.ts",
   "vitest.config.ts",
   "scripts/build-helper.sh",
-  "scripts/create-alpha-artifact.mjs",
   "scripts/package-macos-app.mjs"
 ]);
 const LATEST_ALPHA_EVIDENCE_RELATIVE_PATH = path.join(
@@ -454,7 +453,10 @@ async function readSmokeArtifacts(manifest, io) {
     ghostty: await readOptionalJson(manifest?.smokeArtifactPath, io),
     chrome: await readOptionalJson(manifest?.chromeSmokeArtifactPath, io),
     finder: await readOptionalJson(manifest?.finderSmokeArtifactPath, io),
-    voice: await readOptionalJson(manifest?.voiceSmokeArtifactPath, io)
+    voice: await readOptionalJson(manifest?.voiceSmokeArtifactPath, io),
+    ...(typeof manifest?.moneyRunSmokeArtifactPath === "string"
+      ? { "money-run": await readOptionalJson(manifest.moneyRunSmokeArtifactPath, io) }
+      : {})
   };
 }
 

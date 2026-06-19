@@ -33,7 +33,7 @@ export function parseUiSmokeArgs(argv, defaults) {
 
     switch (arg) {
       case "--app":
-        options.appPath = readRequiredValue(argv, ++index, arg);
+        options.appPath = path.resolve(readRequiredValue(argv, ++index, arg));
         break;
       case "--output":
         options.outputPath = path.resolve(readRequiredValue(argv, ++index, arg));

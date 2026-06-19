@@ -13,7 +13,8 @@
     "ghostty": ".skfiy-smoke/ghostty-81248cc.json",
     "chrome": ".skfiy-smoke/chrome-81248cc.json",
     "finder": ".skfiy-smoke/finder-81248cc.json",
-    "voice": ".skfiy-smoke/voice-81248cc.json"
+    "voice": ".skfiy-smoke/voice-81248cc.json",
+    "moneyRun": ".skfiy-smoke/money-run-supervision-81248cc.json"
   },
   "dogfoodStatus": "waiting-for-dogfood",
   "publishedAt": "2026-06-19T10:37:12Z"

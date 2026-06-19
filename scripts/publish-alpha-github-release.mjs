@@ -374,7 +374,10 @@ export function createLatestAlphaEvidence({
       ghostty: toRepoRelativePath(rootDir, manifest.smokeArtifactPath),
       chrome: toRepoRelativePath(rootDir, manifest.chromeSmokeArtifactPath),
       finder: toRepoRelativePath(rootDir, manifest.finderSmokeArtifactPath),
-      voice: toRepoRelativePath(rootDir, manifest.voiceSmokeArtifactPath)
+      voice: toRepoRelativePath(rootDir, manifest.voiceSmokeArtifactPath),
+      ...(typeof manifest.moneyRunSmokeArtifactPath === "string"
+        ? { moneyRun: toRepoRelativePath(rootDir, manifest.moneyRunSmokeArtifactPath) }
+        : {})
     },
     dogfoodStatus: "waiting-for-dogfood",
     publishedAt
@@ -463,9 +466,13 @@ function validateCurrentAlphaSmokeArtifacts(manifest) {
     "smokeArtifactPath",
     "chromeSmokeArtifactPath",
     "finderSmokeArtifactPath",
-    "voiceSmokeArtifactPath"
+    "voiceSmokeArtifactPath",
+    "moneyRunSmokeArtifactPath"
   ]) {
     const artifactPath = manifest[key];
+    if (artifactPath === undefined && key === "moneyRunSmokeArtifactPath") {
+      continue;
+    }
     const artifactBaseName = path.basename(artifactPath);
     if (!artifactBaseName.includes(`-${shortSha}`)) {
       throw new Error(
