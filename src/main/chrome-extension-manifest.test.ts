@@ -48,6 +48,9 @@ describe("Chrome extension adapter skeleton", () => {
     expect(background).toContain('CONTENT_SCRIPT_FILE = "content-script.js"');
     expect(background).toContain('"skfiy.page.observe"');
     expect(background).toContain('"skfiy.page.diagnostics"');
+    expect(background).toContain('"skfiy.page_control.health"');
+    expect(background).toContain("readPageControlHealth");
+    expect(background).toContain("readPageControlProtocol");
     expect(background).toContain("readCurrentTabDiagnostics");
     expect(background).toContain("createPageControlReadiness");
     expect(background).toContain("chrome_host_permission_missing");
@@ -76,6 +79,8 @@ describe("Chrome extension adapter skeleton", () => {
 
     expect(contentScript).toContain('"skfiy.page.observe"');
     expect(contentScript).toContain('"skfiy.page.diagnostics"');
+    expect(contentScript).toContain('"skfiy.page_control.health"');
+    expect(contentScript).toContain("readContentScriptProtocol");
     expect(contentScript).toContain("readContentScriptSession");
     expect(contentScript).toContain("readPageControlReadiness");
     expect(contentScript).toContain('"skfiy.page.action"');

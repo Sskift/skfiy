@@ -207,16 +207,26 @@ content script and background service worker: active tab state, host policy,
 Chrome host permission, content-script loaded state, screenshot availability,
 DOM action availability, click/fill/submit/scroll capabilities, page safety, and
 sensitive pause.
+The MV3 worker also exposes a read-only `skfiy.page_control.health` protocol so
+`smoke:chrome` can prove the extension's manifest permissions, content-script
+file, optional host-permission model, and page-control readiness without
+requesting broader site access.
 `smoke:chrome` now also requires `nativeHostBridgeRun.result: passed` from the
 packaged `dist/skfiy -> Chrome Native Messaging heartbeat` path before Chrome
 browser-control evidence can count as passed, and installed-extension evidence
 must prove that the native host responded for the same `chrome-extension://.../`
-origin reported by the loaded adapter. The same artifact now writes a top-level
+origin reported by the loaded adapter. It also records
+`installedExtensionRun.pageControlHealth`, `readinessSnapshot`, `blockers`, and
+`remediation`; when branded Chrome prevents automated unpacked loading, the
+artifact stays typed as `branded_chrome_load_extension_removed` and recommends
+Chrome for Testing or Chromium. The same artifact writes a top-level
 `pageControl` readiness object, including unavailable/browser-blocker evidence
-when branded Chrome prevents extension loading. Each installed-extension run also
-includes a compact `readinessSnapshot`; when the extension worker cannot load,
-`installedExtensionRun.remediation` carries the recommended browser, docs path,
-and rerun command.
+when the worker cannot be probed.
+The extension path is an enhanced browser-control channel, not a replacement for
+OS Accessibility or Screen Recording: Chrome can provide structured DOM,
+current-tab, screenshot, download, and host-policy evidence, while arbitrary app
+control still needs the desktop Computer Use layer for app activation, windows,
+global screenshots, pointer/keyboard actions, and non-browser UI.
 For manual extension install, Native Messaging manifest setup, heartbeat checks,
 current-tab readiness, and blocker triage, see
 [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md).
@@ -247,9 +257,12 @@ whether page control is ready, policy/permission blocked, or not yet probed.
 `skfiy status --json` also includes an `evidence` block for CLI-only operator
 checks: packaged app/CLI/helper readiness, `extension.pageControl`, the current
 runtime snapshot turn summary from `runtime-snapshot.json`, and the newest
-dashboard smoke artifact summary from `.skfiy-smoke/dashboard*.json`. Running
-`skfiy status` without `--json` prints the same high-signal readiness fields as
-a stable short text summary.
+dashboard smoke artifact summary from `.skfiy-smoke/dashboard*.json`. If the app
+has written `runtime-turn-marker.json` but `runtime-snapshot.json` is missing or
+older than the turn evidence, the CLI reports `missing-after-turn` or
+`stale-after-turn` with marker age/path evidence instead of calling the machine a
+clean `freshInstall`. Running `skfiy status` without `--json` prints the same
+high-signal readiness fields as a stable short text summary.
 
 `plugins/skfiy/.mcp.json` points Codex at the installed `skfiy mcp serve
 --stdio` command. The Codex plugin is an adapter to the installed product, not a

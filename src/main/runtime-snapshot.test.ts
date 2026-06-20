@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   createRuntimeSnapshotFromReplay,
   createRuntimeSnapshotStatePath,
+  createRuntimeTurnMarker,
+  createRuntimeTurnMarkerStatePath,
   readRuntimeSnapshotPanels,
-  writeRuntimeSnapshot
+  writeRuntimeSnapshot,
+  writeRuntimeTurnMarker
 } from "./runtime-snapshot";
 import type { TurnReplay } from "./computer-use/turn-replay-store";
 
@@ -332,5 +335,68 @@ describe("runtime snapshot", () => {
         state: "approval_required"
       }
     });
+  });
+
+  it("writes a sanitized runtime turn marker for missing-snapshot diagnostics", async () => {
+    const files: Record<string, string> = {};
+    const writes: string[] = [];
+    const renames: Array<[string, string]> = [];
+    const markerPath = createRuntimeTurnMarkerStatePath("/Users/tester");
+
+    expect(markerPath)
+      .toBe("/Users/tester/Library/Application Support/skfiy/runtime-turn-marker.json");
+    expect(createRuntimeTurnMarker({
+      currentTurn: {
+        status: "executing",
+        message: "Using Bearer abc.def and token=super-secret",
+        command: "curl https://example.test?api_key=abc123"
+      },
+      observedAt: "2026-06-20T10:03:00.000Z"
+    })).toMatchObject({
+      schemaVersion: 1,
+      observedAt: "2026-06-20T10:03:00.000Z",
+      currentTurn: {
+        state: "executing",
+        source: "runtime-turn-marker",
+        updateSource: "live-task-event",
+        command: "curl https://example.test?api_key=[redacted]",
+        latestMessage: "Using Bearer [redacted] and token=[redacted]"
+      }
+    });
+
+    await writeRuntimeTurnMarker({
+      homeDir: "/Users/tester",
+      currentTurn: {
+        status: "executing",
+        message: "Using Bearer abc.def and token=super-secret",
+        command: "curl https://example.test?api_key=abc123"
+      },
+      observedAt: "2026-06-20T10:03:00.000Z",
+      io: {
+        mkdir: async () => {},
+        writeFile: async (targetPath, content) => {
+          writes.push(targetPath);
+          files[targetPath] = content;
+        },
+        rename: async (oldPath, newPath) => {
+          renames.push([oldPath, newPath]);
+          files[newPath] = files[oldPath];
+          delete files[oldPath];
+        }
+      }
+    });
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatch(/runtime-turn-marker\.json\.tmp-/);
+    expect(renames).toEqual([[writes[0], markerPath]]);
+    expect(JSON.parse(files[markerPath])).toMatchObject({
+      schemaVersion: 1,
+      currentTurn: {
+        state: "executing",
+        source: "runtime-turn-marker"
+      }
+    });
+    expect(files[markerPath]).not.toContain("super-secret");
+    expect(files[markerPath]).not.toContain("abc123");
   });
 });

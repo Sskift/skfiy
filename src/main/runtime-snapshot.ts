@@ -7,6 +7,7 @@ import type {
 } from "./computer-use/turn-transcript.js";
 
 export const RUNTIME_SNAPSHOT_SCHEMA_VERSION = 1;
+export const RUNTIME_TURN_MARKER_SCHEMA_VERSION = 1;
 const MAX_RUNTIME_SNAPSHOT_ITEMS = 8;
 const MAX_RUNTIME_SNAPSHOT_TEXT_LENGTH = 500;
 
@@ -32,6 +33,16 @@ export interface RuntimeSnapshotWriteInput extends RuntimeSnapshotInput {
   io?: RuntimeSnapshotIo;
 }
 
+export interface RuntimeTurnMarkerInput {
+  currentTurn: RuntimeSnapshotCurrentTurnInput;
+  observedAt?: string;
+}
+
+export interface RuntimeTurnMarkerWriteInput extends RuntimeTurnMarkerInput {
+  homeDir: string;
+  io?: RuntimeSnapshotIo;
+}
+
 export interface RuntimeSnapshotReadInput {
   homeDir?: string;
   io: RuntimeSnapshotReadIo;
@@ -42,6 +53,12 @@ export interface RuntimeSnapshot {
   observedAt: string;
   currentTurn: Record<string, unknown>;
   replay: Record<string, unknown>;
+}
+
+export interface RuntimeTurnMarker {
+  schemaVersion: typeof RUNTIME_TURN_MARKER_SCHEMA_VERSION;
+  observedAt: string;
+  currentTurn: Record<string, unknown>;
 }
 
 export interface RuntimeSnapshotCurrentTurnInput {
@@ -58,6 +75,16 @@ export function createRuntimeSnapshotStatePath(homeDir: string): string {
     "Application Support",
     "skfiy",
     "runtime-snapshot.json"
+  );
+}
+
+export function createRuntimeTurnMarkerStatePath(homeDir: string): string {
+  return path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "skfiy",
+    "runtime-turn-marker.json"
   );
 }
 
@@ -153,6 +180,20 @@ export function createRuntimeSnapshotFromReplay({
   };
 }
 
+export function createRuntimeTurnMarker({
+  currentTurn,
+  observedAt = new Date().toISOString()
+}: RuntimeTurnMarkerInput): RuntimeTurnMarker {
+  return {
+    schemaVersion: RUNTIME_TURN_MARKER_SCHEMA_VERSION,
+    observedAt,
+    currentTurn: {
+      ...createRuntimeCurrentTurnPanel(currentTurn),
+      source: "runtime-turn-marker"
+    }
+  };
+}
+
 export async function writeRuntimeSnapshot({
   homeDir,
   replay,
@@ -174,6 +215,28 @@ export async function writeRuntimeSnapshot({
   }
 
   return snapshot;
+}
+
+export async function writeRuntimeTurnMarker({
+  homeDir,
+  currentTurn,
+  observedAt,
+  io = createDefaultRuntimeSnapshotIo()
+}: RuntimeTurnMarkerWriteInput): Promise<RuntimeTurnMarker> {
+  const marker = createRuntimeTurnMarker({ currentTurn, observedAt });
+  const markerPath = createRuntimeTurnMarkerStatePath(homeDir);
+  const markerText = `${JSON.stringify(marker, null, 2)}\n`;
+
+  await io.mkdir(path.dirname(markerPath));
+  if (io.rename) {
+    const tempPath = `${markerPath}.tmp-${process.pid}-${Date.now()}`;
+    await io.writeFile(tempPath, markerText);
+    await io.rename(tempPath, markerPath);
+  } else {
+    await io.writeFile(markerPath, markerText);
+  }
+
+  return marker;
 }
 
 export function readRuntimeSnapshotPanels({

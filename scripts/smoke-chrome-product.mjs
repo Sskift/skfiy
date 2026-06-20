@@ -547,6 +547,7 @@ async function runInstalledChromeExtensionSmoke(options) {
   const extensionPath = path.join(ROOT_DIR, "chrome-extension");
   const requestId = "chrome-smoke-installed-extension";
   const statusRequestId = "chrome-smoke-extension-status";
+  const healthRequestId = "chrome-smoke-page-control-health";
   const homeDir = os.homedir();
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "skfiy-chrome-extension-smoke-"));
   const chromeUserDataDir = path.join(tempRoot, "chrome-profile");
@@ -572,6 +573,7 @@ async function runInstalledChromeExtensionSmoke(options) {
   let extensionPageUrl;
   let response;
   let extensionStatus;
+  let pageControlHealth;
 
   try {
     await launchChromeWithExtension({
@@ -656,6 +658,13 @@ async function runInstalledChromeExtensionSmoke(options) {
         returnByValue: true
       });
       extensionStatus = readInstalledExtensionNativeMessageEvaluation(statusEvaluation);
+
+      const healthEvaluation = await cdp.send("Runtime.evaluate", {
+        expression: createInstalledExtensionPageControlHealthExpression(healthRequestId),
+        awaitPromise: true,
+        returnByValue: true
+      });
+      pageControlHealth = readInstalledExtensionNativeMessageEvaluation(healthEvaluation);
     } finally {
       cdp.close();
     }
@@ -666,12 +675,14 @@ async function runInstalledChromeExtensionSmoke(options) {
       && heartbeat?.launchOrigin === launchOrigin
       && heartbeat?.messageType === "skfiy.page.observe"
       && heartbeat?.requestId === requestId
-      && hasInstalledExtensionStatusDiagnostics(extensionStatus, extensionId);
+      && hasInstalledExtensionStatusDiagnostics(extensionStatus, extensionId)
+      && hasInstalledExtensionPageControlHealth(pageControlHealth, extensionId);
     const readinessSnapshot = createInstalledExtensionReadinessSnapshot({
       result: passed ? "passed" : "failed",
       extensionId,
       launchOrigin,
       extensionStatus,
+      pageControlHealth,
       response,
       heartbeat,
       heartbeatReadError
@@ -695,6 +706,7 @@ async function runInstalledChromeExtensionSmoke(options) {
       firstWorkerUrl: loadedWorker.url,
       response,
       extensionStatus,
+      pageControlHealth,
       readinessSnapshot,
       heartbeatPath,
       ...(heartbeat ? { heartbeat } : {}),
@@ -714,6 +726,7 @@ async function runInstalledChromeExtensionSmoke(options) {
       ...(extensionPageUrl ? { extensionPageUrl } : {}),
       ...(response ? { response } : {}),
       ...(extensionStatus ? { extensionStatus } : {}),
+      ...(pageControlHealth ? { pageControlHealth } : {}),
       ...(manifestPath ? { manifestPath } : {}),
       heartbeatPath,
       error: error instanceof Error ? error.message : String(error)
@@ -907,6 +920,17 @@ function isInstalledExtensionSmokeAcceptable(run) {
 }
 
 function createChromeSmokePageControlEvidence(evidence) {
+  const reportedHealth = readChromeSmokePageControlFromExtensionHealth(
+    evidence.installedExtensionRun?.pageControlHealth
+  );
+
+  if (reportedHealth) {
+    return normalizeChromeSmokePageControlEvidence(
+      reportedHealth.record,
+      reportedHealth.source
+    );
+  }
+
   const reported = readChromeSmokePageControlFromExtensionStatus(
     evidence.installedExtensionRun?.extensionStatus
   );
@@ -962,6 +986,22 @@ function createChromeSmokePageControlEvidence(evidence) {
       ...(typeof liveConnection === "string" ? { liveConnection } : {})
     }
   };
+}
+
+function readChromeSmokePageControlFromExtensionHealth(health) {
+  const candidates = [
+    [readRecord(health?.pageControl), "installedExtensionRun.pageControlHealth.pageControl"],
+    [readRecord(health?.readiness), "installedExtensionRun.pageControlHealth.readiness"],
+    [readRecord(readRecord(health?.diagnostics)?.session)?.pageControl, "installedExtensionRun.pageControlHealth.diagnostics.session.pageControl"]
+  ];
+
+  for (const [record, source] of candidates) {
+    if (record) {
+      return { record, source };
+    }
+  }
+
+  return undefined;
 }
 
 function readChromeSmokePageControlFromExtensionStatus(status) {
@@ -1255,6 +1295,44 @@ function createInstalledExtensionStatusExpression(requestId) {
     })))()`;
 }
 
+function createInstalledExtensionPageControlHealthExpression(requestId) {
+  return `(() => Promise.resolve()
+    .then(async () => {
+      if (globalThis.skfiyChromeAdapterDiagnostics?.readPageControlHealth) {
+        return globalThis.skfiyChromeAdapterDiagnostics.readPageControlHealth(${JSON.stringify(requestId)});
+      }
+
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          schemaVersion: 1,
+          type: "skfiy.page_control.health",
+          requestId: ${JSON.stringify(requestId)}
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({
+              type: "skfiy.page_control.health_result",
+              schemaVersion: 1,
+              requestId: ${JSON.stringify(requestId)},
+              ok: false,
+              error: chrome.runtime.lastError.message
+            });
+            return;
+          }
+
+          resolve(response);
+        });
+      });
+    })
+    .then((response) => JSON.stringify(response))
+    .catch((error) => JSON.stringify({
+      type: "skfiy.page_control.health_result",
+      schemaVersion: 1,
+      requestId: ${JSON.stringify(requestId)},
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    })))()`;
+}
+
 function readInstalledExtensionNativeMessageEvaluation(evaluation) {
   const value = evaluation.result?.value;
   if (typeof value !== "string") {
@@ -1354,6 +1432,36 @@ function hasInstalledExtensionStatusDiagnostics(status, extensionId) {
     )
     && status.diagnostics?.hostPolicy?.defaultMode === "ask"
     && Number.isInteger(status.diagnostics?.hostPolicy?.entryCount);
+}
+
+function hasInstalledExtensionPageControlHealth(health, extensionId) {
+  const protocol = readRecord(health?.protocol);
+  const pageControl = readRecord(health?.pageControl) ?? readRecord(health?.readiness);
+
+  return health
+    && typeof health === "object"
+    && health.type === "skfiy.page_control.health_result"
+    && health.schemaVersion === 1
+    && health.requestId === "chrome-smoke-page-control-health"
+    && protocol?.name === "skfiy.chrome.page-control"
+    && protocol?.extensionId === extensionId
+    && protocol?.nativeHostName === "com.sskift.skfiy"
+    && protocol?.contentScriptFile === "content-script.js"
+    && protocol?.messageTypes?.health === "skfiy.page_control.health"
+    && protocol?.messageTypes?.diagnostics === "skfiy.page.diagnostics"
+    && protocol?.messageTypes?.observe === "skfiy.page.observe"
+    && protocol?.messageTypes?.action === "skfiy.page.action"
+    && protocol?.messageTypes?.screenshot === "skfiy.page.screenshot"
+    && protocol?.permissionModel?.hostPermissions === "optional"
+    && Array.isArray(protocol?.permissionModel?.optionalHostPermissions)
+    && protocol.permissionModel.optionalHostPermissions.includes("http://*/*")
+    && protocol.permissionModel.optionalHostPermissions.includes("https://*/*")
+    && pageControl
+    && pageControl.schemaVersion === 1
+    && typeof pageControl.state === "string"
+    && typeof pageControl.capable === "boolean"
+    && health.diagnostics?.extension?.id === extensionId
+    && health.diagnostics?.nativeHost?.name === "com.sskift.skfiy";
 }
 
 function hasNativeHostBridgeDiagnostics(diagnostics) {

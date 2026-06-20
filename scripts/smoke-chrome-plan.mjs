@@ -24,6 +24,7 @@ export const CHROME_EXTENSION_SETUP_GUIDE_REQUIRED_TERMS = [
   "Refresh host policy",
   "Host permission",
   "Page session",
+  "skfiy.page_control.health",
   "readinessSnapshot",
   "remediation",
   "doctor --json --extension-id <extension-id>",
@@ -288,7 +289,8 @@ function hasInstalledExtensionSmokeEvidence(run) {
     && run.heartbeat?.launchOrigin === `chrome-extension://${run.extensionId}/`
     && run.heartbeat?.messageType === "skfiy.page.observe"
     && run.heartbeat?.requestId === "chrome-smoke-installed-extension"
-    && hasInstalledExtensionStatusDiagnostics(run.extensionStatus, run.extensionId);
+    && hasInstalledExtensionStatusDiagnostics(run.extensionStatus, run.extensionId)
+    && hasInstalledExtensionPageControlHealth(run.pageControlHealth, run.extensionId);
 }
 
 function isKnownInstalledExtensionSmokeBlocker(run) {
@@ -404,6 +406,7 @@ export function createInstalledExtensionReadinessSnapshot({
   extensionId,
   launchOrigin,
   extensionStatus,
+  pageControlHealth,
   response,
   heartbeat,
   heartbeatReadError,
@@ -412,18 +415,27 @@ export function createInstalledExtensionReadinessSnapshot({
   remediation
 } = {}) {
   const statusRecord = readRecord(extensionStatus) ?? {};
+  const healthRecord = readRecord(pageControlHealth) ?? {};
   const diagnostics = readRecord(statusRecord.diagnostics) ?? {};
+  const healthDiagnostics = readRecord(healthRecord.diagnostics) ?? {};
   const extension = readRecord(diagnostics.extension) ?? {};
   const nativeHost = readRecord(diagnostics.nativeHost) ?? {};
   const syncStatus = readRecord(statusRecord.syncStatus) ?? {};
   const session = readRecord(diagnostics.session) ?? {};
+  const healthSession = readRecord(healthDiagnostics.session) ?? {};
   const currentTab = readRecord(diagnostics.currentTab) ?? {};
   const currentTabContentScript = readRecord(currentTab.contentScript) ?? {};
   const pageControl = readRecord(statusRecord.pageControl)
+    ?? readRecord(healthRecord.pageControl)
+    ?? readRecord(healthRecord.readiness)
     ?? readRecord(diagnostics.pageControl)
     ?? readRecord(currentTab.pageControl)
-    ?? readRecord(session.pageControl);
-  const contentScript = readRecord(session.contentScript) ?? currentTabContentScript;
+    ?? readRecord(session.pageControl)
+    ?? readRecord(healthSession.pageControl);
+  const protocol = readRecord(healthRecord.protocol);
+  const contentScript = readRecord(session.contentScript)
+    ?? readRecord(healthSession.contentScript)
+    ?? currentTabContentScript;
   const heartbeatState = heartbeat
     ? "recorded"
     : heartbeatReadError
@@ -457,11 +469,19 @@ export function createInstalledExtensionReadinessSnapshot({
       heartbeat: heartbeatState,
       ...(heartbeatReadError ? { heartbeatReadError } : {})
     },
+    protocol: protocol
+      ? {
+          name: protocol.name ?? null,
+          health: protocol.messageTypes?.health === "skfiy.page_control.health",
+          contentScriptFile: protocol.contentScriptFile ?? null,
+          hostPermissions: protocol.permissionModel?.hostPermissions ?? null
+        }
+      : null,
     contentScript: {
-      state: session.state ?? contentScript.state ?? "not-probed",
+      state: session.state ?? healthSession.state ?? contentScript.state ?? "not-probed",
       reason: contentScript.reason ?? null,
       lastError: contentScript.lastError ?? null,
-      observedAt: session.observedAt ?? contentScript.observedAt ?? null
+      observedAt: session.observedAt ?? healthSession.observedAt ?? contentScript.observedAt ?? null
     },
     pageControl: pageControl
       ? {
@@ -543,6 +563,36 @@ function hasInstalledExtensionStatusDiagnostics(status, extensionId) {
     )
     && status.diagnostics?.hostPolicy?.defaultMode === "ask"
     && Number.isInteger(status.diagnostics?.hostPolicy?.entryCount);
+}
+
+function hasInstalledExtensionPageControlHealth(health, extensionId) {
+  const protocol = readRecord(health?.protocol);
+  const pageControl = readRecord(health?.pageControl) ?? readRecord(health?.readiness);
+
+  return health
+    && typeof health === "object"
+    && health.type === "skfiy.page_control.health_result"
+    && health.schemaVersion === 1
+    && health.requestId === "chrome-smoke-page-control-health"
+    && protocol?.name === "skfiy.chrome.page-control"
+    && protocol?.extensionId === extensionId
+    && protocol?.nativeHostName === "com.sskift.skfiy"
+    && protocol?.contentScriptFile === "content-script.js"
+    && protocol?.messageTypes?.health === "skfiy.page_control.health"
+    && protocol?.messageTypes?.diagnostics === "skfiy.page.diagnostics"
+    && protocol?.messageTypes?.observe === "skfiy.page.observe"
+    && protocol?.messageTypes?.action === "skfiy.page.action"
+    && protocol?.messageTypes?.screenshot === "skfiy.page.screenshot"
+    && protocol?.permissionModel?.hostPermissions === "optional"
+    && Array.isArray(protocol?.permissionModel?.optionalHostPermissions)
+    && protocol.permissionModel.optionalHostPermissions.includes("http://*/*")
+    && protocol.permissionModel.optionalHostPermissions.includes("https://*/*")
+    && pageControl
+    && pageControl.schemaVersion === 1
+    && typeof pageControl.state === "string"
+    && typeof pageControl.capable === "boolean"
+    && health.diagnostics?.extension?.id === extensionId
+    && health.diagnostics?.nativeHost?.name === "com.sskift.skfiy";
 }
 
 function hasNativeHostBridgeDiagnostics(diagnostics) {

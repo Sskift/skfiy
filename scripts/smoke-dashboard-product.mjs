@@ -49,6 +49,7 @@ async function main() {
     runtimeSnapshotFixture: undefined,
     runtimeSnapshotCoverage: undefined,
     freshInstallRuntimeSnapshot: undefined,
+    missingAfterTurnRuntimeSnapshot: undefined,
     tokenLeakDetected: false,
     result: "not-run"
   };
@@ -93,6 +94,7 @@ async function main() {
       timeoutMs: options.timeoutMs
     });
     evidence.freshInstallRuntimeSnapshot = await collectFreshInstallRuntimeSnapshotEvidence(options);
+    evidence.missingAfterTurnRuntimeSnapshot = await collectMissingAfterTurnRuntimeSnapshotEvidence(options);
     evidence.tokenLeakDetected = hasTokenLeak([
       evidence.cliStdout,
       evidence.cliStderr,
@@ -101,6 +103,7 @@ async function main() {
       JSON.stringify(evidence.eventsResponse),
       JSON.stringify(evidence.chromeHostPolicyApi),
       JSON.stringify(evidence.freshInstallRuntimeSnapshot),
+      JSON.stringify(evidence.missingAfterTurnRuntimeSnapshot),
       evidence.shellResponse?.body ?? ""
     ]);
     evidence.runtimeSnapshotCoverage = createRuntimeSnapshotCoverage(evidence);
@@ -209,6 +212,68 @@ async function collectFreshInstallRuntimeSnapshotEvidence(options) {
   return evidence;
 }
 
+async function collectMissingAfterTurnRuntimeSnapshotEvidence(options) {
+  const isolatedHomeDir = await mkdtemp(path.join(tmpdir(), "skfiy-dashboard-marker-home-"));
+  const runtimeSnapshotPath = createRuntimeSnapshotStatePath(isolatedHomeDir);
+  const markerPath = createRuntimeTurnMarkerStatePath(isolatedHomeDir);
+  const marker = createRuntimeTurnMarkerFixture(new Date().toISOString());
+  const evidence = {
+    productPath: "smoke:dashboard -> isolated HOME marker -> missing runtime-snapshot.json",
+    isolatedHomeDir,
+    runtimeSnapshotPath,
+    markerPath,
+    marker,
+    runtimeSnapshotExistsBeforeLaunch: existsSync(runtimeSnapshotPath),
+    markerExistsBeforeLaunch: undefined,
+    runtimeSnapshotExistsAfterFetch: undefined,
+    cliOutput: undefined,
+    cliStdout: "",
+    cliStderr: "",
+    snapshotResponse: undefined,
+    eventsResponse: undefined,
+    cleanup: undefined,
+    result: "not-run"
+  };
+  let dashboardProcess;
+
+  try {
+    await mkdir(path.dirname(markerPath), { recursive: true });
+    await writeFile(markerPath, `${JSON.stringify(marker, null, 2)}\n`);
+    evidence.markerExistsBeforeLaunch = existsSync(markerPath);
+
+    const launched = await launchDashboardCli(options, {
+      homeDir: isolatedHomeDir
+    });
+    dashboardProcess = launched.child;
+    evidence.pid = dashboardProcess.pid;
+    evidence.cliOutput = launched.cliOutput;
+    evidence.cliStdout = launched.stdout;
+    evidence.cliStderr = launched.stderr;
+    evidence.snapshotResponse = await readJsonResponse(
+      new URL("/snapshot.json", launched.cliOutput.url).toString(),
+      options.timeoutMs
+    );
+    evidence.eventsResponse = await readEventStreamResponse(
+      new URL("/events", launched.cliOutput.url).toString(),
+      options.timeoutMs
+    );
+    evidence.runtimeSnapshotExistsAfterFetch = existsSync(runtimeSnapshotPath);
+    evidence.result = "collected";
+  } catch (error) {
+    evidence.result = "error";
+    evidence.error = error instanceof Error ? error.message : String(error);
+  } finally {
+    if (dashboardProcess) {
+      evidence.cleanup = await terminateDashboardProcess(dashboardProcess);
+    }
+    await rm(isolatedHomeDir, { recursive: true, force: true }).catch((error) => {
+      evidence.isolatedHomeCleanupError = error instanceof Error ? error.message : String(error);
+    });
+  }
+
+  return evidence;
+}
+
 function createRuntimeSnapshotStatePath(homeDir) {
   return path.join(
     homeDir,
@@ -216,6 +281,16 @@ function createRuntimeSnapshotStatePath(homeDir) {
     "Application Support",
     "skfiy",
     "runtime-snapshot.json"
+  );
+}
+
+function createRuntimeTurnMarkerStatePath(homeDir) {
+  return path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "skfiy",
+    "runtime-turn-marker.json"
   );
 }
 
@@ -309,6 +384,19 @@ function createRuntimeSnapshotFixture(observedAt) {
         }
       ],
       source: "runtime-snapshot"
+    }
+  };
+}
+
+function createRuntimeTurnMarkerFixture(observedAt) {
+  return {
+    schemaVersion: 1,
+    observedAt,
+    currentTurn: {
+      state: "executing",
+      command: "dashboard smoke runtime turn marker",
+      latestMessage: "Dashboard smoke runtime turn marker is visible.",
+      source: "runtime-turn-marker"
     }
   };
 }

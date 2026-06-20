@@ -89,6 +89,7 @@ import {
 } from "./window-position.js";
 import {
   writeRuntimeSnapshot,
+  writeRuntimeTurnMarker,
   type RuntimeSnapshotCurrentTurnInput
 } from "./runtime-snapshot.js";
 
@@ -166,11 +167,22 @@ function persistRuntimeSnapshot(
   replay: TurnReplay | null,
   currentTurn?: RuntimeSnapshotCurrentTurnInput
 ): void {
-  void writeRuntimeSnapshot({
-    homeDir: os.homedir(),
-    replay,
-    currentTurn
-  }).catch(() => {
+  const homeDir = os.homedir();
+
+  void (async () => {
+    await writeRuntimeSnapshot({
+      homeDir,
+      replay,
+      currentTurn
+    });
+
+    if (currentTurn) {
+      await writeRuntimeTurnMarker({
+        homeDir,
+        currentTurn
+      });
+    }
+  })().catch(() => {
     // Dashboard runtime evidence is best-effort and must not block Computer Use turns.
   });
 }

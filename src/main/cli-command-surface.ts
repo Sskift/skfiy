@@ -35,7 +35,9 @@ import {
   createChromeReadinessSetupGuide
 } from "./chrome-readiness.js";
 import {
-  createRuntimeSnapshotStatePath
+  createRuntimeSnapshotStatePath,
+  createRuntimeTurnMarkerStatePath,
+  RUNTIME_TURN_MARKER_SCHEMA_VERSION
 } from "./runtime-snapshot.js";
 import {
   SKFIY_MCP_TOOL_NAMES,
@@ -92,6 +94,8 @@ const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
   voice: "scripts/smoke-voice-product.mjs",
   "money-run": "scripts/smoke-money-run-supervision.mjs"
 };
+const RUNTIME_EVIDENCE_RECENT_SECONDS = 300;
+const RUNTIME_EVIDENCE_SKEW_SECONDS = 5;
 
 const SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX =
   "x-apple.systempreferences:com.apple.preference.security?";
@@ -2398,7 +2402,45 @@ function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string): Reco
   }
 
   const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
+  const turnMarker = readRuntimeTurnMarkerEvidence(homeDir, generatedAt);
   if (!existsSync(snapshotPath)) {
+    const markerState = readString(turnMarker?.state);
+    if (markerState === "recent" || markerState === "stale") {
+      const state = markerState === "recent" ? "missing-after-turn" : "stale-after-turn";
+      const emptyReasonCode = state === "missing-after-turn"
+        ? "runtime-snapshot-missing-after-turn"
+        : "runtime-snapshot-stale-after-turn";
+      const reason = markerState === "recent"
+        ? "Runtime snapshot is missing even though a recent runtime turn marker exists."
+        : "Runtime snapshot is missing and the last runtime turn marker is stale.";
+      const currentTurn = readRecord(turnMarker?.currentTurn);
+
+      return compactRecord({
+        state,
+        path: snapshotPath,
+        marker: turnMarker,
+        markerPath: readString(turnMarker?.path),
+        markerObservedAt: readString(turnMarker?.observedAt),
+        markerAgeSeconds: readNumber(turnMarker?.ageSeconds),
+        emptyReasonCode,
+        reason,
+        currentTurn: {
+          ...(currentTurn ?? {
+            state: "unknown",
+            source: "runtime-turn-marker"
+          }),
+          emptyReasonCode,
+          reason
+        },
+        replay: {
+          state: "empty",
+          source: "runtime-snapshot",
+          emptyReasonCode,
+          reason
+        }
+      });
+    }
+
     return {
       state: "missing",
       path: snapshotPath,
@@ -2437,11 +2479,24 @@ function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string): Reco
       };
     }
 
+    const observedAt = readString(parsed.observedAt);
+    const ageSeconds = readObservedAgeSeconds(observedAt, generatedAt);
+    const staleByAge = ageSeconds !== undefined && ageSeconds > RUNTIME_EVIDENCE_RECENT_SECONDS;
+    const staleByMarker = isRuntimeMarkerNewerThanSnapshot(turnMarker, observedAt);
+    const state = staleByAge || staleByMarker ? "stale-after-turn" : "available";
+
     return compactRecord({
-      state: "available",
+      state,
       path: snapshotPath,
-      observedAt: readString(parsed.observedAt),
-      ageSeconds: readObservedAgeSeconds(readString(parsed.observedAt), generatedAt),
+      observedAt,
+      ageSeconds,
+      marker: turnMarker,
+      markerPath: readString(turnMarker?.path),
+      markerObservedAt: readString(turnMarker?.observedAt),
+      markerAgeSeconds: readNumber(turnMarker?.ageSeconds),
+      reason: state === "stale-after-turn"
+        ? "Runtime snapshot is older than the latest runtime turn evidence."
+        : undefined,
       currentTurn: summarizeRuntimeCurrentTurn(currentTurn),
       replay: summarizeRuntimeReplay(replay)
     });
@@ -2456,6 +2511,96 @@ function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string): Reco
       reason: readErrorMessage(error)
     };
   }
+}
+
+function readRuntimeTurnMarkerEvidence(
+  homeDir: string,
+  generatedAt: string
+): Record<string, unknown> | undefined {
+  const markerPath = createRuntimeTurnMarkerStatePath(homeDir);
+  if (!existsSync(markerPath)) {
+    return undefined;
+  }
+
+  try {
+    const parsed = readRecord(JSON.parse(readFileSync(markerPath, "utf8")));
+    if (!parsed) {
+      return {
+        state: "invalid",
+        path: markerPath,
+        reason: "Runtime turn marker is not a JSON object."
+      };
+    }
+    if (parsed.schemaVersion !== RUNTIME_TURN_MARKER_SCHEMA_VERSION) {
+      return {
+        state: "invalid",
+        path: markerPath,
+        reason: "Runtime turn marker is not a valid skfiy marker."
+      };
+    }
+
+    const stat = statSync(markerPath);
+    const observedAt =
+      readString(parsed.observedAt)
+      ?? readString(parsed.updatedAt)
+      ?? readString(parsed.lastTurnAt);
+    const ageSeconds =
+      readObservedAgeSeconds(observedAt, generatedAt)
+      ?? readArtifactAgeSeconds(stat.mtimeMs, generatedAt);
+    const currentTurn = summarizeRuntimeTurnMarkerCurrentTurn(parsed);
+    const recent = ageSeconds !== undefined && ageSeconds <= RUNTIME_EVIDENCE_RECENT_SECONDS;
+
+    return compactRecord({
+      state: recent ? "recent" : "stale",
+      path: markerPath,
+      observedAt,
+      mtimeMs: stat.mtimeMs,
+      ageSeconds,
+      recent,
+      currentTurn
+    });
+  } catch (error) {
+    return {
+      state: "invalid",
+      path: markerPath,
+      reason: readErrorMessage(error)
+    };
+  }
+}
+
+function summarizeRuntimeTurnMarkerCurrentTurn(marker: Record<string, unknown>): Record<string, unknown> {
+  const nestedTurn =
+    readRecord(marker.currentTurn)
+    ?? readRecord(marker.turn)
+    ?? readRecord(marker.event)
+    ?? marker;
+  const state = readString(nestedTurn.state) ?? readString(nestedTurn.status) ?? "unknown";
+  const latestMessage = readString(nestedTurn.latestMessage) ?? readString(nestedTurn.message);
+
+  return summarizeRuntimeCurrentTurn({
+    ...nestedTurn,
+    state,
+    source: "runtime-turn-marker",
+    ...(latestMessage ? { latestMessage } : {})
+  });
+}
+
+function isRuntimeMarkerNewerThanSnapshot(
+  marker: Record<string, unknown> | undefined,
+  snapshotObservedAt: string | undefined
+): boolean {
+  const markerObservedAt = readString(marker?.observedAt);
+  if (readString(marker?.state) !== "recent" || !markerObservedAt || !snapshotObservedAt) {
+    return false;
+  }
+
+  const markerMs = Date.parse(markerObservedAt);
+  const snapshotMs = Date.parse(snapshotObservedAt);
+  if (!Number.isFinite(markerMs) || !Number.isFinite(snapshotMs)) {
+    return false;
+  }
+
+  return markerMs - snapshotMs > RUNTIME_EVIDENCE_SKEW_SECONDS * 1000;
 }
 
 function summarizeRuntimeCurrentTurn(currentTurn: Record<string, unknown>): Record<string, unknown> {
@@ -2676,10 +2821,13 @@ function formatPageControlText(pageControl: Record<string, unknown> | undefined)
 
 function formatRuntimeSnapshotText(runtimeSnapshot: Record<string, unknown> | undefined): string {
   const ageSeconds = readNumber(runtimeSnapshot?.ageSeconds);
+  const markerAgeSeconds = readNumber(runtimeSnapshot?.markerAgeSeconds);
   const parts = [
     readString(runtimeSnapshot?.state) ?? "unknown",
     ageSeconds !== undefined ? `age=${ageSeconds}s` : undefined,
-    readString(runtimeSnapshot?.path) ? `path=${readString(runtimeSnapshot?.path)}` : undefined
+    markerAgeSeconds !== undefined ? `marker-age=${markerAgeSeconds}s` : undefined,
+    readString(runtimeSnapshot?.path) ? `path=${readString(runtimeSnapshot?.path)}` : undefined,
+    readString(runtimeSnapshot?.markerPath) ? `marker=${readString(runtimeSnapshot?.markerPath)}` : undefined
   ].filter(Boolean);
 
   return parts.join(" ");

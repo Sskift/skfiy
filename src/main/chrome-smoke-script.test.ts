@@ -347,11 +347,16 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("Chrome for Testing");
     expect(source).toContain("chrome-smoke-installed-extension");
     expect(source).toContain("extensionStatus");
+    expect(source).toContain("pageControlHealth");
     expect(source).toContain("chrome-smoke-extension-status");
+    expect(source).toContain("chrome-smoke-page-control-health");
     expect(source).toContain("skfiy.host_policy.sync_refresh");
+    expect(source).toContain("skfiy.page_control.health");
     expect(source).toContain("skfiyChromeAdapterDiagnostics");
+    expect(source).toContain("createInstalledExtensionPageControlHealthExpression");
     expect(source).toContain("createChromeSmokePageControlEvidence");
     expect(source).toContain("extensionStatus.pageControl");
+    expect(source).toContain("installedExtensionRun.pageControlHealth.pageControl");
     expect(source).toContain("chrome-extension-page-control");
     expect(source).toContain("heartbeatReadError");
     expect(source).toContain("readinessSnapshot");
@@ -378,6 +383,7 @@ describe("Chrome product smoke script", () => {
       extensionId: passing.extensionId,
       launchOrigin: passing.launchOrigin,
       extensionStatus: passing.extensionStatus,
+      pageControlHealth: passing.pageControlHealth,
       response: passing.response,
       heartbeat: passing.heartbeat
     })).toMatchObject({
@@ -404,6 +410,12 @@ describe("Chrome product smoke script", () => {
         nativeMessage: "accepted",
         statusSync: "synced",
         heartbeat: "recorded"
+      },
+      protocol: {
+        name: "skfiy.chrome.page-control",
+        health: true,
+        contentScriptFile: "content-script.js",
+        hostPermissions: "optional"
       },
       contentScript: {
         state: "loaded"
@@ -896,6 +908,7 @@ function createPassingInstalledExtensionRun(productPath: string) {
         }
       }
     },
+    pageControlHealth: createPassingPageControlHealth(),
     heartbeat: {
       schemaVersion: 1,
       hostName: "com.sskift.skfiy",
@@ -904,6 +917,49 @@ function createPassingInstalledExtensionRun(productPath: string) {
       requestId: "chrome-smoke-installed-extension"
     },
     heartbeatPath: "/tmp/skfiy-extension-home/Library/Application Support/skfiy/chrome-extension-connection.json"
+  };
+}
+
+function createPassingPageControlHealth() {
+  return {
+    type: "skfiy.page_control.health_result",
+    schemaVersion: 1,
+    requestId: "chrome-smoke-page-control-health",
+    protocol: {
+      schemaVersion: 1,
+      name: "skfiy.chrome.page-control",
+      extensionId: "abcdefghijklmnopabcdefghijklmnop",
+      nativeHostName: "com.sskift.skfiy",
+      contentScriptFile: "content-script.js",
+      messageTypes: {
+        health: "skfiy.page_control.health",
+        healthResult: "skfiy.page_control.health_result",
+        diagnostics: "skfiy.page.diagnostics",
+        observe: "skfiy.page.observe",
+        action: "skfiy.page.action",
+        screenshot: "skfiy.page.screenshot"
+      },
+      permissionModel: {
+        requiredPermissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
+        hostPermissions: "optional",
+        optionalHostPermissions: ["http://*/*", "https://*/*"]
+      }
+    },
+    pageControl: createPassingPageControlEvidence(),
+    readiness: createPassingPageControlEvidence(),
+    blockers: [],
+    diagnostics: {
+      extension: {
+        id: "abcdefghijklmnopabcdefghijklmnop"
+      },
+      nativeHost: {
+        name: "com.sskift.skfiy"
+      },
+      session: {
+        state: "loaded",
+        pageControl: createPassingPageControlEvidence()
+      }
+    }
   };
 }
 

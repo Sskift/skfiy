@@ -24,10 +24,13 @@ import {
 import {
   createRuntimeSnapshotFromReplay,
   createRuntimeSnapshotStatePath,
-  RUNTIME_SNAPSHOT_SCHEMA_VERSION
+  createRuntimeTurnMarkerStatePath,
+  RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+  RUNTIME_TURN_MARKER_SCHEMA_VERSION
 } from "./runtime-snapshot.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
+const RECENT_RUNTIME_TURN_MARKER_SECONDS = 300;
 const REQUIRED_DOGFOOD_WORKFLOWS = [
   "coding-terminal",
   "screenshot-inspection",
@@ -48,6 +51,12 @@ const SYNTHETIC_TESTER_ID_PREFIXES = [
 ];
 const RUNTIME_SNAPSHOT_MISSING_REASON = "Runtime snapshot has not been recorded yet.";
 const RUNTIME_SNAPSHOT_MISSING_EMPTY_REASON_CODE = "runtime-snapshot-missing";
+const RUNTIME_SNAPSHOT_MISSING_AFTER_TURN_REASON =
+  "Runtime snapshot is missing after a recent app turn was observed.";
+const RUNTIME_SNAPSHOT_MISSING_AFTER_STALE_TURN_REASON =
+  "Runtime snapshot is missing after an older app turn marker was observed.";
+const RUNTIME_SNAPSHOT_STALE_AFTER_TURN_REASON =
+  "Runtime snapshot is older than a recent app turn marker.";
 
 type DashboardChromeHostPolicySource =
   | "default-policy"
@@ -654,6 +663,34 @@ function createDashboardAlerts({
     });
   }
 
+  if (
+    runtimeSnapshot?.state === "missing-after-turn"
+    || runtimeSnapshot?.state === "stale-after-turn"
+  ) {
+    const runtimeSnapshotState = runtimeSnapshot.state;
+    alerts.push({
+      code: runtimeSnapshotState === "stale-after-turn"
+        ? "runtime-snapshot-stale-after-turn"
+        : "runtime-snapshot-missing-after-turn",
+      severity: "warning",
+      message: runtimeSnapshotState === "stale-after-turn"
+        ? "Runtime snapshot is older than a recent runtime turn marker."
+        : "Runtime snapshot is missing even though app turn evidence exists.",
+      ...(typeof runtimeSnapshot.path === "string" ? { path: runtimeSnapshot.path } : {}),
+      ...(typeof runtimeSnapshot.markerPath === "string" ? { markerPath: runtimeSnapshot.markerPath } : {}),
+      ...(typeof runtimeSnapshot.markerObservedAt === "string"
+        ? { markerObservedAt: runtimeSnapshot.markerObservedAt }
+        : {}),
+      ...(typeof runtimeSnapshot.markerState === "string" ? { markerState: runtimeSnapshot.markerState } : {}),
+      ...(Number.isFinite(runtimeSnapshot.markerAgeSeconds)
+        ? { markerAgeSeconds: runtimeSnapshot.markerAgeSeconds }
+        : {}),
+      ...(Number.isFinite(runtimeSnapshot.snapshotAgeSeconds)
+        ? { snapshotAgeSeconds: runtimeSnapshot.snapshotAgeSeconds }
+        : {})
+    });
+  }
+
   if (runtimeSnapshot?.state === "repair-failed") {
     alerts.push({
       code: "runtime-snapshot-repair-failed",
@@ -852,7 +889,50 @@ function readWorkspaceRuntimeSnapshot(
   }
 
   const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
+  const markerPath = createRuntimeTurnMarkerStatePath(homeDir);
+  const marker = readRuntimeTurnMarkerEvidence(io, markerPath, observedAt);
   if (!io.exists(snapshotPath)) {
+    if (marker) {
+      const markerState = marker.state === "stale" ? "stale-after-turn" : "missing-after-turn";
+      const emptyReasonCode = markerState === "stale-after-turn"
+        ? "runtime-snapshot-stale-after-turn"
+        : "runtime-snapshot-missing-after-turn";
+      const reason = markerState === "stale-after-turn"
+        ? RUNTIME_SNAPSHOT_MISSING_AFTER_STALE_TURN_REASON
+        : RUNTIME_SNAPSHOT_MISSING_AFTER_TURN_REASON;
+      const markerMetadata = {
+        emptyReasonCode,
+        freshInstall: false,
+        markerPath,
+        markerObservedAt: marker.observedAt,
+        markerState: marker.state,
+        ...(typeof marker.ageSeconds === "number" ? { markerAgeSeconds: marker.ageSeconds } : {})
+      };
+
+      return {
+        currentTurn: {
+          state: typeof marker.currentTurn.state === "string" ? marker.currentTurn.state : "idle",
+          ...marker.currentTurn,
+          reason,
+          ...markerMetadata,
+          path: snapshotPath
+        },
+        replay: {
+          state: "empty",
+          source: "runtime-snapshot",
+          reason,
+          ...markerMetadata,
+          path: snapshotPath
+        },
+        status: {
+          state: markerState,
+          path: snapshotPath,
+          reason,
+          ...markerMetadata
+        }
+      };
+    }
+
     const reason = RUNTIME_SNAPSHOT_MISSING_REASON;
     const missingMetadata = {
       emptyReasonCode: RUNTIME_SNAPSHOT_MISSING_EMPTY_REASON_CODE,
@@ -909,6 +989,43 @@ function readWorkspaceRuntimeSnapshot(
       });
     }
 
+    if (marker?.state === "recent" && isRuntimeSnapshotOlderThanMarker(snapshotObservedAt, marker.observedAt)) {
+      const snapshotAgeSeconds = readObservedAgeSeconds(snapshotObservedAt, observedAt);
+      const markerMetadata = {
+        freshInstall: false,
+        stale: true,
+        markerPath,
+        markerObservedAt: marker.observedAt,
+        markerState: marker.state,
+        ...(typeof marker.ageSeconds === "number" ? { markerAgeSeconds: marker.ageSeconds } : {}),
+        ...(typeof snapshotAgeSeconds === "number" ? { snapshotAgeSeconds } : {})
+      };
+
+      return {
+        currentTurn: {
+          ...currentTurn,
+          reason: typeof currentTurn.reason === "string"
+            ? currentTurn.reason
+            : RUNTIME_SNAPSHOT_STALE_AFTER_TURN_REASON,
+          ...markerMetadata
+        },
+        replay: {
+          ...replay,
+          reason: typeof replay.reason === "string"
+            ? replay.reason
+            : RUNTIME_SNAPSHOT_STALE_AFTER_TURN_REASON,
+          ...markerMetadata
+        },
+        status: {
+          state: "stale-after-turn",
+          path: snapshotPath,
+          observedAt: snapshotObservedAt,
+          reason: RUNTIME_SNAPSHOT_STALE_AFTER_TURN_REASON,
+          ...markerMetadata
+        }
+      };
+    }
+
     return {
       currentTurn: { ...currentTurn },
       replay: { ...replay },
@@ -927,6 +1044,103 @@ function readWorkspaceRuntimeSnapshot(
       reason: error instanceof Error ? error.message : String(error)
     });
   }
+}
+
+function readRuntimeTurnMarkerEvidence(
+  io: DashboardWorkspaceIo,
+  markerPath: string,
+  generatedAt: string
+): {
+  state: "recent" | "stale";
+  observedAt: string;
+  ageSeconds?: number;
+  currentTurn: Record<string, unknown>;
+} | undefined {
+  if (!io.exists(markerPath)) {
+    return undefined;
+  }
+
+  try {
+    const parsed = readRecord(JSON.parse(io.readFile(markerPath)));
+    const currentTurn = readRecord(parsed?.currentTurn);
+    const observedAt = typeof parsed?.observedAt === "string" ? parsed.observedAt : undefined;
+
+    if (
+      parsed?.schemaVersion !== RUNTIME_TURN_MARKER_SCHEMA_VERSION
+      || !observedAt
+      || !currentTurn
+    ) {
+      return undefined;
+    }
+
+    const ageSeconds = readObservedAgeSeconds(observedAt, generatedAt);
+    return {
+      state: ageSeconds !== undefined && ageSeconds <= RECENT_RUNTIME_TURN_MARKER_SECONDS
+        ? "recent"
+        : "stale",
+      observedAt,
+      ...(ageSeconds !== undefined ? { ageSeconds } : {}),
+      currentTurn: summarizeRuntimeTurnMarkerCurrentTurn(currentTurn)
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function summarizeRuntimeTurnMarkerCurrentTurn(
+  currentTurn: Record<string, unknown>
+): Record<string, unknown> {
+  const state = readSanitizedString(currentTurn.state)
+    ?? readSanitizedString(currentTurn.status)
+    ?? "unknown";
+  const command = readSanitizedString(currentTurn.command);
+  const targetApp = readSanitizedString(currentTurn.targetApp);
+  const latestMessage = readSanitizedString(currentTurn.latestMessage)
+    ?? readSanitizedString(currentTurn.message);
+
+  return {
+    state,
+    source: "runtime-turn-marker",
+    ...(command ? { command } : {}),
+    ...(targetApp ? { targetApp } : {}),
+    ...(typeof currentTurn.targetBundleId === "string"
+      ? { targetBundleId: currentTurn.targetBundleId }
+      : {}),
+    ...(typeof currentTurn.risk === "string" ? { risk: currentTurn.risk } : {}),
+    ...(typeof currentTurn.approvalRequired === "boolean"
+      ? { approvalRequired: currentTurn.approvalRequired }
+      : {}),
+    ...(typeof currentTurn.approvalState === "string"
+      ? { approvalState: currentTurn.approvalState }
+      : {}),
+    ...(typeof currentTurn.stopState === "string" ? { stopState: currentTurn.stopState } : {}),
+    ...(typeof currentTurn.updateSource === "string"
+      ? { updateSource: currentTurn.updateSource }
+      : {}),
+    ...(latestMessage ? { latestMessage } : {})
+  };
+}
+
+function readSanitizedString(value: unknown): string | undefined {
+  return typeof value === "string" ? sanitizeRuntimeEvidenceString(value) : undefined;
+}
+
+function sanitizeRuntimeEvidenceString(value: string): string {
+  return value
+    .replace(
+      /\b(?:token|access_token|refresh_token|id_token|api_key|authorization|cookie)=([^&\s"']+)/gi,
+      "redacted=[redacted]"
+    )
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]");
+}
+
+function isRuntimeSnapshotOlderThanMarker(snapshotObservedAt: string, markerObservedAt: string): boolean {
+  const snapshotObservedAtMs = Date.parse(snapshotObservedAt);
+  const markerObservedAtMs = Date.parse(markerObservedAt);
+
+  return Number.isFinite(snapshotObservedAtMs)
+    && Number.isFinite(markerObservedAtMs)
+    && markerObservedAtMs > snapshotObservedAtMs;
 }
 
 function repairRuntimeSnapshot({
@@ -1045,6 +1259,15 @@ function createMissingRuntimePanels(
       ...(recovery ? { recovery } : {})
     }
   };
+}
+
+function readObservedAgeSeconds(observedAt: string, generatedAt: string): number | undefined {
+  const observedAtMs = Date.parse(observedAt);
+  const generatedAtMs = Date.parse(generatedAt);
+
+  return Number.isFinite(observedAtMs) && Number.isFinite(generatedAtMs)
+    ? Math.max(0, Math.floor((generatedAtMs - observedAtMs) / 1000))
+    : undefined;
 }
 
 function readWorkspaceLongHorizon(io: DashboardWorkspaceIo): Record<string, unknown> {

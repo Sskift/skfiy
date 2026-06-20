@@ -6,6 +6,7 @@ const HOST_POLICY_STORAGE_KEY = "skfiyHostPolicy";
 const HOST_POLICY_SYNC_STORAGE_KEY = "skfiyHostPolicySync";
 const HOST_POLICY_SYNC_STATUS = "skfiy.host_policy.sync_status";
 const HOST_POLICY_SYNC_REFRESH = "skfiy.host_policy.sync_refresh";
+const PAGE_CONTROL_HEALTH = "skfiy.page_control.health";
 
 function createEvent() {
   const listeners = [];
@@ -563,6 +564,96 @@ describe("Chrome extension background policy sync", () => {
       type: "skfiy.page.diagnostics",
       schemaVersion: 1
     }));
+  });
+
+  it("returns a read-only page-control health protocol for smoke and operator probes", async () => {
+    const pageControl = {
+      schemaVersion: 1,
+      capable: true,
+      state: "ready",
+      reason: "Content script loaded and DOM controls are available.",
+      nextAction: "send_page_action",
+      capabilities: {
+        diagnostics: true,
+        observe: true,
+        domActions: true,
+        click: true,
+        fill: true,
+        scroll: true,
+        screenshot: "background_required"
+      },
+      blockers: []
+    };
+    const mock = createChromeMock([], {
+      activeTab: {
+        id: 45,
+        windowId: 10,
+        url: "https://allowed.example/dashboard"
+      },
+      grantedOrigins: ["https://allowed.example/*"],
+      contentScriptSession: {
+        state: "loaded",
+        url: "https://allowed.example/dashboard",
+        host: "allowed.example",
+        title: "Dashboard",
+        pageControl,
+        observedAt: "2026-06-20T10:08:00.000Z"
+      }
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["allowed.example"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    mock.chrome.runtime.onMessage.listeners[0]({
+      type: PAGE_CONTROL_HEALTH,
+      requestId: "health-smoke"
+    }, {}, sendResponse);
+
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        type: "skfiy.page_control.health_result",
+        schemaVersion: 1,
+        requestId: "health-smoke",
+        protocol: expect.objectContaining({
+          name: "skfiy.chrome.page-control",
+          nativeHostName: "com.sskift.skfiy",
+          contentScriptFile: "content-script.js",
+          messageTypes: expect.objectContaining({
+            health: "skfiy.page_control.health",
+            diagnostics: "skfiy.page.diagnostics",
+            observe: "skfiy.page.observe",
+            action: "skfiy.page.action",
+            screenshot: "skfiy.page.screenshot"
+          }),
+          permissionModel: expect.objectContaining({
+            hostPermissions: "optional",
+            optionalHostPermissions: ["http://*/*", "https://*/*"]
+          })
+        }),
+        pageControl: expect.objectContaining({
+          state: "ready",
+          capable: true
+        }),
+        blockers: [],
+        diagnostics: expect.objectContaining({
+          session: expect.objectContaining({
+            state: "loaded",
+            pageControl: expect.objectContaining({
+              state: "ready"
+            })
+          })
+        })
+      }));
+    });
+
+    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
+    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
   });
 
   it("reports missing content script readiness without injecting during status reads", async () => {

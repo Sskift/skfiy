@@ -108,6 +108,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || runtimeSnapshotCoverage.result !== "passed"
     || !hasRuntimeSnapshotCoverageEvidence(evidence.runtimeSnapshotCoverage, runtimeSnapshotCoverage)
     || !hasFreshInstallRuntimeSnapshotEvidence(evidence.freshInstallRuntimeSnapshot)
+    || !hasMissingAfterTurnRuntimeSnapshotEvidence(evidence.missingAfterTurnRuntimeSnapshot)
     || !hasOperatorReadinessEvidence(snapshot?.operatorReadiness)
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
@@ -550,6 +551,56 @@ function hasFreshInstallRuntimeSnapshotEvidence(freshInstall) {
     && freshInstall?.cleanup?.exited === true;
 }
 
+function hasMissingAfterTurnRuntimeSnapshotEvidence(missingAfterTurn) {
+  const snapshot = missingAfterTurn?.snapshotResponse?.body;
+  const runtimeSnapshot = snapshot?.runtimeHealth?.runtimeSnapshot;
+  const currentTurn = snapshot?.currentTurn;
+  const replay = snapshot?.replay;
+  const pathValue = runtimeSnapshot?.path;
+  const markerPath = runtimeSnapshot?.markerPath;
+  const marker = missingAfterTurn?.marker;
+  const matchingAlert = Array.isArray(snapshot?.alerts)
+    ? snapshot.alerts.find((alert) =>
+      alert?.code === "runtime-snapshot-missing-after-turn"
+      && alert?.severity === "warning"
+      && alert?.path === pathValue
+      && alert?.markerPath === markerPath
+    )
+    : undefined;
+
+  return missingAfterTurn?.productPath === "smoke:dashboard -> isolated HOME marker -> missing runtime-snapshot.json"
+    && missingAfterTurn?.runtimeSnapshotExistsBeforeLaunch === false
+    && missingAfterTurn?.markerExistsBeforeLaunch === true
+    && missingAfterTurn?.runtimeSnapshotExistsAfterFetch === false
+    && missingAfterTurn?.snapshotResponse?.status === 200
+    && missingAfterTurn?.cliOutput?.command === "dashboard"
+    && missingAfterTurn?.cliOutput?.result === "running"
+    && hasDashboardEventsEvidence(missingAfterTurn?.eventsResponse)
+    && runtimeSnapshot?.state === "missing-after-turn"
+    && runtimeSnapshot?.freshInstall === false
+    && runtimeSnapshot?.emptyReasonCode === "runtime-snapshot-missing-after-turn"
+    && runtimeSnapshot?.reason === "Runtime snapshot is missing after a recent app turn was observed."
+    && isRuntimeSnapshotPath(pathValue)
+    && isRuntimeTurnMarkerPath(markerPath)
+    && markerPath === missingAfterTurn?.markerPath
+    && runtimeSnapshot?.markerObservedAt === marker?.observedAt
+    && runtimeSnapshot?.markerState === "recent"
+    && Number.isFinite(runtimeSnapshot?.markerAgeSeconds)
+    && currentTurn?.state === marker?.currentTurn?.state
+    && currentTurn?.command === marker?.currentTurn?.command
+    && currentTurn?.source === "runtime-turn-marker"
+    && currentTurn?.freshInstall === false
+    && currentTurn?.path === pathValue
+    && currentTurn?.markerPath === markerPath
+    && replay?.state === "empty"
+    && replay?.source === "runtime-snapshot"
+    && replay?.freshInstall === false
+    && replay?.path === pathValue
+    && replay?.markerPath === markerPath
+    && Boolean(matchingAlert)
+    && missingAfterTurn?.cleanup?.exited === true;
+}
+
 function hasAvailableRuntimePanelEvidence(currentTurn, replay) {
   return typeof currentTurn?.state === "string"
     && currentTurn.state !== "idle"
@@ -634,6 +685,11 @@ function createRuntimeSnapshotCoverageResult(result, { fixture, reason, failures
 function isRuntimeSnapshotPath(value) {
   return typeof value === "string"
     && value.includes("Application Support/skfiy/runtime-snapshot.json");
+}
+
+function isRuntimeTurnMarkerPath(value) {
+  return typeof value === "string"
+    && value.includes("Application Support/skfiy/runtime-turn-marker.json");
 }
 
 function isRuntimeSnapshotIsolationPath(value) {

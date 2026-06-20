@@ -20,7 +20,8 @@ import {
   runSkfiyCli
 } from "./cli-command-surface";
 import {
-  createRuntimeSnapshotStatePath
+  createRuntimeSnapshotStatePath,
+  createRuntimeTurnMarkerStatePath
 } from "./runtime-snapshot";
 
 function expectJsonSafe(value: unknown): void {
@@ -1340,6 +1341,233 @@ describe("CLI command surface", () => {
       expect(textOutput).toContain(
         'current-turn: observing stop=available source=live-task-event command="take screenshot" message="Capturing the desktop."'
       );
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("distinguishes a missing runtime snapshot after a recent app turn from a clean first run", async () => {
+    const homeDir = createTempRoot();
+    const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
+    const markerPath = createRuntimeTurnMarkerStatePath(homeDir);
+    const stderr: string[] = [];
+    const statusReader = async () => ({
+      app: { state: "installed", path: "/repo/dist/skfiy.app" },
+      cli: { state: "installed", path: "/repo/dist/skfiy" },
+      helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        microphone: "granted",
+        speechRecognition: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: { state: "controllable", controllable: true },
+      extension: { state: "unknown" },
+      nativeHost: { state: "unknown", extensionIds: [], cliShimPath: "/repo/dist/skfiy" },
+      dashboard: { state: "not-running" },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    try {
+      const cleanStdout: string[] = [];
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: "2026-06-20T00:00:40.000Z",
+        statusReader,
+        stdout: { write: (chunk: string) => cleanStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+      expect(JSON.parse(cleanStdout.join("")).runtimeSnapshot).toMatchObject({
+        state: "missing",
+        path: snapshotPath,
+        freshInstall: true,
+        emptyReasonCode: "runtime-snapshot-missing"
+      });
+
+      mkdirSync(path.dirname(markerPath), { recursive: true });
+      writeFileSync(markerPath, `${JSON.stringify({
+        schemaVersion: 1,
+        observedAt: "2026-06-20T00:00:35.000Z",
+        currentTurn: {
+          state: "observing",
+          command: "capture screen token=marker-secret",
+          targetApp: "Finder",
+          latestMessage: "Watching the desktop.",
+          updateSource: "live-task-event"
+        }
+      }, null, 2)}\n`);
+
+      const jsonStdout: string[] = [];
+      const textStdout: string[] = [];
+
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: "2026-06-20T00:00:40.000Z",
+        statusReader,
+        stdout: { write: (chunk: string) => jsonStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+      await expect(runSkfiyCli({
+        argv: ["status"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: "2026-06-20T00:00:40.000Z",
+        statusReader,
+        stdout: { write: (chunk: string) => textStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const output = JSON.parse(jsonStdout.join(""));
+
+      expect(existsSync(snapshotPath)).toBe(false);
+      expect(output.runtimeSnapshot).toMatchObject({
+        state: "missing-after-turn",
+        path: snapshotPath,
+        markerPath,
+        markerObservedAt: "2026-06-20T00:00:35.000Z",
+        markerAgeSeconds: 5,
+        emptyReasonCode: "runtime-snapshot-missing-after-turn",
+        marker: {
+          state: "recent",
+          path: markerPath,
+          ageSeconds: 5,
+          currentTurn: {
+            state: "observing",
+            source: "runtime-turn-marker",
+            command: "capture screen redacted=[redacted]",
+            targetApp: "Finder",
+            latestMessage: "Watching the desktop.",
+            updateSource: "live-task-event"
+          }
+        },
+        currentTurn: {
+          state: "observing",
+          source: "runtime-turn-marker",
+          command: "capture screen redacted=[redacted]",
+          targetApp: "Finder",
+          latestMessage: "Watching the desktop.",
+          updateSource: "live-task-event",
+          emptyReasonCode: "runtime-snapshot-missing-after-turn"
+        },
+        replay: {
+          state: "empty",
+          source: "runtime-snapshot",
+          emptyReasonCode: "runtime-snapshot-missing-after-turn"
+        }
+      });
+      expect(output.runtimeSnapshot.freshInstall).toBeUndefined();
+      expect(output.evidence.currentTurn).toMatchObject({
+        state: "observing",
+        source: "runtime-turn-marker",
+        command: "capture screen redacted=[redacted]"
+      });
+      expect(textStdout.join("")).toContain(`runtime-snapshot: missing-after-turn marker-age=5s path=${snapshotPath} marker=${markerPath}`);
+      expect(textStdout.join("")).toContain("current-turn: observing target=Finder source=live-task-event command=\"capture screen redacted=[redacted]\"");
+      expect(`${jsonStdout.join("")}\n${textStdout.join("")}`).not.toContain("marker-secret");
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports stale-after-turn when the runtime turn marker is no longer recent", async () => {
+    const homeDir = createTempRoot();
+    const markerPath = createRuntimeTurnMarkerStatePath(homeDir);
+    const statusReader = async () => ({
+      app: { state: "installed", path: "/repo/dist/skfiy.app" },
+      cli: { state: "installed", path: "/repo/dist/skfiy" },
+      helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        microphone: "granted",
+        speechRecognition: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: { state: "controllable", controllable: true },
+      extension: { state: "unknown" },
+      nativeHost: { state: "unknown", extensionIds: [], cliShimPath: "/repo/dist/skfiy" },
+      dashboard: { state: "not-running" },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    try {
+      mkdirSync(path.dirname(markerPath), { recursive: true });
+      writeFileSync(markerPath, `${JSON.stringify({
+        schemaVersion: 1,
+        observedAt: "2026-06-20T00:00:00.000Z",
+        currentTurn: {
+          state: "completed",
+          command: "open Chrome",
+          latestMessage: "Done."
+        }
+      }, null, 2)}\n`);
+
+      const jsonStdout: string[] = [];
+      const textStdout: string[] = [];
+      const stderr: string[] = [];
+
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: "2026-06-20T00:10:00.000Z",
+        statusReader,
+        stdout: { write: (chunk: string) => jsonStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+      await expect(runSkfiyCli({
+        argv: ["status"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: "2026-06-20T00:10:00.000Z",
+        statusReader,
+        stdout: { write: (chunk: string) => textStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const output = JSON.parse(jsonStdout.join(""));
+
+      expect(output.runtimeSnapshot).toMatchObject({
+        state: "stale-after-turn",
+        markerPath,
+        markerAgeSeconds: 600,
+        emptyReasonCode: "runtime-snapshot-stale-after-turn",
+        marker: {
+          state: "stale",
+          ageSeconds: 600,
+          currentTurn: {
+            state: "completed",
+            source: "runtime-turn-marker",
+            command: "open Chrome",
+            latestMessage: "Done."
+          }
+        },
+        currentTurn: {
+          state: "completed",
+          source: "runtime-turn-marker",
+          command: "open Chrome",
+          emptyReasonCode: "runtime-snapshot-stale-after-turn"
+        }
+      });
+      expect(output.runtimeSnapshot.freshInstall).toBeUndefined();
+      expect(textStdout.join("")).toContain("runtime-snapshot: stale-after-turn marker-age=600s");
       expect(stderr).toEqual([]);
     } finally {
       rmSync(homeDir, { recursive: true, force: true });

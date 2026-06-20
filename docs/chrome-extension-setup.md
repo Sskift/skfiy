@@ -22,6 +22,14 @@ The extension uses Manifest V3, `nativeMessaging`, `activeTab`, `scripting`,
 optional `http://*/*` and `https://*/*` permissions, so skfiy can ask for a host
 before page observation or actions run.
 
+The extension is a browser-control enhancement channel. It gives skfiy
+structured access to Chrome-specific surfaces such as the current tab, DOM
+readiness, safe page actions, visible-tab screenshots, downloads metadata, and
+Native Messaging host policy. It does not replace the OS Computer Use path:
+non-browser apps, window management, global screenshots, pointer/keyboard input,
+and cross-app workflows still require macOS Accessibility and Screen Recording
+through the packaged app/helper.
+
 ## Install The Extension
 
 1. Build the packaged app and CLI:
@@ -145,6 +153,13 @@ tab, and click **Refresh host policy**. On `chrome://`, `file://`, extension
 pages, or other non-HTTP pages, host permission can be `Not required for this
 page`, but structured page actions may still be unavailable.
 
+For machine probes, the background worker and content script both respond to the
+read-only `skfiy.page_control.health` message. The response includes the
+page-control protocol name, manifest/permission model, `content-script.js`
+wire-up, current readiness, blockers, and next action. This health check never
+calls `chrome.permissions.request`; missing site access remains a typed blocker
+until the operator grants it.
+
 ## Readiness Snapshots
 
 Use `doctor` before a real desktop test:
@@ -174,9 +189,11 @@ The smoke records `readinessDiagnostics`, `nativeHostBridgeRun`, and
 `installedExtensionRun`. A complete installed-extension pass proves the MV3
 extension sent a Native Messaging frame to `dist/skfiy`, the host responded, and
 the heartbeat file matches the loaded `chrome-extension://.../` origin. The
-`installedExtensionRun.readinessSnapshot` field summarizes manifest id/version,
-Native Messaging handshake state, content-script state, and pageControl state in
-one small contract for dashboards or handoff reports.
+`installedExtensionRun.pageControlHealth` field proves the read-only
+`skfiy.page_control.health` protocol. `installedExtensionRun.readinessSnapshot`
+summarizes manifest id/version, Native Messaging handshake state, health
+protocol state, content-script state, and pageControl state in one small
+contract for dashboards or handoff reports.
 
 ## Common Blockers
 

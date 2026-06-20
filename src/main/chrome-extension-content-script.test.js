@@ -153,6 +153,77 @@ describe("Chrome extension content script", () => {
     });
   });
 
+  it("responds to the page-control health protocol without background privileges", async () => {
+    const mock = createChromeMock();
+    globalThis.chrome = mock.chrome;
+    document.title = "Work queue";
+    document.body.innerHTML = `
+      <main>
+        <button id="save">Save</button>
+        <input id="email" name="email" value="">
+      </main>
+    `;
+
+    await importContentScript();
+    const listener = mock.listener();
+
+    const health = sendContentMessage(listener, {
+      type: "skfiy.page_control.health",
+      requestId: "content-health"
+    });
+
+    expect(health.keepChannelOpen).toBe(true);
+    expect(health.response).toMatchObject({
+      type: "skfiy.page_control.health_result",
+      schemaVersion: 1,
+      requestId: "content-health",
+      protocol: {
+        schemaVersion: 1,
+        name: "skfiy.chrome.page-control.content-script",
+        state: "loaded",
+        messageTypes: {
+          health: "skfiy.page_control.health",
+          healthResult: "skfiy.page_control.health_result",
+          diagnostics: "skfiy.page.diagnostics",
+          observe: "skfiy.page.observe",
+          action: "skfiy.page.action"
+        },
+        capabilities: {
+          health: true,
+          diagnostics: true,
+          observe: true,
+          domActions: true,
+          click: true,
+          fill: true,
+          submit: true,
+          scroll: true,
+          screenshot: "background_required"
+        }
+      },
+      session: {
+        state: "loaded",
+        pageControl: {
+          state: "ready",
+          capable: true,
+          capabilities: {
+            diagnostics: true,
+            observe: true,
+            domActions: true,
+            click: true,
+            fill: true,
+            scroll: true,
+            screenshot: "background_required"
+          }
+        }
+      },
+      pageControl: {
+        state: "ready",
+        capable: true
+      },
+      blockers: []
+    });
+  });
+
   it("reports page-level sensitive risk and pauses unconfirmed destructive clicks", async () => {
     const mock = createChromeMock();
     globalThis.chrome = mock.chrome;

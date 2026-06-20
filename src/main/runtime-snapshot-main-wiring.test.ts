@@ -7,11 +7,13 @@ describe("runtime snapshot main-process wiring", () => {
     const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
 
     expect(source).toContain("writeRuntimeSnapshot");
+    expect(source).toContain("writeRuntimeTurnMarker");
     expect(source).toContain("onReplayChanged");
     expect(source).toContain("persistRuntimeSnapshot");
     expect(source).toContain("os.homedir()");
     expect(source).toContain("createTurnReplayStore({");
     expect(source).toContain("type RuntimeSnapshotCurrentTurnInput");
     expect(source).toContain("persistRuntimeSnapshot(turnReplayStore.getReplay(), event)");
+    expect(source).toContain("if (currentTurn) {");
   });
 });

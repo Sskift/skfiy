@@ -18,6 +18,8 @@ export const MESSAGE_TYPES = Object.freeze({
   PAGE_ACTION_RESULT: "skfiy.page.action_result",
   PAGE_SCREENSHOT: "skfiy.page.screenshot",
   PAGE_SCREENSHOT_RESULT: "skfiy.page.screenshot_result",
+  PAGE_CONTROL_HEALTH: "skfiy.page_control.health",
+  PAGE_CONTROL_HEALTH_RESULT: "skfiy.page_control.health_result",
   DOWNLOADS_STATUS: "skfiy.downloads.status",
   DOWNLOADS_STATUS_RESULT: "skfiy.downloads.status_result",
   PAGE_SENSITIVE_PAUSE: "skfiy.page.sensitive_pause",
@@ -76,6 +78,54 @@ function readExtensionDiagnostics() {
       storage: permissions.includes("storage"),
       tabs: permissions.includes("tabs"),
       optionalHostPermissions
+    }
+  };
+}
+
+function readPageControlProtocol() {
+  const manifest = {
+    ...FALLBACK_EXTENSION_MANIFEST,
+    ...readExtensionManifest()
+  };
+  const permissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
+  const optionalHostPermissions = Array.isArray(manifest.optional_host_permissions)
+    ? manifest.optional_host_permissions
+    : [];
+
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    name: "skfiy.chrome.page-control",
+    extensionId: chrome.runtime.id ?? null,
+    nativeHostName: NATIVE_MESSAGING_HOST_NAME,
+    contentScriptFile: CONTENT_SCRIPT_FILE,
+    background: {
+      state: "loaded",
+      serviceWorker: true
+    },
+    messageTypes: {
+      health: MESSAGE_TYPES.PAGE_CONTROL_HEALTH,
+      healthResult: MESSAGE_TYPES.PAGE_CONTROL_HEALTH_RESULT,
+      diagnostics: MESSAGE_TYPES.PAGE_DIAGNOSTICS,
+      observe: MESSAGE_TYPES.PAGE_OBSERVE,
+      action: MESSAGE_TYPES.PAGE_ACTION,
+      screenshot: MESSAGE_TYPES.PAGE_SCREENSHOT,
+      downloads: MESSAGE_TYPES.DOWNLOADS_STATUS,
+      hostPolicy: MESSAGE_TYPES.HOST_POLICY_REQUEST
+    },
+    permissionModel: {
+      requiredPermissions: permissions,
+      hostPermissions: "optional",
+      optionalHostPermissions
+    },
+    capabilities: {
+      health: true,
+      diagnostics: permissions.includes("tabs"),
+      observe: permissions.includes("scripting"),
+      domActions: permissions.includes("scripting"),
+      screenshot: permissions.includes("activeTab") && permissions.includes("tabs"),
+      downloads: permissions.includes("downloads"),
+      nativeMessaging: permissions.includes("nativeMessaging"),
+      hostPolicy: true
     }
   };
 }
@@ -351,6 +401,24 @@ async function readHostPolicySnapshot() {
     policy,
     syncStatus,
     diagnostics: createDiagnostics(policy, syncStatus, currentTab)
+  };
+}
+
+async function readPageControlHealth(requestId = "page-control-health") {
+  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+  const pageControl = diagnostics.session.pageControl;
+
+  return {
+    type: MESSAGE_TYPES.PAGE_CONTROL_HEALTH_RESULT,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId,
+    protocol: readPageControlProtocol(),
+    readiness: pageControl,
+    pageControl,
+    blockers: Array.isArray(pageControl?.blockers) ? pageControl.blockers : [],
+    policy,
+    syncStatus,
+    diagnostics
   };
 }
 
@@ -971,6 +1039,10 @@ async function handleRuntimeMessage(message) {
     return routePageScreenshot(message);
   }
 
+  if (message?.type === MESSAGE_TYPES.PAGE_CONTROL_HEALTH) {
+    return readPageControlHealth(message.requestId);
+  }
+
   if (message?.type === MESSAGE_TYPES.DOWNLOADS_STATUS) {
     return readDownloadsStatus(message);
   }
@@ -1043,6 +1115,13 @@ globalThis.skfiyChromeAdapterDiagnostics = Object.freeze({
   refreshHostPolicy(requestId = "extension-diagnostics-refresh") {
     return handleRuntimeMessage({
       type: MESSAGE_TYPES.HOST_POLICY_SYNC_REFRESH,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId
+    });
+  },
+  readPageControlHealth(requestId = "extension-page-control-health") {
+    return handleRuntimeMessage({
+      type: MESSAGE_TYPES.PAGE_CONTROL_HEALTH,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
       requestId
     });

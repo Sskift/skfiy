@@ -34,6 +34,9 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("runtimeSnapshotCoverage");
     expect(source).toContain("collectFreshInstallRuntimeSnapshotEvidence");
     expect(source).toContain("freshInstallRuntimeSnapshot");
+    expect(source).toContain("collectMissingAfterTurnRuntimeSnapshotEvidence");
+    expect(source).toContain("missingAfterTurnRuntimeSnapshot");
+    expect(source).toContain("runtime-turn-marker.json");
     expect(source).toContain("operatorReadiness");
   });
 
@@ -242,6 +245,102 @@ describe("dashboard product smoke script", () => {
           "cache-control": "no-store, no-transform"
         },
         body: 'event: snapshot\ndata: {"schemaVersion":1,"generatedAt":"2026-06-20T00:00:00.000Z","currentTurn":{"state":"idle","source":"runtime-snapshot","reason":"Runtime snapshot has not been recorded yet.","emptyReasonCode":"runtime-snapshot-missing","freshInstall":true,"path":"/var/folders/skfiy-dashboard-fresh-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json"},"replay":{"state":"empty","source":"runtime-snapshot","reason":"Runtime snapshot has not been recorded yet.","emptyReasonCode":"runtime-snapshot-missing","freshInstall":true,"path":"/var/folders/skfiy-dashboard-fresh-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json"}}\n\n'
+      },
+      cleanup: {
+        signal: "SIGTERM",
+        exited: true,
+        code: 0,
+        signalCode: null
+      },
+      result: "collected"
+    };
+    const missingAfterTurnRuntimeSnapshot = {
+      productPath: "smoke:dashboard -> isolated HOME marker -> missing runtime-snapshot.json",
+      isolatedHomeDir: "/var/folders/skfiy-dashboard-marker-home-abc123",
+      runtimeSnapshotPath: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json",
+      markerPath: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-turn-marker.json",
+      marker: {
+        schemaVersion: 1,
+        observedAt: "2026-06-20T00:00:00.000Z",
+        currentTurn: {
+          state: "executing",
+          command: "dashboard smoke runtime turn marker",
+          latestMessage: "Dashboard smoke runtime turn marker is visible.",
+          source: "runtime-turn-marker"
+        }
+      },
+      runtimeSnapshotExistsBeforeLaunch: false,
+      markerExistsBeforeLaunch: true,
+      runtimeSnapshotExistsAfterFetch: false,
+      cliOutput: {
+        command: "dashboard",
+        result: "running",
+        url: "http://127.0.0.1:51236/"
+      },
+      snapshotResponse: {
+        status: 200,
+        body: {
+          schemaVersion: 1,
+          runtimeHealth: {
+            runtimeSnapshot: {
+              state: "missing-after-turn",
+              path: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json",
+              reason: "Runtime snapshot is missing after a recent app turn was observed.",
+              emptyReasonCode: "runtime-snapshot-missing-after-turn",
+              freshInstall: false,
+              markerPath: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-turn-marker.json",
+              markerObservedAt: "2026-06-20T00:00:00.000Z",
+              markerState: "recent",
+              markerAgeSeconds: 0
+            }
+          },
+          currentTurn: {
+            state: "executing",
+            command: "dashboard smoke runtime turn marker",
+            latestMessage: "Dashboard smoke runtime turn marker is visible.",
+            source: "runtime-turn-marker",
+            reason: "Runtime snapshot is missing after a recent app turn was observed.",
+            emptyReasonCode: "runtime-snapshot-missing-after-turn",
+            freshInstall: false,
+            markerPath: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-turn-marker.json",
+            markerObservedAt: "2026-06-20T00:00:00.000Z",
+            markerState: "recent",
+            markerAgeSeconds: 0,
+            path: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json"
+          },
+          replay: {
+            state: "empty",
+            source: "runtime-snapshot",
+            reason: "Runtime snapshot is missing after a recent app turn was observed.",
+            emptyReasonCode: "runtime-snapshot-missing-after-turn",
+            freshInstall: false,
+            markerPath: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-turn-marker.json",
+            markerObservedAt: "2026-06-20T00:00:00.000Z",
+            markerState: "recent",
+            markerAgeSeconds: 0,
+            path: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json"
+          },
+          alerts: [
+            {
+              code: "runtime-snapshot-missing-after-turn",
+              severity: "warning",
+              message: "Runtime snapshot is missing even though app turn evidence exists.",
+              path: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json",
+              markerPath: "/var/folders/skfiy-dashboard-marker-home-abc123/Library/Application Support/skfiy/runtime-turn-marker.json",
+              markerObservedAt: "2026-06-20T00:00:00.000Z",
+              markerState: "recent",
+              markerAgeSeconds: 0
+            }
+          ]
+        }
+      },
+      eventsResponse: {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-store, no-transform"
+        },
+        body: 'event: snapshot\ndata: {"schemaVersion":1,"generatedAt":"2026-06-20T00:00:00.000Z","currentTurn":{"state":"executing","command":"dashboard smoke runtime turn marker","source":"runtime-turn-marker","freshInstall":false},"replay":{"state":"empty","source":"runtime-snapshot","freshInstall":false}}\n\n'
       },
       cleanup: {
         signal: "SIGTERM",
@@ -632,6 +731,7 @@ describe("dashboard product smoke script", () => {
       },
       runtimeSnapshotFixture,
       freshInstallRuntimeSnapshot,
+      missingAfterTurnRuntimeSnapshot,
       tokenLeakDetected: false
     });
 
@@ -646,6 +746,10 @@ describe("dashboard product smoke script", () => {
         ...freshInstallRuntimeSnapshot,
         runtimeSnapshotExistsAfterFetch: true
       }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      missingAfterTurnRuntimeSnapshot: undefined
     })).toBe("failed");
     expect(passedEvidence.runtimeSnapshotCoverage).toMatchObject({
       result: "passed",

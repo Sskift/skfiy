@@ -7,6 +7,8 @@ const MESSAGE_TYPES = Object.freeze({
   PAGE_DIAGNOSTICS_RESULT: "skfiy.page.diagnostics_result",
   PAGE_ACTION: "skfiy.page.action",
   PAGE_ACTION_RESULT: "skfiy.page.action_result",
+  PAGE_CONTROL_HEALTH: "skfiy.page_control.health",
+  PAGE_CONTROL_HEALTH_RESULT: "skfiy.page_control.health_result",
   PAGE_SENSITIVE_PAUSE: "skfiy.page.sensitive_pause"
 });
 
@@ -282,6 +284,32 @@ function readContentScriptSession() {
   };
 }
 
+function readContentScriptProtocol() {
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    name: "skfiy.chrome.page-control.content-script",
+    state: "loaded",
+    messageTypes: {
+      health: MESSAGE_TYPES.PAGE_CONTROL_HEALTH,
+      healthResult: MESSAGE_TYPES.PAGE_CONTROL_HEALTH_RESULT,
+      diagnostics: MESSAGE_TYPES.PAGE_DIAGNOSTICS,
+      observe: MESSAGE_TYPES.PAGE_OBSERVE,
+      action: MESSAGE_TYPES.PAGE_ACTION
+    },
+    capabilities: {
+      health: true,
+      diagnostics: true,
+      observe: true,
+      domActions: true,
+      click: true,
+      fill: true,
+      submit: true,
+      scroll: true,
+      screenshot: "background_required"
+    }
+  };
+}
+
 function collectPageSafety() {
   const haystack = [
     document.title,
@@ -451,6 +479,20 @@ function runPageAction(action) {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === MESSAGE_TYPES.PAGE_CONTROL_HEALTH) {
+    const session = readContentScriptSession();
+    sendResponse({
+      type: MESSAGE_TYPES.PAGE_CONTROL_HEALTH_RESULT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      protocol: readContentScriptProtocol(),
+      session,
+      pageControl: session.pageControl,
+      blockers: Array.isArray(session.pageControl?.blockers) ? session.pageControl.blockers : []
+    });
+    return true;
+  }
+
   if (message?.type === MESSAGE_TYPES.PAGE_DIAGNOSTICS) {
     sendResponse({
       type: MESSAGE_TYPES.PAGE_DIAGNOSTICS_RESULT,

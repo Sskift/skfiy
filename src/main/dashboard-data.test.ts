@@ -4,7 +4,12 @@ import {
   createDashboardSnapshot,
   createDashboardWorkspaceSnapshot
 } from "./dashboard-data";
-import { createRuntimeSnapshotStatePath } from "./runtime-snapshot";
+import {
+  createRuntimeSnapshotStatePath,
+  createRuntimeTurnMarkerStatePath,
+  RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+  RUNTIME_TURN_MARKER_SCHEMA_VERSION
+} from "./runtime-snapshot";
 
 function createPageControlStatus({
   extension
@@ -1514,6 +1519,169 @@ describe("dashboard snapshot data", () => {
       code: "runtime-snapshot-repaired"
     }));
     expect(JSON.stringify(snapshot)).not.toContain("token=");
+  });
+
+  it("marks a missing runtime snapshot after a recent marker as runtime evidence loss", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const runtimePath = createRuntimeSnapshotStatePath("/Users/tester");
+    const markerPath = createRuntimeTurnMarkerStatePath("/Users/tester");
+    const files: Record<string, string> = {
+      "/repo/package.json": JSON.stringify({
+        name: "skfiy",
+        version: "0.1.0",
+        description: "Desktop Computer Use prototype"
+      }),
+      [markerPath]: JSON.stringify({
+        schemaVersion: RUNTIME_TURN_MARKER_SCHEMA_VERSION,
+        observedAt: "2026-06-20T00:04:30.000Z",
+        currentTurn: {
+          state: "executing",
+          command: "open Chrome with token=marker-secret",
+          source: "runtime-turn-marker"
+        }
+      })
+    };
+    const directories: Record<string, string[]> = {
+      "/repo/.skfiy-smoke": []
+    };
+
+    const snapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor,
+      generatedAt: "2026-06-20T00:05:00.000Z",
+      io: {
+        exists: (targetPath) =>
+          Object.hasOwn(files, targetPath)
+          || Object.hasOwn(directories, targetPath),
+        readFile: (targetPath) => files[targetPath],
+        readdir: (targetPath) => directories[targetPath] ?? [],
+        stat: () => ({ mtimeMs: 0 }),
+        homeDir: () => "/Users/tester"
+      }
+    });
+
+    expect(snapshot.runtimeHealth.runtimeSnapshot).toMatchObject({
+      state: "missing-after-turn",
+      path: runtimePath,
+      reason: "Runtime snapshot is missing after a recent app turn was observed.",
+      emptyReasonCode: "runtime-snapshot-missing-after-turn",
+      freshInstall: false,
+      markerPath,
+      markerObservedAt: "2026-06-20T00:04:30.000Z",
+      markerAgeSeconds: 30,
+      markerState: "recent"
+    });
+    expect(snapshot.currentTurn).toMatchObject({
+      state: "executing",
+      command: "open Chrome with redacted=[redacted]",
+      source: "runtime-turn-marker",
+      freshInstall: false,
+      markerPath,
+      markerAgeSeconds: 30,
+      path: runtimePath
+    });
+    expect(snapshot.replay).toMatchObject({
+      state: "empty",
+      source: "runtime-snapshot",
+      freshInstall: false,
+      markerPath,
+      markerAgeSeconds: 30,
+      path: runtimePath
+    });
+    expect(snapshot.alerts).toContainEqual(expect.objectContaining({
+      code: "runtime-snapshot-missing-after-turn",
+      severity: "warning",
+      path: runtimePath,
+      markerPath,
+      markerAgeSeconds: 30
+    }));
+    expect(JSON.stringify(snapshot)).not.toContain("marker-secret");
+  });
+
+  it("marks an older runtime snapshot as stale when a recent marker is newer", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const runtimePath = createRuntimeSnapshotStatePath("/Users/tester");
+    const markerPath = createRuntimeTurnMarkerStatePath("/Users/tester");
+    const files: Record<string, string> = {
+      "/repo/package.json": JSON.stringify({
+        name: "skfiy",
+        version: "0.1.0",
+        description: "Desktop Computer Use prototype"
+      }),
+      [runtimePath]: JSON.stringify({
+        schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+        observedAt: "2026-06-20T00:00:00.000Z",
+        currentTurn: {
+          state: "executing",
+          command: "stale snapshot command",
+          source: "runtime-snapshot"
+        },
+        replay: {
+          state: "available",
+          outcome: "running",
+          source: "runtime-snapshot"
+        }
+      }),
+      [markerPath]: JSON.stringify({
+        schemaVersion: RUNTIME_TURN_MARKER_SCHEMA_VERSION,
+        observedAt: "2026-06-20T00:04:30.000Z",
+        currentTurn: {
+          state: "approval_required",
+          command: "newer marker command",
+          source: "runtime-turn-marker"
+        }
+      })
+    };
+    const directories: Record<string, string[]> = {
+      "/repo/.skfiy-smoke": []
+    };
+
+    const snapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor,
+      generatedAt: "2026-06-20T00:05:00.000Z",
+      io: {
+        exists: (targetPath) =>
+          Object.hasOwn(files, targetPath)
+          || Object.hasOwn(directories, targetPath),
+        readFile: (targetPath) => files[targetPath],
+        readdir: (targetPath) => directories[targetPath] ?? [],
+        stat: () => ({ mtimeMs: 0 }),
+        homeDir: () => "/Users/tester"
+      }
+    });
+
+    expect(snapshot.runtimeHealth.runtimeSnapshot).toMatchObject({
+      state: "stale-after-turn",
+      path: runtimePath,
+      observedAt: "2026-06-20T00:00:00.000Z",
+      reason: "Runtime snapshot is older than a recent app turn marker.",
+      freshInstall: false,
+      stale: true,
+      markerPath,
+      markerObservedAt: "2026-06-20T00:04:30.000Z",
+      markerAgeSeconds: 30,
+      markerState: "recent",
+      snapshotAgeSeconds: 300
+    });
+    expect(snapshot.currentTurn).toMatchObject({
+      state: "executing",
+      command: "stale snapshot command",
+      source: "runtime-snapshot",
+      freshInstall: false,
+      stale: true,
+      markerPath,
+      markerAgeSeconds: 30,
+      snapshotAgeSeconds: 300
+    });
+    expect(snapshot.alerts).toContainEqual(expect.objectContaining({
+      code: "runtime-snapshot-stale-after-turn",
+      severity: "warning",
+      path: runtimePath,
+      markerPath,
+      markerAgeSeconds: 30,
+      snapshotAgeSeconds: 300
+    }));
   });
 
   it("isolates a damaged runtime snapshot and replaces it with a clean empty snapshot", () => {
