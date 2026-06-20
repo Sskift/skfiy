@@ -31,6 +31,7 @@ The dashboard and CLI must run from the same compiled product identity as the ap
 - Add a dashboard HTTP response helper and loopback server for `/descriptor.json`, `/`, and `/index.html`.
 - Add an optional source-tree CLI shim that imports built main-process JavaScript only.
 - Wire `skfiy chrome status|install-host|uninstall-host` to user-level Chrome Native Messaging manifest status/install/uninstall when a Chrome extension id is provided.
+- Add a formal product smoke wrapper, `npm run smoke:cli`, that runs the compiled `dist/skfiy` through the safe CLI command matrix with an isolated HOME and no source-tree shim.
 - Add a formal product smoke wrapper, `npm run smoke:dashboard`, that launches the built `dist/skfiy` CLI with `dashboard --no-open --port 0 --json`, fetches `/descriptor.json` plus the dashboard shell, rejects token leakage, and terminates the dashboard process after evidence collection.
 
 ## Command Surface
@@ -53,6 +54,8 @@ Commands represented:
 Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`.
+
+`npm run smoke:cli` is the binary CLI gate for command stability. Its product path is `dist/skfiy -> skfiy CLI command matrix`; it runs `status --json`, `doctor --json`, `chrome status`, `mcp serve --stdio --json`, `dashboard --no-open --port 0 --json`, `release check --json-output`, `alpha artifact`, and the CLI-wrapped `smoke dashboard --json`. Chrome status uses `.skfiy-cli-smoke/home` as an isolated HOME, dashboard is terminated after JSON evidence is collected, and the nested dashboard smoke owns its own product smoke lock.
 
 `skfiy mcp serve --stdio` is the first Codex plugin adapter command. The CLI command surface marks it as read-only and non-mutating, and `src/main/skfiy-mcp-server.ts` defines newline-delimited JSON-RPC stdio transport plus handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`. The repo-local Codex plugin scaffold now lives under `plugins/skfiy/`, with `.codex-plugin/plugin.json`, `.mcp.json`, `skills/control-skfiy/SKILL.md`, and SVG assets. The packaged-binary and staged marketplace install product gap is covered by `smoke:codex-plugin`; the remaining plugin distribution gap is installing the marketplace entry in a fresh Codex app session and proving the cached plugin path resolves the installed `skfiy` binary without a repo checkout.
 
@@ -96,6 +99,8 @@ The dashboard remains optional for Computer Use execution. Future Electron wirin
 The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, opens the clean local URL by default, and skips opening when `--no-open` is present.
 
 ## Product Smoke
+
+`npm run smoke:cli -- --output .skfiy-smoke/cli.json --require-passed` is the repeatable compiled CLI matrix gate. It requires `runnerHasTmux=false`, rejects source-tree CLI shims, writes an isolated HOME under `.skfiy-cli-smoke/home`, checks every command returns JSON with `schemaVersion: 1`, rejects token leakage, proves the dashboard command can start and be terminated cleanly, and proves `skfiy smoke dashboard --json` can drive the existing dashboard product smoke through the packaged CLI.
 
 `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` is the repeatable dashboard gate. It uses the same product smoke lock as other packaged smokes, proves the built CLI path instead of a source-tree shim, requires `runnerHasTmux=false`, confirms the loopback bind and descriptor match the CLI output, fetches `/snapshot.json`, checks required snapshot panels plus workspace-backed runtime/smoke evidence, checks the static shell contains descriptor and snapshot links, and keeps tokens out of stdout, descriptor JSON, snapshot JSON, and shell HTML.
 

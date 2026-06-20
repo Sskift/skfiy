@@ -206,10 +206,13 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("Binary and CLI Product Contract");
     expect(dashboardPlan).toContain("Codex Plugin Install and Marketplace Notes");
     expect(dashboardPlan).toContain("smoke:codex-plugin");
+    expect(dashboardPlan).toContain("smoke:cli");
+    expect(dashboardPlan).toContain("dist/skfiy -> skfiy CLI command matrix");
     expect(dashboardPlan).toContain("staged marketplace install");
     expect(dashboardPlan).toContain("repoCheckoutUsedForMcp=false");
     expect(dashboardPlan).toContain("MCP initialize response now includes short safety instructions");
     expect(dashboardPlan).toContain("Codex plugin smoke now requires those initialize instructions");
+    expect(longPlan).toContain("CLI command matrix smoke");
   });
 
   it("documents panic stop behavior evidence in alpha and report instructions", () => {

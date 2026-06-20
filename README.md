@@ -24,6 +24,8 @@ Finder to the compiled `skfiy.app`.
   `.skfiy-smoke/ghostty-<commit>.json`.
 - Chrome Computer Use smoke: passed,
   `.skfiy-smoke/chrome-<commit>.json`.
+- Binary CLI command matrix smoke: repeatable product gate,
+  `.skfiy-smoke/cli-<commit>.json`.
 - Dashboard CLI smoke: repeatable product gate,
   `.skfiy-smoke/dashboard-<commit>.json`.
 - Codex plugin MCP smoke: packaged CLI product gate,
@@ -189,6 +191,7 @@ npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session.json
 npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
 npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
 npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json
+npm run smoke:cli -- --output .skfiy-smoke/cli-command-matrix.json
 npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json
 npm run smoke:codex-plugin -- --output .skfiy-smoke/codex-plugin.json
 npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-item-drag-drop.json
