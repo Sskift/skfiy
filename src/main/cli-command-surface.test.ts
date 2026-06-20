@@ -363,4 +363,85 @@ describe("CLI command surface", () => {
     expect(files[manifestPath]).toBeUndefined();
     expect(stderr).toEqual([]);
   });
+
+  it("runs dashboard through the shared CLI entrypoint without printing tokens", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const started: Array<{ port: number; requestedHost?: string }> = [];
+
+    await expect(runSkfiyCli({
+      argv: ["dashboard", "--no-open", "--port", "8787", "--json"],
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) },
+      keepDashboardAlive: false,
+      dashboardServerStarter: async (input) => {
+        started.push(input);
+        return {
+          bind: { host: "127.0.0.1", port: input.port ?? 0 },
+          url: `http://127.0.0.1:${input.port ?? 0}/`,
+          close: async () => undefined
+        };
+      }
+    })).resolves.toBe(0);
+
+    expect(started).toEqual([{ port: 8787 }]);
+    const output = JSON.parse(stdout.join(""));
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      command: "dashboard",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      bind: {
+        host: "127.0.0.1",
+        port: 8787
+      },
+      url: "http://127.0.0.1:8787/",
+      result: "running",
+      shouldOpen: false,
+      tokenPrinted: false
+    });
+    expect(JSON.stringify(output)).not.toContain("token=");
+    expect(stderr).toEqual([]);
+  });
+
+  it("opens dashboard URL by default and skips opening when --no-open is set", async () => {
+    const openedUrls: string[] = [];
+    const createBase = (stdout: string[]) => ({
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: () => undefined },
+      keepDashboardAlive: false,
+      dashboardOpener: async (url: string) => {
+        openedUrls.push(url);
+      },
+      dashboardServerStarter: async (input: { port: number }) => ({
+        bind: { host: "127.0.0.1" as const, port: input.port },
+        url: `http://127.0.0.1:${input.port}/`,
+        close: async () => undefined
+      })
+    });
+    const firstStdout: string[] = [];
+    const secondStdout: string[] = [];
+
+    await expect(runSkfiyCli({
+      ...createBase(firstStdout),
+      argv: ["dashboard", "--port", "8788", "--json"]
+    })).resolves.toBe(0);
+    await expect(runSkfiyCli({
+      ...createBase(secondStdout),
+      argv: ["dashboard", "--no-open", "--port", "8789", "--json"]
+    })).resolves.toBe(0);
+
+    expect(openedUrls).toEqual(["http://127.0.0.1:8788/"]);
+    expect(JSON.parse(firstStdout.join(""))).toMatchObject({
+      url: "http://127.0.0.1:8788/",
+      shouldOpen: true
+    });
+    expect(JSON.parse(secondStdout.join(""))).toMatchObject({
+      url: "http://127.0.0.1:8789/",
+      shouldOpen: false
+    });
+  });
 });

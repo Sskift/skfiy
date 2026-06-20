@@ -1,5 +1,10 @@
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { createDashboardDescriptor } from "./dashboard-status.js";
+import {
+  startDashboardServer,
+  type DashboardServer
+} from "./dashboard-server.js";
 import {
   installChromeNativeHost,
   readChromeNativeHostStatus,
@@ -119,6 +124,9 @@ export interface RunSkfiyCliInput {
   homeDir?: string;
   generatedAt?: string;
   chromeNativeHostIo?: ChromeNativeHostIo;
+  dashboardServerStarter?: (input: { port: number }) => Promise<DashboardServer>;
+  dashboardOpener?: (url: string) => Promise<void>;
+  keepDashboardAlive?: boolean;
   stdout: SkfiyCliIo;
   stderr: SkfiyCliIo;
 }
@@ -430,6 +438,9 @@ export async function runSkfiyCli({
   homeDir,
   generatedAt,
   chromeNativeHostIo,
+  dashboardServerStarter = startDashboardServer,
+  dashboardOpener = openDashboardUrl,
+  keepDashboardAlive = true,
   stdout,
   stderr
 }: RunSkfiyCliInput): Promise<number> {
@@ -452,8 +463,66 @@ export async function runSkfiyCli({
     });
   }
 
+  if (result.invocation.kind === "dashboard") {
+    const dashboard = await dashboardServerStarter({
+      port: result.invocation.options.port
+    });
+    stdout.write(`${JSON.stringify({
+      schemaVersion: 1,
+      command: "dashboard",
+      generatedAt: generatedAt ?? new Date().toISOString(),
+      bind: dashboard.bind,
+      url: dashboard.url,
+      shouldOpen: !result.invocation.options.noOpen,
+      tokenPrinted: false,
+      result: "running"
+    }, null, 2)}\n`);
+
+    if (!result.invocation.options.noOpen) {
+      await dashboardOpener(dashboard.url);
+    }
+
+    if (!keepDashboardAlive) {
+      await dashboard.close();
+      return 0;
+    }
+
+    await waitForDashboardShutdown(dashboard);
+    return 0;
+  }
+
   stdout.write(`${JSON.stringify(createCliOutput(result.invocation, { generatedAt }), null, 2)}\n`);
   return 0;
+}
+
+function openDashboardUrl(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("open", [url], {
+      stdio: "ignore"
+    });
+
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`open exited with code ${code ?? "null"}.`));
+      }
+    });
+  });
+}
+
+async function waitForDashboardShutdown(dashboard: DashboardServer): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const shutdown = () => {
+      process.off("SIGINT", shutdown);
+      process.off("SIGTERM", shutdown);
+      void dashboard.close().finally(resolve);
+    };
+
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
 }
 
 async function runChromeNativeHostCli({

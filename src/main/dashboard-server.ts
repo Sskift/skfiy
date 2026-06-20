@@ -1,3 +1,4 @@
+import http from "node:http";
 import type {
   DashboardDescriptor,
   DashboardDescriptorInput
@@ -17,6 +18,15 @@ export interface DashboardHttpResponse {
 
 export interface DashboardHttpResponseOptions extends DashboardDescriptorInput {
   createDescriptor?: (input: DashboardDescriptorInput) => DashboardDescriptor;
+}
+
+export interface DashboardServer {
+  bind: {
+    host: "127.0.0.1";
+    port: number;
+  };
+  url: string;
+  close: () => Promise<void>;
 }
 
 export function createDashboardHttpResponse(
@@ -49,6 +59,58 @@ export function createDashboardHttpResponse(
   return textResponse(404, "Not Found\n", {}, body);
 }
 
+export async function startDashboardServer(
+  options: DashboardHttpResponseOptions = {}
+): Promise<DashboardServer> {
+  const requestedPort = options.port ?? 0;
+  const server = http.createServer((request, response) => {
+    const dashboardResponse = createDashboardHttpResponse({
+      method: request.method,
+      url: request.url ?? "/"
+    }, {
+      ...options,
+      port: readServerPort(server)
+    });
+
+    response.writeHead(dashboardResponse.status, dashboardResponse.headers);
+    response.end(dashboardResponse.body);
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error) => {
+      server.off("listening", onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off("error", onError);
+      resolve();
+    };
+
+    server.once("error", onError);
+    server.once("listening", onListening);
+    server.listen(requestedPort, "127.0.0.1");
+  });
+
+  const port = readServerPort(server);
+
+  return {
+    bind: {
+      host: "127.0.0.1",
+      port
+    },
+    url: `http://127.0.0.1:${port}/`,
+    close: () => new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    })
+  };
+}
+
 function createDescriptorFromOptions(
   options: DashboardHttpResponseOptions
 ): DashboardDescriptor {
@@ -63,6 +125,16 @@ function parseDashboardRequestUrl(url: string | URL): URL {
   }
 
   return new URL(url, "http://127.0.0.1");
+}
+
+function readServerPort(server: http.Server): number {
+  const address = server.address();
+
+  if (!address || typeof address === "string") {
+    return 0;
+  }
+
+  return address.port;
 }
 
 function jsonResponse(value: unknown, bodyOverride?: string): DashboardHttpResponse {

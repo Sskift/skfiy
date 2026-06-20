@@ -484,7 +484,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] implement `skfiy doctor` with concrete remediation for TCC, signing, helper location, Finder Automation, Chrome extension, and desktop sleep/lock blockers
     - partial: command shape and JSON-safe placeholder output exist; real probes/remediation remain pending
   - [ ] implement `skfiy dashboard [--no-open] [--port <port>]`, following OpenClaw's pattern of printing/opening a clean local URL without leaking tokens
-    - partial: command normalization and loopback-only descriptor exist; no HTTP server yet
+    - partial: command normalization, loopback-only HTTP server, `/descriptor.json`, static HTML shell, default macOS URL open, and `--no-open` are wired; full dashboard data panels and app/Electron lifecycle integration remain pending
   - [ ] implement `skfiy chrome status|install-host|uninstall-host` for Chrome Native Messaging setup
     - partial: command surface, status, install, and uninstall now mutate/read the user-level Chrome Native Messaging manifest for an explicit `--extension-id`; broader Chrome extension connection health and native message bridge runtime are still pending
   - [ ] wrap product smokes behind `skfiy smoke <target>` while keeping npm scripts for development
@@ -493,7 +493,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
     - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; product binary execution tests remain pending
 - [ ] Add local dashboard/control UI
   - [ ] serve loopback-only dashboard from the app or CLI
-    - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; `src/main/dashboard-server.ts` now serves pure HTTP responses for `/descriptor.json`, `/`, and `/index.html` without starting a socket, opening a browser, or printing tokens; CLI/app server binding remains pending
+    - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; `src/main/dashboard-server.ts` now serves `/descriptor.json`, `/`, and `/index.html` through a real `127.0.0.1` HTTP server; `skfiy dashboard` starts the server and opens the clean local URL by default, while `--no-open` starts it without opening a browser
   - [ ] add token/session auth for non-local or explicit remote modes; do not print secrets into terminal output
   - [ ] implement runtime health panel: app/helper/dashboard/extension PIDs, version, uptime, signing state
     - partial: panel metadata exists in `createDashboardPanels()`
@@ -510,6 +510,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] implement long-horizon panel: `money-run` session status, active pane, current recommendation, recent blocker markers
     - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] add smoke for `skfiy dashboard --no-open --json` and browser dashboard load
+    - partial: build-product CLI verification now exercises `./dist/skfiy dashboard --no-open --port 0 --json`, fetches `/descriptor.json`, and shuts the server down; formal npm smoke wrapper remains pending
 - [x] Add app allowlist/denylist UI.
   - settings panel now exposes allow/ask/deny policies for Ghostty, Chrome, and Finder; Ghostty defaults to allow for the current product smoke path, while ask/deny can gate Computer Use before touching the app
 - [x] Add per-turn approval transcript:
