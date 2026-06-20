@@ -12,6 +12,7 @@ import {
   uninstallChromeNativeHost,
   type ChromeNativeHostIo
 } from "./chrome-native-host.js";
+import { SKFIY_MCP_TOOL_NAMES } from "./skfiy-mcp-server.js";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type {
   PermissionSummary
@@ -30,6 +31,7 @@ export const SMOKE_TARGETS = [
 
 export type SmokeTarget = typeof SMOKE_TARGETS[number];
 export type ChromeSubcommand = "status" | "install-host" | "uninstall-host";
+export type McpTransport = "stdio";
 
 const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
   ui: "scripts/smoke-ui-product.mjs",
@@ -98,6 +100,14 @@ export type CliCommandInvocation =
       options: {
         extensionIds: string[];
         cliShimPath: string;
+      };
+    }
+  | {
+      kind: "mcp-serve";
+      path: "mcp serve";
+      json: boolean;
+      options: {
+        transport: McpTransport;
       };
     }
   | {
@@ -183,6 +193,22 @@ export interface SignatureStatus {
 
 export type SignatureReader = (input: SignatureReaderInput) => Promise<SignatureStatus>;
 
+export interface SkfiyMcpServer {
+  transport: McpTransport;
+  tools: string[];
+  close: () => Promise<void>;
+}
+
+export interface SkfiyMcpServerStarterInput {
+  rootDir: string;
+  homeDir: string;
+  transport: McpTransport;
+}
+
+export type SkfiyMcpServerStarter = (
+  input: SkfiyMcpServerStarterInput
+) => Promise<SkfiyMcpServer>;
+
 export interface RunSkfiyCliInput {
   argv: string[];
   rootDir?: string;
@@ -192,9 +218,11 @@ export interface RunSkfiyCliInput {
   statusReader?: StatusReader;
   signatureReader?: SignatureReader;
   smokeRunner?: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
+  mcpServerStarter?: SkfiyMcpServerStarter;
   dashboardServerStarter?: (input: { port: number; rootDir?: string }) => Promise<DashboardServer>;
   dashboardOpener?: (url: string) => Promise<void>;
   keepDashboardAlive?: boolean;
+  keepMcpServerAlive?: boolean;
   stdout: SkfiyCliIo;
   stderr: SkfiyCliIo;
 }
@@ -256,6 +284,14 @@ const COMMANDS: CliCommandDefinition[] = [
     plannedMutation: true,
     executesSystemMutation: true,
     outputShape: "chrome-host-plan"
+  },
+  {
+    path: "mcp serve",
+    summary: "Serve skfiy status and Computer Use tools over MCP stdio for Codex plugins.",
+    jsonOutput: true,
+    plannedMutation: false,
+    executesSystemMutation: false,
+    outputShape: "mcp-server"
   },
   ...SMOKE_COMMANDS,
   {
@@ -348,6 +384,26 @@ export function normalizeCliCommand(
       options: {
         extensionIds: readRepeatedOptionValues(argv, "--extension-id"),
         cliShimPath: resolveOptionPath(argv, "--cli", rootDir, path.join(rootDir, "dist", "skfiy"))
+      }
+    });
+  }
+
+  if (command === "mcp") {
+    const subcommand = argv[1];
+
+    if (subcommand !== "serve") {
+      return error("unknown-mcp-subcommand", `Unknown mcp subcommand: ${subcommand ?? ""}`);
+    }
+    if (!argv.includes("--stdio")) {
+      return error("missing-mcp-transport", "MCP serve requires --stdio.");
+    }
+
+    return ok({
+      kind: "mcp-serve",
+      path: "mcp serve",
+      json: argv.includes("--json"),
+      options: {
+        transport: "stdio"
       }
     });
   }
@@ -491,6 +547,19 @@ export function createCliOutput(
     };
   }
 
+  if (invocation.kind === "mcp-serve") {
+    return {
+      schemaVersion: 1,
+      command: "mcp serve",
+      generatedAt,
+      transport: invocation.options.transport,
+      result: "not-started",
+      plannedMutation: false,
+      executesSystemMutation: false,
+      tools: [...SKFIY_MCP_TOOL_NAMES]
+    };
+  }
+
   if (invocation.kind === "smoke") {
     return {
       schemaVersion: 1,
@@ -535,9 +604,11 @@ export async function runSkfiyCli({
   statusReader = readCliStatus,
   signatureReader = readCodeSignatureStatus,
   smokeRunner = runSmokeScript,
+  mcpServerStarter = startSkfiyMcpServer,
   dashboardServerStarter = startDashboardServer,
   dashboardOpener = openDashboardUrl,
   keepDashboardAlive = true,
+  keepMcpServerAlive = true,
   stdout,
   stderr
 }: RunSkfiyCliInput): Promise<number> {
@@ -591,6 +662,19 @@ export async function runSkfiyCli({
       generatedAt,
       rootDir: normalizedRootDir,
       smokeRunner,
+      stdout,
+      stderr
+    });
+  }
+
+  if (result.invocation.kind === "mcp-serve") {
+    return runMcpServeCli({
+      invocation: result.invocation,
+      generatedAt,
+      rootDir: normalizedRootDir,
+      homeDir: homeDir ?? process.env.HOME ?? "",
+      mcpServerStarter,
+      keepMcpServerAlive,
       stdout,
       stderr
     });
@@ -1182,6 +1266,71 @@ function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+async function runMcpServeCli({
+  invocation,
+  generatedAt,
+  rootDir,
+  homeDir,
+  mcpServerStarter,
+  keepMcpServerAlive,
+  stdout,
+  stderr
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "mcp-serve" }>;
+  generatedAt?: string;
+  rootDir: string;
+  homeDir: string;
+  mcpServerStarter: SkfiyMcpServerStarter;
+  keepMcpServerAlive: boolean;
+  stdout: SkfiyCliIo;
+  stderr: SkfiyCliIo;
+}): Promise<number> {
+  let server: SkfiyMcpServer;
+
+  try {
+    server = await mcpServerStarter({
+      rootDir,
+      homeDir,
+      transport: invocation.options.transport
+    });
+  } catch (error) {
+    stderr.write(`${readErrorMessage(error)}\n`);
+    stdout.write(`${JSON.stringify({
+      ...createCliOutput(invocation, { generatedAt }),
+      result: "error",
+      error: readErrorMessage(error)
+    }, null, 2)}\n`);
+    return 1;
+  }
+
+  if (invocation.json) {
+    stdout.write(`${JSON.stringify({
+      ...createCliOutput(invocation, { generatedAt }),
+      result: "running",
+      transport: server.transport,
+      tools: server.tools
+    }, null, 2)}\n`);
+  }
+
+  if (!keepMcpServerAlive || invocation.json) {
+    await server.close();
+    return 0;
+  }
+
+  await waitForMcpShutdown(server);
+  return 0;
+}
+
+async function startSkfiyMcpServer(
+  input: SkfiyMcpServerStarterInput
+): Promise<SkfiyMcpServer> {
+  return {
+    transport: input.transport,
+    tools: [...SKFIY_MCP_TOOL_NAMES],
+    close: async () => undefined
+  };
+}
+
 async function runSmokeCli({
   invocation,
   generatedAt,
@@ -1287,6 +1436,19 @@ async function waitForDashboardShutdown(dashboard: DashboardServer): Promise<voi
       process.off("SIGINT", shutdown);
       process.off("SIGTERM", shutdown);
       void dashboard.close().finally(resolve);
+    };
+
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
+}
+
+async function waitForMcpShutdown(server: SkfiyMcpServer): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const shutdown = () => {
+      process.off("SIGINT", shutdown);
+      process.off("SIGTERM", shutdown);
+      void server.close().finally(resolve);
     };
 
     process.once("SIGINT", shutdown);

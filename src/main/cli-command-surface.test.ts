@@ -36,6 +36,7 @@ describe("CLI command surface", () => {
       "chrome status",
       "chrome install-host",
       "chrome uninstall-host",
+      "mcp serve",
       "smoke ui",
       "smoke desktop-session",
       "smoke ghostty",
@@ -68,6 +69,12 @@ describe("CLI command surface", () => {
         summary: "Run the dashboard smoke target and output artifact.",
         plannedMutation: true,
         executesSystemMutation: true
+      }),
+      expect.objectContaining({
+        path: "mcp serve",
+        summary: "Serve skfiy status and Computer Use tools over MCP stdio for Codex plugins.",
+        plannedMutation: false,
+        executesSystemMutation: false
       })
     ]));
     expect(SMOKE_TARGETS).toEqual([
@@ -236,6 +243,39 @@ describe("CLI command surface", () => {
     }
   });
 
+  it("normalizes MCP stdio serving as a plugin-safe installed-binary command", () => {
+    const invocation = expectInvocation([
+      "mcp",
+      "serve",
+      "--stdio",
+      "--json"
+    ]);
+
+    expect(invocation).toEqual({
+      kind: "mcp-serve",
+      path: "mcp serve",
+      json: true,
+      options: {
+        transport: "stdio"
+      }
+    });
+    expect(createCliOutput(invocation, {
+      generatedAt: "2026-06-20T00:00:00.000Z"
+    })).toEqual({
+      schemaVersion: 1,
+      command: "mcp serve",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      transport: "stdio",
+      result: "not-started",
+      plannedMutation: false,
+      executesSystemMutation: false,
+      tools: [
+        "skfiy.status",
+        "skfiy.doctor"
+      ]
+    });
+  });
+
   it("normalizes smoke, release, and alpha artifact paths", () => {
     const smoke = expectInvocation([
       "smoke",
@@ -367,6 +407,77 @@ describe("CLI command surface", () => {
       }
     });
     expect(stderr).toEqual([]);
+  });
+
+  it("runs MCP stdio through the shared CLI entrypoint without requiring tmux", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const starts: unknown[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["mcp", "serve", "--stdio", "--json"],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      mcpServerStarter: async (input) => {
+        starts.push(input);
+        return {
+          transport: "stdio",
+          tools: ["skfiy.status", "skfiy.doctor"],
+          close: async () => undefined
+        };
+      },
+      keepMcpServerAlive: false,
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(starts).toEqual([{
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      transport: "stdio"
+    }]);
+    expect(JSON.parse(stdout.join(""))).toEqual({
+      schemaVersion: 1,
+      command: "mcp serve",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      transport: "stdio",
+      result: "running",
+      plannedMutation: false,
+      executesSystemMutation: false,
+      tools: ["skfiy.status", "skfiy.doctor"]
+    });
+    expect(stderr).toEqual([]);
+  });
+
+  it("lets MCP JSON diagnostics exit instead of waiting for a long-running plugin session", async () => {
+    const stdout: string[] = [];
+    let closed = false;
+
+    await expect(Promise.race([
+      runSkfiyCli({
+        argv: ["mcp", "serve", "--stdio", "--json"],
+        rootDir: "/repo",
+        homeDir: "/Users/tester",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        mcpServerStarter: async () => ({
+          transport: "stdio",
+          tools: ["skfiy.status", "skfiy.doctor"],
+          close: async () => {
+            closed = true;
+          }
+        }),
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: () => undefined }
+      }),
+      new Promise((resolve) => setTimeout(() => resolve("timeout"), 25))
+    ])).resolves.toBe(0);
+
+    expect(closed).toBe(true);
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      command: "mcp serve",
+      result: "running"
+    });
   });
 
   it("reports unknown commands and smoke targets without throwing", () => {

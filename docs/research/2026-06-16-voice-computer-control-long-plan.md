@@ -179,6 +179,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>`.
   - `skfiy dashboard [--no-open] [--port <port>]`.
   - `skfiy chrome status`, `skfiy chrome install-host`, `skfiy chrome uninstall-host`.
+  - `skfiy mcp serve --stdio`: Codex plugin-facing MCP entry point for read-only status/doctor tools.
   - `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|finder|voice|money-run> --output <path>`.
   - `skfiy release check --json-output <path>` and `skfiy alpha artifact`.
 - CLI safety rules:
@@ -526,6 +527,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
     - scaffold must include `.codex-plugin/plugin.json`, a `skills/control-skfiy/SKILL.md` workflow, optional `.mcp.json`, icon assets, and no automatic desktop-control hook
   - [ ] expose a plugin-safe MCP/app command surface backed by the installed `skfiy` binary
     - required commands: `skfiy status --json`, `skfiy doctor --json`, `skfiy mcp serve --stdio`, `skfiy dashboard --no-open --json`, `skfiy smoke <target> --output <path> --json`
+    - partial: `skfiy mcp serve --stdio` is now part of the CLI command surface, with JSON-safe smoke output, a default stdio starter, and pure MCP JSON-RPC handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`; the remaining gap is wiring the default stdio transport to the handler for a real Codex plugin process and adding plugin-installed smoke evidence
   - [ ] add plugin validation and smoke evidence
     - acceptance: plugin manifest validates, Codex can discover the skill, plugin-scoped MCP can read status, and a disabled plugin does not break the standalone desktop app
 - [ ] Add local dashboard/control UI

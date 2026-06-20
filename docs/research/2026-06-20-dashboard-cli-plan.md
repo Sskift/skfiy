@@ -20,7 +20,7 @@ The dashboard and CLI must run from the same compiled product identity as the ap
 - `skfiy-helper` is embedded under `skfiy.app/Contents/MacOS`.
 - `skfiy` is the packaged CLI shim shipped beside the app or installed by the release package.
 - Chrome Native Messaging host manifests point to the packaged `skfiy` CLI path.
-- `skfiy dashboard`, `skfiy status`, `skfiy doctor`, `skfiy chrome`, and `skfiy smoke` must work without tmux, source-tree dev servers, or loose helper binaries.
+- `skfiy dashboard`, `skfiy status`, `skfiy doctor`, `skfiy chrome`, `skfiy mcp serve --stdio`, and `skfiy smoke` must work without tmux, source-tree dev servers, or loose helper binaries.
 - JSON output from these commands is a product API for the dashboard and future Codex plugin adapter, so field names should evolve with compatibility tests.
 
 ## Scope Landed
@@ -45,6 +45,7 @@ Commands represented:
 - `skfiy chrome status`
 - `skfiy chrome install-host`
 - `skfiy chrome uninstall-host`
+- `skfiy mcp serve --stdio`
 - `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|finder|voice|money-run> --output <path>`
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
@@ -52,6 +53,8 @@ Commands represented:
 Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`.
+
+`skfiy mcp serve --stdio` is the first Codex plugin adapter command. The CLI command surface marks it as read-only and non-mutating, and `src/main/skfiy-mcp-server.ts` defines pure JSON-RPC handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`. The remaining product gap is the real stdio transport loop used by an installed Codex plugin process.
 
 ## Chrome Native Messaging Host
 
