@@ -110,6 +110,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || !snapshot?.replay
     || !Array.isArray(snapshot?.smokeEvidence?.artifacts)
     || !hasChromeNativeHostBridgeSmokeEvidence(snapshot.smokeEvidence.artifacts)
+    || !hasChromeInstalledExtensionSmokeEvidence(snapshot.smokeEvidence.artifacts)
     || snapshot?.longHorizon?.session !== "money-run"
     || !Array.isArray(snapshot?.alerts)
   ) {
@@ -301,5 +302,33 @@ function hasChromeNativeHostBridgeSmokeEvidence(artifacts) {
       && nativeHostBridge.heartbeatLaunchOrigin.startsWith("chrome-extension://")
       && nativeHostBridge?.heartbeatMessageType === "skfiy.page.observe"
       && nativeHostBridge?.heartbeatRequestId === "chrome-smoke-native-host";
+  });
+}
+
+function hasChromeInstalledExtensionSmokeEvidence(artifacts) {
+  if (!Array.isArray(artifacts)) {
+    return false;
+  }
+
+  return artifacts.some((artifact) => {
+    const installedExtension = artifact?.installedExtension;
+
+    if (
+      artifact?.target !== "chrome"
+      || installedExtension?.productPath !== "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat"
+    ) {
+      return false;
+    }
+
+    if (installedExtension?.result === "passed") {
+      return true;
+    }
+
+    return installedExtension?.result === "blocked"
+      && installedExtension?.blockedReason === "branded_chrome_load_extension_removed"
+      && typeof installedExtension?.chromeVersion === "string"
+      && installedExtension?.recommendedBrowser === "Chrome for Testing or Chromium"
+      && Array.isArray(installedExtension?.diagnosticExtensionNames)
+      && installedExtension.diagnosticExtensionNames.includes("Google Network Speech");
   });
 }

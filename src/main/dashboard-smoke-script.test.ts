@@ -176,6 +176,14 @@ describe("dashboard product smoke script", () => {
                   heartbeatLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
                   heartbeatMessageType: "skfiy.page.observe",
                   heartbeatRequestId: "chrome-smoke-native-host"
+                },
+                installedExtension: {
+                  result: "blocked",
+                  productPath: "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat",
+                  chromeVersion: "Chrome/146.0.7680.80",
+                  blockedReason: "branded_chrome_load_extension_removed",
+                  recommendedBrowser: "Chrome for Testing or Chromium",
+                  diagnosticExtensionNames: ["Google Network Speech"]
                 }
               }
             ]
@@ -222,6 +230,35 @@ describe("dashboard product smoke script", () => {
         }
       }
     })).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          smokeEvidence: {
+            artifacts: [
+              {
+                target: "chrome",
+                result: "passed",
+                path: "/repo/.skfiy-smoke/chrome-current.json",
+                productPath: "renderer -> preload -> main -> CDP -> Chrome",
+                nativeHostBridge: {
+                  result: "passed",
+                  productPath: "dist/skfiy -> Chrome Native Messaging heartbeat",
+                  responseResult: "accepted",
+                  heartbeatPath: "/repo/.skfiy-smoke/chrome-native-home/Library/Application Support/skfiy/chrome-extension-connection.json",
+                  heartbeatHostName: "com.sskift.skfiy",
+                  heartbeatLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+                  heartbeatMessageType: "skfiy.page.observe",
+                  heartbeatRequestId: "chrome-smoke-native-host"
+                }
+              }
+            ]
+          }
+        }
+      }
+    })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       snapshotResponse: {
