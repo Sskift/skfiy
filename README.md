@@ -213,8 +213,10 @@ the user-level Chrome host policy file path.
 --stdio` command. The Codex plugin is an adapter to the installed product, not a
 runtime replacement; desktop control still goes through skfiy's app policy,
 permission preflight, approval prompts, and replay evidence. `smoke:codex-plugin`
-copies the scaffold into `.skfiy-plugin-install/` for staged marketplace proof
-without mutating the user's global Codex marketplace.
+copies the scaffold into `.skfiy-plugin-install/` for staged marketplace proof,
+reads the installed `.mcp.json`, resolves `command: "skfiy"` through a temporary
+`PATH` to `dist/skfiy`, and verifies MCP status without mutating the user's
+global Codex marketplace.
 
 ## Development
 

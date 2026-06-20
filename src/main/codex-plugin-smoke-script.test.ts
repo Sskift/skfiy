@@ -19,6 +19,9 @@ describe("Codex plugin product smoke script", () => {
 
     expect(source).toContain("readCodexPluginMcpServer");
     expect(source).toContain("runCodexPluginMcpSession");
+    expect(source).toContain("configuredCommandUsed");
+    expect(source).toContain("resolveConfiguredCommandPath");
+    expect(source).toContain("commandLookupPathPrepend");
     expect(source).toContain("EXPECTED_MCP_ARGS");
     expect(source).toContain("skfiy.status");
     expect(source).toContain("tools/list");
@@ -123,7 +126,10 @@ describe("Codex plugin product smoke script", () => {
       configuredCommand: "skfiy",
       configuredArgs: ["mcp", "serve", "--stdio"],
       packagedCliPath: "/repo/dist/skfiy",
-      command: ["/repo/dist/skfiy", "mcp", "serve", "--stdio"],
+      resolvedCommandPath: "/repo/dist/skfiy",
+      configuredCommandUsed: true,
+      commandLookupPathPrepend: "/repo/dist",
+      command: ["skfiy", "mcp", "serve", "--stdio"],
       stdoutJsonRpcOnly: true,
       mcpExit: { code: 0, signal: null },
       requests: [
@@ -183,11 +189,27 @@ describe("Codex plugin product smoke script", () => {
     })).toBe("failed");
     expect(classifyCodexPluginSmokeEvidence({
       ...passedEvidence,
+      configuredCommandUsed: false
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
+      resolvedCommandPath: "/repo/bin/skfiy"
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
+      commandLookupPathPrepend: "/repo/bin"
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
       packagedCliPath: "/repo/bin/skfiy.mjs"
     })).toBe("failed");
     expect(classifyCodexPluginSmokeEvidence({
       ...passedEvidence,
-      command: ["/repo/dist/skfiy", "status", "--json"]
+      command: ["/repo/dist/skfiy", "mcp", "serve", "--stdio"]
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
+      command: ["skfiy", "status", "--json"]
     })).toBe("failed");
     expect(classifyCodexPluginSmokeEvidence({
       ...passedEvidence,

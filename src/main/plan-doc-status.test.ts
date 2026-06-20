@@ -219,6 +219,8 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("dist/skfiy -> skfiy CLI command matrix");
     expect(dashboardPlan).toContain("staged marketplace install");
     expect(dashboardPlan).toContain("repoCheckoutUsedForMcp=false");
+    expect(dashboardPlan).toContain("configuredCommandUsed=true");
+    expect(dashboardPlan).toContain("resolvedCommandPath");
     expect(dashboardPlan).toContain("MCP initialize response now includes short safety instructions");
     expect(dashboardPlan).toContain("Codex plugin smoke now requires those initialize instructions");
     expect(dashboardPlan).toContain("OpenAI Codex plugin build docs");

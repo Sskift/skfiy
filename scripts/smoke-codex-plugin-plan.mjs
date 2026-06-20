@@ -76,9 +76,13 @@ export function classifyCodexPluginSmokeEvidence(evidence) {
     || evidence.repoCheckoutUsedForMcp !== false
     || !hasValidMarketplaceInstall(evidence)
     || evidence.configuredCommand !== "skfiy"
+    || evidence.configuredCommandUsed !== true
+    || !isBuiltCliPath(evidence.resolvedCommandPath)
+    || path.normalize(evidence.resolvedCommandPath) !== path.normalize(evidence.packagedCliPath)
+    || !isPackagedCliDirectory(evidence.commandLookupPathPrepend, evidence.packagedCliPath)
     || !sameStringArray(evidence.configuredArgs, EXPECTED_MCP_ARGS)
     || !isBuiltCliPath(evidence.packagedCliPath)
-    || !sameStringArray(evidence.command, [evidence.packagedCliPath, ...EXPECTED_MCP_ARGS])
+    || !sameStringArray(evidence.command, [evidence.configuredCommand, ...EXPECTED_MCP_ARGS])
     || evidence.stdoutJsonRpcOnly !== true
     || evidence.mcpExit?.code !== 0
     || evidence.mcpExit?.signal !== null
@@ -191,6 +195,12 @@ function isBuiltCliPath(cliPath) {
 
   return path.basename(normalized) === "skfiy"
     && path.basename(path.dirname(normalized)) === "dist";
+}
+
+function isPackagedCliDirectory(directory, cliPath) {
+  return typeof directory === "string"
+    && typeof cliPath === "string"
+    && path.normalize(directory) === path.dirname(path.normalize(cliPath));
 }
 
 function hasSkfiySafetyInstructions(instructions) {

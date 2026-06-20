@@ -43,6 +43,9 @@ async function main() {
     configuredArgs: undefined,
     configuredEnv: undefined,
     packagedCliPath: options.cliPath,
+    resolvedCommandPath: undefined,
+    configuredCommandUsed: undefined,
+    commandLookupPathPrepend: undefined,
     command: undefined,
     productPath: PRODUCT_PATH,
     runnerHasTmux: Boolean(process.env.TMUX),
@@ -76,12 +79,13 @@ async function main() {
     evidence.configuredCommand = mcpServer.command;
     evidence.configuredArgs = mcpServer.args;
     evidence.configuredEnv = mcpServer.env;
-    evidence.command = [options.cliPath, ...mcpServer.args];
+    evidence.command = [mcpServer.command, ...mcpServer.args];
 
     const session = await runCodexPluginMcpSession({
-      cliPath: options.cliPath,
+      configuredCommand: mcpServer.command,
       configuredArgs: mcpServer.args,
       configuredEnv: mcpServer.env,
+      cliPath: options.cliPath,
       timeoutMs: options.timeoutMs
     });
 
@@ -190,19 +194,27 @@ export async function readCodexPluginMcpServer(mcpConfigPath) {
 }
 
 export function runCodexPluginMcpSession({
-  cliPath,
+  configuredCommand,
   configuredArgs,
   configuredEnv,
+  cliPath,
   timeoutMs
 }) {
   const requests = createMcpRequests();
+  const commandLookupPathPrepend = path.dirname(cliPath);
+  const commandLookupPath = [
+    commandLookupPathPrepend,
+    process.env.PATH ?? ""
+  ].filter(Boolean).join(path.delimiter);
+  const resolvedCommandPath = resolveConfiguredCommandPath(configuredCommand, commandLookupPath);
 
   return new Promise((resolve, reject) => {
-    const child = spawn(cliPath, configuredArgs, {
+    const child = spawn(configuredCommand, configuredArgs, {
       cwd: ROOT_DIR,
       env: {
         ...process.env,
-        ...configuredEnv
+        ...configuredEnv,
+        PATH: commandLookupPath
       },
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -249,6 +261,9 @@ export function runCodexPluginMcpSession({
           : [];
 
         resolve({
+          commandLookupPathPrepend,
+          resolvedCommandPath,
+          configuredCommandUsed: true,
           requests: requests.map(summarizeRequest),
           stdout,
           stderr,
@@ -269,6 +284,21 @@ export function runCodexPluginMcpSession({
     }
     child.stdin.end();
   });
+}
+
+function resolveConfiguredCommandPath(command, lookupPath) {
+  for (const directory of String(lookupPath ?? "").split(path.delimiter)) {
+    if (!directory) {
+      continue;
+    }
+
+    const candidate = path.join(directory, command);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
 }
 
 function createMcpRequests() {
