@@ -203,10 +203,17 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("skfiy.app`, embedded `skfiy-helper`, and `skfiy` CLI");
     expect(dashboardPlan).toContain("OpenClaw Reference Shape");
     expect(dashboardPlan).toContain("Local Codex Plugin Implementation Findings");
+    expect(dashboardPlan).toContain("codex plugin --help");
+    expect(dashboardPlan).toContain("Chrome plugin cache entry has no `.app.json` and no `.mcp.json`");
+    expect(dashboardPlan).toContain("GitHub plugin cache entry has `.app.json` connector wiring");
     expect(dashboardPlan).toContain("Dashboard Roadmap");
     expect(dashboardPlan).toContain("Control UI is an admin surface");
+    expect(dashboardPlan).toContain("Control UI reference capabilities");
+    expect(dashboardPlan).toContain("sessions, cron, exec approvals, config, MCP server status, logs, updates, and live tool activity");
     expect(dashboardPlan).toContain("Binary and CLI Product Contract");
+    expect(dashboardPlan).toContain("same compiled product identity");
     expect(dashboardPlan).toContain("Codex Plugin Install and Marketplace Notes");
+    expect(dashboardPlan).toContain("Codex plugin commands verified locally: `codex plugin add`, `codex plugin list`, `codex plugin remove`, and `codex plugin marketplace`");
     expect(dashboardPlan).toContain("smoke:codex-plugin");
     expect(dashboardPlan).toContain("smoke:cli");
     expect(dashboardPlan).toContain("dist/skfiy -> skfiy CLI command matrix");

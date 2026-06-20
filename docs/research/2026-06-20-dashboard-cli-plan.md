@@ -12,6 +12,7 @@ Research inputs checked before this plan update:
 - OpenAI Codex app deep-link docs, fetched 2026-06-20 from `https://developers.openai.com/codex/app/commands`.
 - OpenClaw docs, fetched 2026-06-20 from `https://docs.openclaw.ai/web/dashboard` and `https://docs.openclaw.ai/web/control-ui`.
 - Local Codex plugin cache inspection under `~/.codex/plugins/cache/`.
+- Local `codex plugin --help` command output from the installed Codex CLI.
 - Repo-local skfiy scaffold under `plugins/skfiy/`.
 
 ## Local Codex Plugin Implementation Findings
@@ -20,15 +21,18 @@ Codex plugins are installable bundles rather than runtime processes. Local cache
 
 - Installed plugins live under `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`.
 - `.codex-plugin/plugin.json` is the entry point and points Codex at optional `skills/`, `.app.json`, `.mcp.json`, hooks, assets, and UI metadata.
-- The bundled Chrome plugin cache entry contains `.codex-plugin/plugin.json`, `skills/`, and assets; the Chrome browser extension/native-host pairing is a separate product integration surfaced by that plugin.
-- The GitHub plugin cache entry contains `.codex-plugin/plugin.json` plus `.app.json`, proving connector-backed plugins do not need to own the target product runtime.
+- The bundled Chrome plugin cache entry contains `.codex-plugin/plugin.json`, `skills/`, docs, scripts, and assets. Chrome plugin cache entry has no `.app.json` and no `.mcp.json`; the Chrome browser extension/native-host pairing is a separate product integration surfaced by that plugin.
+- The GitHub plugin cache entry has `.app.json` connector wiring beside `.codex-plugin/plugin.json`, proving connector-backed plugins do not need to own the target product runtime.
 - The skfiy plugin scaffold should therefore stay thin: `plugins/skfiy/.codex-plugin/plugin.json` exposes the skill metadata, and `plugins/skfiy/.mcp.json` points at the installed `skfiy mcp serve --stdio` binary command.
+- Codex plugin commands verified locally: `codex plugin add`, `codex plugin list`, `codex plugin remove`, and `codex plugin marketplace`. This matches the plan to test marketplace installation through Codex's own plugin manager instead of editing cached plugin files by hand.
 
 The product rule is: the Codex plugin can inspect, diagnose, and request skfiy-controlled actions, but it must not become a second desktop-control runtime. Permission checks, app policy, replay records, Chrome Native Messaging, and stop/approval behavior stay inside the packaged `skfiy.app` plus `dist/skfiy` binary.
 
 ## OpenClaw Reference Shape
 
 OpenClaw's dashboard pattern is a local gateway Control UI opened by `openclaw dashboard`: it serves a clean local URL, keeps the Control UI as an admin surface, gates WebSocket/auth access, avoids printing tokens into logs, and focuses on gateway health, sessions, agents, task activity, logs, and operational alerts. The OpenClaw docs explicitly recommend localhost/Tailscale/SSH-tunnel access, store bootstrap tokens in browser session storage rather than logs, and treat the Control UI as an admin surface.
+
+Control UI reference capabilities that should inform skfiy's operator plane include sessions, cron, exec approvals, config, MCP server status, logs, updates, and live tool activity. The important product lesson is not to copy OpenClaw's chat-first UI; it is to make operational state inspectable, scoped, and recoverable while preserving the voice pet as the primary entry point.
 
 Control UI is an admin surface, so skfiy should treat any future remote dashboard mode as privileged and require explicit authentication, scope, and transport choices.
 
@@ -87,7 +91,7 @@ Codex plugin packaging stays an adapter layer. A repo-local scaffold is not enou
 
 - OpenAI Codex plugin build docs define `.codex-plugin/plugin.json` as the required entry point and allow `skills/`, `hooks/`, `.app.json`, `.mcp.json`, and `assets/` at the plugin root.
 - Codex marketplace install docs state installed plugins are loaded from `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`, and local marketplace installs use `local` as the version. skfiy must therefore prove the installed cached copy can find the packaged binary without relying on the repo checkout.
-- Codex CLI plugin commands expose `codex plugin add/list/remove/marketplace ... --json`, which gives us a future automation surface for installed-plugin smoke setup once we are ready to mutate the user's Codex marketplace.
+- Codex CLI plugin commands expose `codex plugin add/list/remove/marketplace`, which gives us a future automation surface for installed-plugin smoke setup once we are ready to mutate the user's Codex marketplace.
 - Codex app deep links can open plugin install/detail flows, including local marketplace detail links. They are useful for onboarding but are not a replacement for product smoke evidence.
 - The repo plugin root remains `plugins/skfiy/`, with `.codex-plugin/plugin.json` pointing to `skills/` and `.mcp.json`.
 - Marketplace entries must use lowercase `skfiy`, a local `source.path` relative to the marketplace root, and explicit installation/authentication policy fields.
