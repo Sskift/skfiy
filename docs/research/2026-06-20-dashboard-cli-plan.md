@@ -4,6 +4,25 @@ Date: 2026-06-20
 
 Source plan: `docs/research/2026-06-16-voice-computer-control-long-plan.md`, sections "Dashboard and Operator Plane", "Binary, CLI, and Native Host", and "Recommended Next Move".
 
+## OpenClaw Reference Shape
+
+OpenClaw's dashboard pattern is a local gateway Control UI opened by `openclaw dashboard`: it serves a clean local URL, keeps the Control UI as an admin surface, gates WebSocket/auth access, avoids printing tokens into logs, and focuses on gateway health, sessions, agents, task activity, logs, and operational alerts.
+
+Control UI is an admin surface, so skfiy should treat any future remote dashboard mode as privileged and require explicit authentication, scope, and transport choices.
+
+For skfiy, the equivalent surface is not the primary user experience. The pet and voice turn remain the entry point. The dashboard is the operator plane for Computer Use evidence: permission state, desktop-session health, app/helper/extension runtime status, active turn state, replay screenshots/actions, host/app policy, smoke artifacts, dogfood/release readiness, and long-horizon `money-run` supervision.
+
+## Binary and CLI Product Contract
+
+The dashboard and CLI must run from the same compiled product identity as the app:
+
+- `skfiy.app` is the user-facing signed app bundle.
+- `skfiy-helper` is embedded under `skfiy.app/Contents/MacOS`.
+- `skfiy` is the packaged CLI shim shipped beside the app or installed by the release package.
+- Chrome Native Messaging host manifests point to the packaged `skfiy` CLI path.
+- `skfiy dashboard`, `skfiy status`, `skfiy doctor`, `skfiy chrome`, and `skfiy smoke` must work without tmux, source-tree dev servers, or loose helper binaries.
+- JSON output from these commands is a product API for the dashboard and future Codex plugin adapter, so field names should evolve with compatibility tests.
+
 ## Scope Landed
 
 - Add a pure CLI command surface module for planned operator commands.

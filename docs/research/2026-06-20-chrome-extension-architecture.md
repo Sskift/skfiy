@@ -125,13 +125,15 @@ little-endian length-prefixed JSON frames, rejects malformed or oversized
 messages, honors an injectable app-policy block, and runs browser-action schema
 validation before dispatch. `src/main/chrome-browser-action-schema.ts`
 normalizes observe messages and validates safe navigate, click selector/text/role,
-fill, scroll, and confirmed submit actions. Unsafe navigation URLs, sensitive
-form fills, incomplete targets, and unconfirmed submits are blocked before the
+fill, scroll, confirmed submit, page screenshot, and downloads-status actions.
+Unsafe navigation URLs, sensitive form fills, incomplete targets, unconfirmed
+submits, and unconfirmed local download-path exposure are blocked before the
 extension sees them. The background service worker unwraps
-`skfiy.native.message`, waits for `port.onMessage`, and returns the native-host
-response to the caller. Persistent app-policy storage, live app-runtime routing,
-page screenshot/download status actions, and end-to-end extension smoke evidence
-remain future work.
+`skfiy.native.message`, waits for `port.onMessage`, returns the native-host
+response to the caller, captures visible page screenshots with
+`chrome.tabs.captureVisibleTab`, and reads recent download status with
+`chrome.downloads.search`. Persistent app-policy storage, live app-runtime
+routing, and end-to-end extension smoke evidence remain future work.
 
 ## Sensitive Content Pause
 

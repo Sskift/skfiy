@@ -183,6 +183,27 @@ describe("implementation plan status docs", () => {
     expect(recommendedNextMove).not.toContain("Build minimal observe-plan-act-verify loop with replay logs.");
   });
 
+  it("records Codex plugin, dashboard, and binary CLI planning requirements in the long plan", () => {
+    const longPlan = readFileSync(
+      path.join(process.cwd(), "docs", "research", "2026-06-16-voice-computer-control-long-plan.md"),
+      "utf8"
+    );
+    const dashboardPlan = readFileSync(
+      path.join(process.cwd(), "docs", "research", "2026-06-20-dashboard-cli-plan.md"),
+      "utf8"
+    );
+
+    expect(longPlan).toContain("### 8. Codex Plugin Adapter");
+    expect(longPlan).toContain("Codex loads installed plugins from `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`");
+    expect(longPlan).toContain("build a `skfiy` Codex plugin scaffold only after the binary runtime is stable");
+    expect(longPlan).toContain("OpenClaw-style dashboard");
+    expect(longPlan).toContain("single compiled product entry");
+    expect(longPlan).toContain("skfiy.app`, embedded `skfiy-helper`, and `skfiy` CLI");
+    expect(dashboardPlan).toContain("OpenClaw Reference Shape");
+    expect(dashboardPlan).toContain("Control UI is an admin surface");
+    expect(dashboardPlan).toContain("Binary and CLI Product Contract");
+  });
+
   it("documents panic stop behavior evidence in alpha and report instructions", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");

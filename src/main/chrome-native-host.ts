@@ -11,6 +11,8 @@ export const CHROME_NATIVE_RESPONSE_TYPE = "skfiy.native.response";
 const CHROME_NATIVE_BRIDGE_MESSAGE_TYPES = new Set([
   "skfiy.page.observe",
   "skfiy.page.action",
+  "skfiy.page.screenshot",
+  "skfiy.downloads.status",
   "skfiy.host_policy.request"
 ]);
 

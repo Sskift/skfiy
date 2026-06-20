@@ -1,5 +1,7 @@
 export const CHROME_BROWSER_OBSERVE_TYPE = "skfiy.page.observe";
 export const CHROME_BROWSER_ACTION_TYPE = "skfiy.page.action";
+export const CHROME_BROWSER_SCREENSHOT_TYPE = "skfiy.page.screenshot";
+export const CHROME_BROWSER_DOWNLOADS_STATUS_TYPE = "skfiy.downloads.status";
 
 export interface ChromeBrowserMessage {
   schemaVersion: 1;
@@ -57,9 +59,66 @@ export function normalizeChromeBrowserMessage(
     return normalizePageActionMessage(message);
   }
 
+  if (message.type === CHROME_BROWSER_SCREENSHOT_TYPE) {
+    return {
+      ok: true,
+      message: {
+        schemaVersion: 1,
+        type: CHROME_BROWSER_SCREENSHOT_TYPE,
+        requestId: message.requestId,
+        payload: normalizeScreenshotPayload(message.payload)
+      }
+    };
+  }
+
+  if (message.type === CHROME_BROWSER_DOWNLOADS_STATUS_TYPE) {
+    return normalizeDownloadsStatusMessage(message);
+  }
+
   return {
     ok: true,
     message
+  };
+}
+
+function normalizeScreenshotPayload(payload: unknown): Record<string, unknown> {
+  const record = readRecord(payload);
+  const format = record?.format === "jpeg" ? "jpeg" : "png";
+
+  return {
+    format,
+    ...(format === "jpeg" && typeof record?.quality === "number"
+      ? { quality: clampInteger(record.quality, 1, 100) }
+      : {})
+  };
+}
+
+function normalizeDownloadsStatusMessage(
+  message: ChromeBrowserMessage
+): ChromeBrowserMessageNormalization {
+  const payload = readRecord(message.payload) ?? {};
+  const includeFilePaths = payload.includeFilePaths === true;
+
+  if (includeFilePaths && payload.confirmed !== true) {
+    return {
+      ok: false,
+      result: "blocked",
+      reason: "download_path_exposure_requires_confirmation"
+    };
+  }
+
+  return {
+    ok: true,
+    message: {
+      schemaVersion: 1,
+      type: CHROME_BROWSER_DOWNLOADS_STATUS_TYPE,
+      requestId: message.requestId,
+      payload: {
+        limit: typeof payload.limit === "number" ? clampInteger(payload.limit, 1, 50) : 20,
+        includeFilePaths,
+        ...(includeFilePaths ? { confirmed: true } : {})
+      }
+    }
   };
 }
 
@@ -169,6 +228,13 @@ function isSafeNavigationUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.max(min, Math.min(max, Math.trunc(value)));
 }
 
 function looksSensitive(action: Record<string, unknown>): boolean {

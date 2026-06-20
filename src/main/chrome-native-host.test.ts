@@ -363,6 +363,60 @@ describe("Chrome Native Messaging bridge runtime", () => {
     });
   });
 
+  it("dispatches screenshot and download status messages after browser schema normalization", async () => {
+    const dispatched: unknown[] = [];
+
+    await expect(handleChromeNativeBridgeMessage(
+      {
+        schemaVersion: 1,
+        type: "skfiy.page.screenshot",
+        requestId: "screenshot-native"
+      },
+      {
+        payloadByteLength: 128,
+        policy: { state: "allowed" },
+        dispatch: async (message) => {
+          dispatched.push(message);
+          return { result: "accepted" };
+        }
+      }
+    )).resolves.toMatchObject({
+      requestId: "screenshot-native",
+      result: "accepted"
+    });
+
+    await expect(handleChromeNativeBridgeMessage(
+      {
+        schemaVersion: 1,
+        type: "skfiy.downloads.status",
+        requestId: "downloads-native",
+        payload: {
+          includeFilePaths: true
+        }
+      },
+      {
+        payloadByteLength: 128,
+        policy: { state: "allowed" },
+        dispatch: async () => ({ result: "unreachable" })
+      }
+    )).resolves.toEqual({
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "downloads-native",
+      result: "blocked",
+      reason: "download_path_exposure_requires_confirmation"
+    });
+
+    expect(dispatched).toEqual([{
+      schemaVersion: 1,
+      type: "skfiy.page.screenshot",
+      requestId: "screenshot-native",
+      payload: {
+        format: "png"
+      }
+    }]);
+  });
+
   it("runs a framed native messaging host loop without line-oriented stdout", async () => {
     const inputFrame = encodeChromeNativeMessageFrame({
       schemaVersion: 1,

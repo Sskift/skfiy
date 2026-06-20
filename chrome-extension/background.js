@@ -14,6 +14,10 @@ export const MESSAGE_TYPES = Object.freeze({
   PAGE_OBSERVE_RESULT: "skfiy.page.observe_result",
   PAGE_ACTION: "skfiy.page.action",
   PAGE_ACTION_RESULT: "skfiy.page.action_result",
+  PAGE_SCREENSHOT: "skfiy.page.screenshot",
+  PAGE_SCREENSHOT_RESULT: "skfiy.page.screenshot_result",
+  DOWNLOADS_STATUS: "skfiy.downloads.status",
+  DOWNLOADS_STATUS_RESULT: "skfiy.downloads.status_result",
   PAGE_SENSITIVE_PAUSE: "skfiy.page.sensitive_pause",
   HOST_POLICY_REQUEST: "skfiy.host_policy.request",
   HOST_POLICY_RESPONSE: "skfiy.host_policy.response",
@@ -29,6 +33,13 @@ function getHost(url) {
   } catch {
     return "";
   }
+}
+
+function clampDownloadsLimit(value) {
+  if (!Number.isFinite(value)) {
+    return 20;
+  }
+  return Math.max(1, Math.min(50, Math.trunc(value)));
 }
 
 async function getActiveTab() {
@@ -87,6 +98,82 @@ async function routePageMessage(message) {
   });
 }
 
+async function routePageScreenshot(message) {
+  const tab = message.tabId ? await chrome.tabs.get(message.tabId) : await getActiveTab();
+  const host = getHost(tab?.url ?? "");
+  const policy = await readHostPolicy();
+  const policyDecision = decideHostPolicy(policy, host);
+
+  if (!tab?.id || policyDecision.decision !== "allowed") {
+    return {
+      type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      host,
+      policyDecision
+    };
+  }
+
+  const format = message.payload?.format === "jpeg" ? "jpeg" : "png";
+  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+    format,
+    ...(format === "jpeg" && typeof message.payload?.quality === "number"
+      ? { quality: message.payload.quality }
+      : {})
+  });
+
+  return {
+    type: MESSAGE_TYPES.PAGE_SCREENSHOT_RESULT,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId: message.requestId,
+    host,
+    tabId: tab.id,
+    format,
+    dataUrl
+  };
+}
+
+async function readDownloadsStatus(message) {
+  const limit = clampDownloadsLimit(message.payload?.limit);
+  const includeFilePaths = message.payload?.includeFilePaths === true;
+
+  if (includeFilePaths && message.payload?.confirmed !== true) {
+    return {
+      type: MESSAGE_TYPES.DOWNLOADS_STATUS_RESULT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      result: "blocked",
+      reason: "download_path_exposure_requires_confirmation"
+    };
+  }
+
+  const downloads = await chrome.downloads.search({
+    limit,
+    orderBy: ["-startTime"]
+  });
+
+  return {
+    type: MESSAGE_TYPES.DOWNLOADS_STATUS_RESULT,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId: message.requestId,
+    downloads: downloads.map((download) => ({
+      id: download.id,
+      state: download.state,
+      danger: download.danger,
+      paused: download.paused,
+      exists: download.exists,
+      canResume: download.canResume,
+      mime: download.mime,
+      bytesReceived: download.bytesReceived,
+      totalBytes: download.totalBytes,
+      startTime: download.startTime,
+      endTime: download.endTime,
+      urlHost: getHost(download.url ?? ""),
+      ...(includeFilePaths ? { filename: download.filename } : {})
+    }))
+  };
+}
+
 function unwrapNativeMessage(message) {
   const payload = message?.payload && typeof message.payload === "object" && !Array.isArray(message.payload)
     ? message.payload
@@ -135,6 +222,14 @@ function sendNativeMessage(message) {
 async function handleRuntimeMessage(message) {
   if (message?.type === MESSAGE_TYPES.PAGE_OBSERVE || message?.type === MESSAGE_TYPES.PAGE_ACTION) {
     return routePageMessage(message);
+  }
+
+  if (message?.type === MESSAGE_TYPES.PAGE_SCREENSHOT) {
+    return routePageScreenshot(message);
+  }
+
+  if (message?.type === MESSAGE_TYPES.DOWNLOADS_STATUS) {
+    return readDownloadsStatus(message);
   }
 
   if (message?.type === MESSAGE_TYPES.HOST_POLICY_REQUEST) {

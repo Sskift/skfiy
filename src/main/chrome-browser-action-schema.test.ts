@@ -48,6 +48,64 @@ describe("Chrome browser action schema", () => {
     });
   });
 
+  it("normalizes page screenshot and download status messages without exposing local paths by default", () => {
+    expect(normalizeChromeBrowserMessage({
+      schemaVersion: 1,
+      type: "skfiy.page.screenshot",
+      requestId: "screenshot-1"
+    })).toEqual({
+      ok: true,
+      message: {
+        schemaVersion: 1,
+        type: "skfiy.page.screenshot",
+        requestId: "screenshot-1",
+        payload: {
+          format: "png"
+        }
+      }
+    });
+
+    expect(normalizeChromeBrowserMessage({
+      schemaVersion: 1,
+      type: "skfiy.downloads.status",
+      requestId: "downloads-1"
+    })).toEqual({
+      ok: true,
+      message: {
+        schemaVersion: 1,
+        type: "skfiy.downloads.status",
+        requestId: "downloads-1",
+        payload: {
+          limit: 20,
+          includeFilePaths: false
+        }
+      }
+    });
+
+    expect(normalizeChromeBrowserMessage({
+      schemaVersion: 1,
+      type: "skfiy.downloads.status",
+      requestId: "downloads-confirmed",
+      payload: {
+        includeFilePaths: true,
+        confirmed: true,
+        limit: 999
+      }
+    })).toEqual({
+      ok: true,
+      message: {
+        schemaVersion: 1,
+        type: "skfiy.downloads.status",
+        requestId: "downloads-confirmed",
+        payload: {
+          limit: 50,
+          includeFilePaths: true,
+          confirmed: true
+        }
+      }
+    });
+  });
+
   it("rejects unsupported, incomplete, or unsafe browser actions before dispatch", () => {
     expect(normalizeChromeBrowserMessage({
       schemaVersion: 1,
@@ -111,6 +169,19 @@ describe("Chrome browser action schema", () => {
       ok: false,
       result: "blocked",
       reason: "form_submission_requires_confirmation"
+    });
+
+    expect(normalizeChromeBrowserMessage({
+      schemaVersion: 1,
+      type: "skfiy.downloads.status",
+      requestId: "downloads-paths",
+      payload: {
+        includeFilePaths: true
+      }
+    })).toEqual({
+      ok: false,
+      result: "blocked",
+      reason: "download_path_exposure_requires_confirmation"
     });
   });
 });

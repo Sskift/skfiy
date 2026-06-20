@@ -33,7 +33,7 @@ describe("Chrome extension adapter skeleton", () => {
     });
     expect(manifest.action).toMatchObject({ default_popup: "popup.html" });
     expect(manifest.permissions).toEqual(
-      expect.arrayContaining(["activeTab", "nativeMessaging", "scripting", "storage", "tabs"])
+      expect.arrayContaining(["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"])
     );
     expect(manifest.host_permissions ?? []).toEqual([]);
     expect(manifest.optional_host_permissions).toEqual(expect.arrayContaining(["http://*/*", "https://*/*"]));
@@ -48,8 +48,14 @@ describe("Chrome extension adapter skeleton", () => {
     expect(background).toContain('CONTENT_SCRIPT_FILE = "content-script.js"');
     expect(background).toContain('"skfiy.page.observe"');
     expect(background).toContain('"skfiy.page.action"');
+    expect(background).toContain('"skfiy.page.screenshot"');
+    expect(background).toContain('"skfiy.downloads.status"');
+    expect(background).toContain("download_path_exposure_requires_confirmation");
+    expect(background).toContain("clampDownloadsLimit");
     expect(background).toContain('"skfiy.host_policy.request"');
     expect(background).toContain('"skfiy.host_policy.response"');
+    expect(background).toContain("captureVisibleTab");
+    expect(background).toContain("chrome.downloads.search");
     expect(background).toContain("sendNativeMessage");
     expect(background).toContain("port.onMessage.addListener");
     expect(background).toContain("port.onDisconnect.addListener");

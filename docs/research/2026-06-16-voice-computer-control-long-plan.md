@@ -14,7 +14,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 
 - OpenAI Computer Use frames the core loop as model-operated software through screenshots plus interface actions executed by the host harness. Codex Computer Use also makes the permission model explicit: Screen Recording for seeing, Accessibility for clicking/typing, app-level approvals for what can be controlled.
 - Codex Chrome extension is the closest browser-control reference for skfiy. Public docs describe it as a plugin-installed Chrome extension for tasks requiring the user's signed-in Chrome state; it uses host/domain approvals, allowlist/blocklist controls, tab grouping, Chrome extension permissions including debugger/page access, browsing history, downloads/bookmarks/tab groups, and native-app communication. The current local Codex Chrome surface also exposes a controllable-tab model with explicit user-tab claiming and session cleanup. The private implementation is not public, so skfiy should not copy it; instead, build a Chrome extension adapter with the same product properties: structured DOM actions, per-host approvals, native messaging to the skfiy app, and screenshot fallback.
-- Codex plugin architecture is broader than a Chrome extension: public docs define plugins as bundles of skills, app integrations, MCP servers, and lifecycle hooks, with marketplace distribution and manifest paths rooted under `.codex-plugin/plugin.json`. skfiy's Chrome extension should be a product adapter first; a later Codex plugin can expose skfiy to Codex as an MCP/app integration after skfiy's own runtime is stable.
+- Codex plugin architecture is broader than a Chrome extension: public docs define plugins as bundles of skills, app integrations, MCP servers, and lifecycle hooks, with marketplace distribution and manifest paths rooted under `.codex-plugin/plugin.json`. Local inspection on 2026-06-20 confirmed the same implementation shape: installed plugins live under `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`, `plugin.json` points at `skills/`, `.app.json`, `.mcp.json`, hooks, and assets, and the bundled Chrome plugin is a Codex plugin that then sets up a Chrome extension plus native host. skfiy's Chrome extension should be a product adapter first; a later Codex plugin can expose skfiy to Codex as an MCP/app integration after skfiy's own runtime is stable.
 - OpenClaw-style dashboards show the right operator surface: a local gateway/control UI, safe dashboard URL opening through CLI, WebSocket/auth gating, live health, active sessions, task/sub-agent activity, cost/context trends, alert banners, auto-refresh, and local-only defaults. skfiy should treat dashboard as an ops/audit plane, not as the primary pet UI.
 - Anthropic's computer use announcement confirms the same shape: looking at screen, moving cursor, clicking, typing. It also explicitly labels the capability experimental and error-prone, so reliability and recovery are not optional add-ons.
 - Microsoft Copilot Studio Computer Use and Power Automate Desktop show the enterprise automation angle: natural language is useful, but users still need repeatable desktop flows, connectors, and auditable runs.
@@ -166,6 +166,8 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 
 ### 7. Binary, CLI, and Native Host
 
+- Binary distribution must have a single compiled product entry: the installed user-facing product is `skfiy.app` plus the packaged `skfiy` CLI, not a tmux session, source-tree dev server, or loose helper launched from Terminal.
+- Release artifacts must always include `skfiy.app`, embedded `skfiy-helper`, and `skfiy` CLI as one coherent product bundle.
 - Ship one product, not a tmux backend:
   - `skfiy.app` as the signed desktop app.
   - `skfiy-helper` embedded in `Contents/MacOS`.
@@ -185,7 +187,29 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - Mutating commands require explicit subcommands and clear output.
   - `--json` output must be stable enough for dashboard and future agents.
 
-### 8. Evaluation Harness
+### 8. Codex Plugin Adapter
+
+- Treat Codex plugin packaging as a distribution adapter, not skfiy's runtime foundation.
+- Codex loads installed plugins from `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`, so a skfiy plugin release must be versioned, cache-safe, and reinstallable without depending on the source checkout path.
+- Build a `skfiy` Codex plugin scaffold only after the binary runtime is stable:
+  - `.codex-plugin/plugin.json` with lowercase `skfiy`, version, metadata, icons, and starter prompts.
+  - `skills/control-skfiy/SKILL.md` for Codex-facing workflows such as "use skfiy to inspect the desktop and run a permissioned Computer Use turn".
+  - `.mcp.json` pointing to `skfiy mcp serve --stdio` or an equivalent installed binary command.
+  - Optional `.app.json` only if Codex app integration needs a first-class connector surface.
+  - No plugin hook should auto-run desktop control without explicit user trust and approval.
+- Plugin-facing commands must call the installed binary:
+  - `skfiy status --json`
+  - `skfiy doctor --json`
+  - `skfiy chrome status --json`
+  - `skfiy mcp serve --stdio`
+  - `skfiy smoke <target> --output <path> --json`
+- Validation before a plugin alpha:
+  - plugin manifest validates with the Codex plugin schema;
+  - plugin-installed skill can find the installed `skfiy` binary without a repo checkout;
+  - MCP/app adapter reports the same permission and replay state as `skfiy dashboard`;
+  - disabling/uninstalling the plugin does not stop the standalone skfiy app or erase local replay evidence.
+
+### 9. Evaluation Harness
 
 - Deterministic task scripts:
   - open Ghostty clean shell
@@ -400,7 +424,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - scroll
     - screenshot page
     - read downloads status
-    - partial: `src/main/chrome-browser-action-schema.ts` now normalizes `skfiy.page.observe` and validates `skfiy.page.action` before Native Messaging dispatch; safe actions currently cover navigate, click by selector/text/role, fill, scroll, and confirmed submit, while unsafe navigation URLs, sensitive fills, incomplete targets, and unconfirmed submits are blocked before extension dispatch; `chrome-extension/content-script.js` now resolves action targets by selector, accessible text, or role/name and can execute confirmed form submit; page screenshot and downloads status schema remain pending
+    - partial: `src/main/chrome-browser-action-schema.ts` now normalizes `skfiy.page.observe`, validates `skfiy.page.action`, and accepts bounded `skfiy.page.screenshot` plus `skfiy.downloads.status` messages before Native Messaging dispatch; safe actions currently cover navigate, click by selector/text/role, fill, scroll, confirmed submit, page screenshot format normalization, and downloads-status reads with local filename exposure blocked unless explicitly confirmed; `chrome-extension/content-script.js` now resolves action targets by selector, accessible text, or role/name and can execute confirmed form submit; `chrome-extension/background.js` can route page screenshots through `chrome.tabs.captureVisibleTab` and read recent download status through `chrome.downloads.search`; live extension smoke evidence remains pending
   - [ ] Add host policy
     - ask per host by default
     - allow current turn
@@ -481,6 +505,8 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
 - [ ] Add first-class binary and CLI distribution
   - [x] build a release package that contains `skfiy.app`, embedded `skfiy-helper`, and a `skfiy` CLI shim
     - packaging now copies `bin/skfiy.mjs` to `dist/skfiy`, alpha artifacts zip both `dist/skfiy.app` and `dist/skfiy`, and manifests record `cliShimPath`
+  - [ ] make the release artifact the only supported user-test runtime, with one compiled app/binary path and no tmux/dev-server dependency
+    - acceptance: `dist/skfiy.app`, `dist/skfiy`, embedded `Contents/MacOS/skfiy-helper`, Chrome Native Messaging manifest path, and every smoke command report the same release commit, bundle id, and product path
   - [ ] implement `skfiy status --json` for app/helper/permissions/desktop-session/extension/dashboard state
     - partial: `src/main/cli-command-surface.ts` now runs read-only status probes for `dist/skfiy.app`, the packaged helper, helper-reported permissions, desktop-session controllability, Chrome Native Messaging host status when `--extension-id` is provided, and dashboard descriptor health when `--dashboard-url` is provided; live Chrome extension connection, Finder Automation permission, and dashboard auto-discovery remain pending
   - [ ] implement `skfiy doctor` with concrete remediation for TCC, signing, helper location, Finder Automation, Chrome extension, and desktop sleep/lock blockers
@@ -493,9 +519,21 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
     - partial: command normalization and script execution wrappers exist for all smoke targets, now including `dashboard`; the current wrapper runs the repo-local smoke scripts directly with Node instead of npm, so installed-app packaging of smoke runners remains pending
   - [ ] add tests that every CLI command can run outside tmux and that `--json` output is stable for the dashboard
     - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; product binary execution tests remain pending
+- [ ] Add Codex plugin adapter after the standalone binary runtime is stable
+  - [x] Research Codex plugin implementation before planning the adapter
+    - findings: Codex plugins bundle skills, app integrations, MCP servers, lifecycle hooks, and assets; `.codex-plugin/plugin.json` is the entry point; marketplace entries govern install/auth policy; installed copies are loaded from `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`; the local Chrome plugin's Codex package is separate from the browser extension and native host it installs
+  - [ ] build a `skfiy` Codex plugin scaffold only after the binary runtime is stable
+    - scaffold must include `.codex-plugin/plugin.json`, a `skills/control-skfiy/SKILL.md` workflow, optional `.mcp.json`, icon assets, and no automatic desktop-control hook
+  - [ ] expose a plugin-safe MCP/app command surface backed by the installed `skfiy` binary
+    - required commands: `skfiy status --json`, `skfiy doctor --json`, `skfiy mcp serve --stdio`, `skfiy dashboard --no-open --json`, `skfiy smoke <target> --output <path> --json`
+  - [ ] add plugin validation and smoke evidence
+    - acceptance: plugin manifest validates, Codex can discover the skill, plugin-scoped MCP can read status, and a disabled plugin does not break the standalone desktop app
 - [ ] Add local dashboard/control UI
   - [ ] serve loopback-only dashboard from the app or CLI
     - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; `src/main/dashboard-data.ts` now composes a read-only snapshot for runtime health, permissions, current turn, replay, smoke evidence, long-horizon state, and alerts from injected evidence or from the local workspace (`package.json`, `dist/skfiy.app`, `dist/skfiy`, and latest `.skfiy-smoke/*.json` artifacts); `src/main/dashboard-server.ts` now serves `/descriptor.json`, `/snapshot.json`, `/`, and `/index.html` through a real `127.0.0.1` HTTP server; `skfiy dashboard` passes its root directory into the server, starts the clean local URL by default, and `--no-open` starts it without opening a browser; live Electron turn/replay memory and extension connection health are still pending
+  - [ ] follow the OpenClaw-style dashboard pattern while keeping skfiy-specific Computer Use evidence first
+    - OpenClaw reference shape: clean local URL opened by CLI, no token in logs, admin/control surface, WebSocket/SSE updates, gateway health, sessions, sub-agent runs, costs, cron/automation state, alerts, and local-only defaults
+    - skfiy adaptation: runtime health, permissions, active turn, replay screenshots/actions, app/host policy, extension state, smoke evidence, dogfood/release state, and long-horizon `money-run` supervision
   - [ ] add token/session auth for non-local or explicit remote modes; do not print secrets into terminal output
   - [ ] implement runtime health panel: app/helper/dashboard/extension PIDs, version, uptime, signing state
     - partial: panel metadata exists in `createDashboardPanels()` and `/snapshot.json` now reports package version plus app/helper/CLI installation state from the local workspace; PID, uptime, signing state, and live extension connection remain pending
