@@ -261,6 +261,7 @@ function createDashboardAlerts({
   const alerts: Array<Record<string, unknown>> = [];
   const desktopSession = readRecord(runtimeHealth.desktopSession);
   const extension = readRecord(runtimeHealth.extension);
+  const nativeHost = readRecord(runtimeHealth.nativeHost);
   const runtimeSnapshot = readRecord(runtimeHealth.runtimeSnapshot);
   const releaseDrift = readRecord(dogfoodRelease.releaseDrift);
 
@@ -280,6 +281,22 @@ function createDashboardAlerts({
     });
   }
 
+  if (permissions.microphone !== "granted") {
+    alerts.push({
+      code: "microphone-missing",
+      severity: "warning",
+      message: "Microphone is not granted."
+    });
+  }
+
+  if (permissions.speechRecognition !== "granted") {
+    alerts.push({
+      code: "speech-recognition-missing",
+      severity: "warning",
+      message: "Speech Recognition is not granted."
+    });
+  }
+
   if (desktopSession?.state === "blocked" || desktopSession?.mainDisplayAsleep === true) {
     alerts.push({
       code: "desktop-session-blocked",
@@ -288,11 +305,81 @@ function createDashboardAlerts({
     });
   }
 
+  if (
+    desktopSession?.frontmostBundleId === "com.apple.loginwindow"
+    || desktopSession?.ioConsoleLocked === true
+    || desktopSession?.cgSessionScreenIsLocked === true
+  ) {
+    alerts.push({
+      code: "desktop-session-loginwindow",
+      severity: "error",
+      message: "Desktop session is locked or loginwindow is frontmost.",
+      ...(typeof desktopSession.frontmostBundleId === "string"
+        ? { frontmostBundleId: desktopSession.frontmostBundleId }
+        : {}),
+      ...(typeof desktopSession.frontmostLocalizedName === "string"
+        ? { frontmostLocalizedName: desktopSession.frontmostLocalizedName }
+        : {})
+    });
+  }
+
+  if (desktopSession?.mainDisplayAsleep === true) {
+    alerts.push({
+      code: "desktop-display-asleep",
+      severity: "error",
+      message: "Main display is asleep.",
+      mainDisplayAsleep: true
+    });
+  }
+
   if (permissions.finderAutomation !== "granted") {
     alerts.push({
       code: "finder-automation-unknown",
       severity: "info",
       message: "Finder Automation has not been proven yet."
+    });
+  }
+
+  if (extension?.liveConnection === "stale" || readRecord(extension?.connection)?.state === "stale") {
+    const connection = readRecord(extension?.connection);
+
+    alerts.push({
+      code: "chrome-extension-heartbeat-stale",
+      severity: "warning",
+      message: "Chrome extension native-message heartbeat is stale.",
+      ...(Number.isFinite(connection?.ageSeconds) ? { ageSeconds: connection?.ageSeconds } : {}),
+      ...(typeof connection?.path === "string" ? { path: connection.path } : {}),
+      ...(typeof connection?.observedAt === "string" ? { observedAt: connection.observedAt } : {})
+    });
+  } else if (
+    extension?.state === "native-host-installed"
+    && extension?.liveConnection !== "connected"
+  ) {
+    alerts.push({
+      code: "chrome-extension-heartbeat-missing",
+      severity: "warning",
+      message: "Chrome Native Messaging host is installed, but no live extension heartbeat has been observed.",
+      ...(typeof extension.manifestPath === "string" ? { manifestPath: extension.manifestPath } : {})
+    });
+  }
+
+  if (nativeHost?.state === "missing") {
+    alerts.push({
+      code: "chrome-native-host-missing",
+      severity: "warning",
+      message: "Chrome Native Messaging host manifest is not installed.",
+      ...(typeof nativeHost.manifestPath === "string" ? { manifestPath: nativeHost.manifestPath } : {})
+    });
+  }
+
+  if (nativeHost?.state === "mismatched" || nativeHost?.state === "invalid" || nativeHost?.state === "cli-missing") {
+    alerts.push({
+      code: `chrome-native-host-${nativeHost.state}`,
+      severity: "warning",
+      message: typeof nativeHost.reason === "string"
+        ? nativeHost.reason
+        : "Chrome Native Messaging host is not ready.",
+      ...(typeof nativeHost.manifestPath === "string" ? { manifestPath: nativeHost.manifestPath } : {})
     });
   }
 

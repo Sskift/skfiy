@@ -168,6 +168,9 @@ runtime snapshot before dashboard evidence can pass.
 dashboard, extension, and `money-run`. It also performs a read-only tmux probe of
 `money-run` and reports `mutatesSession: false`, so dashboards and plugin
 adapters can show long-horizon readiness without controlling the session.
+Dashboard alerts now use stable blocker codes for locked `loginwindow` sessions,
+display sleep, missing TCC grants, stale Chrome extension heartbeats, stale smoke
+evidence, and release drift.
 
 The Chrome smoke now also records `installedExtensionRun`; on this machine it is
 a known blocker because branded `Google Chrome` 146 no longer honors automated

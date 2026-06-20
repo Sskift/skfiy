@@ -80,6 +80,7 @@ The binary plan is deliberately stricter than a developer convenience plan:
 - Add dashboard runtime snapshot fixture coverage: `smoke:dashboard` seeds `~/Library/Application Support/skfiy/runtime-snapshot.json` inside its isolated HOME, then requires `/snapshot.json` to surface seeded `currentTurn` and `replay` fields from that file before evidence can pass.
 - Add CLI readiness summaries: `skfiy status --json`, `skfiy doctor --json`, and the plugin-facing status provider now expose a top-level `readiness` object across runtime, dashboard, extension, and `money-run`, plus a read-only `moneyRun` tmux probe with `mutatesSession: false`.
 - Add MV3 extension diagnostics: extension status responses and popup UI now expose version, core capabilities, Native Messaging policy-sync state, host-policy entry counts, and the latest native-host error for dashboard/smoke diagnosis.
+- Add precise dashboard alert codes for `desktop-session-loginwindow`, `desktop-display-asleep`, missing Microphone/Speech Recognition grants, stale Chrome extension heartbeats, Native Messaging host issues, stale smoke evidence, and release drift while retaining older broad alert codes for compatibility.
 
 ## Command Surface
 
@@ -166,7 +167,7 @@ Week A should make the dashboard useful for local operation without turning it i
 Week B should make it product-grade enough for dogfood:
 
 1. Make `smoke:dashboard` require runtime snapshot coverage for active-turn and replay panels when a recent app turn exists, while still passing cleanly on a fresh install with explicit empty-state reasons. The first packaged gate is now in place through an isolated seeded fixture; the next refinement is detecting and classifying a fresh install separately from a recent real app turn.
-2. Add dashboard stale-evidence and blocker banners for sleep/loginwindow, missing TCC grants, stale Chrome extension heartbeat, stale smoke evidence, and release drift.
+2. Add dashboard stale-evidence and blocker banners for sleep/loginwindow, missing TCC grants, stale Chrome extension heartbeat, stale smoke evidence, and release drift. The machine-readable alert codes for these blockers are now present; the remaining UI refinement is grouping them into higher-signal bands in the HTML dashboard shell.
 3. Add a local-only auth/session design note before any remote or Tailscale mode; OpenClaw's Control UI pattern is the reference, but skfiy must not print token values or imply public exposure is safe.
 4. Add a post-release long-horizon supervision view for `money-run` that shows read-only probe state before the field task and replay-backed action evidence after skfiy performs the task.
 

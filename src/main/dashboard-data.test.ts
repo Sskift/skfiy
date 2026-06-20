@@ -138,9 +138,26 @@ describe("dashboard snapshot data", () => {
       },
       alerts: [
         {
+          code: "speech-recognition-missing",
+          severity: "warning",
+          message: "Speech Recognition is not granted."
+        },
+        {
           code: "desktop-session-blocked",
           severity: "error",
           message: "Desktop session is blocked or asleep."
+        },
+        {
+          code: "desktop-session-loginwindow",
+          severity: "error",
+          message: "Desktop session is locked or loginwindow is frontmost.",
+          frontmostBundleId: "com.apple.loginwindow"
+        },
+        {
+          code: "desktop-display-asleep",
+          severity: "error",
+          message: "Main display is asleep.",
+          mainDisplayAsleep: true
         },
         {
           code: "finder-automation-unknown",
@@ -155,6 +172,72 @@ describe("dashboard snapshot data", () => {
       ]
     });
     expect(JSON.stringify(snapshot)).not.toContain("token=");
+  });
+
+  it("adds precise stale heartbeat and missing TCC alerts for operator dashboards", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: {
+        permissions: {
+          screenRecording: "granted",
+          accessibility: "granted",
+          microphone: "denied",
+          speechRecognition: "not-determined",
+          finderAutomation: "granted"
+        },
+        desktopSession: {
+          state: "controllable",
+          frontmostBundleId: "com.google.Chrome",
+          mainDisplayAsleep: false
+        },
+        nativeHost: {
+          state: "installed",
+          hostName: "com.sskift.skfiy",
+          manifestPath: "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json"
+        },
+        extension: {
+          state: "native-host-installed",
+          bridge: "native-messaging",
+          liveConnection: "stale",
+          nativeHostState: "installed",
+          connection: {
+            state: "stale",
+            liveConnection: "stale",
+            path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+            ageSeconds: 7200,
+            observedAt: "2026-06-19T22:00:00.000Z",
+            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            messageType: "skfiy.page.observe",
+            requestId: "old-request"
+          }
+        }
+      }
+    });
+
+    expect(snapshot.alerts).toContainEqual({
+      code: "microphone-missing",
+      severity: "warning",
+      message: "Microphone is not granted."
+    });
+    expect(snapshot.alerts).toContainEqual({
+      code: "speech-recognition-missing",
+      severity: "warning",
+      message: "Speech Recognition is not granted."
+    });
+    expect(snapshot.alerts).toContainEqual({
+      code: "chrome-extension-heartbeat-stale",
+      severity: "warning",
+      message: "Chrome extension native-message heartbeat is stale.",
+      ageSeconds: 7200,
+      path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+      observedAt: "2026-06-19T22:00:00.000Z"
+    });
+    expect(snapshot.alerts).toContainEqual({
+      code: "extension-unknown",
+      severity: "warning",
+      message: "Chrome extension connection is unknown."
+    });
   });
 
   it("creates a workspace-backed snapshot from package, binary, and smoke artifact evidence", () => {
