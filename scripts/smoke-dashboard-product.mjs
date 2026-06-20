@@ -37,6 +37,7 @@ async function main() {
     cliStdout: "",
     cliStderr: "",
     descriptorResponse: undefined,
+    snapshotResponse: undefined,
     shellResponse: undefined,
     tokenLeakDetected: false,
     result: "not-run"
@@ -61,11 +62,16 @@ async function main() {
       new URL("/descriptor.json", launched.cliOutput.url).toString(),
       options.timeoutMs
     );
+    evidence.snapshotResponse = await readJsonResponse(
+      new URL("/snapshot.json", launched.cliOutput.url).toString(),
+      options.timeoutMs
+    );
     evidence.shellResponse = await readTextResponse(launched.cliOutput.url, options.timeoutMs);
     evidence.tokenLeakDetected = hasTokenLeak([
       evidence.cliStdout,
       evidence.cliStderr,
       JSON.stringify(evidence.descriptorResponse),
+      JSON.stringify(evidence.snapshotResponse),
       evidence.shellResponse?.body ?? ""
     ]);
     evidence.result = classifyDashboardSmokeEvidence(evidence);

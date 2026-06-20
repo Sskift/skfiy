@@ -51,6 +51,7 @@ export function parseDashboardSmokeArgs(argv, defaults) {
 export function classifyDashboardSmokeEvidence(evidence) {
   const cliOutput = evidence?.cliOutput;
   const descriptor = evidence?.descriptorResponse?.body;
+  const snapshot = evidence?.snapshotResponse?.body;
   const shellBody = String(evidence?.shellResponse?.body ?? "");
   const outputBind = cliOutput?.bind;
   const descriptorBind = descriptor?.bind;
@@ -88,9 +89,25 @@ export function classifyDashboardSmokeEvidence(evidence) {
   }
 
   if (
+    evidence.snapshotResponse?.status !== 200
+    || snapshot?.schemaVersion !== 1
+    || snapshot?.runtimeHealth?.dashboard?.state !== "running"
+    || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
+    || !snapshot?.permissions
+    || !snapshot?.currentTurn
+    || !snapshot?.replay
+    || !Array.isArray(snapshot?.smokeEvidence?.artifacts)
+    || snapshot?.longHorizon?.session !== "money-run"
+    || !Array.isArray(snapshot?.alerts)
+  ) {
+    return "failed";
+  }
+
+  if (
     evidence.shellResponse?.status !== 200
     || !shellBody.includes("skfiy Dashboard")
     || !shellBody.includes("/descriptor.json")
+    || !shellBody.includes("/snapshot.json")
   ) {
     return "failed";
   }

@@ -4,6 +4,11 @@ import type {
   DashboardDescriptorInput
 } from "./dashboard-status.js";
 import { createDashboardDescriptor } from "./dashboard-status.js";
+import {
+  createDashboardSnapshot,
+  type DashboardSnapshot,
+  type DashboardSnapshotInput
+} from "./dashboard-data.js";
 
 export interface DashboardHttpRequest {
   method?: string;
@@ -18,6 +23,7 @@ export interface DashboardHttpResponse {
 
 export interface DashboardHttpResponseOptions extends DashboardDescriptorInput {
   createDescriptor?: (input: DashboardDescriptorInput) => DashboardDescriptor;
+  createSnapshot?: (input: DashboardSnapshotInput) => DashboardSnapshot;
 }
 
 export interface DashboardServer {
@@ -48,6 +54,13 @@ export function createDashboardHttpResponse(
     const descriptor = createDescriptorFromOptions(options);
 
     return jsonResponse(descriptor, body);
+  }
+
+  if (url.pathname === "/snapshot.json") {
+    const descriptor = createDescriptorFromOptions(options);
+    const snapshot = createSnapshotFromOptions(options, descriptor);
+
+    return jsonResponse(snapshot, body);
   }
 
   if (url.pathname === "/" || url.pathname === "/index.html") {
@@ -114,9 +127,22 @@ export async function startDashboardServer(
 function createDescriptorFromOptions(
   options: DashboardHttpResponseOptions
 ): DashboardDescriptor {
-  const { createDescriptor = createDashboardDescriptor, ...descriptorInput } = options;
+  const {
+    createDescriptor = createDashboardDescriptor,
+    createSnapshot: _createSnapshot,
+    ...descriptorInput
+  } = options;
 
   return createDescriptor(descriptorInput);
+}
+
+function createSnapshotFromOptions(
+  options: DashboardHttpResponseOptions,
+  descriptor: DashboardDescriptor
+): DashboardSnapshot {
+  const { createSnapshot = createDashboardSnapshot } = options;
+
+  return createSnapshot({ descriptor });
 }
 
 function parseDashboardRequestUrl(url: string | URL): URL {
@@ -210,6 +236,7 @@ function renderDashboardHtml(descriptor: DashboardDescriptor): string {
     "<main>",
     "<h1>skfiy Dashboard</h1>",
     '<p><a href="/descriptor.json">Dashboard descriptor</a></p>',
+    '<p><a href="/snapshot.json">Dashboard snapshot</a></p>',
     panels,
     "</main>",
     "</body>",

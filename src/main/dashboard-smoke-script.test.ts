@@ -103,9 +103,29 @@ describe("dashboard product smoke script", () => {
           auth: { tokenPrinted: false }
         }
       },
+      snapshotResponse: {
+        status: 200,
+        body: {
+          schemaVersion: 1,
+          runtimeHealth: {
+            dashboard: {
+              state: "running",
+              url: "http://127.0.0.1:51234/"
+            }
+          },
+          permissions: {
+            screenRecording: "unknown"
+          },
+          currentTurn: { state: "idle" },
+          replay: { state: "empty" },
+          smokeEvidence: { artifacts: [] },
+          longHorizon: { session: "money-run" },
+          alerts: []
+        }
+      },
       shellResponse: {
         status: 200,
-        body: '<!doctype html><title>skfiy Dashboard</title><a href="/descriptor.json">'
+        body: '<!doctype html><title>skfiy Dashboard</title><a href="/descriptor.json"><a href="/snapshot.json">'
       },
       tokenLeakDetected: false
     };
@@ -124,6 +144,13 @@ describe("dashboard product smoke script", () => {
       cliOutput: {
         ...passedEvidence.cliOutput,
         shouldOpen: true
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        status: 404,
+        body: "Not Found"
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

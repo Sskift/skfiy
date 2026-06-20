@@ -493,7 +493,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
     - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; product binary execution tests remain pending
 - [ ] Add local dashboard/control UI
   - [ ] serve loopback-only dashboard from the app or CLI
-    - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; `src/main/dashboard-server.ts` now serves `/descriptor.json`, `/`, and `/index.html` through a real `127.0.0.1` HTTP server; `skfiy dashboard` starts the server and opens the clean local URL by default, while `--no-open` starts it without opening a browser
+    - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; `src/main/dashboard-data.ts` now composes a read-only snapshot for runtime health, permissions, current turn, replay, smoke evidence, long-horizon state, and alerts from injected status/replay evidence; `src/main/dashboard-server.ts` now serves `/descriptor.json`, `/snapshot.json`, `/`, and `/index.html` through a real `127.0.0.1` HTTP server; `skfiy dashboard` starts the server and opens the clean local URL by default, while `--no-open` starts it without opening a browser
   - [ ] add token/session auth for non-local or explicit remote modes; do not print secrets into terminal output
   - [ ] implement runtime health panel: app/helper/dashboard/extension PIDs, version, uptime, signing state
     - partial: panel metadata exists in `createDashboardPanels()`
@@ -510,7 +510,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] implement long-horizon panel: `money-run` session status, active pane, current recommendation, recent blocker markers
     - partial: panel metadata exists in `createDashboardPanels()`
   - [x] add smoke for `skfiy dashboard --no-open --json` and browser dashboard load
-    - `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` launches the built `dist/skfiy` CLI, runs `dashboard --no-open --port 0 --json`, fetches `/descriptor.json` plus `/`, verifies loopback bind and token-free output, and shuts the server down after evidence collection
+    - `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` launches the built `dist/skfiy` CLI, runs `dashboard --no-open --port 0 --json`, fetches `/descriptor.json`, `/snapshot.json`, plus `/`, verifies loopback bind, snapshot panel fields, and token-free output, and shuts the server down after evidence collection
 - [x] Add app allowlist/denylist UI.
   - settings panel now exposes allow/ask/deny policies for Ghostty, Chrome, and Finder; Ghostty defaults to allow for the current product smoke path, while ask/deny can gate Computer Use before touching the app
 - [x] Add per-turn approval transcript:

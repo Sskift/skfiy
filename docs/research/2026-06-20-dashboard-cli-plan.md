@@ -53,6 +53,7 @@ The dashboard remains optional for Computer Use execution. Future Electron wirin
 `src/main/dashboard-server.ts` now exposes a read-only response helper plus `startDashboardServer()`. It serves:
 
 - `GET /descriptor.json`: descriptor JSON with no requested-host echo and no token output.
+- `GET /snapshot.json`: read-only operator snapshot with runtime health, permissions, current turn, replay, smoke evidence, long-horizon state, and alerts.
 - `GET /` and `GET /index.html`: a minimal static HTML shell using the same panel inventory.
 - unsupported methods/routes: `405` or `404`.
 
@@ -60,7 +61,7 @@ The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, 
 
 ## Product Smoke
 
-`npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` is the repeatable dashboard gate. It uses the same product smoke lock as other packaged smokes, proves the built CLI path instead of a source-tree shim, requires `runnerHasTmux=false`, confirms the loopback bind and descriptor match the CLI output, checks the static shell contains the descriptor link, and keeps tokens out of stdout, descriptor JSON, and shell HTML.
+`npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` is the repeatable dashboard gate. It uses the same product smoke lock as other packaged smokes, proves the built CLI path instead of a source-tree shim, requires `runnerHasTmux=false`, confirms the loopback bind and descriptor match the CLI output, fetches `/snapshot.json`, checks required snapshot panels, checks the static shell contains descriptor and snapshot links, and keeps tokens out of stdout, descriptor JSON, snapshot JSON, and shell HTML.
 
 ## Status Probe
 

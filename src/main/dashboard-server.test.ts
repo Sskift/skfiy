@@ -64,7 +64,66 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("<!doctype html>");
     expect(response.body).toContain("skfiy Dashboard");
     expect(response.body).toContain("/descriptor.json");
+    expect(response.body).toContain("/snapshot.json");
     expect(response.body).toContain("runtime-health");
+    expect(response.body).not.toContain("token=");
+  });
+
+  it("serves snapshot JSON from an injected read-only provider without caching or tokens", () => {
+    const response = createDashboardHttpResponse(
+      {
+        method: "GET",
+        url: "http://127.0.0.1:8787/snapshot.json"
+      },
+      {
+        port: 8787,
+        createSnapshot: () => ({
+          schemaVersion: 1,
+          generatedAt: "2026-06-20T00:00:00.000Z",
+          descriptor: createDashboardDescriptor({ port: 8787 }),
+          runtimeHealth: {
+            app: { state: "installed" },
+            helper: { state: "installed" },
+            dashboard: { state: "running" },
+            extension: { state: "unknown" }
+          },
+          permissions: {
+            screenRecording: "granted",
+            accessibility: "granted",
+            microphone: "granted",
+            speechRecognition: "not-determined",
+            finderAutomation: "unknown"
+          },
+          currentTurn: { state: "idle" },
+          replay: { state: "empty" },
+          smokeEvidence: { artifacts: [] },
+          longHorizon: { state: "unknown", session: "money-run" },
+          alerts: []
+        })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toBe("application/json; charset=utf-8");
+    expect(response.headers["cache-control"]).toBe("no-store");
+
+    const snapshot = JSON.parse(response.body);
+    expect(snapshot).toMatchObject({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      runtimeHealth: {
+        app: { state: "installed" },
+        dashboard: { state: "running" }
+      },
+      permissions: {
+        screenRecording: "granted",
+        finderAutomation: "unknown"
+      },
+      currentTurn: { state: "idle" },
+      replay: { state: "empty" },
+      smokeEvidence: { artifacts: [] },
+      longHorizon: { session: "money-run" }
+    });
     expect(response.body).not.toContain("token=");
   });
 
