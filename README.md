@@ -40,10 +40,13 @@ permission to control Finder, then rerun:
 npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-<commit>.json
 ```
 
-Current local alpha artifact:
+Alpha artifact generation is intentionally separate from local smoke evidence.
+After the required smokes pass for a commit, generate release/dogfood artifacts
+with the alpha script instead of keeping stale zips around:
 
-- `.skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json`
-- `.skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.zip`
+```bash
+npm run alpha:artifact
+```
 
 Generated evidence directories are ignored by git. Keep only the current commit
 artifacts needed for active debugging and dogfood status; old alpha zips,
