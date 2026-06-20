@@ -1,12 +1,16 @@
 # skfiy
 
 skfiy is a voice-first macOS desktop pet for local Computer Use experiments.
-It focuses on Ghostty control, screen observation, Chrome page control, Finder
-file operations, tmux supervision, and explicit user approval.
+It is designed as an app-agnostic desktop control runtime: observe any visible
+macOS app, decide the next action, execute clicks/typing/dragging/hotkeys, then
+verify the result from screenshots, OCR, accessibility metadata, and replay
+events. Ghostty, Chrome, Finder, screenshots, and tmux supervision are the first
+real regression fixtures, not the product boundary.
 
-The first version is intentionally narrow: observe the desktop, activate
-Ghostty, type safe commands, capture screenshots, and show task state in a
-floating desktop companion.
+The first version keeps the public surface narrow while the control loop is
+hardened: voice enters through the desktop pet, app policy gates the target,
+Computer Use performs observe-plan-act-verify, and task state remains visible in
+the floating companion.
 
 ## Current Local Evidence
 
@@ -16,7 +20,7 @@ Finder to the compiled `skfiy.app`.
 
 - UI permission and pet drag smoke: passed,
   `.skfiy-smoke/ui-<commit>.json`.
-- Ghostty matrix smoke: passed,
+- Ghostty terminal-adapter smoke: passed,
   `.skfiy-smoke/ghostty-<commit>.json`.
 - Chrome Computer Use smoke: passed,
   `.skfiy-smoke/chrome-<commit>.json`.
@@ -49,10 +53,12 @@ caches can be deleted locally.
 ## MVP Scope
 
 - Floating desktop companion with active and quiet modes.
-- macOS helper for app listing, Ghostty activation, screenshots, clicks, text
-  input, and key presses.
-- Ghostty command flow with risk classification before execution.
-- Explicit approval for commands that can modify local state.
+- App-agnostic macOS helper primitives for app listing, app activation,
+  screenshots/OCR, clicks, drags, scrolls, text input, hotkeys, and key presses.
+- Target-specific adapters for early fixtures: Ghostty terminal turns, Chrome
+  page observation/actions, Finder file operations, and tmux supervision.
+- App policy and action risk gates before execution.
+- Explicit approval for risky actions or actions that can modify local state.
 - Local-only execution. The helper does not send screenshots or command output
   to a remote service by itself.
 
@@ -118,7 +124,9 @@ trigger.
 
 ## Safety Model
 
-skfiy treats terminal control as higher risk than normal GUI automation.
+skfiy treats each Computer Use turn as permissioned app control, with
+target-specific risk on top. Terminal control is currently the strictest adapter
+because shell commands can mutate the whole machine.
 
 - Read-only commands such as `pwd`, `ls`, `date`, and `whoami` can run without
   an extra approval pause.

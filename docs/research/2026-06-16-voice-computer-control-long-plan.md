@@ -490,7 +490,7 @@ Minimum meaningful effort: 4 weeks, 2-3 engineers.
 
 - Engineer A: macOS shell, permissions, packaging, pet UI.
 - Engineer B: voice stack, ASR providers, transcript lifecycle.
-- Engineer C: Computer Use core, Ghostty adapter, eval harness.
+- Engineer C: app-agnostic Computer Use core, target adapters, eval harness.
 
 With one engineer, the same scope is closer to 6-8 weeks because packaging, ASR, app control, and safety all block each other.
 
@@ -500,13 +500,13 @@ With one engineer, the same scope is closer to 6-8 weeks because packaging, ASR,
 2. Treat Doubao Input Method as an input provider, not a core dependency.
 3. Prefer structured control where available, visual Computer Use where necessary.
 4. Every Computer Use turn must create a replay log. Without replay, debugging and trust will not scale.
-5. Ghostty must be isolated before more apps are added.
+5. Ghostty is the first isolated terminal fixture; the durable product boundary is the app-agnostic observe-plan-act-verify runtime for arbitrary local apps.
 
 ## Open Questions
 
 1. Are we allowed to use internal/cloud ASR for dogfood audio, or must the alpha be local-only?
 2. Do we target macOS only for the next month, or design Windows abstractions now?
-3. What is the first daily-use scenario beyond Ghostty: browser research, Lark office work, Finder organization, or coding assistant orchestration?
+3. Which arbitrary-app scenarios should define the next fixtures after the current Ghostty/Chrome/Finder/tmux set: browser research, Lark office work, Finder organization, design tools, or coding assistant orchestration?
 
 ## Recommended Next Move
 

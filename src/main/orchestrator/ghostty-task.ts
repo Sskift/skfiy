@@ -554,6 +554,7 @@ async function initializeGhosttySession(
     client,
     [
       { type: "type_text", text: SKFIY_GHOSTTY_INIT_COMMAND },
+      { type: "wait", ms: TYPE_SETTLE_WAIT_MS },
       { type: "press_key", key: "enter" },
       { type: "wait", ms: SESSION_INIT_SETTLE_WAIT_MS }
     ],
@@ -796,11 +797,19 @@ function readCommandCompletionFailure(
 
 function hasTerminalTextMarker(observation: DesktopAppState, marker: string): boolean {
   const normalizedMarker = normalizeTerminalText(marker);
-  const labelText = (observation.ocrLabels ?? [])
-    .map((label) => label.text)
-    .join("\n");
 
-  return normalizeTerminalText(labelText).includes(normalizedMarker);
+  return (observation.ocrLabels ?? []).some((label) =>
+    isTerminalMarkerLabel(label.text, normalizedMarker)
+  );
+}
+
+function isTerminalMarkerLabel(text: string, normalizedMarker: string): boolean {
+  const normalizedText = normalizeTerminalText(text);
+  if (normalizedText.length === 0) {
+    return false;
+  }
+
+  return normalizedText === normalizedMarker || normalizedText.startsWith(normalizedMarker);
 }
 
 function normalizeTerminalText(value: string): string {
