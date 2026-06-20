@@ -292,6 +292,8 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("--load-extension=");
     expect(source).toContain("chrome.runtime.connectNative");
     expect(source).toContain("findSkfiyExtensionWorker");
+    expect(source).toContain("hostPolicyResponse");
+    expect(source).toContain("skfiy.host_policy.request");
     expect(source).toContain("branded_chrome_load_extension_removed");
     expect(source).toContain("Chrome for Testing");
     expect(source).toContain("chrome-smoke-installed-extension");
@@ -446,6 +448,23 @@ function createPassingNativeHostBridgeRun() {
       type: "skfiy.native.response",
       requestId: "chrome-smoke-native-host",
       result: "accepted"
+    },
+    hostPolicyResponse: {
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "chrome-smoke-host-policy",
+      result: "accepted",
+      hostPolicy: {
+        schemaVersion: 1,
+        state: "default",
+        path: "/repo/.skfiy-smoke/chrome-native-home/Library/Application Support/skfiy/chrome-host-policy.json",
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: [],
+          currentTurnAllowedHosts: [],
+          blockedHosts: []
+        }
+      }
     },
     heartbeat: {
       schemaVersion: 1,

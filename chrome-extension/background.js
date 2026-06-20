@@ -186,6 +186,17 @@ function unwrapNativeMessage(message) {
   };
 }
 
+async function persistHostPolicyResponse(response) {
+  if (response?.hostPolicy?.policy) {
+    await chrome.storage.local.set({
+      [HOST_POLICY_STORAGE_KEY]: {
+        ...HOST_POLICY_SHAPE,
+        ...response.hostPolicy.policy
+      }
+    });
+  }
+}
+
 function sendNativeMessage(message) {
   return new Promise((resolve) => {
     const port = chrome.runtime.connectNative(NATIVE_MESSAGING_HOST_NAME);
@@ -204,7 +215,7 @@ function sendNativeMessage(message) {
     };
 
     port.onMessage.addListener((response) => {
-      finish(response);
+      void persistHostPolicyResponse(response).finally(() => finish(response));
     });
     port.onDisconnect.addListener(() => {
       finish({

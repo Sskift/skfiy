@@ -111,6 +111,12 @@ Initial behavior:
 - always-allowed and current-turn hosts can receive observe/action messages;
 - all other hosts return a host-policy response asking the app to prompt the
   user.
+- `~/Library/Application Support/skfiy/chrome-host-policy.json` is the
+  user-level product state file for the policy.
+- The Native Messaging host answers `skfiy.host_policy.request` with the
+  normalized policy state, and the MV3 background worker persists returned
+  `hostPolicy.policy` into `chrome.storage.local` before enforcing page
+  observe/action/screenshot routing.
 
 Browser history is not part of this skeleton. Future history access must stay
 turn-scoped and explicit, with no always-allow option.
@@ -140,9 +146,10 @@ submits, and unconfirmed local download-path exposure are blocked before the
 extension sees them. The background service worker unwraps
 `skfiy.native.message`, waits for `port.onMessage`, returns the native-host
 response to the caller, captures visible page screenshots with
-`chrome.tabs.captureVisibleTab`, and reads recent download status with
-`chrome.downloads.search`. Persistent app-policy storage, richer app-runtime
-routing, and end-to-end installed-extension smoke evidence remain future work.
+`chrome.tabs.captureVisibleTab`, reads recent download status with
+`chrome.downloads.search`, and persists native-host host-policy responses into
+extension storage. Richer app-runtime approval routing and end-to-end
+installed-extension smoke evidence remain future work.
 
 ## Sensitive Content Pause
 
@@ -172,8 +179,9 @@ runtime behavior.
 
 - The extension is not yet packaged or installed by the app bundle.
 - `skfiy chrome status|install-host|uninstall-host` covers manifest setup and
-  local heartbeat-based live connection health, but not full installed-extension
-  product smoke yet.
+  local heartbeat-based live connection health. It also reports the current
+  normalized Chrome host-policy state under `extension.hostPolicy`, but not full
+  installed-extension product smoke yet.
 - `smoke:chrome` now records `installedExtensionRun` separately from the direct
   packaged Native Messaging host bridge. On the current machine, `Google Chrome`
   146 reports `blockedReason: branded_chrome_load_extension_removed`; the smoke

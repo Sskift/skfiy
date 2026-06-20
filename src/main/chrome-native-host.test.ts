@@ -3,6 +3,7 @@ import {
   CHROME_NATIVE_HOST_NAME,
   CHROME_NATIVE_MESSAGE_MAX_BYTES,
   createChromeExtensionConnectionStatePath,
+  createChromeNativeBridgeDispatch,
   decodeChromeNativeMessageFrame,
   encodeChromeNativeMessageFrame,
   handleChromeNativeBridgeMessage,
@@ -16,26 +17,26 @@ import {
   writeChromeExtensionConnectionHeartbeat
 } from "./chrome-native-host";
 
+function createMemoryChromeHostIo(files: Record<string, string> = {}) {
+  const store = { ...files };
+
+  return {
+    files: store,
+    exists: async (targetPath: string) => Object.hasOwn(store, targetPath),
+    mkdir: async (targetPath: string) => {
+      store[targetPath] = store[targetPath] ?? "__dir__";
+    },
+    readFile: async (targetPath: string) => store[targetPath],
+    writeFile: async (targetPath: string, content: string) => {
+      store[targetPath] = content;
+    },
+    rm: async (targetPath: string) => {
+      delete store[targetPath];
+    }
+  };
+}
+
 describe("Chrome Native Messaging host plan", () => {
-  function createMemoryChromeHostIo(files: Record<string, string> = {}) {
-    const store = { ...files };
-
-    return {
-      files: store,
-      exists: async (targetPath: string) => Object.hasOwn(store, targetPath),
-      mkdir: async (targetPath: string) => {
-        store[targetPath] = store[targetPath] ?? "__dir__";
-      },
-      readFile: async (targetPath: string) => store[targetPath],
-      writeFile: async (targetPath: string, content: string) => {
-        store[targetPath] = content;
-      },
-      rm: async (targetPath: string) => {
-        delete store[targetPath];
-      }
-    };
-  }
-
   it("creates the Chrome native host manifest for the packaged skfiy CLI", () => {
     expect(createChromeNativeHostManifest({
       cliShimPath: "/repo/dist/skfiy",
@@ -475,6 +476,57 @@ describe("Chrome Native Messaging bridge runtime", () => {
         format: "png"
       }
     }]);
+  });
+
+  it("returns configured host policy over the native host policy request path", async () => {
+    const statePath = "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json";
+    const io = createMemoryChromeHostIo({
+      [statePath]: JSON.stringify({
+        schemaVersion: 1,
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: ["Example.com"],
+          currentTurnAllowedHosts: ["turn.example"],
+          blockedHosts: ["blocked.example"]
+        }
+      })
+    });
+
+    await expect(handleChromeNativeBridgeMessage(
+      {
+        schemaVersion: 1,
+        type: "skfiy.host_policy.request",
+        requestId: "policy-request"
+      },
+      {
+        payloadByteLength: 128,
+        policy: { state: "allowed" },
+        dispatch: createChromeNativeBridgeDispatch({
+          homeDir: "/Users/tester",
+          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          io
+        })
+      }
+    )).resolves.toEqual({
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "policy-request",
+      result: "accepted",
+      bridgeState: "connected",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.host_policy.request",
+      hostPolicy: {
+        schemaVersion: 1,
+        state: "configured",
+        path: statePath,
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: ["example.com"],
+          currentTurnAllowedHosts: ["turn.example"],
+          blockedHosts: ["blocked.example"]
+        }
+      }
+    });
   });
 
   it("runs a framed native messaging host loop without line-oriented stdout", async () => {

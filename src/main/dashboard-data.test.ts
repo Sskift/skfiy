@@ -346,6 +346,15 @@ describe("dashboard snapshot data", () => {
         messageType: "skfiy.page.observe",
         requestId: "request-heartbeat"
       }),
+      "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json": JSON.stringify({
+        schemaVersion: 1,
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: ["Example.com"],
+          currentTurnAllowedHosts: ["turn.example"],
+          blockedHosts: ["blocked.example"]
+        }
+      }),
       "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json": JSON.stringify({
         schemaVersion: 1,
         observedAt: "2026-06-19T23:59:30.000Z",
@@ -546,6 +555,17 @@ describe("dashboard snapshot data", () => {
           launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
           messageType: "skfiy.page.observe",
           requestId: "request-heartbeat"
+        },
+        hostPolicy: {
+          schemaVersion: 1,
+          state: "configured",
+          path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+          policy: {
+            defaultMode: "ask",
+            allowedHosts: ["example.com"],
+            currentTurnAllowedHosts: ["turn.example"],
+            blockedHosts: ["blocked.example"]
+          }
         }
       }
     });

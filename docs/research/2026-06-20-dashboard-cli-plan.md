@@ -75,6 +75,7 @@ The binary plan is deliberately stricter than a developer convenience plan:
 - Add a formal product smoke wrapper, `npm run smoke:dashboard`, that launches the built `dist/skfiy` CLI with `dashboard --no-open --port 0 --json`, fetches `/descriptor.json` plus the dashboard shell, rejects token leakage, and terminates the dashboard process after evidence collection.
 - Add `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>` as a token-free, allowlisted macOS System Settings opener with stable JSON action-plan output.
 - Add `GET /events` as the first SSE live-refresh endpoint; the dashboard shell uses `EventSource("/events")` with `/snapshot.json` fallback, and `smoke:dashboard` requires a token-free first `snapshot` event before classifying the packaged dashboard path as passed.
+- Add a user-level Chrome host-policy state file at `~/Library/Application Support/skfiy/chrome-host-policy.json`, normalize it fail-closed to ask-by-default, expose it through `skfiy chrome status`, dashboard snapshots, and the Chrome Native Messaging `skfiy.host_policy.request` response path, and let the MV3 background worker persist returned host-policy responses into extension storage.
 
 ## Command Surface
 
@@ -129,6 +130,8 @@ When the packaged native host receives a valid Chrome extension frame, it now re
 Chrome product smoke now also treats that packaged host bridge as first-class evidence. A passing `smoke:chrome` artifact must include `nativeHostBridgeRun.result: passed`, `nativeHostBridgeRun.productPath: dist/skfiy -> Chrome Native Messaging heartbeat`, the `accepted` native-host response, and a fresh `chrome-extension-connection.json` heartbeat before the CDP/browser-control path can be classified as passed.
 
 `smoke:chrome` also records `installedExtensionRun` as a separate browser-extension proof. The current machine runs branded `Google Chrome` 146, where Chrome's 2025 extension changes remove automated `--load-extension` support from Chrome 137+ branded builds. The smoke now detects this precisely: it enumerates extension service workers, reads each worker manifest, rejects built-in workers such as "Google Network Speech", and records `blockedReason: branded_chrome_load_extension_removed` with `recommendedBrowser: Chrome for Testing or Chromium` instead of treating the built-in extension id as skfiy. The dashboard should surface this as a live-extension blocker while still accepting the packaged Native Messaging host bridge and CDP/browser-control evidence.
+
+The Chrome host policy now has a local product state boundary. `src/main/chrome-host-policy.ts` owns the normalized policy shape and the `chrome-host-policy.json` path, `dist/skfiy` Native Messaging can answer `skfiy.host_policy.request` with that state, `skfiy chrome status` and dashboard snapshots include the policy state under `extension.hostPolicy`, and the MV3 background worker persists native-host policy responses into `chrome.storage.local` before routing page observe/action/screenshot requests. The next product gap is wiring app-side approval decisions from the pet/dashboard into this state file and proving a real installed extension can sync and enforce it against a live tab.
 
 ## Dashboard Roadmap
 

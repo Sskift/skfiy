@@ -1136,6 +1136,7 @@ describe("CLI command surface", () => {
 
   it("reports Chrome extension adapter state from native host status", async () => {
     const manifestPath = "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json";
+    const hostPolicyPath = "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json";
     const files: Record<string, string> = {
       "/repo/dist/skfiy": "#!/usr/bin/env node\n",
       [manifestPath]: JSON.stringify({
@@ -1146,6 +1147,15 @@ describe("CLI command surface", () => {
         allowed_origins: [
           "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
         ]
+      }),
+      [hostPolicyPath]: JSON.stringify({
+        schemaVersion: 1,
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: ["Example.com"],
+          currentTurnAllowedHosts: ["turn.example"],
+          blockedHosts: ["blocked.example"]
+        }
       })
     };
     const stdout: string[] = [];
@@ -1191,6 +1201,17 @@ describe("CLI command surface", () => {
         allowedOrigins: [
           "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
         ],
+        hostPolicy: {
+          schemaVersion: 1,
+          state: "configured",
+          path: hostPolicyPath,
+          policy: {
+            defaultMode: "ask",
+            allowedHosts: ["example.com"],
+            currentTurnAllowedHosts: ["turn.example"],
+            blockedHosts: ["blocked.example"]
+          }
+        },
         reason: "Chrome Native Messaging host is installed; no live Chrome extension connection has been observed yet."
       }
     });

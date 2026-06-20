@@ -432,6 +432,7 @@ function assertChromeSmokeReady(options) {
 async function runChromeNativeHostBridgeSmoke(options) {
   const launchOrigin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/";
   const requestId = "chrome-smoke-native-host";
+  const hostPolicyRequestId = "chrome-smoke-host-policy";
   const homeDir = await mkdtemp(path.join(os.tmpdir(), "skfiy-chrome-native-host-"));
   const heartbeatPath = path.join(
     homeDir,
@@ -447,6 +448,11 @@ async function runChromeNativeHostBridgeSmoke(options) {
     requestId,
     payload: { currentTab: true }
   };
+  const hostPolicyMessage = {
+    schemaVersion: 1,
+    type: "skfiy.host_policy.request",
+    requestId: hostPolicyRequestId
+  };
 
   try {
     const { code, signal, stdout, stderr } = await runNativeHostFrame({
@@ -456,11 +462,24 @@ async function runChromeNativeHostBridgeSmoke(options) {
     });
     const response = readNativeHostResponse(stdout);
     const heartbeat = JSON.parse(await readFile(heartbeatPath, "utf8"));
+    const policyRun = await runNativeHostFrame({
+      command,
+      homeDir,
+      message: hostPolicyMessage
+    });
+    const hostPolicyResponse = readNativeHostResponse(policyRun.stdout);
     const passed = code === 0
       && signal === null
+      && policyRun.code === 0
+      && policyRun.signal === null
       && response?.type === "skfiy.native.response"
       && response?.requestId === requestId
       && response?.result === "accepted"
+      && hostPolicyResponse?.type === "skfiy.native.response"
+      && hostPolicyResponse?.requestId === hostPolicyRequestId
+      && hostPolicyResponse?.result === "accepted"
+      && hostPolicyResponse?.hostPolicy?.schemaVersion === 1
+      && hostPolicyResponse?.hostPolicy?.policy?.defaultMode === "ask"
       && heartbeat?.hostName === "com.sskift.skfiy"
       && heartbeat?.launchOrigin === launchOrigin
       && heartbeat?.messageType === "skfiy.page.observe"
@@ -473,9 +492,12 @@ async function runChromeNativeHostBridgeSmoke(options) {
       exitCode: code,
       signal,
       response,
+      hostPolicyExitCode: policyRun.code,
+      hostPolicySignal: policyRun.signal,
+      hostPolicyResponse,
       heartbeatPath,
       heartbeat,
-      stderr
+      stderr: [stderr, policyRun.stderr].filter(Boolean).join("\n")
     };
   } catch (error) {
     return {

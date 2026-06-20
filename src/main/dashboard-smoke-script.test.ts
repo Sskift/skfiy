@@ -137,6 +137,18 @@ describe("dashboard product smoke script", () => {
               liveConnection: "unknown",
               nativeHostState: "missing",
               manifestPath: "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+              hostPolicy: {
+                schemaVersion: 1,
+                state: "default",
+                path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+                policy: {
+                  defaultMode: "ask",
+                  allowedHosts: [],
+                  currentTurnAllowedHosts: [],
+                  blockedHosts: []
+                },
+                reason: "Chrome host policy has not been configured yet."
+              },
               reason: "Chrome Native Messaging host manifest is not installed."
             },
             dashboard: {
@@ -309,6 +321,17 @@ describe("dashboard product smoke script", () => {
               nativeHostState: "installed",
               manifestPath: "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
               allowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+              hostPolicy: {
+                schemaVersion: 1,
+                state: "configured",
+                path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+                policy: {
+                  defaultMode: "ask",
+                  allowedHosts: ["example.com"],
+                  currentTurnAllowedHosts: ["turn.example"],
+                  blockedHosts: ["blocked.example"]
+                }
+              },
               connection: {
                 state: "connected",
                 liveConnection: "connected",

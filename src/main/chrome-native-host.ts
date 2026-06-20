@@ -2,6 +2,10 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { normalizeChromeBrowserMessage } from "./chrome-browser-action-schema.js";
+import {
+  readChromeHostPolicyState,
+  type ChromeHostPolicyIo
+} from "./chrome-host-policy.js";
 
 export const CHROME_NATIVE_HOST_NAME = "com.sskift.skfiy";
 export const CHROME_NATIVE_MESSAGE_SCHEMA_VERSION = 1;
@@ -14,7 +18,8 @@ const CHROME_NATIVE_BRIDGE_MESSAGE_TYPES = new Set([
   "skfiy.page.action",
   "skfiy.page.screenshot",
   "skfiy.downloads.status",
-  "skfiy.host_policy.request"
+  "skfiy.host_policy.request",
+  "skfiy.host_policy.response"
 ]);
 
 export interface ChromeNativeHostManifestInput {
@@ -85,6 +90,12 @@ export interface ChromeNativeBridgePolicy {
 export type ChromeNativeBridgeDispatch = (
   message: ChromeNativeBridgeMessage
 ) => Promise<Record<string, unknown>>;
+
+export interface ChromeNativeBridgeDispatchInput {
+  homeDir: string;
+  launchOrigin?: string;
+  io?: ChromeHostPolicyIo;
+}
 
 export interface ChromeNativeBridgeInput {
   payloadByteLength: number;
@@ -398,6 +409,36 @@ export function decodeChromeNativeMessageFrame(frame: Buffer): unknown {
   }
 
   return JSON.parse(frame.subarray(4, 4 + payloadByteLength).toString("utf8"));
+}
+
+export function createChromeNativeBridgeDispatch({
+  homeDir,
+  launchOrigin,
+  io
+}: ChromeNativeBridgeDispatchInput): ChromeNativeBridgeDispatch {
+  return async (message) => {
+    const common = {
+      bridgeState: "connected",
+      ...(launchOrigin ? { launchOrigin } : {}),
+      messageType: message.type
+    };
+
+    if (message.type === "skfiy.host_policy.request") {
+      return {
+        result: "accepted",
+        ...common,
+        hostPolicy: await readChromeHostPolicyState({
+          homeDir,
+          io
+        })
+      };
+    }
+
+    return {
+      result: "accepted",
+      ...common
+    };
+  };
 }
 
 export async function runChromeNativeMessagingHost({

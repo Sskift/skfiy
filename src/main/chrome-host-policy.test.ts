@@ -1,13 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
   applyChromeHostPolicyAction,
+  createChromeHostPolicyStatePath,
   createDefaultChromeHostPolicy,
   decideChromeBrowserDataExposure,
   decideChromeHostPolicy,
-  normalizeChromeHostPolicy
+  normalizeChromeHostPolicy,
+  readChromeHostPolicyState,
+  writeChromeHostPolicyState
 } from "./chrome-host-policy";
 
 describe("Chrome host policy", () => {
+  function createMemoryChromeHostPolicyIo(files: Record<string, string> = {}) {
+    const store = { ...files };
+
+    return {
+      files: store,
+      exists: async (targetPath: string) => Object.hasOwn(store, targetPath),
+      mkdir: async (targetPath: string) => {
+        store[targetPath] = store[targetPath] ?? "__dir__";
+      },
+      readFile: async (targetPath: string) => store[targetPath],
+      writeFile: async (targetPath: string, content: string) => {
+        store[targetPath] = content;
+      }
+    };
+  }
+
   it("starts from ask-by-default and asks for hosts without an allow/block entry", () => {
     const policy = createDefaultChromeHostPolicy();
 
@@ -62,6 +81,84 @@ describe("Chrome host policy", () => {
       decision: "block",
       host: "example.com",
       reason: "blocked_host"
+    });
+  });
+
+  it("reads and writes the user-level Chrome host policy state", async () => {
+    const statePath = createChromeHostPolicyStatePath("/Users/tester");
+    const io = createMemoryChromeHostPolicyIo();
+
+    await expect(readChromeHostPolicyState({
+      homeDir: "/Users/tester",
+      io
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      state: "default",
+      path: statePath,
+      policy: createDefaultChromeHostPolicy(),
+      reason: "Chrome host policy has not been configured yet."
+    });
+
+    await expect(writeChromeHostPolicyState({
+      homeDir: "/Users/tester",
+      policy: {
+        defaultMode: "ask",
+        allowedHosts: ["Example.com", "bad host"],
+        currentTurnAllowedHosts: ["https://Turn.Example/path"],
+        blockedHosts: ["blocked.example"]
+      },
+      io
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      state: "configured",
+      path: statePath,
+      policy: {
+        defaultMode: "ask",
+        allowedHosts: ["example.com"],
+        currentTurnAllowedHosts: ["turn.example"],
+        blockedHosts: ["blocked.example"]
+      }
+    });
+    expect(JSON.parse(io.files[statePath])).toEqual({
+      schemaVersion: 1,
+      policy: {
+        defaultMode: "ask",
+        allowedHosts: ["example.com"],
+        currentTurnAllowedHosts: ["turn.example"],
+        blockedHosts: ["blocked.example"]
+      }
+    });
+
+    await expect(readChromeHostPolicyState({
+      homeDir: "/Users/tester",
+      io
+    })).resolves.toMatchObject({
+      schemaVersion: 1,
+      state: "configured",
+      path: statePath,
+      policy: {
+        allowedHosts: ["example.com"],
+        currentTurnAllowedHosts: ["turn.example"],
+        blockedHosts: ["blocked.example"]
+      }
+    });
+  });
+
+  it("fails closed to ask-by-default when the host policy file is invalid", async () => {
+    const statePath = createChromeHostPolicyStatePath("/Users/tester");
+    const io = createMemoryChromeHostPolicyIo({
+      [statePath]: "{"
+    });
+
+    await expect(readChromeHostPolicyState({
+      homeDir: "/Users/tester",
+      io
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      state: "invalid",
+      path: statePath,
+      policy: createDefaultChromeHostPolicy(),
+      reason: "Chrome host policy file is not valid JSON."
     });
   });
 

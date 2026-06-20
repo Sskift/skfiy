@@ -16,6 +16,11 @@ import {
   type ChromeNativeHostIo
 } from "./chrome-native-host.js";
 import {
+  createChromeHostPolicyStatePath,
+  readChromeHostPolicyState,
+  type ChromeHostPolicyState
+} from "./chrome-host-policy.js";
+import {
   SKFIY_MCP_TOOL_NAMES,
   runSkfiyMcpStdioServer,
   type SkfiyMcpProviders,
@@ -1217,6 +1222,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
   if (!helperExists) {
     const nativeHost = await readNativeHostStatusForStatus(input);
     const extensionConnection = await readChromeExtensionConnectionForStatus(input);
+    const hostPolicy = await readChromeHostPolicyForStatus(input);
 
     return {
       app,
@@ -1226,7 +1232,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
         state: "unknown",
         reason: `skfiy helper is missing at ${input.helperPath}.`
       },
-      extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection),
+      extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy),
       nativeHost,
       dashboard: await readDashboardStatus(input.dashboardUrl)
     };
@@ -1238,13 +1244,14 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
 
   const nativeHost = await readNativeHostStatusForStatus(input);
   const extensionConnection = await readChromeExtensionConnectionForStatus(input);
+  const hostPolicy = await readChromeHostPolicyForStatus(input);
 
   return {
     app,
     helper,
     permissions: await readPermissionStatesForStatus(desktopHelper),
     desktopSession: await readDesktopSessionForStatus(desktopHelper),
-    extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection),
+    extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy),
     nativeHost,
     dashboard: await readDashboardStatus(input.dashboardUrl)
   };
@@ -1358,7 +1365,8 @@ function createChromeExtensionAdapterStatus(
     manifestPath?: unknown;
     allowedOrigins?: unknown;
   },
-  connection?: ChromeExtensionConnectionStatus
+  connection?: ChromeExtensionConnectionStatus,
+  hostPolicy?: ChromeHostPolicyState
 ): Record<string, unknown> {
   const allowedOrigins = Array.isArray(nativeHost.allowedOrigins)
     ? nativeHost.allowedOrigins.filter((origin): origin is string => typeof origin === "string")
@@ -1369,7 +1377,8 @@ function createChromeExtensionAdapterStatus(
     nativeHostState: nativeHost.state,
     ...(typeof nativeHost.manifestPath === "string" ? { manifestPath: nativeHost.manifestPath } : {}),
     ...(allowedOrigins.length > 0 ? { allowedOrigins } : {}),
-    ...(connection && connection.state !== "unknown" ? { connection } : {})
+    ...(connection && connection.state !== "unknown" ? { connection } : {}),
+    ...(hostPolicy ? { hostPolicy } : {})
   };
 
   if (connection?.state === "connected") {
@@ -1450,6 +1459,35 @@ async function readChromeExtensionConnectionForStatus(
       state: "unknown",
       liveConnection: "unknown",
       path: createChromeExtensionConnectionStatePath(input.homeDir),
+      reason: readErrorMessage(error)
+    };
+  }
+}
+
+async function readChromeHostPolicyForStatus(
+  input: StatusReaderInput,
+  io?: ChromeNativeHostIo
+): Promise<ChromeHostPolicyState | undefined> {
+  if (!input.homeDir) {
+    return undefined;
+  }
+
+  try {
+    return await readChromeHostPolicyState({
+      homeDir: input.homeDir,
+      io
+    });
+  } catch (error) {
+    return {
+      schemaVersion: 1,
+      state: "invalid",
+      path: createChromeHostPolicyStatePath(input.homeDir),
+      policy: {
+        defaultMode: "ask",
+        allowedHosts: [],
+        currentTurnAllowedHosts: [],
+        blockedHosts: []
+      },
       reason: readErrorMessage(error)
     };
   }
@@ -1928,12 +1966,20 @@ async function runChromeNativeHostCli({
       generatedAt,
       io
     });
+    const hostPolicy = await readChromeHostPolicyForStatus({
+      rootDir: "",
+      homeDir,
+      appPath: "",
+      helperPath: "",
+      cliShimPath: invocation.options.cliShimPath,
+      extensionIds: invocation.options.extensionIds
+    }, io);
     stdout.write(`${JSON.stringify({
       schemaVersion: 1,
       command: invocation.path,
       generatedAt: generatedAt ?? new Date().toISOString(),
       executesSystemMutation: false,
-      extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection),
+      extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy),
       nativeHost
     }, null, 2)}\n`);
     return 0;

@@ -48,12 +48,17 @@ if (!existsSync(builtCliPath)) {
             });
           }
         },
-        dispatch: async (message) => ({
-          result: "accepted",
-          bridgeState: "connected",
-          launchOrigin,
-          messageType: message.type
-        })
+        dispatch: typeof nativeHost.createChromeNativeBridgeDispatch === "function"
+          ? nativeHost.createChromeNativeBridgeDispatch({
+            homeDir: process.env.HOME ?? "",
+            launchOrigin
+          })
+          : async (message) => ({
+            result: "accepted",
+            bridgeState: "connected",
+            launchOrigin,
+            messageType: message.type
+          })
       });
     }
   } else {

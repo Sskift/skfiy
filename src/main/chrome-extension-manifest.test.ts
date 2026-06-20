@@ -57,6 +57,8 @@ describe("Chrome extension adapter skeleton", () => {
     expect(background).toContain("captureVisibleTab");
     expect(background).toContain("chrome.downloads.search");
     expect(background).toContain("sendNativeMessage");
+    expect(background).toContain("persistHostPolicyResponse");
+    expect(background).toContain("response?.hostPolicy?.policy");
     expect(background).toContain("port.onMessage.addListener");
     expect(background).toContain("port.onDisconnect.addListener");
 

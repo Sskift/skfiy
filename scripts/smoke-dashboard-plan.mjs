@@ -264,10 +264,22 @@ function hasExtensionAdapterEvidence(extension) {
     && extension.state !== "unknown"
     && extension?.bridge === "native-messaging"
     && allowedLiveConnectionStates.has(extension?.liveConnection)
+    && hasChromeHostPolicyEvidence(extension?.hostPolicy)
     && (
       typeof extension?.reason === "string"
       || hasExtensionConnectionEvidence(extension?.connection)
     );
+}
+
+function hasChromeHostPolicyEvidence(hostPolicy) {
+  return hostPolicy?.schemaVersion === 1
+    && (hostPolicy.state === "default" || hostPolicy.state === "configured" || hostPolicy.state === "invalid")
+    && typeof hostPolicy.path === "string"
+    && hostPolicy.path.includes("Application Support/skfiy/chrome-host-policy.json")
+    && hostPolicy.policy?.defaultMode === "ask"
+    && Array.isArray(hostPolicy.policy?.allowedHosts)
+    && Array.isArray(hostPolicy.policy?.currentTurnAllowedHosts)
+    && Array.isArray(hostPolicy.policy?.blockedHosts);
 }
 
 function hasExtensionConnectionEvidence(connection) {

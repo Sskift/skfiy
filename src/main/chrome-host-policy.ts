@@ -1,3 +1,7 @@
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+
 export type ChromeHostPolicyDefaultMode = "ask";
 export type ChromeHostPolicyAction =
   | "allow_current_turn"
@@ -11,6 +15,21 @@ export interface ChromeHostPolicy {
   allowedHosts: string[];
   currentTurnAllowedHosts: string[];
   blockedHosts: string[];
+}
+
+export interface ChromeHostPolicyIo {
+  exists: (targetPath: string) => boolean | Promise<boolean>;
+  mkdir: (targetPath: string) => Promise<void>;
+  readFile: (targetPath: string) => Promise<string>;
+  writeFile: (targetPath: string, content: string) => Promise<void>;
+}
+
+export interface ChromeHostPolicyState {
+  schemaVersion: 1;
+  state: "default" | "configured" | "invalid";
+  path: string;
+  policy: ChromeHostPolicy;
+  reason?: string;
 }
 
 export interface ChromeHostPolicyActionInput {
@@ -55,6 +74,93 @@ export function createDefaultChromeHostPolicy(): ChromeHostPolicy {
     currentTurnAllowedHosts: [],
     blockedHosts: []
   };
+}
+
+export function createChromeHostPolicyStatePath(homeDir: string): string {
+  return path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "skfiy",
+    "chrome-host-policy.json"
+  );
+}
+
+export async function readChromeHostPolicyState({
+  homeDir,
+  io = createDefaultChromeHostPolicyIo()
+}: {
+  homeDir: string;
+  io?: ChromeHostPolicyIo;
+}): Promise<ChromeHostPolicyState> {
+  const statePath = createChromeHostPolicyStatePath(homeDir);
+
+  if (!(await io.exists(statePath))) {
+    return {
+      schemaVersion: 1,
+      state: "default",
+      path: statePath,
+      policy: createDefaultChromeHostPolicy(),
+      reason: "Chrome host policy has not been configured yet."
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await io.readFile(statePath)) as unknown;
+  } catch {
+    return {
+      schemaVersion: 1,
+      state: "invalid",
+      path: statePath,
+      policy: createDefaultChromeHostPolicy(),
+      reason: "Chrome host policy file is not valid JSON."
+    };
+  }
+
+  const record = readRecord(parsed);
+  if (!record) {
+    return {
+      schemaVersion: 1,
+      state: "invalid",
+      path: statePath,
+      policy: createDefaultChromeHostPolicy(),
+      reason: "Chrome host policy file is not an object."
+    };
+  }
+
+  return {
+    schemaVersion: 1,
+    state: "configured",
+    path: statePath,
+    policy: normalizeChromeHostPolicy(record.policy)
+  };
+}
+
+export async function writeChromeHostPolicyState({
+  homeDir,
+  policy,
+  io = createDefaultChromeHostPolicyIo()
+}: {
+  homeDir: string;
+  policy: ChromeHostPolicy;
+  io?: ChromeHostPolicyIo;
+}): Promise<ChromeHostPolicyState> {
+  const statePath = createChromeHostPolicyStatePath(homeDir);
+  const state: ChromeHostPolicyState = {
+    schemaVersion: 1,
+    state: "configured",
+    path: statePath,
+    policy: normalizeChromeHostPolicy(policy)
+  };
+
+  await io.mkdir(path.dirname(statePath));
+  await io.writeFile(statePath, `${JSON.stringify({
+    schemaVersion: state.schemaVersion,
+    policy: state.policy
+  }, null, 2)}\n`);
+
+  return state;
 }
 
 export function normalizeChromeHostPolicy(value: unknown): ChromeHostPolicy {
@@ -252,4 +358,15 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : undefined;
+}
+
+function createDefaultChromeHostPolicyIo(): ChromeHostPolicyIo {
+  return {
+    exists: (targetPath) => existsSync(targetPath),
+    mkdir: async (targetPath) => {
+      await mkdir(targetPath, { recursive: true });
+    },
+    readFile: async (targetPath) => readFile(targetPath, "utf8"),
+    writeFile
+  };
 }

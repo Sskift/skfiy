@@ -216,6 +216,17 @@ function hasNativeHostBridgeEvidence(run) {
     && run.response?.type === "skfiy.native.response"
     && run.response?.requestId === "chrome-smoke-native-host"
     && run.response?.result === "accepted"
+    && run.hostPolicyResponse?.type === "skfiy.native.response"
+    && run.hostPolicyResponse?.requestId === "chrome-smoke-host-policy"
+    && run.hostPolicyResponse?.result === "accepted"
+    && run.hostPolicyResponse?.hostPolicy?.schemaVersion === 1
+    && (run.hostPolicyResponse.hostPolicy.state === "default"
+      || run.hostPolicyResponse.hostPolicy.state === "configured"
+      || run.hostPolicyResponse.hostPolicy.state === "invalid")
+    && run.hostPolicyResponse.hostPolicy.policy?.defaultMode === "ask"
+    && Array.isArray(run.hostPolicyResponse.hostPolicy.policy?.allowedHosts)
+    && Array.isArray(run.hostPolicyResponse.hostPolicy.policy?.currentTurnAllowedHosts)
+    && Array.isArray(run.hostPolicyResponse.hostPolicy.policy?.blockedHosts)
     && typeof run.heartbeatPath === "string"
     && run.heartbeatPath.includes("Application Support/skfiy/chrome-extension-connection.json")
     && run.heartbeat?.hostName === "com.sskift.skfiy"

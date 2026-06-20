@@ -14,6 +14,12 @@ import {
   CHROME_NATIVE_HOST_NAME,
   createChromeExtensionConnectionStatePath
 } from "./chrome-native-host.js";
+import {
+  createChromeHostPolicyStatePath,
+  createDefaultChromeHostPolicy,
+  normalizeChromeHostPolicy,
+  type ChromeHostPolicyState
+} from "./chrome-host-policy.js";
 import { readRuntimeSnapshotPanels } from "./runtime-snapshot.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
@@ -166,6 +172,7 @@ export function createDashboardWorkspaceSnapshot({
     generatedAt: snapshotGeneratedAt,
     io
   });
+  const hostPolicy = readWorkspaceChromeHostPolicy(io);
   const runtimePanels = readWorkspaceRuntimePanels(io);
 
   const snapshot = createDashboardSnapshot({
@@ -188,7 +195,7 @@ export function createDashboardWorkspaceSnapshot({
         pid: readWorkspacePid(io),
         uptimeSeconds: readWorkspaceUptimeSeconds(io)
       },
-      extension: createWorkspaceChromeExtensionStatus(nativeHost, extensionConnection),
+      extension: createWorkspaceChromeExtensionStatus(nativeHost, extensionConnection, hostPolicy),
       nativeHost,
       desktopSession: readWorkspaceDesktopSession(helperPath, helperInstalled, io),
       permissions: readWorkspacePermissions(helperPath, helperInstalled, io)
@@ -1164,7 +1171,8 @@ function readWorkspaceChromeNativeHost({
 
 function createWorkspaceChromeExtensionStatus(
   nativeHost: Record<string, unknown>,
-  connection?: Record<string, unknown>
+  connection?: Record<string, unknown>,
+  hostPolicy?: ChromeHostPolicyState
 ): Record<string, unknown> {
   const allowedOrigins = Array.isArray(nativeHost.allowedOrigins)
     ? nativeHost.allowedOrigins.filter((origin): origin is string => typeof origin === "string")
@@ -1175,7 +1183,8 @@ function createWorkspaceChromeExtensionStatus(
     nativeHostState: nativeHost.state,
     ...(typeof nativeHost.manifestPath === "string" ? { manifestPath: nativeHost.manifestPath } : {}),
     ...(allowedOrigins.length > 0 ? { allowedOrigins } : {}),
-    ...(connection && connection.state !== "unknown" ? { connection } : {})
+    ...(connection && connection.state !== "unknown" ? { connection } : {}),
+    ...(hostPolicy ? { hostPolicy } : {})
   };
 
   if (connection?.state === "connected") {
@@ -1309,6 +1318,53 @@ function readWorkspaceChromeExtensionConnection({
     ...(typeof heartbeat.messageType === "string" ? { messageType: heartbeat.messageType } : {}),
     ...(typeof heartbeat.requestId === "string" ? { requestId: heartbeat.requestId } : {})
   };
+}
+
+function readWorkspaceChromeHostPolicy(io: DashboardWorkspaceIo): ChromeHostPolicyState | undefined {
+  const homeDir = io.homeDir?.();
+  if (!homeDir) {
+    return undefined;
+  }
+
+  const statePath = createChromeHostPolicyStatePath(homeDir);
+  if (!io.exists(statePath)) {
+    return {
+      schemaVersion: 1,
+      state: "default",
+      path: statePath,
+      policy: createDefaultChromeHostPolicy(),
+      reason: "Chrome host policy has not been configured yet."
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(io.readFile(statePath)) as unknown;
+    const record = readRecord(parsed);
+    if (!record) {
+      return {
+        schemaVersion: 1,
+        state: "invalid",
+        path: statePath,
+        policy: createDefaultChromeHostPolicy(),
+        reason: "Chrome host policy file is not an object."
+      };
+    }
+
+    return {
+      schemaVersion: 1,
+      state: "configured",
+      path: statePath,
+      policy: normalizeChromeHostPolicy(record.policy)
+    };
+  } catch {
+    return {
+      schemaVersion: 1,
+      state: "invalid",
+      path: statePath,
+      policy: createDefaultChromeHostPolicy(),
+      reason: "Chrome host policy file is not valid JSON."
+    };
+  }
 }
 
 function readWorkspaceConnectionState(connection: Record<string, unknown> | undefined): string {
