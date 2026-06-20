@@ -49,6 +49,7 @@ export interface DashboardWorkspaceIo {
   codeSignature?: (appPath: string) => Record<string, unknown>;
   permissions?: (helperPath: string) => Record<string, unknown>;
   desktopSession?: (helperPath: string) => Record<string, unknown>;
+  gitHead?: (rootDir: string) => Record<string, unknown>;
 }
 
 export interface DashboardWorkspaceSnapshotInput {
@@ -116,7 +117,8 @@ export function createDashboardSnapshot({
     alerts: createDashboardAlerts({
       permissions,
       runtimeHealth,
-      smokeEvidence
+      smokeEvidence,
+      dogfoodRelease
     })
   };
 }
@@ -192,17 +194,20 @@ export function createDashboardWorkspaceSnapshot({
 function createDashboardAlerts({
   permissions,
   runtimeHealth,
-  smokeEvidence
+  smokeEvidence,
+  dogfoodRelease
 }: {
   permissions: Record<string, unknown>;
   runtimeHealth: Record<string, unknown>;
   smokeEvidence: {
     artifacts: Array<Record<string, unknown>>;
   };
+  dogfoodRelease: Record<string, unknown>;
 }): Array<Record<string, unknown>> {
   const alerts: Array<Record<string, unknown>> = [];
   const desktopSession = readRecord(runtimeHealth.desktopSession);
   const extension = readRecord(runtimeHealth.extension);
+  const releaseDrift = readRecord(dogfoodRelease.releaseDrift);
 
   if (permissions.screenRecording !== "granted") {
     alerts.push({
@@ -257,6 +262,20 @@ function createDashboardAlerts({
     });
   }
 
+  if (releaseDrift?.state === "behind-head") {
+    alerts.push({
+      code: "release-artifact-older-than-head",
+      severity: "warning",
+      message: "Latest alpha release is older than current git HEAD.",
+      ...(typeof releaseDrift.releaseCommitSha === "string"
+        ? { releaseCommitSha: releaseDrift.releaseCommitSha }
+        : {}),
+      ...(typeof releaseDrift.currentHeadCommitSha === "string"
+        ? { currentHeadCommitSha: releaseDrift.currentHeadCommitSha }
+        : {})
+    });
+  }
+
   return alerts;
 }
 
@@ -294,12 +313,106 @@ function readWorkspaceDogfoodRelease(
   const latestAlpha = readWorkspaceLatestAlpha(rootDir, io);
   const manifest = readWorkspaceLatestAlphaManifest(rootDir, latestAlpha, io);
   const cohort = readWorkspaceDogfoodCohort(rootDir, io);
+  const currentHead = readWorkspaceGitHead(rootDir, io);
+  const releaseDrift = readWorkspaceReleaseDrift(latestAlpha, currentHead);
 
   return {
     state: readDogfoodReleaseState(latestAlpha, cohort),
     latestAlpha,
+    currentHead,
+    releaseDrift,
     manifest,
     cohort
+  };
+}
+
+function readWorkspaceGitHead(
+  rootDir: string,
+  io: DashboardWorkspaceIo
+): Record<string, unknown> {
+  try {
+    const injected = io.gitHead?.(rootDir);
+    if (injected) {
+      return normalizeGitHead(rootDir, injected);
+    }
+  } catch (error) {
+    return {
+      state: "unknown",
+      rootDir,
+      reason: error instanceof Error ? error.message : String(error)
+    };
+  }
+
+  const result = spawnSync("git", ["-C", rootDir, "rev-parse", "HEAD"], {
+    encoding: "utf8"
+  });
+
+  if (result.status !== 0) {
+    return {
+      state: "unknown",
+      rootDir,
+      reason: readSpawnMessage(result, "current git HEAD could not be read.")
+    };
+  }
+
+  return normalizeGitHead(rootDir, {
+    state: "present",
+    commitSha: `${result.stdout ?? ""}`.trim()
+  });
+}
+
+function normalizeGitHead(rootDir: string, value: Record<string, unknown>): Record<string, unknown> {
+  const commitSha = typeof value.commitSha === "string" ? value.commitSha.trim() : "";
+  if (!/^[a-f0-9]{40}$/i.test(commitSha)) {
+    return {
+      state: "unknown",
+      rootDir,
+      ...(typeof value.reason === "string" ? { reason: value.reason } : {
+        reason: "current git HEAD is not a full commit SHA."
+      })
+    };
+  }
+
+  return {
+    state: "present",
+    rootDir,
+    commitSha,
+    shortCommit: commitSha.slice(0, 7)
+  };
+}
+
+function readWorkspaceReleaseDrift(
+  latestAlpha: Record<string, unknown>,
+  currentHead: Record<string, unknown>
+): Record<string, unknown> {
+  const releaseCommitSha = typeof latestAlpha.commitSha === "string"
+    ? latestAlpha.commitSha
+    : undefined;
+  const currentHeadCommitSha = typeof currentHead.commitSha === "string"
+    ? currentHead.commitSha
+    : undefined;
+
+  if (!releaseCommitSha || !currentHeadCommitSha) {
+    return {
+      state: "unknown",
+      ...(releaseCommitSha ? { releaseCommitSha } : {}),
+      ...(currentHeadCommitSha ? { currentHeadCommitSha } : {}),
+      reason: "release and current HEAD commits are both required to detect drift."
+    };
+  }
+
+  if (releaseCommitSha === currentHeadCommitSha) {
+    return {
+      state: "current",
+      releaseCommitSha,
+      currentHeadCommitSha
+    };
+  }
+
+  return {
+    state: "behind-head",
+    releaseCommitSha,
+    currentHeadCommitSha
   };
 }
 

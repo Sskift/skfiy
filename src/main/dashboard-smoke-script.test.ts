@@ -199,6 +199,16 @@ describe("dashboard product smoke script", () => {
               zipPath: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.zip",
               zipSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             },
+            currentHead: {
+              state: "present",
+              commitSha: "fedcba9876543210fedcba9876543210fedcba98",
+              shortCommit: "fedcba9"
+            },
+            releaseDrift: {
+              state: "behind-head",
+              releaseCommitSha: "def4567890abcdef1234567890abcdef12345678",
+              currentHeadCommitSha: "fedcba9876543210fedcba9876543210fedcba98"
+            },
             manifest: {
               state: "present",
               path: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
@@ -319,6 +329,19 @@ describe("dashboard product smoke script", () => {
                 productPath: "renderer -> preload -> main -> CDP -> Chrome"
               }
             ]
+          }
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          dogfoodRelease: {
+            ...passedEvidence.snapshotResponse.body.dogfoodRelease,
+            releaseDrift: undefined
           }
         }
       }

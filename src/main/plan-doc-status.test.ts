@@ -229,9 +229,12 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("recommendedBrowser: Chrome for Testing or Chromium");
     expect(dashboardPlan).toContain("requires the latest Chrome smoke summary to expose packaged Native Messaging bridge evidence from `nativeHostBridgeRun`");
     expect(dashboardPlan).toContain("dogfoodRelease");
-    expect(dashboardPlan).toContain("latest alpha, manifest checksum, accepted reports, and cohort coverage");
+    expect(dashboardPlan).toContain("latest alpha, manifest checksum, accepted reports, cohort coverage");
+    expect(dashboardPlan).toContain("releaseDrift");
+    expect(dashboardPlan).toContain("current git HEAD");
     expect(longPlan).toContain("Chrome smoke summaries now surface `nativeHostBridge` evidence from `nativeHostBridgeRun`");
     expect(longPlan).toContain("dogfood/release snapshot now reads `docs/release-evidence/latest-alpha.json`");
+    expect(longPlan).toContain("releaseDrift");
     expect(longPlan).toContain("CLI command matrix smoke");
     expect(longPlan).toContain("fresh Native Messaging heartbeat file");
     expect(longPlan).toContain("nativeHostBridgeRun.result: passed");

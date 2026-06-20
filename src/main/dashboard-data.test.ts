@@ -402,6 +402,11 @@ describe("dashboard snapshot data", () => {
           microphone: { granted: true, status: "authorized" },
           speechRecognition: { granted: false, status: "notDetermined" }
         }),
+        gitHead: () => ({
+          state: "present",
+          commitSha: "fedcba9876543210fedcba9876543210fedcba98",
+          shortCommit: "fedcba9"
+        }),
         desktopSession: () => ({
           state: "blocked",
           controllable: false,
@@ -495,6 +500,16 @@ describe("dashboard snapshot data", () => {
         zipSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         dogfoodStatus: "waiting-for-dogfood",
         publishedAt: "2026-06-19T17:56:02.518Z"
+      },
+      currentHead: {
+        state: "present",
+        commitSha: "fedcba9876543210fedcba9876543210fedcba98",
+        shortCommit: "fedcba9"
+      },
+      releaseDrift: {
+        state: "behind-head",
+        releaseCommitSha: "def4567890abcdef1234567890abcdef12345678",
+        currentHeadCommitSha: "fedcba9876543210fedcba9876543210fedcba98"
       },
       manifest: {
         state: "present",
@@ -600,6 +615,13 @@ describe("dashboard snapshot data", () => {
     expect(snapshot.alerts).not.toContainEqual(expect.objectContaining({
       code: "smoke-evidence-stale"
     }));
+    expect(snapshot.alerts).toContainEqual({
+      code: "release-artifact-older-than-head",
+      severity: "warning",
+      message: "Latest alpha release is older than current git HEAD.",
+      releaseCommitSha: "def4567890abcdef1234567890abcdef12345678",
+      currentHeadCommitSha: "fedcba9876543210fedcba9876543210fedcba98"
+    });
     expect(JSON.stringify(snapshot)).not.toContain("token=");
   });
 });

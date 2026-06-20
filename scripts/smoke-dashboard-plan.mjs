@@ -337,6 +337,8 @@ function hasChromeInstalledExtensionSmokeEvidence(artifacts) {
 function hasDogfoodReleaseEvidence(dogfoodRelease) {
   return typeof dogfoodRelease?.state === "string"
     && hasLatestAlphaEvidence(dogfoodRelease.latestAlpha)
+    && hasCurrentHeadEvidence(dogfoodRelease.currentHead)
+    && hasReleaseDriftEvidence(dogfoodRelease.releaseDrift)
     && hasManifestEvidence(dogfoodRelease.manifest)
     && hasCohortEvidence(dogfoodRelease.cohort);
 }
@@ -356,6 +358,32 @@ function hasLatestAlphaEvidence(latestAlpha) {
     && typeof latestAlpha.manifestPath === "string"
     && typeof latestAlpha.zipPath === "string"
     && isSha256(latestAlpha.zipSha256);
+}
+
+function hasCurrentHeadEvidence(currentHead) {
+  return currentHead?.state === "present"
+    && isCommitSha(currentHead.commitSha)
+    && typeof currentHead.shortCommit === "string"
+    && currentHead.shortCommit === currentHead.commitSha.slice(0, 7);
+}
+
+function hasReleaseDriftEvidence(releaseDrift) {
+  if (!releaseDrift || typeof releaseDrift !== "object") {
+    return false;
+  }
+
+  if (releaseDrift.state === "unknown") {
+    return typeof releaseDrift.reason === "string";
+  }
+
+  return (releaseDrift.state === "current" || releaseDrift.state === "behind-head")
+    && isCommitSha(releaseDrift.releaseCommitSha)
+    && isCommitSha(releaseDrift.currentHeadCommitSha)
+    && (
+      releaseDrift.state === "current"
+        ? releaseDrift.releaseCommitSha === releaseDrift.currentHeadCommitSha
+        : releaseDrift.releaseCommitSha !== releaseDrift.currentHeadCommitSha
+    );
 }
 
 function hasManifestEvidence(manifest) {
@@ -408,4 +436,8 @@ function hasWorkflowCoverage(coverage) {
 
 function isSha256(value) {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function isCommitSha(value) {
+  return typeof value === "string" && /^[a-f0-9]{40}$/i.test(value);
 }
