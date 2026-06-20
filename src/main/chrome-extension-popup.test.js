@@ -352,6 +352,113 @@ describe("Chrome extension popup policy sync status", () => {
         .toBe("Specified native messaging host not found.");
     });
   });
+
+  it("renders page safety and sensitive pause diagnostics from the session", async () => {
+    installPopupDocument();
+    const policy = createPolicy({
+      allowedHosts: ["example.com"]
+    });
+    const mock = createPopupChromeMock({
+      policy,
+      snapshot: {
+        type: "skfiy.host_policy.response",
+        schemaVersion: 1,
+        requestId: "popup-status",
+        policy,
+        syncStatus: {
+          schemaVersion: 1,
+          state: "synced",
+          source: "native_host",
+          updatedAt: "2026-06-20T10:04:00.000Z",
+          entryCount: 1,
+          hostPolicyState: "configured",
+          nativeHostPolicyState: "configured",
+          nativeBridgeState: "connected",
+          nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          nativeMessageType: "skfiy.host_policy.request",
+          lastError: null,
+          error: null
+        },
+        diagnostics: {
+          schemaVersion: 1,
+          extension: {
+            version: "0.0.1",
+            manifestVersion: 3
+          },
+          capabilities: {
+            activeTab: true,
+            nativeMessaging: true,
+            scripting: true,
+            storage: true,
+            tabs: true,
+            downloads: true
+          },
+          nativeHost: {
+            name: "com.sskift.skfiy",
+            connectionState: "connected",
+            bridgeState: "connected",
+            syncState: "synced",
+            syncSource: "native_host",
+            policyState: "configured",
+            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            lastError: null
+          },
+          currentTab: {
+            state: "available",
+            host: "example.com",
+            origin: "https://example.com",
+            hostPolicy: {
+              decision: "allowed",
+              reason: "host_allowed"
+            },
+            chromeHostPermission: {
+              state: "granted",
+              origin: "https://example.com",
+              host: "example.com",
+              origins: ["https://example.com/*"]
+            },
+            contentScript: {
+              state: "loaded",
+              host: "example.com",
+              title: "Example"
+            }
+          },
+          session: {
+            state: "loaded",
+            host: "example.com",
+            pageSafety: {
+              state: "sensitive",
+              reason: "credential fields visible"
+            },
+            sensitivePaused: true,
+            sensitivePauseReason: "credential fields visible",
+            contentScript: {
+              state: "loaded",
+              host: "example.com",
+              title: "Example"
+            }
+          },
+          lastError: null
+        }
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(document.getElementById("content-script-session").textContent)
+        .toBe("Loaded, sensitive pause active");
+      expect(document.getElementById("page-safety").textContent)
+        .toBe("Sensitive: credential fields visible");
+      expect(document.getElementById("sensitive-pause-status").textContent)
+        .toBe("Active: credential fields visible");
+      expect(document.getElementById("sensitive-pause").hidden).toBe(false);
+      expect(document.getElementById("sensitive-pause").textContent)
+        .toBe("Sensitive content pause: credential fields visible");
+    });
+  });
+
   it("lets the user manually refresh host policy from the popup", async () => {
     installPopupDocument();
     const initialPolicy = createPolicy();

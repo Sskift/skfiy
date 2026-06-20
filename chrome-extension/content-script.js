@@ -24,6 +24,39 @@ const SENSITIVE_FIELD_PATTERNS = [
   /api[-_\s]?key/i
 ];
 
+const PAGE_RISK_PATTERNS = [
+  {
+    kind: "credential",
+    severity: "sensitive",
+    pattern: /password|passcode|one[-\s]?time code|verification code|\botp\b|two[-\s]?factor|2fa/i,
+    reason: "credential_or_otp_prompt"
+  },
+  {
+    kind: "payment",
+    severity: "sensitive",
+    pattern: /payment|checkout|billing|credit card|card number|security code|\bcvv\b|bank account/i,
+    reason: "payment_or_billing_flow"
+  },
+  {
+    kind: "account-risk",
+    severity: "destructive",
+    pattern: /delete (my )?account|close (my )?account|deactivate account|remove account|permanently delete/i,
+    reason: "account_deletion_flow"
+  },
+  {
+    kind: "financial-transfer",
+    severity: "destructive",
+    pattern: /wire transfer|send money|transfer funds|withdraw funds|crypto withdrawal|bank transfer/i,
+    reason: "financial_transfer_flow"
+  },
+  {
+    kind: "secret-exposure",
+    severity: "sensitive",
+    pattern: /api key|secret key|access token|private token|recovery phrase|seed phrase/i,
+    reason: "secret_exposure_flow"
+  }
+];
+
 function textOf(value) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -102,6 +135,8 @@ function selectorFor(element) {
 }
 
 function capturePageSnapshot() {
+  const safety = collectPageSafety();
+
   return {
     schemaVersion: MESSAGE_SCHEMA_VERSION,
     url: location.href,
@@ -109,12 +144,16 @@ function capturePageSnapshot() {
     title: document.title,
     visibleText: textOf(document.body?.innerText).slice(0, 20000),
     forms: collectFormMetadata(),
-    interactiveElements: collectInteractiveElements()
+    interactiveElements: collectInteractiveElements(),
+    safety
   };
 }
 
 function readContentScriptSession() {
   const sensitivePauseReason = document.documentElement.getAttribute("data-skfiy-sensitive-paused");
+  const sensitivePauseKind = document.documentElement.getAttribute("data-skfiy-sensitive-pause-kind");
+  const pageSafety = collectPageSafety();
+
   return {
     schemaVersion: MESSAGE_SCHEMA_VERSION,
     state: "loaded",
@@ -123,7 +162,31 @@ function readContentScriptSession() {
     title: document.title,
     sensitivePaused: Boolean(sensitivePauseReason),
     sensitivePauseReason,
+    sensitivePauseKind,
+    pageSafety,
     observedAt: new Date().toISOString()
+  };
+}
+
+function collectPageSafety() {
+  const haystack = [
+    document.title,
+    document.body?.innerText,
+    document.body?.textContent
+  ].map(textOf).join("\n").slice(0, 40000);
+  const findings = PAGE_RISK_PATTERNS
+    .filter((entry) => entry.pattern.test(haystack))
+    .slice(0, 8)
+    .map((entry) => ({
+      kind: entry.kind,
+      severity: entry.severity,
+      reason: entry.reason
+    }));
+
+  return {
+    state: findings.length > 0 ? "needs_confirmation" : "clear",
+    findingCount: findings.length,
+    findings
   };
 }
 
@@ -143,21 +206,24 @@ function looksSensitive(element, value = "") {
   return SENSITIVE_FIELD_PATTERNS.some((pattern) => pattern.test(haystack));
 }
 
-function markSensitivePause(reason, action) {
+function markSensitivePause(reason, action, safety) {
   document.documentElement.setAttribute("data-skfiy-sensitive-paused", reason);
+  document.documentElement.setAttribute("data-skfiy-sensitive-pause-kind", action?.kind ?? action?.type ?? "unknown");
   void chrome.runtime.sendMessage({
     type: MESSAGE_TYPES.PAGE_SENSITIVE_PAUSE,
     schemaVersion: MESSAGE_SCHEMA_VERSION,
     url: location.href,
     host: location.host,
     reason,
-    actionType: action?.kind ?? action?.type ?? "unknown"
+    actionType: action?.kind ?? action?.type ?? "unknown",
+    ...(safety ? { safety } : {})
   });
   return {
     type: MESSAGE_TYPES.PAGE_ACTION_RESULT,
     schemaVersion: MESSAGE_SCHEMA_VERSION,
     result: "sensitive-paused",
-    reason
+    reason,
+    ...(safety ? { safety } : {})
   };
 }
 
@@ -202,6 +268,19 @@ function elementForAction(action) {
 }
 
 function runPageAction(action) {
+  if (!action || typeof action !== "object") {
+    return { result: "blocked", reason: "missing_action" };
+  }
+
+  const pageSafety = collectPageSafety();
+  const confirmationRequired = action?.confirmed !== true
+    && ["click", "fill", "submit"].includes(action?.kind)
+    && pageSafety.state === "needs_confirmation";
+
+  if (confirmationRequired) {
+    return markSensitivePause("Sensitive page content requires confirmation", action, pageSafety);
+  }
+
   if (action.kind === "navigate" && action.url) {
     location.assign(action.url);
     return { result: "started", action: "navigate" };
@@ -210,7 +289,7 @@ function runPageAction(action) {
   const element = elementForAction(action);
 
   if ((action.kind === "fill" || action.kind === "click") && element && looksSensitive(element, action.value)) {
-    return markSensitivePause("Sensitive content pause", action);
+    return markSensitivePause("Sensitive content pause", action, pageSafety);
   }
 
   if (action.kind === "focus" && element) {
@@ -272,11 +351,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === MESSAGE_TYPES.PAGE_ACTION) {
+    const action = message.payload?.action ?? message.action ?? message;
     sendResponse({
       type: MESSAGE_TYPES.PAGE_ACTION_RESULT,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
       requestId: message.requestId,
-      ...runPageAction(message.action ?? message)
+      ...runPageAction(action)
     });
     return true;
   }

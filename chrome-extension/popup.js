@@ -171,10 +171,101 @@ function formatHostPermission(permission) {
   }
 }
 
+function formatDiagnosticToken(value) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return "Unknown";
+  }
+
+  return value
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function readPageSessionDiagnostics(diagnostics) {
+  const session = diagnostics?.session && typeof diagnostics.session === "object"
+    ? diagnostics.session
+    : {};
+  const contentScript = session.contentScript && typeof session.contentScript === "object"
+    ? session.contentScript
+    : diagnostics?.currentTab?.contentScript && typeof diagnostics.currentTab.contentScript === "object"
+      ? diagnostics.currentTab.contentScript
+      : {};
+
+  return {
+    ...session,
+    ...contentScript
+  };
+}
+
+function formatPageSafety(pageSafety) {
+  const safety = pageSafety && typeof pageSafety === "object"
+    ? pageSafety
+    : { state: pageSafety };
+  const state = safety.state ?? safety.status ?? safety.level ?? safety.kind;
+
+  switch (state) {
+    case "safe":
+      return safety.reason ? `Safe: ${safety.reason}` : "Safe";
+    case "sensitive":
+      return safety.reason ? `Sensitive: ${safety.reason}` : "Sensitive";
+    case "paused":
+    case "sensitive_pause":
+      return safety.reason ? `Sensitive pause: ${safety.reason}` : "Sensitive pause";
+    case "unknown":
+      return "Unknown";
+    default: {
+      const label = formatDiagnosticToken(state);
+      return safety.reason ? `${label}: ${safety.reason}` : label;
+    }
+  }
+}
+
+function readSensitivePauseState(session, storedSensitivePause, host) {
+  const pageSafety = session.pageSafety && typeof session.pageSafety === "object"
+    ? session.pageSafety
+    : {};
+  const reason = session.sensitivePauseReason
+    ?? session.pauseReason
+    ?? pageSafety.sensitivePauseReason
+    ?? pageSafety.pauseReason;
+
+  if (session.sensitivePaused === true || reason) {
+    return {
+      active: true,
+      label: reason ? `Active: ${reason}` : "Active",
+      reason: reason ?? "review required"
+    };
+  }
+
+  if (storedSensitivePause && storedSensitivePause.host === host) {
+    const storedReason = storedSensitivePause.reason ?? "review required";
+    return {
+      active: true,
+      label: `Active: ${storedReason}`,
+      reason: storedReason
+    };
+  }
+
+  if (session.sensitivePaused === false) {
+    return {
+      active: false,
+      label: "Inactive"
+    };
+  }
+
+  return {
+    active: false,
+    label: "Not reported"
+  };
+}
+
 function formatContentScriptSession(session) {
+  const sensitivePaused = session?.sensitivePaused === true || Boolean(session?.sensitivePauseReason);
+
   switch (session?.state) {
     case "loaded":
-      return session.sensitivePaused ? "Loaded, sensitive pause active" : "Loaded";
+      return sensitivePaused ? "Loaded, sensitive pause active" : "Loaded";
     case "blocked_by_host_policy":
       return "Blocked by host policy";
     case "blocked_by_chrome_host_permission":
@@ -189,6 +280,23 @@ function formatContentScriptSession(session) {
       return "Not loaded";
     default:
       return "Unknown";
+  }
+}
+
+function applyPageDiagnostics(diagnostics, storedSensitivePause, host) {
+  const session = readPageSessionDiagnostics(diagnostics);
+  const pauseState = readSensitivePauseState(session, storedSensitivePause, host ?? diagnostics?.currentTab?.host);
+  const pauseElement = document.getElementById("sensitive-pause");
+
+  document.getElementById("page-safety").textContent = formatPageSafety(session.pageSafety);
+  document.getElementById("sensitive-pause-status").textContent = pauseState.label;
+
+  if (pauseState.active) {
+    pauseElement.hidden = false;
+    pauseElement.textContent = `${SENSITIVE_PAUSE_LABEL}: ${pauseState.reason}`;
+  } else {
+    pauseElement.hidden = true;
+    pauseElement.textContent = SENSITIVE_PAUSE_LABEL;
   }
 }
 
@@ -222,7 +330,8 @@ function applySyncStatus(syncStatus, diagnostics) {
   document.getElementById("chrome-host-permission").textContent =
     formatHostPermission(currentTab.chromeHostPermission);
   document.getElementById("content-script-session").textContent =
-    formatContentScriptSession(diagnostics?.session?.contentScript ?? currentTab.contentScript);
+    formatContentScriptSession(readPageSessionDiagnostics(diagnostics));
+  applyPageDiagnostics(diagnostics, undefined, currentTab.host);
   document.getElementById("native-host-policy-state").textContent = formatPolicyState(
     nativeHost.policyState ?? syncStatus?.nativeHostPolicyState ?? syncStatus?.hostPolicyState
   );
@@ -266,15 +375,7 @@ async function renderPopup() {
   document.getElementById("current-host").textContent = host || "Unknown";
   document.getElementById("host-policy").textContent = labelForPolicy(policy, host);
   applySyncStatus(snapshot?.syncStatus, snapshot?.diagnostics);
-
-  const pauseElement = document.getElementById("sensitive-pause");
-  if (sensitivePause?.host === host) {
-    pauseElement.hidden = false;
-    pauseElement.textContent = `${SENSITIVE_PAUSE_LABEL}: ${sensitivePause.reason ?? "review required"}`;
-  } else {
-    pauseElement.hidden = true;
-    pauseElement.textContent = SENSITIVE_PAUSE_LABEL;
-  }
+  applyPageDiagnostics(snapshot?.diagnostics, sensitivePause, host);
 }
 
 async function refreshHostPolicy() {

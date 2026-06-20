@@ -176,12 +176,16 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("renderEvidenceSummaryPanel(snapshot)");
     expect(response.body).toContain("createEvidenceSummaryLanes(snapshot)");
     expect(response.body).toContain("createChromeSetupGuide(extension, nativeHost, chromeArtifact)");
+    expect(response.body).toContain("pageSafetyEvidenceState(pageSafety.state)");
     expect(response.body).toContain("data-evidence-lanes");
     expect(response.body).toContain("data-evidence-lane");
     expect(response.body).toContain("data-evidence-next-actions");
     expect(response.body).toContain("data-evidence-commands");
     expect(response.body).toContain("skfiy chrome install-host --extension-id");
     expect(response.body).toContain("renderAppPolicyPanel(snapshot)");
+    expect(response.body).toContain("createChromePageSafetyRows(chromeArtifact)");
+    expect(response.body).toContain("chrome page safety");
+    expect(response.body).toContain("sensitive-form-prefill");
     expect(response.body).toContain("data-chrome-policy-host-input");
     expect(response.body).toContain("data-chrome-policy-feedback");
     expect(response.body).toContain('createChromePolicyButton("refresh", "Refresh")');

@@ -76,13 +76,21 @@ describe("CLI command surface", () => {
       expect.objectContaining({
         path: "status",
         jsonOutput: true,
-        executesSystemMutation: false
+        executesSystemMutation: false,
+        capabilities: ["chrome-extension-page-safety"]
+      }),
+      expect.objectContaining({
+        path: "doctor",
+        jsonOutput: true,
+        executesSystemMutation: false,
+        capabilities: ["chrome-extension-page-safety"]
       }),
       expect.objectContaining({
         path: "operator status",
         jsonOutput: true,
         executesSystemMutation: false,
-        outputShape: "operator-status"
+        outputShape: "operator-status",
+        capabilities: ["chrome-extension-page-safety"]
       }),
       expect.objectContaining({
         path: "chrome install-host",
@@ -94,6 +102,13 @@ describe("CLI command surface", () => {
         plannedMutation: false,
         executesSystemMutation: false,
         outputShape: "chrome-host-policy"
+      }),
+      expect.objectContaining({
+        path: "chrome status",
+        plannedMutation: false,
+        executesSystemMutation: false,
+        outputShape: "chrome-status",
+        capabilities: ["chrome-extension-page-safety"]
       }),
       expect.objectContaining({
         path: "chrome policy set",
@@ -276,7 +291,18 @@ describe("CLI command surface", () => {
         finderAutomation: "unknown"
       },
       desktopSession: { state: "unknown" },
-      extension: { state: "unknown" },
+      extension: {
+        state: "unknown",
+        capabilities: {
+          pageSafety: false
+        },
+        pageSafety: {
+          schemaVersion: 1,
+          capability: "chrome-extension-page-safety",
+          capable: false,
+          state: "unknown"
+        }
+      },
       nativeHost: {
         state: "unknown",
         cliShimPath: "/repo/dist/skfiy",
@@ -315,9 +341,13 @@ describe("CLI command surface", () => {
       result: "not-run",
       diagnostics: [],
       nextActions: [],
+      capabilities: {
+        chromeExtensionPageSafety: false
+      },
       statusProbe: {
         extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
-        dashboardUrl: "http://127.0.0.1:8787/"
+        dashboardUrl: "http://127.0.0.1:8787/",
+        capabilities: ["chrome-extension-page-safety"]
       }
     });
     expectJsonSafe(createCliOutput(status));
@@ -1335,6 +1365,172 @@ describe("CLI command surface", () => {
     expect(stderr).toEqual([]);
   });
 
+  it("exposes Chrome page-safety capability evidence in status and doctor JSON", async () => {
+    const statusStdout: string[] = [];
+    const doctorStdout: string[] = [];
+    const stderr: string[] = [];
+    const hostPolicyPath = "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json";
+    const heartbeatPath = "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json";
+    const statusReader = async () => ({
+      app: { state: "installed", path: "/repo/dist/skfiy.app" },
+      cli: { state: "installed", path: "/repo/dist/skfiy" },
+      helper: {
+        state: "installed",
+        path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+      },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        microphone: "granted",
+        speechRecognition: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: {
+        state: "controllable",
+        controllable: true
+      },
+      extension: {
+        state: "connected",
+        bridge: "native-messaging",
+        liveConnection: "connected",
+        nativeHostState: "installed",
+        connection: {
+          state: "connected",
+          liveConnection: "connected",
+          path: heartbeatPath,
+          ageSeconds: 12,
+          observedAt: "2026-06-19T23:59:48.000Z",
+          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          messageType: "skfiy.page.observe",
+          requestId: "request-page-safety"
+        },
+        hostPolicy: {
+          schemaVersion: 1,
+          state: "default",
+          path: hostPolicyPath,
+          policy: {
+            defaultMode: "ask",
+            allowedHosts: [],
+            currentTurnAllowedHosts: [],
+            blockedHosts: []
+          }
+        }
+      },
+      nativeHost: {
+        state: "installed",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+      },
+      dashboard: {
+        state: "running",
+        url: "http://127.0.0.1:8787/",
+        api: {
+          chromeHostPolicy: {
+            state: "reachable"
+          }
+        }
+      },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    await expect(runSkfiyCli({
+      argv: [
+        "status",
+        "--json",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop",
+        "--dashboard-url",
+        "http://127.0.0.1:8787/"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader,
+      stdout: { write: (chunk: string) => statusStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+    await expect(runSkfiyCli({
+      argv: [
+        "doctor",
+        "--json",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop",
+        "--dashboard-url",
+        "http://127.0.0.1:8787/"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader,
+      signatureReader: async () => ({ state: "valid" }),
+      stdout: { write: (chunk: string) => doctorStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    const statusOutput = JSON.parse(statusStdout.join(""));
+    const doctorOutput = JSON.parse(doctorStdout.join(""));
+
+    expect(statusOutput.extension).toMatchObject({
+      capabilities: {
+        pageSafety: true
+      },
+      pageSafety: {
+        schemaVersion: 1,
+        capability: "chrome-extension-page-safety",
+        capable: true,
+        state: "ready",
+        evidence: {
+          nativeMessaging: true,
+          nativeHostState: "installed",
+          hostPolicy: {
+            state: "default",
+            defaultMode: "ask",
+            failClosed: true,
+            path: hostPolicyPath,
+            entryCount: 0
+          },
+          liveConnection: {
+            state: "connected",
+            liveConnection: "connected",
+            messageType: "skfiy.page.observe",
+            pageObservationHeartbeat: true,
+            path: heartbeatPath,
+            requestId: "request-page-safety"
+          },
+          extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+          cliShimPath: "/repo/dist/skfiy"
+        }
+      }
+    });
+    expect(statusOutput.readiness.checks.extension.pageSafety).toMatchObject({
+      capable: true,
+      state: "ready"
+    });
+    expect(doctorOutput).toMatchObject({
+      schemaVersion: 1,
+      command: "doctor",
+      result: "ok",
+      capabilities: {
+        chromeExtensionPageSafety: true
+      },
+      preflight: {
+        chrome: {
+          pageSafety: {
+            capability: "chrome-extension-page-safety",
+            capable: true,
+            state: "ready"
+          }
+        }
+      }
+    });
+    expect(stderr).toEqual([]);
+  });
+
   it("runs operator status as a compact read-only supervisor summary", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -1763,6 +1959,24 @@ describe("CLI command surface", () => {
           schemaVersion: 1,
           state: "default",
           path: hostPolicyPath
+        },
+        pageSafety: {
+          schemaVersion: 1,
+          capability: "chrome-extension-page-safety",
+          capable: false,
+          state: "needs-action",
+          nextAction: "Run `skfiy chrome install-host --extension-id abcdefghijklmnopabcdefghijklmnop` before relying on Chrome page-safety evidence.",
+          evidence: {
+            nativeMessaging: false,
+            nativeHostState: "missing",
+            hostPolicy: {
+              state: "default",
+              defaultMode: "ask",
+              failClosed: true,
+              path: hostPolicyPath,
+              entryCount: 0
+            }
+          }
         }
       }
     });
@@ -2330,6 +2544,33 @@ describe("CLI command surface", () => {
             blockedHosts: ["blocked.example"]
           }
         },
+        capabilities: {
+          pageSafety: false
+        },
+        pageSafety: {
+          schemaVersion: 1,
+          capability: "chrome-extension-page-safety",
+          capable: false,
+          state: "needs-action",
+          nextAction: expect.stringContaining("observe one page"),
+          evidence: {
+            nativeMessaging: true,
+            nativeHostState: "installed",
+            hostPolicy: {
+              state: "configured",
+              defaultMode: "ask",
+              failClosed: true,
+              path: hostPolicyPath,
+              entryCount: 3
+            },
+            liveConnection: {
+              state: "unknown",
+              liveConnection: "unknown",
+              messageType: "unknown",
+              pageObservationHeartbeat: false
+            }
+          }
+        },
         reason: "Chrome Native Messaging host is installed; no live Chrome extension connection has been observed yet."
       },
       setupGuide: {
@@ -2426,6 +2667,33 @@ describe("CLI command surface", () => {
           launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
           messageType: "skfiy.page.observe",
           requestId: "request-heartbeat"
+        },
+        capabilities: {
+          pageSafety: true
+        },
+        pageSafety: {
+          schemaVersion: 1,
+          capability: "chrome-extension-page-safety",
+          capable: true,
+          state: "ready",
+          evidence: {
+            nativeMessaging: true,
+            nativeHostState: "installed",
+            hostPolicy: {
+              state: "default",
+              defaultMode: "ask",
+              failClosed: true,
+              entryCount: 0
+            },
+            liveConnection: {
+              state: "connected",
+              liveConnection: "connected",
+              messageType: "skfiy.page.observe",
+              pageObservationHeartbeat: true,
+              path: heartbeatPath,
+              requestId: "request-heartbeat"
+            }
+          }
         },
         nextAction: expect.stringContaining("Chrome extension has recently connected"),
         setupGuide: {

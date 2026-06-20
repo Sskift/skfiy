@@ -219,7 +219,11 @@ Use `./dist/skfiy doctor --json --dashboard-url <url> --extension-id <id>`
 before real desktop tests. The doctor output includes a `preflight` block with
 the packaged app/helper/CLI paths, code-signature state, dashboard descriptor
 and Chrome host-policy API reachability, Chrome extension/native-host state, and
-the user-level Chrome host policy file path.
+the user-level Chrome host policy file path. `status`, `doctor`, and
+`chrome status` also expose `extension.capabilities.pageSafety` plus
+`extension.pageSafety` / `preflight.chrome.pageSafety` evidence so automation can
+verify the Native Messaging, ask-by-default host policy, and recent
+`skfiy.page.observe` heartbeat needed for Chrome page-safety.
 
 `plugins/skfiy/.mcp.json` points Codex at the installed `skfiy mcp serve
 --stdio` command. The Codex plugin is an adapter to the installed product, not a

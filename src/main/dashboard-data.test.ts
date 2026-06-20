@@ -400,6 +400,47 @@ describe("dashboard snapshot data", () => {
               manifestName: "Google Network Speech"
             }
           ]
+        },
+        sensitiveRun: {
+          result: "sensitive-paused",
+          pageUrl: "file:///tmp/skfiy-login.html",
+          safety: {
+            state: "needs_confirmation",
+            findingCount: 1,
+            findings: [
+              {
+                kind: "credential",
+                severity: "sensitive",
+                reason: "credential_or_otp_prompt"
+              }
+            ]
+          },
+          events: [
+            {
+              status: "executing",
+              message: "Verified navigate: Navigated to: file:///tmp/skfiy-login.html"
+            },
+            {
+              status: "needs_confirmation",
+              message: "Verification failed (sensitive): Sensitive UI text is visible."
+            }
+          ]
+        },
+        sensitiveFormRun: {
+          result: "sensitive-paused",
+          pageUrl: "file:///tmp/skfiy-form.html",
+          fields: [
+            {
+              selector: "#password",
+              value: "hunter2"
+            }
+          ],
+          events: [
+            {
+              status: "needs_confirmation",
+              message: "Verification failed (sensitive): Sensitive form input is not allowed for Chrome Computer Use."
+            }
+          ]
         }
       }),
       "/repo/.skfiy-smoke/cli-current.json": JSON.stringify({
@@ -963,6 +1004,43 @@ describe("dashboard snapshot data", () => {
           blockedReason: "branded_chrome_load_extension_removed",
           recommendedBrowser: "Chrome for Testing or Chromium",
           diagnosticExtensionNames: ["Google Network Speech"]
+        },
+        pageSafety: {
+          state: "sensitive-paused",
+          source: "chrome-smoke",
+          sensitivePause: true,
+          pauseCount: 2,
+          checkedRuns: 2,
+          runs: [
+            {
+              kind: "sensitive-page",
+              result: "sensitive-paused",
+              sensitivePause: true,
+              pageUrl: "file:///tmp/skfiy-login.html",
+              reason: "Sensitive UI text is visible.",
+              pageSafety: {
+                state: "needs_confirmation",
+                findingCount: 1,
+                findings: [
+                  {
+                    kind: "credential",
+                    severity: "sensitive",
+                    reason: "credential_or_otp_prompt"
+                  }
+                ]
+              }
+            },
+            {
+              kind: "sensitive-form-prefill",
+              result: "sensitive-paused",
+              sensitivePause: true,
+              pageUrl: "file:///tmp/skfiy-form.html",
+              reason: "Sensitive form input is not allowed for Chrome Computer Use.",
+              fieldSelectors: ["#password"]
+            }
+          ],
+          findingKinds: ["credential"],
+          findingReasons: ["credential_or_otp_prompt"]
         }
       },
       {
@@ -1004,6 +1082,51 @@ describe("dashboard snapshot data", () => {
       currentHeadCommitSha: "fedcba9876543210fedcba9876543210fedcba98"
     });
     expect(JSON.stringify(snapshot)).not.toContain("token=");
+  });
+
+  it("marks Chrome page safety as an explicit smoke empty state when future fields are absent", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const files: Record<string, string> = {
+      "/repo/package.json": JSON.stringify({
+        name: "skfiy",
+        version: "0.1.0"
+      }),
+      "/repo/.skfiy-smoke/chrome-current.json": JSON.stringify({
+        result: "passed",
+        productPath: "renderer -> preload -> main -> CDP -> Chrome"
+      })
+    };
+    const directories: Record<string, string[]> = {
+      "/repo/.skfiy-smoke": ["chrome-current.json"]
+    };
+
+    const snapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      io: {
+        exists: (targetPath) =>
+          Object.hasOwn(files, targetPath) || Object.hasOwn(directories, targetPath),
+        readFile: (targetPath) => files[targetPath],
+        readdir: (targetPath) => directories[targetPath] ?? [],
+        stat: () => ({ mtimeMs: Date.parse("2026-06-20T00:00:00.000Z") })
+      }
+    });
+
+    expect(snapshot.smokeEvidence.artifacts).toEqual([
+      expect.objectContaining({
+        target: "chrome",
+        result: "passed",
+        pageSafety: {
+          state: "empty",
+          source: "chrome-smoke-empty",
+          sensitivePause: false,
+          pauseCount: 0,
+          checkedRuns: 0,
+          reason: "Chrome smoke artifact has not reported page-level safety evidence yet."
+        }
+      })
+    ]);
   });
 
   it("marks a missing runtime snapshot as an explicit fresh-install empty state", () => {

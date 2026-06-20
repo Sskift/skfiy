@@ -80,7 +80,12 @@ describe("Chrome extension adapter skeleton", () => {
     expect(contentScript).toContain('"skfiy.page.sensitive_pause"');
     expect(contentScript).toContain("collectFormMetadata");
     expect(contentScript).toContain("SENSITIVE_FIELD_PATTERNS");
+    expect(contentScript).toContain("PAGE_RISK_PATTERNS");
+    expect(contentScript).toContain("collectPageSafety");
+    expect(contentScript).toContain("pageSafety");
+    expect(contentScript).toContain("Sensitive page content requires confirmation");
     expect(contentScript).toContain("data-skfiy-sensitive-paused");
+    expect(contentScript).toContain("data-skfiy-sensitive-pause-kind");
     expect(contentScript).toContain("elementByText");
     expect(contentScript).toContain("elementByRole");
     expect(contentScript).toContain('action.kind === "submit"');

@@ -92,6 +92,8 @@ const TMUX_TAIL_LINES = 120;
 const TMUX_PROBE_TIMEOUT_MS = 1_500;
 const TMUX_WINDOW_FORMAT = "#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_panes}";
 const TMUX_PANE_FORMAT = "#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_dead}\t#{pane_current_command}\t#{pane_title}";
+const CHROME_EXTENSION_PAGE_SAFETY_CAPABILITY = "chrome-extension-page-safety";
+const CHROME_PAGE_OBSERVE_MESSAGE_TYPE = "skfiy.page.observe";
 
 const PERMISSION_SETTINGS_TARGET_DETAILS: Record<PermissionSettingsTarget, {
   label: string;
@@ -132,6 +134,7 @@ export interface CliCommandDefinition {
   plannedMutation: boolean;
   executesSystemMutation: boolean;
   outputShape: string;
+  capabilities?: string[];
 }
 
 export interface CliCommandSurface {
@@ -384,7 +387,8 @@ const COMMANDS: CliCommandDefinition[] = [
     jsonOutput: true,
     plannedMutation: false,
     executesSystemMutation: false,
-    outputShape: "status"
+    outputShape: "status",
+    capabilities: [CHROME_EXTENSION_PAGE_SAFETY_CAPABILITY]
   },
   {
     path: "doctor",
@@ -392,7 +396,8 @@ const COMMANDS: CliCommandDefinition[] = [
     jsonOutput: true,
     plannedMutation: false,
     executesSystemMutation: false,
-    outputShape: "doctor"
+    outputShape: "doctor",
+    capabilities: [CHROME_EXTENSION_PAGE_SAFETY_CAPABILITY]
   },
   {
     path: "operator status",
@@ -400,7 +405,8 @@ const COMMANDS: CliCommandDefinition[] = [
     jsonOutput: true,
     plannedMutation: false,
     executesSystemMutation: false,
-    outputShape: "operator-status"
+    outputShape: "operator-status",
+    capabilities: [CHROME_EXTENSION_PAGE_SAFETY_CAPABILITY]
   },
   {
     path: "dashboard",
@@ -440,7 +446,8 @@ const COMMANDS: CliCommandDefinition[] = [
     jsonOutput: true,
     plannedMutation: false,
     executesSystemMutation: false,
-    outputShape: "chrome-status"
+    outputShape: "chrome-status",
+    capabilities: [CHROME_EXTENSION_PAGE_SAFETY_CAPABILITY]
   },
   {
     path: "chrome policy show",
@@ -816,7 +823,16 @@ export function createCliOutput(
         finderAutomation: "unknown"
       },
       desktopSession: { state: "unknown" },
-      extension: { state: "unknown" },
+      extension: createChromeExtensionStatusWithPageSafety({
+        state: "unknown"
+      }, {
+        nativeHost: {
+          state: "unknown",
+          cliShimPath: invocation.options.cliShimPath,
+          extensionIds: invocation.options.extensionIds
+        },
+        context: invocation.options
+      }),
       nativeHost: {
         state: "unknown",
         cliShimPath: invocation.options.cliShimPath,
@@ -844,9 +860,13 @@ export function createCliOutput(
       result: "not-run",
       diagnostics: [],
       nextActions: [],
+      capabilities: {
+        chromeExtensionPageSafety: false
+      },
       statusProbe: {
         extensionIds: invocation.options.extensionIds,
-        dashboardUrl: invocation.options.dashboardUrl
+        dashboardUrl: invocation.options.dashboardUrl,
+        capabilities: [CHROME_EXTENSION_PAGE_SAFETY_CAPABILITY]
       }
     };
   }
@@ -864,7 +884,16 @@ export function createCliOutput(
         finderAutomation: "unknown"
       },
       desktopSession: { state: "unknown" },
-      extension: { state: "unknown" },
+      extension: createChromeExtensionStatusWithPageSafety({
+        state: "unknown"
+      }, {
+        nativeHost: {
+          state: "unknown",
+          cliShimPath: invocation.options.cliShimPath,
+          extensionIds: invocation.options.extensionIds
+        },
+        context: invocation.options
+      }),
       nativeHost: {
         state: "unknown",
         cliShimPath: invocation.options.cliShimPath,
@@ -922,7 +951,16 @@ export function createCliOutput(
         command: "chrome status",
         generatedAt,
         executesSystemMutation: false,
-        extension: { state: "unknown" },
+        extension: createChromeExtensionStatusWithPageSafety({
+          state: "unknown"
+        }, {
+          nativeHost: {
+            state: "unknown",
+            cliShimPath: invocation.options.cliShimPath,
+            extensionIds: invocation.options.extensionIds
+          },
+          context: invocation.options
+        }),
         nativeHost: {
           state: "unknown",
           cliShimPath: invocation.options.cliShimPath,
@@ -1736,6 +1774,7 @@ function createDoctorOutput({
   signature: SignatureStatus;
   statusInput: StatusReaderInput;
 }): Record<string, unknown> {
+  const statusWithCapabilities = withChromePageSafetyStatus(status, statusInput);
   const diagnostics: Array<Record<string, unknown>> = [];
   const nextActions: string[] = [];
   const addDiagnostic = ({
@@ -1763,14 +1802,15 @@ function createDoctorOutput({
       nextActions.push(nextAction);
     }
   };
-  const app = readRecord(status.app);
-  const cli = readRecord(status.cli);
-  const helper = readRecord(status.helper);
-  const permissions = readRecord(status.permissions);
-  const desktopSession = readRecord(status.desktopSession);
-  const extension = readRecord(status.extension);
-  const nativeHost = readRecord(status.nativeHost);
-  const dashboard = readRecord(status.dashboard);
+  const app = readRecord(statusWithCapabilities.app);
+  const cli = readRecord(statusWithCapabilities.cli);
+  const helper = readRecord(statusWithCapabilities.helper);
+  const permissions = readRecord(statusWithCapabilities.permissions);
+  const desktopSession = readRecord(statusWithCapabilities.desktopSession);
+  const extension = readRecord(statusWithCapabilities.extension);
+  const nativeHost = readRecord(statusWithCapabilities.nativeHost);
+  const dashboard = readRecord(statusWithCapabilities.dashboard);
+  const pageSafety = readRecord(extension?.pageSafety);
   const hostPolicy = readRecord(extension?.hostPolicy) ?? {
     state: statusInput.homeDir ? "unknown" : "not-probed",
     path: statusInput.homeDir ? createChromeHostPolicyStatePath(statusInput.homeDir) : undefined,
@@ -1938,10 +1978,13 @@ function createDoctorOutput({
     });
   }
 
-  const readiness = createStatusReadinessSummary(status, statusInput);
+  const readiness = createStatusReadinessSummary(statusWithCapabilities, statusInput);
 
   return {
     result: diagnostics.length === 0 ? "ok" : "needs-action",
+    capabilities: {
+      chromeExtensionPageSafety: pageSafety?.capable === true
+    },
     readiness,
     preflight: {
       runtime: {
@@ -1964,12 +2007,20 @@ function createDoctorOutput({
         extensionIds: statusInput.extensionIds,
         extension: extension ?? { state: "unknown" },
         nativeHost: nativeHost ?? { state: "unknown" },
-        hostPolicy
+        hostPolicy,
+        pageSafety: pageSafety ?? createChromePageSafetyCapability({
+          extensionState: "unknown",
+          nativeHostState: readString(nativeHost?.state) ?? "unknown",
+          liveConnection: "unknown",
+          extensionIds: statusInput.extensionIds,
+          cliShimPath: statusInput.cliShimPath,
+          hostPolicy
+        })
       }
     },
     diagnostics,
     nextActions,
-    status: withStatusReadiness(status, statusInput),
+    status: withStatusReadiness(statusWithCapabilities, statusInput),
     signature
   };
 }
@@ -2139,9 +2190,37 @@ function withStatusReadiness<TStatus extends Record<string, unknown>>(
     cliShimPath?: string;
   }
 ): TStatus & { readiness: Record<string, unknown> } {
+  const statusWithCapabilities = withChromePageSafetyStatus(status, context);
+
+  return {
+    ...statusWithCapabilities,
+    readiness: createStatusReadinessSummary(statusWithCapabilities, context)
+  };
+}
+
+function withChromePageSafetyStatus<TStatus extends Record<string, unknown>>(
+  status: TStatus,
+  context: {
+    extensionIds: string[];
+    cliShimPath?: string;
+  }
+): TStatus {
+  const extension = readRecord(status.extension);
+  const nativeHost = readRecord(status.nativeHost);
+
+  if (!extension && !nativeHost) {
+    return status;
+  }
+
   return {
     ...status,
-    readiness: createStatusReadinessSummary(status, context)
+    extension: createChromeExtensionStatusWithPageSafety(
+      extension ?? { state: "unknown" },
+      {
+        nativeHost,
+        context
+      }
+    )
   };
 }
 
@@ -2312,6 +2391,7 @@ function createExtensionReadiness(
   const extensionState = readString(extension?.state) ?? "unknown";
   const nativeHostState = readString(nativeHost?.state) ?? "unknown";
   const liveConnection = readString(extension?.liveConnection) ?? "unknown";
+  const pageSafety = readRecord(extension?.pageSafety);
   const extensionIds = context.extensionIds.length > 0
     ? context.extensionIds
     : readStringArray(nativeHost?.extensionIds);
@@ -2380,6 +2460,7 @@ function createExtensionReadiness(
     nativeHostState,
     liveConnection,
     extensionIds,
+    ...(pageSafety ? { pageSafety } : {}),
     ...(readString(nativeHost?.manifestPath) ? { manifestPath: readString(nativeHost?.manifestPath) } : {}),
     ...(context.cliShimPath ? { cliShimPath: context.cliShimPath } : {}),
     blockers,
@@ -2815,11 +2896,228 @@ async function readNativeHostStatusForStatus(
   }
 }
 
-function createUnknownExtensionStatus(reason = "Runtime Chrome extension connection is not probed by the CLI status command yet."): Record<string, string> {
+function createUnknownExtensionStatus(reason = "Runtime Chrome extension connection is not probed by the CLI status command yet."): Record<string, unknown> {
   return {
     state: "unknown",
     reason
   };
+}
+
+function createChromeExtensionStatusWithPageSafety(
+  extension: Record<string, unknown>,
+  input: {
+    nativeHost?: Record<string, unknown>;
+    connection?: ChromeExtensionConnectionStatus;
+    hostPolicy?: ChromeHostPolicyState | Record<string, unknown>;
+    context: {
+      extensionIds: string[];
+      cliShimPath?: string;
+    };
+  }
+): Record<string, unknown> {
+  const capabilities = readRecord(extension.capabilities) ?? {};
+  const pageSafety = readRecord(extension.pageSafety)
+    ?? createChromePageSafetyCapability({
+      extensionState: readString(extension.state) ?? "unknown",
+      nativeHostState: readString(extension.nativeHostState)
+        ?? readString(input.nativeHost?.state)
+        ?? "unknown",
+      liveConnection: readString(extension.liveConnection)
+        ?? readString(readRecord(extension.connection)?.liveConnection)
+        ?? readString(readRecord(extension.connection)?.state)
+        ?? readConnectionState(input.connection),
+      extensionIds: input.context.extensionIds.length > 0
+        ? input.context.extensionIds
+        : readStringArray(input.nativeHost?.extensionIds),
+      cliShimPath: input.context.cliShimPath ?? readString(input.nativeHost?.cliShimPath),
+      connection: readRecord(extension.connection) ?? input.connection,
+      hostPolicy: readRecord(extension.hostPolicy) ?? input.hostPolicy,
+      nativeHostReason: readString(input.nativeHost?.reason),
+      extensionReason: readString(extension.reason)
+    });
+
+  return {
+    ...extension,
+    capabilities: {
+      ...capabilities,
+      pageSafety: pageSafety.capable === true
+    },
+    pageSafety
+  };
+}
+
+function createChromePageSafetyCapability({
+  extensionState,
+  nativeHostState,
+  liveConnection,
+  extensionIds,
+  cliShimPath,
+  connection,
+  hostPolicy,
+  nativeHostReason,
+  extensionReason
+}: {
+  extensionState: string;
+  nativeHostState: string;
+  liveConnection: string;
+  extensionIds: string[];
+  cliShimPath?: string;
+  connection?: ChromeExtensionConnectionStatus | Record<string, unknown>;
+  hostPolicy?: ChromeHostPolicyState | Record<string, unknown>;
+  nativeHostReason?: string;
+  extensionReason?: string;
+}): Record<string, unknown> {
+  const hostPolicyRecord = readRecord(hostPolicy);
+  const hostPolicyPolicy = readRecord(hostPolicyRecord?.policy);
+  const hostPolicyState = readString(hostPolicyRecord?.state) ?? "unknown";
+  const hostPolicyDefaultMode = readString(hostPolicyPolicy?.defaultMode) ?? "unknown";
+  const connectionRecord = readRecord(connection);
+  const connectionState = readString(connectionRecord?.state) ?? liveConnection;
+  const connectionMessageType = readString(connectionRecord?.messageType);
+  const nativeMessagingReady = nativeHostState === "installed";
+  const hostPolicyFailClosed = (
+    hostPolicyState === "default"
+    || hostPolicyState === "configured"
+  ) && hostPolicyDefaultMode === "ask";
+  const pageObservationHeartbeat =
+    connectionState === "connected"
+    && connectionMessageType === CHROME_PAGE_OBSERVE_MESSAGE_TYPE;
+  const capable = nativeMessagingReady && hostPolicyFailClosed && pageObservationHeartbeat;
+  const connectionPath = readString(connectionRecord?.path);
+  const connectionObservedAt = readString(connectionRecord?.observedAt);
+  const connectionLaunchOrigin = readString(connectionRecord?.launchOrigin);
+  const connectionRequestId = readString(connectionRecord?.requestId);
+  const connectionReason = readString(connectionRecord?.reason);
+  const state = capable
+    ? "ready"
+    : hostPolicyState === "invalid" || nativeHostState === "invalid"
+      ? "blocked"
+      : hasChromePageSafetyEvidence({
+          extensionState,
+          nativeHostState,
+          liveConnection,
+          hostPolicyState,
+          connectionState,
+          connectionMessageType,
+          extensionIds
+        })
+        ? "needs-action"
+        : "unknown";
+
+  return {
+    schemaVersion: 1,
+    capability: CHROME_EXTENSION_PAGE_SAFETY_CAPABILITY,
+    capable,
+    state,
+    nextAction: createChromePageSafetyNextAction({
+      capable,
+      nativeHostState,
+      hostPolicyState,
+      connectionState,
+      connectionMessageType,
+      extensionIds
+    }),
+    evidence: {
+      nativeMessaging: nativeMessagingReady,
+      nativeHostState,
+      ...(nativeHostReason ? { nativeHostReason } : {}),
+      hostPolicy: {
+        state: hostPolicyState,
+        defaultMode: hostPolicyDefaultMode,
+        failClosed: hostPolicyFailClosed,
+        ...(readString(hostPolicyRecord?.path) ? { path: readString(hostPolicyRecord?.path) } : {}),
+        entryCount: countChromeHostPolicyEntries(hostPolicyPolicy)
+      },
+      liveConnection: {
+        state: connectionState,
+        liveConnection,
+        messageType: connectionMessageType ?? "unknown",
+        pageObservationHeartbeat,
+        ...(connectionPath ? { path: connectionPath } : {}),
+        ...(typeof connectionRecord?.ageSeconds === "number" ? { ageSeconds: connectionRecord.ageSeconds } : {}),
+        ...(connectionObservedAt ? { observedAt: connectionObservedAt } : {}),
+        ...(connectionLaunchOrigin ? { launchOrigin: connectionLaunchOrigin } : {}),
+        ...(connectionRequestId ? { requestId: connectionRequestId } : {}),
+        ...(connectionReason ? { reason: connectionReason } : {})
+      },
+      extensionState,
+      extensionIds,
+      ...(cliShimPath ? { cliShimPath } : {}),
+      ...(extensionReason ? { extensionReason } : {})
+    }
+  };
+}
+
+function hasChromePageSafetyEvidence({
+  extensionState,
+  nativeHostState,
+  liveConnection,
+  hostPolicyState,
+  connectionState,
+  connectionMessageType,
+  extensionIds
+}: {
+  extensionState: string;
+  nativeHostState: string;
+  liveConnection: string;
+  hostPolicyState: string;
+  connectionState: string;
+  connectionMessageType?: string;
+  extensionIds: string[];
+}): boolean {
+  return extensionState !== "unknown"
+    || nativeHostState !== "unknown"
+    || liveConnection !== "unknown"
+    || hostPolicyState !== "unknown"
+    || connectionState !== "unknown"
+    || Boolean(connectionMessageType)
+    || extensionIds.length > 0;
+}
+
+function createChromePageSafetyNextAction({
+  capable,
+  nativeHostState,
+  hostPolicyState,
+  connectionState,
+  connectionMessageType,
+  extensionIds
+}: {
+  capable: boolean;
+  nativeHostState: string;
+  hostPolicyState: string;
+  connectionState: string;
+  connectionMessageType?: string;
+  extensionIds: string[];
+}): string {
+  const extensionId = extensionIds[0] ?? "<extension-id>";
+
+  if (capable) {
+    return "Chrome extension page safety is evidenced by a fresh page observation heartbeat and ask-by-default host policy.";
+  }
+  if (nativeHostState !== "installed") {
+    return `Run \`skfiy chrome install-host --extension-id ${extensionId}\` before relying on Chrome page-safety evidence.`;
+  }
+  if (hostPolicyState === "invalid") {
+    return "Run `skfiy chrome policy reset` so Chrome page safety can fail closed with default ask mode.";
+  }
+  if (hostPolicyState !== "default" && hostPolicyState !== "configured") {
+    return "Run `skfiy chrome policy show --json` to verify the Chrome page-safety host policy file.";
+  }
+  if (connectionState !== "connected" || connectionMessageType !== CHROME_PAGE_OBSERVE_MESSAGE_TYPE) {
+    return `Refresh the skfiy Chrome extension, observe one page, then run \`skfiy chrome status --json --extension-id ${extensionId}\`.`;
+  }
+
+  return `Run \`skfiy chrome status --json --extension-id ${extensionId}\` to collect Chrome page-safety evidence.`;
+}
+
+function countChromeHostPolicyEntries(policy: Record<string, unknown> | undefined): number {
+  if (!policy) {
+    return 0;
+  }
+
+  return readStringArray(policy.allowedHosts).length
+    + readStringArray(policy.currentTurnAllowedHosts).length
+    + readStringArray(policy.blockedHosts).length;
 }
 
 function createChromeExtensionAdapterStatus(
@@ -2862,74 +3160,84 @@ function createChromeExtensionAdapterStatus(
     connectionState: connection?.state,
     connectionReason: connection?.reason
   });
+  const withPageSafety = (extension: Record<string, unknown>) =>
+    createChromeExtensionStatusWithPageSafety(extension, {
+      nativeHost,
+      connection,
+      hostPolicy,
+      context: {
+        extensionIds: readExtensionIdsFromAdapterInput(nativeHost),
+        cliShimPath: readString(nativeHost.cliShimPath)
+      }
+    });
 
   if (connection?.state === "connected") {
-    return {
+    return withPageSafety({
       state: "connected",
       ...common,
       ...createSetupFields("connected", readString(nativeHost.state) ?? "unknown")
-    };
+    });
   }
 
   if (connection?.state === "stale" && nativeHost.state === "installed") {
-    return {
+    return withPageSafety({
       state: "native-host-installed",
       ...common,
       ...createSetupFields("native-host-installed", "installed"),
       reason: "Chrome extension native-message heartbeat is stale."
-    };
+    });
   }
 
   if (nativeHost.state === "installed") {
-    return {
+    return withPageSafety({
       state: "native-host-installed",
       ...common,
       ...createSetupFields("native-host-installed", "installed"),
       reason: "Chrome Native Messaging host is installed; no live Chrome extension connection has been observed yet."
-    };
+    });
   }
 
   if (nativeHost.state === "missing") {
-    return {
+    return withPageSafety({
       state: "native-host-missing",
       ...common,
       ...createSetupFields("native-host-missing", "missing"),
       reason: "Chrome Native Messaging host manifest is not installed."
-    };
+    });
   }
 
   if (nativeHost.state === "cli-missing") {
-    return {
+    return withPageSafety({
       state: "native-host-cli-missing",
       ...common,
       ...createSetupFields("native-host-cli-missing", "cli-missing"),
       reason: "The Chrome Native Messaging host cannot run because the packaged skfiy CLI is missing."
-    };
+    });
   }
 
   if (nativeHost.state === "mismatched") {
-    return {
+    return withPageSafety({
       state: "native-host-mismatched",
       ...common,
       ...createSetupFields("native-host-mismatched", "mismatched"),
       reason: "Chrome Native Messaging host manifest points at a different skfiy CLI."
-    };
+    });
   }
 
   if (nativeHost.state === "invalid") {
-    return {
+    return withPageSafety({
       state: "native-host-invalid",
       ...common,
       ...createSetupFields("native-host-invalid", "invalid"),
       reason: "Chrome Native Messaging host manifest is invalid."
-    };
+    });
   }
 
-  return createUnknownExtensionStatus(
+  return withPageSafety(createUnknownExtensionStatus(
     typeof nativeHost.reason === "string"
       ? nativeHost.reason
       : "Runtime Chrome extension connection is not probed by the CLI status command yet."
-  );
+  ));
 }
 
 function createChromeSetupGuideFields(input: {

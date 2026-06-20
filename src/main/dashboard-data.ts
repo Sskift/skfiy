@@ -1417,6 +1417,7 @@ function readLatestSmokeArtifacts(
       ...readSmokeArtifactSetupGuideSummary(target, artifact),
       ...readSmokeArtifactNativeHostBridgeSummary(target, artifact),
       ...readSmokeArtifactInstalledExtensionSummary(target, artifact),
+      ...readSmokeArtifactPageSafetySummary(target, artifact),
       mtimeMs,
       ...(ageSeconds === undefined ? {} : {
         ageSeconds,
@@ -1484,6 +1485,228 @@ function readSmokeArtifactInstalledExtensionSummary(
   };
 
   return Object.keys(installedExtension).length > 0 ? { installedExtension } : {};
+}
+
+function readSmokeArtifactPageSafetySummary(
+  target: string,
+  artifact: Record<string, unknown>
+): Record<string, unknown> {
+  if (target !== "chrome") {
+    return {};
+  }
+
+  const pageRun = createChromePageSafetyRunSummary(
+    readRecord(artifact.sensitiveRun),
+    "sensitive-page"
+  );
+  const formRun = createChromePageSafetyRunSummary(
+    readRecord(artifact.sensitiveFormRun),
+    "sensitive-form-prefill"
+  );
+  const runs = [pageRun, formRun].filter((run): run is Record<string, unknown> => Boolean(run));
+  const currentPageSafety = createChromePageSafetyRecordSummary(
+    readRecord(artifact.pageSafety) ?? readRecord(artifact.chromePageSafety)
+  );
+  const pauseCount = runs.filter((run) => run.sensitivePause === true).length
+    + (currentPageSafety?.state === "needs_confirmation" ? 1 : 0);
+  const pageSafety: Record<string, unknown> = {
+    state: readChromePageSafetySummaryState({
+      pauseCount,
+      currentPageSafety,
+      runs
+    }),
+    source: runs.length > 0 || currentPageSafety ? "chrome-smoke" : "chrome-smoke-empty",
+    sensitivePause: pauseCount > 0,
+    pauseCount,
+    checkedRuns: runs.length,
+    ...(currentPageSafety ? { currentPageSafety } : {}),
+    ...(runs.length > 0 ? { runs } : {}),
+    ...readChromePageSafetyFindingSummary(currentPageSafety, runs)
+  };
+
+  if (runs.length === 0 && !currentPageSafety) {
+    pageSafety.reason = "Chrome smoke artifact has not reported page-level safety evidence yet.";
+  }
+
+  return { pageSafety };
+}
+
+function createChromePageSafetyRunSummary(
+  run: Record<string, unknown> | undefined,
+  kind: "sensitive-page" | "sensitive-form-prefill"
+): Record<string, unknown> | undefined {
+  if (!run) {
+    return undefined;
+  }
+
+  const safety = createChromePageSafetyRecordSummary(
+    readRecord(run.pageSafety)
+      ?? readRecord(run.safety)
+      ?? readChromePageSafetyFromEvents(run)
+  );
+  const reason = readChromePageSafetyReason(run);
+  const result = typeof run.result === "string" ? run.result : "unknown";
+  const summary: Record<string, unknown> = {
+    kind,
+    result,
+    sensitivePause: result === "sensitive-paused" || safety?.state === "needs_confirmation",
+    ...(typeof run.pageUrl === "string" ? { pageUrl: run.pageUrl } : {}),
+    ...(reason ? { reason } : {}),
+    ...(safety ? { pageSafety: safety } : {}),
+    ...(Array.isArray(run.fields) ? { fieldSelectors: readChromeFieldSelectors(run.fields) } : {})
+  };
+
+  return summary;
+}
+
+function readChromePageSafetySummaryState({
+  pauseCount,
+  currentPageSafety,
+  runs
+}: {
+  pauseCount: number;
+  currentPageSafety?: Record<string, unknown>;
+  runs: Array<Record<string, unknown>>;
+}): string {
+  if (pauseCount > 0) {
+    return "sensitive-paused";
+  }
+
+  if (currentPageSafety?.state === "clear") {
+    return "clear";
+  }
+
+  if (runs.length > 0) {
+    return "needs-evidence";
+  }
+
+  return "empty";
+}
+
+function createChromePageSafetyRecordSummary(
+  safety: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!safety) {
+    return undefined;
+  }
+
+  const findings = Array.isArray(safety.findings)
+    ? safety.findings
+      .map((finding) => createChromePageSafetyFindingSummary(readRecord(finding)))
+      .filter((finding): finding is Record<string, unknown> => Boolean(finding))
+    : [];
+  const findingCount = typeof safety.findingCount === "number" && Number.isFinite(safety.findingCount)
+    ? safety.findingCount
+    : findings.length;
+  const summary: Record<string, unknown> = {
+    state: typeof safety.state === "string" ? safety.state : "unknown",
+    findingCount,
+    ...(findings.length > 0 ? { findings } : {})
+  };
+
+  return summary;
+}
+
+function createChromePageSafetyFindingSummary(
+  finding: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!finding) {
+    return undefined;
+  }
+
+  const summary = {
+    ...(typeof finding.kind === "string" ? { kind: finding.kind } : {}),
+    ...(typeof finding.severity === "string" ? { severity: finding.severity } : {}),
+    ...(typeof finding.reason === "string" ? { reason: finding.reason } : {})
+  };
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
+}
+
+function readChromePageSafetyFindingSummary(
+  currentPageSafety: Record<string, unknown> | undefined,
+  runs: Array<Record<string, unknown>>
+): Record<string, unknown> {
+  const findings = [
+    ...readChromePageSafetyFindings(currentPageSafety),
+    ...runs.flatMap((run) => readChromePageSafetyFindings(readRecord(run.pageSafety)))
+  ];
+  const findingKinds = [...new Set(
+    findings
+      .map((finding) => finding.kind)
+      .filter((kind): kind is string => typeof kind === "string")
+  )].sort();
+  const findingReasons = [...new Set(
+    findings
+      .map((finding) => finding.reason)
+      .filter((reason): reason is string => typeof reason === "string")
+  )].sort();
+
+  return {
+    ...(findingKinds.length > 0 ? { findingKinds } : {}),
+    ...(findingReasons.length > 0 ? { findingReasons } : {})
+  };
+}
+
+function readChromePageSafetyFindings(
+  safety: Record<string, unknown> | undefined
+): Array<Record<string, unknown>> {
+  return Array.isArray(safety?.findings)
+    ? safety.findings
+      .map((finding) => readRecord(finding))
+      .filter((finding): finding is Record<string, unknown> => Boolean(finding))
+    : [];
+}
+
+function readChromePageSafetyFromEvents(
+  run: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  if (!Array.isArray(run.events)) {
+    return undefined;
+  }
+
+  for (const event of run.events) {
+    const record = readRecord(event);
+    const safety = readRecord(record?.pageSafety) ?? readRecord(record?.safety);
+    if (safety) {
+      return safety;
+    }
+  }
+
+  return undefined;
+}
+
+function readChromePageSafetyReason(
+  run: Record<string, unknown>
+): string | undefined {
+  if (typeof run.reason === "string" && run.reason.trim()) {
+    return run.reason.trim();
+  }
+
+  if (!Array.isArray(run.events)) {
+    return undefined;
+  }
+
+  for (const event of [...run.events].reverse()) {
+    const record = readRecord(event);
+    const message = typeof record?.message === "string" ? record.message : undefined;
+    if (!message) {
+      continue;
+    }
+
+    const sensitivePrefix = "Verification failed (sensitive): ";
+    if (message.startsWith(sensitivePrefix)) {
+      return message.slice(sensitivePrefix.length).trim();
+    }
+  }
+
+  return undefined;
+}
+
+function readChromeFieldSelectors(fields: unknown[]): string[] {
+  return fields
+    .map((field) => readRecord(field)?.selector)
+    .filter((selector): selector is string => typeof selector === "string" && selector.length > 0);
 }
 
 function createChromeExtensionBrowserSelectionSummary(

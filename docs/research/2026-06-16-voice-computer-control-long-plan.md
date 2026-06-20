@@ -444,7 +444,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - pause on password/payment/OTP/security/account-deletion/content-exfiltration cues
     - confirm before submitting forms with external side effects
     - confirm before file upload/download path exposure
-    - partial: Native bridge action validation blocks sensitive fill fields/values and unconfirmed submit actions before dispatch; content-script still keeps page-local sensitive pause behavior for fill/click targets; payment/OTP/account-deletion page-level cues, file upload/download path exposure, and replay evidence remain pending
+    - partial: Native bridge action validation blocks sensitive fill fields/values and unconfirmed submit actions before dispatch; content-script now reports `snapshot.safety` / `pageSafety` for password, OTP, payment, account-deletion, financial-transfer, and secret-exposure page cues, and pauses unconfirmed `click` / `fill` / `submit` actions on risky pages with `skfiy.page.sensitive_pause`; popup, CLI status/doctor, and dashboard smoke-evidence panels now surface page-safety capability/evidence; file upload/download path exposure and replay evidence remain pending
   - [ ] Add smoke tests
     - extension connection status
       - current known blocker: branded `Google Chrome` 146 ignores `--load-extension`; accepted automation paths are Chrome for Testing/Chromium or a real user-installed skfiy extension id
