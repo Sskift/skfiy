@@ -53,7 +53,7 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).not.toContain("token=");
   });
 
-  it("serves a static dashboard HTML shell that points at the descriptor endpoint", () => {
+  it("serves a dashboard HTML shell that renders snapshot-backed operator panels", () => {
     const response = createDashboardHttpResponse({
       method: "GET",
       url: "http://127.0.0.1:8787/"
@@ -66,6 +66,14 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("/descriptor.json");
     expect(response.body).toContain("/snapshot.json");
     expect(response.body).toContain("runtime-health");
+    expect(response.body).toContain("data-dashboard-root");
+    expect(response.body).toContain("data-snapshot-state");
+    expect(response.body).toContain("Loading snapshot");
+    expect(response.body).toContain('data-panel-body="runtime-health"');
+    expect(response.body).toContain('data-panel-body="long-horizon-supervision"');
+    expect(response.body).toContain('data-panel-body="dogfood-release"');
+    expect(response.body).toContain('fetch("/snapshot.json", { cache: "no-store" })');
+    expect(response.body).toContain("renderLongHorizonPanel");
     expect(response.body).not.toContain("token=");
   });
 

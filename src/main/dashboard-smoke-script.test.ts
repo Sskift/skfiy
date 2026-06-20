@@ -279,7 +279,7 @@ describe("dashboard product smoke script", () => {
       },
       shellResponse: {
         status: 200,
-        body: '<!doctype html><title>skfiy Dashboard</title><a href="/descriptor.json"><a href="/snapshot.json">'
+        body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><a href="/descriptor.json"></a><a href="/snapshot.json"></a><section data-panel-body="long-horizon-supervision"></section><script>fetch("/snapshot.json", { cache: "no-store" }); function renderLongHorizonPanel(){}</script></main><title>skfiy Dashboard</title>'
       },
       tokenLeakDetected: false
     };
@@ -524,6 +524,13 @@ describe("dashboard product smoke script", () => {
           ...passedEvidence.descriptorResponse.body,
           bind: { host: "0.0.0.0", port: 51234 }
         }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      shellResponse: {
+        status: 200,
+        body: '<!doctype html><title>skfiy Dashboard</title><a href="/descriptor.json"></a><a href="/snapshot.json"></a>'
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

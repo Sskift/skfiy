@@ -120,9 +120,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
 
   if (
     evidence.shellResponse?.status !== 200
-    || !shellBody.includes("skfiy Dashboard")
-    || !shellBody.includes("/descriptor.json")
-    || !shellBody.includes("/snapshot.json")
+    || !hasDashboardShellEvidence(shellBody)
   ) {
     return "failed";
   }
@@ -364,6 +362,17 @@ function hasLongHorizonEvidence(longHorizon) {
     && longHorizon?.recommendation?.mutatesSession === false
     && Array.isArray(longHorizon?.probeCommands)
     && longHorizon.probeCommands.includes("tmux has-session -t money-run");
+}
+
+function hasDashboardShellEvidence(shellBody) {
+  return shellBody.includes("skfiy Dashboard")
+    && shellBody.includes("/descriptor.json")
+    && shellBody.includes("/snapshot.json")
+    && shellBody.includes("data-dashboard-root")
+    && shellBody.includes("data-snapshot-state")
+    && shellBody.includes('data-panel-body="long-horizon-supervision"')
+    && shellBody.includes('fetch("/snapshot.json", { cache: "no-store" })')
+    && shellBody.includes("renderLongHorizonPanel");
 }
 
 function hasLatestAlphaEvidence(latestAlpha) {
