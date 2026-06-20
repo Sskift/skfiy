@@ -91,6 +91,9 @@ export function classifyDashboardSmokeEvidence(evidence) {
   if (
     evidence.snapshotResponse?.status !== 200
     || snapshot?.schemaVersion !== 1
+    || snapshot?.runtimeHealth?.package?.name !== "skfiy"
+    || typeof snapshot?.runtimeHealth?.package?.version !== "string"
+    || snapshot?.runtimeHealth?.cli?.state !== "installed"
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
     || !snapshot?.permissions

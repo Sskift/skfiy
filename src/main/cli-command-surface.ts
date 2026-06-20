@@ -192,7 +192,7 @@ export interface RunSkfiyCliInput {
   statusReader?: StatusReader;
   signatureReader?: SignatureReader;
   smokeRunner?: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
-  dashboardServerStarter?: (input: { port: number }) => Promise<DashboardServer>;
+  dashboardServerStarter?: (input: { port: number; rootDir?: string }) => Promise<DashboardServer>;
   dashboardOpener?: (url: string) => Promise<void>;
   keepDashboardAlive?: boolean;
   stdout: SkfiyCliIo;
@@ -598,7 +598,8 @@ export async function runSkfiyCli({
 
   if (result.invocation.kind === "dashboard") {
     const dashboard = await dashboardServerStarter({
-      port: result.invocation.options.port
+      port: result.invocation.options.port,
+      rootDir: normalizedRootDir
     });
     stdout.write(`${JSON.stringify({
       schemaVersion: 1,

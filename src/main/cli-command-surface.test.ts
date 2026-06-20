@@ -744,7 +744,7 @@ describe("CLI command surface", () => {
   it("runs dashboard through the shared CLI entrypoint without printing tokens", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
-    const started: Array<{ port: number; requestedHost?: string }> = [];
+    const started: Array<{ port: number; rootDir?: string }> = [];
 
     await expect(runSkfiyCli({
       argv: ["dashboard", "--no-open", "--port", "8787", "--json"],
@@ -763,7 +763,7 @@ describe("CLI command surface", () => {
       }
     })).resolves.toBe(0);
 
-    expect(started).toEqual([{ port: 8787 }]);
+    expect(started).toEqual([{ port: 8787, rootDir: "/repo" }]);
     const output = JSON.parse(stdout.join(""));
     expect(output).toMatchObject({
       schemaVersion: 1,
@@ -793,7 +793,7 @@ describe("CLI command surface", () => {
       dashboardOpener: async (url: string) => {
         openedUrls.push(url);
       },
-      dashboardServerStarter: async (input: { port: number }) => ({
+      dashboardServerStarter: async (input: { port: number; rootDir?: string }) => ({
         bind: { host: "127.0.0.1" as const, port: input.port },
         url: `http://127.0.0.1:${input.port}/`,
         close: async () => undefined

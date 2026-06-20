@@ -127,6 +127,63 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).not.toContain("token=");
   });
 
+  it("serves a workspace-backed snapshot when a root directory is provided", () => {
+    const files: Record<string, string> = {
+      "/repo/package.json": JSON.stringify({
+        name: "skfiy",
+        version: "0.1.0"
+      }),
+      "/repo/.skfiy-smoke/ui-current.json": JSON.stringify({
+        result: "passed",
+        productPath: "dist/skfiy.app"
+      })
+    };
+
+    const response = createDashboardHttpResponse(
+      {
+        method: "GET",
+        url: "http://127.0.0.1:8787/snapshot.json"
+      },
+      {
+        port: 8787,
+        rootDir: "/repo",
+        workspaceIo: {
+          exists: (targetPath) =>
+            Object.hasOwn(files, targetPath)
+            || targetPath === "/repo/.skfiy-smoke"
+            || targetPath === "/repo/dist/skfiy",
+          readFile: (targetPath) => files[targetPath],
+          readdir: (targetPath) =>
+            targetPath === "/repo/.skfiy-smoke" ? ["ui-current.json"] : [],
+          stat: () => ({ mtimeMs: 42 })
+        }
+      }
+    );
+
+    expect(response.status).toBe(200);
+    const snapshot = JSON.parse(response.body);
+
+    expect(snapshot.runtimeHealth).toMatchObject({
+      package: {
+        name: "skfiy",
+        version: "0.1.0"
+      },
+      cli: {
+        state: "installed",
+        path: "/repo/dist/skfiy"
+      }
+    });
+    expect(snapshot.smokeEvidence.artifacts).toEqual([
+      {
+        target: "ui",
+        result: "passed",
+        path: "/repo/.skfiy-smoke/ui-current.json",
+        productPath: "dist/skfiy.app",
+        mtimeMs: 42
+      }
+    ]);
+  });
+
   it("keeps the response helper read-only and minimal for unsupported routes", () => {
     const response = createDashboardHttpResponse({
       method: "POST",

@@ -108,6 +108,14 @@ describe("dashboard product smoke script", () => {
         body: {
           schemaVersion: 1,
           runtimeHealth: {
+            package: {
+              name: "skfiy",
+              version: "0.1.0"
+            },
+            cli: {
+              state: "installed",
+              path: "/repo/dist/skfiy"
+            },
             dashboard: {
               state: "running",
               url: "http://127.0.0.1:51234/"
@@ -151,6 +159,22 @@ describe("dashboard product smoke script", () => {
       snapshotResponse: {
         status: 404,
         body: "Not Found"
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          runtimeHealth: {
+            ...passedEvidence.snapshotResponse.body.runtimeHealth,
+            cli: {
+              state: "missing",
+              path: "/repo/dist/skfiy"
+            }
+          }
+        }
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

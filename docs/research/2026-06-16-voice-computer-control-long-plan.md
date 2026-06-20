@@ -493,10 +493,10 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
     - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; product binary execution tests remain pending
 - [ ] Add local dashboard/control UI
   - [ ] serve loopback-only dashboard from the app or CLI
-    - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; `src/main/dashboard-data.ts` now composes a read-only snapshot for runtime health, permissions, current turn, replay, smoke evidence, long-horizon state, and alerts from injected status/replay evidence; `src/main/dashboard-server.ts` now serves `/descriptor.json`, `/snapshot.json`, `/`, and `/index.html` through a real `127.0.0.1` HTTP server; `skfiy dashboard` starts the server and opens the clean local URL by default, while `--no-open` starts it without opening a browser
+    - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; `src/main/dashboard-data.ts` now composes a read-only snapshot for runtime health, permissions, current turn, replay, smoke evidence, long-horizon state, and alerts from injected evidence or from the local workspace (`package.json`, `dist/skfiy.app`, `dist/skfiy`, and latest `.skfiy-smoke/*.json` artifacts); `src/main/dashboard-server.ts` now serves `/descriptor.json`, `/snapshot.json`, `/`, and `/index.html` through a real `127.0.0.1` HTTP server; `skfiy dashboard` passes its root directory into the server, starts the clean local URL by default, and `--no-open` starts it without opening a browser; live Electron turn/replay memory and extension connection health are still pending
   - [ ] add token/session auth for non-local or explicit remote modes; do not print secrets into terminal output
   - [ ] implement runtime health panel: app/helper/dashboard/extension PIDs, version, uptime, signing state
-    - partial: panel metadata exists in `createDashboardPanels()`
+    - partial: panel metadata exists in `createDashboardPanels()` and `/snapshot.json` now reports package version plus app/helper/CLI installation state from the local workspace; PID, uptime, signing state, and live extension connection remain pending
   - [ ] implement permissions panel: Screen Recording, Accessibility, Microphone, Speech Recognition, Finder Automation, Chrome extension
     - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement active-turn panel: transcript, voice provider, target app, risk, approvals, stop
@@ -504,7 +504,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] implement replay panel: screenshots, OCR labels, accessibility coverage, actions, verification decisions
     - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement evidence panel: latest smoke artifacts, result, product path, blocker reason, stale evidence warning
-    - partial: panel metadata exists in `createDashboardPanels()`
+    - partial: panel metadata exists in `createDashboardPanels()` and `/snapshot.json` now summarizes the latest `.skfiy-smoke/*.json` artifact per smoke target with result, path, product path, mtime, and blocker when present; stale evidence warnings remain pending
   - [ ] implement dogfood/release panel: current alpha, manifest checksum, accepted reports, cohort coverage
     - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement long-horizon panel: `money-run` session status, active pane, current recommendation, recent blocker markers

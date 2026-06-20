@@ -6,7 +6,9 @@ import type {
 import { createDashboardDescriptor } from "./dashboard-status.js";
 import {
   createDashboardSnapshot,
+  createDashboardWorkspaceSnapshot,
   type DashboardSnapshot,
+  type DashboardWorkspaceIo,
   type DashboardSnapshotInput
 } from "./dashboard-data.js";
 
@@ -22,6 +24,8 @@ export interface DashboardHttpResponse {
 }
 
 export interface DashboardHttpResponseOptions extends DashboardDescriptorInput {
+  rootDir?: string;
+  workspaceIo?: DashboardWorkspaceIo;
   createDescriptor?: (input: DashboardDescriptorInput) => DashboardDescriptor;
   createSnapshot?: (input: DashboardSnapshotInput) => DashboardSnapshot;
 }
@@ -130,6 +134,8 @@ function createDescriptorFromOptions(
   const {
     createDescriptor = createDashboardDescriptor,
     createSnapshot: _createSnapshot,
+    rootDir: _rootDir,
+    workspaceIo: _workspaceIo,
     ...descriptorInput
   } = options;
 
@@ -140,9 +146,21 @@ function createSnapshotFromOptions(
   options: DashboardHttpResponseOptions,
   descriptor: DashboardDescriptor
 ): DashboardSnapshot {
-  const { createSnapshot = createDashboardSnapshot } = options;
+  const { createSnapshot, rootDir, workspaceIo } = options;
 
-  return createSnapshot({ descriptor });
+  if (createSnapshot) {
+    return createSnapshot({ descriptor });
+  }
+
+  if (rootDir) {
+    return createDashboardWorkspaceSnapshot({
+      rootDir,
+      descriptor,
+      io: workspaceIo
+    });
+  }
+
+  return createDashboardSnapshot({ descriptor });
 }
 
 function parseDashboardRequestUrl(url: string | URL): URL {
