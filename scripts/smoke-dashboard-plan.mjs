@@ -55,6 +55,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
   const shellBody = String(evidence?.shellResponse?.body ?? "");
   const outputBind = cliOutput?.bind;
   const descriptorBind = descriptor?.bind;
+  const runtimeSnapshotCoverage = createRuntimeSnapshotCoverage(evidence);
 
   if (
     !evidence
@@ -103,6 +104,8 @@ export function classifyDashboardSmokeEvidence(evidence) {
       snapshot?.currentTurn,
       snapshot?.replay
     )
+    || runtimeSnapshotCoverage.result !== "passed"
+    || !hasRuntimeSnapshotCoverageEvidence(evidence.runtimeSnapshotCoverage, runtimeSnapshotCoverage)
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
     || !Number.isInteger(snapshot?.runtimeHealth?.dashboard?.pid)
@@ -139,6 +142,73 @@ export function classifyDashboardSmokeEvidence(evidence) {
   }
 
   return "passed";
+}
+
+export function createRuntimeSnapshotCoverage(evidence) {
+  const fixture = readRuntimeSnapshotFixture(evidence?.runtimeSnapshotFixture);
+
+  if (!fixture) {
+    return createRuntimeSnapshotCoverageResult("skipped", {
+      reason: "Runtime snapshot fixture was not seeded in the isolated HOME."
+    });
+  }
+
+  const snapshotResponse = evidence?.snapshotResponse;
+  if (snapshotResponse?.status !== 200) {
+    return createRuntimeSnapshotCoverageResult("failed", {
+      fixture,
+      reason: `Dashboard /snapshot.json returned ${snapshotResponse?.status ?? "no response"}.`
+    });
+  }
+
+  const snapshot = snapshotResponse.body;
+  if (!snapshot || typeof snapshot !== "object") {
+    return createRuntimeSnapshotCoverageResult("failed", {
+      fixture,
+      reason: "Dashboard /snapshot.json did not return an object."
+    });
+  }
+
+  const runtimeSnapshot = snapshot.runtimeHealth?.runtimeSnapshot;
+  const failures = [];
+
+  if (runtimeSnapshot?.state !== "available") {
+    failures.push("runtimeHealth.runtimeSnapshot.state is not available");
+  }
+
+  if (runtimeSnapshot?.path !== fixture.path) {
+    failures.push("runtimeHealth.runtimeSnapshot.path does not match the seeded fixture path");
+  }
+
+  if (runtimeSnapshot?.observedAt !== fixture.snapshot.observedAt) {
+    failures.push("runtimeHealth.runtimeSnapshot.observedAt does not match the seeded fixture");
+  }
+
+  collectRuntimePanelMismatches(
+    failures,
+    "currentTurn",
+    snapshot.currentTurn,
+    fixture.snapshot.currentTurn
+  );
+  collectRuntimePanelMismatches(
+    failures,
+    "replay",
+    snapshot.replay,
+    fixture.snapshot.replay
+  );
+
+  if (failures.length > 0) {
+    return createRuntimeSnapshotCoverageResult("failed", {
+      fixture,
+      reason: failures.join("; "),
+      failures
+    });
+  }
+
+  return createRuntimeSnapshotCoverageResult("passed", {
+    fixture,
+    reason: "Seeded runtime snapshot currentTurn and replay are visible at /snapshot.json."
+  });
 }
 
 export function createDashboardHelpText(defaults) {
@@ -366,7 +436,7 @@ function hasRuntimeSnapshotEvidence(runtimeSnapshot, currentTurn, replay) {
     && isRuntimeSnapshotPath(runtimeSnapshot.path)
     && typeof runtimeSnapshot.observedAt === "string"
   ) {
-    return true;
+    return hasAvailableRuntimePanelEvidence(currentTurn, replay);
   }
 
   if (
@@ -395,6 +465,101 @@ function hasRuntimeSnapshotEvidence(runtimeSnapshot, currentTurn, replay) {
   }
 
   return false;
+}
+
+function hasRuntimeSnapshotCoverageEvidence(coverage, expectedCoverage) {
+  return coverage?.result === "passed"
+    && expectedCoverage?.result === "passed"
+    && coverage?.path === expectedCoverage.path
+    && coverage?.observedAt === expectedCoverage.observedAt
+    && typeof coverage?.reason === "string"
+    && Array.isArray(coverage?.currentTurnFields)
+    && Array.isArray(coverage?.replayFields)
+    && coverage.currentTurnFields.includes("command")
+    && coverage.currentTurnFields.includes("targetApp")
+    && coverage.replayFields.includes("screenshotCount")
+    && coverage.replayFields.includes("verificationCount");
+}
+
+function hasAvailableRuntimePanelEvidence(currentTurn, replay) {
+  return typeof currentTurn?.state === "string"
+    && currentTurn.state !== "idle"
+    && typeof currentTurn?.command === "string"
+    && currentTurn.command.length > 0
+    && typeof currentTurn?.targetApp === "string"
+    && typeof currentTurn?.targetBundleId === "string"
+    && typeof currentTurn?.risk === "string"
+    && typeof currentTurn?.plannerProvider === "string"
+    && typeof currentTurn?.approvalRequired === "boolean"
+    && typeof currentTurn?.latestMessage === "string"
+    && replay?.state === "available"
+    && typeof replay?.outcome === "string"
+    && Number.isInteger(replay?.screenshotCount)
+    && Number.isInteger(replay?.actionCount)
+    && Number.isInteger(replay?.verificationCount)
+    && Number.isInteger(replay?.timelineCount)
+    && typeof replay?.latestMessage === "string";
+}
+
+function readRuntimeSnapshotFixture(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const snapshot = value.snapshot;
+  const currentTurn = snapshot?.currentTurn;
+  const replay = snapshot?.replay;
+
+  if (
+    typeof value.path !== "string"
+    || !isRuntimeSnapshotPath(value.path)
+    || snapshot?.schemaVersion !== 1
+    || typeof snapshot?.observedAt !== "string"
+    || !currentTurn
+    || typeof currentTurn !== "object"
+    || Array.isArray(currentTurn)
+    || !replay
+    || typeof replay !== "object"
+    || Array.isArray(replay)
+  ) {
+    return undefined;
+  }
+
+  return {
+    path: value.path,
+    snapshot: {
+      observedAt: snapshot.observedAt,
+      currentTurn,
+      replay
+    }
+  };
+}
+
+function collectRuntimePanelMismatches(failures, panelName, actual, expected) {
+  if (!actual || typeof actual !== "object" || Array.isArray(actual)) {
+    failures.push(`${panelName} is not an object`);
+    return;
+  }
+
+  for (const [key, expectedValue] of Object.entries(expected)) {
+    if (!Object.is(actual[key], expectedValue)) {
+      failures.push(`${panelName}.${key} does not match the seeded fixture`);
+    }
+  }
+}
+
+function createRuntimeSnapshotCoverageResult(result, { fixture, reason, failures } = {}) {
+  return {
+    result,
+    reason,
+    ...(fixture ? {
+      path: fixture.path,
+      observedAt: fixture.snapshot.observedAt,
+      currentTurnFields: Object.keys(fixture.snapshot.currentTurn),
+      replayFields: Object.keys(fixture.snapshot.replay)
+    } : {}),
+    ...(failures ? { failures } : {})
+  };
 }
 
 function isRuntimeSnapshotPath(value) {

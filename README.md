@@ -159,14 +159,26 @@ long-horizon supervision. The extension state currently includes packaged CLI
 Native Messaging host manifest evidence plus the latest local extension
 heartbeat from `chrome-extension-connection.json`. The dashboard also exposes
 `/api/chrome-host-policy` so local operator flows can show, set, and reset the
-same Chrome host policy used by the CLI and MV3 native-host bridge. The Chrome smoke now also
-records `installedExtensionRun`; on this machine it is a known blocker because
-branded `Google Chrome` 146 no longer honors automated `--load-extension`
-unpacked extension loading, so `smoke:chrome` now auto-prefers Google Chrome for
-Testing or Chromium for the installed-extension proof when either app is
-available. Use `--extension-chrome-app <name>` to force that browser; otherwise
-the live extension path remains a clear environment blocker on machines with
-only branded Chrome.
+same Chrome host policy used by the CLI and MV3 native-host bridge.
+`smoke:dashboard` seeds an isolated `runtime-snapshot.json` fixture and requires
+`/snapshot.json` to expose real `currentTurn` and `replay` fields from that
+runtime snapshot before dashboard evidence can pass.
+
+`skfiy status --json` includes a top-level `readiness` summary for runtime,
+dashboard, extension, and `money-run`. It also performs a read-only tmux probe of
+`money-run` and reports `mutatesSession: false`, so dashboards and plugin
+adapters can show long-horizon readiness without controlling the session.
+
+The Chrome smoke now also records `installedExtensionRun`; on this machine it is
+a known blocker because branded `Google Chrome` 146 no longer honors automated
+`--load-extension` unpacked extension loading, so `smoke:chrome` now auto-prefers
+Google Chrome for Testing or Chromium for the installed-extension proof when
+either app is available. Use `--extension-chrome-app <name>` to force that
+browser; otherwise the live extension path remains a clear environment blocker
+on machines with only branded Chrome. The MV3 extension status response exposes
+extension version, capabilities, Native Messaging policy sync state, host-policy
+entry counts, and the latest native-host error for dashboard and popup
+diagnostics.
 `smoke:chrome` now also requires `nativeHostBridgeRun.result: passed` from the
 packaged `dist/skfiy -> Chrome Native Messaging heartbeat` path before Chrome
 browser-control evidence can count as passed.

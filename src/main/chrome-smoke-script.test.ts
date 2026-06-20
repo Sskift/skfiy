@@ -340,6 +340,10 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("branded_chrome_load_extension_removed");
     expect(source).toContain("Chrome for Testing");
     expect(source).toContain("chrome-smoke-installed-extension");
+    expect(source).toContain("extensionStatus");
+    expect(source).toContain("chrome-smoke-extension-status");
+    expect(source).toContain("skfiy.host_policy.sync_refresh");
+    expect(source).toContain("skfiyChromeAdapterDiagnostics");
     expect(source).toContain("heartbeatReadError");
   });
 
@@ -509,6 +513,29 @@ function createPassingNativeHostBridgeRun() {
         }
       }
     },
+    diagnostics: {
+      schemaVersion: 1,
+      nativeHost: {
+        name: "com.sskift.skfiy",
+        heartbeatState: "recorded",
+        policyState: "default",
+        lastError: null
+      },
+      capabilities: {
+        nativeMessaging: true,
+        hostPolicySync: true,
+        connectionHeartbeat: true
+      },
+      hostPolicy: {
+        schemaVersion: 1,
+        state: "default",
+        defaultMode: "ask",
+        entryCount: 0,
+        allowedHosts: 0,
+        currentTurnAllowedHosts: 0,
+        blockedHosts: 0
+      }
+    },
     heartbeat: {
       schemaVersion: 1,
       hostName: "com.sskift.skfiy",
@@ -531,6 +558,59 @@ function createPassingInstalledExtensionRun(productPath: string) {
       type: "skfiy.native.response",
       requestId: "chrome-smoke-installed-extension",
       result: "accepted"
+    },
+    extensionStatus: {
+      schemaVersion: 1,
+      type: "skfiy.host_policy.response",
+      requestId: "chrome-smoke-extension-status",
+      policy: {
+        defaultMode: "ask",
+        allowedHosts: [],
+        currentTurnAllowedHosts: [],
+        blockedHosts: []
+      },
+      syncStatus: {
+        schemaVersion: 1,
+        state: "synced",
+        source: "native_host",
+        hostPolicyState: "default",
+        nativeHostPolicyState: "default",
+        entryCount: 0,
+        lastError: null,
+        error: null
+      },
+      diagnostics: {
+        schemaVersion: 1,
+        extension: {
+          id: "abcdefghijklmnopabcdefghijklmnop",
+          name: "skfiy Chrome Adapter",
+          version: "0.0.1",
+          manifestVersion: 3,
+          minimumChromeVersion: "116"
+        },
+        capabilities: {
+          activeTab: true,
+          downloads: true,
+          nativeMessaging: true,
+          scripting: true,
+          storage: true,
+          tabs: true,
+          optionalHostPermissions: ["http://*/*", "https://*/*"]
+        },
+        nativeHost: {
+          name: "com.sskift.skfiy",
+          syncState: "synced",
+          policyState: "default",
+          lastError: null
+        },
+        hostPolicy: {
+          defaultMode: "ask",
+          entryCount: 0,
+          allowedHosts: 0,
+          currentTurnAllowedHosts: 0,
+          blockedHosts: 0
+        }
+      }
     },
     heartbeat: {
       schemaVersion: 1,

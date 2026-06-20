@@ -206,6 +206,79 @@ function createPassingCommandEvidence(command: { id: string; args: string[] }) {
     };
   }
 
+  if (command.id === "status-json") {
+    return {
+      ...base,
+      stdoutJson: {
+        schemaVersion: 1,
+        command: "status",
+        readiness: {
+          state: "needs-action",
+          ready: false,
+          blockers: [
+            {
+              area: "dashboard",
+              code: "dashboard-not-running",
+              state: "not-running"
+            }
+          ],
+          checks: {
+            runtime: {
+              state: "ready",
+              ready: true,
+              blockers: []
+            },
+            dashboard: {
+              state: "needs-action",
+              ready: false,
+              blockers: [
+                {
+                  code: "dashboard-not-running",
+                  state: "not-running"
+                }
+              ]
+            },
+            extension: {
+              state: "unknown",
+              ready: false,
+              blockers: []
+            },
+            moneyRun: {
+              state: "needs-action",
+              ready: false,
+              session: "money-run",
+              moneyRunState: "blocked",
+              mutatesSession: false,
+              blockers: [
+                {
+                  code: "money-run-not-observing",
+                  state: "blocked"
+                }
+              ]
+            }
+          }
+        },
+        moneyRun: {
+          state: "blocked",
+          session: "money-run",
+          source: "tmux-read-only-probe",
+          mutatesSession: false,
+          summary: {
+            windowCount: 0,
+            paneCount: 0,
+            activePaneIds: [],
+            deadPaneIds: []
+          },
+          recommendation: {
+            action: "inspect_state",
+            reason: "tmux session money-run was not found.",
+            mutatesSession: false
+          }
+        }
+      }
+    };
+  }
+
   if (command.id === "smoke-dashboard-json") {
     return {
       ...base,

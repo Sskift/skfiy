@@ -32,6 +32,12 @@ import {
   type SkfiyMcpProviders,
   type SkfiyMcpToolCallInput
 } from "./skfiy-mcp-server.js";
+import {
+  createTmuxSupervisionReport,
+  parseTmuxPaneList,
+  type TmuxPaneSummary,
+  type TmuxSupervisionReport
+} from "./computer-use/tmux-supervisor.js";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type {
   PermissionSummary
@@ -77,6 +83,11 @@ const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
 
 const SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX =
   "x-apple.systempreferences:com.apple.preference.security?";
+const MONEY_RUN_SESSION_NAME = "money-run";
+const TMUX_TAIL_LINES = 120;
+const TMUX_PROBE_TIMEOUT_MS = 1_500;
+const TMUX_WINDOW_FORMAT = "#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_panes}";
+const TMUX_PANE_FORMAT = "#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_dead}\t#{pane_current_command}\t#{pane_title}";
 
 const PERMISSION_SETTINGS_TARGET_DETAILS: Record<PermissionSettingsTarget, {
   label: string;
@@ -649,11 +660,9 @@ export function createCliOutput(
   const generatedAt = options.generatedAt ?? new Date().toISOString();
 
   if (invocation.kind === "status") {
-    return {
-      schemaVersion: 1,
-      command: "status",
-      generatedAt,
+    const status = {
       app: { state: "unknown" },
+      cli: { state: "unknown", path: invocation.options.cliShimPath },
       helper: { state: "unknown" },
       permissions: {
         screenRecording: "unknown",
@@ -671,7 +680,15 @@ export function createCliOutput(
       },
       dashboard: invocation.options.dashboardUrl
         ? { state: "unknown", url: invocation.options.dashboardUrl }
-        : { state: "not-running" }
+        : { state: "not-running" },
+      moneyRun: createUnknownMoneyRunStatus()
+    };
+
+    return {
+      schemaVersion: 1,
+      command: "status",
+      generatedAt,
+      ...withStatusReadiness(status, invocation.options)
     };
   }
 
@@ -1070,7 +1087,7 @@ async function runStatusCli({
   });
 
   try {
-    const status = await statusReader(input);
+    const status = withStatusReadiness(await statusReader(input), input);
 
     stdout.write(`${JSON.stringify({
       schemaVersion: 1,
@@ -1381,8 +1398,11 @@ function createDoctorOutput({
     });
   }
 
+  const readiness = createStatusReadinessSummary(status, statusInput);
+
   return {
     result: diagnostics.length === 0 ? "ok" : "needs-action",
+    readiness,
     preflight: {
       runtime: {
         appPath: statusInput.appPath,
@@ -1409,9 +1429,511 @@ function createDoctorOutput({
     },
     diagnostics,
     nextActions,
-    status,
+    status: withStatusReadiness(status, statusInput),
     signature
   };
+}
+
+function withStatusReadiness<TStatus extends Record<string, unknown>>(
+  status: TStatus,
+  context: {
+    extensionIds: string[];
+    dashboardUrl?: string;
+    cliShimPath?: string;
+  }
+): TStatus & { readiness: Record<string, unknown> } {
+  return {
+    ...status,
+    readiness: createStatusReadinessSummary(status, context)
+  };
+}
+
+function createStatusReadinessSummary(
+  status: Record<string, unknown>,
+  context: {
+    extensionIds: string[];
+    dashboardUrl?: string;
+    cliShimPath?: string;
+  }
+): Record<string, unknown> {
+  const checks = {
+    runtime: createRuntimeReadiness(status),
+    dashboard: createDashboardReadiness(status, context),
+    extension: createExtensionReadiness(status, context),
+    moneyRun: createMoneyRunReadiness(status)
+  };
+  const entries = Object.entries(checks);
+  const states = entries.map(([, check]) => readString(readRecord(check)?.state) ?? "unknown");
+  const blockers = entries.flatMap(([area, check]) =>
+    readBlockers(check).map((blocker) => ({
+      area,
+      ...blocker
+    }))
+  );
+  const state = states.every((item) => item === "ready")
+    ? "ready"
+    : states.every((item) => item === "unknown")
+      ? "unknown"
+      : "needs-action";
+
+  return {
+    state,
+    ready: state === "ready",
+    checks,
+    blockers
+  };
+}
+
+function createRuntimeReadiness(status: Record<string, unknown>): Record<string, unknown> {
+  const app = readRecord(status.app);
+  const cli = readRecord(status.cli);
+  const helper = readRecord(status.helper);
+  const permissions = readRecord(status.permissions);
+  const desktopSession = readRecord(status.desktopSession);
+  const appState = readString(app?.state) ?? "unknown";
+  const cliState = readString(cli?.state) ?? "unknown";
+  const helperState = readString(helper?.state) ?? "unknown";
+  const screenRecording = readString(permissions?.screenRecording) ?? "unknown";
+  const accessibility = readString(permissions?.accessibility) ?? "unknown";
+  const desktopSessionState = readString(desktopSession?.state) ?? "unknown";
+  const observed = [
+    appState,
+    cliState,
+    helperState,
+    screenRecording,
+    accessibility,
+    desktopSessionState
+  ].some((state) => state !== "unknown");
+
+  if (!observed) {
+    return {
+      state: "unknown",
+      ready: false,
+      appState,
+      cliState,
+      helperState,
+      desktopSessionState,
+      requiredPermissions: {
+        screenRecording,
+        accessibility
+      },
+      blockers: []
+    };
+  }
+
+  const blockers: Array<Record<string, unknown>> = [];
+
+  addStateBlocker(blockers, "app-not-installed", "App bundle is not installed.", appState, "installed");
+  addStateBlocker(blockers, "cli-not-installed", "Packaged CLI is not installed.", cliState, "installed");
+  addStateBlocker(blockers, "helper-not-installed", "Desktop helper is not installed.", helperState, "installed");
+  addStateBlocker(
+    blockers,
+    "screen-recording-not-granted",
+    "Screen Recording is required for observation.",
+    screenRecording,
+    "granted"
+  );
+  addStateBlocker(
+    blockers,
+    "accessibility-not-granted",
+    "Accessibility is required for desktop control.",
+    accessibility,
+    "granted"
+  );
+  addStateBlocker(
+    blockers,
+    "desktop-session-not-controllable",
+    "The active desktop session must be controllable.",
+    desktopSessionState,
+    "controllable"
+  );
+
+  return {
+    state: blockers.length === 0 ? "ready" : "needs-action",
+    ready: blockers.length === 0,
+    appState,
+    cliState,
+    helperState,
+    desktopSessionState,
+    requiredPermissions: {
+      screenRecording,
+      accessibility
+    },
+    blockers
+  };
+}
+
+function createDashboardReadiness(
+  status: Record<string, unknown>,
+  context: { dashboardUrl?: string }
+): Record<string, unknown> {
+  const dashboard = readRecord(status.dashboard);
+  const api = readRecord(readRecord(dashboard?.api)?.chromeHostPolicy);
+  const dashboardState = readString(dashboard?.state) ?? "unknown";
+  const apiState = readString(api?.state);
+
+  if (dashboardState === "unknown") {
+    return {
+      state: "unknown",
+      ready: false,
+      dashboardState,
+      ...(context.dashboardUrl ? { url: context.dashboardUrl } : {}),
+      blockers: []
+    };
+  }
+
+  const blockers: Array<Record<string, unknown>> = [];
+  if (dashboardState !== "running") {
+    blockers.push({
+      code: "dashboard-not-running",
+      message: "Loopback dashboard is not running.",
+      state: dashboardState
+    });
+  }
+
+  return {
+    state: blockers.length === 0 ? "ready" : "needs-action",
+    ready: blockers.length === 0,
+    dashboardState,
+    ...(readString(dashboard?.url) || context.dashboardUrl
+      ? { url: readString(dashboard?.url) ?? context.dashboardUrl }
+      : {}),
+    ...(apiState ? { chromeHostPolicyApiState: apiState } : {}),
+    blockers
+  };
+}
+
+function createExtensionReadiness(
+  status: Record<string, unknown>,
+  context: {
+    extensionIds: string[];
+    cliShimPath?: string;
+  }
+): Record<string, unknown> {
+  const extension = readRecord(status.extension);
+  const nativeHost = readRecord(status.nativeHost);
+  const extensionState = readString(extension?.state) ?? "unknown";
+  const nativeHostState = readString(nativeHost?.state) ?? "unknown";
+  const liveConnection = readString(extension?.liveConnection) ?? "unknown";
+  const extensionIds = context.extensionIds.length > 0
+    ? context.extensionIds
+    : readStringArray(nativeHost?.extensionIds);
+  const observed = extensionIds.length > 0
+    || extensionState !== "unknown"
+    || nativeHostState !== "unknown";
+
+  if (!observed) {
+    return {
+      state: "unknown",
+      ready: false,
+      extensionState,
+      nativeHostState,
+      liveConnection,
+      extensionIds,
+      blockers: []
+    };
+  }
+
+  const blockers: Array<Record<string, unknown>> = [];
+
+  if (extensionIds.length === 0) {
+    blockers.push({
+      code: "extension-id-not-provided",
+      message: "Pass --extension-id <id> to verify Chrome Native Messaging installation."
+    });
+  }
+  if (nativeHostState !== "installed") {
+    blockers.push({
+      code: "native-host-not-installed",
+      message: "Chrome Native Messaging host is not installed for the requested extension.",
+      state: nativeHostState
+    });
+  } else if (extensionState !== "connected") {
+    blockers.push({
+      code: "extension-not-connected",
+      message: "Chrome Native Messaging host is installed, but no live extension heartbeat is connected.",
+      state: extensionState,
+      liveConnection
+    });
+  }
+
+  return {
+    state: blockers.length === 0 ? "ready" : "needs-action",
+    ready: blockers.length === 0,
+    extensionState,
+    nativeHostState,
+    liveConnection,
+    extensionIds,
+    ...(readString(nativeHost?.manifestPath) ? { manifestPath: readString(nativeHost?.manifestPath) } : {}),
+    ...(context.cliShimPath ? { cliShimPath: context.cliShimPath } : {}),
+    blockers
+  };
+}
+
+function createMoneyRunReadiness(status: Record<string, unknown>): Record<string, unknown> {
+  const moneyRun = readRecord(status.moneyRun);
+  const moneyRunState = readString(moneyRun?.state) ?? "unknown";
+  const mutatesSession = moneyRun?.mutatesSession === true;
+
+  if (moneyRunState === "unknown") {
+    return {
+      state: "unknown",
+      ready: false,
+      session: MONEY_RUN_SESSION_NAME,
+      moneyRunState,
+      mutatesSession: false,
+      blockers: []
+    };
+  }
+
+  const blockers: Array<Record<string, unknown>> = moneyRunState === "observing"
+    ? []
+    : [{
+        code: "money-run-not-observing",
+        message: "money-run tmux supervision is not in an observing state.",
+        state: moneyRunState
+      }];
+  if (mutatesSession) {
+    blockers.push({
+      code: "money-run-mutating-probe",
+      message: "money-run status must be gathered with read-only tmux probes.",
+      mutatesSession
+    });
+  }
+
+  return {
+    state: blockers.length === 0 ? "ready" : "needs-action",
+    ready: blockers.length === 0,
+    session: readString(moneyRun?.session) ?? MONEY_RUN_SESSION_NAME,
+    moneyRunState,
+    source: readString(moneyRun?.source) ?? "tmux-read-only-probe",
+    mutatesSession,
+    ...(readRecord(moneyRun?.summary) ? { summary: readRecord(moneyRun?.summary) } : {}),
+    ...(readRecord(moneyRun?.recommendation) ? { recommendation: readRecord(moneyRun?.recommendation) } : {}),
+    blockers
+  };
+}
+
+function addStateBlocker(
+  blockers: Array<Record<string, unknown>>,
+  code: string,
+  message: string,
+  actual: string,
+  expected: string
+): void {
+  if (actual === expected) {
+    return;
+  }
+
+  blockers.push({
+    code,
+    message,
+    state: actual,
+    expected
+  });
+}
+
+function readBlockers(check: Record<string, unknown>): Array<Record<string, unknown>> {
+  return Array.isArray(check.blockers)
+    ? check.blockers.filter((item): item is Record<string, unknown> => Boolean(readRecord(item)))
+    : [];
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function createUnknownMoneyRunStatus(): Record<string, unknown> {
+  return {
+    state: "unknown",
+    session: MONEY_RUN_SESSION_NAME,
+    source: "tmux-read-only-probe",
+    mutatesSession: false,
+    reason: "money-run tmux supervision has not been probed yet."
+  };
+}
+
+async function readMoneyRunStatusForStatus(): Promise<Record<string, unknown>> {
+  const probeCommands: string[] = [];
+  const runTmux = async (args: string[]) => {
+    probeCommands.push(formatTmuxCommand(args));
+    try {
+      return await runCommand("tmux", args, { timeoutMs: TMUX_PROBE_TIMEOUT_MS });
+    } catch (error) {
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: readErrorMessage(error)
+      };
+    }
+  };
+
+  try {
+    const hasSession = await runTmux(["has-session", "-t", MONEY_RUN_SESSION_NAME]);
+    if (hasSession.exitCode !== 0) {
+      return createMoneyRunSnapshot(
+        createTmuxSupervisionReport({
+          sessionName: MONEY_RUN_SESSION_NAME,
+          hasSession: false,
+          commandError: readCommandResultMessage(hasSession, "tmux session was not found.")
+        }),
+        probeCommands,
+        {
+          probeError: readCommandResultMessage(hasSession, "tmux session was not found.")
+        }
+      );
+    }
+
+    const [windows, panes] = await Promise.all([
+      runTmux([
+        "list-windows",
+        "-t",
+        MONEY_RUN_SESSION_NAME,
+        "-F",
+        TMUX_WINDOW_FORMAT
+      ]),
+      runTmux([
+        "list-panes",
+        "-t",
+        MONEY_RUN_SESSION_NAME,
+        "-s",
+        "-F",
+        TMUX_PANE_FORMAT
+      ])
+    ]);
+
+    if (windows.exitCode !== 0 || panes.exitCode !== 0) {
+      const failed = windows.exitCode !== 0 ? windows : panes;
+
+      return createMoneyRunProbeFailure(
+        probeCommands,
+        readCommandResultMessage(failed, "tmux session state could not be listed.")
+      );
+    }
+
+    const paneTails: Record<string, string> = {};
+    for (const pane of parseTmuxPaneList(panes.stdout)) {
+      const tail = await runTmux([
+        "capture-pane",
+        "-p",
+        "-t",
+        pane.id,
+        "-S",
+        `-${TMUX_TAIL_LINES}`
+      ]);
+      paneTails[pane.id] = tail.stdout || tail.stderr;
+    }
+
+    return createMoneyRunSnapshot(
+      createTmuxSupervisionReport({
+        sessionName: MONEY_RUN_SESSION_NAME,
+        hasSession: true,
+        windowsOutput: windows.stdout,
+        panesOutput: panes.stdout,
+        paneTails
+      }),
+      probeCommands
+    );
+  } catch (error) {
+    return createMoneyRunProbeFailure(probeCommands, readErrorMessage(error));
+  }
+}
+
+function createMoneyRunProbeFailure(
+  probeCommands: string[],
+  reason: string
+): Record<string, unknown> {
+  return {
+    state: "blocked",
+    session: MONEY_RUN_SESSION_NAME,
+    source: "tmux-read-only-probe",
+    mutatesSession: false,
+    summary: {
+      windowCount: 0,
+      paneCount: 0,
+      activePaneIds: [],
+      deadPaneIds: []
+    },
+    signals: [
+      {
+        type: "probe-error",
+        severity: "blocked",
+        message: reason
+      }
+    ],
+    recommendation: {
+      action: "inspect_state",
+      reason,
+      mutatesSession: false
+    },
+    probeCommands,
+    probeError: reason
+  };
+}
+
+function createMoneyRunSnapshot(
+  report: TmuxSupervisionReport,
+  probeCommands: string[],
+  extra: Record<string, unknown> = {}
+): Record<string, unknown> {
+  const activePane = report.panes.find((pane) => pane.active);
+
+  return {
+    state: report.status,
+    session: report.sessionName,
+    source: "tmux-read-only-probe",
+    mutatesSession: false,
+    summary: report.summary,
+    ...(activePane ? { activePane: createMoneyRunActivePaneSummary(activePane) } : {}),
+    signals: report.signals,
+    recommendation: report.recommendation,
+    probeCommands,
+    ...extra
+  };
+}
+
+function createMoneyRunActivePaneSummary(pane: TmuxPaneSummary): Record<string, unknown> {
+  return {
+    id: pane.id,
+    windowName: pane.windowName,
+    currentCommand: pane.currentCommand,
+    title: pane.title,
+    recentTailPreview: createTailPreview(pane.recentTail)
+  };
+}
+
+function createTailPreview(value: string): string {
+  const trimmed = value.trim();
+
+  return trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
+}
+
+function readCommandResultMessage(
+  result: {
+    stdout: string;
+    stderr: string;
+  },
+  fallback: string
+): string {
+  const message = (result.stderr || result.stdout || "").trim();
+
+  return message || fallback;
+}
+
+function formatTmuxCommand(args: string[]): string {
+  return ["tmux", ...args.map(formatCommandArg)].join(" ");
+}
+
+function formatCommandArg(arg: string): string {
+  return /^[A-Za-z0-9_./:@%#{}=-]+$/.test(arg)
+    ? arg
+    : JSON.stringify(arg);
 }
 
 async function readCliStatus(input: StatusReaderInput): Promise<Record<string, unknown>> {
@@ -1434,6 +1956,10 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
     const nativeHost = await readNativeHostStatusForStatus(input);
     const extensionConnection = await readChromeExtensionConnectionForStatus(input);
     const hostPolicy = await readChromeHostPolicyForStatus(input);
+    const [dashboard, moneyRun] = await Promise.all([
+      readDashboardStatus(input.dashboardUrl),
+      readMoneyRunStatusForStatus()
+    ]);
 
     return {
       app,
@@ -1446,7 +1972,8 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
       },
       extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy),
       nativeHost,
-      dashboard: await readDashboardStatus(input.dashboardUrl)
+      dashboard,
+      moneyRun
     };
   }
 
@@ -1457,16 +1984,23 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
   const nativeHost = await readNativeHostStatusForStatus(input);
   const extensionConnection = await readChromeExtensionConnectionForStatus(input);
   const hostPolicy = await readChromeHostPolicyForStatus(input);
+  const [permissions, desktopSession, dashboard, moneyRun] = await Promise.all([
+    readPermissionStatesForStatus(desktopHelper),
+    readDesktopSessionForStatus(desktopHelper),
+    readDashboardStatus(input.dashboardUrl),
+    readMoneyRunStatusForStatus()
+  ]);
 
   return {
     app,
     cli,
     helper,
-    permissions: await readPermissionStatesForStatus(desktopHelper),
-    desktopSession: await readDesktopSessionForStatus(desktopHelper),
+    permissions,
+    desktopSession,
     extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy),
     nativeHost,
-    dashboard: await readDashboardStatus(input.dashboardUrl)
+    dashboard,
+    moneyRun
   };
 }
 
@@ -1866,7 +2400,9 @@ async function readCodeSignatureStatus({
   };
 }
 
-function runCommand(command: string, args: string[]): Promise<{
+function runCommand(command: string, args: string[], options: {
+  timeoutMs?: number;
+} = {}): Promise<{
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -1877,6 +2413,13 @@ function runCommand(command: string, args: string[]): Promise<{
     });
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
+    const timeout = options.timeoutMs
+      ? setTimeout(() => {
+          timedOut = true;
+          child.kill("SIGTERM");
+        }, options.timeoutMs)
+      : undefined;
 
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
@@ -1886,12 +2429,22 @@ function runCommand(command: string, args: string[]): Promise<{
     child.stderr?.on("data", (chunk) => {
       stderr += chunk;
     });
-    child.once("error", reject);
+    child.once("error", (error) => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      reject(error);
+    });
     child.once("exit", (code) => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
       resolve({
         exitCode: code ?? 1,
         stdout,
-        stderr
+        stderr: timedOut
+          ? `${stderr}${stderr ? "\n" : ""}${command} timed out after ${options.timeoutMs}ms.`
+          : stderr
       });
     });
   });
@@ -2004,7 +2557,7 @@ function createMcpProviders({
         homeDir,
         invocation
       });
-      const status = await statusReader(statusInput);
+      const status = withStatusReadiness(await statusReader(statusInput), statusInput);
 
       return {
         schemaVersion: 1,

@@ -255,7 +255,8 @@ function hasInstalledExtensionSmokeEvidence(run) {
     && run.heartbeat?.hostName === "com.sskift.skfiy"
     && run.heartbeat?.launchOrigin === `chrome-extension://${run.extensionId}/`
     && run.heartbeat?.messageType === "skfiy.page.observe"
-    && run.heartbeat?.requestId === "chrome-smoke-installed-extension";
+    && run.heartbeat?.requestId === "chrome-smoke-installed-extension"
+    && hasInstalledExtensionStatusDiagnostics(run.extensionStatus, run.extensionId);
 }
 
 function isKnownInstalledExtensionSmokeBlocker(run) {
@@ -296,7 +297,54 @@ function hasNativeHostBridgeEvidence(run) {
     && run.heartbeat?.hostName === "com.sskift.skfiy"
     && run.heartbeat?.launchOrigin === "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
     && run.heartbeat?.messageType === "skfiy.page.observe"
-    && run.heartbeat?.requestId === "chrome-smoke-native-host";
+    && run.heartbeat?.requestId === "chrome-smoke-native-host"
+    && hasNativeHostBridgeDiagnostics(run.diagnostics);
+}
+
+function hasInstalledExtensionStatusDiagnostics(status, extensionId) {
+  return status
+    && typeof status === "object"
+    && status.type === "skfiy.host_policy.response"
+    && status.requestId === "chrome-smoke-extension-status"
+    && status.syncStatus?.state === "synced"
+    && status.syncStatus?.source === "native_host"
+    && status.syncStatus?.lastError === null
+    && (
+      status.syncStatus?.hostPolicyState === "default"
+      || status.syncStatus?.hostPolicyState === "configured"
+      || status.syncStatus?.hostPolicyState === "invalid"
+    )
+    && status.diagnostics?.extension?.id === extensionId
+    && status.diagnostics?.extension?.version === "0.0.1"
+    && status.diagnostics?.capabilities?.nativeMessaging === true
+    && status.diagnostics?.capabilities?.scripting === true
+    && status.diagnostics?.nativeHost?.name === "com.sskift.skfiy"
+    && status.diagnostics?.nativeHost?.lastError === null
+    && (
+      status.diagnostics?.nativeHost?.policyState === "default"
+      || status.diagnostics?.nativeHost?.policyState === "configured"
+      || status.diagnostics?.nativeHost?.policyState === "invalid"
+    )
+    && status.diagnostics?.hostPolicy?.defaultMode === "ask"
+    && Number.isInteger(status.diagnostics?.hostPolicy?.entryCount);
+}
+
+function hasNativeHostBridgeDiagnostics(diagnostics) {
+  return diagnostics
+    && typeof diagnostics === "object"
+    && diagnostics.nativeHost?.name === "com.sskift.skfiy"
+    && diagnostics.nativeHost?.heartbeatState === "recorded"
+    && diagnostics.nativeHost?.lastError === null
+    && (
+      diagnostics.nativeHost?.policyState === "default"
+      || diagnostics.nativeHost?.policyState === "configured"
+      || diagnostics.nativeHost?.policyState === "invalid"
+    )
+    && diagnostics.capabilities?.nativeMessaging === true
+    && diagnostics.capabilities?.hostPolicySync === true
+    && diagnostics.capabilities?.connectionHeartbeat === true
+    && diagnostics.hostPolicy?.defaultMode === "ask"
+    && Number.isInteger(diagnostics.hostPolicy?.entryCount);
 }
 
 export function classifyChromeFallbackSmokeEvidence({

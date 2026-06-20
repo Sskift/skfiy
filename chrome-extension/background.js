@@ -30,8 +30,53 @@ const HOST_POLICY_STORAGE_KEY = "skfiyHostPolicy";
 const HOST_POLICY_SYNC_STORAGE_KEY = "skfiyHostPolicySync";
 const LAST_SENSITIVE_PAUSE_KEY = "lastSensitivePause";
 const HOST_POLICY_SYNC_REQUEST_PREFIX = "host-policy-sync";
+const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
+  manifest_version: 3,
+  name: "skfiy Chrome Adapter",
+  version: "0.0.1",
+  minimum_chrome_version: "116",
+  permissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
+  optional_host_permissions: ["http://*/*", "https://*/*"]
+});
 
 let hostPolicySyncPromise = null;
+
+function readExtensionManifest() {
+  if (typeof chrome.runtime.getManifest === "function") {
+    return chrome.runtime.getManifest();
+  }
+
+  return FALLBACK_EXTENSION_MANIFEST;
+}
+
+function readExtensionDiagnostics() {
+  const manifest = {
+    ...FALLBACK_EXTENSION_MANIFEST,
+    ...readExtensionManifest()
+  };
+  const permissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
+  const optionalHostPermissions = Array.isArray(manifest.optional_host_permissions)
+    ? manifest.optional_host_permissions
+    : [];
+
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    id: chrome.runtime.id ?? null,
+    name: manifest.name ?? FALLBACK_EXTENSION_MANIFEST.name,
+    version: manifest.version ?? FALLBACK_EXTENSION_MANIFEST.version,
+    manifestVersion: manifest.manifest_version ?? FALLBACK_EXTENSION_MANIFEST.manifest_version,
+    minimumChromeVersion: manifest.minimum_chrome_version ?? null,
+    capabilities: {
+      activeTab: permissions.includes("activeTab"),
+      downloads: permissions.includes("downloads"),
+      nativeMessaging: permissions.includes("nativeMessaging"),
+      scripting: permissions.includes("scripting"),
+      storage: permissions.includes("storage"),
+      tabs: permissions.includes("tabs"),
+      optionalHostPermissions
+    }
+  };
+}
 
 function getHost(url) {
   try {
@@ -76,6 +121,7 @@ async function readHostPolicySyncStatus(policyOverride) {
   const stored = await chrome.storage.local.get(HOST_POLICY_SYNC_STORAGE_KEY);
   const status = stored[HOST_POLICY_SYNC_STORAGE_KEY] ?? {};
   const entryCount = countHostPolicyEntries(policy);
+  const lastError = status.lastError ?? status.error ?? null;
 
   return {
     schemaVersion: MESSAGE_SCHEMA_VERSION,
@@ -88,15 +134,56 @@ async function readHostPolicySyncStatus(policyOverride) {
     requestedAt: status.requestedAt ?? null,
     completedAt: status.completedAt ?? null,
     hostPolicyState: status.hostPolicyState ?? null,
+    nativeHostPolicyState: status.nativeHostPolicyState ?? status.hostPolicyState ?? null,
+    lastError,
     error: status.error ?? null
   };
 }
 
 async function readHostPolicySnapshot() {
   const policy = await readHostPolicy();
+  const syncStatus = await readHostPolicySyncStatus(policy);
   return {
     policy,
-    syncStatus: await readHostPolicySyncStatus(policy)
+    syncStatus,
+    diagnostics: createDiagnostics(policy, syncStatus)
+  };
+}
+
+function createDiagnostics(policy, syncStatus) {
+  const extension = readExtensionDiagnostics();
+  const hostPolicyEntryCounts = {
+    allowedHosts: Array.isArray(policy.allowedHosts) ? policy.allowedHosts.length : 0,
+    currentTurnAllowedHosts: Array.isArray(policy.currentTurnAllowedHosts)
+      ? policy.currentTurnAllowedHosts.length
+      : 0,
+    blockedHosts: Array.isArray(policy.blockedHosts) ? policy.blockedHosts.length : 0
+  };
+
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    extension: {
+      id: extension.id,
+      name: extension.name,
+      version: extension.version,
+      manifestVersion: extension.manifestVersion,
+      minimumChromeVersion: extension.minimumChromeVersion
+    },
+    capabilities: extension.capabilities,
+    nativeHost: {
+      name: NATIVE_MESSAGING_HOST_NAME,
+      syncState: syncStatus.state,
+      policyState: syncStatus.nativeHostPolicyState ?? syncStatus.hostPolicyState,
+      lastError: syncStatus.lastError,
+      lastRequestId: syncStatus.requestId,
+      lastTrigger: syncStatus.trigger,
+      updatedAt: syncStatus.updatedAt
+    },
+    hostPolicy: {
+      defaultMode: policy.defaultMode,
+      entryCount: countHostPolicyEntries(policy),
+      ...hostPolicyEntryCounts
+    }
   };
 }
 
@@ -290,9 +377,11 @@ export async function syncHostPolicy(trigger = "manual") {
         requestedAt,
         completedAt,
         hostPolicyState: response.hostPolicy.state ?? "unknown",
+        nativeHostPolicyState: response.hostPolicy.state ?? "unknown",
         entryCount: countHostPolicyEntries(response.hostPolicy.policy)
       });
     } else {
+      const message = response?.error ?? response?.reason ?? "host_policy_unavailable";
       await writeHostPolicySyncStatus({
         state: "error",
         source: "native_host",
@@ -301,7 +390,8 @@ export async function syncHostPolicy(trigger = "manual") {
         requestedAt,
         completedAt,
         entryCount: countHostPolicyEntries(await readHostPolicy()),
-        error: response?.error ?? response?.reason ?? "host_policy_unavailable"
+        lastError: message,
+        error: message
       });
     }
 
@@ -318,6 +408,7 @@ export async function syncHostPolicy(trigger = "manual") {
       requestedAt,
       completedAt,
       entryCount: countHostPolicyEntries(await readHostPolicy()),
+      lastError: message,
       error: message
     });
 
@@ -392,36 +483,39 @@ async function handleRuntimeMessage(message) {
   }
 
   if (message?.type === MESSAGE_TYPES.HOST_POLICY_REQUEST) {
-    const { policy, syncStatus } = await readHostPolicySnapshot();
+    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
     return {
       type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
       requestId: message.requestId,
       policy,
-      syncStatus
+      syncStatus,
+      diagnostics
     };
   }
 
   if (message?.type === MESSAGE_TYPES.HOST_POLICY_SYNC_STATUS) {
-    const { policy, syncStatus } = await readHostPolicySnapshot();
+    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
     return {
       type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
       requestId: message.requestId,
       policy,
-      syncStatus
+      syncStatus,
+      diagnostics
     };
   }
 
   if (message?.type === MESSAGE_TYPES.HOST_POLICY_SYNC_REFRESH) {
     await syncHostPolicy("popup_manual");
-    const { policy, syncStatus } = await readHostPolicySnapshot();
+    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
     return {
       type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
       requestId: message.requestId,
       policy,
-      syncStatus
+      syncStatus,
+      diagnostics
     };
   }
 
@@ -441,6 +535,23 @@ async function handleRuntimeMessage(message) {
 
   return { ok: false, error: "unsupported_message" };
 }
+
+globalThis.skfiyChromeAdapterDiagnostics = Object.freeze({
+  readStatus(requestId = "extension-diagnostics") {
+    return handleRuntimeMessage({
+      type: MESSAGE_TYPES.HOST_POLICY_SYNC_STATUS,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId
+    });
+  },
+  refreshHostPolicy(requestId = "extension-diagnostics-refresh") {
+    return handleRuntimeMessage({
+      type: MESSAGE_TYPES.HOST_POLICY_SYNC_REFRESH,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId
+    });
+  }
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   void handleRuntimeMessage(message)

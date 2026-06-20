@@ -64,10 +64,19 @@ function createChromeMock(nativeResponses = []) {
   const postedMessages = [];
   const ports = [];
   const runtime = {
+    id: "abcdefghijklmnopabcdefghijklmnop",
     lastError: undefined,
     onMessage: createEvent(),
     onInstalled: createEvent(),
     onStartup: createEvent(),
+    getManifest: vi.fn(() => ({
+      manifest_version: 3,
+      name: "skfiy Chrome Adapter",
+      version: "0.0.1",
+      minimum_chrome_version: "116",
+      permissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
+      optional_host_permissions: ["http://*/*", "https://*/*"]
+    })),
     connectNative: vi.fn(() => {
       const onMessage = createEvent();
       const onDisconnect = createEvent();
@@ -155,6 +164,7 @@ async function waitForAssertion(assertion) {
 afterEach(() => {
   vi.restoreAllMocks();
   delete globalThis.chrome;
+  delete globalThis.skfiyChromeAdapterDiagnostics;
 });
 
 describe("Chrome extension background policy sync", () => {
@@ -199,8 +209,37 @@ describe("Chrome extension background policy sync", () => {
           updatedAt: "2026-06-20T10:00:00.000Z",
           requestId: "host-policy-sync-runtime_startup-1",
           hostPolicyState: "configured",
+          nativeHostPolicyState: "configured",
           entryCount: 3,
+          lastError: null,
           error: null
+        }),
+        diagnostics: expect.objectContaining({
+          extension: expect.objectContaining({
+            id: "abcdefghijklmnopabcdefghijklmnop",
+            name: "skfiy Chrome Adapter",
+            version: "0.0.1",
+            manifestVersion: 3
+          }),
+          capabilities: expect.objectContaining({
+            nativeMessaging: true,
+            scripting: true,
+            storage: true,
+            optionalHostPermissions: ["http://*/*", "https://*/*"]
+          }),
+          nativeHost: expect.objectContaining({
+            name: "com.sskift.skfiy",
+            syncState: "synced",
+            policyState: "configured",
+            lastError: null
+          }),
+          hostPolicy: expect.objectContaining({
+            defaultMode: "ask",
+            entryCount: 3,
+            allowedHosts: 1,
+            currentTurnAllowedHosts: 1,
+            blockedHosts: 1
+          })
         })
       });
     });
@@ -310,8 +349,27 @@ describe("Chrome extension background policy sync", () => {
           source: "native_host",
           trigger: "popup_manual",
           hostPolicyState: "configured",
+          nativeHostPolicyState: "configured",
           entryCount: 2,
+          lastError: null,
           error: null
+        }),
+        diagnostics: expect.objectContaining({
+          capabilities: expect.objectContaining({
+            nativeMessaging: true
+          }),
+          nativeHost: expect.objectContaining({
+            name: "com.sskift.skfiy",
+            syncState: "synced",
+            policyState: "configured",
+            lastError: null
+          }),
+          hostPolicy: expect.objectContaining({
+            entryCount: 2,
+            allowedHosts: 1,
+            currentTurnAllowedHosts: 1,
+            blockedHosts: 0
+          })
         })
       });
     });
@@ -396,6 +454,7 @@ describe("Chrome extension background policy sync", () => {
       state: "error",
       source: "native_host",
       trigger: "runtime_installed",
+      lastError: "Specified native messaging host not found.",
       error: "Specified native messaging host not found."
     });
   });
@@ -422,6 +481,7 @@ describe("Chrome extension background policy sync", () => {
       state: "error",
       source: "native_host",
       trigger: "popup_manual",
+      lastError: "host_policy_unavailable",
       error: "host_policy_unavailable"
     });
 
@@ -441,6 +501,7 @@ describe("Chrome extension background policy sync", () => {
       state: "synced",
       source: "native_host",
       trigger: "popup_manual",
+      nativeHostPolicyState: "configured",
       hostPolicyState: "configured",
       entryCount: 1
     });

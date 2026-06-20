@@ -469,6 +469,11 @@ async function runChromeNativeHostBridgeSmoke(options) {
       message: hostPolicyMessage
     });
     const hostPolicyResponse = readNativeHostResponse(policyRun.stdout);
+    const diagnostics = createNativeHostBridgeDiagnostics({
+      response,
+      hostPolicyResponse,
+      heartbeat
+    });
     const passed = code === 0
       && signal === null
       && policyRun.code === 0
@@ -484,7 +489,8 @@ async function runChromeNativeHostBridgeSmoke(options) {
       && heartbeat?.hostName === "com.sskift.skfiy"
       && heartbeat?.launchOrigin === launchOrigin
       && heartbeat?.messageType === "skfiy.page.observe"
-      && heartbeat?.requestId === requestId;
+      && heartbeat?.requestId === requestId
+      && hasNativeHostBridgeDiagnostics(diagnostics);
 
     return {
       result: passed ? "passed" : "failed",
@@ -496,6 +502,7 @@ async function runChromeNativeHostBridgeSmoke(options) {
       hostPolicyExitCode: policyRun.code,
       hostPolicySignal: policyRun.signal,
       hostPolicyResponse,
+      diagnostics,
       heartbeatPath,
       heartbeat,
       stderr: [stderr, policyRun.stderr].filter(Boolean).join("\n")
@@ -516,6 +523,7 @@ async function runChromeNativeHostBridgeSmoke(options) {
 async function runInstalledChromeExtensionSmoke(options) {
   const extensionPath = path.join(ROOT_DIR, "chrome-extension");
   const requestId = "chrome-smoke-installed-extension";
+  const statusRequestId = "chrome-smoke-extension-status";
   const homeDir = os.homedir();
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "skfiy-chrome-extension-smoke-"));
   const chromeUserDataDir = path.join(tempRoot, "chrome-profile");
@@ -540,6 +548,7 @@ async function runInstalledChromeExtensionSmoke(options) {
   let launchOrigin;
   let extensionPageUrl;
   let response;
+  let extensionStatus;
 
   try {
     await launchChromeWithExtension({
@@ -600,6 +609,8 @@ async function runInstalledChromeExtensionSmoke(options) {
 
     extensionPageUrl = secondWorker.worker.url;
     const cdp = await createCdpClient(secondWorker.worker.webSocketDebuggerUrl);
+    let heartbeat;
+    let heartbeatReadError;
 
     try {
       await cdp.send("Runtime.enable");
@@ -609,16 +620,21 @@ async function runInstalledChromeExtensionSmoke(options) {
         returnByValue: true
       });
       response = readInstalledExtensionNativeMessageEvaluation(evaluation);
+
+      try {
+        heartbeat = JSON.parse(await readFile(heartbeatPath, "utf8"));
+      } catch (error) {
+        heartbeatReadError = error instanceof Error ? error.message : String(error);
+      }
+
+      const statusEvaluation = await cdp.send("Runtime.evaluate", {
+        expression: createInstalledExtensionStatusExpression(statusRequestId),
+        awaitPromise: true,
+        returnByValue: true
+      });
+      extensionStatus = readInstalledExtensionNativeMessageEvaluation(statusEvaluation);
     } finally {
       cdp.close();
-    }
-
-    let heartbeat;
-    let heartbeatReadError;
-    try {
-      heartbeat = JSON.parse(await readFile(heartbeatPath, "utf8"));
-    } catch (error) {
-      heartbeatReadError = error instanceof Error ? error.message : String(error);
     }
     const passed = response?.type === "skfiy.native.response"
       && response?.requestId === requestId
@@ -626,7 +642,8 @@ async function runInstalledChromeExtensionSmoke(options) {
       && heartbeat?.hostName === "com.sskift.skfiy"
       && heartbeat?.launchOrigin === launchOrigin
       && heartbeat?.messageType === "skfiy.page.observe"
-      && heartbeat?.requestId === requestId;
+      && heartbeat?.requestId === requestId
+      && hasInstalledExtensionStatusDiagnostics(extensionStatus, extensionId);
 
     return {
       result: passed ? "passed" : "failed",
@@ -645,6 +662,7 @@ async function runInstalledChromeExtensionSmoke(options) {
       launchOrigin,
       firstWorkerUrl: loadedWorker.url,
       response,
+      extensionStatus,
       heartbeatPath,
       ...(heartbeat ? { heartbeat } : {}),
       ...(heartbeatReadError ? { heartbeatReadError } : {}),
@@ -662,6 +680,7 @@ async function runInstalledChromeExtensionSmoke(options) {
       ...(launchOrigin ? { launchOrigin } : {}),
       ...(extensionPageUrl ? { extensionPageUrl } : {}),
       ...(response ? { response } : {}),
+      ...(extensionStatus ? { extensionStatus } : {}),
       ...(manifestPath ? { manifestPath } : {}),
       heartbeatPath,
       error: error instanceof Error ? error.message : String(error)
@@ -1009,6 +1028,44 @@ function createInstalledExtensionNativeMessageExpression(requestId) {
   }))()`;
 }
 
+function createInstalledExtensionStatusExpression(requestId) {
+  return `(() => Promise.resolve()
+    .then(async () => {
+      if (globalThis.skfiyChromeAdapterDiagnostics?.refreshHostPolicy) {
+        return globalThis.skfiyChromeAdapterDiagnostics.refreshHostPolicy(${JSON.stringify(requestId)});
+      }
+
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          schemaVersion: 1,
+          type: "skfiy.host_policy.sync_refresh",
+          requestId: ${JSON.stringify(requestId)}
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({
+              type: "skfiy.host_policy.response",
+              schemaVersion: 1,
+              requestId: ${JSON.stringify(requestId)},
+              ok: false,
+              error: chrome.runtime.lastError.message
+            });
+            return;
+          }
+
+          resolve(response);
+        });
+      });
+    })
+    .then((response) => JSON.stringify(response))
+    .catch((error) => JSON.stringify({
+      type: "skfiy.host_policy.response",
+      schemaVersion: 1,
+      requestId: ${JSON.stringify(requestId)},
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    })))()`;
+}
+
 function readInstalledExtensionNativeMessageEvaluation(evaluation) {
   const value = evaluation.result?.value;
   if (typeof value !== "string") {
@@ -1033,6 +1090,98 @@ function readInstalledExtensionNativeMessageEvaluation(evaluation) {
       reason: error instanceof Error ? error.message : String(error)
     };
   }
+}
+
+function createNativeHostBridgeDiagnostics({
+  response,
+  hostPolicyResponse,
+  heartbeat
+}) {
+  const hostPolicy = hostPolicyResponse?.hostPolicy;
+
+  return {
+    schemaVersion: 1,
+    nativeHost: {
+      name: "com.sskift.skfiy",
+      heartbeatState: heartbeat?.hostName === "com.sskift.skfiy" ? "recorded" : "missing",
+      policyState: hostPolicy?.state ?? "unknown",
+      lastError: response?.error ?? response?.reason ?? hostPolicyResponse?.error ?? hostPolicyResponse?.reason ?? null
+    },
+    capabilities: {
+      nativeMessaging: true,
+      hostPolicySync: true,
+      connectionHeartbeat: true
+    },
+    hostPolicy: {
+      schemaVersion: hostPolicy?.schemaVersion ?? 1,
+      state: hostPolicy?.state ?? "unknown",
+      defaultMode: hostPolicy?.policy?.defaultMode ?? "ask",
+      entryCount: countChromeHostPolicyEntries(hostPolicy?.policy),
+      allowedHosts: Array.isArray(hostPolicy?.policy?.allowedHosts)
+        ? hostPolicy.policy.allowedHosts.length
+        : 0,
+      currentTurnAllowedHosts: Array.isArray(hostPolicy?.policy?.currentTurnAllowedHosts)
+        ? hostPolicy.policy.currentTurnAllowedHosts.length
+        : 0,
+      blockedHosts: Array.isArray(hostPolicy?.policy?.blockedHosts)
+        ? hostPolicy.policy.blockedHosts.length
+        : 0
+    }
+  };
+}
+
+function hasInstalledExtensionStatusDiagnostics(status, extensionId) {
+  return status
+    && typeof status === "object"
+    && status.type === "skfiy.host_policy.response"
+    && status.requestId === "chrome-smoke-extension-status"
+    && status.syncStatus?.state === "synced"
+    && status.syncStatus?.source === "native_host"
+    && status.syncStatus?.lastError === null
+    && (
+      status.syncStatus?.hostPolicyState === "default"
+      || status.syncStatus?.hostPolicyState === "configured"
+      || status.syncStatus?.hostPolicyState === "invalid"
+    )
+    && status.diagnostics?.extension?.id === extensionId
+    && status.diagnostics?.extension?.version === "0.0.1"
+    && status.diagnostics?.capabilities?.nativeMessaging === true
+    && status.diagnostics?.capabilities?.scripting === true
+    && status.diagnostics?.nativeHost?.name === "com.sskift.skfiy"
+    && status.diagnostics?.nativeHost?.lastError === null
+    && (
+      status.diagnostics?.nativeHost?.policyState === "default"
+      || status.diagnostics?.nativeHost?.policyState === "configured"
+      || status.diagnostics?.nativeHost?.policyState === "invalid"
+    )
+    && status.diagnostics?.hostPolicy?.defaultMode === "ask"
+    && Number.isInteger(status.diagnostics?.hostPolicy?.entryCount);
+}
+
+function hasNativeHostBridgeDiagnostics(diagnostics) {
+  return diagnostics
+    && typeof diagnostics === "object"
+    && diagnostics.nativeHost?.name === "com.sskift.skfiy"
+    && diagnostics.nativeHost?.heartbeatState === "recorded"
+    && diagnostics.nativeHost?.lastError === null
+    && (
+      diagnostics.nativeHost?.policyState === "default"
+      || diagnostics.nativeHost?.policyState === "configured"
+      || diagnostics.nativeHost?.policyState === "invalid"
+    )
+    && diagnostics.capabilities?.nativeMessaging === true
+    && diagnostics.capabilities?.hostPolicySync === true
+    && diagnostics.capabilities?.connectionHeartbeat === true
+    && diagnostics.hostPolicy?.defaultMode === "ask"
+    && Number.isInteger(diagnostics.hostPolicy?.entryCount);
+}
+
+function countChromeHostPolicyEntries(policy) {
+  return [
+    policy?.allowedHosts,
+    policy?.currentTurnAllowedHosts,
+    policy?.blockedHosts
+  ].reduce((count, entries) => count + (Array.isArray(entries) ? entries.length : 0), 0);
 }
 
 function runNativeHostFrame({ command, homeDir, message }) {

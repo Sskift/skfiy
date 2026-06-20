@@ -28,6 +28,10 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("/events");
     expect(source).toContain("/api/chrome-host-policy");
     expect(source).toContain("exerciseChromeHostPolicyApi");
+    expect(source).toContain("seedRuntimeSnapshotFixture");
+    expect(source).toContain("runtime-snapshot.json");
+    expect(source).toContain("createRuntimeSnapshotCoverage");
+    expect(source).toContain("runtimeSnapshotCoverage");
   });
 
   it("parses dashboard smoke options for a repeatable loopback product run", async () => {
@@ -80,12 +84,47 @@ describe("dashboard product smoke script", () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-dashboard-plan.mjs");
     const {
       PRODUCT_PATH,
-      classifyDashboardSmokeEvidence
+      classifyDashboardSmokeEvidence,
+      createRuntimeSnapshotCoverage
     } = await import(pathToFileURL(modulePath).href) as {
       PRODUCT_PATH: string;
       classifyDashboardSmokeEvidence: (input: Record<string, unknown>) => string;
+      createRuntimeSnapshotCoverage: (input: Record<string, unknown>) => Record<string, unknown>;
     };
-    const passedEvidence = {
+    const withRuntimeSnapshotCoverage = <T extends Record<string, unknown>>(evidence: T) => ({
+      ...evidence,
+      runtimeSnapshotCoverage: createRuntimeSnapshotCoverage(evidence)
+    });
+    const runtimeSnapshotFixture = {
+      productPath: "smoke:dashboard -> isolated HOME -> runtime-snapshot.json",
+      path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+      snapshot: {
+        schemaVersion: 1,
+        observedAt: "2026-06-20T00:00:00.000Z",
+        currentTurn: {
+          state: "approval_required",
+          command: "dashboard smoke runtime snapshot fixture",
+          targetApp: "Ghostty",
+          targetBundleId: "com.mitchellh.ghostty",
+          risk: "low",
+          plannerProvider: "Dashboard Smoke Fixture",
+          approvalRequired: true,
+          latestMessage: "Dashboard smoke runtime snapshot fixture is visible.",
+          source: "runtime-snapshot"
+        },
+        replay: {
+          state: "available",
+          outcome: "running",
+          screenshotCount: 1,
+          actionCount: 3,
+          verificationCount: 1,
+          timelineCount: 2,
+          latestMessage: "Dashboard smoke runtime snapshot fixture is visible.",
+          source: "runtime-snapshot"
+        }
+      }
+    };
+    const passedEvidence = withRuntimeSnapshotCoverage({
       cliPath: "/repo/dist/skfiy",
       runnerHasTmux: false,
       productPath: PRODUCT_PATH,
@@ -160,9 +199,9 @@ describe("dashboard product smoke script", () => {
               uptimeSeconds: 17
             },
             runtimeSnapshot: {
-              state: "missing",
+              state: "available",
               path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
-              reason: "Runtime snapshot has not been recorded yet."
+              observedAt: "2026-06-20T00:00:00.000Z"
             },
             desktopSession: {
               state: "blocked",
@@ -178,18 +217,8 @@ describe("dashboard product smoke script", () => {
             speechRecognition: "not-determined",
             finderAutomation: "unknown"
           },
-          currentTurn: {
-            state: "idle",
-            source: "runtime-snapshot",
-            path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
-            reason: "Runtime snapshot has not been recorded yet."
-          },
-          replay: {
-            state: "empty",
-            source: "runtime-snapshot",
-            path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
-            reason: "Runtime snapshot has not been recorded yet."
-          },
+          currentTurn: runtimeSnapshotFixture.snapshot.currentTurn,
+          replay: runtimeSnapshotFixture.snapshot.replay,
           smokeEvidence: {
             artifacts: [
               {
@@ -411,10 +440,45 @@ describe("dashboard product smoke script", () => {
           }
         }
       },
+      runtimeSnapshotFixture,
       tokenLeakDetected: false
-    };
+    });
 
     expect(classifyDashboardSmokeEvidence(passedEvidence)).toBe("passed");
+    expect(passedEvidence.runtimeSnapshotCoverage).toMatchObject({
+      result: "passed",
+      reason: "Seeded runtime snapshot currentTurn and replay are visible at /snapshot.json.",
+      path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+      observedAt: "2026-06-20T00:00:00.000Z",
+      currentTurnFields: expect.arrayContaining(["command", "targetApp", "source"]),
+      replayFields: expect.arrayContaining(["screenshotCount", "verificationCount", "source"])
+    });
+    expect(createRuntimeSnapshotCoverage({
+      ...passedEvidence,
+      runtimeSnapshotFixture: undefined
+    })).toMatchObject({
+      result: "skipped",
+      reason: "Runtime snapshot fixture was not seeded in the isolated HOME."
+    });
+    expect(createRuntimeSnapshotCoverage({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          currentTurn: {
+            ...passedEvidence.snapshotResponse.body.currentTurn,
+            command: "not the seeded fixture"
+          }
+        }
+      }
+    })).toMatchObject({
+      result: "failed",
+      reason: expect.stringContaining("currentTurn.command"),
+      failures: expect.arrayContaining([
+        "currentTurn.command does not match the seeded fixture"
+      ])
+    });
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       snapshotResponse: {
@@ -457,7 +521,7 @@ describe("dashboard product smoke script", () => {
           }
         }
       }
-    })).toBe("passed");
+    })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       snapshotResponse: {

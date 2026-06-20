@@ -214,6 +214,12 @@ function isPassingCommandEvidence(command, expected, cliPath) {
       && command.cleanup?.exited === true;
   }
 
+  if (expected.id === "status-json") {
+    return command.stdoutJson?.command === "status"
+      && hasStatusReadinessEvidence(command.stdoutJson?.readiness)
+      && hasMoneyRunStatusEvidence(command.stdoutJson?.moneyRun);
+  }
+
   if (expected.id === "chrome-status") {
     return command.stdoutJson?.command === "chrome status"
       && command.stdoutJson?.executesSystemMutation === false
@@ -259,6 +265,38 @@ function isBuiltCliPath(cliPath) {
 
   return path.basename(normalized) === "skfiy"
     && path.basename(path.dirname(normalized)) === "dist";
+}
+
+function hasStatusReadinessEvidence(readiness) {
+  const allowedStates = new Set(["ready", "needs-action", "unknown"]);
+  const checks = readiness?.checks;
+
+  return allowedStates.has(readiness?.state)
+    && typeof readiness?.ready === "boolean"
+    && Array.isArray(readiness?.blockers)
+    && hasReadinessCheck(checks?.runtime)
+    && hasReadinessCheck(checks?.dashboard)
+    && hasReadinessCheck(checks?.extension)
+    && hasReadinessCheck(checks?.moneyRun)
+    && checks.moneyRun.session === "money-run"
+    && checks.moneyRun.mutatesSession === false;
+}
+
+function hasReadinessCheck(check) {
+  const allowedStates = new Set(["ready", "needs-action", "unknown"]);
+
+  return allowedStates.has(check?.state)
+    && typeof check?.ready === "boolean"
+    && Array.isArray(check?.blockers);
+}
+
+function hasMoneyRunStatusEvidence(moneyRun) {
+  const allowedStates = new Set(["observing", "needs_attention", "blocked", "unknown"]);
+
+  return allowedStates.has(moneyRun?.state)
+    && moneyRun?.session === "money-run"
+    && moneyRun?.source === "tmux-read-only-probe"
+    && moneyRun?.mutatesSession === false;
 }
 
 function isIsolatedHomeDir(homeDir) {

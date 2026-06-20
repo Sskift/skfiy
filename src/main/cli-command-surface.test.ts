@@ -163,11 +163,15 @@ describe("CLI command surface", () => {
     });
     expect(createCliOutput(expectInvocation(["status", "--json"]), {
       generatedAt: "2026-06-20T00:00:00.000Z"
-    })).toEqual({
+    })).toMatchObject({
       schemaVersion: 1,
       command: "status",
       generatedAt: "2026-06-20T00:00:00.000Z",
       app: { state: "unknown" },
+      cli: {
+        state: "unknown",
+        path: "/repo/dist/skfiy"
+      },
       helper: { state: "unknown" },
       permissions: {
         screenRecording: "unknown",
@@ -183,7 +187,28 @@ describe("CLI command surface", () => {
         cliShimPath: "/repo/dist/skfiy",
         extensionIds: []
       },
-      dashboard: { state: "not-running" }
+      dashboard: { state: "not-running" },
+      moneyRun: {
+        state: "unknown",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      },
+      readiness: {
+        state: "needs-action",
+        ready: false,
+        checks: {
+          runtime: { state: "unknown", ready: false },
+          dashboard: { state: "needs-action", ready: false },
+          extension: { state: "unknown", ready: false },
+          moneyRun: {
+            state: "unknown",
+            ready: false,
+            session: "money-run",
+            mutatesSession: false
+          }
+        }
+      }
     });
 
     expect(createCliOutput(doctor, {
@@ -864,6 +889,7 @@ describe("CLI command surface", () => {
         statusInputs.push(input);
         return {
           app: { state: "installed", path: "/repo/dist/skfiy.app" },
+          cli: { state: "installed", path: "/repo/dist/skfiy" },
           helper: {
             state: "installed",
             path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
@@ -880,7 +906,12 @@ describe("CLI command surface", () => {
             frontmostBundleId: "com.apple.finder",
             controllable: true
           },
-          extension: { state: "unknown" },
+          extension: {
+            state: "connected",
+            bridge: "native-messaging",
+            liveConnection: "connected",
+            nativeHostState: "installed"
+          },
           nativeHost: {
             state: "installed",
             cliShimPath: "/repo/dist/skfiy",
@@ -889,6 +920,23 @@ describe("CLI command surface", () => {
           dashboard: {
             state: "running",
             url: "http://127.0.0.1:8787/"
+          },
+          moneyRun: {
+            state: "observing",
+            session: "money-run",
+            source: "tmux-read-only-probe",
+            mutatesSession: false,
+            summary: {
+              windowCount: 1,
+              paneCount: 1,
+              activePaneIds: ["%1"],
+              deadPaneIds: []
+            },
+            recommendation: {
+              action: "continue_observing",
+              reason: "money-run has 1 window, 1 pane, and no obvious block markers.",
+              mutatesSession: false
+            }
           }
         };
       },
@@ -910,6 +958,7 @@ describe("CLI command surface", () => {
       command: "status",
       generatedAt: "2026-06-20T00:00:00.000Z",
       app: { state: "installed" },
+      cli: { state: "installed" },
       helper: { state: "installed" },
       permissions: {
         screenRecording: "granted",
@@ -927,10 +976,103 @@ describe("CLI command surface", () => {
       },
       dashboard: {
         state: "running"
+      },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        mutatesSession: false
+      },
+      readiness: {
+        state: "ready",
+        ready: true,
+        checks: {
+          runtime: {
+            state: "ready",
+            ready: true,
+            appState: "installed",
+            cliState: "installed",
+            helperState: "installed",
+            desktopSessionState: "controllable"
+          },
+          dashboard: {
+            state: "ready",
+            ready: true,
+            dashboardState: "running"
+          },
+          extension: {
+            state: "ready",
+            ready: true,
+            extensionState: "connected",
+            nativeHostState: "installed",
+            liveConnection: "connected"
+          },
+          moneyRun: {
+            state: "ready",
+            ready: true,
+            session: "money-run",
+            moneyRunState: "observing",
+            mutatesSession: false
+          }
+        },
+        blockers: []
       }
     });
     expect(stdout.join("")).not.toContain("token=");
     expect(stderr).toEqual([]);
+  });
+
+  it("treats mutating money-run probes as a readiness blocker", async () => {
+    const stdout: string[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["status", "--json"],
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader: async () => ({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: {
+          state: "installed",
+          path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+        },
+        permissions: {
+          screenRecording: "granted",
+          accessibility: "granted",
+          microphone: "unknown",
+          speechRecognition: "unknown",
+          finderAutomation: "unknown"
+        },
+        desktopSession: { state: "controllable", controllable: true },
+        extension: { state: "unknown" },
+        nativeHost: { state: "unknown", extensionIds: [], cliShimPath: "/repo/dist/skfiy" },
+        dashboard: { state: "not-running" },
+        moneyRun: {
+          state: "observing",
+          session: "money-run",
+          source: "tmux-read-only-probe",
+          mutatesSession: true,
+          recommendation: {
+            action: "continue_observing",
+            reason: "unexpected mutating probe",
+            mutatesSession: false
+          }
+        }
+      }),
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: () => undefined }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join("")).readiness.checks.moneyRun).toMatchObject({
+      state: "needs-action",
+      ready: false,
+      mutatesSession: true,
+      blockers: [
+        {
+          code: "money-run-mutating-probe",
+          mutatesSession: true
+        }
+      ]
+    });
   });
 
   it("runs doctor diagnostics from status and signing probes", async () => {

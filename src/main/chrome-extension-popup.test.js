@@ -122,7 +122,43 @@ describe("Chrome extension popup policy sync status", () => {
           source: "native_host",
           updatedAt: "2026-06-20T10:00:00.000Z",
           entryCount: 3,
+          hostPolicyState: "configured",
+          nativeHostPolicyState: "configured",
+          lastError: null,
           error: null
+        },
+        diagnostics: {
+          schemaVersion: 1,
+          extension: {
+            id: "abcdefghijklmnopabcdefghijklmnop",
+            name: "skfiy Chrome Adapter",
+            version: "0.0.1",
+            manifestVersion: 3,
+            minimumChromeVersion: "116"
+          },
+          capabilities: {
+            activeTab: true,
+            downloads: true,
+            nativeMessaging: true,
+            scripting: true,
+            storage: true,
+            tabs: true,
+            optionalHostPermissions: ["http://*/*", "https://*/*"]
+          },
+          nativeHost: {
+            name: "com.sskift.skfiy",
+            syncState: "synced",
+            policyState: "configured",
+            lastError: null,
+            updatedAt: "2026-06-20T10:00:00.000Z"
+          },
+          hostPolicy: {
+            defaultMode: "ask",
+            entryCount: 3,
+            allowedHosts: 1,
+            currentTurnAllowedHosts: 1,
+            blockedHosts: 1
+          }
         }
       }
     });
@@ -132,8 +168,11 @@ describe("Chrome extension popup policy sync status", () => {
 
     await waitForAssertion(() => {
       expect(document.getElementById("connection-status").textContent).toBe("Synced with skfiy app");
+      expect(document.getElementById("extension-version").textContent).toBe("v0.0.1");
+      expect(document.getElementById("extension-capabilities").textContent).toContain("Native messaging");
       expect(document.getElementById("current-host").textContent).toBe("example.com");
       expect(document.getElementById("host-policy").textContent).toBe("Always allowed");
+      expect(document.getElementById("native-host-policy-state").textContent).toBe("Configured");
       expect(document.getElementById("policy-sync-state").textContent).toBe("Synced");
       expect(document.getElementById("policy-sync-source").textContent).toBe("Native host");
       expect(document.getElementById("policy-sync-entry-count").textContent).toBe("3");
@@ -168,7 +207,35 @@ describe("Chrome extension popup policy sync status", () => {
               source: "native_host",
               updatedAt: "2026-06-20T10:02:00.000Z",
               entryCount: 1,
+              hostPolicyState: "configured",
+              nativeHostPolicyState: "configured",
+              lastError: null,
               error: null
+            },
+            diagnostics: {
+              schemaVersion: 1,
+              extension: {
+                version: "0.0.1"
+              },
+              capabilities: {
+                nativeMessaging: true,
+                scripting: true,
+                tabs: true,
+                downloads: true
+              },
+              nativeHost: {
+                name: "com.sskift.skfiy",
+                syncState: "synced",
+                policyState: "configured",
+                lastError: null
+              },
+              hostPolicy: {
+                defaultMode: "ask",
+                entryCount: 1,
+                allowedHosts: 1,
+                currentTurnAllowedHosts: 0,
+                blockedHosts: 0
+              }
             }
           };
         }
@@ -184,7 +251,32 @@ describe("Chrome extension popup policy sync status", () => {
             source: "local_storage",
             updatedAt: null,
             entryCount: 0,
+            hostPolicyState: null,
+            nativeHostPolicyState: null,
+            lastError: null,
             error: null
+          },
+          diagnostics: {
+            schemaVersion: 1,
+            extension: {
+              version: "0.0.1"
+            },
+            capabilities: {
+              nativeMessaging: true
+            },
+            nativeHost: {
+              name: "com.sskift.skfiy",
+              syncState: "unknown",
+              policyState: null,
+              lastError: null
+            },
+            hostPolicy: {
+              defaultMode: "ask",
+              entryCount: 0,
+              allowedHosts: 0,
+              currentTurnAllowedHosts: 0,
+              blockedHosts: 0
+            }
           }
         };
       }
@@ -204,6 +296,7 @@ describe("Chrome extension popup policy sync status", () => {
         schemaVersion: 1
       }));
       expect(document.getElementById("host-policy").textContent).toBe("Always allowed");
+      expect(document.getElementById("native-host-policy-state").textContent).toBe("Configured");
       expect(document.getElementById("policy-sync-state").textContent).toBe("Synced");
       expect(document.getElementById("policy-sync-entry-count").textContent).toBe("1");
     });

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -10,6 +10,7 @@ import {
   classifyDashboardSmokeEvidence,
   createDashboardHelpText,
   createDefaultDashboardSmokeOptions,
+  createRuntimeSnapshotCoverage,
   parseDashboardSmokeArgs,
   writeDashboardSmokeEvidence
 } from "./smoke-dashboard-plan.mjs";
@@ -44,6 +45,8 @@ async function main() {
     eventsResponse: undefined,
     shellResponse: undefined,
     chromeHostPolicyApi: undefined,
+    runtimeSnapshotFixture: undefined,
+    runtimeSnapshotCoverage: undefined,
     tokenLeakDetected: false,
     result: "not-run"
   };
@@ -59,6 +62,7 @@ async function main() {
     });
     isolatedHomeDir = await mkdtemp(path.join(tmpdir(), "skfiy-dashboard-smoke-home-"));
     evidence.isolatedHomeDir = isolatedHomeDir;
+    evidence.runtimeSnapshotFixture = await seedRuntimeSnapshotFixture(isolatedHomeDir);
 
     const launched = await launchDashboardCli(options, {
       homeDir: isolatedHomeDir
@@ -94,6 +98,7 @@ async function main() {
       JSON.stringify(evidence.chromeHostPolicyApi),
       evidence.shellResponse?.body ?? ""
     ]);
+    evidence.runtimeSnapshotCoverage = createRuntimeSnapshotCoverage(evidence);
     evidence.result = classifyDashboardSmokeEvidence(evidence);
 
     if (options.requirePassed && evidence.result !== "passed") {
@@ -115,6 +120,10 @@ async function main() {
     }
     await smokeLock?.release();
 
+    if (!evidence.runtimeSnapshotCoverage) {
+      evidence.runtimeSnapshotCoverage = createRuntimeSnapshotCoverage(evidence);
+    }
+
     if (options.outputPath) {
       try {
         await writeDashboardSmokeEvidence(options.outputPath, evidence);
@@ -126,6 +135,58 @@ async function main() {
 
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
   }
+}
+
+async function seedRuntimeSnapshotFixture(homeDir) {
+  const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
+  const snapshot = createRuntimeSnapshotFixture(new Date().toISOString());
+
+  await mkdir(path.dirname(snapshotPath), { recursive: true });
+  await writeFile(snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`);
+
+  return {
+    productPath: "smoke:dashboard -> isolated HOME -> runtime-snapshot.json",
+    path: snapshotPath,
+    snapshot
+  };
+}
+
+function createRuntimeSnapshotStatePath(homeDir) {
+  return path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "skfiy",
+    "runtime-snapshot.json"
+  );
+}
+
+function createRuntimeSnapshotFixture(observedAt) {
+  return {
+    schemaVersion: 1,
+    observedAt,
+    currentTurn: {
+      state: "approval_required",
+      command: "dashboard smoke runtime snapshot fixture",
+      targetApp: "Ghostty",
+      targetBundleId: "com.mitchellh.ghostty",
+      risk: "low",
+      plannerProvider: "Dashboard Smoke Fixture",
+      approvalRequired: true,
+      latestMessage: "Dashboard smoke runtime snapshot fixture is visible.",
+      source: "runtime-snapshot"
+    },
+    replay: {
+      state: "available",
+      outcome: "running",
+      screenshotCount: 1,
+      actionCount: 3,
+      verificationCount: 1,
+      timelineCount: 2,
+      latestMessage: "Dashboard smoke runtime snapshot fixture is visible.",
+      source: "runtime-snapshot"
+    }
+  };
 }
 
 function assertDashboardSmokeReady(options) {

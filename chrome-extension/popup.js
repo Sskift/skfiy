@@ -75,6 +75,36 @@ function formatSource(source) {
   return source || "Unknown";
 }
 
+function formatPolicyState(state) {
+  switch (state) {
+    case "configured":
+      return "Configured";
+    case "default":
+      return "Default";
+    case "invalid":
+      return "Invalid";
+    default:
+      return "Unknown";
+  }
+}
+
+function formatCapabilities(capabilities) {
+  if (!capabilities || typeof capabilities !== "object") {
+    return "Unknown";
+  }
+
+  const labels = [
+    ["nativeMessaging", "Native messaging"],
+    ["scripting", "Scripting"],
+    ["tabs", "Tabs"],
+    ["downloads", "Downloads"]
+  ]
+    .filter(([key]) => capabilities[key] === true)
+    .map(([, label]) => label);
+
+  return labels.length > 0 ? labels.join(", ") : "None";
+}
+
 function formatUpdatedAt(updatedAt) {
   if (!updatedAt) {
     return "Never";
@@ -86,8 +116,18 @@ function formatUpdatedAt(updatedAt) {
   return date.toLocaleString();
 }
 
-function applySyncStatus(syncStatus) {
+function applySyncStatus(syncStatus, diagnostics) {
+  const nativeHost = diagnostics?.nativeHost ?? {};
+  const lastError = nativeHost.lastError ?? syncStatus?.lastError ?? syncStatus?.error;
+
+  document.getElementById("extension-version").textContent =
+    diagnostics?.extension?.version ? `v${diagnostics.extension.version}` : "Unknown";
+  document.getElementById("extension-capabilities").textContent =
+    formatCapabilities(diagnostics?.capabilities);
   document.getElementById("connection-status").textContent = formatConnection(syncStatus);
+  document.getElementById("native-host-policy-state").textContent = formatPolicyState(
+    nativeHost.policyState ?? syncStatus?.nativeHostPolicyState ?? syncStatus?.hostPolicyState
+  );
   document.getElementById("policy-sync-state").textContent = formatSyncState(syncStatus?.state);
   document.getElementById("policy-sync-source").textContent = formatSource(syncStatus?.source);
   document.getElementById("policy-sync-entry-count").textContent = String(syncStatus?.entryCount ?? 0);
@@ -95,10 +135,10 @@ function applySyncStatus(syncStatus) {
 
   const errorLabel = document.getElementById("policy-sync-error-label");
   const errorElement = document.getElementById("policy-sync-error");
-  if (syncStatus?.error) {
+  if (lastError) {
     errorLabel.hidden = false;
     errorElement.hidden = false;
-    errorElement.textContent = syncStatus.error;
+    errorElement.textContent = lastError;
   } else {
     errorLabel.hidden = true;
     errorElement.hidden = true;
@@ -127,7 +167,7 @@ async function renderPopup() {
 
   document.getElementById("current-host").textContent = host || "Unknown";
   document.getElementById("host-policy").textContent = labelForPolicy(policy, host);
-  applySyncStatus(snapshot?.syncStatus);
+  applySyncStatus(snapshot?.syncStatus, snapshot?.diagnostics);
 
   const pauseElement = document.getElementById("sensitive-pause");
   if (sensitivePause?.host === host) {
@@ -142,7 +182,7 @@ async function renderPopup() {
 async function refreshHostPolicy() {
   const button = document.getElementById("sync-policy-button");
   button.disabled = true;
-  applySyncStatus({ state: "syncing", source: "native_host", entryCount: 0 });
+  applySyncStatus({ state: "syncing", source: "native_host", entryCount: 0 }, undefined);
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -154,15 +194,16 @@ async function refreshHostPolicy() {
     };
 
     document.getElementById("host-policy").textContent = labelForPolicy(policy, host);
-    applySyncStatus(snapshot?.syncStatus);
+    applySyncStatus(snapshot?.syncStatus, snapshot?.diagnostics);
   } catch (error) {
     applySyncStatus({
       state: "error",
       source: "native_host",
       entryCount: 0,
       updatedAt: new Date().toISOString(),
+      lastError: error instanceof Error ? error.message : "Unable to refresh policy",
       error: error instanceof Error ? error.message : "Unable to refresh policy"
-    });
+    }, undefined);
   } finally {
     button.disabled = false;
   }
@@ -180,6 +221,7 @@ void renderPopup().catch((error) => {
     source: "local_storage",
     entryCount: 0,
     updatedAt: new Date().toISOString(),
+    lastError: error instanceof Error ? error.message : "Unable to read status",
     error: error instanceof Error ? error.message : "Unable to read status"
-  });
+  }, undefined);
 });
