@@ -64,6 +64,63 @@ afterEach(() => {
 });
 
 describe("Chrome extension content script", () => {
+  it("reports page control readiness and DOM action capabilities", async () => {
+    const mock = createChromeMock();
+    globalThis.chrome = mock.chrome;
+    document.title = "Work queue";
+    document.body.innerHTML = `
+      <main>
+        <form id="profile">
+          <label>Email <input id="email" name="email" value=""></label>
+          <button id="save">Save</button>
+        </form>
+        <a id="help" href="/help">Help</a>
+      </main>
+    `;
+
+    await importContentScript();
+    const listener = mock.listener();
+
+    const diagnostics = sendContentMessage(listener, {
+      type: "skfiy.page.diagnostics",
+      requestId: "page-control"
+    });
+
+    expect(diagnostics.keepChannelOpen).toBe(true);
+    expect(diagnostics.response).toMatchObject({
+      type: "skfiy.page.diagnostics_result",
+      requestId: "page-control",
+      session: {
+        state: "loaded",
+        pageSafety: {
+          state: "clear"
+        },
+        pageControl: {
+          state: "ready",
+          capabilities: {
+            diagnostics: true,
+            observe: true,
+            domActions: true,
+            click: true,
+            fill: true,
+            submit: true,
+            scroll: true,
+            screenshot: "background_required"
+          },
+          counts: {
+            interactiveElements: 3,
+            forms: 2,
+            fillableForms: 1,
+            sensitiveForms: 0
+          },
+          sensitivePause: {
+            active: false
+          }
+        }
+      }
+    });
+  });
+
   it("reports page-level sensitive risk and pauses unconfirmed destructive clicks", async () => {
     const mock = createChromeMock();
     globalThis.chrome = mock.chrome;

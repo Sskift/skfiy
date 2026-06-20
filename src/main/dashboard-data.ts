@@ -392,6 +392,49 @@ function createRecentSmokeEvidenceReadiness(
   };
 }
 
+function readDashboardFinderSmokeSummary(
+  artifacts: Array<Record<string, unknown>>
+): Record<string, unknown> | undefined {
+  const finderArtifact = artifacts.find((artifact) => artifact.target === "finder");
+
+  return readRecord(finderArtifact?.finder);
+}
+
+function isDashboardFinderDesktopPreflightBlocked(
+  finderSmoke: Record<string, unknown> | undefined
+): boolean {
+  const desktopPreflight = readRecord(finderSmoke?.desktopPreflight);
+  const reason = typeof desktopPreflight?.reason === "string" ? desktopPreflight.reason : "";
+
+  return desktopPreflight?.result === "blocked"
+    && (
+      desktopPreflight.controllable === false
+      || desktopPreflight.frontmostBundleId === "com.apple.loginwindow"
+      || desktopPreflight.mainDisplayAsleep === true
+      || /desktop session|loginwindow|display.*asleep|unlock/i.test(reason)
+    );
+}
+
+function hasDashboardFinderAutomationPermissionReason(
+  finderSmoke: Record<string, unknown> | undefined
+): boolean {
+  return Boolean(readDashboardFinderAutomationReason(finderSmoke));
+}
+
+function readDashboardFinderAutomationReason(
+  finderSmoke: Record<string, unknown> | undefined
+): string | undefined {
+  return [
+    readRecord(finderSmoke?.finderObservation)?.reason,
+    readRecord(finderSmoke?.finderSemanticObservation)?.reason,
+    readRecord(finderSmoke?.finderItemDragDrop)?.reason,
+    finderSmoke?.reason
+  ].find((reason): reason is string =>
+    typeof reason === "string"
+    && /(finder automation|automation permission|apple events?|not authorized to send apple events|not permitted to control finder|tcc)/i.test(reason)
+  );
+}
+
 function createDashboardAlerts({
   permissions,
   runtimeHealth,
@@ -411,6 +454,7 @@ function createDashboardAlerts({
   const nativeHost = readRecord(runtimeHealth.nativeHost);
   const runtimeSnapshot = readRecord(runtimeHealth.runtimeSnapshot);
   const releaseDrift = readRecord(dogfoodRelease.releaseDrift);
+  const finderSmoke = readDashboardFinderSmokeSummary(smokeEvidence.artifacts);
 
   if (permissions.screenRecording !== "granted") {
     alerts.push({
@@ -480,11 +524,39 @@ function createDashboardAlerts({
   }
 
   if (permissions.finderAutomation !== "granted") {
-    alerts.push({
-      code: "finder-automation-unknown",
-      severity: "info",
-      message: "Finder Automation has not been proven yet."
-    });
+    if (isDashboardFinderDesktopPreflightBlocked(finderSmoke)) {
+      const desktopPreflight = readRecord(finderSmoke?.desktopPreflight);
+      alerts.push({
+        code: "finder-automation-unproven",
+        severity: "info",
+        message: "Finder Automation has not been proven because the latest Finder smoke was blocked by desktop preflight.",
+        ...(typeof desktopPreflight?.reason === "string" ? { reason: desktopPreflight.reason } : {}),
+        ...(typeof desktopPreflight?.frontmostBundleId === "string"
+          ? { frontmostBundleId: desktopPreflight.frontmostBundleId }
+          : {}),
+        ...(typeof desktopPreflight?.mainDisplayAsleep === "boolean"
+          ? { mainDisplayAsleep: desktopPreflight.mainDisplayAsleep }
+          : {}),
+        ...(typeof desktopPreflight?.controllable === "boolean"
+          ? { controllable: desktopPreflight.controllable }
+          : {})
+      });
+    } else if (hasDashboardFinderAutomationPermissionReason(finderSmoke)) {
+      alerts.push({
+        code: "finder-automation-permission",
+        severity: "warning",
+        message: "Finder Automation appears blocked by macOS Automation permission.",
+        ...(readDashboardFinderAutomationReason(finderSmoke)
+          ? { reason: readDashboardFinderAutomationReason(finderSmoke) }
+          : {})
+      });
+    } else {
+      alerts.push({
+        code: "finder-automation-unknown",
+        severity: "info",
+        message: "Finder Automation has not been proven yet."
+      });
+    }
   }
 
   if (extension?.liveConnection === "stale" || readRecord(extension?.connection)?.state === "stale") {
@@ -1418,6 +1490,7 @@ function readLatestSmokeArtifacts(
       ...readSmokeArtifactNativeHostBridgeSummary(target, artifact),
       ...readSmokeArtifactInstalledExtensionSummary(target, artifact),
       ...readSmokeArtifactPageSafetySummary(target, artifact),
+      ...readSmokeArtifactFinderSummary(target, artifact),
       mtimeMs,
       ...(ageSeconds === undefined ? {} : {
         ageSeconds,
@@ -1529,6 +1602,131 @@ function readSmokeArtifactPageSafetySummary(
   }
 
   return { pageSafety };
+}
+
+function readSmokeArtifactFinderSummary(
+  target: string,
+  artifact: Record<string, unknown>
+): Record<string, unknown> {
+  if (target !== "finder") {
+    return {};
+  }
+
+  const desktopPreflight = createFinderDesktopPreflightSummary(
+    readRecord(artifact.desktopPreflight)
+  );
+  const finderObservation = createFinderSmokeProbeSummary(
+    readRecord(artifact.finderObservation),
+    ["result", "reason"],
+    ["accessibilityTrusted"]
+  );
+  const finderSemanticObservation = createFinderSmokeProbeSummary(
+    readRecord(artifact.finderSemanticObservation),
+    ["result", "reason"],
+    []
+  );
+  const finderItemDragDrop = createFinderSmokeProbeSummary(
+    readRecord(artifact.finderItemDragDrop),
+    ["result", "reason"],
+    []
+  );
+  const finder: Record<string, unknown> = {
+    result: typeof artifact.result === "string" ? artifact.result : "unknown",
+    source: "finder-smoke",
+    ...(desktopPreflight ? { desktopPreflight } : {}),
+    ...(finderObservation ? { finderObservation } : {}),
+    ...(finderSemanticObservation ? { finderSemanticObservation } : {}),
+    ...(finderItemDragDrop ? { finderItemDragDrop } : {})
+  };
+  const reason = readFinderSmokeReason([
+    desktopPreflight,
+    finderObservation,
+    finderSemanticObservation,
+    finderItemDragDrop
+  ]);
+
+  if (desktopPreflight?.result === "blocked") {
+    finder.blockedByDesktopPreflight = true;
+  }
+
+  if (reason) {
+    finder.reason = reason;
+  } else if (!desktopPreflight && !finderObservation && !finderSemanticObservation && !finderItemDragDrop) {
+    finder.reason = "Finder smoke artifact has not reported desktop preflight or Finder observation evidence yet.";
+  }
+
+  return { finder };
+}
+
+function createFinderSmokeProbeSummary(
+  probe: Record<string, unknown> | undefined,
+  stringFields: string[],
+  booleanFields: string[]
+): Record<string, unknown> | undefined {
+  if (!probe) {
+    return undefined;
+  }
+
+  const summary: Record<string, unknown> = {};
+
+  for (const field of stringFields) {
+    const value = probe[field];
+    if (typeof value === "string" && value.length > 0) {
+      summary[field] = value;
+    }
+  }
+
+  for (const field of booleanFields) {
+    const value = probe[field];
+    if (typeof value === "boolean") {
+      summary[field] = value;
+    }
+  }
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
+}
+
+function createFinderDesktopPreflightSummary(
+  desktopPreflight: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const summary = createFinderSmokeProbeSummary(
+    desktopPreflight,
+    ["result", "reason", "frontmostBundleId", "frontmostLocalizedName"],
+    ["mainDisplayAsleep", "controllable"]
+  );
+
+  if (!desktopPreflight) {
+    return summary;
+  }
+
+  const frontmost = readRecord(desktopPreflight.frontmost);
+  const display = readRecord(desktopPreflight.display);
+  const nestedSummary: Record<string, unknown> = {
+    ...summary
+  };
+
+  if (typeof frontmost?.bundleId === "string" && !nestedSummary.frontmostBundleId) {
+    nestedSummary.frontmostBundleId = frontmost.bundleId;
+  }
+  if (typeof frontmost?.localizedName === "string" && !nestedSummary.frontmostLocalizedName) {
+    nestedSummary.frontmostLocalizedName = frontmost.localizedName;
+  }
+  if (typeof frontmost?.processIdentifier === "number") {
+    nestedSummary.frontmostProcessIdentifier = frontmost.processIdentifier;
+  }
+  if (typeof display?.mainDisplayAsleep === "boolean" && !("mainDisplayAsleep" in nestedSummary)) {
+    nestedSummary.mainDisplayAsleep = display.mainDisplayAsleep;
+  }
+
+  return Object.keys(nestedSummary).length > 0 ? nestedSummary : undefined;
+}
+
+function readFinderSmokeReason(
+  probes: Array<Record<string, unknown> | undefined>
+): string | undefined {
+  return probes
+    .map((probe) => probe?.reason)
+    .find((reason): reason is string => typeof reason === "string" && reason.length > 0);
 }
 
 function createChromePageSafetyRunSummary(

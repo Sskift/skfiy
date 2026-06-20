@@ -186,6 +186,10 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("createChromePageSafetyRows(chromeArtifact)");
     expect(response.body).toContain("chrome page safety");
     expect(response.body).toContain("sensitive-form-prefill");
+    expect(response.body).toContain("createFinderSmokeRows(finderArtifact)");
+    expect(response.body).toContain("desktop preflight");
+    expect(response.body).toContain("frontmost bundle");
+    expect(response.body).toContain("finder observation");
     expect(response.body).toContain("data-chrome-policy-host-input");
     expect(response.body).toContain("data-chrome-policy-feedback");
     expect(response.body).toContain('createChromePolicyButton("refresh", "Refresh")');

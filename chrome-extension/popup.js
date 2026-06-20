@@ -283,6 +283,60 @@ function formatContentScriptSession(session) {
   }
 }
 
+function readPageControlDiagnostics(diagnostics) {
+  if (diagnostics?.currentTab?.pageControl && typeof diagnostics.currentTab.pageControl === "object") {
+    return diagnostics.currentTab.pageControl;
+  }
+  if (diagnostics?.session?.pageControl && typeof diagnostics.session.pageControl === "object") {
+    return diagnostics.session.pageControl;
+  }
+  const session = readPageSessionDiagnostics(diagnostics);
+  return session.pageControl && typeof session.pageControl === "object" ? session.pageControl : {};
+}
+
+function formatReadyControls(capabilities = {}) {
+  const labels = [
+    ["screenshot", "screenshot"],
+    ["domActions", "DOM actions"],
+    ["click", "click"],
+    ["fill", "fill"],
+    ["scroll", "scroll"]
+  ]
+    .filter(([key]) => capabilities[key] === true)
+    .map(([, label]) => label);
+
+  return labels.length > 0 ? labels.join(", ") : "no controls";
+}
+
+function formatPageControlReadiness(pageControl) {
+  const capabilities = pageControl?.capabilities && typeof pageControl.capabilities === "object"
+    ? pageControl.capabilities
+    : {};
+  const reason = pageControl?.reason ? `: ${pageControl.reason}` : "";
+
+  switch (pageControl?.state) {
+    case "ready":
+      return `Ready (${formatReadyControls(capabilities)})`;
+    case "sensitive-paused":
+      return `Paused${reason}`;
+    case "needs_confirmation":
+      return `Needs confirmation${reason}`;
+    case "blocked_by_chrome_host_permission":
+      return "Blocked by missing host permission";
+    case "blocked_by_host_policy":
+      return "Blocked by host policy";
+    case "content_script_not_loaded":
+    case "not_loaded":
+      return "Content script not loaded";
+    case "unavailable":
+      return reason ? `Unavailable${reason}` : "Unavailable";
+    default: {
+      const label = formatDiagnosticToken(pageControl?.state);
+      return reason ? `${label}${reason}` : label;
+    }
+  }
+}
+
 function applyPageDiagnostics(diagnostics, storedSensitivePause, host) {
   const session = readPageSessionDiagnostics(diagnostics);
   const pauseState = readSensitivePauseState(session, storedSensitivePause, host ?? diagnostics?.currentTab?.host);
@@ -331,6 +385,8 @@ function applySyncStatus(syncStatus, diagnostics) {
     formatHostPermission(currentTab.chromeHostPermission);
   document.getElementById("content-script-session").textContent =
     formatContentScriptSession(readPageSessionDiagnostics(diagnostics));
+  document.getElementById("page-control-readiness").textContent =
+    formatPageControlReadiness(readPageControlDiagnostics(diagnostics));
   applyPageDiagnostics(diagnostics, undefined, currentTab.host);
   document.getElementById("native-host-policy-state").textContent = formatPolicyState(
     nativeHost.policyState ?? syncStatus?.nativeHostPolicyState ?? syncStatus?.hostPolicyState

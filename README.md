@@ -15,8 +15,10 @@ the floating companion.
 ## Current Local Evidence
 
 Use the short git commit in local artifact file names. For the current machine,
-the Finder path may remain blocked until macOS grants Automation control of
-Finder to the compiled `skfiy.app`.
+the latest Finder smoke is currently blocked before Finder launch because the
+desktop session is at `com.apple.loginwindow`; older Finder evidence also shows
+that Finder item drag/drop still needs an unlocked, awake desktop to prove the
+compiled `skfiy.app` Automation path.
 
 - UI permission and pet drag smoke: passed,
   `.skfiy-smoke/ui-<commit>.json`.
@@ -34,13 +36,13 @@ Finder to the compiled `skfiy.app`.
   `.skfiy-smoke/voice-<commit>.json`.
 - Long-horizon `money-run` tmux supervision smoke: passed,
   `.skfiy-smoke/money-run-<commit>.json`.
-- Finder item drag/drop smoke: blocked by Finder Automation permission,
+- Finder item drag/drop smoke: blocked by desktop preflight on the latest run,
   `.skfiy-smoke/finder-<commit>.json`.
 
-The Finder blocker is separate from Screen Recording and Accessibility. The
-current blocked evidence says macOS Automation permission is required to read
-Finder item layout and semantic selection. Grant the compiled `skfiy.app`
-permission to control Finder, then rerun:
+The latest Finder blocker is separate from Screen Recording, Accessibility, and
+Finder Automation. If the artifact reports `com.apple.loginwindow`, unlock the
+Mac and keep the display awake first; if it then reports an Automation blocker,
+grant the compiled `skfiy.app` permission to control Finder and rerun:
 
 ```bash
 npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-<commit>.json
@@ -176,10 +178,12 @@ metadata, event-store contract, and matching descriptor in one token-free
 launcher response.
 Dashboard alerts now use stable blocker codes for locked `loginwindow` sessions,
 display sleep, missing TCC grants, stale Chrome extension heartbeats, stale smoke
-evidence, and release drift. The dashboard shell groups those alerts into
-Desktop session, Permissions, Chrome bridge, Smoke evidence, Release drift, and
-Runtime snapshot bands so operators see the failing domain before opening raw
-JSON.
+evidence, and release drift. The dashboard also reads the latest Finder smoke
+artifact so a desktop-preflight blocker such as `com.apple.loginwindow` is shown
+as `finder-automation-unproven` instead of being misread as a Finder Automation
+grant failure. The dashboard shell groups those alerts into Desktop session,
+Permissions, Chrome bridge, Smoke evidence, Release drift, and Runtime snapshot
+bands so operators see the failing domain before opening raw JSON.
 
 The Chrome smoke now also records `installedExtensionRun`; on this machine it is
 a known blocker because branded `Google Chrome` 146 no longer honors automated
@@ -198,6 +202,11 @@ MV3 adapter still checks Chrome's optional host permission before injecting the
 content script; missing permission returns a typed
 `chrome_host_permission_missing` blocker instead of silently requesting
 permission.
+The extension diagnostics now include `pageControl` readiness from both the
+content script and background service worker: active tab state, host policy,
+Chrome host permission, content-script loaded state, screenshot availability,
+DOM action availability, click/fill/submit/scroll capabilities, page safety, and
+sensitive pause.
 `smoke:chrome` now also requires `nativeHostBridgeRun.result: passed` from the
 packaged `dist/skfiy -> Chrome Native Messaging heartbeat` path before Chrome
 browser-control evidence can count as passed, and installed-extension evidence
@@ -219,11 +228,15 @@ Use `./dist/skfiy doctor --json --dashboard-url <url> --extension-id <id>`
 before real desktop tests. The doctor output includes a `preflight` block with
 the packaged app/helper/CLI paths, code-signature state, dashboard descriptor
 and Chrome host-policy API reachability, Chrome extension/native-host state, and
-the user-level Chrome host policy file path. `status`, `doctor`, and
-`chrome status` also expose `extension.capabilities.pageSafety` plus
-`extension.pageSafety` / `preflight.chrome.pageSafety` evidence so automation can
-verify the Native Messaging, ask-by-default host policy, and recent
-`skfiy.page.observe` heartbeat needed for Chrome page-safety.
+the user-level Chrome host policy file path. It also includes
+`preflight.finder.latestSmoke` and `preflight.finder.automation`, derived from
+the newest `.skfiy-smoke/finder*.json` artifact, so locked/asleep desktop
+preflight blockers are separated from real Automation permission blockers.
+`status`, `doctor`, and `chrome status` also expose
+`extension.capabilities.pageSafety` plus `extension.pageSafety` /
+`preflight.chrome.pageSafety` evidence so automation can verify the Native
+Messaging, ask-by-default host policy, and recent `skfiy.page.observe` heartbeat
+needed for Chrome page-safety.
 
 `plugins/skfiy/.mcp.json` points Codex at the installed `skfiy mcp serve
 --stdio` command. The Codex plugin is an adapter to the installed product, not a

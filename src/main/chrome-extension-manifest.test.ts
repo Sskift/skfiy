@@ -49,6 +49,7 @@ describe("Chrome extension adapter skeleton", () => {
     expect(background).toContain('"skfiy.page.observe"');
     expect(background).toContain('"skfiy.page.diagnostics"');
     expect(background).toContain("readCurrentTabDiagnostics");
+    expect(background).toContain("createPageControlReadiness");
     expect(background).toContain("chrome_host_permission_missing");
     expect(background).toContain('"skfiy.page.action"');
     expect(background).toContain('"skfiy.page.screenshot"');
@@ -76,6 +77,7 @@ describe("Chrome extension adapter skeleton", () => {
     expect(contentScript).toContain('"skfiy.page.observe"');
     expect(contentScript).toContain('"skfiy.page.diagnostics"');
     expect(contentScript).toContain("readContentScriptSession");
+    expect(contentScript).toContain("readPageControlReadiness");
     expect(contentScript).toContain('"skfiy.page.action"');
     expect(contentScript).toContain('"skfiy.page.sensitive_pause"');
     expect(contentScript).toContain("collectFormMetadata");
@@ -95,11 +97,13 @@ describe("Chrome extension adapter skeleton", () => {
     expect(popupHtml).toContain("Launch origin");
     expect(popupHtml).toContain("Host permission");
     expect(popupHtml).toContain("Page session");
+    expect(popupHtml).toContain("Page control");
     expect(popupHtml).toContain("Refresh host policy");
     expect(popupScript).toContain("Ask by default");
     expect(popupScript).toContain("formatBridgeState");
     expect(popupScript).toContain("formatLaunchOrigin");
     expect(popupScript).toContain("formatHostPermission");
+    expect(popupScript).toContain("formatPageControlReadiness");
     expect(popupScript).toContain("Sensitive content pause");
     expect(popupScript).toContain("HOST_POLICY_SYNC_STATUS");
     expect(popupScript).toContain("HOST_POLICY_SYNC_REFRESH");

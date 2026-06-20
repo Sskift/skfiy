@@ -451,6 +451,36 @@ describe("dashboard snapshot data", () => {
         result: "passed",
         productPath: "plugin scaffold -> staged marketplace install -> .mcp.json -> packaged skfiy CLI -> MCP stdio"
       }),
+      "/repo/.skfiy-smoke/finder-current.json": JSON.stringify({
+        result: "blocked",
+        productPath: "dist/skfiy.app -> Finder",
+        desktopPreflight: {
+          result: "blocked",
+          reason: "Desktop session is not controllable before target app launch: frontmostBundleId=com.apple.loginwindow",
+          frontmost: {
+            bundleId: "com.apple.loginwindow",
+            localizedName: "loginwindow",
+            processIdentifier: 591
+          },
+          display: {
+            mainDisplayAsleep: false
+          },
+          controllable: false
+        },
+        finderObservation: {
+          result: "blocked",
+          reason: "Skipped because desktop preflight is blocked.",
+          accessibilityTrusted: true
+        },
+        finderSemanticObservation: {
+          result: "skipped",
+          reason: "Desktop preflight blocked."
+        },
+        finderItemDragDrop: {
+          result: "skipped",
+          reason: "Desktop preflight blocked."
+        }
+      }),
       "/repo/docs/release-evidence/latest-alpha.json": JSON.stringify({
         schemaVersion: 1,
         appName: "skfiy",
@@ -598,6 +628,7 @@ describe("dashboard snapshot data", () => {
         "chrome-dashboard-native-bridge-postbuild.json",
         "cli-current.json",
         "codex-plugin-current.json",
+        "finder-current.json",
         "notes.txt"
       ]
     };
@@ -608,6 +639,7 @@ describe("dashboard snapshot data", () => {
       "/repo/.skfiy-smoke/chrome-dashboard-native-bridge-postbuild.json": Date.parse("2026-06-19T23:59:30.000Z"),
       "/repo/.skfiy-smoke/cli-current.json": Date.parse("2026-06-19T23:59:00.000Z"),
       "/repo/.skfiy-smoke/codex-plugin-current.json": Date.parse("2026-06-19T23:58:00.000Z"),
+      "/repo/.skfiy-smoke/finder-current.json": Date.parse("2026-06-19T23:57:00.000Z"),
       "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json": Date.parse("2026-06-19T23:59:10.000Z")
     };
     const tmuxCalls: string[] = [];
@@ -1069,10 +1101,56 @@ describe("dashboard snapshot data", () => {
         mtimeMs: Date.parse("2026-06-20T00:00:00.000Z"),
         ageSeconds: 0,
         stale: false
+      },
+      {
+        target: "finder",
+        result: "blocked",
+        path: "/repo/.skfiy-smoke/finder-current.json",
+        productPath: "dist/skfiy.app -> Finder",
+        finder: {
+          result: "blocked",
+          source: "finder-smoke",
+          desktopPreflight: {
+            result: "blocked",
+            reason: "Desktop session is not controllable before target app launch: frontmostBundleId=com.apple.loginwindow",
+            frontmostBundleId: "com.apple.loginwindow",
+            frontmostLocalizedName: "loginwindow",
+            frontmostProcessIdentifier: 591,
+            mainDisplayAsleep: false,
+            controllable: false
+          },
+          finderObservation: {
+            result: "blocked",
+            reason: "Skipped because desktop preflight is blocked.",
+            accessibilityTrusted: true
+          },
+          finderSemanticObservation: {
+            result: "skipped",
+            reason: "Desktop preflight blocked."
+          },
+          finderItemDragDrop: {
+            result: "skipped",
+            reason: "Desktop preflight blocked."
+          },
+          blockedByDesktopPreflight: true,
+          reason: "Desktop session is not controllable before target app launch: frontmostBundleId=com.apple.loginwindow"
+        },
+        mtimeMs: Date.parse("2026-06-19T23:57:00.000Z"),
+        ageSeconds: 180,
+        stale: false
       }
     ]);
     expect(snapshot.alerts).not.toContainEqual(expect.objectContaining({
       code: "smoke-evidence-stale"
+    }));
+    expect(snapshot.alerts).toContainEqual(expect.objectContaining({
+      code: "finder-automation-unproven",
+      severity: "info",
+      frontmostBundleId: "com.apple.loginwindow",
+      controllable: false
+    }));
+    expect(snapshot.alerts).not.toContainEqual(expect.objectContaining({
+      code: "finder-automation-unknown"
     }));
     expect(snapshot.alerts).toContainEqual({
       code: "release-artifact-older-than-head",

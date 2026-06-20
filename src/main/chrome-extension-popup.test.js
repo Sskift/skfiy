@@ -190,6 +190,17 @@ describe("Chrome extension popup policy sync status", () => {
               host: "example.com",
               title: "Example",
               sensitivePaused: false
+            },
+            pageControl: {
+              state: "ready",
+              capabilities: {
+                screenshot: true,
+                domActions: true,
+                click: true,
+                fill: true,
+                scroll: true
+              },
+              reason: "Current page is ready for Computer Use controls."
             }
           },
           session: {
@@ -200,6 +211,16 @@ describe("Chrome extension popup policy sync status", () => {
               host: "example.com",
               title: "Example",
               sensitivePaused: false
+            },
+            pageControl: {
+              state: "ready",
+              capabilities: {
+                screenshot: true,
+                domActions: true,
+                click: true,
+                fill: true,
+                scroll: true
+              }
             }
           },
           lastError: null
@@ -224,6 +245,8 @@ describe("Chrome extension popup policy sync status", () => {
       expect(document.getElementById("host-policy-reason").textContent).toBe("Host allowed");
       expect(document.getElementById("chrome-host-permission").textContent).toBe("Granted for https://example.com/*");
       expect(document.getElementById("content-script-session").textContent).toBe("Loaded");
+      expect(document.getElementById("page-control-readiness").textContent)
+        .toBe("Ready (screenshot, DOM actions, click, fill, scroll)");
       expect(document.getElementById("native-host-policy-state").textContent).toBe("Configured");
       expect(document.getElementById("policy-sync-state").textContent).toBe("Synced");
       expect(document.getElementById("policy-sync-source").textContent).toBe("Native host");
@@ -317,6 +340,14 @@ describe("Chrome extension popup policy sync status", () => {
               state: "blocked_by_chrome_host_permission",
               reason: "chrome_host_permission_missing",
               lastError: "Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run."
+            },
+            pageControl: {
+              state: "blocked_by_chrome_host_permission",
+              capabilities: {
+                screenshot: true,
+                domActions: false
+              },
+              reason: "Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run."
             }
           },
           session: {
@@ -326,6 +357,9 @@ describe("Chrome extension popup policy sync status", () => {
               state: "blocked_by_chrome_host_permission",
               reason: "chrome_host_permission_missing",
               lastError: "Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run."
+            },
+            pageControl: {
+              state: "blocked_by_chrome_host_permission"
             }
           },
           lastError: "Specified native messaging host not found."
@@ -346,6 +380,8 @@ describe("Chrome extension popup policy sync status", () => {
       expect(document.getElementById("chrome-host-permission").textContent)
         .toBe("Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run.");
       expect(document.getElementById("content-script-session").textContent)
+        .toBe("Blocked by missing host permission");
+      expect(document.getElementById("page-control-readiness").textContent)
         .toBe("Blocked by missing host permission");
       expect(document.getElementById("policy-sync-error").hidden).toBe(false);
       expect(document.getElementById("policy-sync-error").textContent)

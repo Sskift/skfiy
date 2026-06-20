@@ -123,6 +123,60 @@ function collectInteractiveElements() {
     }));
 }
 
+function readPageControlReadiness(
+  pageSafety = collectPageSafety(),
+  forms = collectFormMetadata(),
+  interactiveElements = collectInteractiveElements()
+) {
+  const sensitivePauseReason = document.documentElement.getAttribute("data-skfiy-sensitive-paused");
+  const sensitivePauseKind = document.documentElement.getAttribute("data-skfiy-sensitive-pause-kind");
+  const fillableForms = forms.filter((element) => ["input", "textarea", "select"].includes(element.tag));
+  const sensitiveForms = forms.filter((element) => element.sensitive);
+  const pageNeedsConfirmation = pageSafety.state === "needs_confirmation";
+  const state = sensitivePauseReason
+    ? "sensitive-paused"
+    : pageNeedsConfirmation
+      ? "needs_confirmation"
+      : "ready";
+
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    state,
+    reason: sensitivePauseReason
+      ?? (pageNeedsConfirmation
+        ? "Page safety requires confirmation before DOM actions."
+        : "Content script loaded and DOM controls are available."),
+    contentScript: {
+      state: "loaded",
+      diagnostics: true,
+      observe: true,
+      actions: true
+    },
+    capabilities: {
+      diagnostics: true,
+      observe: true,
+      domActions: true,
+      click: interactiveElements.length > 0,
+      fill: fillableForms.some((element) => !element.sensitive),
+      submit: Boolean(document.querySelector("form")),
+      scroll: true,
+      screenshot: "background_required"
+    },
+    counts: {
+      interactiveElements: interactiveElements.length,
+      forms: forms.length,
+      fillableForms: fillableForms.length,
+      sensitiveForms: sensitiveForms.length
+    },
+    pageSafety,
+    sensitivePause: {
+      active: Boolean(sensitivePauseReason),
+      reason: sensitivePauseReason,
+      kind: sensitivePauseKind
+    }
+  };
+}
+
 function selectorFor(element) {
   if (element.id) {
     return `#${CSS.escape(element.id)}`;
@@ -136,6 +190,8 @@ function selectorFor(element) {
 
 function capturePageSnapshot() {
   const safety = collectPageSafety();
+  const forms = collectFormMetadata();
+  const interactiveElements = collectInteractiveElements();
 
   return {
     schemaVersion: MESSAGE_SCHEMA_VERSION,
@@ -143,9 +199,10 @@ function capturePageSnapshot() {
     host: location.host,
     title: document.title,
     visibleText: textOf(document.body?.innerText).slice(0, 20000),
-    forms: collectFormMetadata(),
-    interactiveElements: collectInteractiveElements(),
-    safety
+    forms,
+    interactiveElements,
+    safety,
+    pageControl: readPageControlReadiness(safety, forms, interactiveElements)
   };
 }
 
@@ -153,6 +210,9 @@ function readContentScriptSession() {
   const sensitivePauseReason = document.documentElement.getAttribute("data-skfiy-sensitive-paused");
   const sensitivePauseKind = document.documentElement.getAttribute("data-skfiy-sensitive-pause-kind");
   const pageSafety = collectPageSafety();
+  const forms = collectFormMetadata();
+  const interactiveElements = collectInteractiveElements();
+  const pageControl = readPageControlReadiness(pageSafety, forms, interactiveElements);
 
   return {
     schemaVersion: MESSAGE_SCHEMA_VERSION,
@@ -164,6 +224,7 @@ function readContentScriptSession() {
     sensitivePauseReason,
     sensitivePauseKind,
     pageSafety,
+    pageControl,
     observedAt: new Date().toISOString()
   };
 }

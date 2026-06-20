@@ -1,6 +1,15 @@
-import { existsSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync
+} from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -24,6 +33,10 @@ function expectInvocation(argv: string[], rootDir = "/repo") {
   }
 
   return result.invocation;
+}
+
+function createTempRoot(): string {
+  return mkdtempSync(path.join(tmpdir(), "skfiy-cli-"));
 }
 
 describe("CLI command surface", () => {
@@ -2026,6 +2039,263 @@ describe("CLI command surface", () => {
     ]));
     expect(JSON.stringify(output)).not.toContain("token=");
     expect(stderr).toEqual([]);
+  });
+
+  it("surfaces latest Finder smoke desktop preflight blockers in status and doctor JSON", async () => {
+    const rootDir = createTempRoot();
+
+    try {
+      const smokeDir = path.join(rootDir, ".skfiy-smoke");
+      const oldArtifactPath = path.join(smokeDir, "finder-old.json");
+      const latestArtifactPath = path.join(smokeDir, "finder-current.json");
+      const desktopReason =
+        "Desktop session is not controllable before target app launch: frontmostBundleId=com.apple.loginwindow. Unlock the Mac and keep the display awake, then retry.";
+      const statusStdout: string[] = [];
+      const doctorStdout: string[] = [];
+      const stderr: string[] = [];
+      const createHealthyStatus = () => ({
+        app: { state: "installed", path: path.join(rootDir, "dist", "skfiy.app") },
+        cli: { state: "installed", path: path.join(rootDir, "dist", "skfiy") },
+        helper: {
+          state: "installed",
+          path: path.join(rootDir, "dist", "skfiy.app", "Contents", "MacOS", "skfiy-helper")
+        },
+        permissions: {
+          screenRecording: "granted",
+          accessibility: "granted",
+          microphone: "granted",
+          speechRecognition: "granted",
+          finderAutomation: "unknown"
+        },
+        desktopSession: {
+          state: "controllable",
+          controllable: true
+        },
+        extension: { state: "unknown" },
+        nativeHost: { state: "unknown" },
+        dashboard: { state: "not-running" }
+      });
+
+      mkdirSync(smokeDir, { recursive: true });
+      writeFileSync(oldArtifactPath, JSON.stringify({
+        target: "finder",
+        timestamp: "2026-06-19T00:00:00.000Z",
+        productPath: "old finder smoke",
+        result: "passed",
+        desktopPreflight: {
+          result: "passed",
+          controllable: true
+        },
+        finderObservation: {
+          result: "passed"
+        }
+      }), "utf8");
+      writeFileSync(latestArtifactPath, JSON.stringify({
+        target: "finder",
+        timestamp: "2026-06-20T00:00:00.000Z",
+        productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+        result: "blocked",
+        desktopPreflight: {
+          result: "blocked",
+          reason: desktopReason,
+          controllable: false,
+          frontmost: {
+            bundleId: "com.apple.loginwindow",
+            localizedName: "loginwindow",
+            processIdentifier: 591
+          },
+          display: {
+            mainDisplayAsleep: true
+          }
+        },
+        finderObservation: {
+          result: "blocked",
+          reason: desktopReason
+        },
+        finderSemanticObservation: {
+          result: "not-run"
+        },
+        finderItemDragDrop: {
+          result: "not-run"
+        }
+      }), "utf8");
+      utimesSync(oldArtifactPath, new Date("2026-06-19T00:00:00.000Z"), new Date("2026-06-19T00:00:00.000Z"));
+      utimesSync(latestArtifactPath, new Date("2026-06-20T00:00:00.000Z"), new Date("2026-06-20T00:00:00.000Z"));
+
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir,
+        homeDir: "/Users/tester",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        statusReader: async () => createHealthyStatus(),
+        stdout: { write: (chunk: string) => statusStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      await expect(runSkfiyCli({
+        argv: ["doctor", "--json"],
+        rootDir,
+        homeDir: "/Users/tester",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        statusReader: async () => createHealthyStatus(),
+        signatureReader: async () => ({ state: "valid" }),
+        stdout: { write: (chunk: string) => doctorStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const statusOutput = JSON.parse(statusStdout.join(""));
+      const doctorOutput = JSON.parse(doctorStdout.join(""));
+
+      expect(statusOutput.finder).toMatchObject({
+        automation: {
+          state: "unknown",
+          permissionState: "unknown",
+          evidence: "unproven"
+        },
+        latestSmoke: {
+          state: "blocked-by-desktop-preflight",
+          result: "blocked",
+          automationEvidence: "unproven",
+          path: latestArtifactPath,
+          desktopPreflight: {
+            result: "blocked",
+            reason: desktopReason,
+            controllable: false,
+            frontmostBundleId: "com.apple.loginwindow",
+            frontmostLocalizedName: "loginwindow",
+            frontmostProcessIdentifier: 591,
+            mainDisplayAsleep: true
+          },
+          finderObservation: {
+            result: "blocked",
+            reason: desktopReason
+          },
+          finderSemanticObservation: {
+            result: "not-run"
+          },
+          finderItemDragDrop: {
+            result: "not-run"
+          }
+        }
+      });
+      expect(statusOutput.finder.latestSmoke.path).not.toBe(oldArtifactPath);
+      expect(doctorOutput.preflight.finder).toMatchObject(statusOutput.finder);
+
+      const diagnostics = doctorOutput.diagnostics as Array<Record<string, unknown>>;
+      expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain("finder-automation-unproven");
+      expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("finder-automation-unknown");
+      expect(diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "finder-automation-unproven",
+          severity: "info",
+          message: expect.stringContaining("frontmostBundleId=com.apple.loginwindow"),
+          nextAction: expect.stringContaining("Wake and unlock the Mac")
+        })
+      ]));
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it("warns when latest Finder smoke indicates macOS Automation permission is blocking Finder", async () => {
+    const rootDir = createTempRoot();
+
+    try {
+      const smokeDir = path.join(rootDir, ".skfiy-smoke");
+      const artifactPath = path.join(smokeDir, "finder-permission.json");
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const permissionReason = "Not authorized to send Apple events to Finder.";
+
+      mkdirSync(smokeDir, { recursive: true });
+      writeFileSync(artifactPath, JSON.stringify({
+        target: "finder",
+        timestamp: "2026-06-20T00:00:00.000Z",
+        productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+        result: "blocked",
+        desktopPreflight: {
+          result: "passed",
+          controllable: true,
+          frontmost: {
+            bundleId: "com.apple.finder",
+            localizedName: "Finder"
+          },
+          display: {
+            mainDisplayAsleep: false
+          }
+        },
+        finderObservation: {
+          result: "blocked",
+          reason: permissionReason
+        }
+      }), "utf8");
+
+      await expect(runSkfiyCli({
+        argv: ["doctor", "--json"],
+        rootDir,
+        homeDir: "/Users/tester",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        statusReader: async () => ({
+          app: { state: "installed", path: path.join(rootDir, "dist", "skfiy.app") },
+          cli: { state: "installed", path: path.join(rootDir, "dist", "skfiy") },
+          helper: {
+            state: "installed",
+            path: path.join(rootDir, "dist", "skfiy.app", "Contents", "MacOS", "skfiy-helper")
+          },
+          permissions: {
+            screenRecording: "granted",
+            accessibility: "granted",
+            microphone: "granted",
+            speechRecognition: "granted",
+            finderAutomation: "unknown"
+          },
+          desktopSession: {
+            state: "controllable",
+            controllable: true
+          },
+          extension: { state: "unknown" },
+          nativeHost: { state: "unknown" },
+          dashboard: { state: "not-running" }
+        }),
+        signatureReader: async () => ({ state: "valid" }),
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const output = JSON.parse(stdout.join(""));
+      const diagnostics = output.diagnostics as Array<Record<string, unknown>>;
+
+      expect(output.preflight.finder).toMatchObject({
+        automation: {
+          state: "blocked-by-permission",
+          permissionState: "unknown",
+          evidence: "blocked"
+        },
+        latestSmoke: {
+          state: "blocked-by-permission",
+          result: "blocked",
+          automationEvidence: "blocked",
+          path: artifactPath,
+          finderObservation: {
+            result: "blocked",
+            reason: permissionReason
+          }
+        }
+      });
+      expect(diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "finder-automation-permission",
+          severity: "warning",
+          message: expect.stringContaining(permissionReason),
+          nextAction: expect.stringContaining("Privacy & Security > Automation")
+        })
+      ]));
+      expect(diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("finder-automation-unproven");
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
   });
 
   it("probes dashboard Chrome host policy API through concrete status collection", async () => {

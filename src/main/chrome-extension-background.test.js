@@ -391,11 +391,27 @@ describe("Chrome extension background policy sync", () => {
               state: "blocked_by_chrome_host_permission",
               reason: "chrome_host_permission_missing",
               lastError: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
+            }),
+            pageControl: expect.objectContaining({
+              state: "blocked_by_chrome_host_permission",
+              capabilities: expect.objectContaining({
+                screenshot: true,
+                domActions: false
+              }),
+              blockers: expect.arrayContaining([
+                expect.objectContaining({
+                  code: "blocked_by_chrome_host_permission",
+                  reason: "chrome_host_permission_missing"
+                })
+              ])
             })
           }),
           session: expect.objectContaining({
             state: "blocked_by_chrome_host_permission",
-            host: "allowed.example"
+            host: "allowed.example",
+            pageControl: expect.objectContaining({
+              state: "blocked_by_chrome_host_permission"
+            })
           })
         })
       }));
@@ -423,6 +439,30 @@ describe("Chrome extension background policy sync", () => {
         title: "Dashboard",
         sensitivePaused: false,
         sensitivePauseReason: null,
+        pageControl: {
+          state: "ready",
+          capabilities: {
+            diagnostics: true,
+            observe: true,
+            domActions: true,
+            click: true,
+            fill: true,
+            scroll: true,
+            screenshot: "background_required"
+          },
+          counts: {
+            interactiveElements: 4,
+            forms: 1,
+            fillableForms: 1,
+            sensitiveForms: 0
+          },
+          pageSafety: {
+            state: "clear"
+          },
+          sensitivePause: {
+            active: false
+          }
+        },
         observedAt: "2026-06-20T10:07:00.000Z"
       }
     });
@@ -453,11 +493,32 @@ describe("Chrome extension background policy sync", () => {
               state: "loaded",
               title: "Dashboard",
               sensitivePaused: false
+            }),
+            pageControl: expect.objectContaining({
+              state: "ready",
+              capabilities: expect.objectContaining({
+                screenshot: true,
+                domActions: true,
+                click: true,
+                fill: true,
+                scroll: true
+              }),
+              counts: expect.objectContaining({
+                interactiveElements: 4,
+                forms: 1
+              })
             })
           }),
           session: expect.objectContaining({
             state: "loaded",
-            host: "allowed.example"
+            host: "allowed.example",
+            pageControl: expect.objectContaining({
+              state: "ready",
+              capabilities: expect.objectContaining({
+                screenshot: true,
+                domActions: true
+              })
+            })
           })
         })
       }));

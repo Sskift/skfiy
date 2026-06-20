@@ -367,8 +367,107 @@ function readNativeHostConnectionState(syncStatus) {
   }
 }
 
+function createPageControlReadiness(capabilities, currentTab) {
+  const contentScript = currentTab?.contentScript ?? {};
+  const contentControl = contentScript.pageControl && typeof contentScript.pageControl === "object"
+    ? contentScript.pageControl
+    : {};
+  const contentCapabilities = contentControl.capabilities && typeof contentControl.capabilities === "object"
+    ? contentControl.capabilities
+    : {};
+  const activeTabAvailable = currentTab?.state === "available" && Number.isInteger(currentTab?.tabId);
+  const hostPolicyAllowed = currentTab?.hostPolicy?.decision === "allowed";
+  const hostPermissionReady = ["granted", "not_applicable"].includes(currentTab?.chromeHostPermission?.state);
+  const contentScriptLoaded = contentScript.state === "loaded";
+  const screenshotAvailable = activeTabAvailable
+    && hostPolicyAllowed
+    && capabilities?.activeTab === true
+    && capabilities?.tabs === true;
+  const domActionsAvailable = hostPolicyAllowed && hostPermissionReady && contentScriptLoaded
+    && contentCapabilities.domActions !== false;
+  const blockers = [];
+
+  if (!activeTabAvailable) {
+    blockers.push({
+      code: "active_tab_unavailable",
+      message: currentTab?.lastError ?? "Active Chrome tab is unavailable."
+    });
+  }
+  if (activeTabAvailable && !hostPolicyAllowed) {
+    blockers.push({
+      code: "blocked_by_host_policy",
+      reason: currentTab?.hostPolicy?.reason ?? "host_policy_blocked",
+      message: "Host policy has not allowed this page."
+    });
+  }
+  if (hostPolicyAllowed && !hostPermissionReady) {
+    blockers.push({
+      code: "blocked_by_chrome_host_permission",
+      reason: currentTab?.chromeHostPermission?.reason ?? "chrome_host_permission_unavailable",
+      message: currentTab?.chromeHostPermission?.message
+        ?? currentTab?.chromeHostPermission?.lastError
+        ?? "Chrome host permission is not ready for this page."
+    });
+  }
+  if (hostPolicyAllowed && hostPermissionReady && !contentScriptLoaded) {
+    blockers.push({
+      code: contentScript.reason ?? "content_script_not_loaded",
+      message: contentScript.lastError ?? "Content script diagnostics are not loaded."
+    });
+  }
+
+  const state = blockers[0]?.code === "active_tab_unavailable"
+    ? "unavailable"
+    : blockers[0]?.code
+        ? blockers[0].code
+        : contentControl.state === "sensitive-paused" || contentControl.state === "needs_confirmation"
+          ? contentControl.state
+          : "ready";
+
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    state,
+    reason: blockers[0]?.message ?? contentControl.reason ?? "Current page is ready for Computer Use controls.",
+    activeTab: {
+      state: activeTabAvailable ? "available" : "unavailable",
+      tabId: currentTab?.tabId ?? null,
+      windowId: currentTab?.windowId ?? null,
+      host: currentTab?.host ?? ""
+    },
+    contentScript: {
+      state: contentScript.state ?? "not_queried",
+      reason: contentScript.reason ?? null,
+      lastError: contentScript.lastError ?? null
+    },
+    capabilities: {
+      diagnostics: contentScriptLoaded,
+      observe: domActionsAvailable && contentCapabilities.observe !== false,
+      domActions: domActionsAvailable,
+      click: domActionsAvailable && contentCapabilities.click !== false,
+      fill: domActionsAvailable && contentCapabilities.fill === true,
+      submit: domActionsAvailable && contentCapabilities.submit === true,
+      scroll: domActionsAvailable && contentCapabilities.scroll !== false,
+      screenshot: screenshotAvailable,
+      downloads: capabilities?.downloads === true
+    },
+    blockers,
+    pageSafety: contentControl.pageSafety ?? contentScript.pageSafety ?? null,
+    sensitivePause: contentControl.sensitivePause ?? {
+      active: contentScript.sensitivePaused === true,
+      reason: contentScript.sensitivePauseReason ?? null,
+      kind: contentScript.sensitivePauseKind ?? null
+    },
+    counts: contentControl.counts ?? null,
+    observedAt: contentScript.observedAt ?? null
+  };
+}
+
 function createDiagnostics(policy, syncStatus, currentTab) {
   const extension = readExtensionDiagnostics();
+  const pageControl = createPageControlReadiness(extension.capabilities, currentTab);
+  const currentTabWithPageControl = currentTab
+    ? { ...currentTab, pageControl }
+    : currentTab;
   const nativeHostLastError = syncStatus.lastError ?? syncStatus.error ?? null;
   const hostPolicyEntryCounts = {
     allowedHosts: Array.isArray(policy.allowedHosts) ? policy.allowedHosts.length : 0,
@@ -411,11 +510,12 @@ function createDiagnostics(policy, syncStatus, currentTab) {
       entryCount: countHostPolicyEntries(policy),
       ...hostPolicyEntryCounts
     },
-    currentTab,
+    currentTab: currentTabWithPageControl,
     session: {
       state: currentTab?.contentScript?.state ?? "not_queried",
       contentScript: currentTab?.contentScript ?? null,
-      host: currentTab?.host ?? null
+      host: currentTab?.host ?? null,
+      pageControl
     },
     lastError: nativeHostLastError
       ?? currentTab?.chromeHostPermission?.lastError
