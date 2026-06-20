@@ -145,9 +145,42 @@ function markSensitivePause(reason, action) {
   };
 }
 
+function elementByText(text) {
+  const wanted = textOf(text).toLowerCase();
+  if (!wanted) {
+    return null;
+  }
+
+  return Array.from(document.querySelectorAll("a, button, input, textarea, select, [role], [tabindex]"))
+    .filter(isVisible)
+    .find((element) => accessibleNameFor(element).toLowerCase().includes(wanted)) ?? null;
+}
+
+function elementByRole(role, name = "") {
+  const wantedRole = textOf(role).toLowerCase();
+  const wantedName = textOf(name).toLowerCase();
+  if (!wantedRole) {
+    return null;
+  }
+
+  return Array.from(document.querySelectorAll("a, button, input, textarea, select, [role], [tabindex]"))
+    .filter(isVisible)
+    .find((element) => {
+      const roleMatches = roleFor(element).toLowerCase() === wantedRole;
+      const nameMatches = !wantedName || accessibleNameFor(element).toLowerCase().includes(wantedName);
+      return roleMatches && nameMatches;
+    }) ?? null;
+}
+
 function elementForAction(action) {
   if (action.selector) {
     return document.querySelector(action.selector);
+  }
+  if (action.text) {
+    return elementByText(action.text);
+  }
+  if (action.role) {
+    return elementByRole(action.role, action.name);
   }
   return null;
 }
@@ -180,6 +213,18 @@ function runPageAction(action) {
   if (action.kind === "click" && element) {
     element.click();
     return { result: "passed", action: "click" };
+  }
+
+  if (action.kind === "submit" && element && action.confirmed === true) {
+    const form = element.matches?.("form") ? element : element.closest?.("form");
+    if (form?.requestSubmit) {
+      form.requestSubmit();
+    } else if (form?.submit) {
+      form.submit();
+    } else {
+      element.click();
+    }
+    return { result: "passed", action: "submit" };
   }
 
   if (action.kind === "scroll") {

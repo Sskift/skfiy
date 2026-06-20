@@ -60,6 +60,9 @@ describe("Chrome extension adapter skeleton", () => {
     expect(contentScript).toContain("collectFormMetadata");
     expect(contentScript).toContain("SENSITIVE_FIELD_PATTERNS");
     expect(contentScript).toContain("data-skfiy-sensitive-paused");
+    expect(contentScript).toContain("elementByText");
+    expect(contentScript).toContain("elementByRole");
+    expect(contentScript).toContain('action.kind === "submit"');
 
     expect(popupHtml).toContain("skfiy Chrome Adapter");
     expect(popupScript).toContain("Ask by default");

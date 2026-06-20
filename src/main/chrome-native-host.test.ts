@@ -286,8 +286,81 @@ describe("Chrome Native Messaging bridge runtime", () => {
       schemaVersion: 1,
       type: "skfiy.page.observe",
       requestId: "request-dispatch",
-      payload: { currentTab: true }
+      payload: {
+        currentTab: true,
+        mode: "current_page",
+        include: ["title", "url", "visible_text", "forms", "interactive_elements"]
+      }
     }]);
+  });
+
+  it("validates browser action schema before dispatching native bridge messages", async () => {
+    const dispatched: unknown[] = [];
+
+    await expect(handleChromeNativeBridgeMessage(
+      {
+        schemaVersion: 1,
+        type: "skfiy.page.action",
+        requestId: "safe-text-click",
+        payload: {
+          action: {
+            kind: "click",
+            text: "Continue"
+          }
+        }
+      },
+      {
+        payloadByteLength: 256,
+        policy: { state: "allowed" },
+        dispatch: async (message) => {
+          dispatched.push(message);
+          return { result: "accepted" };
+        }
+      }
+    )).resolves.toEqual({
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "safe-text-click",
+      result: "accepted"
+    });
+
+    expect(dispatched).toEqual([{
+      schemaVersion: 1,
+      type: "skfiy.page.action",
+      requestId: "safe-text-click",
+      payload: {
+        action: {
+          kind: "click",
+          text: "Continue"
+        }
+      }
+    }]);
+
+    await expect(handleChromeNativeBridgeMessage(
+      {
+        schemaVersion: 1,
+        type: "skfiy.page.action",
+        requestId: "unsafe-password",
+        payload: {
+          action: {
+            kind: "fill",
+            selector: "#password",
+            value: "hunter2"
+          }
+        }
+      },
+      {
+        payloadByteLength: 256,
+        policy: { state: "allowed" },
+        dispatch: async () => ({ result: "unreachable" })
+      }
+    )).resolves.toEqual({
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "unsafe-password",
+      result: "blocked",
+      reason: "sensitive_form_action"
+    });
   });
 
   it("runs a framed native messaging host loop without line-oriented stdout", async () => {

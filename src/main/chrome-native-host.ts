@@ -1,6 +1,7 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { normalizeChromeBrowserMessage } from "./chrome-browser-action-schema.js";
 
 export const CHROME_NATIVE_HOST_NAME = "com.sskift.skfiy";
 export const CHROME_NATIVE_MESSAGE_SCHEMA_VERSION = 1;
@@ -365,11 +366,20 @@ export async function handleChromeNativeBridgeMessage(
     });
   }
 
+  const browserMessage = normalizeChromeBrowserMessage(normalized.message);
+  if (!browserMessage.ok) {
+    return createNativeBridgeResponse({
+      requestId: normalized.message.requestId,
+      result: browserMessage.result,
+      reason: browserMessage.reason
+    });
+  }
+
   try {
     return createNativeBridgeResponse({
       requestId: normalized.message.requestId,
       result: "accepted",
-      ...(await input.dispatch(normalized.message))
+      ...(await input.dispatch(browserMessage.message))
     });
   } catch (error) {
     return createNativeBridgeResponse({

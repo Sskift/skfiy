@@ -1,0 +1,186 @@
+export const CHROME_BROWSER_OBSERVE_TYPE = "skfiy.page.observe";
+export const CHROME_BROWSER_ACTION_TYPE = "skfiy.page.action";
+
+export interface ChromeBrowserMessage {
+  schemaVersion: 1;
+  type: string;
+  requestId: string;
+  payload?: unknown;
+}
+
+export type ChromeBrowserMessageNormalization =
+  | {
+      ok: true;
+      message: ChromeBrowserMessage;
+    }
+  | {
+      ok: false;
+      result: "invalid" | "blocked";
+      reason: string;
+    };
+
+const DEFAULT_OBSERVE_PAYLOAD = {
+  mode: "current_page",
+  include: ["title", "url", "visible_text", "forms", "interactive_elements"]
+};
+
+const SENSITIVE_FIELD_PATTERNS = [
+  /password/i,
+  /passcode/i,
+  /otp/i,
+  /two[-_\s]?factor/i,
+  /credit[-_\s]?card/i,
+  /card[-_\s]?number/i,
+  /security[-_\s]?code/i,
+  /\bcvv\b/i,
+  /token/i,
+  /secret/i,
+  /api[-_\s]?key/i
+];
+
+export function normalizeChromeBrowserMessage(
+  message: ChromeBrowserMessage
+): ChromeBrowserMessageNormalization {
+  if (message.type === CHROME_BROWSER_OBSERVE_TYPE) {
+    return {
+      ok: true,
+      message: {
+        schemaVersion: 1,
+        type: CHROME_BROWSER_OBSERVE_TYPE,
+        requestId: message.requestId,
+        payload: normalizeObservePayload(message.payload)
+      }
+    };
+  }
+
+  if (message.type === CHROME_BROWSER_ACTION_TYPE) {
+    return normalizePageActionMessage(message);
+  }
+
+  return {
+    ok: true,
+    message
+  };
+}
+
+function normalizeObservePayload(payload: unknown): Record<string, unknown> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {
+      ...DEFAULT_OBSERVE_PAYLOAD,
+      include: [...DEFAULT_OBSERVE_PAYLOAD.include]
+    };
+  }
+
+  return {
+    ...DEFAULT_OBSERVE_PAYLOAD,
+    ...payload,
+    include: Array.isArray((payload as Record<string, unknown>).include)
+      ? [...(payload as Record<string, unknown>).include as unknown[]]
+      : [...DEFAULT_OBSERVE_PAYLOAD.include]
+  };
+}
+
+function normalizePageActionMessage(
+  message: ChromeBrowserMessage
+): ChromeBrowserMessageNormalization {
+  const payload = readRecord(message.payload);
+  const action = readRecord(payload?.action);
+
+  if (!action) {
+    return {
+      ok: false,
+      result: "invalid",
+      reason: "missing_action"
+    };
+  }
+
+  const kind = typeof action.kind === "string" ? action.kind : "";
+
+  if (kind === "navigate") {
+    if (typeof action.url !== "string" || action.url.length === 0) {
+      return { ok: false, result: "invalid", reason: "missing_navigation_url" };
+    }
+    if (!isSafeNavigationUrl(action.url)) {
+      return { ok: false, result: "blocked", reason: "unsafe_navigation_url" };
+    }
+  } else if (kind === "click") {
+    if (!hasActionTarget(action)) {
+      return { ok: false, result: "invalid", reason: "missing_action_target" };
+    }
+  } else if (kind === "fill") {
+    if (!hasActionTarget(action)) {
+      return { ok: false, result: "invalid", reason: "missing_action_target" };
+    }
+    if (looksSensitive(action)) {
+      return { ok: false, result: "blocked", reason: "sensitive_form_action" };
+    }
+  } else if (kind === "scroll") {
+    if (typeof action.deltaX !== "number" && typeof action.deltaY !== "number") {
+      return { ok: false, result: "invalid", reason: "missing_scroll_delta" };
+    }
+  } else if (kind === "submit") {
+    if (action.confirmed !== true) {
+      return {
+        ok: false,
+        result: "blocked",
+        reason: "form_submission_requires_confirmation"
+      };
+    }
+    if (!hasActionTarget(action)) {
+      return { ok: false, result: "invalid", reason: "missing_action_target" };
+    }
+  } else {
+    return {
+      ok: false,
+      result: "invalid",
+      reason: "unsupported_action_kind"
+    };
+  }
+
+  return {
+    ok: true,
+    message: {
+      schemaVersion: 1,
+      type: CHROME_BROWSER_ACTION_TYPE,
+      requestId: message.requestId,
+      payload: {
+        action: { ...action }
+      }
+    }
+  };
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function hasActionTarget(action: Record<string, unknown>): boolean {
+  return ["selector", "text", "role"].some((key) =>
+    typeof action[key] === "string" && (action[key] as string).trim().length > 0
+  );
+}
+
+function isSafeNavigationUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "file:";
+  } catch {
+    return false;
+  }
+}
+
+function looksSensitive(action: Record<string, unknown>): boolean {
+  const haystack = [
+    action.selector,
+    action.text,
+    action.role,
+    action.name,
+    action.value
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+
+  return SENSITIVE_FIELD_PATTERNS.some((pattern) => pattern.test(haystack));
+}

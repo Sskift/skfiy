@@ -400,6 +400,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - scroll
     - screenshot page
     - read downloads status
+    - partial: `src/main/chrome-browser-action-schema.ts` now normalizes `skfiy.page.observe` and validates `skfiy.page.action` before Native Messaging dispatch; safe actions currently cover navigate, click by selector/text/role, fill, scroll, and confirmed submit, while unsafe navigation URLs, sensitive fills, incomplete targets, and unconfirmed submits are blocked before extension dispatch; `chrome-extension/content-script.js` now resolves action targets by selector, accessible text, or role/name and can execute confirmed form submit; page screenshot and downloads status schema remain pending
   - [ ] Add host policy
     - ask per host by default
     - allow current turn
@@ -410,6 +411,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - pause on password/payment/OTP/security/account-deletion/content-exfiltration cues
     - confirm before submitting forms with external side effects
     - confirm before file upload/download path exposure
+    - partial: Native bridge action validation blocks sensitive fill fields/values and unconfirmed submit actions before dispatch; content-script still keeps page-local sensitive pause behavior for fill/click targets; payment/OTP/account-deletion page-level cues, file upload/download path exposure, and replay evidence remain pending
   - [ ] Add smoke tests
     - extension connection status
     - current signed-in tab observation without navigation

@@ -122,11 +122,16 @@ The first structured message names are stable strings, not a complete schema:
 Every native-bound message carries a request id, schema version, and bounded
 payload. `src/main/chrome-native-host.ts` now encodes/decodes Chrome's
 little-endian length-prefixed JSON frames, rejects malformed or oversized
-messages, and honors an injectable app-policy block before dispatch. The
-background service worker unwraps `skfiy.native.message`, waits for
-`port.onMessage`, and returns the native-host response to the caller. Persistent
-app-policy storage, live app-runtime routing, and end-to-end extension smoke
-evidence remain future work.
+messages, honors an injectable app-policy block, and runs browser-action schema
+validation before dispatch. `src/main/chrome-browser-action-schema.ts`
+normalizes observe messages and validates safe navigate, click selector/text/role,
+fill, scroll, and confirmed submit actions. Unsafe navigation URLs, sensitive
+form fills, incomplete targets, and unconfirmed submits are blocked before the
+extension sees them. The background service worker unwraps
+`skfiy.native.message`, waits for `port.onMessage`, and returns the native-host
+response to the caller. Persistent app-policy storage, live app-runtime routing,
+page screenshot/download status actions, and end-to-end extension smoke evidence
+remain future work.
 
 ## Sensitive Content Pause
 
