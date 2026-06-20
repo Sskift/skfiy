@@ -102,7 +102,8 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || snapshot.runtimeHealth.dashboard.pid <= 0
     || !Number.isFinite(snapshot?.runtimeHealth?.dashboard?.uptimeSeconds)
     || snapshot.runtimeHealth.dashboard.uptimeSeconds < 0
-    || !snapshot?.permissions
+    || !hasPermissionEvidence(snapshot?.permissions)
+    || !hasDesktopSessionEvidence(snapshot?.runtimeHealth?.desktopSession)
     || !snapshot?.currentTurn
     || !snapshot?.replay
     || !Array.isArray(snapshot?.smokeEvidence?.artifacts)
@@ -210,4 +211,22 @@ function isMatchingDashboardUrl(url, bind) {
 
 function sameBind(left, right) {
   return left?.host === right?.host && left?.port === right?.port;
+}
+
+function hasPermissionEvidence(permissions) {
+  const required = [
+    "screenRecording",
+    "accessibility",
+    "microphone",
+    "speechRecognition"
+  ];
+
+  return required.every((permission) =>
+    typeof permissions?.[permission] === "string"
+    && permissions[permission] !== "unknown"
+  );
+}
+
+function hasDesktopSessionEvidence(desktopSession) {
+  return desktopSession?.state === "controllable" || desktopSession?.state === "blocked";
 }

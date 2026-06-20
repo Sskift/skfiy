@@ -224,6 +224,20 @@ describe("dashboard snapshot data", () => {
           state: "valid",
           appPath,
           requirement: 'designated => identifier "com.sskift.skfiy"'
+        }),
+        permissions: () => ({
+          screenRecording: { granted: true, status: "authorized" },
+          accessibility: { granted: true, status: "authorized" },
+          microphone: { granted: true, status: "authorized" },
+          speechRecognition: { granted: false, status: "notDetermined" }
+        }),
+        desktopSession: () => ({
+          state: "blocked",
+          controllable: false,
+          frontmostBundleId: "com.apple.loginwindow",
+          frontmostLocalizedName: "loginwindow",
+          frontmostProcessIdentifier: 591,
+          mainDisplayAsleep: false
         })
       }
     });
@@ -257,7 +271,22 @@ describe("dashboard snapshot data", () => {
         url: descriptor.url,
         pid: 4242,
         uptimeSeconds: 17
+      },
+      desktopSession: {
+        state: "blocked",
+        controllable: false,
+        frontmostBundleId: "com.apple.loginwindow",
+        frontmostLocalizedName: "loginwindow",
+        frontmostProcessIdentifier: 591,
+        mainDisplayAsleep: false
       }
+    });
+    expect(snapshot.permissions).toEqual({
+      screenRecording: "granted",
+      accessibility: "granted",
+      microphone: "granted",
+      speechRecognition: "not-determined",
+      finderAutomation: "unknown"
     });
     expect(snapshot.smokeEvidence.artifacts).toEqual([
       {

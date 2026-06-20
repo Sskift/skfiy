@@ -127,10 +127,20 @@ describe("dashboard product smoke script", () => {
               url: "http://127.0.0.1:51234/",
               pid: 4242,
               uptimeSeconds: 17
+            },
+            desktopSession: {
+              state: "blocked",
+              controllable: false,
+              frontmostBundleId: "com.apple.loginwindow",
+              mainDisplayAsleep: false
             }
           },
           permissions: {
-            screenRecording: "unknown"
+            screenRecording: "granted",
+            accessibility: "granted",
+            microphone: "granted",
+            speechRecognition: "not-determined",
+            finderAutomation: "unknown"
           },
           currentTurn: { state: "idle" },
           replay: { state: "empty" },
@@ -214,6 +224,37 @@ describe("dashboard product smoke script", () => {
               signing: {
                 state: "unknown"
               }
+            }
+          }
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          permissions: {
+            screenRecording: "unknown",
+            accessibility: "unknown",
+            microphone: "unknown",
+            speechRecognition: "unknown",
+            finderAutomation: "unknown"
+          }
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          runtimeHealth: {
+            ...passedEvidence.snapshotResponse.body.runtimeHealth,
+            desktopSession: {
+              state: "unknown"
             }
           }
         }

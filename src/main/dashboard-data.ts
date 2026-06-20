@@ -23,6 +23,8 @@ export interface DashboardWorkspaceIo {
   pid?: () => number;
   uptimeSeconds?: () => number;
   codeSignature?: (appPath: string) => Record<string, unknown>;
+  permissions?: (helperPath: string) => Record<string, unknown>;
+  desktopSession?: (helperPath: string) => Record<string, unknown>;
 }
 
 export interface DashboardWorkspaceSnapshotInput {
@@ -132,10 +134,8 @@ export function createDashboardWorkspaceSnapshot({
       nativeHost: {
         state: "unknown"
       },
-      desktopSession: {
-        state: "unknown"
-      },
-      permissions: createUnknownPermissions()
+      desktopSession: readWorkspaceDesktopSession(helperPath, helperInstalled, io),
+      permissions: readWorkspacePermissions(helperPath, helperInstalled, io)
     },
     smokeEvidence: {
       artifacts: readLatestSmokeArtifacts(rootDir, io)
@@ -317,7 +317,9 @@ function createDefaultDashboardWorkspaceIo(): DashboardWorkspaceIo {
     stat: (targetPath) => fs.statSync(targetPath),
     pid: () => process.pid,
     uptimeSeconds: () => Math.max(0, Math.round(process.uptime())),
-    codeSignature: readCodeSignatureSync
+    codeSignature: readCodeSignatureSync,
+    permissions: readHelperPermissionsSync,
+    desktopSession: readHelperDesktopSessionSync
   };
 }
 
@@ -355,6 +357,70 @@ function readWorkspaceCodeSignature(
     appPath,
     reason: "No code signature probe is configured."
   };
+}
+
+function readWorkspacePermissions(
+  helperPath: string,
+  helperInstalled: boolean,
+  io: DashboardWorkspaceIo
+): Record<string, unknown> {
+  if (!helperInstalled) {
+    return {
+      ...createUnknownPermissions(),
+      reason: `skfiy helper is missing at ${helperPath}.`
+    };
+  }
+
+  try {
+    const permissions = io.permissions?.(helperPath);
+    if (!permissions) {
+      return {
+        ...createUnknownPermissions(),
+        reason: "No permission probe is configured."
+      };
+    }
+
+    return createPermissionStates(permissions);
+  } catch (error) {
+    return {
+      ...createUnknownPermissions(),
+      reason: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+function readWorkspaceDesktopSession(
+  helperPath: string,
+  helperInstalled: boolean,
+  io: DashboardWorkspaceIo
+): Record<string, unknown> {
+  if (!helperInstalled) {
+    return {
+      state: "unknown",
+      reason: `skfiy helper is missing at ${helperPath}.`
+    };
+  }
+
+  try {
+    const desktopSession = io.desktopSession?.(helperPath);
+    if (!desktopSession) {
+      return {
+        state: "unknown",
+        reason: "No desktop session probe is configured."
+      };
+    }
+
+    const status = cloneRecord(desktopSession);
+    return {
+      ...status,
+      state: readDesktopSessionState(status)
+    };
+  } catch (error) {
+    return {
+      state: "unknown",
+      reason: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 
 function readCodeSignatureSync(appPath: string): Record<string, unknown> {
@@ -401,6 +467,124 @@ function readCodeSignatureSync(appPath: string): Record<string, unknown> {
       ? {}
       : { reason: "Designated requirement does not include com.sskift.skfiy." })
   };
+}
+
+function readHelperPermissionsSync(helperPath: string): Record<string, unknown> {
+  return readHelperJsonSync(helperPath, ["permissions-status"], "permissions-status");
+}
+
+function readHelperDesktopSessionSync(helperPath: string): Record<string, unknown> {
+  return readHelperJsonSync(helperPath, ["desktop-session-status"], "desktop-session-status");
+}
+
+function readHelperJsonSync(
+  helperPath: string,
+  args: string[],
+  commandName: string
+): Record<string, unknown> {
+  const result = spawnSync(helperPath, args, {
+    encoding: "utf8"
+  });
+
+  if (result.status !== 0) {
+    throw new Error(
+      `Desktop helper command failed (${commandName}) with exit code ${result.status ?? "unknown"}: ${readSpawnMessage(result, "No error output.")}`
+    );
+  }
+
+  const text = `${result.stdout ?? ""}`.trim();
+  let payload: unknown;
+
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error(`Desktop helper returned invalid JSON for ${commandName}: ${text || "(empty stdout)"}`);
+  }
+
+  return readRecord(unwrapHelperPayload(payload, commandName)) ?? {};
+}
+
+function unwrapHelperPayload(payload: unknown, commandName: string): unknown {
+  const record = readRecord(payload);
+  if (!record || typeof record.ok !== "boolean") {
+    return payload;
+  }
+
+  const isEnvelope = "data" in record || "error" in record || typeof record.command === "string";
+  if (!isEnvelope) {
+    return payload;
+  }
+
+  if (!record.ok) {
+    throw new Error(readHelperErrorMessage(record) ?? `Helper reported ${commandName} failed.`);
+  }
+
+  if (!("data" in record)) {
+    throw new Error(`Desktop helper returned invalid JSON for ${commandName}: expected data in successful envelope.`);
+  }
+
+  return record.data;
+}
+
+function readHelperErrorMessage(record: Record<string, unknown>): string | undefined {
+  const error = readRecord(record.error);
+
+  if (typeof error?.message === "string") {
+    return error.message;
+  }
+
+  return typeof record.message === "string" ? record.message : undefined;
+}
+
+function createPermissionStates(permissions: Record<string, unknown>): Record<string, string> {
+  return {
+    screenRecording: readPermissionState(permissions.screenRecording),
+    accessibility: readPermissionState(permissions.accessibility),
+    microphone: readPermissionState(permissions.microphone),
+    speechRecognition: readPermissionState(permissions.speechRecognition),
+    finderAutomation: readPermissionState(permissions.finderAutomation)
+  };
+}
+
+function readPermissionState(value: unknown): string {
+  const record = readRecord(value);
+  const state = record ? record.state ?? readNativePermissionStatus(record) : value;
+  const knownStates = new Set(["granted", "denied", "not-determined", "unknown"]);
+
+  return typeof state === "string" && knownStates.has(state) ? state : "unknown";
+}
+
+function readNativePermissionStatus(record: Record<string, unknown>): string {
+  switch (record.status) {
+    case "authorized":
+      return "granted";
+    case "notDetermined":
+      return "not-determined";
+    case "denied":
+    case "restricted":
+    case "notAuthorized":
+      return "denied";
+    case "unknown":
+      return "unknown";
+    default:
+      return record.granted === true ? "granted" : "unknown";
+  }
+}
+
+function readDesktopSessionState(status: Record<string, unknown>): string {
+  if (
+    status.state === "controllable"
+    || status.state === "blocked"
+    || status.state === "unknown"
+  ) {
+    return status.state;
+  }
+
+  if (status.controllable === true) {
+    return "controllable";
+  }
+
+  return status.controllable === false ? "blocked" : "unknown";
 }
 
 function readSpawnMessage(
