@@ -197,6 +197,7 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("Codex loads installed plugins from `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`");
     expect(longPlan).toContain("build a `skfiy` Codex plugin scaffold only after the binary runtime is stable");
     expect(longPlan).toContain("skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|codex-plugin|finder|voice|money-run>");
+    expect(longPlan).toContain("skfiy commands --json");
     expect(longPlan).toContain("plugin-installed MCP smoke can start the packaged `skfiy` binary");
     expect(longPlan).toContain("OpenClaw-style dashboard");
     expect(longPlan).toContain("single compiled product entry");
@@ -212,6 +213,7 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("sessions, cron, exec approvals, config, MCP server status, logs, updates, and live tool activity");
     expect(dashboardPlan).toContain("Binary and CLI Product Contract");
     expect(dashboardPlan).toContain("same compiled product identity");
+    expect(dashboardPlan).toContain("skfiy commands --json");
     expect(dashboardPlan).toContain("Codex Plugin Install and Marketplace Notes");
     expect(dashboardPlan).toContain("Codex plugin commands verified locally: `codex plugin add`, `codex plugin list`, `codex plugin remove`, and `codex plugin marketplace`");
     expect(dashboardPlan).toContain("smoke:codex-plugin");
@@ -255,6 +257,7 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("bounded approval/stop/action/verification/screenshot/timeline summaries");
     expect(longPlan).toContain("CLI command matrix smoke");
     expect(longPlan).toContain("smoke:cli:basic");
+    expect(longPlan).toContain("commands --json");
     expect(longPlan).toContain("fresh Native Messaging heartbeat file");
     expect(longPlan).toContain("nativeHostBridgeRun.result: passed");
     expect(longPlan).toContain("dist/skfiy -> Chrome Native Messaging heartbeat");

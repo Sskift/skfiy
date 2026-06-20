@@ -108,6 +108,7 @@ export interface DashboardSnapshot {
   generatedAt: string;
   descriptor: DashboardDescriptor;
   runtimeHealth: Record<string, unknown>;
+  operatorReadiness: Record<string, unknown>;
   permissions: Record<string, unknown>;
   currentTurn: Record<string, unknown>;
   replay: Record<string, unknown>;
@@ -145,6 +146,14 @@ export function createDashboardSnapshot({
     nativeHost: readRecord(status.nativeHost) ?? { state: "unknown" },
     desktopSession: readRecord(status.desktopSession) ?? { state: "unknown" }
   };
+  const packageInfo = readRecord(status.package);
+  const cli = readRecord(status.cli);
+  if (packageInfo) {
+    runtimeHealth.package = packageInfo;
+  }
+  if (cli) {
+    runtimeHealth.cli = cli;
+  }
   if (runtimeSnapshot) {
     runtimeHealth.runtimeSnapshot = runtimeSnapshot;
   }
@@ -154,6 +163,10 @@ export function createDashboardSnapshot({
     generatedAt,
     descriptor,
     runtimeHealth,
+    operatorReadiness: createOperatorReadiness({
+      runtimeHealth,
+      smokeEvidence
+    }),
     permissions,
     currentTurn: cloneRecord(currentTurn),
     replay: cloneRecord(replay),
@@ -217,6 +230,11 @@ export function createDashboardWorkspaceSnapshot({
         pid: readWorkspacePid(io),
         uptimeSeconds: readWorkspaceUptimeSeconds(io)
       },
+      package: packageInfo,
+      cli: {
+        state: cliInstalled ? "installed" : "missing",
+        path: cliPath
+      },
       extension: createWorkspaceChromeExtensionStatus(nativeHost, extensionConnection, hostPolicy),
       nativeHost,
       desktopSession: readWorkspaceDesktopSession(helperPath, helperInstalled, io),
@@ -232,16 +250,143 @@ export function createDashboardWorkspaceSnapshot({
     longHorizon: readWorkspaceLongHorizon(io)
   });
 
+  return snapshot;
+}
+
+function createOperatorReadiness({
+  runtimeHealth,
+  smokeEvidence
+}: {
+  runtimeHealth: Record<string, unknown>;
+  smokeEvidence: {
+    artifacts: Array<Record<string, unknown>>;
+  };
+}): Record<string, unknown> {
+  const commandSurface = createCommandSurfaceReadiness(readRecord(runtimeHealth.cli));
+  const extensionReadiness = createExtensionReadiness(
+    readRecord(runtimeHealth.extension),
+    readRecord(runtimeHealth.nativeHost)
+  );
+  const packagedBinary = createPackagedBinaryReadiness(runtimeHealth);
+  const recentSmokeEvidence = createRecentSmokeEvidenceReadiness(smokeEvidence.artifacts);
+  const checks = [
+    commandSurface,
+    extensionReadiness,
+    packagedBinary,
+    recentSmokeEvidence
+  ];
+  const state = checks.every((check) => check.state === "ready")
+    ? "ready"
+    : checks.some((check) => check.state === "blocked")
+      ? "blocked"
+      : "needs-evidence";
+
   return {
-    ...snapshot,
-    runtimeHealth: {
-      package: packageInfo,
-      ...snapshot.runtimeHealth,
-      cli: {
-        state: cliInstalled ? "installed" : "missing",
-        path: cliPath
-      }
-    }
+    state,
+    commandSurface,
+    extensionReadiness,
+    packagedBinary,
+    recentSmokeEvidence
+  };
+}
+
+function createCommandSurfaceReadiness(
+  cli: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (cli?.state === "installed") {
+    return {
+      state: "ready",
+      ...(typeof cli.path === "string" ? { path: cli.path } : {}),
+      reason: "Packaged CLI command surface is available."
+    };
+  }
+
+  return {
+    state: "blocked",
+    ...(typeof cli?.path === "string" ? { path: cli.path } : {}),
+    reason: "Packaged CLI command surface is missing."
+  };
+}
+
+function createExtensionReadiness(
+  extension: Record<string, unknown> | undefined,
+  nativeHost: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (extension?.state === "connected") {
+    return {
+      state: "ready",
+      ...(typeof extension.bridge === "string" ? { bridge: extension.bridge } : {}),
+      ...(typeof extension.liveConnection === "string" ? { liveConnection: extension.liveConnection } : {}),
+      ...(typeof extension.nativeHostState === "string" ? { nativeHostState: extension.nativeHostState } : {})
+    };
+  }
+
+  if (nativeHost?.state === "installed" || extension?.state === "native-host-installed") {
+    return {
+      state: "needs-evidence",
+      ...(typeof extension?.bridge === "string" ? { bridge: extension.bridge } : {}),
+      ...(typeof extension?.liveConnection === "string" ? { liveConnection: extension.liveConnection } : {}),
+      ...(typeof nativeHost?.state === "string"
+        ? { nativeHostState: nativeHost.state }
+        : typeof extension?.nativeHostState === "string"
+          ? { nativeHostState: extension.nativeHostState }
+          : {}),
+      reason: "Native host is installed, but a live extension heartbeat is not connected."
+    };
+  }
+
+  return {
+    state: "blocked",
+    ...(typeof extension?.bridge === "string" ? { bridge: extension.bridge } : {}),
+    ...(typeof extension?.liveConnection === "string" ? { liveConnection: extension.liveConnection } : {}),
+    ...(typeof nativeHost?.state === "string"
+      ? { nativeHostState: nativeHost.state }
+      : typeof extension?.nativeHostState === "string"
+        ? { nativeHostState: extension.nativeHostState }
+        : {}),
+    reason: "Chrome extension native messaging path is not ready."
+  };
+}
+
+function createPackagedBinaryReadiness(
+  runtimeHealth: Record<string, unknown>
+): Record<string, unknown> {
+  const app = readRecord(runtimeHealth.app);
+  const helper = readRecord(runtimeHealth.helper);
+  const cli = readRecord(runtimeHealth.cli);
+  const signing = readRecord(app?.signing);
+  const checks = {
+    app: app?.state === "installed",
+    helper: helper?.state === "installed",
+    cli: cli?.state === "installed",
+    signing: signing?.state === "valid"
+  };
+  const state = Object.values(checks).every(Boolean) ? "ready" : "blocked";
+
+  return {
+    state,
+    checks,
+    ...(typeof app?.path === "string" ? { appPath: app.path } : {}),
+    ...(typeof helper?.path === "string" ? { helperPath: helper.path } : {}),
+    ...(typeof cli?.path === "string" ? { cliPath: cli.path } : {}),
+    ...(typeof signing?.state === "string" ? { signingState: signing.state } : {})
+  };
+}
+
+function createRecentSmokeEvidenceReadiness(
+  artifacts: Array<Record<string, unknown>>
+): Record<string, unknown> {
+  const requiredTargets = ["chrome", "cli"];
+  const recentPassedTargets = artifacts
+    .filter((artifact) => artifact.result === "passed" && artifact.stale !== true)
+    .map((artifact) => String(artifact.target));
+  const missingTargets = requiredTargets.filter((target) => !recentPassedTargets.includes(target));
+
+  return {
+    state: missingTargets.length === 0 ? "ready" : "needs-evidence",
+    requiredTargets,
+    recentPassedTargets: [...new Set(recentPassedTargets)].sort(),
+    missingTargets
   };
 }
 

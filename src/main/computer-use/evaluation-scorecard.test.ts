@@ -8,6 +8,7 @@ describe("createComputerUseScorecard", () => {
         id: "pwd-success",
         events: [
           { status: "executing", message: "Risk low: Read-only terminal command." },
+          { status: "recovering", message: "Activation recovery before observing target app." },
           { status: "observing", message: "Captured before screenshot." },
           { status: "executing", message: "Submitted command with enter." },
           { status: "completed", message: "Command submitted to Ghostty." }
@@ -25,7 +26,8 @@ describe("createComputerUseScorecard", () => {
         events: [
           { status: "executing", message: "Risk low: Read-only terminal command." },
           { status: "observing", message: "Finding Ghostty." },
-          { status: "failed", message: "Accessibility permission is required." }
+          { status: "failed", message: "Accessibility permission is required." },
+          { status: "verification_failed", message: "Verification failed after click." }
         ],
         permissions: {
           screenRecording: { state: "denied" },
@@ -34,14 +36,24 @@ describe("createComputerUseScorecard", () => {
           speechRecognition: { state: "not-determined" }
         }
       }
+      ,
+      {
+        id: "loginwindow-blocked",
+        events: [
+          { status: "failed", message: "Desktop session is not controllable because loginwindow is active." }
+        ]
+      }
     ])).toEqual({
-      totalRuns: 3,
+      totalRuns: 4,
       successfulRuns: 1,
-      taskSuccessRate: 1 / 3,
+      taskSuccessRate: 1 / 4,
       manualInterventions: 1,
       averageSteps: 3,
       unsafeActionBlocks: 1,
-      permissionFailures: 1
+      permissionFailures: 1,
+      desktopSessionBlocks: 1,
+      recoveryAttempts: 1,
+      actionVerificationFailures: 1
     });
   });
 
@@ -53,7 +65,10 @@ describe("createComputerUseScorecard", () => {
       manualInterventions: 0,
       averageSteps: 0,
       unsafeActionBlocks: 0,
-      permissionFailures: 0
+      permissionFailures: 0,
+      desktopSessionBlocks: 0,
+      recoveryAttempts: 0,
+      actionVerificationFailures: 0
     });
   });
 

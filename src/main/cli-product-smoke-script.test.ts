@@ -81,6 +81,7 @@ describe("CLI product smoke script", () => {
       requirePassed: true
     });
     expect(CLI_COMMAND_MATRIX.map((command) => command.id)).toEqual([
+      "commands-json",
       "status-json",
       "doctor-json",
       "chrome-status",
@@ -91,6 +92,7 @@ describe("CLI product smoke script", () => {
       "smoke-dashboard-json"
     ]);
     expect(CLI_BASIC_COMMAND_IDS).toEqual([
+      "commands-json",
       "status-json",
       "doctor-json",
       "chrome-status",
@@ -131,6 +133,7 @@ describe("CLI product smoke script", () => {
       profile: "basic",
       commands: CLI_COMMAND_MATRIX
         .filter((command) => [
+          "commands-json",
           "status-json",
           "doctor-json",
           "chrome-status",
@@ -243,6 +246,27 @@ function createPassingCommandEvidence(command: { id: string; args: string[] }) {
         bind: { host: "127.0.0.1", port: 51234 }
       },
       cleanup: { exited: true }
+    };
+  }
+
+  if (command.id === "commands-json") {
+    return {
+      ...base,
+      stdoutJson: {
+        schemaVersion: 1,
+        command: "commands",
+        result: "available",
+        commandCount: 4,
+        surface: {
+          schemaVersion: 1,
+          commands: [
+            { path: "commands" },
+            { path: "status" },
+            { path: "mcp serve" },
+            { path: "smoke codex-plugin" }
+          ]
+        }
+      }
     };
   }
 

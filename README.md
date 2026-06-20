@@ -237,6 +237,7 @@ npm install
 npm test -- --run
 npm run typecheck
 npm run build
+./dist/skfiy commands --json
 ./dist/skfiy status --json
 ./dist/skfiy doctor --json
 npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session.json

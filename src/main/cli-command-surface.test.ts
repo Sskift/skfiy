@@ -32,6 +32,8 @@ describe("CLI command surface", () => {
 
     expect(surface.schemaVersion).toBe(1);
     expect(surface.commands.map((command) => command.path)).toEqual([
+      "commands",
+      "help",
       "status",
       "doctor",
       "dashboard",
@@ -56,6 +58,18 @@ describe("CLI command surface", () => {
       "alpha artifact"
     ]);
     expect(surface.commands).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: "commands",
+        jsonOutput: true,
+        executesSystemMutation: false,
+        outputShape: "command-surface"
+      }),
+      expect.objectContaining({
+        path: "help",
+        jsonOutput: true,
+        executesSystemMutation: false,
+        outputShape: "command-surface"
+      }),
       expect.objectContaining({
         path: "status",
         jsonOutput: true,
@@ -114,6 +128,61 @@ describe("CLI command surface", () => {
       "voice",
       "money-run"
     ]);
+  });
+
+  it("normalizes commands and help as a discoverable read-only command surface", async () => {
+    const commands = expectInvocation(["commands", "--json"]);
+    const help = expectInvocation(["help", "--json"]);
+
+    expect(commands).toEqual({
+      kind: "commands",
+      path: "commands",
+      json: true,
+      options: {}
+    });
+    expect(help).toEqual({
+      kind: "commands",
+      path: "help",
+      json: true,
+      options: {}
+    });
+    expect(createCliOutput(commands, {
+      generatedAt: "2026-06-20T00:00:00.000Z"
+    })).toMatchObject({
+      schemaVersion: 1,
+      command: "commands",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      result: "available",
+      commandCount: createCliCommandSurface().commands.length,
+      surface: {
+        schemaVersion: 1,
+        commands: expect.arrayContaining([
+          expect.objectContaining({ path: "status" }),
+          expect.objectContaining({ path: "dashboard" }),
+          expect.objectContaining({ path: "mcp serve" }),
+          expect.objectContaining({ path: "smoke codex-plugin" })
+        ])
+      }
+    });
+    expectJsonSafe(createCliOutput(commands));
+
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const exitCode = await runSkfiyCli({
+      argv: ["commands", "--json"],
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      keepDashboardAlive: false,
+      keepMcpServerAlive: false,
+      stdout: { write: (chunk) => stdout.push(chunk) },
+      stderr: { write: (chunk) => stderr.push(chunk) }
+    });
+    const output = JSON.parse(stdout.join(""));
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(output.command).toBe("commands");
+    expect(output.surface.commands).toEqual(createCliCommandSurface().commands);
   });
 
   it("normalizes status and doctor into JSON-safe output skeletons", () => {

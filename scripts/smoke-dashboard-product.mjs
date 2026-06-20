@@ -42,6 +42,7 @@ async function main() {
     isolatedHomeDir: undefined,
     descriptorResponse: undefined,
     snapshotResponse: undefined,
+    operatorReadiness: undefined,
     eventsResponse: undefined,
     shellResponse: undefined,
     chromeHostPolicyApi: undefined,
@@ -80,6 +81,7 @@ async function main() {
       new URL("/snapshot.json", launched.cliOutput.url).toString(),
       options.timeoutMs
     );
+    evidence.operatorReadiness = evidence.snapshotResponse?.body?.operatorReadiness;
     evidence.eventsResponse = await readEventStreamResponse(
       new URL("/events", launched.cliOutput.url).toString(),
       options.timeoutMs

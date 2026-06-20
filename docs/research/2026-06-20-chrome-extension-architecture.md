@@ -58,7 +58,7 @@ Sources:
 - Local long plan:
   `docs/research/2026-06-16-voice-computer-control-long-plan.md`.
 
-## Skfiy Responsibilities
+## skfiy Responsibilities
 
 skfiy's extension is a product adapter for the skfiy desktop runtime, not the
 first step in a Codex plugin. A later Codex plugin can expose skfiy through MCP
@@ -182,6 +182,13 @@ runtime behavior.
   local heartbeat-based live connection health. It also reports the current
   normalized Chrome host-policy state under `extension.hostPolicy`, but not full
   installed-extension product smoke yet.
+- `src/main/chrome-readiness.ts` now emits an offline readiness JSON for product
+  smoke evidence. It combines the planned extension/native-host manifest,
+  installed Native Messaging host status, normalized ask-by-default host policy,
+  approval policy host extraction, and heartbeat-based live extension state.
+  `smoke:chrome` records this as `readinessDiagnostics` before launching real
+  Chrome paths, so CI can prove the extension/host contract is inspectable even
+  when branded Chrome blocks unpacked extension loading.
 - `smoke:chrome` now records `installedExtensionRun` separately from the direct
   packaged Native Messaging host bridge. On the current machine, `Google Chrome`
   146 reports `blockedReason: branded_chrome_load_extension_removed`; the smoke

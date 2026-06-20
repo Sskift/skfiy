@@ -107,6 +107,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
     )
     || runtimeSnapshotCoverage.result !== "passed"
     || !hasRuntimeSnapshotCoverageEvidence(evidence.runtimeSnapshotCoverage, runtimeSnapshotCoverage)
+    || !hasOperatorReadinessEvidence(snapshot?.operatorReadiness)
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
     || !Number.isInteger(snapshot?.runtimeHealth?.dashboard?.pid)
@@ -693,6 +694,39 @@ function hasLongHorizonEvidence(longHorizon) {
     && longHorizon.probeCommands.includes("tmux has-session -t money-run");
 }
 
+function hasOperatorReadinessEvidence(operatorReadiness) {
+  const commandSurface = operatorReadiness?.commandSurface;
+  const extensionReadiness = operatorReadiness?.extensionReadiness;
+  const packagedBinary = operatorReadiness?.packagedBinary;
+  const recentSmokeEvidence = operatorReadiness?.recentSmokeEvidence;
+  const allowedOverallStates = new Set(["ready", "needs-evidence", "blocked"]);
+  const allowedCheckStates = new Set(["ready", "needs-evidence", "blocked"]);
+
+  return allowedOverallStates.has(operatorReadiness?.state)
+    && commandSurface?.state === "ready"
+    && typeof commandSurface?.path === "string"
+    && path.basename(commandSurface.path) === "skfiy"
+    && allowedCheckStates.has(extensionReadiness?.state)
+    && typeof extensionReadiness?.nativeHostState === "string"
+    && packagedBinary?.state === "ready"
+    && packagedBinary?.checks?.app === true
+    && packagedBinary?.checks?.helper === true
+    && packagedBinary?.checks?.cli === true
+    && packagedBinary?.checks?.signing === true
+    && packagedBinary?.signingState === "valid"
+    && recentSmokeEvidence?.state === "ready"
+    && Array.isArray(recentSmokeEvidence?.requiredTargets)
+    && ["chrome", "cli"].every((target) =>
+      recentSmokeEvidence.requiredTargets.includes(target)
+    )
+    && Array.isArray(recentSmokeEvidence?.recentPassedTargets)
+    && ["chrome", "cli"].every((target) =>
+      recentSmokeEvidence.recentPassedTargets.includes(target)
+    )
+    && Array.isArray(recentSmokeEvidence?.missingTargets)
+    && recentSmokeEvidence.missingTargets.length === 0;
+}
+
 function hasDashboardShellEvidence(shellBody) {
   return shellBody.includes("skfiy Dashboard")
     && shellBody.includes("/descriptor.json")
@@ -700,10 +734,12 @@ function hasDashboardShellEvidence(shellBody) {
     && shellBody.includes('new EventSource("/events")')
     && shellBody.includes("data-dashboard-root")
     && shellBody.includes("data-snapshot-state")
+    && shellBody.includes('data-panel-body="operator-readiness"')
     && shellBody.includes('data-panel-body="long-horizon-supervision"')
     && shellBody.includes("/api/chrome-host-policy")
     && shellBody.includes('fetch("/snapshot.json", { cache: "no-store" })')
     && shellBody.includes("renderAppPolicyPanel(snapshot)")
+    && shellBody.includes("renderOperatorReadinessPanel(snapshot)")
     && shellBody.includes("renderLongHorizonPanel")
     && shellBody.includes("renderAlertsPanel(snapshot)")
     && shellBody.includes("groupAlerts(alerts)")

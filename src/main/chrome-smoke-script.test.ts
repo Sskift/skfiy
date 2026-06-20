@@ -328,6 +328,9 @@ describe("Chrome product smoke script", () => {
     );
 
     expect(source).toContain("installedExtensionRun");
+    expect(source).toContain("readinessDiagnostics");
+    expect(source).toContain("runChromeReadinessDiagnostics");
+    expect(source).toContain("chrome-readiness.js");
     expect(source).toContain("runInstalledChromeExtensionSmoke");
     expect(source).toContain("--load-extension=");
     expect(source).toContain("chrome.runtime.connectNative");
@@ -362,6 +365,7 @@ describe("Chrome product smoke script", () => {
       chromeLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      readinessDiagnostics: createPassingReadinessDiagnostics(),
       nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       installedExtensionRun: createPassingInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
       extractedText: "skfiy chrome smoke ready",
@@ -372,6 +376,7 @@ describe("Chrome product smoke script", () => {
       chromeLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      readinessDiagnostics: createPassingReadinessDiagnostics(),
       nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       installedExtensionRun: createBlockedInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
       extractedText: "skfiy chrome smoke ready",
@@ -394,6 +399,16 @@ describe("Chrome product smoke script", () => {
       extractedText: "skfiy chrome smoke ready",
       events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
     })).toBe("failed");
+    expect(classifyChromeSmokeEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
+      installedExtensionRun: createPassingInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
+      extractedText: "skfiy chrome smoke ready",
+      events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
+    })).toBe("failed");
   });
 
   it("classifies a completed Chrome form action with expected text as passed", async () => {
@@ -413,6 +428,7 @@ describe("Chrome product smoke script", () => {
       chromeLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      readinessDiagnostics: createPassingReadinessDiagnostics(),
       nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       installedExtensionRun: createPassingInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
       expectedText: FORM_EXPECTED_TEXT,
@@ -544,6 +560,52 @@ function createPassingNativeHostBridgeRun() {
       requestId: "chrome-smoke-native-host"
     },
     heartbeatPath: "/repo/.skfiy-smoke/chrome-native-home/Library/Application Support/skfiy/chrome-extension-connection.json"
+  };
+}
+
+function createPassingReadinessDiagnostics() {
+  return {
+    schemaVersion: 1,
+    state: "ready",
+    generatedAt: "2026-06-20T00:02:00.000Z",
+    nativeHost: {
+      hostName: "com.sskift.skfiy",
+      state: "installed",
+      manifestPath: "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+      cliShimPath: "/repo/dist/skfiy",
+      allowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+      reason: "Chrome Native Messaging host is installed."
+    },
+    extensionManifest: {
+      state: "planned",
+      manifestVersion: 3,
+      hostName: "com.sskift.skfiy",
+      allowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+      nativeMessaging: true,
+      optionalHostPermissions: ["http://*/*", "https://*/*"]
+    },
+    hostPolicy: {
+      schemaVersion: 1,
+      state: "configured",
+      path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+      defaultMode: "ask",
+      entryCount: 1
+    },
+    approvalPolicy: {
+      state: "ready",
+      host: "example.com",
+      defaultAction: "allow_current_turn_after_user_approval",
+      failClosed: true
+    },
+    liveConnection: {
+      state: "connected",
+      liveConnection: "connected",
+      path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+      ageSeconds: 120,
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.page.observe",
+      requestId: "request-1"
+    }
   };
 }
 

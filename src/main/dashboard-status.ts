@@ -1,5 +1,6 @@
 export const DASHBOARD_PANEL_IDS = [
   "runtime-health",
+  "operator-readiness",
   "permissions",
   "current-turn",
   "replay",
@@ -60,6 +61,17 @@ const DASHBOARD_PANELS: DashboardPanel[] = [
       "version",
       "bundle-id",
       "signing"
+    ],
+    actions: []
+  },
+  {
+    id: "operator-readiness",
+    title: "Operator readiness",
+    signals: [
+      "command-surface",
+      "extension-readiness",
+      "packaged-binary",
+      "recent-smoke-evidence"
     ],
     actions: []
   },

@@ -9,6 +9,9 @@ import {
   parseDesktopSessionPreflightArgs,
   runDesktopSessionPreflight
 } from "./desktop-session-preflight.mjs";
+import {
+  createGenericDesktopCapabilityReadiness
+} from "./smoke-desktop-preflight.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
@@ -41,6 +44,10 @@ async function main() {
     });
     evidence = await runDesktopSessionPreflight(options);
     evidence.reason = explainDesktopSessionPreflightEvidence(evidence);
+    evidence.capabilityReadiness = createGenericDesktopCapabilityReadiness({
+      permissions: evidence.permissions,
+      desktopSession: evidence.desktopSessionStatus
+    });
 
     if (options.requirePassed && evidence.result !== "passed") {
       process.exitCode = 2;

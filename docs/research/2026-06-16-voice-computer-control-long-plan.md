@@ -176,6 +176,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - `skfiy` CLI shim installed by the app or release package.
   - Chrome Native Messaging host manifest installed by `skfiy chrome install-host`.
 - CLI command surface:
+  - `skfiy commands --json`: discoverable packaged CLI command surface for dashboard, Codex plugin, and follow-up agents.
   - `skfiy status --json`: app/helper/permissions/desktop-session/extension/dashboard status.
   - `skfiy doctor`: actionable permission and packaging diagnostics.
   - `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>`.
@@ -374,6 +375,10 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] post-action verification hook
     - generic action plans can now run a verifier after each executable desktop action, record passed verification decisions, and fail closed before later actions when the verifier reports `failed` or `needs_user_confirmation`
     - Ghostty typing and submit helper actions now emit structured `action_verified` events, so local replay/transcript evidence shows which actions were accepted before later observation checks continue
+    - generic action plans can now opt into app-agnostic result evidence that records action type, target bundle/pid, screenshot path, observed window/OCR counts, and desktop-session state without assuming Ghostty
+- Add generic app capability model:
+  - [x] model reusable Computer Use capabilities (`observe_screenshot`, `observe_accessibility`, `activate_app`, `pointer_input`, `keyboard_input`) from Screen Recording, Accessibility, and desktop-session readiness
+  - [x] desktop-session smoke evidence now includes generic capability readiness, so loginwindow/display sleep/TCC blockers are represented before choosing a Ghostty/Finder/Chrome fallback strategy
 - Add recovery policies:
   - [x] if app hidden, activate
     - Ghostty before-observe now performs one-shot activate recovery before typing
@@ -483,6 +488,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] unsafe-action blocks
   - [x] permission failures
   - scorecard aggregation exists for product-path event logs and permission summaries; Computer Use permission failures count Screen Recording and Accessibility denial, while microphone and Speech Recognition remain voice-provider-specific evidence
+  - scorecard aggregation now also tracks desktop-session blocks, recovery attempts, and action verification failures as generic Computer Use quality signals
   - `dogfood:tester` summaries now surface the scorecard directly from packaged smoke event logs, so tester handoffs expose task success rate, manual interventions, average steps, unsafe-action blocks, and permission failures without treating the scorecard as cohort evidence
 
 ### Week 4: Beta Quality, Safety, and Internal Alignment
@@ -523,7 +529,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] wrap product smokes behind `skfiy smoke <target>` while keeping npm scripts for development
     - partial: command normalization and script execution wrappers exist for all smoke targets, now including `dashboard`; the current wrapper runs the repo-local smoke scripts directly with Node instead of npm, so installed-app packaging of smoke runners remains pending
   - [ ] add tests that every CLI command can run outside tmux and that `--json` output is stable for the dashboard
-    - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; `smoke:cli` now runs the compiled `dist/skfiy` through the CLI command matrix smoke (`status --json`, `doctor --json`, `chrome status`, `mcp serve --stdio --json`, `dashboard --no-open --port 0 --json`, `release check --json-output`, `alpha artifact`, and CLI-wrapped `smoke dashboard --json`) with `runnerHasTmux=false`, an isolated `.skfiy-cli-smoke/home`, Chrome Native Messaging plus extension-adapter evidence checks, token-leak checks, and dashboard cleanup evidence; `smoke:cli:basic` now runs the same compiled binary through the status/doctor/Chrome/MCP/dashboard-launcher subset for a fast binary health gate without release/alpha/nested dashboard coupling; heavier app-control smokes remain separate product gates
+    - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; `skfiy commands --json` now exposes the packaged command surface from `dist/skfiy`; `smoke:cli` now runs the compiled `dist/skfiy` through the CLI command matrix smoke (`commands --json`, `status --json`, `doctor --json`, `chrome status`, `mcp serve --stdio --json`, `dashboard --no-open --port 0 --json`, `release check --json-output`, `alpha artifact`, and CLI-wrapped `smoke dashboard --json`) with `runnerHasTmux=false`, an isolated `.skfiy-cli-smoke/home`, Chrome Native Messaging plus extension-adapter evidence checks, token-leak checks, and dashboard cleanup evidence; `smoke:cli:basic` now runs the same compiled binary through the commands/status/doctor/Chrome/MCP/dashboard-launcher subset for a fast binary health gate without release/alpha/nested dashboard coupling; heavier app-control smokes remain separate product gates
 - [ ] Add Codex plugin adapter after the standalone binary runtime is stable
   - [x] Research Codex plugin implementation before planning the adapter
     - findings: Codex plugins bundle skills, app integrations, MCP servers, lifecycle hooks, and assets; `.codex-plugin/plugin.json` is the entry point; marketplace entries govern install/auth policy; installed copies are loaded from `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`; `codex plugin --help` exposes `add`, `list`, `remove`, and `marketplace`; local cache inspection found the official Chrome plugin as `.codex-plugin/plugin.json` plus `skills/`, docs, scripts, and assets with no `.app.json` or `.mcp.json`, the GitHub plugin as `.codex-plugin/plugin.json` plus `.app.json` connector wiring, and skfiy's scaffold as `.codex-plugin/plugin.json` plus `.mcp.json`; therefore the skfiy plugin should be an adapter to the installed binary/MCP server instead of a replacement for `skfiy.app`, the Chrome extension, or the Native Messaging host
@@ -713,7 +719,7 @@ The next two weeks should consolidate the product surface rather than add more d
 1. **Codex plugin adapter:** keep the plugin thin, revalidate against the Codex manual and local plugin cache, ship only skill/MCP metadata, and add a fresh Codex thread plugin-cache install smoke before calling the plugin path product-ready.
 2. **Dashboard/control UI:** follow the OpenClaw-style control plane pattern with loopback-only defaults, clean `skfiy dashboard --json` launch metadata, token-free logs, runtime health, permissions, current turn, replay, app policy, smoke evidence, dogfood/release, alerts, and long-horizon supervision panels.
 3. **Runtime snapshot:** make Electron persist current-turn and replay summaries into `~/Library/Application Support/skfiy/runtime-snapshot.json` so dashboard panels show real voice/Computer Use state instead of placeholder text.
-4. **Binary and CLI:** harden `skfiy status --json`, `skfiy doctor --json`, `skfiy dashboard`, `skfiy chrome status/install-host/uninstall-host`, `skfiy mcp serve --stdio`, and `skfiy smoke <target>` as the stable product API for dashboard, dogfood, and Codex plugin consumers.
+4. **Binary and CLI:** harden `skfiy commands --json`, `skfiy status --json`, `skfiy doctor --json`, `skfiy dashboard`, `skfiy chrome status/install-host/uninstall-host`, `skfiy mcp serve --stdio`, and `skfiy smoke <target>` as the stable product API for dashboard, dogfood, and Codex plugin consumers.
 5. **Chrome extension evidence:** keep Native Messaging host heartbeat evidence, then collect one real installed-extension or Chrome-for-Testing/Chromium run that proves structured browser control without relying on branded Chrome's removed `--load-extension` path.
 6. **Field proof:** after dashboard/CLI/plugin smokes pass from the packaged product, rerun real Ghostty/Finder/Chrome/voice smokes, collect accepted tester reports, and only then run the long-horizon `money-run` supervision task.
 

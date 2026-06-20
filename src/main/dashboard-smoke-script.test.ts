@@ -32,6 +32,7 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("runtime-snapshot.json");
     expect(source).toContain("createRuntimeSnapshotCoverage");
     expect(source).toContain("runtimeSnapshotCoverage");
+    expect(source).toContain("operatorReadiness");
   });
 
   it("parses dashboard smoke options for a repeatable loopback product run", async () => {
@@ -305,6 +306,40 @@ describe("dashboard product smoke script", () => {
               mainDisplayAsleep: false
             }
           },
+          operatorReadiness: {
+            state: "ready",
+            commandSurface: {
+              state: "ready",
+              path: "/repo/dist/skfiy",
+              reason: "Packaged CLI command surface is available."
+            },
+            extensionReadiness: {
+              state: "needs-evidence",
+              bridge: "native-messaging",
+              liveConnection: "unknown",
+              nativeHostState: "missing",
+              reason: "Chrome extension native messaging path is not ready."
+            },
+            packagedBinary: {
+              state: "ready",
+              checks: {
+                app: true,
+                helper: true,
+                cli: true,
+                signing: true
+              },
+              appPath: "/repo/dist/skfiy.app",
+              helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+              cliPath: "/repo/dist/skfiy",
+              signingState: "valid"
+            },
+            recentSmokeEvidence: {
+              state: "ready",
+              requiredTargets: ["chrome", "cli"],
+              recentPassedTargets: ["chrome", "cli", "dashboard"],
+              missingTargets: []
+            }
+          },
           permissions: {
             screenRecording: "granted",
             accessibility: "granted",
@@ -448,7 +483,7 @@ describe("dashboard product smoke script", () => {
       },
       shellResponse: {
         status: 200,
-        body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><a href="/descriptor.json"></a><a href="/snapshot.json"></a><section data-panel-body="long-horizon-supervision"></section><script>new EventSource("/events"); fetch("/snapshot.json", { cache: "no-store" }); "/api/chrome-host-policy"; function renderAppPolicyPanel(snapshot){} function renderLongHorizonPanel(){} function renderAlertsPanel(snapshot){} function groupAlerts(alerts){} function createAlertBand(group){ const marker = "data-alert-groups"; return marker; }</script></main><title>skfiy Dashboard</title>'
+        body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><a href="/descriptor.json"></a><a href="/snapshot.json"></a><section data-panel-body="operator-readiness"></section><section data-panel-body="long-horizon-supervision"></section><script>new EventSource("/events"); fetch("/snapshot.json", { cache: "no-store" }); "/api/chrome-host-policy"; function renderAppPolicyPanel(snapshot){} function renderOperatorReadinessPanel(snapshot){} function renderLongHorizonPanel(){} function renderAlertsPanel(snapshot){} function groupAlerts(alerts){} function createAlertBand(group){ const marker = "data-alert-groups"; return marker; }</script></main><title>skfiy Dashboard</title>'
       },
       chromeHostPolicyApi: {
         productPath: "dist/skfiy -> dashboard /api/chrome-host-policy -> chrome-host-policy.json",
@@ -815,6 +850,34 @@ describe("dashboard product smoke script", () => {
       snapshotResponse: {
         status: 404,
         body: "Not Found"
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          operatorReadiness: undefined
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          operatorReadiness: {
+            ...passedEvidence.snapshotResponse.body.operatorReadiness,
+            recentSmokeEvidence: {
+              state: "needs-evidence",
+              requiredTargets: ["chrome", "cli"],
+              recentPassedTargets: ["chrome", "cli"],
+              missingTargets: []
+            }
+          }
+        }
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

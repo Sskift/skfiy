@@ -196,7 +196,8 @@ export function classifyChromeSmokeEvidence({
   chromeLaunchViaOpen = false,
   productPath,
   nativeHostBridgeRun,
-  installedExtensionRun
+  installedExtensionRun,
+  readinessDiagnostics
 }) {
   const last = events.at(-1);
 
@@ -225,6 +226,7 @@ export function classifyChromeSmokeEvidence({
     || appLaunchViaOpen !== true
     || chromeLaunchViaOpen !== true
     || productPath !== PRODUCT_PATH
+    || !hasChromeReadinessDiagnostics(readinessDiagnostics)
     || !hasNativeHostBridgeEvidence(nativeHostBridgeRun)
     || !hasInstalledExtensionSmokeEvidence(installedExtensionRun)
     || !String(extractedText).includes(expectedText)
@@ -345,6 +347,58 @@ function hasNativeHostBridgeDiagnostics(diagnostics) {
     && diagnostics.capabilities?.connectionHeartbeat === true
     && diagnostics.hostPolicy?.defaultMode === "ask"
     && Number.isInteger(diagnostics.hostPolicy?.entryCount);
+}
+
+function hasChromeReadinessDiagnostics(diagnostics) {
+  const allowedStates = new Set(["ready", "needs_setup", "blocked"]);
+  const allowedNativeHostStates = new Set([
+    "installed",
+    "missing",
+    "mismatched",
+    "cli-missing",
+    "invalid"
+  ]);
+  const allowedHostPolicyStates = new Set(["default", "configured", "invalid"]);
+  const allowedLiveConnectionStates = new Set(["connected", "stale", "unknown", "invalid"]);
+
+  return diagnostics
+    && typeof diagnostics === "object"
+    && diagnostics.schemaVersion === 1
+    && allowedStates.has(diagnostics.state)
+    && typeof diagnostics.generatedAt === "string"
+    && diagnostics.nativeHost?.hostName === "com.sskift.skfiy"
+    && allowedNativeHostStates.has(diagnostics.nativeHost?.state)
+    && typeof diagnostics.nativeHost?.manifestPath === "string"
+    && diagnostics.nativeHost.manifestPath.includes("NativeMessagingHosts/com.sskift.skfiy.json")
+    && typeof diagnostics.nativeHost?.cliShimPath === "string"
+    && Array.isArray(diagnostics.nativeHost?.allowedOrigins)
+    && diagnostics.nativeHost.allowedOrigins.every((origin) =>
+      typeof origin === "string" && origin.startsWith("chrome-extension://")
+    )
+    && typeof diagnostics.nativeHost?.reason === "string"
+    && diagnostics.extensionManifest?.state === "planned"
+    && diagnostics.extensionManifest?.manifestVersion === 3
+    && diagnostics.extensionManifest?.hostName === "com.sskift.skfiy"
+    && diagnostics.extensionManifest?.nativeMessaging === true
+    && Array.isArray(diagnostics.extensionManifest?.optionalHostPermissions)
+    && diagnostics.extensionManifest.optionalHostPermissions.includes("http://*/*")
+    && diagnostics.extensionManifest.optionalHostPermissions.includes("https://*/*")
+    && diagnostics.hostPolicy?.schemaVersion === 1
+    && allowedHostPolicyStates.has(diagnostics.hostPolicy?.state)
+    && typeof diagnostics.hostPolicy?.path === "string"
+    && diagnostics.hostPolicy.path.includes("Application Support/skfiy/chrome-host-policy.json")
+    && diagnostics.hostPolicy?.defaultMode === "ask"
+    && Number.isInteger(diagnostics.hostPolicy?.entryCount)
+    && (
+      diagnostics.approvalPolicy?.state === "ready"
+      || diagnostics.approvalPolicy?.state === "no_probe"
+    )
+    && diagnostics.approvalPolicy?.defaultAction === "allow_current_turn_after_user_approval"
+    && diagnostics.approvalPolicy?.failClosed === true
+    && allowedLiveConnectionStates.has(diagnostics.liveConnection?.state)
+    && ["connected", "stale", "unknown"].includes(diagnostics.liveConnection?.liveConnection)
+    && typeof diagnostics.liveConnection?.path === "string"
+    && diagnostics.liveConnection.path.includes("Application Support/skfiy/chrome-extension-connection.json");
 }
 
 export function classifyChromeFallbackSmokeEvidence({

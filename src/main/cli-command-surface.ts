@@ -141,6 +141,12 @@ export interface NormalizeCliCommandOptions {
 
 export type CliCommandInvocation =
   | {
+      kind: "commands";
+      path: "commands" | "help";
+      json: boolean;
+      options: Record<string, never>;
+    }
+  | {
       kind: "status";
       path: "status";
       json: boolean;
@@ -333,6 +339,22 @@ const SMOKE_COMMANDS: CliCommandDefinition[] = SMOKE_TARGETS.map((target) => ({
 
 const COMMANDS: CliCommandDefinition[] = [
   {
+    path: "commands",
+    summary: "List the packaged skfiy CLI command surface.",
+    jsonOutput: true,
+    plannedMutation: false,
+    executesSystemMutation: false,
+    outputShape: "command-surface"
+  },
+  {
+    path: "help",
+    summary: "Alias for commands; prints the CLI command surface.",
+    jsonOutput: true,
+    plannedMutation: false,
+    executesSystemMutation: false,
+    outputShape: "command-surface"
+  },
+  {
     path: "status",
     summary: "Report app, helper, permissions, desktop-session, extension, and dashboard status.",
     jsonOutput: true,
@@ -452,6 +474,15 @@ export function normalizeCliCommand(
 ): NormalizeCliCommandResult {
   const rootDir = options.rootDir ?? process.cwd();
   const command = argv[0];
+
+  if (command === "commands" || command === "help" || command === "--help" || command === "-h") {
+    return ok({
+      kind: "commands",
+      path: command === "help" || command === "--help" || command === "-h" ? "help" : "commands",
+      json: argv.includes("--json"),
+      options: {}
+    });
+  }
 
   if (command === "status") {
     return ok({
@@ -658,6 +689,19 @@ export function createCliOutput(
   options: CreateCliOutputOptions = {}
 ): Record<string, unknown> {
   const generatedAt = options.generatedAt ?? new Date().toISOString();
+
+  if (invocation.kind === "commands") {
+    const surface = createCliCommandSurface();
+
+    return {
+      schemaVersion: 1,
+      command: invocation.path,
+      generatedAt,
+      result: "available",
+      commandCount: surface.commands.length,
+      surface
+    };
+  }
 
   if (invocation.kind === "status") {
     const status = {

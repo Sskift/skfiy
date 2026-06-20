@@ -154,10 +154,12 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("/descriptor.json");
     expect(response.body).toContain("/snapshot.json");
     expect(response.body).toContain("runtime-health");
+    expect(response.body).toContain("operator-readiness");
     expect(response.body).toContain("data-dashboard-root");
     expect(response.body).toContain("data-snapshot-state");
     expect(response.body).toContain("Loading snapshot");
     expect(response.body).toContain('data-panel-body="runtime-health"');
+    expect(response.body).toContain('data-panel-body="operator-readiness"');
     expect(response.body).toContain('data-panel-body="long-horizon-supervision"');
     expect(response.body).toContain('data-panel-body="dogfood-release"');
     expect(response.body).toContain('new EventSource("/events")');
@@ -173,6 +175,7 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain('createChromePolicyButton("reset", "Reset")');
     expect(response.body).toContain("formatChromePolicyEntries(hostPolicy, policy)");
     expect(response.body).toContain("renderLongHorizonPanel");
+    expect(response.body).toContain("renderOperatorReadinessPanel(snapshot)");
     expect(response.body).toContain("groupAlerts(alerts)");
     expect(response.body).toContain("createAlertBand(group)");
     expect(response.body).toContain("data-alert-groups");
@@ -201,6 +204,7 @@ describe("dashboard loopback HTTP response helper", () => {
           runtimeHealth: {
             dashboard: { state: "running" }
           },
+          operatorReadiness: { state: "unknown" },
           permissions: {},
           currentTurn: { state: "idle" },
           replay: { state: "empty" },
@@ -239,6 +243,7 @@ describe("dashboard loopback HTTP response helper", () => {
             dashboard: { state: "running" },
             extension: { state: "unknown" }
           },
+          operatorReadiness: { state: "unknown" },
           permissions: {
             screenRecording: "granted",
             accessibility: "granted",
@@ -268,6 +273,7 @@ describe("dashboard loopback HTTP response helper", () => {
         app: { state: "installed" },
         dashboard: { state: "running" }
       },
+      operatorReadiness: { state: "unknown" },
       permissions: {
         screenRecording: "granted",
         finderAutomation: "unknown"
@@ -325,6 +331,17 @@ describe("dashboard loopback HTTP response helper", () => {
       cli: {
         state: "installed",
         path: "/repo/dist/skfiy"
+      }
+    });
+    expect(snapshot.operatorReadiness).toMatchObject({
+      commandSurface: {
+        state: "ready",
+        path: "/repo/dist/skfiy"
+      },
+      recentSmokeEvidence: {
+        requiredTargets: ["chrome", "cli"],
+        recentPassedTargets: [],
+        missingTargets: ["chrome", "cli"]
       }
     });
     expect(snapshot.smokeEvidence.artifacts).toEqual([
@@ -388,6 +405,7 @@ describe("dashboard loopback HTTP response helper", () => {
         runtimeHealth: {
           dashboard: { state: "running" }
         },
+        operatorReadiness: { state: "unknown" },
         permissions: {},
         currentTurn: { state: "idle" },
         replay: { state: "empty" },

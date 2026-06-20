@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createDesktopActionResultEvidence,
   DesktopActionVerificationError,
   runDesktopActionPlan,
   type DesktopActionExecutor
@@ -87,6 +88,74 @@ describe("runDesktopActionPlan", () => {
       }
     ]);
     expect(verified).toEqual(["0:activate_app:true", "1:click:true"]);
+  });
+
+  it("collects app-agnostic result evidence when requested", async () => {
+    const executor = createExecutor([
+      {
+        bundleId: "com.apple.finder",
+        pid: 120,
+        isRunning: true,
+        isActive: true,
+        screenshotPath: "/tmp/finder.png",
+        frontmostBundleId: "com.apple.finder",
+        windows: [
+          { title: "Desktop", layer: 0, bounds: { x: 0, y: 0, width: 800, height: 600 } }
+        ],
+        ocrLabels: [
+          { text: "Desktop", confidence: 0.91, bounds: { x: 12, y: 20, width: 80, height: 24 } }
+        ]
+      }
+    ]);
+
+    await expect(runDesktopActionPlan(executor, [
+      {
+        type: "observe_app",
+        bundleId: "com.apple.finder",
+        pid: 120,
+        screenshotOutputPath: "/tmp/finder.png"
+      }
+    ], {
+      collectEvidence: true
+    })).resolves.toEqual([
+      {
+        action: {
+          type: "observe_app",
+          bundleId: "com.apple.finder",
+          pid: 120,
+          screenshotOutputPath: "/tmp/finder.png"
+        },
+        result: {
+          bundleId: "com.apple.finder",
+          pid: 120,
+          isRunning: true,
+          isActive: true,
+          screenshotPath: "/tmp/finder.png",
+          frontmostBundleId: "com.apple.finder",
+          windows: [
+            { title: "Desktop", layer: 0, bounds: { x: 0, y: 0, width: 800, height: 600 } }
+          ],
+          ocrLabels: [
+            { text: "Desktop", confidence: 0.91, bounds: { x: 12, y: 20, width: 80, height: 24 } }
+          ]
+        },
+        evidence: {
+          actionType: "observe_app",
+          target: {
+            bundleId: "com.apple.finder",
+            pid: 120
+          },
+          screenshotPath: "/tmp/finder.png",
+          observed: {
+            isRunning: true,
+            isActive: true,
+            frontmostBundleId: "com.apple.finder",
+            windowCount: 1,
+            ocrLabelCount: 1
+          }
+        }
+      }
+    ]);
   });
 
   it("stops before later actions when step verification asks for user confirmation", async () => {
@@ -221,5 +290,40 @@ describe("runDesktopActionPlan", () => {
 
     await expect(resultPromise).rejects.toThrow("Desktop action plan aborted.");
     expect(executor.calls).toEqual([]);
+  });
+});
+
+describe("createDesktopActionResultEvidence", () => {
+  it("summarizes desktop session and helper action evidence without app-specific assumptions", () => {
+    expect(createDesktopActionResultEvidence(
+      { type: "activate_app", bundleId: "com.apple.TextEdit", pid: 330 },
+      { ok: true, message: "activated" }
+    )).toEqual({
+      actionType: "activate_app",
+      target: {
+        bundleId: "com.apple.TextEdit",
+        pid: 330
+      },
+      ok: true,
+      message: "activated"
+    });
+
+    expect(createDesktopActionResultEvidence(
+      { type: "screenshot", outputPath: "/tmp/shot.png" },
+      {
+        controllable: false,
+        frontmostBundleId: "com.apple.loginwindow",
+        frontmostProcessIdentifier: 591,
+        mainDisplayAsleep: true
+      }
+    )).toEqual({
+      actionType: "screenshot",
+      desktopSession: {
+        controllable: false,
+        frontmostBundleId: "com.apple.loginwindow",
+        frontmostProcessIdentifier: 591,
+        mainDisplayAsleep: true
+      }
+    });
   });
 });

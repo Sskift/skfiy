@@ -99,6 +99,35 @@ describe("dashboard snapshot data", () => {
           mainDisplayAsleep: true
         }
       },
+      operatorReadiness: {
+        state: "blocked",
+        commandSurface: {
+          state: "blocked",
+          reason: "Packaged CLI command surface is missing."
+        },
+        extensionReadiness: {
+          state: "needs-evidence",
+          nativeHostState: "installed",
+          reason: "Native host is installed, but a live extension heartbeat is not connected."
+        },
+        packagedBinary: {
+          state: "blocked",
+          checks: {
+            app: true,
+            helper: true,
+            cli: false,
+            signing: false
+          },
+          appPath: "/repo/dist/skfiy.app",
+          helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+        },
+        recentSmokeEvidence: {
+          state: "needs-evidence",
+          requiredTargets: ["chrome", "cli"],
+          recentPassedTargets: ["ui"],
+          missingTargets: ["chrome", "cli"]
+        }
+      },
       permissions: {
         screenRecording: "granted",
         accessibility: "granted",
@@ -685,6 +714,35 @@ describe("dashboard snapshot data", () => {
             }
           ]
         }
+      }
+    });
+    expect(snapshot.operatorReadiness).toMatchObject({
+      state: "ready",
+      commandSurface: {
+        state: "ready",
+        path: "/repo/dist/skfiy"
+      },
+      extensionReadiness: {
+        state: "ready",
+        bridge: "native-messaging",
+        liveConnection: "connected",
+        nativeHostState: "installed"
+      },
+      packagedBinary: {
+        state: "ready",
+        checks: {
+          app: true,
+          helper: true,
+          cli: true,
+          signing: true
+        },
+        signingState: "valid"
+      },
+      recentSmokeEvidence: {
+        state: "ready",
+        requiredTargets: ["chrome", "cli"],
+        recentPassedTargets: ["chrome", "cli", "codex-plugin", "dashboard"],
+        missingTargets: []
       }
     });
     expect(snapshot.dogfoodRelease).toMatchObject({

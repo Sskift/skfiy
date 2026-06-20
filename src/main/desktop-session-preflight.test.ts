@@ -99,6 +99,55 @@ describe("desktop session preflight script", () => {
     });
   });
 
+  it("creates generic desktop app capability readiness for smoke evidence", async () => {
+    const {
+      createGenericDesktopCapabilityReadiness
+    } = await importSmokePreflightScript();
+
+    const readiness = createGenericDesktopCapabilityReadiness({
+      permissions: {
+        screenRecording: { state: "granted" },
+        accessibility: { state: "denied" }
+      },
+      desktopSession: {
+        controllable: false,
+        frontmostBundleId: "com.apple.loginwindow",
+        frontmostProcessIdentifier: 591
+      }
+    });
+
+    expect(readiness).toMatchObject({
+      target: "generic-desktop-app",
+      status: "blocked"
+    });
+    expect(readiness.capabilities).toHaveLength(5);
+    expect(readiness.capabilities[0]).toMatchObject({
+      id: "observe_screenshot",
+      status: "blocked",
+      blockers: [
+        {
+          type: "desktop_session",
+          reason: "loginwindow"
+        }
+      ]
+    });
+    expect(readiness.capabilities[1]).toMatchObject({
+      id: "observe_accessibility",
+      status: "blocked",
+      blockers: [
+        {
+          type: "desktop_session",
+          reason: "loginwindow"
+        },
+        {
+          type: "permission",
+          permission: "accessibility",
+          state: "denied"
+        }
+      ]
+    });
+  });
+
   it("classifies loginwindow as blocked even when a screenshot exists", async () => {
     const {
       classifyDesktopSessionPreflightEvidence,
@@ -234,6 +283,22 @@ async function importPreflightScript() {
       stat: (path: string) => Promise<{ size: number }>;
       readFile: (path: string) => Promise<Buffer>;
     }) => Promise<Record<string, unknown>>;
+  };
+}
+
+async function importSmokePreflightScript() {
+  return await import(
+    pathToFileURL(path.join(process.cwd(), "scripts", "smoke-desktop-preflight.mjs")).href
+  ) as {
+    createGenericDesktopCapabilityReadiness: (input: Record<string, unknown>) => {
+      target: string;
+      status: string;
+      capabilities: Array<{
+        id: string;
+        status: string;
+        blockers: Array<Record<string, unknown>>;
+      }>;
+    };
   };
 }
 

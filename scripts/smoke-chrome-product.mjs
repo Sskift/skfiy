@@ -33,6 +33,7 @@ const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
+const FIXTURE_EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
 const FORM_FIELDS = [
   { selector: "#name", value: "skfiy" },
   { selector: "#email", value: "agent@skfiy.test" },
@@ -90,6 +91,7 @@ async function main() {
     sensitiveFormRun: undefined,
     nativeHostBridgeRun: undefined,
     installedExtensionRun: undefined,
+    readinessDiagnostics: undefined,
     fallbackRun: undefined,
     fallbackSwitchRun: undefined,
     permissions: undefined,
@@ -106,6 +108,7 @@ async function main() {
       rootDir: ROOT_DIR,
       scriptName: "smoke:chrome"
     });
+    evidence.readinessDiagnostics = await runChromeReadinessDiagnostics(options);
     evidence.nativeHostBridgeRun = await runChromeNativeHostBridgeSmoke(options);
     evidence.installedExtensionRun = await runInstalledChromeExtensionSmoke(options);
 
@@ -431,7 +434,7 @@ function assertChromeSmokeReady(options) {
 }
 
 async function runChromeNativeHostBridgeSmoke(options) {
-  const launchOrigin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/";
+  const launchOrigin = `chrome-extension://${FIXTURE_EXTENSION_ID}/`;
   const requestId = "chrome-smoke-native-host";
   const hostPolicyRequestId = "chrome-smoke-host-policy";
   const homeDir = await mkdtemp(path.join(os.tmpdir(), "skfiy-chrome-native-host-"));
@@ -518,6 +521,18 @@ async function runChromeNativeHostBridgeSmoke(options) {
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
+}
+
+async function runChromeReadinessDiagnostics(options) {
+  const modulePath = path.join(ROOT_DIR, "dist", "main", "chrome-readiness.js");
+  const { createChromeReadinessDiagnostics } = await import(pathToFileURL(modulePath).href);
+
+  return createChromeReadinessDiagnostics({
+    homeDir: os.homedir(),
+    cliShimPath: options.cliPath,
+    extensionIds: [FIXTURE_EXTENSION_ID],
+    approvalProbeCommand: `打开 Chrome 测试页面 https://example.com/skfiy-readiness 并提取正文`
+  });
 }
 
 async function runInstalledChromeExtensionSmoke(options) {

@@ -8,6 +8,10 @@ export const CLI_SMOKE_PROFILE_NAMES = ["full", "basic"];
 
 export const CLI_COMMAND_MATRIX = [
   {
+    id: "commands-json",
+    args: ["commands", "--json"]
+  },
+  {
     id: "status-json",
     args: ["status", "--json"]
   },
@@ -51,6 +55,7 @@ export const CLI_COMMAND_MATRIX = [
 ];
 
 export const CLI_BASIC_COMMAND_IDS = [
+  "commands-json",
   "status-json",
   "doctor-json",
   "chrome-status",
@@ -154,7 +159,7 @@ export function createCliSmokeHelpText(defaults) {
   return `Usage: npm run smoke:cli -- [options]
 
 Runs the built skfiy CLI through a binary command matrix:
-dist/skfiy -> status/doctor/chrome status/mcp/dashboard/release/alpha/smoke dashboard.
+dist/skfiy -> commands/status/doctor/chrome status/mcp/dashboard/release/alpha/smoke dashboard.
 
 Options:
   --cli <path>            Built CLI path. Default: ${defaults.cliPath}
@@ -245,6 +250,17 @@ function isPassingCommandEvidence(command, expected, cliPath) {
       && command.stdoutJson?.bind?.host === "127.0.0.1"
       && Number.isInteger(command.stdoutJson?.bind?.port)
       && command.cleanup?.exited === true;
+  }
+
+  if (expected.id === "commands-json") {
+    return command.stdoutJson?.command === "commands"
+      && command.stdoutJson?.result === "available"
+      && Number.isInteger(command.stdoutJson?.commandCount)
+      && command.stdoutJson?.surface?.schemaVersion === 1
+      && Array.isArray(command.stdoutJson?.surface?.commands)
+      && command.stdoutJson.surface.commands.some((entry) => entry?.path === "status")
+      && command.stdoutJson.surface.commands.some((entry) => entry?.path === "mcp serve")
+      && command.stdoutJson.surface.commands.some((entry) => entry?.path === "smoke codex-plugin");
   }
 
   if (expected.id === "status-json") {

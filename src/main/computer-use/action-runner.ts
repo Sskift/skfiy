@@ -1,7 +1,10 @@
 import type {
+  DesktopAppState,
   DesktopAction,
   DesktopActionResult,
   DesktopExecutableAction,
+  DesktopSessionStatus,
+  OpenGhosttySessionResult,
   WaitAction,
   WaitResult
 } from "./types.js";
@@ -13,12 +16,38 @@ export interface DesktopActionExecutor {
 export interface RunDesktopActionPlanOptions {
   signal?: AbortSignal;
   verifyStep?: DesktopActionStepVerifier;
+  collectEvidence?: boolean;
 }
 
 export interface DesktopActionPlanStepResult {
   action: DesktopAction;
   result: DesktopActionResult;
+  evidence?: DesktopActionResultEvidence;
   verification?: DesktopActionVerification;
+}
+
+export interface DesktopActionResultEvidence {
+  actionType: DesktopAction["type"];
+  target?: {
+    bundleId: string;
+    pid?: number;
+  };
+  ok?: boolean;
+  message?: string;
+  screenshotPath?: string;
+  observed?: {
+    isRunning: boolean;
+    isActive: boolean;
+    frontmostBundleId?: string;
+    windowCount: number;
+    ocrLabelCount: number;
+  };
+  desktopSession?: {
+    controllable: boolean;
+    frontmostBundleId?: string;
+    frontmostProcessIdentifier?: number;
+    mainDisplayAsleep?: boolean;
+  };
 }
 
 export type DesktopActionVerification =
@@ -83,6 +112,9 @@ export async function runDesktopActionPlan(
       action,
       result
     };
+    if (options.collectEvidence) {
+      stepResult.evidence = createDesktopActionResultEvidence(action, result);
+    }
 
     if (options.verifyStep) {
       const verification = await options.verifyStep({
@@ -112,6 +144,51 @@ export async function runDesktopActionPlan(
   return results;
 }
 
+export function createDesktopActionResultEvidence(
+  action: DesktopAction,
+  result: DesktopActionResult
+): DesktopActionResultEvidence {
+  const evidence: DesktopActionResultEvidence = {
+    actionType: action.type
+  };
+
+  const target = readActionTarget(action) ?? readResultTarget(result);
+  if (target) {
+    evidence.target = target;
+  }
+
+  if (isHelperActionResult(result)) {
+    evidence.ok = result.ok;
+    evidence.message = result.message;
+  }
+
+  const screenshotPath = readScreenshotPath(result);
+  if (screenshotPath) {
+    evidence.screenshotPath = screenshotPath;
+  }
+
+  if (isDesktopAppState(result)) {
+    evidence.observed = {
+      isRunning: result.isRunning,
+      isActive: result.isActive,
+      frontmostBundleId: result.frontmostBundleId,
+      windowCount: result.windows?.length ?? 0,
+      ocrLabelCount: result.ocrLabels?.length ?? 0
+    };
+  }
+
+  if (isDesktopSessionStatus(result)) {
+    evidence.desktopSession = {
+      controllable: result.controllable,
+      frontmostBundleId: result.frontmostBundleId,
+      frontmostProcessIdentifier: result.frontmostProcessIdentifier,
+      mainDisplayAsleep: result.mainDisplayAsleep
+    };
+  }
+
+  return evidence;
+}
+
 function createVerificationFailureMessage(
   action: DesktopExecutableAction,
   verification: Exclude<DesktopActionVerification, { status: "passed" }>
@@ -125,6 +202,74 @@ function createVerificationFailureMessage(
 
 function isWaitAction(action: DesktopAction): action is WaitAction {
   return action.type === "wait";
+}
+
+function readActionTarget(action: DesktopAction): { bundleId: string; pid?: number } | undefined {
+  if (
+    action.type === "activate_app"
+    || action.type === "observe_app"
+  ) {
+    return {
+      bundleId: action.bundleId,
+      pid: action.pid
+    };
+  }
+
+  return undefined;
+}
+
+function readResultTarget(result: DesktopActionResult): { bundleId: string; pid?: number } | undefined {
+  if (isDesktopAppState(result) || isOpenGhosttySessionResult(result)) {
+    return {
+      bundleId: result.bundleId,
+      pid: result.pid
+    };
+  }
+
+  return undefined;
+}
+
+function readScreenshotPath(result: DesktopActionResult): string | undefined {
+  if ("outputPath" in result && typeof result.outputPath === "string") {
+    return result.outputPath;
+  }
+
+  if (isDesktopAppState(result)) {
+    return result.screenshotPath;
+  }
+
+  return undefined;
+}
+
+function isHelperActionResult(result: DesktopActionResult): result is { ok: boolean; message?: string } {
+  return "ok" in result && typeof result.ok === "boolean";
+}
+
+function isDesktopAppState(result: DesktopActionResult): result is DesktopAppState {
+  return (
+    "bundleId" in result
+    && "isRunning" in result
+    && "isActive" in result
+    && "screenshotPath" in result
+    && typeof result.bundleId === "string"
+  );
+}
+
+function isOpenGhosttySessionResult(
+  result: DesktopActionResult
+): result is OpenGhosttySessionResult {
+  return (
+    "opened" in result
+    && result.opened === true
+    && "bundleId" in result
+    && typeof result.bundleId === "string"
+    && "pid" in result
+    && typeof result.pid === "number"
+  );
+}
+
+function isDesktopSessionStatus(result: DesktopActionResult): result is DesktopSessionStatus {
+  return "controllable" in result && typeof result.controllable === "boolean";
 }
 
 function waitForAction(action: WaitAction, signal: AbortSignal | undefined): Promise<WaitResult> {

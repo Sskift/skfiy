@@ -41,6 +41,7 @@ describe("dashboard status descriptor", () => {
 
     expect(DASHBOARD_PANEL_IDS).toEqual([
       "runtime-health",
+      "operator-readiness",
       "permissions",
       "current-turn",
       "replay",
@@ -53,6 +54,7 @@ describe("dashboard status descriptor", () => {
     expect(panels.map((panel) => panel.id)).toEqual(DASHBOARD_PANEL_IDS);
     expect(panels.map((panel) => panel.title)).toEqual([
       "Runtime health",
+      "Operator readiness",
       "Permission health",
       "Current turn",
       "Replay timeline",
@@ -78,6 +80,14 @@ describe("dashboard status descriptor", () => {
         "version",
         "bundle-id",
         "signing"
+      ]
+    });
+    expect(panels.find((panel) => panel.id === "operator-readiness")).toMatchObject({
+      signals: [
+        "command-surface",
+        "extension-readiness",
+        "packaged-binary",
+        "recent-smoke-evidence"
       ]
     });
     expect(panels.find((panel) => panel.id === "current-turn")).toMatchObject({
