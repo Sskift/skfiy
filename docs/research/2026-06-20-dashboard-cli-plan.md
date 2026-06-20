@@ -62,6 +62,10 @@ The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, 
 
 `skfiy status --json` now runs read-only probes instead of returning only placeholders. It reports whether `dist/skfiy.app` and its packaged helper exist, reads helper permission states, reads desktop-session controllability, checks the Chrome Native Messaging host when `--extension-id <id>` is provided, and checks a running dashboard descriptor when `--dashboard-url <url>` is provided. Missing helpers or failed probes degrade to `unknown`/`not-running` fields so dashboards can render the output without treating status collection itself as a hard failure.
 
+## Doctor Probe
+
+`skfiy doctor --json` now turns the same read-only probes into operator-facing diagnostics. It reports a machine-readable `result`, `diagnostics[]`, and de-duplicated `nextActions[]` for helper placement, Screen Recording, Accessibility, desktop lock/sleep/loginwindow blockers, Chrome Native Messaging host setup, dashboard availability, app signature identity, and Finder Automation proof. The command stays non-mutating; it tells the operator exactly which command or System Settings panel to open next.
+
 ## Integration Notes
 
 - Build output will place the modules under `dist/main/` through the existing Electron TypeScript config.

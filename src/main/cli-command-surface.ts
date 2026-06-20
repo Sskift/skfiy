@@ -75,7 +75,11 @@ export type CliCommandInvocation =
       kind: "doctor";
       path: "doctor";
       json: boolean;
-      options: Record<string, never>;
+      options: {
+        extensionIds: string[];
+        cliShimPath: string;
+        dashboardUrl?: string;
+      };
     }
   | {
       kind: "dashboard";
@@ -168,6 +172,17 @@ export interface StatusReaderInput {
 
 export type StatusReader = (input: StatusReaderInput) => Promise<Record<string, unknown>>;
 
+export interface SignatureReaderInput {
+  appPath: string;
+}
+
+export interface SignatureStatus {
+  state: "valid" | "invalid" | "unknown";
+  reason?: string;
+}
+
+export type SignatureReader = (input: SignatureReaderInput) => Promise<SignatureStatus>;
+
 export interface RunSkfiyCliInput {
   argv: string[];
   rootDir?: string;
@@ -175,6 +190,7 @@ export interface RunSkfiyCliInput {
   generatedAt?: string;
   chromeNativeHostIo?: ChromeNativeHostIo;
   statusReader?: StatusReader;
+  signatureReader?: SignatureReader;
   smokeRunner?: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
   dashboardServerStarter?: (input: { port: number }) => Promise<DashboardServer>;
   dashboardOpener?: (url: string) => Promise<void>;
@@ -292,7 +308,11 @@ export function normalizeCliCommand(
       kind: "doctor",
       path: "doctor",
       json: argv.includes("--json"),
-      options: {}
+      options: {
+        extensionIds: readRepeatedOptionValues(argv, "--extension-id"),
+        cliShimPath: resolveOptionPath(argv, "--cli", rootDir, path.join(rootDir, "dist", "skfiy")),
+        dashboardUrl: readOptionValue(argv, "--dashboard-url")
+      }
     });
   }
 
@@ -416,7 +436,11 @@ export function createCliOutput(
       generatedAt,
       result: "not-run",
       diagnostics: [],
-      nextActions: []
+      nextActions: [],
+      statusProbe: {
+        extensionIds: invocation.options.extensionIds,
+        dashboardUrl: invocation.options.dashboardUrl
+      }
     };
   }
 
@@ -509,6 +533,7 @@ export async function runSkfiyCli({
   generatedAt,
   chromeNativeHostIo,
   statusReader = readCliStatus,
+  signatureReader = readCodeSignatureStatus,
   smokeRunner = runSmokeScript,
   dashboardServerStarter = startDashboardServer,
   dashboardOpener = openDashboardUrl,
@@ -531,6 +556,19 @@ export async function runSkfiyCli({
       rootDir: normalizedRootDir,
       homeDir: homeDir ?? process.env.HOME ?? "",
       statusReader,
+      stdout,
+      stderr
+    });
+  }
+
+  if (result.invocation.kind === "doctor") {
+    return runDoctorCli({
+      invocation: result.invocation,
+      generatedAt,
+      rootDir: normalizedRootDir,
+      homeDir: homeDir ?? process.env.HOME ?? "",
+      statusReader,
+      signatureReader,
       stdout,
       stderr
     });
@@ -607,19 +645,14 @@ async function runStatusCli({
   stdout: SkfiyCliIo;
   stderr: SkfiyCliIo;
 }): Promise<number> {
-  const appPath = path.join(rootDir, "dist", "skfiy.app");
-  const helperPath = path.join(appPath, "Contents", "MacOS", "skfiy-helper");
+  const input = createStatusReaderInput({
+    rootDir,
+    homeDir,
+    invocation
+  });
 
   try {
-    const status = await statusReader({
-      rootDir,
-      homeDir,
-      appPath,
-      helperPath,
-      cliShimPath: invocation.options.cliShimPath,
-      extensionIds: invocation.options.extensionIds,
-      dashboardUrl: invocation.options.dashboardUrl
-    });
+    const status = await statusReader(input);
 
     stdout.write(`${JSON.stringify({
       schemaVersion: 1,
@@ -639,6 +672,246 @@ async function runStatusCli({
     }, null, 2)}\n`);
     return 1;
   }
+}
+
+async function runDoctorCli({
+  invocation,
+  generatedAt,
+  rootDir,
+  homeDir,
+  statusReader,
+  signatureReader,
+  stdout,
+  stderr
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "doctor" }>;
+  generatedAt?: string;
+  rootDir: string;
+  homeDir: string;
+  statusReader: StatusReader;
+  signatureReader: SignatureReader;
+  stdout: SkfiyCliIo;
+  stderr: SkfiyCliIo;
+}): Promise<number> {
+  const input = createStatusReaderInput({
+    rootDir,
+    homeDir,
+    invocation
+  });
+
+  try {
+    const [status, signature] = await Promise.all([
+      statusReader(input),
+      signatureReader({ appPath: input.appPath })
+    ]);
+    const doctor = createDoctorOutput({
+      status,
+      signature,
+      statusInput: input
+    });
+
+    stdout.write(`${JSON.stringify({
+      schemaVersion: 1,
+      command: "doctor",
+      generatedAt: generatedAt ?? new Date().toISOString(),
+      ...doctor
+    }, null, 2)}\n`);
+    return 0;
+  } catch (error) {
+    const message = readErrorMessage(error);
+
+    stderr.write(`${message}\n`);
+    stdout.write(`${JSON.stringify({
+      ...createCliOutput(invocation, { generatedAt }),
+      result: "error",
+      error: message
+    }, null, 2)}\n`);
+    return 1;
+  }
+}
+
+function createStatusReaderInput({
+  rootDir,
+  homeDir,
+  invocation
+}: {
+  rootDir: string;
+  homeDir: string;
+  invocation: Extract<CliCommandInvocation, { kind: "status" | "doctor" }>;
+}): StatusReaderInput {
+  const appPath = path.join(rootDir, "dist", "skfiy.app");
+
+  return {
+    rootDir,
+    homeDir,
+    appPath,
+    helperPath: path.join(appPath, "Contents", "MacOS", "skfiy-helper"),
+    cliShimPath: invocation.options.cliShimPath,
+    extensionIds: invocation.options.extensionIds,
+    dashboardUrl: invocation.options.dashboardUrl
+  };
+}
+
+function createDoctorOutput({
+  status,
+  signature,
+  statusInput
+}: {
+  status: Record<string, unknown>;
+  signature: SignatureStatus;
+  statusInput: StatusReaderInput;
+}): Record<string, unknown> {
+  const diagnostics: Array<Record<string, unknown>> = [];
+  const nextActions: string[] = [];
+  const addDiagnostic = ({
+    code,
+    severity,
+    message,
+    nextAction,
+    details
+  }: {
+    code: string;
+    severity: "error" | "warning" | "info";
+    message: string;
+    nextAction?: string;
+    details?: Record<string, unknown>;
+  }) => {
+    diagnostics.push({
+      code,
+      severity,
+      message,
+      ...(details ? { details } : {}),
+      ...(nextAction ? { nextAction } : {})
+    });
+
+    if (nextAction && !nextActions.includes(nextAction)) {
+      nextActions.push(nextAction);
+    }
+  };
+  const app = readRecord(status.app);
+  const helper = readRecord(status.helper);
+  const permissions = readRecord(status.permissions);
+  const desktopSession = readRecord(status.desktopSession);
+  const nativeHost = readRecord(status.nativeHost);
+  const dashboard = readRecord(status.dashboard);
+
+  if (app?.state !== "installed") {
+    addDiagnostic({
+      code: "app-missing",
+      severity: "error",
+      message: `skfiy.app is missing at ${statusInput.appPath}.`,
+      nextAction: "Run `npm run build` to create dist/skfiy.app and the CLI shim."
+    });
+  }
+
+  if (helper?.state !== "installed" || helper?.path !== statusInput.helperPath) {
+    addDiagnostic({
+      code: "helper-location",
+      severity: "error",
+      message: "skfiy-helper must be embedded beside the app executable for product-path TCC attribution.",
+      nextAction: "Run `npm run build` so skfiy-helper is embedded at dist/skfiy.app/Contents/MacOS/skfiy-helper.",
+      details: {
+        expectedHelperPath: statusInput.helperPath,
+        actualHelperPath: helper?.path
+      }
+    });
+  }
+
+  if (signature.state !== "valid") {
+    addDiagnostic({
+      code: "code-signature",
+      severity: "warning",
+      message: signature.reason ?? "skfiy.app code signature could not be verified.",
+      nextAction: "Run `npm run release:mac:check` to inspect signing/notarization readiness."
+    });
+  }
+
+  if (permissions?.screenRecording !== "granted") {
+    addDiagnostic({
+      code: "screen-recording-permission",
+      severity: "error",
+      message: "Screen Recording is required for Computer Use observation.",
+      nextAction: "Open System Settings > Privacy & Security > Screen Recording and grant skfiy."
+    });
+  }
+
+  if (permissions?.accessibility !== "granted") {
+    addDiagnostic({
+      code: "accessibility-permission",
+      severity: "error",
+      message: "Accessibility is required for Computer Use clicks, typing, scrolling, and drag actions.",
+      nextAction: "Open System Settings > Privacy & Security > Accessibility and grant skfiy."
+    });
+  }
+
+  if (permissions?.microphone === "denied") {
+    addDiagnostic({
+      code: "microphone-permission",
+      severity: "warning",
+      message: "Microphone is denied, so native/browser speech providers cannot capture audio.",
+      nextAction: "Open System Settings > Privacy & Security > Microphone and grant skfiy."
+    });
+  }
+
+  if (permissions?.speechRecognition === "denied") {
+    addDiagnostic({
+      code: "speech-recognition-permission",
+      severity: "warning",
+      message: "Speech Recognition is denied, so the native macOS speech provider cannot transcribe.",
+      nextAction: "Open System Settings > Privacy & Security > Speech Recognition and grant skfiy."
+    });
+  }
+
+  if (permissions?.finderAutomation !== "granted") {
+    addDiagnostic({
+      code: "finder-automation-unknown",
+      severity: "info",
+      message: "Finder Automation has not been proven from CLI status yet.",
+      nextAction: "Run a Finder smoke once and grant Finder Automation when macOS prompts."
+    });
+  }
+
+  if (desktopSession?.state === "blocked" || desktopSession?.controllable === false) {
+    addDiagnostic({
+      code: "desktop-session-blocked",
+      severity: "error",
+      message: "The active desktop session is not controllable.",
+      nextAction: "Wake and unlock the Mac, then rerun `skfiy status --json` before collecting Computer Use evidence.",
+      details: {
+        frontmostBundleId: desktopSession.frontmostBundleId,
+        mainDisplayAsleep: desktopSession.mainDisplayAsleep
+      }
+    });
+  }
+
+  if (statusInput.extensionIds.length > 0 && nativeHost?.state !== "installed") {
+    addDiagnostic({
+      code: "chrome-native-host",
+      severity: "warning",
+      message: typeof nativeHost?.reason === "string"
+        ? nativeHost.reason
+        : "Chrome Native Messaging host is not installed for the requested extension.",
+      nextAction:
+        `Run \`skfiy chrome install-host --extension-id ${statusInput.extensionIds[0]}\` to install the Chrome Native Messaging host.`
+    });
+  }
+
+  if (statusInput.dashboardUrl && dashboard?.state !== "running") {
+    addDiagnostic({
+      code: "dashboard-not-running",
+      severity: "warning",
+      message: "The provided dashboard URL is not serving a descriptor.",
+      nextAction: "Start the dashboard with `skfiy dashboard --no-open --json` or pass the current dashboard URL."
+    });
+  }
+
+  return {
+    result: diagnostics.length === 0 ? "ok" : "needs-action",
+    diagnostics,
+    nextActions,
+    status,
+    signature
+  };
 }
 
 async function readCliStatus(input: StatusReaderInput): Promise<Record<string, unknown>> {
@@ -821,6 +1094,87 @@ async function readDashboardStatus(dashboardUrl: string | undefined): Promise<Re
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function readCodeSignatureStatus({
+  appPath
+}: SignatureReaderInput): Promise<SignatureStatus> {
+  if (!existsSync(appPath)) {
+    return {
+      state: "unknown",
+      reason: `skfiy.app is missing at ${appPath}.`
+    };
+  }
+
+  const verify = await runCommand("codesign", [
+    "--verify",
+    "--deep",
+    "--strict",
+    "--verbose=2",
+    appPath
+  ]);
+
+  if (verify.exitCode !== 0) {
+    return {
+      state: "invalid",
+      reason: (verify.stderr || verify.stdout || "codesign verification failed.").trim()
+    };
+  }
+
+  const details = await runCommand("codesign", [
+    "-dv",
+    "--verbose=4",
+    appPath
+  ]);
+  const detailText = `${details.stdout}\n${details.stderr}`;
+
+  if (!detailText.includes("Identifier=com.sskift.skfiy")) {
+    return {
+      state: "invalid",
+      reason: "designated requirement does not include com.sskift.skfiy"
+    };
+  }
+
+  return {
+    state: "valid"
+  };
+}
+
+function runCommand(command: string, args: string[]): Promise<{
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      resolve({
+        exitCode: code ?? 1,
+        stdout,
+        stderr
+      });
+    });
+  });
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
 }
 
 function readErrorMessage(error: unknown): string {

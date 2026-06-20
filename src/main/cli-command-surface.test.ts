@@ -91,7 +91,13 @@ describe("CLI command surface", () => {
       "--dashboard-url",
       "http://127.0.0.1:8787/"
     ]);
-    const doctor = expectInvocation(["doctor"]);
+    const doctor = expectInvocation([
+      "doctor",
+      "--extension-id",
+      "abcdefghijklmnopabcdefghijklmnop",
+      "--dashboard-url",
+      "http://127.0.0.1:8787/"
+    ]);
 
     expect(status).toMatchObject({
       kind: "status",
@@ -148,13 +154,17 @@ describe("CLI command surface", () => {
 
     expect(createCliOutput(doctor, {
       generatedAt: "2026-06-20T00:00:00.000Z"
-    })).toEqual({
+    })).toMatchObject({
       schemaVersion: 1,
       command: "doctor",
       generatedAt: "2026-06-20T00:00:00.000Z",
       result: "not-run",
       diagnostics: [],
-      nextActions: []
+      nextActions: [],
+      statusProbe: {
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+        dashboardUrl: "http://127.0.0.1:8787/"
+      }
     });
     expectJsonSafe(createCliOutput(status));
     expectJsonSafe(createCliOutput(doctor));
@@ -523,6 +533,138 @@ describe("CLI command surface", () => {
       }
     });
     expect(stdout.join("")).not.toContain("token=");
+    expect(stderr).toEqual([]);
+  });
+
+  it("runs doctor diagnostics from status and signing probes", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const statusInputs: unknown[] = [];
+    const signatureInputs: unknown[] = [];
+
+    await expect(runSkfiyCli({
+      argv: [
+        "doctor",
+        "--json",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop",
+        "--dashboard-url",
+        "http://127.0.0.1:8787/"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader: async (input) => {
+        statusInputs.push(input);
+        return {
+          app: { state: "installed", path: "/repo/dist/skfiy.app" },
+          helper: {
+            state: "missing",
+            path: "/repo/dist/skfiy.app/Contents/Resources/skfiy-helper"
+          },
+          permissions: {
+            screenRecording: "denied",
+            accessibility: "not-determined",
+            microphone: "granted",
+            speechRecognition: "not-determined",
+            finderAutomation: "unknown"
+          },
+          desktopSession: {
+            state: "blocked",
+            frontmostBundleId: "com.apple.loginwindow",
+            mainDisplayAsleep: true
+          },
+          extension: { state: "unknown" },
+          nativeHost: {
+            state: "missing",
+            cliShimPath: "/repo/dist/skfiy",
+            extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+            reason: "Chrome Native Messaging host manifest is not installed."
+          },
+          dashboard: {
+            state: "not-running",
+            url: "http://127.0.0.1:8787/",
+            reason: "fetch failed"
+          }
+        };
+      },
+      signatureReader: async (input) => {
+        signatureInputs.push(input);
+        return {
+          state: "invalid",
+          reason: "designated requirement does not include com.sskift.skfiy"
+        };
+      },
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(statusInputs).toEqual([{
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      appPath: "/repo/dist/skfiy.app",
+      helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+      cliShimPath: "/repo/dist/skfiy",
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+      dashboardUrl: "http://127.0.0.1:8787/"
+    }]);
+    expect(signatureInputs).toEqual([{
+      appPath: "/repo/dist/skfiy.app"
+    }]);
+
+    const output = JSON.parse(stdout.join(""));
+
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      command: "doctor",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      result: "needs-action"
+    });
+    expect(output.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "helper-location",
+        severity: "error"
+      }),
+      expect.objectContaining({
+        code: "screen-recording-permission",
+        severity: "error"
+      }),
+      expect.objectContaining({
+        code: "accessibility-permission",
+        severity: "error"
+      }),
+      expect.objectContaining({
+        code: "desktop-session-blocked",
+        severity: "error"
+      }),
+      expect.objectContaining({
+        code: "chrome-native-host",
+        severity: "warning"
+      }),
+      expect.objectContaining({
+        code: "dashboard-not-running",
+        severity: "warning"
+      }),
+      expect.objectContaining({
+        code: "code-signature",
+        severity: "warning"
+      }),
+      expect.objectContaining({
+        code: "finder-automation-unknown",
+        severity: "info"
+      })
+    ]));
+    expect(output.nextActions).toEqual(expect.arrayContaining([
+      "Run `npm run build` so skfiy-helper is embedded at dist/skfiy.app/Contents/MacOS/skfiy-helper.",
+      "Open System Settings > Privacy & Security > Screen Recording and grant skfiy.",
+      "Open System Settings > Privacy & Security > Accessibility and grant skfiy.",
+      "Wake and unlock the Mac, then rerun `skfiy status --json` before collecting Computer Use evidence.",
+      "Run `skfiy chrome install-host --extension-id abcdefghijklmnopabcdefghijklmnop` to install the Chrome Native Messaging host.",
+      "Start the dashboard with `skfiy dashboard --no-open --json` or pass the current dashboard URL.",
+      "Run `npm run release:mac:check` to inspect signing/notarization readiness.",
+      "Run a Finder smoke once and grant Finder Automation when macOS prompts."
+    ]));
+    expect(JSON.stringify(output)).not.toContain("token=");
     expect(stderr).toEqual([]);
   });
 
