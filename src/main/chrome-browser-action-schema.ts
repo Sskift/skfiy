@@ -1,7 +1,10 @@
+import { decideChromeBrowserDataExposure } from "./chrome-host-policy.js";
+
 export const CHROME_BROWSER_OBSERVE_TYPE = "skfiy.page.observe";
 export const CHROME_BROWSER_ACTION_TYPE = "skfiy.page.action";
 export const CHROME_BROWSER_SCREENSHOT_TYPE = "skfiy.page.screenshot";
 export const CHROME_BROWSER_DOWNLOADS_STATUS_TYPE = "skfiy.downloads.status";
+export const CHROME_BROWSER_HISTORY_QUERY_TYPE = "skfiy.history.query";
 
 export interface ChromeBrowserMessage {
   schemaVersion: 1;
@@ -75,6 +78,10 @@ export function normalizeChromeBrowserMessage(
     return normalizeDownloadsStatusMessage(message);
   }
 
+  if (message.type === CHROME_BROWSER_HISTORY_QUERY_TYPE) {
+    return normalizeHistoryQueryMessage(message);
+  }
+
   return {
     ok: true,
     message
@@ -99,7 +106,11 @@ function normalizeDownloadsStatusMessage(
   const payload = readRecord(message.payload) ?? {};
   const includeFilePaths = payload.includeFilePaths === true;
 
-  if (includeFilePaths && payload.confirmed !== true) {
+  const filenameExposure = decideChromeBrowserDataExposure({
+    exposure: "download_filename",
+    confirmed: payload.confirmed
+  });
+  if (includeFilePaths && filenameExposure.decision === "block") {
     return {
       ok: false,
       result: "blocked",
@@ -117,6 +128,40 @@ function normalizeDownloadsStatusMessage(
         limit: typeof payload.limit === "number" ? clampInteger(payload.limit, 1, 50) : 20,
         includeFilePaths,
         ...(includeFilePaths ? { confirmed: true } : {})
+      }
+    }
+  };
+}
+
+function normalizeHistoryQueryMessage(
+  message: ChromeBrowserMessage
+): ChromeBrowserMessageNormalization {
+  const payload = readRecord(message.payload) ?? {};
+  const historyExposure = decideChromeBrowserDataExposure({
+    exposure: "browser_history",
+    confirmed: payload.confirmed
+  });
+
+  if (historyExposure.decision === "block") {
+    return {
+      ok: false,
+      result: "blocked",
+      reason: historyExposure.reason
+    };
+  }
+
+  return {
+    ok: true,
+    message: {
+      schemaVersion: 1,
+      type: CHROME_BROWSER_HISTORY_QUERY_TYPE,
+      requestId: message.requestId,
+      payload: {
+        limit: typeof payload.limit === "number" ? clampInteger(payload.limit, 1, 50) : 20,
+        ...(typeof payload.text === "string" && payload.text.trim()
+          ? { text: payload.text.trim() }
+          : {}),
+        confirmed: true
       }
     }
   };

@@ -73,6 +73,8 @@ The binary plan is deliberately stricter than a developer convenience plan:
 - Wire `skfiy chrome status|install-host|uninstall-host` to user-level Chrome Native Messaging manifest status/install/uninstall when a Chrome extension id is provided.
 - Add a formal product smoke wrapper, `npm run smoke:cli`, that runs the compiled `dist/skfiy` through the safe CLI command matrix with an isolated HOME and no source-tree shim.
 - Add a formal product smoke wrapper, `npm run smoke:dashboard`, that launches the built `dist/skfiy` CLI with `dashboard --no-open --port 0 --json`, fetches `/descriptor.json` plus the dashboard shell, rejects token leakage, and terminates the dashboard process after evidence collection.
+- Add `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>` as a token-free, allowlisted macOS System Settings opener with stable JSON action-plan output.
+- Add `GET /events` as the first SSE live-refresh endpoint; the dashboard shell uses `EventSource("/events")` with `/snapshot.json` fallback, and `smoke:dashboard` requires a token-free first `snapshot` event before classifying the packaged dashboard path as passed.
 
 ## Command Surface
 
@@ -83,6 +85,7 @@ Commands represented:
 - `skfiy status --json`
 - `skfiy doctor`
 - `skfiy dashboard [--no-open] [--port <port>] [--json]`
+- `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>`
 - `skfiy chrome status`
 - `skfiy chrome install-host`
 - `skfiy chrome uninstall-host`
@@ -91,7 +94,7 @@ Commands represented:
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
 
-Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
+Mutating-looking commands are explicit subcommands. `skfiy permissions open <target>` now reports `executesSystemMutation: true`, opens only fixed `x-apple.systempreferences:` Privacy & Security URLs, and returns the same concrete System Settings/action-plan JSON whether the opener succeeds or fails. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`.
 

@@ -38,6 +38,7 @@ async function main() {
     cliStderr: "",
     descriptorResponse: undefined,
     snapshotResponse: undefined,
+    eventsResponse: undefined,
     shellResponse: undefined,
     tokenLeakDetected: false,
     result: "not-run"
@@ -66,12 +67,17 @@ async function main() {
       new URL("/snapshot.json", launched.cliOutput.url).toString(),
       options.timeoutMs
     );
+    evidence.eventsResponse = await readEventStreamResponse(
+      new URL("/events", launched.cliOutput.url).toString(),
+      options.timeoutMs
+    );
     evidence.shellResponse = await readTextResponse(launched.cliOutput.url, options.timeoutMs);
     evidence.tokenLeakDetected = hasTokenLeak([
       evidence.cliStdout,
       evidence.cliStderr,
       JSON.stringify(evidence.descriptorResponse),
       JSON.stringify(evidence.snapshotResponse),
+      JSON.stringify(evidence.eventsResponse),
       evidence.shellResponse?.body ?? ""
     ]);
     evidence.result = classifyDashboardSmokeEvidence(evidence);
@@ -202,6 +208,55 @@ async function readTextResponse(url, timeoutMs) {
       status: response.status,
       headers: Object.fromEntries(response.headers.entries()),
       body: await response.text()
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function readEventStreamResponse(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal
+    });
+    const headers = Object.fromEntries(response.headers.entries());
+    let body = "";
+
+    if (!response.body) {
+      return {
+        status: response.status,
+        headers,
+        body,
+        error: "SSE response did not expose a readable body."
+      };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (!body.includes("\n\n")) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        body += decoder.decode(value, { stream: true });
+      }
+      body += decoder.decode();
+    } finally {
+      await reader.cancel().catch(() => {});
+      controller.abort();
+    }
+
+    return {
+      status: response.status,
+      headers,
+      body: body.includes("\n\n") ? body.slice(0, body.indexOf("\n\n") + 2) : body
     };
   } finally {
     clearTimeout(timeout);

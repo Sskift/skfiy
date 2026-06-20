@@ -183,5 +183,18 @@ describe("Chrome browser action schema", () => {
       result: "blocked",
       reason: "download_path_exposure_requires_confirmation"
     });
+
+    expect(normalizeChromeBrowserMessage({
+      schemaVersion: 1,
+      type: "skfiy.history.query",
+      requestId: "history-unconfirmed",
+      payload: {
+        text: "example"
+      }
+    })).toEqual({
+      ok: false,
+      result: "blocked",
+      reason: "browser_history_exposure_requires_confirmation"
+    });
   });
 });

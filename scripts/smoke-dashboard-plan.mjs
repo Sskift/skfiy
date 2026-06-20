@@ -118,6 +118,10 @@ export function classifyDashboardSmokeEvidence(evidence) {
     return "failed";
   }
 
+  if (!hasDashboardEventsEvidence(evidence.eventsResponse)) {
+    return "failed";
+  }
+
   if (
     evidence.shellResponse?.status !== 200
     || !hasDashboardShellEvidence(shellBody)
@@ -368,11 +372,53 @@ function hasDashboardShellEvidence(shellBody) {
   return shellBody.includes("skfiy Dashboard")
     && shellBody.includes("/descriptor.json")
     && shellBody.includes("/snapshot.json")
+    && shellBody.includes('new EventSource("/events")')
     && shellBody.includes("data-dashboard-root")
     && shellBody.includes("data-snapshot-state")
     && shellBody.includes('data-panel-body="long-horizon-supervision"')
     && shellBody.includes('fetch("/snapshot.json", { cache: "no-store" })')
     && shellBody.includes("renderLongHorizonPanel");
+}
+
+function hasDashboardEventsEvidence(eventsResponse) {
+  if (
+    eventsResponse?.status !== 200
+    || eventsResponse?.headers?.["content-type"] !== "text/event-stream; charset=utf-8"
+    || eventsResponse?.headers?.["cache-control"] !== "no-store, no-transform"
+  ) {
+    return false;
+  }
+
+  const event = parseFirstServerSentEvent(eventsResponse.body);
+
+  return event?.event === "snapshot"
+    && event.data?.schemaVersion === 1
+    && typeof event.data?.generatedAt === "string"
+    && event.data?.currentTurn
+    && event.data?.replay;
+}
+
+function parseFirstServerSentEvent(body) {
+  if (typeof body !== "string" || !body.includes("\n\n")) {
+    return undefined;
+  }
+
+  const lines = body.slice(0, body.indexOf("\n\n")).split("\n");
+  const eventLine = lines.find((line) => line.startsWith("event: "));
+  const dataLine = lines.find((line) => line.startsWith("data: "));
+
+  if (!eventLine || !dataLine) {
+    return undefined;
+  }
+
+  try {
+    return {
+      event: eventLine.slice("event: ".length),
+      data: JSON.parse(dataLine.slice("data: ".length))
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function hasLatestAlphaEvidence(latestAlpha) {

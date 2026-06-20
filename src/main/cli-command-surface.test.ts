@@ -33,6 +33,7 @@ describe("CLI command surface", () => {
       "status",
       "doctor",
       "dashboard",
+      "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
       "chrome status",
       "chrome install-host",
       "chrome uninstall-host",
@@ -76,6 +77,13 @@ describe("CLI command surface", () => {
         summary: "Serve skfiy status and Computer Use tools over MCP stdio for Codex plugins.",
         plannedMutation: false,
         executesSystemMutation: false
+      }),
+      expect.objectContaining({
+        path: "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
+        summary: "Open the matching macOS Privacy & Security permission settings panel.",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "permission-settings-open"
       })
     ]));
     expect(SMOKE_TARGETS).toEqual([
@@ -242,6 +250,85 @@ describe("CLI command surface", () => {
         generatedAt: "2026-06-20T00:00:00.000Z"
       });
       expectJsonSafe(output);
+    }
+  });
+
+  it("normalizes permission settings open commands with concrete macOS action plans", () => {
+    const cases = [
+      {
+        target: "screen-recording",
+        label: "Screen Recording",
+        anchor: "Privacy_ScreenCapture",
+        guidance: "Grant skfiy Screen Recording access."
+      },
+      {
+        target: "accessibility",
+        label: "Accessibility",
+        anchor: "Privacy_Accessibility",
+        guidance: "Grant skfiy Accessibility access."
+      },
+      {
+        target: "microphone",
+        label: "Microphone",
+        anchor: "Privacy_Microphone",
+        guidance: "Grant skfiy Microphone access."
+      },
+      {
+        target: "speech-recognition",
+        label: "Speech Recognition",
+        anchor: "Privacy_SpeechRecognition",
+        guidance: "Grant skfiy Speech Recognition access."
+      },
+      {
+        target: "automation-finder",
+        label: "Automation",
+        anchor: "Privacy_Automation",
+        guidance: "Grant skfiy permission to control Finder in Automation."
+      }
+    ] as const;
+
+    for (const { target, label, anchor, guidance } of cases) {
+      const invocation = expectInvocation(["permissions", "open", target, "--json"]);
+      const url = `x-apple.systempreferences:com.apple.preference.security?${anchor}`;
+
+      expect(invocation).toEqual({
+        kind: "permissions-open",
+        path: `permissions open ${target}`,
+        target,
+        json: true
+      });
+      expect(createCliOutput(invocation, {
+        generatedAt: "2026-06-20T00:00:00.000Z"
+      })).toEqual({
+        schemaVersion: 1,
+        command: "permissions open",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        target,
+        executesSystemMutation: true,
+        result: "not-run",
+        systemSettings: {
+          app: "System Settings",
+          pane: "Privacy & Security",
+          label,
+          anchor,
+          url
+        },
+        actionPlan: [
+          {
+            step: "open-system-settings",
+            executor: "skfiy-cli",
+            command: "open",
+            args: [url]
+          },
+          {
+            step: "grant-permission",
+            executor: "user",
+            target,
+            guidance
+          }
+        ]
+      });
+      expectJsonSafe(createCliOutput(invocation));
     }
   });
 
@@ -586,6 +673,13 @@ describe("CLI command surface", () => {
       error: {
         code: "unknown-chrome-subcommand",
         message: "Unknown chrome subcommand: reinstall-host"
+      }
+    });
+    expect(normalizeCliCommand(["permissions", "open", "calendar"])).toEqual({
+      ok: false,
+      error: {
+        code: "unknown-permission-settings-target",
+        message: "Unknown permission settings target: calendar"
       }
     });
   });
@@ -943,6 +1037,101 @@ describe("CLI command surface", () => {
     });
     expect(files[manifestPath]).toBeUndefined();
     expect(stderr).toEqual([]);
+  });
+
+  it("runs permission settings open through an injected opener without requiring tmux", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const openedUrls: string[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["permissions", "open", "screen-recording", "--json"],
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      permissionSettingsOpener: async (url: string) => {
+        openedUrls.push(url);
+      },
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    const url = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
+    const output = JSON.parse(stdout.join(""));
+
+    expect(openedUrls).toEqual([url]);
+    expect(output).toEqual({
+      schemaVersion: 1,
+      command: "permissions open",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      target: "screen-recording",
+      executesSystemMutation: true,
+      result: "opened",
+      systemSettings: {
+        app: "System Settings",
+        pane: "Privacy & Security",
+        label: "Screen Recording",
+        anchor: "Privacy_ScreenCapture",
+        url
+      },
+      actionPlan: [
+        {
+          step: "open-system-settings",
+          executor: "skfiy-cli",
+          command: "open",
+          args: [url]
+        },
+        {
+          step: "grant-permission",
+          executor: "user",
+          target: "screen-recording",
+          guidance: "Grant skfiy Screen Recording access."
+        }
+      ]
+    });
+    expect(JSON.stringify(output)).not.toContain("token=");
+    expect(JSON.stringify(output)).not.toContain("tmux");
+    expect(stderr).toEqual([]);
+  });
+
+  it("returns the permission settings action plan when opening System Settings fails", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["permissions", "open", "automation-finder", "--json"],
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      permissionSettingsOpener: async () => {
+        throw new Error("open exited with code 1.");
+      },
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(1);
+
+    const output = JSON.parse(stdout.join(""));
+
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      command: "permissions open",
+      target: "automation-finder",
+      executesSystemMutation: true,
+      result: "error",
+      error: "open exited with code 1.",
+      systemSettings: {
+        label: "Automation",
+        anchor: "Privacy_Automation",
+        url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
+      }
+    });
+    expect(output.actionPlan).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        step: "grant-permission",
+        executor: "user",
+        target: "automation-finder",
+        guidance: "Grant skfiy permission to control Finder in Automation."
+      })
+    ]));
+    expect(stderr).toEqual(["open exited with code 1.\n"]);
   });
 
   it("reports Chrome extension adapter state from native host status", async () => {

@@ -38,7 +38,16 @@ export const SMOKE_TARGETS = [
   "money-run"
 ] as const;
 
+export const PERMISSION_SETTINGS_TARGETS = [
+  "screen-recording",
+  "accessibility",
+  "microphone",
+  "speech-recognition",
+  "automation-finder"
+] as const;
+
 export type SmokeTarget = typeof SMOKE_TARGETS[number];
+export type PermissionSettingsTarget = typeof PERMISSION_SETTINGS_TARGETS[number];
 export type ChromeSubcommand = "status" | "install-host" | "uninstall-host";
 export type McpTransport = "stdio";
 
@@ -52,6 +61,41 @@ const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
   finder: "scripts/smoke-finder-product.mjs",
   voice: "scripts/smoke-voice-product.mjs",
   "money-run": "scripts/smoke-money-run-supervision.mjs"
+};
+
+const SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX =
+  "x-apple.systempreferences:com.apple.preference.security?";
+
+const PERMISSION_SETTINGS_TARGET_DETAILS: Record<PermissionSettingsTarget, {
+  label: string;
+  anchor: string;
+  guidance: string;
+}> = {
+  "screen-recording": {
+    label: "Screen Recording",
+    anchor: "Privacy_ScreenCapture",
+    guidance: "Grant skfiy Screen Recording access."
+  },
+  accessibility: {
+    label: "Accessibility",
+    anchor: "Privacy_Accessibility",
+    guidance: "Grant skfiy Accessibility access."
+  },
+  microphone: {
+    label: "Microphone",
+    anchor: "Privacy_Microphone",
+    guidance: "Grant skfiy Microphone access."
+  },
+  "speech-recognition": {
+    label: "Speech Recognition",
+    anchor: "Privacy_SpeechRecognition",
+    guidance: "Grant skfiy Speech Recognition access."
+  },
+  "automation-finder": {
+    label: "Automation",
+    anchor: "Privacy_Automation",
+    guidance: "Grant skfiy permission to control Finder in Automation."
+  }
 };
 
 export interface CliCommandDefinition {
@@ -101,6 +145,12 @@ export type CliCommandInvocation =
         noOpen: boolean;
         port: number;
       };
+    }
+  | {
+      kind: "permissions-open";
+      path: `permissions open ${PermissionSettingsTarget}`;
+      target: PermissionSettingsTarget;
+      json: boolean;
     }
   | {
       kind: "chrome";
@@ -232,6 +282,7 @@ export interface RunSkfiyCliInput {
   mcpServerStarter?: SkfiyMcpServerStarter;
   dashboardServerStarter?: (input: { port: number; rootDir?: string }) => Promise<DashboardServer>;
   dashboardOpener?: (url: string) => Promise<void>;
+  permissionSettingsOpener?: (url: string) => Promise<void>;
   keepDashboardAlive?: boolean;
   keepMcpServerAlive?: boolean;
   stdout: SkfiyCliIo;
@@ -271,6 +322,14 @@ const COMMANDS: CliCommandDefinition[] = [
     plannedMutation: false,
     executesSystemMutation: false,
     outputShape: "dashboard"
+  },
+  {
+    path: "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
+    summary: "Open the matching macOS Privacy & Security permission settings panel.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "permission-settings-open"
   },
   {
     path: "chrome status",
@@ -374,6 +433,31 @@ export function normalizeCliCommand(
         noOpen: argv.includes("--no-open"),
         port
       }
+    });
+  }
+
+  if (command === "permissions") {
+    const subcommand = argv[1];
+    const target = argv[2];
+
+    if (subcommand !== "open") {
+      return error(
+        "unknown-permissions-subcommand",
+        `Unknown permissions subcommand: ${subcommand ?? ""}`
+      );
+    }
+    if (!isPermissionSettingsTarget(target)) {
+      return error(
+        "unknown-permission-settings-target",
+        `Unknown permission settings target: ${target ?? ""}`
+      );
+    }
+
+    return ok({
+      kind: "permissions-open",
+      path: `permissions open ${target}`,
+      target,
+      json: argv.includes("--json")
     });
   }
 
@@ -527,6 +611,14 @@ export function createCliOutput(
     };
   }
 
+  if (invocation.kind === "permissions-open") {
+    return createPermissionSettingsOpenOutput({
+      invocation,
+      generatedAt,
+      result: "not-run"
+    });
+  }
+
   if (invocation.kind === "chrome") {
     if (invocation.subcommand === "status") {
       return {
@@ -606,6 +698,52 @@ export function createCliOutput(
   };
 }
 
+function createPermissionSettingsOpenOutput({
+  invocation,
+  generatedAt,
+  result,
+  error
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "permissions-open" }>;
+  generatedAt: string;
+  result: "not-run" | "opened" | "error";
+  error?: string;
+}): Record<string, unknown> {
+  const targetDetails = PERMISSION_SETTINGS_TARGET_DETAILS[invocation.target];
+  const url = `${SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX}${targetDetails.anchor}`;
+
+  return {
+    schemaVersion: 1,
+    command: "permissions open",
+    generatedAt,
+    target: invocation.target,
+    executesSystemMutation: true,
+    result,
+    ...(error ? { error } : {}),
+    systemSettings: {
+      app: "System Settings",
+      pane: "Privacy & Security",
+      label: targetDetails.label,
+      anchor: targetDetails.anchor,
+      url
+    },
+    actionPlan: [
+      {
+        step: "open-system-settings",
+        executor: "skfiy-cli",
+        command: "open",
+        args: [url]
+      },
+      {
+        step: "grant-permission",
+        executor: "user",
+        target: invocation.target,
+        guidance: targetDetails.guidance
+      }
+    ]
+  };
+}
+
 export async function runSkfiyCli({
   argv,
   rootDir,
@@ -619,6 +757,7 @@ export async function runSkfiyCli({
   mcpServerStarter = startSkfiyMcpServer,
   dashboardServerStarter = startDashboardServer,
   dashboardOpener = openDashboardUrl,
+  permissionSettingsOpener = openPermissionSettingsUrl,
   keepDashboardAlive = true,
   keepMcpServerAlive = true,
   stdout,
@@ -652,6 +791,16 @@ export async function runSkfiyCli({
       homeDir: homeDir ?? process.env.HOME ?? "",
       statusReader,
       signatureReader,
+      stdout,
+      stderr
+    });
+  }
+
+  if (result.invocation.kind === "permissions-open") {
+    return runPermissionSettingsOpenCli({
+      invocation: result.invocation,
+      generatedAt,
+      permissionSettingsOpener,
       stdout,
       stderr
     });
@@ -726,6 +875,45 @@ export async function runSkfiyCli({
 
   stdout.write(`${JSON.stringify(createCliOutput(result.invocation, { generatedAt }), null, 2)}\n`);
   return 0;
+}
+
+async function runPermissionSettingsOpenCli({
+  invocation,
+  generatedAt,
+  permissionSettingsOpener,
+  stdout,
+  stderr
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "permissions-open" }>;
+  generatedAt?: string;
+  permissionSettingsOpener: (url: string) => Promise<void>;
+  stdout: SkfiyCliIo;
+  stderr: SkfiyCliIo;
+}): Promise<number> {
+  const effectiveGeneratedAt = generatedAt ?? new Date().toISOString();
+  const targetDetails = PERMISSION_SETTINGS_TARGET_DETAILS[invocation.target];
+  const url = `${SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX}${targetDetails.anchor}`;
+
+  try {
+    await permissionSettingsOpener(url);
+    stdout.write(`${JSON.stringify(createPermissionSettingsOpenOutput({
+      invocation,
+      generatedAt: effectiveGeneratedAt,
+      result: "opened"
+    }), null, 2)}\n`);
+    return 0;
+  } catch (error) {
+    const message = readErrorMessage(error);
+
+    stderr.write(`${message}\n`);
+    stdout.write(`${JSON.stringify(createPermissionSettingsOpenOutput({
+      invocation,
+      generatedAt: effectiveGeneratedAt,
+      result: "error",
+      error: message
+    }), null, 2)}\n`);
+    return 1;
+  }
 }
 
 async function runStatusCli({
@@ -1654,6 +1842,14 @@ function runSmokeScript(input: SmokeRunnerInput): Promise<SmokeRunnerResult> {
 }
 
 function openDashboardUrl(url: string): Promise<void> {
+  return openMacosUrl(url);
+}
+
+function openPermissionSettingsUrl(url: string): Promise<void> {
+  return openMacosUrl(url);
+}
+
+function openMacosUrl(url: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn("open", [url], {
       stdio: "ignore"
@@ -1795,6 +1991,10 @@ function error(code: string, message: string): NormalizeCliCommandResult {
 
 function isChromeSubcommand(value: string | undefined): value is ChromeSubcommand {
   return value === "status" || value === "install-host" || value === "uninstall-host";
+}
+
+function isPermissionSettingsTarget(value: string | undefined): value is PermissionSettingsTarget {
+  return PERMISSION_SETTINGS_TARGETS.includes(value as PermissionSettingsTarget);
 }
 
 function isSmokeTarget(value: string | undefined): value is SmokeTarget {

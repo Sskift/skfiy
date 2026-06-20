@@ -39,6 +39,8 @@ export interface DashboardServer {
   close: () => Promise<void>;
 }
 
+const DASHBOARD_EVENT_REFRESH_MS = 2_000;
+
 export function createDashboardHttpResponse(
   request: DashboardHttpRequest,
   options: DashboardHttpResponseOptions = {}
@@ -67,6 +69,13 @@ export function createDashboardHttpResponse(
     return jsonResponse(snapshot, body);
   }
 
+  if (url.pathname === "/events") {
+    const descriptor = createDescriptorFromOptions(options);
+    const snapshot = createSnapshotFromOptions(options, descriptor);
+
+    return eventStreamResponse(formatServerSentEvent("snapshot", snapshot), body);
+  }
+
   if (url.pathname === "/" || url.pathname === "/index.html") {
     const descriptor = createDescriptorFromOptions(options);
 
@@ -80,10 +89,25 @@ export async function startDashboardServer(
   options: DashboardHttpResponseOptions = {}
 ): Promise<DashboardServer> {
   const requestedPort = options.port ?? 0;
+  const eventStreams = new Set<http.ServerResponse>();
   const server = http.createServer((request, response) => {
+    const requestUrl = request.url ?? "/";
+    const requestMethod = (request.method ?? "GET").toUpperCase();
+
+    if (
+      requestMethod === "GET"
+      && parseDashboardRequestUrl(requestUrl).pathname === "/events"
+    ) {
+      streamDashboardEvents(response, {
+        ...options,
+        port: readServerPort(server)
+      }, eventStreams);
+      return;
+    }
+
     const dashboardResponse = createDashboardHttpResponse({
       method: request.method,
-      url: request.url ?? "/"
+      url: requestUrl
     }, {
       ...options,
       port: readServerPort(server)
@@ -117,6 +141,10 @@ export async function startDashboardServer(
     },
     url: `http://127.0.0.1:${port}/`,
     close: () => new Promise<void>((resolve, reject) => {
+      for (const eventStream of eventStreams) {
+        eventStream.end();
+      }
+
       server.close((error) => {
         if (error) {
           reject(error);
@@ -192,6 +220,22 @@ function jsonResponse(value: unknown, bodyOverride?: string): DashboardHttpRespo
   };
 }
 
+function eventStreamResponse(body: string, bodyOverride?: string): DashboardHttpResponse {
+  return {
+    status: 200,
+    headers: createEventStreamHeaders(),
+    body: bodyOverride ?? body
+  };
+}
+
+function createEventStreamHeaders(): Record<string, string> {
+  return {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-store, no-transform",
+    "connection": "keep-alive"
+  };
+}
+
 function htmlResponse(html: string, bodyOverride?: string): DashboardHttpResponse {
   return {
     status: 200,
@@ -217,6 +261,34 @@ function textResponse(
     },
     body: bodyOverride ?? text
   };
+}
+
+function streamDashboardEvents(
+  response: http.ServerResponse,
+  options: DashboardHttpResponseOptions,
+  eventStreams: Set<http.ServerResponse>
+): void {
+  eventStreams.add(response);
+  response.writeHead(200, createEventStreamHeaders());
+
+  const writeSnapshot = () => {
+    const descriptor = createDescriptorFromOptions(options);
+    const snapshot = createSnapshotFromOptions(options, descriptor);
+
+    response.write(formatServerSentEvent("snapshot", snapshot));
+  };
+  const refresh = setInterval(writeSnapshot, DASHBOARD_EVENT_REFRESH_MS);
+
+  refresh.unref();
+  response.on("close", () => {
+    clearInterval(refresh);
+    eventStreams.delete(response);
+  });
+  writeSnapshot();
+}
+
+function formatServerSentEvent(eventName: string, value: unknown): string {
+  return `event: ${eventName}\ndata: ${JSON.stringify(value)}\n\n`;
 }
 
 function renderDashboardHtml(descriptor: DashboardDescriptor): string {
@@ -484,25 +556,60 @@ function renderDashboardScript(): string {
     "    renderDogfoodReleasePanel(snapshot);",
     "  }",
     "",
+    "  function renderLoadedSnapshot(snapshot) {",
+    "    renderSnapshot(snapshot);",
+    "    if (snapshotState) snapshotState.textContent = `Snapshot ${snapshot.generatedAt || \"loaded\"}`;",
+    "  }",
+    "",
+    "  function markSnapshotUnavailable(error) {",
+    "    if (snapshotState) snapshotState.textContent = `Snapshot unavailable: ${error instanceof Error ? error.message : String(error)}`;",
+    "    for (const section of document.querySelectorAll(\"[data-panel-id]\")) {",
+    "      setStatus(section.getAttribute(\"data-panel-id\"), \"Unavailable\", \"error\");",
+    "    }",
+    "  }",
+    "",
     "  async function loadSnapshot() {",
     "    try {",
     "      const response = await fetch(\"/snapshot.json\", { cache: \"no-store\" });",
     "      if (!response.ok) throw new Error(`Snapshot request failed: ${response.status}`);",
     "      const snapshot = await response.json();",
-    "      renderSnapshot(snapshot);",
-    "      if (snapshotState) snapshotState.textContent = `Snapshot ${snapshot.generatedAt || \"loaded\"}`;",
+    "      renderLoadedSnapshot(snapshot);",
     "    } catch (error) {",
-    "      if (snapshotState) snapshotState.textContent = `Snapshot unavailable: ${error instanceof Error ? error.message : String(error)}`;",
-    "      for (const section of document.querySelectorAll(\"[data-panel-id]\")) {",
-    "        setStatus(section.getAttribute(\"data-panel-id\"), \"Unavailable\", \"error\");",
-    "      }",
+    "      markSnapshotUnavailable(error);",
     "    }",
     "  }",
     "",
+    "  function startDashboard() {",
+    "    if (typeof EventSource !== \"function\") {",
+    "      void loadSnapshot();",
+    "      return;",
+    "    }",
+    "",
+    "    let receivedSnapshot = false;",
+    "    const events = new EventSource(\"/events\");",
+    "    events.addEventListener(\"snapshot\", (event) => {",
+    "      try {",
+    "        receivedSnapshot = true;",
+    "        renderLoadedSnapshot(JSON.parse(event.data));",
+    "      } catch (error) {",
+    "        markSnapshotUnavailable(error);",
+    "      }",
+    "    });",
+    "    events.addEventListener(\"error\", () => {",
+    "      if (receivedSnapshot) {",
+    "        if (snapshotState) snapshotState.textContent = \"Live updates reconnecting...\";",
+    "        return;",
+    "      }",
+    "",
+    "      events.close();",
+    "      void loadSnapshot();",
+    "    });",
+    "  }",
+    "",
     "  if (document.readyState === \"loading\") {",
-    "    document.addEventListener(\"DOMContentLoaded\", loadSnapshot, { once: true });",
+    "    document.addEventListener(\"DOMContentLoaded\", startDashboard, { once: true });",
     "  } else {",
-    "    void loadSnapshot();",
+    "    startDashboard();",
     "  }",
     "})();",
     "</script>"

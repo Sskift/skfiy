@@ -25,6 +25,7 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("\"0\"");
     expect(source).toContain("\"--json\"");
     expect(source).toContain("/descriptor.json");
+    expect(source).toContain("/events");
   });
 
   it("parses dashboard smoke options for a repeatable loopback product run", async () => {
@@ -277,9 +278,17 @@ describe("dashboard product smoke script", () => {
           alerts: []
         }
       },
+      eventsResponse: {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-store, no-transform"
+        },
+        body: 'event: snapshot\ndata: {"schemaVersion":1,"generatedAt":"2026-06-20T00:00:00.000Z","currentTurn":{"state":"idle"},"replay":{"state":"empty"}}\n\n'
+      },
       shellResponse: {
         status: 200,
-        body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><a href="/descriptor.json"></a><a href="/snapshot.json"></a><section data-panel-body="long-horizon-supervision"></section><script>fetch("/snapshot.json", { cache: "no-store" }); function renderLongHorizonPanel(){}</script></main><title>skfiy Dashboard</title>'
+        body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><a href="/descriptor.json"></a><a href="/snapshot.json"></a><section data-panel-body="long-horizon-supervision"></section><script>new EventSource("/events"); fetch("/snapshot.json", { cache: "no-store" }); function renderLongHorizonPanel(){}</script></main><title>skfiy Dashboard</title>'
       },
       tokenLeakDetected: false
     };
@@ -396,6 +405,21 @@ describe("dashboard product smoke script", () => {
           ...passedEvidence.snapshotResponse.body,
           dogfoodRelease: undefined
         }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      eventsResponse: undefined
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      eventsResponse: {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-store, no-transform"
+        },
+        body: "event: ping\ndata: {}\n\n"
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
