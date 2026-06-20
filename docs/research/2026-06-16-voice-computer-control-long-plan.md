@@ -527,7 +527,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
     - scaffold must include `.codex-plugin/plugin.json`, a `skills/control-skfiy/SKILL.md` workflow, optional `.mcp.json`, icon assets, and no automatic desktop-control hook
   - [ ] expose a plugin-safe MCP/app command surface backed by the installed `skfiy` binary
     - required commands: `skfiy status --json`, `skfiy doctor --json`, `skfiy mcp serve --stdio`, `skfiy dashboard --no-open --json`, `skfiy smoke <target> --output <path> --json`
-    - partial: `skfiy mcp serve --stdio` is now part of the CLI command surface, with JSON-safe smoke output, a default stdio starter, and pure MCP JSON-RPC handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`; the remaining gap is wiring the default stdio transport to the handler for a real Codex plugin process and adding plugin-installed smoke evidence
+    - partial: `skfiy mcp serve --stdio` is now part of the CLI command surface, with JSON-safe smoke output, newline-delimited JSON-RPC stdio transport, and MCP handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`; binary smoke now sends real stdio JSON-RPC to `dist/skfiy` and receives MCP responses; the remaining gap is plugin scaffold creation plus installed-plugin smoke evidence
   - [ ] add plugin validation and smoke evidence
     - acceptance: plugin manifest validates, Codex can discover the skill, plugin-scoped MCP can read status, and a disabled plugin does not break the standalone desktop app
 - [ ] Add local dashboard/control UI
@@ -710,6 +710,7 @@ External:
 - OpenAI Codex Chrome extension guide: https://developers.openai.com/codex/app/chrome-extension
 - OpenAI Codex plugins guide: https://developers.openai.com/codex/plugins
 - OpenAI Codex build plugins guide: https://developers.openai.com/codex/plugins/build
+- Model Context Protocol stdio transports: https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
 - Local Codex manual refresh on 2026-06-20: `/var/folders/3s/779dy7bj14g6nkh43dcw_jj40000gn/T/openai-docs-cache/codex-manual.md`
 - OpenClaw dashboard docs: https://docs.openclaw.ai/web/dashboard
 - OpenClaw dashboard CLI docs: https://docs.openclaw.ai/cli/dashboard

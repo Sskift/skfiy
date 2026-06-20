@@ -480,6 +480,76 @@ describe("CLI command surface", () => {
     });
   });
 
+  it("runs real MCP stdio transport for non-json plugin sessions", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const statusInputs: unknown[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["mcp", "serve", "--stdio"],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      mcpStdin: [
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: {
+            name: "skfiy.status",
+            arguments: {
+              extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+              dashboardUrl: "http://127.0.0.1:8787/"
+            }
+          }
+        })}\n`
+      ],
+      statusReader: async (input) => {
+        statusInputs.push(input);
+        return {
+          app: { state: "installed", path: "/repo/dist/skfiy.app" },
+          helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+          permissions: {
+            screenRecording: "granted",
+            accessibility: "granted",
+            microphone: "unknown",
+            speechRecognition: "unknown",
+            finderAutomation: "unknown"
+          },
+          desktopSession: { state: "controllable" },
+          extension: { state: "unknown" },
+          nativeHost: { state: "installed" },
+          dashboard: { state: "running" }
+        };
+      },
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(statusInputs).toEqual([{
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      appPath: "/repo/dist/skfiy.app",
+      helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+      cliShimPath: "/repo/dist/skfiy",
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+      dashboardUrl: "http://127.0.0.1:8787/"
+    }]);
+    expect(stdout).toHaveLength(1);
+    expect(JSON.parse(stdout[0])).toMatchObject({
+      jsonrpc: "2.0",
+      id: 1,
+      result: {
+        structuredContent: {
+          schemaVersion: 1,
+          command: "status",
+          app: { state: "installed" }
+        }
+      }
+    });
+    expect(stderr).toEqual([]);
+  });
+
   it("reports unknown commands and smoke targets without throwing", () => {
     expect(normalizeCliCommand(["smoke", "calendar"])).toEqual({
       ok: false,

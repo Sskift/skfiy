@@ -15,6 +15,17 @@ export interface SkfiyMcpProviders {
   readDoctor: (input: SkfiyMcpToolCallInput) => Promise<Record<string, unknown>>;
 }
 
+export interface SkfiyMcpStdioServerInput {
+  stdin: AsyncIterable<Buffer | Uint8Array | string> | Iterable<Buffer | Uint8Array | string>;
+  stdout: {
+    write: (chunk: string) => unknown;
+  };
+  stderr: {
+    write: (chunk: string) => unknown;
+  };
+  providers: SkfiyMcpProviders;
+}
+
 export interface JsonRpcRequest {
   jsonrpc: "2.0";
   id?: string | number | null;
@@ -109,6 +120,38 @@ export async function handleSkfiyMcpRequest(
   };
 }
 
+export async function runSkfiyMcpStdioServer({
+  stdin,
+  stdout,
+  stderr,
+  providers
+}: SkfiyMcpStdioServerInput): Promise<number> {
+  let pending = "";
+  let exitCode = 0;
+
+  for await (const chunk of stdin) {
+    pending += decodeStdioChunk(chunk);
+    const lines = pending.split("\n");
+    pending = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const result = await handleStdioLine(line, providers, stdout, stderr);
+      if (result !== 0) {
+        exitCode = result;
+      }
+    }
+  }
+
+  if (pending.trim().length > 0) {
+    const result = await handleStdioLine(pending, providers, stdout, stderr);
+    if (result !== 0) {
+      exitCode = result;
+    }
+  }
+
+  return exitCode;
+}
+
 async function handleToolCall(
   id: string | number | null,
   params: unknown,
@@ -136,6 +179,62 @@ async function handleToolCall(
   };
 }
 
+async function handleStdioLine(
+  line: string,
+  providers: SkfiyMcpProviders,
+  stdout: { write: (chunk: string) => unknown },
+  stderr: { write: (chunk: string) => unknown }
+): Promise<number> {
+  const trimmed = line.trim();
+
+  if (!trimmed) {
+    return 0;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    stderr.write(`Invalid MCP JSON-RPC message: ${readErrorMessage(error)}\n`);
+    return 1;
+  }
+
+  const request = readJsonRpcRequest(parsed);
+  if (!request) {
+    stderr.write("Invalid MCP JSON-RPC message: expected a JSON-RPC 2.0 request object.\n");
+    return 1;
+  }
+
+  if (request.id === undefined || request.id === null) {
+    return 0;
+  }
+
+  const response = await handleSkfiyMcpRequest(request, providers);
+  stdout.write(`${JSON.stringify(response)}\n`);
+  return 0;
+}
+
+function readJsonRpcRequest(value: unknown): JsonRpcRequest | undefined {
+  const record = readRecord(value);
+
+  if (record?.jsonrpc !== "2.0" || typeof record.method !== "string") {
+    return undefined;
+  }
+
+  return {
+    jsonrpc: "2.0",
+    id: typeof record.id === "string" || typeof record.id === "number" || record.id === null
+      ? record.id
+      : undefined,
+    method: record.method,
+    ...(Object.hasOwn(record, "params") ? { params: record.params } : {})
+  };
+}
+
+function decodeStdioChunk(chunk: Buffer | Uint8Array | string): string {
+  return typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+}
+
 function createToolResult(
   id: string | number | null,
   structuredContent: Record<string, unknown>
@@ -154,6 +253,10 @@ function createToolResult(
       structuredContent
     }
   };
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function createToolInputSchema(): Record<string, unknown> {

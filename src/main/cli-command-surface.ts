@@ -12,7 +12,12 @@ import {
   uninstallChromeNativeHost,
   type ChromeNativeHostIo
 } from "./chrome-native-host.js";
-import { SKFIY_MCP_TOOL_NAMES } from "./skfiy-mcp-server.js";
+import {
+  SKFIY_MCP_TOOL_NAMES,
+  runSkfiyMcpStdioServer,
+  type SkfiyMcpProviders,
+  type SkfiyMcpToolCallInput
+} from "./skfiy-mcp-server.js";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type {
   PermissionSummary
@@ -218,6 +223,7 @@ export interface RunSkfiyCliInput {
   statusReader?: StatusReader;
   signatureReader?: SignatureReader;
   smokeRunner?: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
+  mcpStdin?: AsyncIterable<Buffer | Uint8Array | string> | Iterable<Buffer | Uint8Array | string>;
   mcpServerStarter?: SkfiyMcpServerStarter;
   dashboardServerStarter?: (input: { port: number; rootDir?: string }) => Promise<DashboardServer>;
   dashboardOpener?: (url: string) => Promise<void>;
@@ -604,6 +610,7 @@ export async function runSkfiyCli({
   statusReader = readCliStatus,
   signatureReader = readCodeSignatureStatus,
   smokeRunner = runSmokeScript,
+  mcpStdin = process.stdin,
   mcpServerStarter = startSkfiyMcpServer,
   dashboardServerStarter = startDashboardServer,
   dashboardOpener = openDashboardUrl,
@@ -674,6 +681,9 @@ export async function runSkfiyCli({
       rootDir: normalizedRootDir,
       homeDir: homeDir ?? process.env.HOME ?? "",
       mcpServerStarter,
+      mcpStdin,
+      statusReader,
+      signatureReader,
       keepMcpServerAlive,
       stdout,
       stderr
@@ -1272,6 +1282,9 @@ async function runMcpServeCli({
   rootDir,
   homeDir,
   mcpServerStarter,
+  mcpStdin,
+  statusReader,
+  signatureReader,
   keepMcpServerAlive,
   stdout,
   stderr
@@ -1281,10 +1294,28 @@ async function runMcpServeCli({
   rootDir: string;
   homeDir: string;
   mcpServerStarter: SkfiyMcpServerStarter;
+  mcpStdin: AsyncIterable<Buffer | Uint8Array | string> | Iterable<Buffer | Uint8Array | string>;
+  statusReader: StatusReader;
+  signatureReader: SignatureReader;
   keepMcpServerAlive: boolean;
   stdout: SkfiyCliIo;
   stderr: SkfiyCliIo;
 }): Promise<number> {
+  if (!invocation.json) {
+    return runSkfiyMcpStdioServer({
+      stdin: mcpStdin,
+      stdout,
+      stderr,
+      providers: createMcpProviders({
+        rootDir,
+        homeDir,
+        generatedAt,
+        statusReader,
+        signatureReader
+      })
+    });
+  }
+
   let server: SkfiyMcpServer;
 
   try {
@@ -1319,6 +1350,94 @@ async function runMcpServeCli({
 
   await waitForMcpShutdown(server);
   return 0;
+}
+
+function createMcpProviders({
+  rootDir,
+  homeDir,
+  generatedAt,
+  statusReader,
+  signatureReader
+}: {
+  rootDir: string;
+  homeDir: string;
+  generatedAt?: string;
+  statusReader: StatusReader;
+  signatureReader: SignatureReader;
+}): SkfiyMcpProviders {
+  return {
+    readStatus: async (input) => {
+      const invocation = createMcpStatusInvocation(rootDir, input);
+      const statusInput = createStatusReaderInput({
+        rootDir,
+        homeDir,
+        invocation
+      });
+      const status = await statusReader(statusInput);
+
+      return {
+        schemaVersion: 1,
+        command: "status",
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        ...status
+      };
+    },
+    readDoctor: async (input) => {
+      const invocation = createMcpDoctorInvocation(rootDir, input);
+      const statusInput = createStatusReaderInput({
+        rootDir,
+        homeDir,
+        invocation
+      });
+      const [status, signature] = await Promise.all([
+        statusReader(statusInput),
+        signatureReader({ appPath: statusInput.appPath })
+      ]);
+
+      return {
+        schemaVersion: 1,
+        command: "doctor",
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        ...createDoctorOutput({
+          status,
+          signature,
+          statusInput
+        })
+      };
+    }
+  };
+}
+
+function createMcpStatusInvocation(
+  rootDir: string,
+  input: SkfiyMcpToolCallInput
+): Extract<CliCommandInvocation, { kind: "status" }> {
+  return {
+    kind: "status",
+    path: "status",
+    json: true,
+    options: {
+      extensionIds: input.extensionIds ?? [],
+      cliShimPath: path.join(rootDir, "dist", "skfiy"),
+      ...(input.dashboardUrl ? { dashboardUrl: input.dashboardUrl } : {})
+    }
+  };
+}
+
+function createMcpDoctorInvocation(
+  rootDir: string,
+  input: SkfiyMcpToolCallInput
+): Extract<CliCommandInvocation, { kind: "doctor" }> {
+  return {
+    kind: "doctor",
+    path: "doctor",
+    json: true,
+    options: {
+      extensionIds: input.extensionIds ?? [],
+      cliShimPath: path.join(rootDir, "dist", "skfiy"),
+      ...(input.dashboardUrl ? { dashboardUrl: input.dashboardUrl } : {})
+    }
+  };
 }
 
 async function startSkfiyMcpServer(

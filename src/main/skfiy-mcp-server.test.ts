@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   SKFIY_MCP_TOOL_NAMES,
   createSkfiyMcpToolDefinitions,
-  handleSkfiyMcpRequest
+  handleSkfiyMcpRequest,
+  runSkfiyMcpStdioServer
 } from "./skfiy-mcp-server";
 
 describe("skfiy MCP server contract", () => {
@@ -167,5 +168,64 @@ describe("skfiy MCP server contract", () => {
         message: "Unknown skfiy MCP tool: skfiy.write-file"
       }
     });
+  });
+
+  it("runs newline-delimited JSON-RPC over stdio without writing logs to stdout", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const stdin = [
+      `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" })}\n`,
+      `${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`
+    ];
+
+    await expect(runSkfiyMcpStdioServer({
+      stdin,
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) },
+      providers: {
+        readStatus: async () => ({}),
+        readDoctor: async () => ({})
+      }
+    })).resolves.toBe(0);
+
+    const messages = stdout.join("").trim().split("\n").map((line) => JSON.parse(line));
+
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({
+      jsonrpc: "2.0",
+      id: 1,
+      result: {
+        serverInfo: { name: "skfiy" }
+      }
+    });
+    expect(messages[1]).toMatchObject({
+      jsonrpc: "2.0",
+      id: 2,
+      result: {
+        tools: [
+          expect.objectContaining({ name: "skfiy.status" }),
+          expect.objectContaining({ name: "skfiy.doctor" })
+        ]
+      }
+    });
+    expect(stderr).toEqual([]);
+  });
+
+  it("reports malformed MCP stdio input to stderr without contaminating stdout", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    await expect(runSkfiyMcpStdioServer({
+      stdin: ["not-json\n"],
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) },
+      providers: {
+        readStatus: async () => ({}),
+        readDoctor: async () => ({})
+      }
+    })).resolves.toBe(1);
+
+    expect(stdout).toEqual([]);
+    expect(stderr.join("")).toContain("Invalid MCP JSON-RPC message");
   });
 });
