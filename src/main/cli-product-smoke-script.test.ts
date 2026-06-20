@@ -108,6 +108,35 @@ describe("CLI product smoke script", () => {
     expect(classifyCliSmokeEvidence(passedEvidence)).toBe("passed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
+      commands: passedEvidence.commands.map((command) => command.id === "chrome-status"
+        ? {
+            ...command,
+            stdoutJson: {
+              ...command.stdoutJson,
+              extension: {
+                state: "connected",
+                bridge: "native-messaging",
+                liveConnection: "connected",
+                nativeHostState: "installed",
+                manifestPath: "/repo/.skfiy-cli-smoke/home/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+                allowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+                connection: {
+                  state: "connected",
+                  liveConnection: "connected",
+                  path: "/repo/.skfiy-cli-smoke/home/Library/Application Support/skfiy/chrome-extension-connection.json",
+                  ageSeconds: 42,
+                  observedAt: "2026-06-19T23:59:18.000Z",
+                  launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+                  messageType: "skfiy.page.observe",
+                  requestId: "request-smoke"
+                }
+              }
+            }
+          }
+        : command)
+    })).toBe("passed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
       runnerHasTmux: true
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({

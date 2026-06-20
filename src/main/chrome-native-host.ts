@@ -7,6 +7,7 @@ export const CHROME_NATIVE_HOST_NAME = "com.sskift.skfiy";
 export const CHROME_NATIVE_MESSAGE_SCHEMA_VERSION = 1;
 export const CHROME_NATIVE_MESSAGE_MAX_BYTES = 1024 * 1024;
 export const CHROME_NATIVE_RESPONSE_TYPE = "skfiy.native.response";
+export const CHROME_EXTENSION_CONNECTION_TTL_SECONDS = 300;
 
 const CHROME_NATIVE_BRIDGE_MESSAGE_TYPES = new Set([
   "skfiy.page.observe",
@@ -101,6 +102,26 @@ export interface ChromeNativeBridgeResponse {
   [key: string]: unknown;
 }
 
+export interface ChromeExtensionConnectionHeartbeatInput {
+  observedAt?: string;
+  launchOrigin?: string;
+  messageType: string;
+  requestId: string;
+  result?: ChromeNativeBridgeResponse["result"];
+}
+
+export interface ChromeExtensionConnectionStatus {
+  state: "connected" | "stale" | "unknown" | "invalid";
+  liveConnection: "connected" | "stale" | "unknown";
+  path: string;
+  reason?: string;
+  ageSeconds?: number;
+  observedAt?: string;
+  launchOrigin?: string;
+  messageType?: string;
+  requestId?: string;
+}
+
 export interface ChromeNativeMessagingHostIo {
   stdin: AsyncIterable<Buffer | Uint8Array | string>;
   stdout: {
@@ -111,6 +132,12 @@ export interface ChromeNativeMessagingHostIo {
   };
   policy: ChromeNativeBridgePolicy | (() => ChromeNativeBridgePolicy | Promise<ChromeNativeBridgePolicy>);
   dispatch: ChromeNativeBridgeDispatch;
+  connectionHeartbeat?: (input: Required<Pick<
+    ChromeExtensionConnectionHeartbeatInput,
+    "observedAt" | "messageType" | "requestId"
+  >> & {
+    result: ChromeNativeBridgeResponse["result"];
+  }) => Promise<void>;
 }
 
 export function createChromeNativeHostManifest({
@@ -240,6 +267,112 @@ export async function readChromeNativeHostStatus({
   return createStatus(plan, "installed", "Chrome Native Messaging host is installed.");
 }
 
+export function createChromeExtensionConnectionStatePath(homeDir: string): string {
+  return path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "skfiy",
+    "chrome-extension-connection.json"
+  );
+}
+
+export async function writeChromeExtensionConnectionHeartbeat({
+  homeDir,
+  observedAt = new Date().toISOString(),
+  launchOrigin,
+  messageType,
+  requestId,
+  io = createDefaultChromeNativeHostIo()
+}: ChromeExtensionConnectionHeartbeatInput & {
+  homeDir: string;
+  io?: ChromeNativeHostIo;
+}): Promise<Record<string, unknown>> {
+  const statePath = createChromeExtensionConnectionStatePath(homeDir);
+  const heartbeat = {
+    schemaVersion: 1,
+    hostName: CHROME_NATIVE_HOST_NAME,
+    observedAt,
+    ...(launchOrigin ? { launchOrigin } : {}),
+    messageType,
+    requestId
+  };
+
+  await io.mkdir(path.dirname(statePath));
+  await io.writeFile(statePath, `${JSON.stringify(heartbeat, null, 2)}\n`);
+
+  return heartbeat;
+}
+
+export async function readChromeExtensionConnectionStatus({
+  homeDir,
+  generatedAt = new Date().toISOString(),
+  io = createDefaultChromeNativeHostIo()
+}: {
+  homeDir: string;
+  generatedAt?: string;
+  io?: ChromeNativeHostIo;
+}): Promise<ChromeExtensionConnectionStatus> {
+  const statePath = createChromeExtensionConnectionStatePath(homeDir);
+
+  if (!(await io.exists(statePath))) {
+    return {
+      state: "unknown",
+      liveConnection: "unknown",
+      path: statePath,
+      reason: "No Chrome extension connection heartbeat has been recorded."
+    };
+  }
+
+  let heartbeat: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(await io.readFile(statePath)) as unknown;
+    const record = readRecord(parsed);
+    if (!record) {
+      return {
+        state: "invalid",
+        liveConnection: "unknown",
+        path: statePath,
+        reason: "Chrome extension connection heartbeat is not an object."
+      };
+    }
+    heartbeat = record;
+  } catch {
+    return {
+      state: "invalid",
+      liveConnection: "unknown",
+      path: statePath,
+      reason: "Chrome extension connection heartbeat is not valid JSON."
+    };
+  }
+
+  const observedAt = typeof heartbeat.observedAt === "string" ? heartbeat.observedAt : undefined;
+  const observedAtMs = observedAt ? Date.parse(observedAt) : NaN;
+  const generatedAtMs = Date.parse(generatedAt);
+  if (!Number.isFinite(observedAtMs) || !Number.isFinite(generatedAtMs)) {
+    return {
+      state: "invalid",
+      liveConnection: "unknown",
+      path: statePath,
+      reason: "Chrome extension connection heartbeat has invalid timestamps."
+    };
+  }
+
+  const ageSeconds = Math.max(0, Math.floor((generatedAtMs - observedAtMs) / 1000));
+  const connected = ageSeconds <= CHROME_EXTENSION_CONNECTION_TTL_SECONDS;
+
+  return {
+    state: connected ? "connected" : "stale",
+    liveConnection: connected ? "connected" : "stale",
+    path: statePath,
+    ageSeconds,
+    observedAt,
+    ...(typeof heartbeat.launchOrigin === "string" ? { launchOrigin: heartbeat.launchOrigin } : {}),
+    ...(typeof heartbeat.messageType === "string" ? { messageType: heartbeat.messageType } : {}),
+    ...(typeof heartbeat.requestId === "string" ? { requestId: heartbeat.requestId } : {})
+  };
+}
+
 export function encodeChromeNativeMessageFrame(message: unknown): Buffer {
   const payload = Buffer.from(JSON.stringify(message), "utf8");
   if (payload.byteLength > CHROME_NATIVE_MESSAGE_MAX_BYTES) {
@@ -272,7 +405,8 @@ export async function runChromeNativeMessagingHost({
   stdout,
   stderr,
   policy,
-  dispatch
+  dispatch,
+  connectionHeartbeat
 }: ChromeNativeMessagingHostIo): Promise<number> {
   let buffer = Buffer.alloc(0);
 
@@ -316,6 +450,12 @@ export async function runChromeNativeMessagingHost({
           policy: resolvedPolicy,
           dispatch
         });
+        await recordConnectionHeartbeat({
+          message,
+          response,
+          connectionHeartbeat,
+          stderr
+        });
         stdout.write(encodeChromeNativeMessageFrame(response));
       }
     }
@@ -333,6 +473,38 @@ export async function runChromeNativeMessagingHost({
   } catch (error) {
     stderr.write(`${readErrorMessage(error)}\n`);
     return 1;
+  }
+}
+
+async function recordConnectionHeartbeat({
+  message,
+  response,
+  connectionHeartbeat,
+  stderr
+}: {
+  message: unknown;
+  response: ChromeNativeBridgeResponse;
+  connectionHeartbeat?: ChromeNativeMessagingHostIo["connectionHeartbeat"];
+  stderr: ChromeNativeMessagingHostIo["stderr"];
+}): Promise<void> {
+  if (!connectionHeartbeat || response.result === "invalid") {
+    return;
+  }
+
+  const record = readRecord(message);
+  if (typeof record?.type !== "string" || typeof record.requestId !== "string") {
+    return;
+  }
+
+  try {
+    await connectionHeartbeat({
+      observedAt: new Date().toISOString(),
+      messageType: record.type,
+      requestId: record.requestId,
+      result: response.result
+    });
+  } catch (error) {
+    stderr.write(`Chrome extension heartbeat failed: ${readErrorMessage(error)}\n`);
   }
 }
 
@@ -484,6 +656,12 @@ function toBuffer(chunk: Buffer | Uint8Array | string): Buffer {
 
 function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
 }
 
 function createDefaultChromeNativeHostIo(): ChromeNativeHostIo {

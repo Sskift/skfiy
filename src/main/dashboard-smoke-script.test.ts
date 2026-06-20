@@ -175,6 +175,36 @@ describe("dashboard product smoke script", () => {
     expect(classifyDashboardSmokeEvidence(passedEvidence)).toBe("passed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          runtimeHealth: {
+            ...passedEvidence.snapshotResponse.body.runtimeHealth,
+            extension: {
+              state: "connected",
+              bridge: "native-messaging",
+              liveConnection: "connected",
+              nativeHostState: "installed",
+              manifestPath: "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+              allowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+              connection: {
+                state: "connected",
+                liveConnection: "connected",
+                path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+                ageSeconds: 42,
+                observedAt: "2026-06-19T23:59:18.000Z",
+                launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+                messageType: "skfiy.page.observe",
+                requestId: "request-smoke"
+              }
+            }
+          }
+        }
+      }
+    })).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
       runnerHasTmux: true
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

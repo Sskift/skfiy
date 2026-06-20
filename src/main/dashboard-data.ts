@@ -2,7 +2,11 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { DashboardDescriptor } from "./dashboard-status.js";
-import { CHROME_NATIVE_HOST_NAME } from "./chrome-native-host.js";
+import {
+  CHROME_EXTENSION_CONNECTION_TTL_SECONDS,
+  CHROME_NATIVE_HOST_NAME,
+  createChromeExtensionConnectionStatePath
+} from "./chrome-native-host.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
 
@@ -117,6 +121,10 @@ export function createDashboardWorkspaceSnapshot({
     cliInstalled,
     io
   });
+  const extensionConnection = readWorkspaceChromeExtensionConnection({
+    generatedAt: snapshotGeneratedAt,
+    io
+  });
 
   const snapshot = createDashboardSnapshot({
     generatedAt: snapshotGeneratedAt,
@@ -138,7 +146,7 @@ export function createDashboardWorkspaceSnapshot({
         pid: readWorkspacePid(io),
         uptimeSeconds: readWorkspaceUptimeSeconds(io)
       },
-      extension: createWorkspaceChromeExtensionStatus(nativeHost),
+      extension: createWorkspaceChromeExtensionStatus(nativeHost, extensionConnection),
       nativeHost,
       desktopSession: readWorkspaceDesktopSession(helperPath, helperInstalled, io),
       permissions: readWorkspacePermissions(helperPath, helperInstalled, io)
@@ -471,18 +479,35 @@ function readWorkspaceChromeNativeHost({
 }
 
 function createWorkspaceChromeExtensionStatus(
-  nativeHost: Record<string, unknown>
+  nativeHost: Record<string, unknown>,
+  connection?: Record<string, unknown>
 ): Record<string, unknown> {
   const allowedOrigins = Array.isArray(nativeHost.allowedOrigins)
     ? nativeHost.allowedOrigins.filter((origin): origin is string => typeof origin === "string")
     : [];
   const common = {
     bridge: "native-messaging",
-    liveConnection: "unknown",
+    liveConnection: readWorkspaceConnectionState(connection),
     nativeHostState: nativeHost.state,
     ...(typeof nativeHost.manifestPath === "string" ? { manifestPath: nativeHost.manifestPath } : {}),
-    ...(allowedOrigins.length > 0 ? { allowedOrigins } : {})
+    ...(allowedOrigins.length > 0 ? { allowedOrigins } : {}),
+    ...(connection && connection.state !== "unknown" ? { connection } : {})
   };
+
+  if (connection?.state === "connected") {
+    return {
+      state: "connected",
+      ...common
+    };
+  }
+
+  if (connection?.state === "stale" && nativeHost.state === "installed") {
+    return {
+      state: "native-host-installed",
+      ...common,
+      reason: "Chrome extension native-message heartbeat is stale."
+    };
+  }
 
   if (nativeHost.state === "installed") {
     return {
@@ -529,6 +554,83 @@ function createWorkspaceChromeExtensionStatus(
     ...common,
     reason: "Runtime Chrome extension connection is not probed yet."
   };
+}
+
+function readWorkspaceChromeExtensionConnection({
+  generatedAt,
+  io
+}: {
+  generatedAt: string;
+  io: DashboardWorkspaceIo;
+}): Record<string, unknown> | undefined {
+  const homeDir = io.homeDir?.();
+  if (!homeDir) {
+    return undefined;
+  }
+
+  const statePath = createChromeExtensionConnectionStatePath(homeDir);
+  if (!io.exists(statePath)) {
+    return {
+      state: "unknown",
+      liveConnection: "unknown",
+      path: statePath,
+      reason: "No Chrome extension connection heartbeat has been recorded."
+    };
+  }
+
+  let heartbeat: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(io.readFile(statePath)) as unknown;
+    const record = readRecord(parsed);
+    if (!record) {
+      return {
+        state: "invalid",
+        liveConnection: "unknown",
+        path: statePath,
+        reason: "Chrome extension connection heartbeat is not an object."
+      };
+    }
+    heartbeat = record;
+  } catch {
+    return {
+      state: "invalid",
+      liveConnection: "unknown",
+      path: statePath,
+      reason: "Chrome extension connection heartbeat is not valid JSON."
+    };
+  }
+
+  const observedAt = typeof heartbeat.observedAt === "string" ? heartbeat.observedAt : undefined;
+  const observedAtMs = observedAt ? Date.parse(observedAt) : NaN;
+  const generatedAtMs = Date.parse(generatedAt);
+  if (!Number.isFinite(observedAtMs) || !Number.isFinite(generatedAtMs)) {
+    return {
+      state: "invalid",
+      liveConnection: "unknown",
+      path: statePath,
+      reason: "Chrome extension connection heartbeat has invalid timestamps."
+    };
+  }
+
+  const ageSeconds = Math.max(0, Math.floor((generatedAtMs - observedAtMs) / 1000));
+  const connected = ageSeconds <= CHROME_EXTENSION_CONNECTION_TTL_SECONDS;
+
+  return {
+    state: connected ? "connected" : "stale",
+    liveConnection: connected ? "connected" : "stale",
+    path: statePath,
+    ageSeconds,
+    observedAt,
+    ...(typeof heartbeat.launchOrigin === "string" ? { launchOrigin: heartbeat.launchOrigin } : {}),
+    ...(typeof heartbeat.messageType === "string" ? { messageType: heartbeat.messageType } : {}),
+    ...(typeof heartbeat.requestId === "string" ? { requestId: heartbeat.requestId } : {})
+  };
+}
+
+function readWorkspaceConnectionState(connection: Record<string, unknown> | undefined): string {
+  return connection?.liveConnection === "connected" || connection?.liveConnection === "stale"
+    ? connection.liveConnection
+    : "unknown";
 }
 
 function readWorkspacePid(io: DashboardWorkspaceIo): number {

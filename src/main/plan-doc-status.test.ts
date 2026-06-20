@@ -212,7 +212,12 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("repoCheckoutUsedForMcp=false");
     expect(dashboardPlan).toContain("MCP initialize response now includes short safety instructions");
     expect(dashboardPlan).toContain("Codex plugin smoke now requires those initialize instructions");
+    expect(dashboardPlan).toContain("OpenAI Codex plugin build docs");
+    expect(dashboardPlan).toContain("OpenClaw docs");
+    expect(dashboardPlan).toContain("chrome-extension-connection.json");
+    expect(dashboardPlan).toContain("liveConnection: `connected`, `stale`, or `unknown`");
     expect(longPlan).toContain("CLI command matrix smoke");
+    expect(longPlan).toContain("fresh Native Messaging heartbeat file");
   });
 
   it("documents panic stop behavior evidence in alpha and report instructions", () => {

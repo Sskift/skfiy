@@ -1008,6 +1008,76 @@ describe("CLI command surface", () => {
     expect(stderr).toEqual([]);
   });
 
+  it("reports a connected Chrome extension adapter from a fresh native-message heartbeat", async () => {
+    const manifestPath = "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json";
+    const heartbeatPath = "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json";
+    const files: Record<string, string> = {
+      "/repo/dist/skfiy": "#!/usr/bin/env node\n",
+      [manifestPath]: JSON.stringify({
+        name: "com.sskift.skfiy",
+        description: "skfiy desktop Computer Use bridge",
+        path: "/repo/dist/skfiy",
+        type: "stdio",
+        allowed_origins: [
+          "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+        ]
+      }),
+      [heartbeatPath]: JSON.stringify({
+        schemaVersion: 1,
+        hostName: "com.sskift.skfiy",
+        observedAt: "2026-06-19T23:59:00.000Z",
+        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        messageType: "skfiy.page.observe",
+        requestId: "request-heartbeat"
+      })
+    };
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["chrome", "status", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) },
+      chromeNativeHostIo: {
+        exists: async (targetPath: string) => Object.hasOwn(files, targetPath),
+        mkdir: async () => {},
+        readFile: async (targetPath: string) => files[targetPath],
+        writeFile: async (targetPath: string, content: string) => {
+          files[targetPath] = content;
+        },
+        rm: async (targetPath: string) => {
+          delete files[targetPath];
+        }
+      }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      command: "chrome status",
+      nativeHost: {
+        state: "installed"
+      },
+      extension: {
+        state: "connected",
+        bridge: "native-messaging",
+        liveConnection: "connected",
+        nativeHostState: "installed",
+        connection: {
+          state: "connected",
+          liveConnection: "connected",
+          ageSeconds: 60,
+          observedAt: "2026-06-19T23:59:00.000Z",
+          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          messageType: "skfiy.page.observe",
+          requestId: "request-heartbeat"
+        }
+      }
+    });
+    expect(stderr).toEqual([]);
+  });
+
   it("runs dashboard through the shared CLI entrypoint without printing tokens", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];

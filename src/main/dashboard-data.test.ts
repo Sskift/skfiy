@@ -193,6 +193,14 @@ describe("dashboard snapshot data", () => {
         allowed_origins: [
           "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
         ]
+      }),
+      "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json": JSON.stringify({
+        schemaVersion: 1,
+        hostName: "com.sskift.skfiy",
+        observedAt: "2026-06-19T23:59:00.000Z",
+        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        messageType: "skfiy.page.observe",
+        requestId: "request-heartbeat"
       })
     };
     const directories: Record<string, string[]> = {
@@ -301,13 +309,22 @@ describe("dashboard snapshot data", () => {
         reason: "Chrome Native Messaging host is installed."
       },
       extension: {
-        state: "native-host-installed",
+        state: "connected",
         bridge: "native-messaging",
-        liveConnection: "unknown",
+        liveConnection: "connected",
+        nativeHostState: "installed",
         allowedOrigins: [
           "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
         ],
-        reason: "Chrome Native Messaging host is installed; no live Chrome extension connection has been observed yet."
+        connection: {
+          state: "connected",
+          liveConnection: "connected",
+          ageSeconds: 60,
+          observedAt: "2026-06-19T23:59:00.000Z",
+          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          messageType: "skfiy.page.observe",
+          requestId: "request-heartbeat"
+        }
       }
     });
     expect(snapshot.permissions).toEqual({

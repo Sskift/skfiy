@@ -39,6 +39,15 @@ if (!existsSync(builtCliPath)) {
         stdout: { write: (chunk) => process.stdout.write(chunk) },
         stderr: process.stderr,
         policy: { state: "allowed" },
+        connectionHeartbeat: async (heartbeat) => {
+          if (typeof nativeHost.writeChromeExtensionConnectionHeartbeat === "function") {
+            await nativeHost.writeChromeExtensionConnectionHeartbeat({
+              homeDir: process.env.HOME ?? "",
+              launchOrigin,
+              ...heartbeat
+            });
+          }
+        },
         dispatch: async (message) => ({
           result: "accepted",
           bridgeState: "connected",

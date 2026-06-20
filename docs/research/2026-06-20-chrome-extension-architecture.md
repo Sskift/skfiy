@@ -79,6 +79,15 @@ install-host` installs the user-level Chrome manifest for the packaged
 Messaging host when Chrome starts it over stdin/stdout, rather than depending on
 tmux or a development shell.
 
+When that packaged host handles a valid extension frame, it records a heartbeat
+at `~/Library/Application Support/skfiy/chrome-extension-connection.json`.
+`skfiy chrome status` and the dashboard snapshot classify that file as a
+connected, stale, or unknown live extension connection and include the latest
+launch origin, message type, request id, observed time, and age. The remaining
+product gap is a real installed-Chrome smoke that proves the extension can load,
+connect, send a frame through the packaged binary, and leave the heartbeat behind
+without using a source checkout.
+
 ## Host Policy
 
 The default host policy is ask. The skeleton keeps `host_permissions` empty and
@@ -132,8 +141,8 @@ extension sees them. The background service worker unwraps
 `skfiy.native.message`, waits for `port.onMessage`, returns the native-host
 response to the caller, captures visible page screenshots with
 `chrome.tabs.captureVisibleTab`, and reads recent download status with
-`chrome.downloads.search`. Persistent app-policy storage, live app-runtime
-routing, and end-to-end extension smoke evidence remain future work.
+`chrome.downloads.search`. Persistent app-policy storage, richer app-runtime
+routing, and end-to-end installed-extension smoke evidence remain future work.
 
 ## Sensitive Content Pause
 
@@ -162,8 +171,9 @@ runtime behavior.
 ## Integration Notes
 
 - The extension is not yet packaged or installed by the app bundle.
-- `skfiy chrome status|install-host|uninstall-host` covers manifest setup, but
-  not live extension connection health.
+- `skfiy chrome status|install-host|uninstall-host` covers manifest setup and
+  local heartbeat-based live connection health, but not full installed-extension
+  product smoke yet.
 - The popup says "Waiting for skfiy app" until native-host health is wired.
 - A focused Vitest test validates the manifest and skeleton strings without
   launching Chrome.

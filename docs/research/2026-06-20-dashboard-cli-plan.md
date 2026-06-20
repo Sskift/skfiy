@@ -4,9 +4,19 @@ Date: 2026-06-20
 
 Source plan: `docs/research/2026-06-16-voice-computer-control-long-plan.md`, sections "Dashboard and Operator Plane", "Binary, CLI, and Native Host", and "Recommended Next Move".
 
+Research inputs checked before this plan update:
+
+- OpenAI Codex plugin build docs, fetched 2026-06-20 from `https://developers.openai.com/codex/plugins/build`.
+- OpenAI Codex Chrome extension docs, fetched 2026-06-20 from `https://developers.openai.com/codex/app/chrome-extension`.
+- OpenAI Codex CLI plugin command reference, fetched 2026-06-20 from `https://developers.openai.com/codex/cli/reference`.
+- OpenAI Codex app deep-link docs, fetched 2026-06-20 from `https://developers.openai.com/codex/app/commands`.
+- OpenClaw docs, fetched 2026-06-20 from `https://docs.openclaw.ai/web/dashboard` and `https://docs.openclaw.ai/web/control-ui`.
+- Local Codex plugin cache inspection under `~/.codex/plugins/cache/`.
+- Repo-local skfiy scaffold under `plugins/skfiy/`.
+
 ## OpenClaw Reference Shape
 
-OpenClaw's dashboard pattern is a local gateway Control UI opened by `openclaw dashboard`: it serves a clean local URL, keeps the Control UI as an admin surface, gates WebSocket/auth access, avoids printing tokens into logs, and focuses on gateway health, sessions, agents, task activity, logs, and operational alerts.
+OpenClaw's dashboard pattern is a local gateway Control UI opened by `openclaw dashboard`: it serves a clean local URL, keeps the Control UI as an admin surface, gates WebSocket/auth access, avoids printing tokens into logs, and focuses on gateway health, sessions, agents, task activity, logs, and operational alerts. The OpenClaw docs explicitly recommend localhost/Tailscale/SSH-tunnel access, store bootstrap tokens in browser session storage rather than logs, and treat the Control UI as an admin surface.
 
 Control UI is an admin surface, so skfiy should treat any future remote dashboard mode as privileged and require explicit authentication, scope, and transport choices.
 
@@ -63,6 +73,10 @@ Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` 
 
 Codex plugin packaging stays an adapter layer. A repo-local scaffold is not enough for product proof: release validation must also cover a marketplace entry, installation into Codex's plugin cache, and a fresh Codex thread loading the skill and MCP server from the installed plugin.
 
+- OpenAI Codex plugin build docs define `.codex-plugin/plugin.json` as the required entry point and allow `skills/`, `hooks/`, `.app.json`, `.mcp.json`, and `assets/` at the plugin root.
+- Codex marketplace install docs state installed plugins are loaded from `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`, and local marketplace installs use `local` as the version. skfiy must therefore prove the installed cached copy can find the packaged binary without relying on the repo checkout.
+- Codex CLI plugin commands expose `codex plugin add/list/remove/marketplace ... --json`, which gives us a future automation surface for installed-plugin smoke setup once we are ready to mutate the user's Codex marketplace.
+- Codex app deep links can open plugin install/detail flows, including local marketplace detail links. They are useful for onboarding but are not a replacement for product smoke evidence.
 - The repo plugin root remains `plugins/skfiy/`, with `.codex-plugin/plugin.json` pointing to `skills/` and `.mcp.json`.
 - Marketplace entries must use lowercase `skfiy`, a local `source.path` relative to the marketplace root, and explicit installation/authentication policy fields.
 - Iterating on an already installed local plugin should use the Codex plugin cachebuster/reinstall flow rather than hand-editing cached plugin files.
@@ -76,6 +90,8 @@ Codex plugin packaging stays an adapter layer. A repo-local scaffold is not enou
 ## Chrome Native Messaging Host
 
 `skfiy chrome status|install-host|uninstall-host` still owns the user-level Chrome manifest lifecycle. `skfiy chrome status` now returns both the raw `nativeHost` manifest status and a derived `extension` adapter state so dashboard, CLI, and future Codex plugin consumers can distinguish host installation from live extension connection. The packaged `dist/skfiy` shim can now also act as the Native Messaging host when Chrome launches it over stdin/stdout: it reads Chrome's length-prefixed JSON frames, validates schema version/request id/payload size, applies an injectable app-policy block before dispatch, and writes framed JSON responses. The Chrome extension background worker now waits for `port.onMessage` and returns native-host responses instead of fire-and-forget posting.
+
+When the packaged native host receives a valid Chrome extension frame, it now records a local heartbeat at `~/Library/Application Support/skfiy/chrome-extension-connection.json`. CLI and dashboard probes classify extension status as liveConnection: `connected`, `stale`, or `unknown` from that heartbeat and expose the latest message type, request id, launch origin, observed time, and age. This is not yet a full end-to-end installed-Chrome smoke, but it removes the previous gap where a manifest could be installed while the dashboard had no local evidence of a live extension session.
 
 ## Dashboard Descriptor
 
@@ -92,7 +108,7 @@ The dashboard remains optional for Computer Use execution. Future Electron wirin
 `src/main/dashboard-server.ts` now exposes a read-only response helper plus `startDashboardServer()`. It serves:
 
 - `GET /descriptor.json`: descriptor JSON with no requested-host echo and no token output.
-- `GET /snapshot.json`: read-only operator snapshot with runtime health, permissions, current turn, replay, smoke evidence, long-horizon state, and alerts. When `skfiy dashboard` starts the server, the default snapshot reads the local workspace for package metadata, `dist/skfiy.app`, `dist/skfiy`, `dist/skfiy.app` code-signature state, the dashboard server PID/uptime, packaged-helper permission status, packaged-helper desktop-session status, user-level Chrome Native Messaging host manifest status for the packaged CLI, and the latest `.skfiy-smoke/*.json` artifact per smoke target, including artifact age/stale state for local operator warnings. The Chrome extension field now distinguishes native-host installed/missing/mismatched/invalid evidence from the still-pending live extension connection.
+- `GET /snapshot.json`: read-only operator snapshot with runtime health, permissions, current turn, replay, smoke evidence, long-horizon state, and alerts. When `skfiy dashboard` starts the server, the default snapshot reads the local workspace for package metadata, `dist/skfiy.app`, `dist/skfiy`, `dist/skfiy.app` code-signature state, the dashboard server PID/uptime, packaged-helper permission status, packaged-helper desktop-session status, user-level Chrome Native Messaging host manifest status for the packaged CLI, the latest Chrome extension heartbeat file, and the latest `.skfiy-smoke/*.json` artifact per smoke target, including artifact age/stale state for local operator warnings. The Chrome extension field now distinguishes native-host installed/missing/mismatched/invalid evidence from live connected/stale/unknown extension connection evidence.
 - `GET /` and `GET /index.html`: a minimal static HTML shell using the same panel inventory.
 - unsupported methods/routes: `405` or `404`.
 
@@ -100,9 +116,9 @@ The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, 
 
 ## Product Smoke
 
-`npm run smoke:cli -- --output .skfiy-smoke/cli.json --require-passed` is the repeatable compiled CLI matrix gate. It requires `runnerHasTmux=false`, rejects source-tree CLI shims, writes an isolated HOME under `.skfiy-cli-smoke/home`, checks every command returns JSON with `schemaVersion: 1`, rejects token leakage, proves the dashboard command can start and be terminated cleanly, and proves `skfiy smoke dashboard --json` can drive the existing dashboard product smoke through the packaged CLI.
+`npm run smoke:cli -- --output .skfiy-smoke/cli.json --require-passed` is the repeatable compiled CLI matrix gate. It requires `runnerHasTmux=false`, rejects source-tree CLI shims, writes an isolated HOME under `.skfiy-cli-smoke/home`, checks every command returns JSON with `schemaVersion: 1`, rejects token leakage, proves the dashboard command can start and be terminated cleanly, accepts Chrome extension adapter evidence with liveConnection: `connected`, `stale`, or `unknown`, and proves `skfiy smoke dashboard --json` can drive the existing dashboard product smoke through the packaged CLI.
 
-`npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` is the repeatable dashboard gate. It uses the same product smoke lock as other packaged smokes, proves the built CLI path instead of a source-tree shim, requires `runnerHasTmux=false`, confirms the loopback bind and descriptor match the CLI output, fetches `/snapshot.json`, checks required snapshot panels plus workspace-backed runtime/smoke evidence, requires app signing to be valid, requires dashboard PID/uptime evidence, requires helper permission and desktop-session evidence, requires Chrome Native Messaging host evidence in the snapshot even when the host is missing, checks the static shell contains descriptor and snapshot links, and keeps tokens out of stdout, descriptor JSON, snapshot JSON, and shell HTML.
+`npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` is the repeatable dashboard gate. It uses the same product smoke lock as other packaged smokes, proves the built CLI path instead of a source-tree shim, requires `runnerHasTmux=false`, confirms the loopback bind and descriptor match the CLI output, fetches `/snapshot.json`, checks required snapshot panels plus workspace-backed runtime/smoke evidence, requires app signing to be valid, requires dashboard PID/uptime evidence, requires helper permission and desktop-session evidence, requires Chrome Native Messaging host evidence in the snapshot even when the host is missing, accepts fresh or stale `chrome-extension-connection.json` heartbeat evidence when present, checks the static shell contains descriptor and snapshot links, and keeps tokens out of stdout, descriptor JSON, snapshot JSON, and shell HTML.
 
 `npm run smoke:codex-plugin -- --output .skfiy-smoke/codex-plugin.json --require-passed` is the repeatable Codex plugin adapter gate. It proves the plugin scaffold can be copied into a staged marketplace install whose `.mcp.json` points to the installed `skfiy` command, but executes the packaged `dist/skfiy` binary during repo-local smoke so CI and local dogfood can validate the product path before touching the user's global Codex marketplace.
 

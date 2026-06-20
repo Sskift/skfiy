@@ -7,9 +7,12 @@ import {
   type DashboardServer
 } from "./dashboard-server.js";
 import {
+  createChromeExtensionConnectionStatePath,
   installChromeNativeHost,
+  readChromeExtensionConnectionStatus,
   readChromeNativeHostStatus,
   uninstallChromeNativeHost,
+  type ChromeExtensionConnectionStatus,
   type ChromeNativeHostIo
 } from "./chrome-native-host.js";
 import {
@@ -1025,6 +1028,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
 
   if (!helperExists) {
     const nativeHost = await readNativeHostStatusForStatus(input);
+    const extensionConnection = await readChromeExtensionConnectionForStatus(input);
 
     return {
       app,
@@ -1034,7 +1038,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
         state: "unknown",
         reason: `skfiy helper is missing at ${input.helperPath}.`
       },
-      extension: createChromeExtensionAdapterStatus(nativeHost),
+      extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection),
       nativeHost,
       dashboard: await readDashboardStatus(input.dashboardUrl)
     };
@@ -1045,13 +1049,14 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
   });
 
   const nativeHost = await readNativeHostStatusForStatus(input);
+  const extensionConnection = await readChromeExtensionConnectionForStatus(input);
 
   return {
     app,
     helper,
     permissions: await readPermissionStatesForStatus(desktopHelper),
     desktopSession: await readDesktopSessionForStatus(desktopHelper),
-    extension: createChromeExtensionAdapterStatus(nativeHost),
+    extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection),
     nativeHost,
     dashboard: await readDashboardStatus(input.dashboardUrl)
   };
@@ -1164,18 +1169,35 @@ function createChromeExtensionAdapterStatus(
     reason?: unknown;
     manifestPath?: unknown;
     allowedOrigins?: unknown;
-  }
+  },
+  connection?: ChromeExtensionConnectionStatus
 ): Record<string, unknown> {
   const allowedOrigins = Array.isArray(nativeHost.allowedOrigins)
     ? nativeHost.allowedOrigins.filter((origin): origin is string => typeof origin === "string")
     : [];
   const common = {
     bridge: "native-messaging",
-    liveConnection: "unknown",
+    liveConnection: readConnectionState(connection),
     nativeHostState: nativeHost.state,
     ...(typeof nativeHost.manifestPath === "string" ? { manifestPath: nativeHost.manifestPath } : {}),
-    ...(allowedOrigins.length > 0 ? { allowedOrigins } : {})
+    ...(allowedOrigins.length > 0 ? { allowedOrigins } : {}),
+    ...(connection && connection.state !== "unknown" ? { connection } : {})
   };
+
+  if (connection?.state === "connected") {
+    return {
+      state: "connected",
+      ...common
+    };
+  }
+
+  if (connection?.state === "stale" && nativeHost.state === "installed") {
+    return {
+      state: "native-host-installed",
+      ...common,
+      reason: "Chrome extension native-message heartbeat is stale."
+    };
+  }
 
   if (nativeHost.state === "installed") {
     return {
@@ -1222,6 +1244,33 @@ function createChromeExtensionAdapterStatus(
       ? nativeHost.reason
       : "Runtime Chrome extension connection is not probed by the CLI status command yet."
   );
+}
+
+async function readChromeExtensionConnectionForStatus(
+  input: StatusReaderInput
+): Promise<ChromeExtensionConnectionStatus | undefined> {
+  if (!input.homeDir) {
+    return undefined;
+  }
+
+  try {
+    return await readChromeExtensionConnectionStatus({
+      homeDir: input.homeDir
+    });
+  } catch (error) {
+    return {
+      state: "unknown",
+      liveConnection: "unknown",
+      path: createChromeExtensionConnectionStatePath(input.homeDir),
+      reason: readErrorMessage(error)
+    };
+  }
+}
+
+function readConnectionState(connection: ChromeExtensionConnectionStatus | undefined): string {
+  return connection?.liveConnection === "connected" || connection?.liveConnection === "stale"
+    ? connection.liveConnection
+    : "unknown";
 }
 
 async function readDashboardStatus(dashboardUrl: string | undefined): Promise<Record<string, unknown>> {
@@ -1678,12 +1727,17 @@ async function runChromeNativeHostCli({
       extensionIds: invocation.options.extensionIds,
       io
     });
+    const extensionConnection = await readChromeExtensionConnectionStatus({
+      homeDir,
+      generatedAt,
+      io
+    });
     stdout.write(`${JSON.stringify({
       schemaVersion: 1,
       command: invocation.path,
       generatedAt: generatedAt ?? new Date().toISOString(),
       executesSystemMutation: false,
-      extension: createChromeExtensionAdapterStatus(nativeHost),
+      extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection),
       nativeHost
     }, null, 2)}\n`);
     return 0;

@@ -136,6 +136,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
     - Sensitive-content guard before fills/clicks for password, payment, auth, account deletion, security settings, and external side-effect flows.
     - Fallback switching: extension -> CDP -> macOS screenshot/OCR/Accessibility.
     - Evidence parity with existing smoke output: product path, host approval, before/after page state, action verification, sensitive pause, fallback reason, cleanup.
+    - A fresh Native Messaging heartbeat file at `~/Library/Application Support/skfiy/chrome-extension-connection.json` whenever the packaged host handles an extension frame, so CLI, dashboard, and future Codex plugin consumers can distinguish an installed host from a live or stale extension session.
   - Fall back to screenshot Computer Use.
 - Finder/Lark third:
   - Finder for file organization.

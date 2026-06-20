@@ -2,15 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   CHROME_NATIVE_HOST_NAME,
   CHROME_NATIVE_MESSAGE_MAX_BYTES,
+  createChromeExtensionConnectionStatePath,
   decodeChromeNativeMessageFrame,
   encodeChromeNativeMessageFrame,
   handleChromeNativeBridgeMessage,
+  readChromeExtensionConnectionStatus,
   runChromeNativeMessagingHost,
   createChromeNativeHostInstallPlan,
   createChromeNativeHostManifest,
   readChromeNativeHostStatus,
   installChromeNativeHost,
-  uninstallChromeNativeHost
+  uninstallChromeNativeHost,
+  writeChromeExtensionConnectionHeartbeat
 } from "./chrome-native-host";
 
 describe("Chrome Native Messaging host plan", () => {
@@ -173,6 +176,63 @@ describe("Chrome Native Messaging host plan", () => {
     });
     expect(io.files["/repo/dist/skfiy"]).toBe("#!/usr/bin/env node\n");
     expect(io.files[manifestPath]).toBeUndefined();
+  });
+
+  it("records and classifies Chrome extension native-message heartbeat evidence", async () => {
+    const io = createMemoryChromeHostIo();
+    const statePath = createChromeExtensionConnectionStatePath("/Users/tester");
+
+    await expect(readChromeExtensionConnectionStatus({
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      io
+    })).resolves.toMatchObject({
+      state: "unknown",
+      liveConnection: "unknown",
+      path: statePath,
+      reason: "No Chrome extension connection heartbeat has been recorded."
+    });
+
+    await writeChromeExtensionConnectionHeartbeat({
+      homeDir: "/Users/tester",
+      observedAt: "2026-06-19T23:59:00.000Z",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.page.observe",
+      requestId: "request-heartbeat",
+      io
+    });
+
+    expect(JSON.parse(io.files[statePath])).toMatchObject({
+      schemaVersion: 1,
+      hostName: "com.sskift.skfiy",
+      observedAt: "2026-06-19T23:59:00.000Z",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.page.observe",
+      requestId: "request-heartbeat"
+    });
+    await expect(readChromeExtensionConnectionStatus({
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      io
+    })).resolves.toMatchObject({
+      state: "connected",
+      liveConnection: "connected",
+      path: statePath,
+      ageSeconds: 60,
+      observedAt: "2026-06-19T23:59:00.000Z",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.page.observe",
+      requestId: "request-heartbeat"
+    });
+    await expect(readChromeExtensionConnectionStatus({
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:10:01.000Z",
+      io
+    })).resolves.toMatchObject({
+      state: "stale",
+      liveConnection: "stale",
+      ageSeconds: 661
+    });
   });
 });
 
@@ -426,6 +486,7 @@ describe("Chrome Native Messaging bridge runtime", () => {
     });
     const stdout: Buffer[] = [];
     const stderr: string[] = [];
+    const heartbeats: unknown[] = [];
 
     async function* stdin() {
       yield inputFrame.subarray(0, 3);
@@ -437,6 +498,9 @@ describe("Chrome Native Messaging bridge runtime", () => {
       stdout: { write: (chunk: Buffer) => stdout.push(chunk) },
       stderr: { write: (chunk: string) => stderr.push(chunk) },
       policy: { state: "allowed" },
+      connectionHeartbeat: async (heartbeat) => {
+        heartbeats.push(heartbeat);
+      },
       dispatch: async () => ({
         result: "accepted",
         observationMode: "extension-structured"
@@ -452,5 +516,10 @@ describe("Chrome Native Messaging bridge runtime", () => {
       result: "accepted",
       observationMode: "extension-structured"
     });
+    expect(heartbeats).toEqual([expect.objectContaining({
+      messageType: "skfiy.page.observe",
+      requestId: "request-framed",
+      result: "accepted"
+    })]);
   });
 });

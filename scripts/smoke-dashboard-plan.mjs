@@ -253,9 +253,30 @@ function hasNativeHostEvidence(nativeHost) {
 }
 
 function hasExtensionAdapterEvidence(extension) {
+  const allowedLiveConnectionStates = new Set(["unknown", "connected", "stale"]);
+
   return typeof extension?.state === "string"
     && extension.state !== "unknown"
     && extension?.bridge === "native-messaging"
-    && extension?.liveConnection === "unknown"
-    && typeof extension?.reason === "string";
+    && allowedLiveConnectionStates.has(extension?.liveConnection)
+    && (
+      typeof extension?.reason === "string"
+      || hasExtensionConnectionEvidence(extension?.connection)
+    );
+}
+
+function hasExtensionConnectionEvidence(connection) {
+  const allowedConnectionStates = new Set(["connected", "stale"]);
+
+  return allowedConnectionStates.has(connection?.state)
+    && connection?.liveConnection === connection.state
+    && typeof connection?.path === "string"
+    && connection.path.includes("Application Support/skfiy/chrome-extension-connection.json")
+    && Number.isFinite(connection?.ageSeconds)
+    && connection.ageSeconds >= 0
+    && typeof connection?.observedAt === "string"
+    && typeof connection?.launchOrigin === "string"
+    && connection.launchOrigin.startsWith("chrome-extension://")
+    && typeof connection?.messageType === "string"
+    && typeof connection?.requestId === "string";
 }
