@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  CACHE_INSTALL_PRODUCT_PATH,
   EXPECTED_MCP_ARGS,
   PRODUCT_PATH,
   classifyCodexPluginSmokeEvidence,
@@ -43,6 +45,9 @@ async function main() {
     configuredArgs: undefined,
     configuredEnv: undefined,
     packagedCliPath: options.cliPath,
+    codexCommand: options.codexCommand,
+    cacheInstallRequested: options.cacheInstall,
+    cacheInstall: undefined,
     extensionIds: options.extensionIds,
     resolvedCommandPath: undefined,
     configuredCommandUsed: undefined,
@@ -92,6 +97,15 @@ async function main() {
     });
 
     Object.assign(evidence, session);
+    evidence.cacheInstall = options.cacheInstall
+      ? await runCodexPluginCacheInstallSmoke({
+          options,
+          stagedInstall
+        })
+      : {
+          result: "skipped",
+          reason: "--skip-cache-install was provided."
+        };
     evidence.result = classifyCodexPluginSmokeEvidence(evidence);
 
     if (options.requirePassed && evidence.result !== "passed") {
@@ -133,20 +147,142 @@ export async function stageCodexPluginInstall(options) {
   const marketplaceRoot = path.join(options.installStagingDir, "marketplace");
   const installedPluginRoot = path.join(marketplaceRoot, "plugins", "skfiy");
   const marketplaceManifestPath = path.join(marketplaceRoot, "marketplace.json");
+  const codexMarketplaceManifestPath = path.join(
+    marketplaceRoot,
+    ".agents",
+    "plugins",
+    "marketplace.json"
+  );
   const marketplaceManifest = createCodexPluginMarketplaceManifest();
 
   await rm(options.installStagingDir, { recursive: true, force: true });
   await mkdir(path.dirname(installedPluginRoot), { recursive: true });
   await cp(options.pluginRoot, installedPluginRoot, { recursive: true });
+  await mkdir(path.dirname(codexMarketplaceManifestPath), { recursive: true });
   await writeFile(marketplaceManifestPath, `${JSON.stringify(marketplaceManifest, null, 2)}\n`);
+  await writeFile(codexMarketplaceManifestPath, `${JSON.stringify(marketplaceManifest, null, 2)}\n`);
 
   return {
     marketplaceRoot,
     marketplaceManifestPath,
+    codexMarketplaceManifestPath,
     marketplaceManifest,
     installedPluginRoot,
     mcpConfigPath: path.join(installedPluginRoot, ".mcp.json")
   };
+}
+
+async function runCodexPluginCacheInstallSmoke({
+  options,
+  stagedInstall
+}) {
+  const codexHomeDir = await mkdtemp(path.join(tmpdir(), "skfiy-codex-plugin-home-"));
+  const evidence = {
+    productPath: CACHE_INSTALL_PRODUCT_PATH,
+    codexCommand: options.codexCommand,
+    codexHomeDir,
+    marketplaceRoot: stagedInstall.marketplaceRoot,
+    marketplaceManifestPath: stagedInstall.codexMarketplaceManifestPath,
+    marketplaceManifest: stagedInstall.marketplaceManifest,
+    sourcePluginRoot: options.pluginRoot,
+    installedPluginRoot: undefined,
+    pluginRoot: undefined,
+    mcpConfigPath: undefined,
+    repoCheckoutUsedForMcp: undefined,
+    marketplaceAdd: undefined,
+    pluginList: undefined,
+    pluginAdd: undefined,
+    configuredCommand: undefined,
+    configuredArgs: undefined,
+    configuredEnv: undefined,
+    command: undefined,
+    resolvedCommandPath: undefined,
+    configuredCommandUsed: undefined,
+    commandLookupPathPrepend: undefined,
+    requests: [],
+    stdout: "",
+    stderr: "",
+    stdoutJsonRpcOnly: false,
+    mcpExit: undefined,
+    initialize: undefined,
+    tools: [],
+    status: undefined,
+    responses: [],
+    cleanup: {
+      codexHomeRemoved: false
+    },
+    result: "not-run"
+  };
+
+  try {
+    evidence.marketplaceAdd = await runCodexCliCommand({
+      command: options.codexCommand,
+      args: ["plugin", "marketplace", "add", stagedInstall.marketplaceRoot],
+      codexHomeDir,
+      timeoutMs: options.timeoutMs
+    });
+    evidence.pluginList = summarizeCodexPluginListCommand(await runCodexCliCommand({
+      command: options.codexCommand,
+      args: ["plugin", "list", "--available", "--json"],
+      codexHomeDir,
+      timeoutMs: options.timeoutMs
+    }));
+    evidence.pluginAdd = await runCodexCliCommand({
+      command: options.codexCommand,
+      args: ["plugin", "add", "skfiy@skfiy-local"],
+      codexHomeDir,
+      timeoutMs: options.timeoutMs
+    });
+
+    const installedPluginRoot = parseInstalledPluginRoot(evidence.pluginAdd.stdout)
+      ?? path.join(
+        codexHomeDir,
+        "plugins",
+        "cache",
+        "skfiy-local",
+        "skfiy",
+        await readCodexPluginVersion(options.pluginRoot)
+      );
+    evidence.installedPluginRoot = installedPluginRoot;
+    evidence.pluginRoot = installedPluginRoot;
+    evidence.mcpConfigPath = path.join(installedPluginRoot, ".mcp.json");
+    evidence.repoCheckoutUsedForMcp = false;
+
+    const mcpServer = await readCodexPluginMcpServer(evidence.mcpConfigPath);
+    evidence.configuredCommand = mcpServer.command;
+    evidence.configuredArgs = mcpServer.args;
+    evidence.configuredEnv = mcpServer.env;
+    evidence.command = [mcpServer.command, ...mcpServer.args];
+
+    const session = await runCodexPluginMcpSession({
+      configuredCommand: mcpServer.command,
+      configuredArgs: mcpServer.args,
+      configuredEnv: mcpServer.env,
+      cliPath: options.cliPath,
+      extensionIds: options.extensionIds,
+      timeoutMs: options.timeoutMs
+    });
+    Object.assign(evidence, session);
+    evidence.result = evidence.marketplaceAdd.exitCode === 0
+      && evidence.pluginList.exitCode === 0
+      && evidence.pluginAdd.exitCode === 0
+      ? "passed"
+      : "failed";
+  } catch (error) {
+    evidence.result = "error";
+    evidence.error = error instanceof Error ? error.message : String(error);
+  } finally {
+    await rm(codexHomeDir, { recursive: true, force: true })
+      .then(() => {
+        evidence.cleanup.codexHomeRemoved = true;
+      })
+      .catch((error) => {
+        evidence.cleanup.codexHomeRemoved = false;
+        evidence.cleanup.error = error instanceof Error ? error.message : String(error);
+      });
+  }
+
+  return evidence;
 }
 
 function createCodexPluginMarketplaceManifest() {
@@ -170,6 +306,117 @@ function createCodexPluginMarketplaceManifest() {
       }
     ]
   };
+}
+
+function runCodexCliCommand({
+  command,
+  args,
+  codexHomeDir,
+  timeoutMs
+}) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd: ROOT_DIR,
+      env: {
+        ...process.env,
+        CODEX_HOME: codexHomeDir
+      },
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, timeoutMs);
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", (error) => {
+      clearTimeout(timeout);
+      resolve({
+        command: [command, ...args],
+        exitCode: 1,
+        signal: null,
+        stdout,
+        stderr,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    });
+    child.once("exit", (code, signal) => {
+      clearTimeout(timeout);
+      resolve({
+        command: [command, ...args],
+        exitCode: code ?? 1,
+        signal,
+        stdout,
+        stderr
+      });
+    });
+  });
+}
+
+function summarizeCodexPluginListCommand(commandEvidence) {
+  const summary = {
+    ...commandEvidence,
+    parsed: undefined,
+    availableSkfiyPluginId: undefined,
+    installedSkfiyPluginId: undefined,
+    jsonParseError: undefined
+  };
+
+  try {
+    const parsed = JSON.parse(commandEvidence.stdout);
+    const availableSkfiy = Array.isArray(parsed.available)
+      ? parsed.available.find((plugin) => plugin?.pluginId === "skfiy@skfiy-local")
+      : undefined;
+    const installedSkfiy = Array.isArray(parsed.installed)
+      ? parsed.installed.find((plugin) => plugin?.pluginId === "skfiy@skfiy-local")
+      : undefined;
+
+    summary.parsed = {
+      installedCount: Array.isArray(parsed.installed) ? parsed.installed.length : 0,
+      availableCount: Array.isArray(parsed.available) ? parsed.available.length : 0
+    };
+    summary.availableSkfiyPluginId = availableSkfiy?.pluginId;
+    summary.installedSkfiyPluginId = installedSkfiy?.pluginId;
+    summary.availableSkfiy = availableSkfiy
+      ? {
+          pluginId: availableSkfiy.pluginId,
+          marketplaceName: availableSkfiy.marketplaceName,
+          version: availableSkfiy.version,
+          installed: availableSkfiy.installed,
+          enabled: availableSkfiy.enabled,
+          installPolicy: availableSkfiy.installPolicy,
+          authPolicy: availableSkfiy.authPolicy
+        }
+      : undefined;
+  } catch (error) {
+    summary.jsonParseError = error instanceof Error ? error.message : String(error);
+  }
+
+  return summary;
+}
+
+function parseInstalledPluginRoot(stdout) {
+  const match = stdout.match(/Installed plugin root:\s*(.+)\s*$/m);
+  return match?.[1]?.trim();
+}
+
+async function readCodexPluginVersion(pluginRoot) {
+  const manifestPath = path.join(pluginRoot, ".codex-plugin", "plugin.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+
+  if (typeof manifest.version !== "string" || manifest.version.length === 0) {
+    throw new Error(`Missing plugin version in ${manifestPath}.`);
+  }
+
+  return manifest.version;
 }
 
 export async function readCodexPluginMcpServer(mcpConfigPath) {

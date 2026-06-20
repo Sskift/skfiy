@@ -2,6 +2,7 @@ import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 
 export const PRODUCT_PATH = "plugin scaffold -> staged marketplace install -> .mcp.json -> packaged skfiy CLI -> MCP stdio";
+export const CACHE_INSTALL_PRODUCT_PATH = "codex plugin marketplace add -> isolated CODEX_HOME cache -> installed skfiy plugin -> packaged skfiy CLI -> MCP stdio";
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const EXPECTED_MCP_ARGS = ["mcp", "serve", "--stdio"];
 export const EXPECTED_MCP_TOOLS = ["skfiy.status", "skfiy.doctor"];
@@ -14,6 +15,8 @@ export function createDefaultCodexPluginSmokeOptions(rootDir) {
     installStagingDir: path.join(rootDir, ".skfiy-plugin-install", "codex-plugin"),
     mcpConfigPath: path.join(pluginRoot, ".mcp.json"),
     cliPath: path.join(rootDir, "dist", "skfiy"),
+    codexCommand: "codex",
+    cacheInstall: true,
     extensionIds: [],
     timeoutMs: DEFAULT_TIMEOUT_MS,
     outputPath: undefined,
@@ -44,6 +47,13 @@ export function parseCodexPluginSmokeArgs(argv, defaults) {
       case "--cli":
         options.cliPath = path.resolve(readRequiredValue(argv, index, arg));
         index += 1;
+        break;
+      case "--codex":
+        options.codexCommand = readRequiredValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--skip-cache-install":
+        options.cacheInstall = false;
         break;
       case "--extension-id":
         options.extensionIds = [
@@ -83,6 +93,7 @@ export function classifyCodexPluginSmokeEvidence(evidence) {
     || evidence.mcpServerName !== "skfiy"
     || evidence.repoCheckoutUsedForMcp !== false
     || !hasValidMarketplaceInstall(evidence)
+    || !hasValidCacheInstallEvidence(evidence)
     || evidence.configuredCommand !== "skfiy"
     || evidence.configuredCommandUsed !== true
     || !isBuiltCliPath(evidence.resolvedCommandPath)
@@ -141,9 +152,11 @@ Options:
                          Temporary installed-plugin staging root. Default: ${defaults.installStagingDir}
   --mcp-config <path>   Plugin MCP config path. Default: ${defaults.mcpConfigPath}
   --cli <path>          Built CLI path. Default: ${defaults.cliPath}
+  --codex <command>     Codex CLI command for isolated cache-install proof. Default: ${defaults.codexCommand}
   --extension-id <id>   Optional Chrome extension id to pass through skfiy.status.
   --timeout-ms <ms>     Wait time for MCP responses. Default: ${defaults.timeoutMs}
   --output <path>       Persist JSON evidence to a file.
+  --skip-cache-install  Skip isolated Codex cache-install proof. This keeps debug runs possible, but --require-passed will fail.
   --require-passed      Exit 2 unless the Codex plugin smoke result is passed.
   -h, --help            Show this help.
 `;
@@ -266,6 +279,64 @@ function hasValidMarketplaceInstall(evidence) {
 
   return path.normalize(path.join(evidence.marketplaceRoot, entry.source.path))
     === path.normalize(evidence.installedPluginRoot);
+}
+
+function hasValidCacheInstallEvidence(evidence) {
+  const cache = evidence.cacheInstall;
+
+  if (
+    !cache
+    || cache.result !== "passed"
+    || cache.productPath !== CACHE_INSTALL_PRODUCT_PATH
+    || cache.codexCommand !== evidence.codexCommand
+    || typeof cache.codexHomeDir !== "string"
+    || typeof cache.marketplaceRoot !== "string"
+    || typeof cache.marketplaceManifestPath !== "string"
+    || cache.marketplaceManifestPath !== path.join(cache.marketplaceRoot, ".agents", "plugins", "marketplace.json")
+    || cache.marketplaceManifest?.name !== "skfiy-local"
+    || cache.repoCheckoutUsedForMcp !== false
+    || cache.sourcePluginRoot === cache.installedPluginRoot
+    || typeof cache.installedPluginRoot !== "string"
+    || !cache.installedPluginRoot.includes(`${path.sep}plugins${path.sep}cache${path.sep}skfiy-local${path.sep}skfiy${path.sep}`)
+    || cache.pluginRoot !== cache.installedPluginRoot
+    || cache.mcpConfigPath !== path.join(cache.installedPluginRoot, ".mcp.json")
+    || cache.configuredCommand !== "skfiy"
+    || cache.configuredCommandUsed !== true
+    || !sameStringArray(cache.configuredArgs, EXPECTED_MCP_ARGS)
+    || !sameStringArray(cache.command, ["skfiy", ...EXPECTED_MCP_ARGS])
+    || !isBuiltCliPath(cache.resolvedCommandPath)
+    || path.normalize(cache.resolvedCommandPath) !== path.normalize(evidence.packagedCliPath)
+    || !isPackagedCliDirectory(cache.commandLookupPathPrepend, evidence.packagedCliPath)
+    || cache.stdoutJsonRpcOnly !== true
+    || cache.mcpExit?.code !== 0
+    || cache.mcpExit?.signal !== null
+    || !hasSkfiySafetyInstructions(cache.initialize?.instructions)
+    || !hasRequest(cache.requests, "initialize")
+    || !hasRequest(cache.requests, "tools/list")
+    || !hasToolCallRequest(cache.requests, "skfiy.status")
+    || !containsAllStrings(cache.tools, EXPECTED_MCP_TOOLS)
+    || cache.marketplaceAdd?.exitCode !== 0
+    || cache.pluginList?.exitCode !== 0
+    || cache.pluginAdd?.exitCode !== 0
+    || cache.pluginList?.availableSkfiyPluginId !== "skfiy@skfiy-local"
+    || cache.cleanup?.codexHomeRemoved !== true
+  ) {
+    return false;
+  }
+
+  const nativeHost = cache.status?.nativeHost;
+  const extensionIds = Array.isArray(evidence.extensionIds)
+    ? evidence.extensionIds
+    : [];
+  return cache.status?.schemaVersion === 1
+    && cache.status?.command === "status"
+    && cache.status?.app
+    && cache.status?.helper
+    && cache.status?.permissions
+    && nativeHost
+    && typeof nativeHost.cliShimPath === "string"
+    && isBuiltCliPath(nativeHost.cliShimPath)
+    && (extensionIds.length === 0 || hasPluginChromeBridgeStatus(cache.status, extensionIds));
 }
 
 function hasPluginChromeBridgeStatus(status, extensionIds) {

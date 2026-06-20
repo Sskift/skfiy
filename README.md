@@ -218,10 +218,13 @@ runtime replacement; desktop control still goes through skfiy's app policy,
 permission preflight, approval prompts, and replay evidence. `smoke:codex-plugin`
 copies the scaffold into `.skfiy-plugin-install/` for staged marketplace proof,
 reads the installed `.mcp.json`, resolves `command: "skfiy"` through a temporary
-`PATH` to `dist/skfiy`, and verifies MCP status without mutating the user's
-global Codex marketplace. Pass `--extension-id <id>` to the smoke when you want
-the MCP `skfiy.status` call to also prove the packaged CLI can read Chrome
-Native Messaging and extension-adapter state for that browser bridge.
+`PATH` to `dist/skfiy`, then runs the real Codex CLI in an isolated `CODEX_HOME`
+to install `skfiy@skfiy-local` into `plugins/cache/skfiy-local/skfiy/<version>/`
+and verifies MCP status from that cached copy. The smoke removes the temporary
+Codex home and does not mutate the user's global Codex marketplace. Pass
+`--extension-id <id>` to the smoke when you want the MCP `skfiy.status` call to
+also prove the packaged CLI can read Chrome Native Messaging and
+extension-adapter state for that browser bridge.
 
 ## Development
 

@@ -37,12 +37,14 @@ describe("Codex plugin product smoke script", () => {
 
     const {
       PRODUCT_PATH,
+      CACHE_INSTALL_PRODUCT_PATH,
       EXPECTED_MCP_ARGS,
       createCodexPluginHelpText,
       createDefaultCodexPluginSmokeOptions,
       parseCodexPluginSmokeArgs
     } = await import(pathToFileURL(modulePath).href) as {
       PRODUCT_PATH: string;
+      CACHE_INSTALL_PRODUCT_PATH: string;
       EXPECTED_MCP_ARGS: string[];
       createCodexPluginHelpText: (defaults: Record<string, unknown>) => string;
       createDefaultCodexPluginSmokeOptions: (rootDir: string) => Record<string, unknown>;
@@ -61,6 +63,8 @@ describe("Codex plugin product smoke script", () => {
       installStagingDir: path.join("/repo", ".skfiy-plugin-install", "codex-plugin"),
       mcpConfigPath: path.join("/repo", "plugins", "skfiy", ".mcp.json"),
       cliPath: path.join("/repo", "dist", "skfiy"),
+      codexCommand: "codex",
+      cacheInstall: true,
       extensionIds: [],
       timeoutMs: 8_000,
       requirePassed: false,
@@ -75,6 +79,9 @@ describe("Codex plugin product smoke script", () => {
       "plugins/skfiy/.mcp.json",
       "--cli",
       "dist/skfiy",
+      "--codex",
+      "/opt/homebrew/bin/codex",
+      "--skip-cache-install",
       "--extension-id",
       "abcdefghijklmnopabcdefghijklmnop",
       "--output",
@@ -87,6 +94,8 @@ describe("Codex plugin product smoke script", () => {
       installStagingDir: path.resolve(".skfiy-plugin-install/codex-plugin"),
       mcpConfigPath: path.resolve("plugins/skfiy/.mcp.json"),
       cliPath: path.resolve("dist/skfiy"),
+      codexCommand: "/opt/homebrew/bin/codex",
+      cacheInstall: false,
       extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
       outputPath: path.resolve(".skfiy-smoke/codex-plugin.json"),
       timeoutMs: 1200,
@@ -94,16 +103,21 @@ describe("Codex plugin product smoke script", () => {
     });
     expect(createCodexPluginHelpText(defaults)).toContain("smoke:codex-plugin");
     expect(createCodexPluginHelpText(defaults)).toContain("--extension-id");
+    expect(createCodexPluginHelpText(defaults)).toContain("--codex");
+    expect(createCodexPluginHelpText(defaults)).toContain("--skip-cache-install");
     expect(createCodexPluginHelpText(defaults)).toContain("--require-passed");
+    expect(CACHE_INSTALL_PRODUCT_PATH).toContain("isolated CODEX_HOME cache");
   });
 
   it("classifies plugin smoke evidence as passed only for installed-command MCP status", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-codex-plugin-plan.mjs");
     const {
       PRODUCT_PATH,
+      CACHE_INSTALL_PRODUCT_PATH,
       classifyCodexPluginSmokeEvidence
     } = await import(pathToFileURL(modulePath).href) as {
       PRODUCT_PATH: string;
+      CACHE_INSTALL_PRODUCT_PATH: string;
       classifyCodexPluginSmokeEvidence: (input: Record<string, unknown>) => string;
     };
     const passedEvidence = {
@@ -132,6 +146,74 @@ describe("Codex plugin product smoke script", () => {
       configuredArgs: ["mcp", "serve", "--stdio"],
       extensionIds: [],
       packagedCliPath: "/repo/dist/skfiy",
+      codexCommand: "codex",
+      cacheInstallRequested: true,
+      cacheInstall: {
+        result: "passed",
+        productPath: CACHE_INSTALL_PRODUCT_PATH,
+        codexCommand: "codex",
+        codexHomeDir: "/tmp/skfiy-codex-plugin-home-abc123",
+        marketplaceRoot: "/repo/.skfiy-plugin-install/codex-plugin/marketplace",
+        marketplaceManifestPath: "/repo/.skfiy-plugin-install/codex-plugin/marketplace/.agents/plugins/marketplace.json",
+        marketplaceManifest: {
+          name: "skfiy-local",
+          interface: { displayName: "skfiy Local" },
+          plugins: [{
+            name: "skfiy",
+            source: { source: "local", path: "./plugins/skfiy" },
+            policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+            category: "Productivity"
+          }]
+        },
+        sourcePluginRoot: "/repo/plugins/skfiy",
+        installedPluginRoot: "/tmp/skfiy-codex-plugin-home-abc123/plugins/cache/skfiy-local/skfiy/0.1.0",
+        pluginRoot: "/tmp/skfiy-codex-plugin-home-abc123/plugins/cache/skfiy-local/skfiy/0.1.0",
+        mcpConfigPath: "/tmp/skfiy-codex-plugin-home-abc123/plugins/cache/skfiy-local/skfiy/0.1.0/.mcp.json",
+        repoCheckoutUsedForMcp: false,
+        marketplaceAdd: { exitCode: 0 },
+        pluginList: {
+          exitCode: 0,
+          availableSkfiyPluginId: "skfiy@skfiy-local"
+        },
+        pluginAdd: { exitCode: 0 },
+        configuredCommand: "skfiy",
+        configuredArgs: ["mcp", "serve", "--stdio"],
+        configuredCommandUsed: true,
+        commandLookupPathPrepend: "/repo/dist",
+        command: ["skfiy", "mcp", "serve", "--stdio"],
+        resolvedCommandPath: "/repo/dist/skfiy",
+        stdoutJsonRpcOnly: true,
+        mcpExit: { code: 0, signal: null },
+        requests: [
+          { id: 1, method: "initialize" },
+          { id: 2, method: "tools/list" },
+          { id: 3, method: "tools/call", tool: "skfiy.status" }
+        ],
+        initialize: {
+          protocolVersion: "2024-11-05",
+          instructions: [
+            "Use skfiy MCP tools for read-only status and diagnostics.",
+            "Do not run desktop control without explicit user approval.",
+            "This plugin is an adapter to the standalone skfiy app.",
+            "Keep app policy and replay evidence inside skfiy."
+          ].join(" ")
+        },
+        tools: ["skfiy.status", "skfiy.doctor"],
+        status: {
+          schemaVersion: 1,
+          command: "status",
+          app: { state: "unknown" },
+          helper: { state: "unknown" },
+          permissions: {
+            screenRecording: "unknown",
+            accessibility: "unknown"
+          },
+          nativeHost: {
+            cliShimPath: "/repo/dist/skfiy"
+          }
+        },
+        cleanup: { codexHomeRemoved: true }
+      },
       resolvedCommandPath: "/repo/dist/skfiy",
       configuredCommandUsed: true,
       commandLookupPathPrepend: "/repo/dist",
@@ -198,6 +280,28 @@ describe("Codex plugin product smoke script", () => {
           manifestPath: "/repo/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
           reason: "Chrome Native Messaging host manifest is not installed."
         }
+      },
+      cacheInstall: {
+        ...passedEvidence.cacheInstall,
+        status: {
+          ...passedEvidence.cacheInstall.status,
+          nativeHost: {
+            state: "missing",
+            hostName: "com.sskift.skfiy",
+            manifestPath: "/repo/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+            cliShimPath: "/repo/dist/skfiy",
+            allowedOrigins: [],
+            reason: "Chrome Native Messaging host manifest is not installed."
+          },
+          extension: {
+            state: "native-host-missing",
+            bridge: "native-messaging",
+            liveConnection: "unknown",
+            nativeHostState: "missing",
+            manifestPath: "/repo/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+            reason: "Chrome Native Messaging host manifest is not installed."
+          }
+        }
       }
     };
 
@@ -208,6 +312,21 @@ describe("Codex plugin product smoke script", () => {
       status: {
         ...bridgeEvidence.status,
         extension: { state: "unknown" }
+      }
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
+      cacheInstall: {
+        ...passedEvidence.cacheInstall,
+        result: "skipped"
+      }
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
+      cacheInstall: {
+        ...passedEvidence.cacheInstall,
+        installedPluginRoot: "/repo/plugins/skfiy",
+        pluginRoot: "/repo/plugins/skfiy"
       }
     })).toBe("failed");
     expect(classifyCodexPluginSmokeEvidence({
