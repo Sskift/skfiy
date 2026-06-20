@@ -4,6 +4,12 @@ import fs from "node:fs";
 import path from "node:path";
 import type { DashboardDescriptor } from "./dashboard-status.js";
 import {
+  createTmuxSupervisionReport,
+  parseTmuxPaneList,
+  type TmuxPaneSummary,
+  type TmuxSupervisionReport
+} from "./computer-use/tmux-supervisor.js";
+import {
   CHROME_EXTENSION_CONNECTION_TTL_SECONDS,
   CHROME_NATIVE_HOST_NAME,
   createChromeExtensionConnectionStatePath
@@ -18,6 +24,10 @@ const REQUIRED_DOGFOOD_WORKFLOWS = [
 ] as const;
 const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
 const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
+const MONEY_RUN_SESSION_NAME = "money-run";
+const TMUX_TAIL_LINES = 120;
+const TMUX_WINDOW_FORMAT = "#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_panes}";
+const TMUX_PANE_FORMAT = "#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_dead}\t#{pane_current_command}\t#{pane_title}";
 const SYNTHETIC_TESTER_ID_PREFIXES = [
   "local-",
   "prepare-",
@@ -50,6 +60,15 @@ export interface DashboardWorkspaceIo {
   permissions?: (helperPath: string) => Record<string, unknown>;
   desktopSession?: (helperPath: string) => Record<string, unknown>;
   gitHead?: (rootDir: string) => Record<string, unknown>;
+  tmux?: (args: string[]) => DashboardTmuxResult;
+}
+
+export interface DashboardTmuxResult {
+  status?: number | null;
+  exitCode?: number | null;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
 }
 
 export interface DashboardWorkspaceSnapshotInput {
@@ -175,7 +194,8 @@ export function createDashboardWorkspaceSnapshot({
     smokeEvidence: {
       artifacts: readLatestSmokeArtifacts(rootDir, snapshotGeneratedAt, io)
     },
-    dogfoodRelease: readWorkspaceDogfoodRelease(rootDir, io)
+    dogfoodRelease: readWorkspaceDogfoodRelease(rootDir, io),
+    longHorizon: readWorkspaceLongHorizon(io)
   });
 
   return {
@@ -414,6 +434,158 @@ function readWorkspaceReleaseDrift(
     releaseCommitSha,
     currentHeadCommitSha
   };
+}
+
+function readWorkspaceLongHorizon(io: DashboardWorkspaceIo): Record<string, unknown> {
+  const probeCommands: string[] = [];
+  const runTmux = (args: string[]): DashboardTmuxResult => {
+    probeCommands.push(formatTmuxCommand(args));
+    return normalizeTmuxResult(
+      io.tmux ? io.tmux(args) : readTmuxSync(args)
+    );
+  };
+
+  try {
+    const hasSession = runTmux(["has-session", "-t", MONEY_RUN_SESSION_NAME]);
+    if (readTmuxExitStatus(hasSession) !== 0) {
+      return createLongHorizonSnapshot(
+        createTmuxSupervisionReport({
+          sessionName: MONEY_RUN_SESSION_NAME,
+          hasSession: false,
+          commandError: readTmuxResultMessage(hasSession, "tmux session was not found.")
+        }),
+        probeCommands,
+        {
+          probeError: readTmuxResultMessage(hasSession, "tmux session was not found.")
+        }
+      );
+    }
+
+    const windows = runTmux([
+      "list-windows",
+      "-t",
+      MONEY_RUN_SESSION_NAME,
+      "-F",
+      TMUX_WINDOW_FORMAT
+    ]);
+    const panes = runTmux([
+      "list-panes",
+      "-t",
+      MONEY_RUN_SESSION_NAME,
+      "-s",
+      "-F",
+      TMUX_PANE_FORMAT
+    ]);
+
+    const windowsStatus = readTmuxExitStatus(windows);
+    const panesStatus = readTmuxExitStatus(panes);
+    if (windowsStatus !== 0 || panesStatus !== 0) {
+      return createLongHorizonProbeFailure(
+        probeCommands,
+        readTmuxResultMessage(
+          windowsStatus !== 0 ? windows : panes,
+          "tmux session state could not be listed."
+        )
+      );
+    }
+
+    const paneTails: Record<string, string> = {};
+    for (const pane of parseTmuxPaneList(panes.stdout)) {
+      const tail = runTmux([
+        "capture-pane",
+        "-p",
+        "-t",
+        pane.id,
+        "-S",
+        `-${TMUX_TAIL_LINES}`
+      ]);
+      paneTails[pane.id] = tail.stdout || tail.stderr || tail.error || "";
+    }
+
+    return createLongHorizonSnapshot(
+      createTmuxSupervisionReport({
+        sessionName: MONEY_RUN_SESSION_NAME,
+        hasSession: true,
+        windowsOutput: windows.stdout,
+        panesOutput: panes.stdout,
+        paneTails
+      }),
+      probeCommands
+    );
+  } catch (error) {
+    return createLongHorizonProbeFailure(
+      probeCommands,
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
+function createLongHorizonProbeFailure(
+  probeCommands: string[],
+  reason: string
+): Record<string, unknown> {
+  return {
+    state: "blocked",
+    session: MONEY_RUN_SESSION_NAME,
+    source: "tmux-read-only-probe",
+    mutatesSession: false,
+    summary: {
+      windowCount: 0,
+      paneCount: 0,
+      activePaneIds: [],
+      deadPaneIds: []
+    },
+    signals: [
+      {
+        type: "probe-error",
+        severity: "blocked",
+        message: reason
+      }
+    ],
+    recommendation: {
+      action: "inspect_state",
+      reason,
+      mutatesSession: false
+    },
+    probeCommands,
+    probeError: reason
+  };
+}
+
+function createLongHorizonSnapshot(
+  report: TmuxSupervisionReport,
+  probeCommands: string[],
+  extra: Record<string, unknown> = {}
+): Record<string, unknown> {
+  const activePane = report.panes.find((pane) => pane.active);
+
+  return {
+    state: report.status,
+    session: report.sessionName,
+    source: "tmux-read-only-probe",
+    mutatesSession: false,
+    summary: report.summary,
+    ...(activePane ? { activePane: createActivePaneSummary(activePane) } : {}),
+    signals: report.signals,
+    recommendation: report.recommendation,
+    probeCommands,
+    ...extra
+  };
+}
+
+function createActivePaneSummary(pane: TmuxPaneSummary): Record<string, unknown> {
+  return {
+    id: pane.id,
+    windowName: pane.windowName,
+    currentCommand: pane.currentCommand,
+    title: pane.title,
+    recentTailPreview: createTailPreview(pane.recentTail)
+  };
+}
+
+function createTailPreview(value: string): string {
+  const maxLength = 1_000;
+  return value.length <= maxLength ? value : value.slice(value.length - maxLength);
 }
 
 function readWorkspaceLatestAlpha(
@@ -861,7 +1033,8 @@ function createDefaultDashboardWorkspaceIo(): DashboardWorkspaceIo {
     uptimeSeconds: () => Math.max(0, Math.round(process.uptime())),
     codeSignature: readCodeSignatureSync,
     permissions: readHelperPermissionsSync,
-    desktopSession: readHelperDesktopSessionSync
+    desktopSession: readHelperDesktopSessionSync,
+    tmux: readTmuxSync
   };
 }
 
@@ -1281,6 +1454,19 @@ function readHelperDesktopSessionSync(helperPath: string): Record<string, unknow
   return readHelperJsonSync(helperPath, ["desktop-session-status"], "desktop-session-status");
 }
 
+function readTmuxSync(args: string[]): DashboardTmuxResult {
+  const result = spawnSync("tmux", args, {
+    encoding: "utf8"
+  });
+
+  return {
+    status: result.status,
+    stdout: `${result.stdout ?? ""}`,
+    stderr: `${result.stderr ?? ""}`,
+    ...(result.error ? { error: result.error.message } : {})
+  };
+}
+
 function readHelperJsonSync(
   helperPath: string,
   args: string[],
@@ -1400,6 +1586,42 @@ function readSpawnMessage(
   }
 
   return `${result.stderr ?? ""}${result.stdout ?? ""}`.trim() || fallback;
+}
+
+function normalizeTmuxResult(result: DashboardTmuxResult): DashboardTmuxResult {
+  return {
+    status: typeof result.status === "number" || result.status === null ? result.status : result.exitCode,
+    exitCode: typeof result.exitCode === "number" || result.exitCode === null ? result.exitCode : result.status,
+    stdout: `${result.stdout ?? ""}`,
+    stderr: `${result.stderr ?? ""}`,
+    ...(typeof result.error === "string" && result.error.length > 0 ? { error: result.error } : {})
+  };
+}
+
+function readTmuxExitStatus(result: DashboardTmuxResult): number | null {
+  if (typeof result.status === "number" || result.status === null) {
+    return result.status;
+  }
+
+  if (typeof result.exitCode === "number" || result.exitCode === null) {
+    return result.exitCode;
+  }
+
+  return 1;
+}
+
+function readTmuxResultMessage(result: DashboardTmuxResult, fallback: string): string {
+  return [
+    result.error,
+    result.stderr,
+    result.stdout
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim())
+    .join("\n") || fallback;
+}
+
+function formatTmuxCommand(args: string[]): string {
+  return `tmux ${args.join(" ")}`;
 }
 
 function createUnknownPermissions(): Record<string, string> {

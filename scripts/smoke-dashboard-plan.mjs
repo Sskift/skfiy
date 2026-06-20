@@ -112,7 +112,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || !hasChromeNativeHostBridgeSmokeEvidence(snapshot.smokeEvidence.artifacts)
     || !hasChromeInstalledExtensionSmokeEvidence(snapshot.smokeEvidence.artifacts)
     || !hasDogfoodReleaseEvidence(snapshot?.dogfoodRelease)
-    || snapshot?.longHorizon?.session !== "money-run"
+    || !hasLongHorizonEvidence(snapshot?.longHorizon)
     || !Array.isArray(snapshot?.alerts)
   ) {
     return "failed";
@@ -341,6 +341,29 @@ function hasDogfoodReleaseEvidence(dogfoodRelease) {
     && hasReleaseDriftEvidence(dogfoodRelease.releaseDrift)
     && hasManifestEvidence(dogfoodRelease.manifest)
     && hasCohortEvidence(dogfoodRelease.cohort);
+}
+
+function hasLongHorizonEvidence(longHorizon) {
+  const allowedStates = new Set([
+    "observing",
+    "needs_attention",
+    "blocked"
+  ]);
+
+  return allowedStates.has(longHorizon?.state)
+    && longHorizon?.session === "money-run"
+    && longHorizon?.source === "tmux-read-only-probe"
+    && longHorizon?.mutatesSession === false
+    && Number.isInteger(longHorizon?.summary?.windowCount)
+    && Number.isInteger(longHorizon?.summary?.paneCount)
+    && Array.isArray(longHorizon?.summary?.activePaneIds)
+    && Array.isArray(longHorizon?.summary?.deadPaneIds)
+    && Array.isArray(longHorizon?.signals)
+    && typeof longHorizon?.recommendation?.action === "string"
+    && typeof longHorizon?.recommendation?.reason === "string"
+    && longHorizon?.recommendation?.mutatesSession === false
+    && Array.isArray(longHorizon?.probeCommands)
+    && longHorizon.probeCommands.includes("tmux has-session -t money-run");
 }
 
 function hasLatestAlphaEvidence(latestAlpha) {

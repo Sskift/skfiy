@@ -243,7 +243,37 @@ describe("dashboard product smoke script", () => {
               ]
             }
           },
-          longHorizon: { session: "money-run" },
+          longHorizon: {
+            state: "observing",
+            session: "money-run",
+            source: "tmux-read-only-probe",
+            mutatesSession: false,
+            summary: {
+              windowCount: 2,
+              paneCount: 3,
+              activePaneIds: ["%1"],
+              deadPaneIds: []
+            },
+            activePane: {
+              id: "%1",
+              windowName: "agent",
+              currentCommand: "zsh",
+              title: "main",
+              recentTailPreview: "building...\nwaiting for next event"
+            },
+            signals: [],
+            recommendation: {
+              action: "continue_observing",
+              reason: "money-run has 2 windows, 3 panes, and no obvious block markers.",
+              mutatesSession: false
+            },
+            probeCommands: [
+              "tmux has-session -t money-run",
+              "tmux list-windows -t money-run -F #{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_panes}",
+              "tmux list-panes -t money-run -s -F #{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_dead}\t#{pane_current_command}\t#{pane_title}",
+              "tmux capture-pane -p -t %1 -S -120"
+            ]
+          },
           alerts: []
         }
       },
@@ -329,6 +359,18 @@ describe("dashboard product smoke script", () => {
                 productPath: "renderer -> preload -> main -> CDP -> Chrome"
               }
             ]
+          }
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          longHorizon: {
+            session: "money-run"
           }
         }
       }

@@ -373,6 +373,16 @@ describe("dashboard snapshot data", () => {
       "/repo/.skfiy-smoke/cli-current.json": Date.parse("2026-06-19T23:59:00.000Z"),
       "/repo/.skfiy-smoke/codex-plugin-current.json": Date.parse("2026-06-19T23:58:00.000Z")
     };
+    const tmuxCalls: string[] = [];
+    const windowsOutput = [
+      "@1\t0\tagent\t1\t2",
+      "@2\t1\tlogs\t0\t1"
+    ].join("\n");
+    const panesOutput = [
+      "money-run\t@1\t0\tagent\t%1\t0\t1\t0\tzsh\tmain",
+      "money-run\t@1\t0\tagent\t%2\t1\t0\t0\tnode\tworker",
+      "money-run\t@2\t1\tlogs\t%3\t0\t0\t0\ttail\tlogs"
+    ].join("\n");
 
     const snapshot = createDashboardWorkspaceSnapshot({
       rootDir: "/repo",
@@ -407,6 +417,35 @@ describe("dashboard snapshot data", () => {
           commitSha: "fedcba9876543210fedcba9876543210fedcba98",
           shortCommit: "fedcba9"
         }),
+        tmux: (args: string[]) => {
+          tmuxCalls.push(`tmux ${args.join(" ")}`);
+
+          if (args[0] === "has-session") {
+            return { status: 0, stdout: "", stderr: "" };
+          }
+
+          if (args[0] === "list-windows") {
+            return { status: 0, stdout: windowsOutput, stderr: "" };
+          }
+
+          if (args[0] === "list-panes") {
+            return { status: 0, stdout: panesOutput, stderr: "" };
+          }
+
+          if (args[0] === "capture-pane" && args[3] === "%1") {
+            return { status: 0, stdout: "building...\nwaiting for next event", stderr: "" };
+          }
+
+          if (args[0] === "capture-pane" && args[3] === "%2") {
+            return { status: 0, stdout: "worker ready", stderr: "" };
+          }
+
+          if (args[0] === "capture-pane" && args[3] === "%3") {
+            return { status: 0, stdout: "logs streaming", stderr: "" };
+          }
+
+          return { status: 1, stdout: "", stderr: `unexpected tmux args: ${args.join(" ")}` };
+        },
         desktopSession: () => ({
           state: "blocked",
           controllable: false,
@@ -556,6 +595,33 @@ describe("dashboard snapshot data", () => {
       speechRecognition: "not-determined",
       finderAutomation: "unknown"
     });
+    expect(snapshot.longHorizon).toMatchObject({
+      state: "observing",
+      session: "money-run",
+      source: "tmux-read-only-probe",
+      mutatesSession: false,
+      summary: {
+        windowCount: 2,
+        paneCount: 3,
+        activePaneIds: ["%1"],
+        deadPaneIds: []
+      },
+      activePane: {
+        id: "%1",
+        windowName: "agent",
+        currentCommand: "zsh",
+        title: "main",
+        recentTailPreview: "building...\nwaiting for next event"
+      },
+      signals: [],
+      recommendation: {
+        action: "continue_observing",
+        reason: "money-run has 2 windows, 3 panes, and no obvious block markers.",
+        mutatesSession: false
+      }
+    });
+    expect(snapshot.longHorizon.probeCommands).toEqual(tmuxCalls);
+    expect(snapshot.longHorizon.probeCommands).toContain("tmux capture-pane -p -t %1 -S -120");
     expect(snapshot.smokeEvidence.artifacts).toEqual([
       {
         target: "chrome",

@@ -232,9 +232,15 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("latest alpha, manifest checksum, accepted reports, cohort coverage");
     expect(dashboardPlan).toContain("releaseDrift");
     expect(dashboardPlan).toContain("current git HEAD");
+    expect(dashboardPlan).toContain("tmux-read-only-probe");
+    expect(dashboardPlan).toContain("activePane");
+    expect(dashboardPlan).toContain("mutatesSession: false");
+    expect(dashboardPlan).toContain("probe commands");
     expect(longPlan).toContain("Chrome smoke summaries now surface `nativeHostBridge` evidence from `nativeHostBridgeRun`");
     expect(longPlan).toContain("dogfood/release snapshot now reads `docs/release-evidence/latest-alpha.json`");
     expect(longPlan).toContain("releaseDrift");
+    expect(longPlan).toContain("long-horizon `tmux-read-only-probe` evidence");
+    expect(longPlan).toContain("active pane summary, signals, current recommendation");
     expect(longPlan).toContain("CLI command matrix smoke");
     expect(longPlan).toContain("fresh Native Messaging heartbeat file");
     expect(longPlan).toContain("nativeHostBridgeRun.result: passed");
