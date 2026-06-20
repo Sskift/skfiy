@@ -43,6 +43,7 @@ async function main() {
     configuredArgs: undefined,
     configuredEnv: undefined,
     packagedCliPath: options.cliPath,
+    extensionIds: options.extensionIds,
     resolvedCommandPath: undefined,
     configuredCommandUsed: undefined,
     commandLookupPathPrepend: undefined,
@@ -86,6 +87,7 @@ async function main() {
       configuredArgs: mcpServer.args,
       configuredEnv: mcpServer.env,
       cliPath: options.cliPath,
+      extensionIds: options.extensionIds,
       timeoutMs: options.timeoutMs
     });
 
@@ -198,9 +200,10 @@ export function runCodexPluginMcpSession({
   configuredArgs,
   configuredEnv,
   cliPath,
+  extensionIds = [],
   timeoutMs
 }) {
-  const requests = createMcpRequests();
+  const requests = createMcpRequests({ extensionIds });
   const commandLookupPathPrepend = path.dirname(cliPath);
   const commandLookupPath = [
     commandLookupPathPrepend,
@@ -301,7 +304,11 @@ function resolveConfiguredCommandPath(command, lookupPath) {
   return undefined;
 }
 
-function createMcpRequests() {
+function createMcpRequests({ extensionIds = [] } = {}) {
+  const statusArguments = extensionIds.length > 0
+    ? { extensionIds }
+    : {};
+
   return [
     {
       jsonrpc: "2.0",
@@ -327,7 +334,7 @@ function createMcpRequests() {
       method: "tools/call",
       params: {
         name: "skfiy.status",
-        arguments: {}
+        arguments: statusArguments
       }
     }
   ];
@@ -365,10 +372,16 @@ function findResponse(responses, id) {
 }
 
 function summarizeRequest(request) {
+  const args = request.params?.arguments;
+  const extensionIds = Array.isArray(args?.extensionIds)
+    ? args.extensionIds.filter((item) => typeof item === "string")
+    : undefined;
+
   return {
     id: request.id,
     method: request.method,
-    ...(request.method === "tools/call" ? { tool: request.params?.name } : {})
+    ...(request.method === "tools/call" ? { tool: request.params?.name } : {}),
+    ...(extensionIds?.length ? { extensionIds } : {})
   };
 }
 

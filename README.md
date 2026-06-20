@@ -162,7 +162,10 @@ heartbeat from `chrome-extension-connection.json`. The dashboard also exposes
 same Chrome host policy used by the CLI and MV3 native-host bridge.
 `smoke:dashboard` seeds an isolated `runtime-snapshot.json` fixture and requires
 `/snapshot.json` to expose real `currentTurn` and `replay` fields from that
-runtime snapshot before dashboard evidence can pass.
+runtime snapshot before dashboard evidence can pass. Runtime snapshots include
+bounded approval/stop state, latest action, latest verification, latest
+screenshot, timeline tail, and replay summaries so the dashboard can inspect the
+current Computer Use turn without reading full raw transcripts.
 
 `skfiy status --json` includes a top-level `readiness` summary for runtime,
 dashboard, extension, and `money-run`. It also performs a read-only tmux probe of
@@ -216,7 +219,9 @@ permission preflight, approval prompts, and replay evidence. `smoke:codex-plugin
 copies the scaffold into `.skfiy-plugin-install/` for staged marketplace proof,
 reads the installed `.mcp.json`, resolves `command: "skfiy"` through a temporary
 `PATH` to `dist/skfiy`, and verifies MCP status without mutating the user's
-global Codex marketplace.
+global Codex marketplace. Pass `--extension-id <id>` to the smoke when you want
+the MCP `skfiy.status` call to also prove the packaged CLI can read Chrome
+Native Messaging and extension-adapter state for that browser bridge.
 
 ## Development
 
@@ -238,6 +243,7 @@ npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session.json
 npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
 npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
 npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json
+npm run smoke:cli:basic -- --output .skfiy-smoke/cli-basic.json
 npm run smoke:cli -- --output .skfiy-smoke/cli-command-matrix.json
 npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json
 npm run smoke:codex-plugin -- --output .skfiy-smoke/codex-plugin.json

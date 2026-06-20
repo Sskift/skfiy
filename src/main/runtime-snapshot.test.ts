@@ -86,7 +86,25 @@ describe("runtime snapshot", () => {
         risk: "low",
         plannerProvider: "External CUA",
         approvalRequired: true,
+        approvalState: "required",
+        stopState: "available",
         latestMessage: "Approval required (low): Read-only terminal command.",
+        latestAction: {
+          type: "verify",
+          actionType: "type_text",
+          status: "passed"
+        },
+        latestVerification: {
+          type: "verify",
+          actionType: "type_text",
+          status: "passed"
+        },
+        latestScreenshot: {
+          stage: "before",
+          path: "/tmp/before.png",
+          recommendation: "structured_first",
+          sourceCount: 0
+        },
         source: "runtime-snapshot"
       },
       replay: {
@@ -97,9 +115,86 @@ describe("runtime snapshot", () => {
         verificationCount: 1,
         timelineCount: 1,
         latestMessage: "Approval required (low): Read-only terminal command.",
+        screenshots: [
+          {
+            stage: "before",
+            path: "/tmp/before.png"
+          }
+        ],
+        actions: [
+          {
+            type: "plan",
+            command: "pwd"
+          },
+          {
+            type: "type_text",
+            textLength: 3
+          },
+          {
+            type: "verify",
+            actionType: "type_text",
+            status: "passed"
+          }
+        ],
+        verifications: [
+          {
+            type: "verify",
+            actionType: "type_text",
+            status: "passed"
+          }
+        ],
+        timelineTail: [
+          {
+            status: "approval_required",
+            command: "pwd"
+          }
+        ],
         source: "runtime-snapshot"
       }
     });
+  });
+
+  it("redacts obvious secret-bearing text from snapshot summaries", () => {
+    const snapshot = createRuntimeSnapshotFromReplay({
+      replay: {
+        transcript: {
+          command: "curl https://example.test?token=super-secret",
+          approvalRequired: false,
+          apps: [],
+          screenshots: [],
+          actions: [
+            {
+              type: "plan",
+              providerLabel: "External CUA",
+              command: "echo api_key=abc123",
+              rationale: "Use Bearer abc.def as the session token."
+            },
+            {
+              type: "type_text",
+              text: "password=hidden"
+            }
+          ],
+          outcome: "running"
+        },
+        timeline: [
+          {
+            status: "executing",
+            message: "Running with secret=shh",
+            command: "curl https://example.test?token=super-secret"
+          }
+        ]
+      },
+      observedAt: "2026-06-20T10:00:00.000Z"
+    });
+    const serialized = JSON.stringify(snapshot);
+
+    expect(snapshot.currentTurn.command).toBe("curl https://example.test?token=[redacted]");
+    expect(serialized).toContain("api_key=[redacted]");
+    expect(serialized).toContain("Bearer [redacted]");
+    expect(serialized).toContain("secret=[redacted]");
+    expect(serialized).not.toContain("super-secret");
+    expect(serialized).not.toContain("abc123");
+    expect(serialized).not.toContain("password=hidden");
   });
 
   it("writes and reads the runtime snapshot without leaking tokens", async () => {

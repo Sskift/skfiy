@@ -27,6 +27,7 @@
     "smoke:ghostty": "node scripts/smoke-ghostty-product.mjs",
     "smoke:chrome": "node scripts/smoke-chrome-product.mjs",
     "smoke:cli": "node scripts/smoke-cli-product.mjs",
+    "smoke:cli:basic": "node scripts/smoke-cli-product.mjs --profile basic",
     "smoke:dashboard": "node scripts/smoke-dashboard-product.mjs",
     "smoke:codex-plugin": "node scripts/smoke-codex-plugin-product.mjs",
     "smoke:finder": "node scripts/smoke-finder-product.mjs",

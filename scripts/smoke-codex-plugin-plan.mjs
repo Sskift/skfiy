@@ -14,6 +14,7 @@ export function createDefaultCodexPluginSmokeOptions(rootDir) {
     installStagingDir: path.join(rootDir, ".skfiy-plugin-install", "codex-plugin"),
     mcpConfigPath: path.join(pluginRoot, ".mcp.json"),
     cliPath: path.join(rootDir, "dist", "skfiy"),
+    extensionIds: [],
     timeoutMs: DEFAULT_TIMEOUT_MS,
     outputPath: undefined,
     requirePassed: false,
@@ -42,6 +43,13 @@ export function parseCodexPluginSmokeArgs(argv, defaults) {
         break;
       case "--cli":
         options.cliPath = path.resolve(readRequiredValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--extension-id":
+        options.extensionIds = [
+          ...(Array.isArray(options.extensionIds) ? options.extensionIds : []),
+          readRequiredValue(argv, index, arg)
+        ];
         index += 1;
         break;
       case "--timeout-ms":
@@ -97,6 +105,9 @@ export function classifyCodexPluginSmokeEvidence(evidence) {
 
   const status = evidence.status;
   const nativeHost = status?.nativeHost;
+  const extensionIds = Array.isArray(evidence.extensionIds)
+    ? evidence.extensionIds
+    : [];
 
   if (
     status?.schemaVersion !== 1
@@ -108,6 +119,10 @@ export function classifyCodexPluginSmokeEvidence(evidence) {
     || typeof nativeHost.cliShimPath !== "string"
     || !isBuiltCliPath(nativeHost.cliShimPath)
   ) {
+    return "failed";
+  }
+
+  if (extensionIds.length > 0 && !hasPluginChromeBridgeStatus(status, extensionIds)) {
     return "failed";
   }
 
@@ -126,6 +141,7 @@ Options:
                          Temporary installed-plugin staging root. Default: ${defaults.installStagingDir}
   --mcp-config <path>   Plugin MCP config path. Default: ${defaults.mcpConfigPath}
   --cli <path>          Built CLI path. Default: ${defaults.cliPath}
+  --extension-id <id>   Optional Chrome extension id to pass through skfiy.status.
   --timeout-ms <ms>     Wait time for MCP responses. Default: ${defaults.timeoutMs}
   --output <path>       Persist JSON evidence to a file.
   --require-passed      Exit 2 unless the Codex plugin smoke result is passed.
@@ -250,4 +266,33 @@ function hasValidMarketplaceInstall(evidence) {
 
   return path.normalize(path.join(evidence.marketplaceRoot, entry.source.path))
     === path.normalize(evidence.installedPluginRoot);
+}
+
+function hasPluginChromeBridgeStatus(status, extensionIds) {
+  const nativeHost = status?.nativeHost;
+  const extension = status?.extension;
+  const allowedLiveConnectionStates = new Set(["unknown", "connected", "stale"]);
+  const allowedNativeHostStates = new Set([
+    "installed",
+    "missing",
+    "mismatched",
+    "cli-missing",
+    "invalid"
+  ]);
+
+  return extensionIds.length > 0
+    && allowedNativeHostStates.has(nativeHost?.state)
+    && nativeHost?.hostName === "com.sskift.skfiy"
+    && typeof nativeHost?.manifestPath === "string"
+    && nativeHost.manifestPath.includes("NativeMessagingHosts/com.sskift.skfiy.json")
+    && typeof nativeHost?.cliShimPath === "string"
+    && isBuiltCliPath(nativeHost.cliShimPath)
+    && extensionIds.every((extensionId) => nativeHost.allowedOrigins?.includes(`chrome-extension://${extensionId}/`)
+      || nativeHost.extensionIds?.includes(extensionId)
+      || nativeHost.reason)
+    && typeof extension?.state === "string"
+    && extension.state !== "unknown"
+    && extension?.bridge === "native-messaging"
+    && allowedLiveConnectionStates.has(extension?.liveConnection)
+    && typeof extension?.nativeHostState === "string";
 }

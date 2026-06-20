@@ -501,8 +501,17 @@ function hasRuntimeSnapshotCoverageEvidence(coverage, expectedCoverage) {
     && Array.isArray(coverage?.replayFields)
     && coverage.currentTurnFields.includes("command")
     && coverage.currentTurnFields.includes("targetApp")
+    && coverage.currentTurnFields.includes("approvalState")
+    && coverage.currentTurnFields.includes("stopState")
+    && coverage.currentTurnFields.includes("latestAction")
+    && coverage.currentTurnFields.includes("latestVerification")
+    && coverage.currentTurnFields.includes("latestScreenshot")
     && coverage.replayFields.includes("screenshotCount")
-    && coverage.replayFields.includes("verificationCount");
+    && coverage.replayFields.includes("verificationCount")
+    && coverage.replayFields.includes("screenshots")
+    && coverage.replayFields.includes("actions")
+    && coverage.replayFields.includes("verifications")
+    && coverage.replayFields.includes("timelineTail");
 }
 
 function hasAvailableRuntimePanelEvidence(currentTurn, replay) {
@@ -566,7 +575,7 @@ function collectRuntimePanelMismatches(failures, panelName, actual, expected) {
   }
 
   for (const [key, expectedValue] of Object.entries(expected)) {
-    if (!Object.is(actual[key], expectedValue)) {
+    if (JSON.stringify(actual[key]) !== JSON.stringify(expectedValue)) {
       failures.push(`${panelName}.${key} does not match the seeded fixture`);
     }
   }

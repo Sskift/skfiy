@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 export const PRODUCT_PATH = "dist/skfiy -> skfiy CLI command matrix";
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const FIXTURE_EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
+export const CLI_SMOKE_PROFILE_NAMES = ["full", "basic"];
 
 export const CLI_COMMAND_MATRIX = [
   {
@@ -49,6 +50,14 @@ export const CLI_COMMAND_MATRIX = [
   }
 ];
 
+export const CLI_BASIC_COMMAND_IDS = [
+  "status-json",
+  "doctor-json",
+  "chrome-status",
+  "mcp-serve-json",
+  "dashboard-json"
+];
+
 export function createDefaultCliSmokeOptions(rootDir) {
   return {
     cliPath: path.join(rootDir, "dist", "skfiy"),
@@ -56,6 +65,7 @@ export function createDefaultCliSmokeOptions(rootDir) {
     scratchDir: path.join(rootDir, ".skfiy-cli-smoke"),
     timeoutMs: DEFAULT_TIMEOUT_MS,
     outputPath: undefined,
+    profile: "full",
     requirePassed: false,
     help: false
   };
@@ -85,6 +95,10 @@ export function parseCliSmokeArgs(argv, defaults) {
         options.outputPath = path.resolve(readRequiredValue(argv, index, arg));
         index += 1;
         break;
+      case "--profile":
+        options.profile = readProfileValue(readRequiredValue(argv, index, arg));
+        index += 1;
+        break;
       case "--require-passed":
         options.requirePassed = true;
         break;
@@ -101,7 +115,7 @@ export function parseCliSmokeArgs(argv, defaults) {
 }
 
 export function createCliSmokeCommandRuns(options) {
-  return CLI_COMMAND_MATRIX.map((entry) => ({
+  return getCliSmokeCommandMatrix(options.profile).map((entry) => ({
     ...entry,
     command: [
       options.cliPath,
@@ -111,6 +125,8 @@ export function createCliSmokeCommandRuns(options) {
 }
 
 export function classifyCliSmokeEvidence(evidence) {
+  const expectedMatrix = getCliSmokeCommandMatrix(evidence?.profile);
+
   if (
     !evidence
     || evidence.runnerHasTmux
@@ -118,12 +134,12 @@ export function classifyCliSmokeEvidence(evidence) {
     || !isBuiltCliPath(evidence.cliPath)
     || !isIsolatedHomeDir(evidence.isolatedHomeDir)
     || !Array.isArray(evidence.commands)
-    || evidence.commands.length !== CLI_COMMAND_MATRIX.length
+    || evidence.commands.length !== expectedMatrix.length
   ) {
     return "failed";
   }
 
-  for (const expected of CLI_COMMAND_MATRIX) {
+  for (const expected of expectedMatrix) {
     const command = evidence.commands.find((item) => item?.id === expected.id);
 
     if (!isPassingCommandEvidence(command, expected, evidence.cliPath)) {
@@ -144,6 +160,7 @@ Options:
   --cli <path>            Built CLI path. Default: ${defaults.cliPath}
   --isolated-home <path>  Temporary HOME for Chrome host status. Default: ${defaults.isolatedHomeDir}
   --timeout-ms <ms>       Wait time for each CLI command. Default: ${defaults.timeoutMs}
+  --profile <full|basic>  Matrix profile. basic skips release/alpha/nested dashboard smoke.
   --output <path>         Persist JSON evidence to a file.
   --require-passed        Exit 2 unless the CLI smoke result is passed.
   -h, --help              Show this help.
@@ -190,6 +207,22 @@ function readPositiveInteger(value, name) {
   }
 
   return parsed;
+}
+
+function readProfileValue(value) {
+  if (!CLI_SMOKE_PROFILE_NAMES.includes(value)) {
+    throw new Error(`--profile must be one of: ${CLI_SMOKE_PROFILE_NAMES.join(", ")}.`);
+  }
+
+  return value;
+}
+
+function getCliSmokeCommandMatrix(profile = "full") {
+  if (profile === "basic") {
+    return CLI_COMMAND_MATRIX.filter((entry) => CLI_BASIC_COMMAND_IDS.includes(entry.id));
+  }
+
+  return CLI_COMMAND_MATRIX;
 }
 
 function isPassingCommandEvidence(command, expected, cliPath) {

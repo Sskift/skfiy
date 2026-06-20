@@ -61,6 +61,7 @@ describe("Codex plugin product smoke script", () => {
       installStagingDir: path.join("/repo", ".skfiy-plugin-install", "codex-plugin"),
       mcpConfigPath: path.join("/repo", "plugins", "skfiy", ".mcp.json"),
       cliPath: path.join("/repo", "dist", "skfiy"),
+      extensionIds: [],
       timeoutMs: 8_000,
       requirePassed: false,
       help: false
@@ -74,6 +75,8 @@ describe("Codex plugin product smoke script", () => {
       "plugins/skfiy/.mcp.json",
       "--cli",
       "dist/skfiy",
+      "--extension-id",
+      "abcdefghijklmnopabcdefghijklmnop",
       "--output",
       ".skfiy-smoke/codex-plugin.json",
       "--timeout-ms",
@@ -84,11 +87,13 @@ describe("Codex plugin product smoke script", () => {
       installStagingDir: path.resolve(".skfiy-plugin-install/codex-plugin"),
       mcpConfigPath: path.resolve("plugins/skfiy/.mcp.json"),
       cliPath: path.resolve("dist/skfiy"),
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
       outputPath: path.resolve(".skfiy-smoke/codex-plugin.json"),
       timeoutMs: 1200,
       requirePassed: true
     });
     expect(createCodexPluginHelpText(defaults)).toContain("smoke:codex-plugin");
+    expect(createCodexPluginHelpText(defaults)).toContain("--extension-id");
     expect(createCodexPluginHelpText(defaults)).toContain("--require-passed");
   });
 
@@ -125,6 +130,7 @@ describe("Codex plugin product smoke script", () => {
       mcpServerName: "skfiy",
       configuredCommand: "skfiy",
       configuredArgs: ["mcp", "serve", "--stdio"],
+      extensionIds: [],
       packagedCliPath: "/repo/dist/skfiy",
       resolvedCommandPath: "/repo/dist/skfiy",
       configuredCommandUsed: true,
@@ -161,8 +167,49 @@ describe("Codex plugin product smoke script", () => {
         }
       }
     };
+    const bridgeEvidence = {
+      ...passedEvidence,
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+      requests: [
+        { id: 1, method: "initialize" },
+        { id: 2, method: "tools/list" },
+        {
+          id: 3,
+          method: "tools/call",
+          tool: "skfiy.status",
+          extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+        }
+      ],
+      status: {
+        ...passedEvidence.status,
+        nativeHost: {
+          state: "missing",
+          hostName: "com.sskift.skfiy",
+          manifestPath: "/repo/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+          cliShimPath: "/repo/dist/skfiy",
+          allowedOrigins: [],
+          reason: "Chrome Native Messaging host manifest is not installed."
+        },
+        extension: {
+          state: "native-host-missing",
+          bridge: "native-messaging",
+          liveConnection: "unknown",
+          nativeHostState: "missing",
+          manifestPath: "/repo/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+          reason: "Chrome Native Messaging host manifest is not installed."
+        }
+      }
+    };
 
     expect(classifyCodexPluginSmokeEvidence(passedEvidence)).toBe("passed");
+    expect(classifyCodexPluginSmokeEvidence(bridgeEvidence)).toBe("passed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...bridgeEvidence,
+      status: {
+        ...bridgeEvidence.status,
+        extension: { state: "unknown" }
+      }
+    })).toBe("failed");
     expect(classifyCodexPluginSmokeEvidence({
       ...passedEvidence,
       repoCheckoutUsedForMcp: true

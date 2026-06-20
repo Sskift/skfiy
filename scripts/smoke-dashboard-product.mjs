@@ -173,7 +173,28 @@ function createRuntimeSnapshotFixture(observedAt) {
       risk: "low",
       plannerProvider: "Dashboard Smoke Fixture",
       approvalRequired: true,
+      approvalState: "required",
+      stopState: "available",
       latestMessage: "Dashboard smoke runtime snapshot fixture is visible.",
+      latestAction: {
+        type: "verify",
+        actionType: "type_text",
+        status: "passed",
+        message: "Dashboard smoke runtime snapshot fixture verification is visible."
+      },
+      latestVerification: {
+        type: "verify",
+        actionType: "type_text",
+        status: "passed",
+        message: "Dashboard smoke runtime snapshot fixture verification is visible."
+      },
+      latestScreenshot: {
+        stage: "before",
+        path: "/tmp/skfiy-dashboard-runtime-fixture-before.png",
+        bundleId: "com.mitchellh.ghostty",
+        recommendation: "structured_first",
+        sourceCount: 2
+      },
       source: "runtime-snapshot"
     },
     replay: {
@@ -184,6 +205,51 @@ function createRuntimeSnapshotFixture(observedAt) {
       verificationCount: 1,
       timelineCount: 2,
       latestMessage: "Dashboard smoke runtime snapshot fixture is visible.",
+      screenshots: [
+        {
+          stage: "before",
+          path: "/tmp/skfiy-dashboard-runtime-fixture-before.png",
+          bundleId: "com.mitchellh.ghostty",
+          recommendation: "structured_first",
+          sourceCount: 2
+        }
+      ],
+      actions: [
+        {
+          type: "plan",
+          providerLabel: "Dashboard Smoke Fixture",
+          command: "dashboard smoke runtime snapshot fixture"
+        },
+        {
+          type: "type_text",
+          textLength: 40
+        },
+        {
+          type: "verify",
+          actionType: "type_text",
+          status: "passed",
+          message: "Dashboard smoke runtime snapshot fixture verification is visible."
+        }
+      ],
+      verifications: [
+        {
+          type: "verify",
+          actionType: "type_text",
+          status: "passed",
+          message: "Dashboard smoke runtime snapshot fixture verification is visible."
+        }
+      ],
+      timelineTail: [
+        {
+          status: "executing",
+          message: "Dashboard smoke runtime snapshot fixture started."
+        },
+        {
+          status: "approval_required",
+          command: "dashboard smoke runtime snapshot fixture",
+          message: "Dashboard smoke runtime snapshot fixture is visible."
+        }
+      ],
       source: "runtime-snapshot"
     }
   };

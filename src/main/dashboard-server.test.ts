@@ -179,6 +179,10 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("data-alert-group");
     expect(response.body).toContain("Desktop session");
     expect(response.body).toContain("Chrome bridge");
+    expect(response.body).toContain('row("approval", turn.approvalState)');
+    expect(response.body).toContain('row("stop", turn.stopState)');
+    expect(response.body).toContain('row("latest verify", turn.latestVerification)');
+    expect(response.body).toContain('row("timeline tail", replay.timelineTail)');
     expect(response.body).not.toContain("token=");
   });
 

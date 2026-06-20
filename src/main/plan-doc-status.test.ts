@@ -216,11 +216,14 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("Codex plugin commands verified locally: `codex plugin add`, `codex plugin list`, `codex plugin remove`, and `codex plugin marketplace`");
     expect(dashboardPlan).toContain("smoke:codex-plugin");
     expect(dashboardPlan).toContain("smoke:cli");
+    expect(dashboardPlan).toContain("smoke:cli:basic");
     expect(dashboardPlan).toContain("dist/skfiy -> skfiy CLI command matrix");
     expect(dashboardPlan).toContain("staged marketplace install");
     expect(dashboardPlan).toContain("repoCheckoutUsedForMcp=false");
     expect(dashboardPlan).toContain("configuredCommandUsed=true");
     expect(dashboardPlan).toContain("resolvedCommandPath");
+    expect(dashboardPlan).toContain("smoke:codex-plugin -- --extension-id <id>");
+    expect(dashboardPlan).toContain("Chrome Native Messaging `nativeHost` state plus derived `extension` adapter state");
     expect(dashboardPlan).toContain("MCP initialize response now includes short safety instructions");
     expect(dashboardPlan).toContain("Codex plugin smoke now requires those initialize instructions");
     expect(dashboardPlan).toContain("OpenAI Codex plugin build docs");
@@ -240,6 +243,8 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("probe commands");
     expect(dashboardPlan).toContain("snapshot-backed operator HTML shell");
     expect(dashboardPlan).toContain("fetches `/snapshot.json` with `cache: \"no-store\"`");
+    expect(dashboardPlan).toContain("bounded approval/stop state, latest action, latest verification, latest screenshot");
+    expect(dashboardPlan).toContain("bounded approval/stop/action/verification/screenshot/timeline summaries");
     expect(longPlan).toContain("Chrome smoke summaries now surface `nativeHostBridge` evidence from `nativeHostBridgeRun`");
     expect(longPlan).toContain("dogfood/release snapshot now reads `docs/release-evidence/latest-alpha.json`");
     expect(longPlan).toContain("releaseDrift");
@@ -247,7 +252,9 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("active pane summary, signals, current recommendation");
     expect(longPlan).toContain("snapshot-backed operator HTML shell");
     expect(longPlan).toContain("dashboard HTML shell fetches `/snapshot.json`");
+    expect(longPlan).toContain("bounded approval/stop/action/verification/screenshot/timeline summaries");
     expect(longPlan).toContain("CLI command matrix smoke");
+    expect(longPlan).toContain("smoke:cli:basic");
     expect(longPlan).toContain("fresh Native Messaging heartbeat file");
     expect(longPlan).toContain("nativeHostBridgeRun.result: passed");
     expect(longPlan).toContain("dist/skfiy -> Chrome Native Messaging heartbeat");
@@ -281,14 +288,18 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("Two-Week Dashboard Execution Plan");
     expect(dashboardPlan).toContain("runtime snapshot event store");
     expect(dashboardPlan).toContain("runtime-snapshot.json");
+    expect(dashboardPlan).toContain("latest action, latest verification, latest screenshot, replay screenshots/actions/verifications, and timeline tail");
     expect(dashboardPlan).toContain("`skfiy dashboard --json` is the launcher contract");
     expect(dashboardPlan).toContain("Binary and CLI Execution Plan");
+    expect(dashboardPlan).toContain("quick compiled-binary health gate");
     expect(dashboardPlan).toContain("plugin cache install smoke from a fresh Codex thread");
     expect(longPlan).toContain("Two-week consolidation plan");
     expect(longPlan).toContain("the packaged binary is the only supported user-test runtime");
     expect(longPlan).toContain("fresh Codex thread plugin-cache install smoke");
+    expect(longPlan).toContain("smoke:codex-plugin --extension-id <id>");
     expect(longPlan).toContain("runtime-snapshot.json");
     expect(longPlan).toContain("active-turn and replay panels read `runtime-snapshot.json`");
+    expect(longPlan).toContain("latest action, latest verification, latest screenshot");
   });
 
   it("documents panic stop behavior evidence in alpha and report instructions", () => {

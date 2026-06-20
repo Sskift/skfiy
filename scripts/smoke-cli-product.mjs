@@ -33,6 +33,7 @@ async function main() {
     isolatedHomeDir: options.isolatedHomeDir,
     scratchDir: options.scratchDir,
     productPath: PRODUCT_PATH,
+    profile: options.profile,
     runnerHasTmux: Boolean(process.env.TMUX),
     artifactPath: options.outputPath,
     commands: [],

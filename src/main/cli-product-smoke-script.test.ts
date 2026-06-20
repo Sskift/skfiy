@@ -12,7 +12,8 @@ describe("CLI product smoke script", () => {
 
     expect(existsSync(sourcePath)).toBe(true);
     expect(packageJson.scripts).toMatchObject({
-      "smoke:cli": "node scripts/smoke-cli-product.mjs"
+      "smoke:cli": "node scripts/smoke-cli-product.mjs",
+      "smoke:cli:basic": "node scripts/smoke-cli-product.mjs --profile basic"
     });
 
     const source = readFileSync(sourcePath, "utf8");
@@ -30,14 +31,18 @@ describe("CLI product smoke script", () => {
 
     const {
       CLI_COMMAND_MATRIX,
+      CLI_BASIC_COMMAND_IDS,
       PRODUCT_PATH,
       createCliSmokeHelpText,
+      createCliSmokeCommandRuns,
       createDefaultCliSmokeOptions,
       parseCliSmokeArgs
     } = await import(pathToFileURL(modulePath).href) as {
       CLI_COMMAND_MATRIX: Array<{ id: string; args: string[] }>;
+      CLI_BASIC_COMMAND_IDS: string[];
       PRODUCT_PATH: string;
       createCliSmokeHelpText: (defaults: Record<string, unknown>) => string;
+      createCliSmokeCommandRuns: (options: Record<string, unknown>) => Array<{ id: string }>;
       createDefaultCliSmokeOptions: (rootDir: string) => Record<string, unknown>;
       parseCliSmokeArgs: (
         argv: string[],
@@ -51,6 +56,7 @@ describe("CLI product smoke script", () => {
       cliPath: path.join("/repo", "dist", "skfiy"),
       isolatedHomeDir: path.join("/repo", ".skfiy-cli-smoke", "home"),
       timeoutMs: 8_000,
+      profile: "full",
       requirePassed: false,
       help: false
     });
@@ -63,12 +69,15 @@ describe("CLI product smoke script", () => {
       ".skfiy-smoke/cli.json",
       "--timeout-ms",
       "1200",
+      "--profile",
+      "basic",
       "--require-passed"
     ], defaults)).toMatchObject({
       cliPath: path.resolve("dist/skfiy"),
       isolatedHomeDir: path.resolve(".skfiy-cli-smoke/home"),
       outputPath: path.resolve(".skfiy-smoke/cli.json"),
       timeoutMs: 1200,
+      profile: "basic",
       requirePassed: true
     });
     expect(CLI_COMMAND_MATRIX.map((command) => command.id)).toEqual([
@@ -81,8 +90,20 @@ describe("CLI product smoke script", () => {
       "alpha-artifact-json",
       "smoke-dashboard-json"
     ]);
+    expect(CLI_BASIC_COMMAND_IDS).toEqual([
+      "status-json",
+      "doctor-json",
+      "chrome-status",
+      "mcp-serve-json",
+      "dashboard-json"
+    ]);
+    expect(createCliSmokeCommandRuns({
+      ...defaults,
+      profile: "basic"
+    }).map((command) => command.id)).toEqual(CLI_BASIC_COMMAND_IDS);
     expect(createCliSmokeHelpText(defaults)).toContain("smoke:cli");
     expect(createCliSmokeHelpText(defaults)).toContain("--isolated-home");
+    expect(createCliSmokeHelpText(defaults)).toContain("--profile <full|basic>");
   });
 
   it("classifies CLI smoke evidence only when built binary commands are stable and isolated", async () => {
@@ -101,11 +122,30 @@ describe("CLI product smoke script", () => {
       isolatedHomeDir: "/repo/.skfiy-cli-smoke/home",
       runnerHasTmux: false,
       productPath: PRODUCT_PATH,
+      profile: "full",
       commands: CLI_COMMAND_MATRIX.map((command) => createPassingCommandEvidence(command)),
       result: "passed"
     };
+    const basicEvidence = {
+      ...passedEvidence,
+      profile: "basic",
+      commands: CLI_COMMAND_MATRIX
+        .filter((command) => [
+          "status-json",
+          "doctor-json",
+          "chrome-status",
+          "mcp-serve-json",
+          "dashboard-json"
+        ].includes(command.id))
+        .map((command) => createPassingCommandEvidence(command))
+    };
 
     expect(classifyCliSmokeEvidence(passedEvidence)).toBe("passed");
+    expect(classifyCliSmokeEvidence(basicEvidence)).toBe("passed");
+    expect(classifyCliSmokeEvidence({
+      ...basicEvidence,
+      commands: [...basicEvidence.commands, createPassingCommandEvidence(CLI_COMMAND_MATRIX.at(-1)!)]
+    })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
       commands: passedEvidence.commands.map((command) => command.id === "chrome-status"
