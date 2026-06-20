@@ -65,6 +65,8 @@ Codex plugin packaging stays an adapter layer. A repo-local scaffold is not enou
 - Iterating on an already installed local plugin should use the Codex plugin cachebuster/reinstall flow rather than hand-editing cached plugin files.
 - Installing, disabling, or uninstalling the Codex plugin must not start desktop control, erase local replay evidence, or replace the standalone `skfiy.app` runtime.
 - `smoke:codex-plugin` is the local product gate: it reads `plugins/skfiy/.mcp.json`, substitutes the packaged `dist/skfiy` path for the installed `skfiy` command, starts `mcp serve --stdio`, sends `initialize`, `tools/list`, and `tools/call skfiy.status`, and requires JSON-RPC-only stdout plus structured status.
+- MCP initialize response now includes short safety instructions for read-only status/doctor use, no desktop control without explicit user approval, app-policy/replay ownership inside skfiy, and the boundary between dashboard/plugin adapter and standalone app runtime.
+- Codex plugin smoke now requires those initialize instructions, so a plugin-facing MCP server without the safety contract cannot be classified as `passed`.
 - A later installed-plugin smoke should run from a fresh Codex app session and prove the cached plugin can find the installed `skfiy` binary without using the source checkout.
 
 ## Chrome Native Messaging Host
@@ -111,6 +113,5 @@ The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, 
 - Build output will place the modules under `dist/main/` through the existing Electron TypeScript config.
 - `scripts/skfiy-cli.mjs` is intentionally not registered in `package.json`; run it directly only after built artifacts exist.
 - `bin/skfiy.mjs` is the packaged CLI entry copied to `dist/skfiy`; `scripts/skfiy-cli.mjs` remains a source-tree debug shim only.
-- MCP initialize response should include short safety instructions for read-only status/doctor use, no desktop control without explicit user approval, and the boundary between dashboard/plugin adapter and standalone app runtime.
 - Future implementation should replace skeleton states with real app/helper/permission/dashboard/extension probes without changing the top-level JSON keys.
 - Future dashboard server work should keep tokens out of logs and stdout by default.

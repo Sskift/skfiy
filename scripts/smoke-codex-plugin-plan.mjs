@@ -75,6 +75,7 @@ export function classifyCodexPluginSmokeEvidence(evidence) {
     || evidence.stdoutJsonRpcOnly !== true
     || evidence.mcpExit?.code !== 0
     || evidence.mcpExit?.signal !== null
+    || !hasSkfiySafetyInstructions(evidence.initialize?.instructions)
     || !hasRequest(evidence.requests, "initialize")
     || !hasRequest(evidence.requests, "tools/list")
     || !hasToolCallRequest(evidence.requests, "skfiy.status")
@@ -181,4 +182,18 @@ function isBuiltCliPath(cliPath) {
 
   return path.basename(normalized) === "skfiy"
     && path.basename(path.dirname(normalized)) === "dist";
+}
+
+function hasSkfiySafetyInstructions(instructions) {
+  if (typeof instructions !== "string") {
+    return false;
+  }
+
+  const normalized = instructions.toLowerCase();
+
+  return normalized.includes("read-only")
+    && normalized.includes("explicit user approval")
+    && normalized.includes("standalone skfiy app")
+    && normalized.includes("app policy")
+    && normalized.includes("replay evidence");
 }

@@ -3,6 +3,13 @@ export const SKFIY_MCP_TOOL_NAMES = [
   "skfiy.doctor"
 ] as const;
 
+export const SKFIY_MCP_SAFETY_INSTRUCTIONS = [
+  "Use skfiy MCP tools for read-only status and diagnostics.",
+  "Do not run desktop control without explicit user approval.",
+  "This plugin is an adapter to the standalone skfiy app and packaged CLI, not a replacement runtime.",
+  "Keep app policy, permission preflight, approval prompts, and replay evidence inside skfiy."
+].join(" ");
+
 export type SkfiyMcpToolName = typeof SKFIY_MCP_TOOL_NAMES[number];
 
 export interface SkfiyMcpToolCallInput {
@@ -87,6 +94,7 @@ export async function handleSkfiyMcpRequest(
           name: "skfiy",
           version: "0.1.0"
         },
+        instructions: SKFIY_MCP_SAFETY_INSTRUCTIONS,
         capabilities: {
           tools: {
             listChanged: false

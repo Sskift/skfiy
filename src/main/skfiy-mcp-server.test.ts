@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SKFIY_MCP_SAFETY_INSTRUCTIONS,
   SKFIY_MCP_TOOL_NAMES,
   createSkfiyMcpToolDefinitions,
   handleSkfiyMcpRequest,
@@ -34,6 +35,9 @@ describe("skfiy MCP server contract", () => {
 
   it("handles initialize, tools/list, and status tool calls through JSON-RPC", async () => {
     const calls: unknown[] = [];
+    expect(SKFIY_MCP_SAFETY_INSTRUCTIONS).toContain("read-only");
+    expect(SKFIY_MCP_SAFETY_INSTRUCTIONS).toContain("explicit user approval");
+    expect(SKFIY_MCP_SAFETY_INSTRUCTIONS).toContain("standalone skfiy app");
 
     await expect(handleSkfiyMcpRequest({
       jsonrpc: "2.0",
@@ -50,6 +54,7 @@ describe("skfiy MCP server contract", () => {
         serverInfo: {
           name: "skfiy"
         },
+        instructions: SKFIY_MCP_SAFETY_INSTRUCTIONS,
         capabilities: {
           tools: {
             listChanged: false
@@ -198,6 +203,7 @@ describe("skfiy MCP server contract", () => {
         serverInfo: { name: "skfiy" }
       }
     });
+    expect(messages[0].result.instructions).toBe(SKFIY_MCP_SAFETY_INSTRUCTIONS);
     expect(messages[1]).toMatchObject({
       jsonrpc: "2.0",
       id: 2,

@@ -112,7 +112,15 @@ describe("Codex plugin product smoke script", () => {
         { id: 3, method: "tools/call", tool: "skfiy.status" }
       ],
       tools: ["skfiy.status", "skfiy.doctor"],
-      initialize: { protocolVersion: "2024-11-05" },
+      initialize: {
+        protocolVersion: "2024-11-05",
+        instructions: [
+          "Use skfiy MCP tools for read-only status and diagnostics.",
+          "Do not run desktop control without explicit user approval.",
+          "This plugin is an adapter to the standalone skfiy app.",
+          "Keep app policy and replay evidence inside skfiy."
+        ].join(" ")
+      },
       status: {
         schemaVersion: 1,
         command: "status",
@@ -148,6 +156,12 @@ describe("Codex plugin product smoke script", () => {
     expect(classifyCodexPluginSmokeEvidence({
       ...passedEvidence,
       stdoutJsonRpcOnly: false
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
+      initialize: {
+        protocolVersion: "2024-11-05"
+      }
     })).toBe("failed");
     expect(classifyCodexPluginSmokeEvidence({
       ...passedEvidence,
