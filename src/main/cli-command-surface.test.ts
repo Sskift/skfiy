@@ -479,6 +479,12 @@ describe("CLI command surface", () => {
       "--output",
       ".skfiy-smoke/dashboard.json"
     ]);
+    const moneyRun = expectInvocation([
+      "smoke",
+      "money-run",
+      "--output",
+      ".skfiy-smoke/money-run.json"
+    ]);
     const release = expectInvocation([
       "release",
       "check",
@@ -501,6 +507,20 @@ describe("CLI command surface", () => {
         ]
       }
     });
+    expect(moneyRun).toMatchObject({
+      kind: "smoke",
+      path: "smoke money-run",
+      target: "money-run",
+      outputPath: "/repo/.skfiy-smoke/money-run.json",
+      options: {
+        requirePassed: false,
+        scriptPath: "/repo/scripts/smoke-money-run-supervision.mjs",
+        scriptArgs: [
+          "--json-output",
+          "/repo/.skfiy-smoke/money-run.json"
+        ]
+      }
+    });
     expect(release).toMatchObject({
       kind: "release-check",
       path: "release check",
@@ -518,6 +538,18 @@ describe("CLI command surface", () => {
       scriptArgs: [
         "--output",
         "/repo/.skfiy-smoke/dashboard.json"
+      ],
+      result: "not-run",
+      executesSystemMutation: true
+    });
+    expect(createCliOutput(moneyRun)).toMatchObject({
+      command: "smoke money-run",
+      target: "money-run",
+      outputPath: "/repo/.skfiy-smoke/money-run.json",
+      scriptPath: "/repo/scripts/smoke-money-run-supervision.mjs",
+      scriptArgs: [
+        "--json-output",
+        "/repo/.skfiy-smoke/money-run.json"
       ],
       result: "not-run",
       executesSystemMutation: true
@@ -1826,7 +1858,7 @@ describe("CLI command surface", () => {
     const started: Array<{ port: number; rootDir?: string }> = [];
 
     await expect(runSkfiyCli({
-      argv: ["dashboard", "--no-open", "--port", "8787", "--json"],
+      argv: ["dashboard", "--no-open", "--port", "0", "--json"],
       rootDir: "/repo",
       generatedAt: "2026-06-20T00:00:00.000Z",
       stdout: { write: (chunk: string) => stdout.push(chunk) },
@@ -1835,27 +1867,59 @@ describe("CLI command surface", () => {
       dashboardServerStarter: async (input) => {
         started.push(input);
         return {
-          bind: { host: "127.0.0.1", port: input.port ?? 0 },
-          url: `http://127.0.0.1:${input.port ?? 0}/`,
+          bind: { host: "127.0.0.1", port: 51234 },
+          url: "http://127.0.0.1:51234/",
           close: async () => undefined
         };
       }
     })).resolves.toBe(0);
 
-    expect(started).toEqual([{ port: 8787, rootDir: "/repo" }]);
+    expect(started).toEqual([{ port: 0, rootDir: "/repo" }]);
     const output = JSON.parse(stdout.join(""));
     expect(output).toMatchObject({
       schemaVersion: 1,
       command: "dashboard",
       generatedAt: "2026-06-20T00:00:00.000Z",
+      serverPid: process.pid,
       bind: {
         host: "127.0.0.1",
-        port: 8787
+        port: 51234
       },
-      url: "http://127.0.0.1:8787/",
+      url: "http://127.0.0.1:51234/",
       result: "running",
       shouldOpen: false,
-      tokenPrinted: false
+      tokenPrinted: false,
+      auth: {
+        mode: "optional-token",
+        tokenPrinted: false
+      },
+      updates: {
+        transport: "sse",
+        scope: "local-http"
+      },
+      eventStore: {
+        mode: "append-only",
+        requiredForExecution: false
+      },
+      descriptor: {
+        bind: {
+          host: "127.0.0.1",
+          port: 51234
+        },
+        url: "http://127.0.0.1:51234/",
+        auth: {
+          mode: "optional-token",
+          tokenPrinted: false
+        },
+        updates: {
+          transport: "sse",
+          scope: "local-http"
+        },
+        eventStore: {
+          mode: "append-only",
+          requiredForExecution: false
+        }
+      }
     });
     expect(JSON.stringify(output)).not.toContain("token=");
     expect(stderr).toEqual([]);

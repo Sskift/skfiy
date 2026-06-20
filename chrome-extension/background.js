@@ -86,6 +86,23 @@ function getHost(url) {
   }
 }
 
+function getHostPermissionDetails(url) {
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      return null;
+    }
+
+    return {
+      origin: parsedUrl.origin,
+      host: parsedUrl.host,
+      permissionOrigin: `${parsedUrl.protocol}//${parsedUrl.hostname}/*`
+    };
+  } catch {
+    return null;
+  }
+}
+
 function clampDownloadsLimit(value) {
   if (!Number.isFinite(value)) {
     return 20;
@@ -224,6 +241,28 @@ async function ensureContentScript(tabId) {
   });
 }
 
+async function ensureHostPermission(tab) {
+  const permissionDetails = getHostPermissionDetails(tab?.url ?? "");
+  if (!permissionDetails) {
+    return { ok: true };
+  }
+
+  const hasPermission = await chrome.permissions.contains({
+    origins: [permissionDetails.permissionOrigin]
+  });
+
+  if (hasPermission) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    reason: "chrome_host_permission_missing",
+    code: "chrome_host_permission_missing",
+    ...permissionDetails
+  };
+}
+
 async function routePageMessage(message) {
   const tab = message.tabId ? await chrome.tabs.get(message.tabId) : await getActiveTab();
   const host = getHost(tab?.url ?? "");
@@ -236,6 +275,24 @@ async function routePageMessage(message) {
       schemaVersion: MESSAGE_SCHEMA_VERSION,
       requestId: message.requestId,
       host,
+      policyDecision
+    };
+  }
+
+  const permissionDecision = await ensureHostPermission(tab);
+  if (!permissionDecision.ok) {
+    return {
+      type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      result: "blocked",
+      reason: permissionDecision.reason,
+      code: permissionDecision.code,
+      host,
+      origin: permissionDecision.origin,
+      chromeHostPermission: {
+        origins: [permissionDecision.permissionOrigin]
+      },
       policyDecision
     };
   }

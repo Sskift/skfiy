@@ -132,10 +132,39 @@ describe("dashboard product smoke script", () => {
       cliOutput: {
         command: "dashboard",
         result: "running",
+        serverPid: 4242,
         bind: { host: "127.0.0.1", port: 51234 },
         url: "http://127.0.0.1:51234/",
         shouldOpen: false,
-        tokenPrinted: false
+        tokenPrinted: false,
+        auth: {
+          mode: "optional-token",
+          tokenPrinted: false
+        },
+        updates: {
+          transport: "sse",
+          scope: "local-http"
+        },
+        eventStore: {
+          mode: "append-only",
+          requiredForExecution: false
+        },
+        descriptor: {
+          bind: { host: "127.0.0.1", port: 51234 },
+          url: "http://127.0.0.1:51234/",
+          auth: {
+            mode: "optional-token",
+            tokenPrinted: false
+          },
+          updates: {
+            transport: "sse",
+            scope: "local-http"
+          },
+          eventStore: {
+            mode: "append-only",
+            requiredForExecution: false
+          }
+        }
       },
       descriptorResponse: {
         status: 200,
@@ -353,7 +382,7 @@ describe("dashboard product smoke script", () => {
       },
       shellResponse: {
         status: 200,
-        body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><a href="/descriptor.json"></a><a href="/snapshot.json"></a><section data-panel-body="long-horizon-supervision"></section><script>new EventSource("/events"); fetch("/snapshot.json", { cache: "no-store" }); "/api/chrome-host-policy"; function renderAppPolicyPanel(snapshot){} function renderLongHorizonPanel(){}</script></main><title>skfiy Dashboard</title>'
+        body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><a href="/descriptor.json"></a><a href="/snapshot.json"></a><section data-panel-body="long-horizon-supervision"></section><script>new EventSource("/events"); fetch("/snapshot.json", { cache: "no-store" }); "/api/chrome-host-policy"; function renderAppPolicyPanel(snapshot){} function renderLongHorizonPanel(){} function renderAlertsPanel(snapshot){} function groupAlerts(alerts){} function createAlertBand(group){ const marker = "data-alert-groups"; return marker; }</script></main><title>skfiy Dashboard</title>'
       },
       chromeHostPolicyApi: {
         productPath: "dist/skfiy -> dashboard /api/chrome-host-policy -> chrome-host-policy.json",

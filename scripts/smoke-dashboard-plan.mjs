@@ -73,6 +73,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || cliOutput?.result !== "running"
     || cliOutput?.shouldOpen !== false
     || cliOutput?.tokenPrinted !== false
+    || !hasDashboardLauncherContract(cliOutput)
     || !isLoopbackBind(outputBind)
     || !isMatchingDashboardUrl(cliOutput?.url, outputBind)
   ) {
@@ -142,6 +143,29 @@ export function classifyDashboardSmokeEvidence(evidence) {
   }
 
   return "passed";
+}
+
+function hasDashboardLauncherContract(cliOutput) {
+  const descriptor = cliOutput?.descriptor;
+
+  return Number.isInteger(cliOutput?.serverPid)
+    && cliOutput.serverPid > 0
+    && cliOutput?.auth?.mode === "optional-token"
+    && cliOutput.auth.tokenPrinted === false
+    && cliOutput?.updates?.transport === "sse"
+    && cliOutput.updates.scope === "local-http"
+    && cliOutput?.eventStore?.mode === "append-only"
+    && cliOutput.eventStore.requiredForExecution === false
+    && descriptor?.auth?.mode === "optional-token"
+    && descriptor.auth.tokenPrinted === false
+    && descriptor?.updates?.transport === "sse"
+    && descriptor.updates.scope === "local-http"
+    && descriptor?.eventStore?.mode === "append-only"
+    && descriptor.eventStore.requiredForExecution === false
+    && isLoopbackBind(descriptor?.bind)
+    && sameBind(cliOutput.bind, descriptor.bind)
+    && descriptor.url === cliOutput.url
+    && isMatchingDashboardUrl(descriptor.url, descriptor.bind);
 }
 
 export function createRuntimeSnapshotCoverage(evidence) {
@@ -671,7 +695,11 @@ function hasDashboardShellEvidence(shellBody) {
     && shellBody.includes("/api/chrome-host-policy")
     && shellBody.includes('fetch("/snapshot.json", { cache: "no-store" })')
     && shellBody.includes("renderAppPolicyPanel(snapshot)")
-    && shellBody.includes("renderLongHorizonPanel");
+    && shellBody.includes("renderLongHorizonPanel")
+    && shellBody.includes("renderAlertsPanel(snapshot)")
+    && shellBody.includes("groupAlerts(alerts)")
+    && shellBody.includes("createAlertBand(group)")
+    && shellBody.includes("data-alert-groups");
 }
 
 function hasDashboardEventsEvidence(eventsResponse) {

@@ -168,9 +168,15 @@ runtime snapshot before dashboard evidence can pass.
 dashboard, extension, and `money-run`. It also performs a read-only tmux probe of
 `money-run` and reports `mutatesSession: false`, so dashboards and plugin
 adapters can show long-horizon readiness without controlling the session.
+`skfiy dashboard --json` returns the loopback URL, server PID, auth/update
+metadata, event-store contract, and matching descriptor in one token-free
+launcher response.
 Dashboard alerts now use stable blocker codes for locked `loginwindow` sessions,
 display sleep, missing TCC grants, stale Chrome extension heartbeats, stale smoke
-evidence, and release drift.
+evidence, and release drift. The dashboard shell groups those alerts into
+Desktop session, Permissions, Chrome bridge, Smoke evidence, Release drift, and
+Runtime snapshot bands so operators see the failing domain before opening raw
+JSON.
 
 The Chrome smoke now also records `installedExtensionRun`; on this machine it is
 a known blocker because branded `Google Chrome` 146 no longer honors automated
@@ -181,7 +187,10 @@ browser; otherwise the live extension path remains a clear environment blocker
 on machines with only branded Chrome. The MV3 extension status response exposes
 extension version, capabilities, Native Messaging policy sync state, host-policy
 entry counts, and the latest native-host error for dashboard and popup
-diagnostics.
+diagnostics. When skfiy host policy allows a Chrome host, the MV3 adapter still
+checks Chrome's optional host permission before injecting the content script;
+missing permission returns a typed `chrome_host_permission_missing` blocker
+instead of silently requesting permission.
 `smoke:chrome` now also requires `nativeHostBridgeRun.result: passed` from the
 packaged `dist/skfiy -> Chrome Native Messaging heartbeat` path before Chrome
 browser-control evidence can count as passed.
@@ -191,6 +200,7 @@ browser-control evidence can count as passed.
 ./dist/skfiy doctor --json
 ./dist/skfiy dashboard --no-open --port 0 --json
 ./dist/skfiy mcp serve --stdio
+./dist/skfiy smoke money-run --output .skfiy-smoke/money-run.json --json
 ```
 
 Use `./dist/skfiy doctor --json --dashboard-url <url> --extension-id <id>`

@@ -626,7 +626,7 @@ export function normalizeCliCommand(
       options: {
         requirePassed: smokeArgv.includes("--require-passed"),
         scriptPath: createSmokeScriptPath(target, rootDir),
-        scriptArgs: createSmokeScriptArgs(smokeArgv, rootDir)
+        scriptArgs: createSmokeScriptArgs(target, smokeArgv, rootDir)
       }
     });
   }
@@ -996,14 +996,23 @@ export async function runSkfiyCli({
       port: result.invocation.options.port,
       rootDir: normalizedRootDir
     });
+    const descriptor = createDashboardDescriptor({
+      port: dashboard.bind.port
+    });
+
     stdout.write(`${JSON.stringify({
       schemaVersion: 1,
       command: "dashboard",
       generatedAt: generatedAt ?? new Date().toISOString(),
-      bind: dashboard.bind,
-      url: dashboard.url,
+      serverPid: process.pid,
+      bind: descriptor.bind,
+      url: descriptor.url,
       shouldOpen: !result.invocation.options.noOpen,
       tokenPrinted: false,
+      auth: descriptor.auth,
+      updates: descriptor.updates,
+      eventStore: descriptor.eventStore,
+      descriptor,
       result: "running"
     }, null, 2)}\n`);
 
@@ -3007,8 +3016,9 @@ function createSmokeScriptPath(target: SmokeTarget, rootDir: string): string {
   return path.join(rootDir, ...SMOKE_SCRIPT_FILES[target].split("/"));
 }
 
-function createSmokeScriptArgs(argv: string[], rootDir: string): string[] {
+function createSmokeScriptArgs(target: SmokeTarget, argv: string[], rootDir: string): string[] {
   const args: string[] = [];
+  const outputArg = target === "money-run" ? "--json-output" : "--output";
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -3021,9 +3031,9 @@ function createSmokeScriptArgs(argv: string[], rootDir: string): string[] {
       const value = argv[index + 1];
 
       if (value === undefined || value.startsWith("--")) {
-        args.push(arg);
+        args.push(outputArg);
       } else {
-        args.push(arg, path.isAbsolute(value) ? value : path.resolve(rootDir, value));
+        args.push(outputArg, path.isAbsolute(value) ? value : path.resolve(rootDir, value));
         index += 1;
       }
       continue;

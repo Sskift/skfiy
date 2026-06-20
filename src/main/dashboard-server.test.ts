@@ -173,6 +173,12 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain('createChromePolicyButton("reset", "Reset")');
     expect(response.body).toContain("formatChromePolicyEntries(hostPolicy, policy)");
     expect(response.body).toContain("renderLongHorizonPanel");
+    expect(response.body).toContain("groupAlerts(alerts)");
+    expect(response.body).toContain("createAlertBand(group)");
+    expect(response.body).toContain("data-alert-groups");
+    expect(response.body).toContain("data-alert-group");
+    expect(response.body).toContain("Desktop session");
+    expect(response.body).toContain("Chrome bridge");
     expect(response.body).not.toContain("token=");
   });
 

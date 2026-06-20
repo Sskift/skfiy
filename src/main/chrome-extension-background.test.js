@@ -59,10 +59,11 @@ function createPolicyResponse(policy = {}) {
   };
 }
 
-function createChromeMock(nativeResponses = []) {
+function createChromeMock(nativeResponses = [], options = {}) {
   const storage = {};
   const postedMessages = [];
   const ports = [];
+  const grantedOrigins = new Set(options.grantedOrigins ?? []);
   const runtime = {
     id: "abcdefghijklmnopabcdefghijklmnop",
     lastError: undefined,
@@ -122,6 +123,13 @@ function createChromeMock(nativeResponses = []) {
           })
         }
       },
+      permissions: {
+        contains: vi.fn(async (permissions) => {
+          const origins = permissions?.origins ?? [];
+          return origins.every((origin) => grantedOrigins.has(origin));
+        }),
+        request: vi.fn()
+      },
       tabs: {
         query: vi.fn(),
         get: vi.fn(),
@@ -165,6 +173,58 @@ afterEach(() => {
   vi.restoreAllMocks();
   delete globalThis.chrome;
   delete globalThis.skfiyChromeAdapterDiagnostics;
+});
+
+describe("Chrome extension background page routing", () => {
+  it("blocks script injection when host policy allows a host but Chrome host permission is missing", async () => {
+    const mock = createChromeMock();
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["allowed.example"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    mock.chrome.tabs.query.mockResolvedValue([{
+      id: 17,
+      windowId: 2,
+      url: "https://allowed.example/dashboard"
+    }]);
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+      type: "skfiy.page.observe",
+      requestId: "observe-allowed"
+    }, {}, sendResponse);
+
+    expect(keepChannelOpen).toBe(true);
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith({
+        type: "skfiy.host_policy.response",
+        schemaVersion: 1,
+        requestId: "observe-allowed",
+        result: "blocked",
+        reason: "chrome_host_permission_missing",
+        code: "chrome_host_permission_missing",
+        host: "allowed.example",
+        origin: "https://allowed.example",
+        chromeHostPermission: {
+          origins: ["https://allowed.example/*"]
+        },
+        policyDecision: {
+          decision: "allowed",
+          reason: "host_allowed"
+        }
+      });
+    });
+    expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
+      origins: ["https://allowed.example/*"]
+    });
+    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
+    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+  });
 });
 
 describe("Chrome extension background policy sync", () => {
