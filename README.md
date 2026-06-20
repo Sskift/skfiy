@@ -24,6 +24,10 @@ Finder to the compiled `skfiy.app`.
   `.skfiy-smoke/ghostty-<commit>.json`.
 - Chrome Computer Use smoke: passed,
   `.skfiy-smoke/chrome-<commit>.json`.
+- Dashboard CLI smoke: repeatable product gate,
+  `.skfiy-smoke/dashboard-<commit>.json`.
+- Codex plugin MCP smoke: packaged CLI product gate,
+  `.skfiy-smoke/codex-plugin-<commit>.json`.
 - Doubao text-bridge voice smoke: passed,
   `.skfiy-smoke/voice-<commit>.json`.
 - Long-horizon `money-run` tmux supervision smoke: passed,
@@ -139,6 +143,30 @@ because shell commands can mutate the whole machine.
   `rm -rf`, `sudo`, `curl ... | sh`, and `osascript` require explicit approval
   and should be denied by default in the MVP.
 
+## Operator CLI and Dashboard
+
+The product runtime is the compiled app bundle plus packaged CLI:
+`dist/skfiy.app` owns the macOS permission identity, and `dist/skfiy` is the
+operator command shipped beside it. Source-tree launchers are development
+helpers only.
+
+The local dashboard is an audit plane, not the primary pet UI. It binds to
+`127.0.0.1`, keeps tokens out of stdout by default, and exposes runtime health,
+permissions, current turn, replay, smoke evidence, extension state, and
+long-horizon supervision.
+
+```bash
+./dist/skfiy status --json
+./dist/skfiy doctor --json
+./dist/skfiy dashboard --no-open --port 0 --json
+./dist/skfiy mcp serve --stdio
+```
+
+`plugins/skfiy/.mcp.json` points Codex at the installed `skfiy mcp serve
+--stdio` command. The Codex plugin is an adapter to the installed product, not a
+runtime replacement; desktop control still goes through skfiy's app policy,
+permission preflight, approval prompts, and replay evidence.
+
 ## Development
 
 skfiy has a mandatory workflow contract for user-facing tests:
@@ -153,10 +181,14 @@ npm install
 npm test -- --run
 npm run typecheck
 npm run build
+./dist/skfiy status --json
+./dist/skfiy doctor --json
 npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session.json
 npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
 npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
 npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json
+npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json
+npm run smoke:codex-plugin -- --output .skfiy-smoke/codex-plugin.json
 npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-item-drag-drop.json
 npm run smoke:voice -- --output .skfiy-smoke/voice-doubao.json
 npm run smoke:money-run -- --json-output .skfiy-smoke/money-run-supervision.json

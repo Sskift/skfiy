@@ -173,10 +173,10 @@ describe("implementation plan status docs", () => {
     const recommendedNextMoveText = recommendedNextMove.toLowerCase();
 
     expect(recommendedNextMoveText).toContain("write the chrome extension architecture note first");
-    expect(recommendedNextMoveText).toContain("build the `skfiy` cli skeleton and dashboard command");
-    expect(recommendedNextMoveText).toContain("create the dashboard/control ui as a local audit surface");
+    expect(recommendedNextMoveText).toContain("field-prove the packaged cli, dashboard, and codex plugin install path");
+    expect(recommendedNextMoveText).toContain("keep expanding the dashboard/control ui as a local audit surface");
     expect(recommendedNextMoveText).toContain("product-path native speech turn after speech recognition permission is granted");
-    expect(recommendedNextMoveText).toContain("rerun ghostty, finder, chrome extension, dashboard, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes");
+    expect(recommendedNextMoveText).toContain("rerun ghostty, finder, chrome extension, dashboard, codex plugin, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes");
     expect(recommendedNextMoveText).toContain("collect 3-5 accepted real tester reports");
     expect(recommendedNextMoveText).toContain("run the long-horizon `money-run` supervision field task after release gates pass");
     expect(recommendedNextMove).not.toContain("Implement dedicated Ghostty session.");
@@ -196,12 +196,17 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("### 8. Codex Plugin Adapter");
     expect(longPlan).toContain("Codex loads installed plugins from `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`");
     expect(longPlan).toContain("build a `skfiy` Codex plugin scaffold only after the binary runtime is stable");
+    expect(longPlan).toContain("skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|codex-plugin|finder|voice|money-run>");
+    expect(longPlan).toContain("plugin-installed MCP smoke can start the packaged `skfiy` binary");
     expect(longPlan).toContain("OpenClaw-style dashboard");
     expect(longPlan).toContain("single compiled product entry");
     expect(longPlan).toContain("skfiy.app`, embedded `skfiy-helper`, and `skfiy` CLI");
     expect(dashboardPlan).toContain("OpenClaw Reference Shape");
     expect(dashboardPlan).toContain("Control UI is an admin surface");
     expect(dashboardPlan).toContain("Binary and CLI Product Contract");
+    expect(dashboardPlan).toContain("Codex Plugin Install and Marketplace Notes");
+    expect(dashboardPlan).toContain("smoke:codex-plugin");
+    expect(dashboardPlan).toContain("MCP initialize response should include short safety instructions");
   });
 
   it("documents panic stop behavior evidence in alpha and report instructions", () => {

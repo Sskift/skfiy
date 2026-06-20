@@ -42,6 +42,7 @@ describe("CLI command surface", () => {
       "smoke ghostty",
       "smoke chrome",
       "smoke dashboard",
+      "smoke codex-plugin",
       "smoke finder",
       "smoke voice",
       "smoke money-run",
@@ -83,6 +84,7 @@ describe("CLI command surface", () => {
       "ghostty",
       "chrome",
       "dashboard",
+      "codex-plugin",
       "finder",
       "voice",
       "money-run"
@@ -325,6 +327,27 @@ describe("CLI command surface", () => {
       ],
       result: "not-run",
       executesSystemMutation: true
+    });
+    expect(expectInvocation([
+      "smoke",
+      "codex-plugin",
+      "--output",
+      ".skfiy-smoke/codex-plugin.json",
+      "--require-passed"
+    ])).toMatchObject({
+      kind: "smoke",
+      path: "smoke codex-plugin",
+      target: "codex-plugin",
+      outputPath: "/repo/.skfiy-smoke/codex-plugin.json",
+      options: {
+        requirePassed: true,
+        scriptPath: "/repo/scripts/smoke-codex-plugin-product.mjs",
+        scriptArgs: [
+          "--output",
+          "/repo/.skfiy-smoke/codex-plugin.json",
+          "--require-passed"
+        ]
+      }
     });
     expect(createCliOutput(release)).toMatchObject({
       command: "release check",

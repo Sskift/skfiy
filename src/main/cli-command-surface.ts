@@ -29,6 +29,7 @@ export const SMOKE_TARGETS = [
   "ghostty",
   "chrome",
   "dashboard",
+  "codex-plugin",
   "finder",
   "voice",
   "money-run"
@@ -44,6 +45,7 @@ const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
   ghostty: "scripts/smoke-ghostty-product.mjs",
   chrome: "scripts/smoke-chrome-product.mjs",
   dashboard: "scripts/smoke-dashboard-product.mjs",
+  "codex-plugin": "scripts/smoke-codex-plugin-product.mjs",
   finder: "scripts/smoke-finder-product.mjs",
   voice: "scripts/smoke-voice-product.mjs",
   "money-run": "scripts/smoke-money-run-supervision.mjs"

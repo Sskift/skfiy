@@ -155,7 +155,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - Current turn: voice provider, transcript, target app, policy decision, risk, current status, stop button.
   - Replay timeline: screenshots, OCR labels, accessibility coverage, actions, verification decisions, approval decisions.
   - App policy: allow/ask/deny per app and per Chrome host.
-  - Smoke evidence: latest UI/Ghostty/Chrome/Finder/voice/money-run artifacts and pass/block reasons.
+  - Smoke evidence: latest UI/Ghostty/Chrome/dashboard/Codex plugin/Finder/voice/money-run artifacts and pass/block reasons.
   - Long-horizon supervision: tmux `money-run` status, active pane summary, recent risk markers, read-only probe evidence.
   - Alerts: permission missing, desktop locked/asleep, helper not signed, extension disconnected, smoke evidence stale, release artifact older than HEAD.
   - Dogfood/release: current alpha, manifest, zip checksum, accepted reports, cohort coverage.
@@ -180,7 +180,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - `skfiy dashboard [--no-open] [--port <port>]`.
   - `skfiy chrome status`, `skfiy chrome install-host`, `skfiy chrome uninstall-host`.
   - `skfiy mcp serve --stdio`: Codex plugin-facing MCP entry point for read-only status/doctor tools.
-  - `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|finder|voice|money-run> --output <path>`.
+  - `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|codex-plugin|finder|voice|money-run> --output <path>`.
   - `skfiy release check --json-output <path>` and `skfiy alpha artifact`.
 - CLI safety rules:
   - No command should require a tmux session.
@@ -207,6 +207,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 - Validation before a plugin alpha:
   - plugin manifest validates with the Codex plugin schema;
   - plugin-installed skill can find the installed `skfiy` binary without a repo checkout;
+  - plugin-installed MCP smoke can start the packaged `skfiy` binary, send `initialize`, `tools/list`, and `tools/call skfiy.status`, then verify JSON-RPC-only stdout and structured status;
   - MCP/app adapter reports the same permission and replay state as `skfiy dashboard`;
   - disabling/uninstalling the plugin does not stop the standalone skfiy app or erase local replay evidence.
 
@@ -691,10 +692,10 @@ With one engineer, the same scope is closer to 6-8 weeks because packaging, ASR,
 Do not add more random UI features. The native desktop-control foundation now exists: stable app identity, permission onboarding, packaged helper attribution, dedicated Ghostty session isolation, replay logs, and fail-closed desktop-session preflight are implemented. The next implementation milestone is field proof:
 
 1. Write the Chrome extension architecture note first, based on Codex Chrome extension public behavior and current local extension surface; then implement the skfiy Manifest V3 extension plus native messaging host.
-2. Build the `skfiy` CLI skeleton and dashboard command before adding more UI controls: `skfiy status`, `skfiy doctor`, `skfiy dashboard`, and `skfiy chrome status/install-host` should become the operator entry points.
-3. Create the dashboard/control UI as a local audit surface for permissions, current turn, replay, smoke evidence, extension state, dogfood/release state, and `money-run` supervision.
+2. Field-prove the packaged CLI, dashboard, and Codex plugin install path before adding more UI controls: `skfiy status`, `skfiy doctor`, `skfiy dashboard`, `skfiy chrome status/install-host`, `skfiy mcp serve --stdio`, and `skfiy smoke codex-plugin` are now the operator entry points to harden.
+3. Keep expanding the dashboard/control UI as a local audit surface for permissions, current turn, replay, smoke evidence, extension state, dogfood/release state, and `money-run` supervision.
 4. Complete the product-path native speech turn after Speech Recognition permission is granted.
-5. Unlock and keep the tester Mac awake, rerun `smoke:desktop-session`, then rerun Ghostty, Finder, Chrome extension, dashboard, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes.
+5. Unlock and keep the tester Mac awake, rerun `smoke:desktop-session`, then rerun Ghostty, Finder, Chrome extension, dashboard, Codex plugin, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes.
 6. Collect 3-5 accepted real tester reports covering `coding-terminal`, `screenshot-inspection`, `finder-file`, `browser-fallback`, and one extension-backed logged-in Chrome workflow.
 7. Run `dogfood:collect`, `dogfood:cohort`, and the strict `dogfood:cohort --require-passed` gate on those accepted reports.
 8. Run the long-horizon `money-run` supervision field task after release gates pass, preserving product-path launch, approval, screenshot/action verification, stop behavior, dashboard visibility, and `tmuxSupervisionReport` evidence.

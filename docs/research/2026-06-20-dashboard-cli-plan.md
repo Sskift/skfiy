@@ -46,7 +46,7 @@ Commands represented:
 - `skfiy chrome install-host`
 - `skfiy chrome uninstall-host`
 - `skfiy mcp serve --stdio`
-- `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|finder|voice|money-run> --output <path>`
+- `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|codex-plugin|finder|voice|money-run> --output <path>`
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
 
@@ -54,7 +54,18 @@ Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` 
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`.
 
-`skfiy mcp serve --stdio` is the first Codex plugin adapter command. The CLI command surface marks it as read-only and non-mutating, and `src/main/skfiy-mcp-server.ts` defines newline-delimited JSON-RPC stdio transport plus handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`. The repo-local Codex plugin scaffold now lives under `plugins/skfiy/`, with `.codex-plugin/plugin.json`, `.mcp.json`, `skills/control-skfiy/SKILL.md`, and SVG assets. The remaining product gap is proving an installed plugin can launch the packaged `skfiy` binary.
+`skfiy mcp serve --stdio` is the first Codex plugin adapter command. The CLI command surface marks it as read-only and non-mutating, and `src/main/skfiy-mcp-server.ts` defines newline-delimited JSON-RPC stdio transport plus handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`. The repo-local Codex plugin scaffold now lives under `plugins/skfiy/`, with `.codex-plugin/plugin.json`, `.mcp.json`, `skills/control-skfiy/SKILL.md`, and SVG assets. The packaged-binary product gap is covered by `smoke:codex-plugin`; the remaining plugin distribution gap is installing the marketplace entry in a fresh Codex app session and proving the cached plugin path resolves the installed `skfiy` binary without a repo checkout.
+
+## Codex Plugin Install and Marketplace Notes
+
+Codex plugin packaging stays an adapter layer. A repo-local scaffold is not enough for product proof: release validation must also cover a marketplace entry, installation into Codex's plugin cache, and a fresh Codex thread loading the skill and MCP server from the installed plugin.
+
+- The repo plugin root remains `plugins/skfiy/`, with `.codex-plugin/plugin.json` pointing to `skills/` and `.mcp.json`.
+- Marketplace entries must use lowercase `skfiy`, a local `source.path` relative to the marketplace root, and explicit installation/authentication policy fields.
+- Iterating on an already installed local plugin should use the Codex plugin cachebuster/reinstall flow rather than hand-editing cached plugin files.
+- Installing, disabling, or uninstalling the Codex plugin must not start desktop control, erase local replay evidence, or replace the standalone `skfiy.app` runtime.
+- `smoke:codex-plugin` is the local product gate: it reads `plugins/skfiy/.mcp.json`, substitutes the packaged `dist/skfiy` path for the installed `skfiy` command, starts `mcp serve --stdio`, sends `initialize`, `tools/list`, and `tools/call skfiy.status`, and requires JSON-RPC-only stdout plus structured status.
+- A later installed-plugin smoke should run from a fresh Codex app session and prove the cached plugin can find the installed `skfiy` binary without using the source checkout.
 
 ## Chrome Native Messaging Host
 
@@ -85,6 +96,8 @@ The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, 
 
 `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` is the repeatable dashboard gate. It uses the same product smoke lock as other packaged smokes, proves the built CLI path instead of a source-tree shim, requires `runnerHasTmux=false`, confirms the loopback bind and descriptor match the CLI output, fetches `/snapshot.json`, checks required snapshot panels plus workspace-backed runtime/smoke evidence, checks the static shell contains descriptor and snapshot links, and keeps tokens out of stdout, descriptor JSON, snapshot JSON, and shell HTML.
 
+`npm run smoke:codex-plugin -- --output .skfiy-smoke/codex-plugin.json --require-passed` is the repeatable Codex plugin adapter gate. It proves the plugin scaffold's `.mcp.json` points to the installed `skfiy` command, but executes the packaged `dist/skfiy` binary during repo-local smoke so CI and local dogfood can validate the product path before a marketplace install.
+
 ## Status Probe
 
 `skfiy status --json` now runs read-only probes instead of returning only placeholders. It reports whether `dist/skfiy.app` and its packaged helper exist, reads helper permission states, reads desktop-session controllability, checks the Chrome Native Messaging host when `--extension-id <id>` is provided, and checks a running dashboard descriptor when `--dashboard-url <url>` is provided. Missing helpers or failed probes degrade to `unknown`/`not-running` fields so dashboards can render the output without treating status collection itself as a hard failure.
@@ -97,5 +110,7 @@ The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, 
 
 - Build output will place the modules under `dist/main/` through the existing Electron TypeScript config.
 - `scripts/skfiy-cli.mjs` is intentionally not registered in `package.json`; run it directly only after built artifacts exist.
+- `bin/skfiy.mjs` is the packaged CLI entry copied to `dist/skfiy`; `scripts/skfiy-cli.mjs` remains a source-tree debug shim only.
+- MCP initialize response should include short safety instructions for read-only status/doctor use, no desktop control without explicit user approval, and the boundary between dashboard/plugin adapter and standalone app runtime.
 - Future implementation should replace skeleton states with real app/helper/permission/dashboard/extension probes without changing the top-level JSON keys.
 - Future dashboard server work should keep tokens out of logs and stdout by default.
