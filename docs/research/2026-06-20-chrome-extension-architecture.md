@@ -73,10 +73,11 @@ The extension owns browser-local observation and action routing:
 - Popup: connection and current-host policy status only. It is not the main
   dashboard and it must not become the approval surface for long-running turns.
 
-The native messaging host name is `com.sskift.skfiy`. The host manifest will be
-installed later by `skfiy chrome install-host`, which is intentionally out of
-scope for this first static skeleton. The native host should connect to the
-signed skfiy app or CLI path, not to tmux or a development shell.
+The native messaging host name is `com.sskift.skfiy`. `skfiy chrome
+install-host` installs the user-level Chrome manifest for the packaged
+`dist/skfiy` CLI path. The packaged shim can also run as the Chrome Native
+Messaging host when Chrome starts it over stdin/stdout, rather than depending on
+tmux or a development shell.
 
 ## Host Policy
 
@@ -118,9 +119,14 @@ The first structured message names are stable strings, not a complete schema:
 - `skfiy.host_policy.response`
 - `skfiy.native.message`
 
-Every native-bound message should carry a request id, a schema version, and a
-bounded payload. The skeleton only declares the boundary; the app-side bridge,
-payload limits, and schema validation remain future work.
+Every native-bound message carries a request id, schema version, and bounded
+payload. `src/main/chrome-native-host.ts` now encodes/decodes Chrome's
+little-endian length-prefixed JSON frames, rejects malformed or oversized
+messages, and honors an injectable app-policy block before dispatch. The
+background service worker unwraps `skfiy.native.message`, waits for
+`port.onMessage`, and returns the native-host response to the caller. Persistent
+app-policy storage, live app-runtime routing, and end-to-end extension smoke
+evidence remain future work.
 
 ## Sensitive Content Pause
 
@@ -148,10 +154,9 @@ runtime behavior.
 
 ## Integration Notes
 
-- No `package.json`, Electron main process, smoke script, CLI, or dashboard files
-  are modified by this step.
-- The extension is not yet packaged, installed, or connected to the signed app.
-- `skfiy chrome status|install-host|uninstall-host` is still a later CLI task.
+- The extension is not yet packaged or installed by the app bundle.
+- `skfiy chrome status|install-host|uninstall-host` covers manifest setup, but
+  not live extension connection health.
 - The popup says "Waiting for skfiy app" until native-host health is wired.
 - A focused Vitest test validates the manifest and skeleton strings without
   launching Chrome.

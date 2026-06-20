@@ -50,6 +50,9 @@ describe("Chrome extension adapter skeleton", () => {
     expect(background).toContain('"skfiy.page.action"');
     expect(background).toContain('"skfiy.host_policy.request"');
     expect(background).toContain('"skfiy.host_policy.response"');
+    expect(background).toContain("sendNativeMessage");
+    expect(background).toContain("port.onMessage.addListener");
+    expect(background).toContain("port.onDisconnect.addListener");
 
     expect(contentScript).toContain('"skfiy.page.observe"');
     expect(contentScript).toContain('"skfiy.page.action"');

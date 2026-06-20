@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   CHROME_NATIVE_HOST_NAME,
+  CHROME_NATIVE_MESSAGE_MAX_BYTES,
+  decodeChromeNativeMessageFrame,
+  encodeChromeNativeMessageFrame,
+  handleChromeNativeBridgeMessage,
+  runChromeNativeMessagingHost,
   createChromeNativeHostInstallPlan,
   createChromeNativeHostManifest,
   readChromeNativeHostStatus,
@@ -168,5 +173,157 @@ describe("Chrome Native Messaging host plan", () => {
     });
     expect(io.files["/repo/dist/skfiy"]).toBe("#!/usr/bin/env node\n");
     expect(io.files[manifestPath]).toBeUndefined();
+  });
+});
+
+describe("Chrome Native Messaging bridge runtime", () => {
+  it("encodes and decodes Chrome native messaging length-prefixed JSON frames", () => {
+    const frame = encodeChromeNativeMessageFrame({
+      schemaVersion: 1,
+      type: "skfiy.page.observe",
+      requestId: "request-1",
+      payload: { tabId: 123 }
+    });
+
+    expect(frame.readUInt32LE(0)).toBe(frame.byteLength - 4);
+    expect(decodeChromeNativeMessageFrame(frame)).toEqual({
+      schemaVersion: 1,
+      type: "skfiy.page.observe",
+      requestId: "request-1",
+      payload: { tabId: 123 }
+    });
+  });
+
+  it("rejects malformed, oversized, or policy-blocked native bridge messages before dispatch", async () => {
+    await expect(handleChromeNativeBridgeMessage(
+      { schemaVersion: 1, type: "skfiy.page.observe" },
+      {
+        payloadByteLength: 128,
+        policy: { state: "allowed" },
+        dispatch: async () => ({ result: "unreachable" })
+      }
+    )).resolves.toEqual({
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "unknown",
+      result: "invalid",
+      reason: "missing_request_id"
+    });
+
+    await expect(handleChromeNativeBridgeMessage(
+      {
+        schemaVersion: 1,
+        type: "skfiy.page.observe",
+        requestId: "request-oversized"
+      },
+      {
+        payloadByteLength: CHROME_NATIVE_MESSAGE_MAX_BYTES + 1,
+        policy: { state: "allowed" },
+        dispatch: async () => ({ result: "unreachable" })
+      }
+    )).resolves.toMatchObject({
+      type: "skfiy.native.response",
+      requestId: "request-oversized",
+      result: "invalid",
+      reason: "payload_too_large"
+    });
+
+    await expect(handleChromeNativeBridgeMessage(
+      {
+        schemaVersion: 1,
+        type: "skfiy.page.action",
+        requestId: "request-blocked"
+      },
+      {
+        payloadByteLength: 128,
+        policy: {
+          state: "blocked",
+          reason: "host_policy_blocked",
+          details: { host: "example.com" }
+        },
+        dispatch: async () => ({ result: "unreachable" })
+      }
+    )).resolves.toEqual({
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "request-blocked",
+      result: "blocked",
+      reason: "host_policy_blocked",
+      details: { host: "example.com" }
+    });
+  });
+
+  it("dispatches valid native bridge messages with request ids and normalized responses", async () => {
+    const dispatched: unknown[] = [];
+
+    await expect(handleChromeNativeBridgeMessage(
+      {
+        schemaVersion: 1,
+        type: "skfiy.page.observe",
+        requestId: "request-dispatch",
+        payload: { currentTab: true }
+      },
+      {
+        payloadByteLength: 256,
+        policy: { state: "allowed" },
+        dispatch: async (message) => {
+          dispatched.push(message);
+          return {
+            result: "accepted",
+            observationMode: "extension-structured"
+          };
+        }
+      }
+    )).resolves.toEqual({
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "request-dispatch",
+      result: "accepted",
+      observationMode: "extension-structured"
+    });
+
+    expect(dispatched).toEqual([{
+      schemaVersion: 1,
+      type: "skfiy.page.observe",
+      requestId: "request-dispatch",
+      payload: { currentTab: true }
+    }]);
+  });
+
+  it("runs a framed native messaging host loop without line-oriented stdout", async () => {
+    const inputFrame = encodeChromeNativeMessageFrame({
+      schemaVersion: 1,
+      type: "skfiy.page.observe",
+      requestId: "request-framed",
+      payload: { currentTab: true }
+    });
+    const stdout: Buffer[] = [];
+    const stderr: string[] = [];
+
+    async function* stdin() {
+      yield inputFrame.subarray(0, 3);
+      yield inputFrame.subarray(3);
+    }
+
+    await expect(runChromeNativeMessagingHost({
+      stdin: stdin(),
+      stdout: { write: (chunk: Buffer) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) },
+      policy: { state: "allowed" },
+      dispatch: async () => ({
+        result: "accepted",
+        observationMode: "extension-structured"
+      })
+    })).resolves.toBe(0);
+
+    expect(stderr).toEqual([]);
+    expect(stdout).toHaveLength(1);
+    expect(decodeChromeNativeMessageFrame(stdout[0])).toEqual({
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "request-framed",
+      result: "accepted",
+      observationMode: "extension-structured"
+    });
   });
 });

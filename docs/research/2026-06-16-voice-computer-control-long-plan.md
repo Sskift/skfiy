@@ -390,7 +390,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - `skfiy chrome install-host` writes the native messaging host manifest for the signed app/CLI path
     - host messages use request ids, schema versions, and bounded payload sizes
     - bridge refuses messages when app policy blocks the host/app/session
-    - partial: `src/main/chrome-native-host.ts` now creates, installs, reads, and uninstalls the user-level Chrome Native Messaging manifest for the packaged `skfiy` CLI; `skfiy chrome status|install-host|uninstall-host --extension-id <id>` is wired through the CLI with injectable filesystem tests, while request-id/native message payload validation and app-policy bridge enforcement are still pending
+    - partial: `src/main/chrome-native-host.ts` now creates, installs, reads, and uninstalls the user-level Chrome Native Messaging manifest for the packaged `skfiy` CLI; `skfiy chrome status|install-host|uninstall-host --extension-id <id>` is wired through the CLI with injectable filesystem tests; the packaged `dist/skfiy` shim can also run as a Chrome Native Messaging host, reading/writing Chrome length-prefixed JSON frames, enforcing schema version/request id/payload-size validation, returning framed responses, and honoring an injectable app-policy block before dispatch; `chrome-extension/background.js` now unwraps `skfiy.native.message`, waits for `port.onMessage`, and returns native-host responses to callers; persistent app-policy storage, live app-runtime routing, and full extension smoke evidence remain pending
   - [ ] Add browser action schema
     - observe current page
     - navigate

@@ -87,6 +87,51 @@ async function routePageMessage(message) {
   });
 }
 
+function unwrapNativeMessage(message) {
+  const payload = message?.payload && typeof message.payload === "object" && !Array.isArray(message.payload)
+    ? message.payload
+    : message;
+
+  return {
+    ...payload,
+    requestId: payload.requestId ?? message.requestId,
+    schemaVersion: MESSAGE_SCHEMA_VERSION
+  };
+}
+
+function sendNativeMessage(message) {
+  return new Promise((resolve) => {
+    const port = chrome.runtime.connectNative(NATIVE_MESSAGING_HOST_NAME);
+    let settled = false;
+    const finish = (response) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      try {
+        port.disconnect();
+      } catch {
+        // The port may already be closed by Chrome after the response frame.
+      }
+      resolve(response);
+    };
+
+    port.onMessage.addListener((response) => {
+      finish(response);
+    });
+    port.onDisconnect.addListener(() => {
+      finish({
+        type: MESSAGE_TYPES.NATIVE_MESSAGE,
+        schemaVersion: MESSAGE_SCHEMA_VERSION,
+        requestId: message.requestId ?? "unknown",
+        ok: false,
+        error: chrome.runtime.lastError?.message ?? "native_host_disconnected"
+      });
+    });
+    port.postMessage(unwrapNativeMessage(message));
+  });
+}
+
 async function handleRuntimeMessage(message) {
   if (message?.type === MESSAGE_TYPES.PAGE_OBSERVE || message?.type === MESSAGE_TYPES.PAGE_ACTION) {
     return routePageMessage(message);
@@ -113,12 +158,7 @@ async function handleRuntimeMessage(message) {
   }
 
   if (message?.type === MESSAGE_TYPES.NATIVE_MESSAGE) {
-    const port = chrome.runtime.connectNative(NATIVE_MESSAGING_HOST_NAME);
-    port.postMessage({
-      ...message,
-      schemaVersion: MESSAGE_SCHEMA_VERSION
-    });
-    return { ok: true };
+    return sendNativeMessage(message);
   }
 
   return { ok: false, error: "unsupported_message" };

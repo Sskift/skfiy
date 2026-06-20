@@ -34,6 +34,10 @@ Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` 
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`.
 
+## Chrome Native Messaging Host
+
+`skfiy chrome status|install-host|uninstall-host` still owns the user-level Chrome manifest lifecycle. The packaged `dist/skfiy` shim can now also act as the Native Messaging host when Chrome launches it over stdin/stdout: it reads Chrome's length-prefixed JSON frames, validates schema version/request id/payload size, applies an injectable app-policy block before dispatch, and writes framed JSON responses. The Chrome extension background worker now waits for `port.onMessage` and returns native-host responses instead of fire-and-forget posting.
+
 ## Dashboard Descriptor
 
 The dashboard descriptor always binds to `127.0.0.1`, even if a caller provides a broader requested host. It exposes:

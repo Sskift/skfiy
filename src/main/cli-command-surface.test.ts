@@ -401,6 +401,9 @@ describe("CLI command surface", () => {
     expect(binSource).toContain("dist/main/cli-command-surface.js");
     expect(binSource).toContain("Run `npm run build` from the skfiy repository");
     expect(binSource).toContain("runSkfiyCli");
+    expect(binSource).toContain("runChromeNativeMessagingHost");
+    expect(binSource).toContain("process.argv.slice(2)");
+    expect(binSource).toContain("process.stdin.isTTY");
   });
 
   it("runs the shared CLI entrypoint with JSON output and error exit codes", async () => {
