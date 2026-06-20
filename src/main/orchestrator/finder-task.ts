@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename, stat } from "node:fs/promises";
+import { mkdir, readdir, rename, rmdir, stat } from "node:fs/promises";
 import path from "node:path";
 import {
   createFinderOrganizationPlan,
@@ -249,6 +249,9 @@ export async function* runFinderOrganizationTask(
     const itemDragDrop = yield* performFinderItemDragDrop(rootPath, plan.operations, options, observation);
     for (const folderPath of itemDragDrop.precreatedFolders) {
       precreatedFolders.add(path.resolve(folderPath));
+    }
+    if (!itemDragDrop.ok) {
+      return;
     }
     if (itemDragDrop.ok) {
       draggedMoveSources.add(path.resolve(itemDragDrop.skippedMoveFrom));
@@ -533,14 +536,9 @@ async function* performFinderItemDragDrop(
 
   await mkdir(move.targetFolderPath, { recursive: true });
   precreatedFolders.push(move.targetFolderPath);
-  yield {
-    type: "action_verified",
-    actionType: "create_folder",
-    status: "passed",
-    message: `Created folder: ${move.targetFolderPath}`
-  };
 
   if (!options.desktopClient) {
+    await cleanupEmptyPrecreatedFolders(precreatedFolders);
     yield {
       type: "verification_failed",
       stage: "drag",
@@ -550,6 +548,7 @@ async function* performFinderItemDragDrop(
   }
 
   if (!observation?.ok || !observation.appState) {
+    await cleanupEmptyPrecreatedFolders(precreatedFolders);
     yield {
       type: "verification_failed",
       stage: "drag",
@@ -559,6 +558,7 @@ async function* performFinderItemDragDrop(
   }
 
   if (!options.desktopClient.getFinderItemLayout) {
+    await cleanupEmptyPrecreatedFolders(precreatedFolders);
     yield {
       type: "verification_failed",
       stage: "layout",
@@ -574,6 +574,7 @@ async function* performFinderItemDragDrop(
       FINDER_ITEM_DRAG_DROP_TARGET_ITEM
     ]);
   } catch (error) {
+    await cleanupEmptyPrecreatedFolders(precreatedFolders);
     yield {
       type: "verification_failed",
       stage: "layout",
@@ -584,6 +585,7 @@ async function* performFinderItemDragDrop(
 
   const layoutAction = createFinderItemDragDropAction(layout);
   if (!layoutAction.ok) {
+    await cleanupEmptyPrecreatedFolders(precreatedFolders);
     yield {
       type: "verification_failed",
       stage: "layout",
@@ -594,6 +596,7 @@ async function* performFinderItemDragDrop(
 
   const dragResult = await executeFinderAction(options.desktopClient, layoutAction.action);
   if (!dragResult.ok) {
+    await cleanupEmptyPrecreatedFolders(precreatedFolders);
     yield {
       type: "verification_failed",
       stage: "drag",
@@ -604,6 +607,7 @@ async function* performFinderItemDragDrop(
 
   const moveVerified = await verifyFinderItemDragDropMove(move);
   if (!moveVerified.ok) {
+    await cleanupEmptyPrecreatedFolders(precreatedFolders);
     yield {
       type: "verification_failed",
       stage: "file_operation",
@@ -611,6 +615,13 @@ async function* performFinderItemDragDrop(
     };
     return { ok: false, precreatedFolders };
   }
+
+  yield {
+    type: "action_verified",
+    actionType: "create_folder",
+    status: "passed",
+    message: `Created folder: ${move.targetFolderPath}`
+  };
 
   yield {
     type: "action_verified",
@@ -624,6 +635,16 @@ async function* performFinderItemDragDrop(
     skippedMoveFrom: move.from,
     precreatedFolders
   };
+}
+
+async function cleanupEmptyPrecreatedFolders(folderPaths: readonly string[]): Promise<void> {
+  for (const folderPath of [...folderPaths].reverse()) {
+    try {
+      await rmdir(folderPath);
+    } catch {
+      // If Finder or the user placed anything there, leave it intact.
+    }
+  }
 }
 
 function findFinderItemDragDropMove(

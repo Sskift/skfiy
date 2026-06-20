@@ -845,6 +845,68 @@ describe("runFinderOrganizationTask", () => {
     }
   });
 
+  it("fails closed without organizing files when Finder item layout is blocked", async () => {
+    const rootPath = await createFixture();
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: path.basename(rootPath),
+                layer: 0,
+                bounds: { x: 100, y: 120, width: 640, height: 480 }
+              }
+            ]
+          };
+        }
+
+        return { ok: true };
+      },
+      async getFinderSelection() {
+        return {
+          source: "finder-applescript" as const,
+          frontmostBundleId: "com.apple.finder",
+          targetPath: rootPath,
+          selection: []
+        };
+      },
+      async getFinderItemLayout() {
+        throw new Error("Automation permission is required to read Finder item layout.");
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask(`拖放 Finder 测试文件夹 ${rootPath}`, {
+          approved: true,
+          desktopClient,
+          createScreenshotPath: () => "/tmp/skfiy-finder-before.png"
+        })
+      );
+
+      expect(events).toContainEqual({
+        type: "verification_failed",
+        stage: "layout",
+        reason: "Automation permission is required to read Finder item layout."
+      });
+      expect(events.map((event) => event.type)).not.toContain("completed");
+      expect(events).not.toContainEqual(expect.objectContaining({
+        type: "action_verified",
+        actionType: "move_file"
+      }));
+      expect(await readdir(rootPath)).toEqual(["notes.pdf", "photo.png", "script.ts"]);
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+    }
+  });
+
   it("records a permission-blocked Finder drag probe without skipping safe organization", async () => {
     const rootPath = await createFixture();
     const desktopClient = {

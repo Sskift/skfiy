@@ -59,6 +59,10 @@ describe("Finder product smoke script", () => {
     expect(source).toContain("readFinderItemDragDrop");
     expect(source).toContain("readFinderPlanPreview");
     expect(source).toContain("readFinderPlanConfirmation");
+    expect(source).toContain(
+      'event.message.includes("Verification failed (selection):")\n'
+      + '      || event.message.includes("Verification failed (layout):")'
+    );
   });
 
   it("wires Finder item layout through the packaged app main process", () => {

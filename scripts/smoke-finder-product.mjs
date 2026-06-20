@@ -704,7 +704,8 @@ function readFinderItemDragDrop(events, finderObservation, fixtureRoot) {
   const blockedEvent = events.find((event) => (
     typeof event?.message === "string"
     && (
-      event.message.includes("Verification failed (layout):")
+      event.message.includes("Verification failed (selection):")
+      || event.message.includes("Verification failed (layout):")
       || event.message.includes("Verification failed (drag):")
     )
     && isPermissionBlockedMessage(event.message)

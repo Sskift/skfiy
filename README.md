@@ -1,11 +1,50 @@
 # skfiy
 
-skfiy is a macOS desktop Computer Use prototype focused on Ghostty control,
-screen observation, and explicit user approval.
+skfiy is a voice-first macOS desktop pet for local Computer Use experiments.
+It focuses on Ghostty control, screen observation, Chrome page control, Finder
+file operations, tmux supervision, and explicit user approval.
 
 The first version is intentionally narrow: observe the desktop, activate
 Ghostty, type safe commands, capture screenshots, and show task state in a
 floating desktop companion.
+
+## Current Local Evidence
+
+Use the short git commit in local artifact file names. For the current machine,
+the Finder path may remain blocked until macOS grants Automation control of
+Finder to the compiled `skfiy.app`.
+
+- UI permission and pet drag smoke: passed,
+  `.skfiy-smoke/ui-<commit>.json`.
+- Ghostty matrix smoke: passed,
+  `.skfiy-smoke/ghostty-<commit>.json`.
+- Chrome Computer Use smoke: passed,
+  `.skfiy-smoke/chrome-<commit>.json`.
+- Doubao text-bridge voice smoke: passed,
+  `.skfiy-smoke/voice-<commit>.json`.
+- Long-horizon `money-run` tmux supervision smoke: passed,
+  `.skfiy-smoke/money-run-<commit>.json`.
+- Finder item drag/drop smoke: blocked by Finder Automation permission,
+  `.skfiy-smoke/finder-<commit>.json`.
+
+The Finder blocker is separate from Screen Recording and Accessibility. The
+current blocked evidence says macOS Automation permission is required to read
+Finder item layout and semantic selection. Grant the compiled `skfiy.app`
+permission to control Finder, then rerun:
+
+```bash
+npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-<commit>.json
+```
+
+Current local alpha artifact:
+
+- `.skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json`
+- `.skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.zip`
+
+Generated evidence directories are ignored by git. Keep only the current commit
+artifacts needed for active debugging and dogfood status; old alpha zips,
+historic smoke output, stale dogfood downloads, `.DS_Store`, and helper build
+caches can be deleted locally.
 
 ## MVP Scope
 

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -28,96 +28,39 @@ function readLatestAlphaEvidence(): LatestAlphaEvidence {
 }
 
 describe("implementation plan status docs", () => {
-  it("marks the skfiy MVP implementation plan as completed with shipped evidence", () => {
-    const plan = readFileSync(
-      path.join(
-        process.cwd(),
-        "docs",
-        "superpowers",
-        "plans",
-        "2026-06-15-skfiy-mvp.md"
-      ),
-      "utf8"
-    );
+  it("does not keep completed implementation plan files as active repo docs", () => {
+    const planDir = path.join(process.cwd(), "docs", "superpowers", "plans");
+    const activePlanFiles = existsSync(planDir)
+      ? readdirSync(planDir).filter((entry) => entry.endsWith(".md"))
+      : [];
 
-    expect(plan).not.toContain("- [ ]");
-    expect(plan).toContain("Implemented evidence");
-    expect(plan).toContain("src/shared/risk-policy.test.ts");
-    expect(plan).toContain("src/main/computer-use/desktop-helper.test.ts");
-    expect(plan).toContain("src/main/orchestrator/ghostty-task.test.ts");
-    expect(plan).toContain("npm run smoke:ghostty");
+    expect(activePlanFiles).toEqual([]);
   });
 
-  it("marks the pixel cosmic pet UI plan as completed with shipped evidence", () => {
-    const plan = readFileSync(
-      path.join(
-        process.cwd(),
-        "docs",
-        "superpowers",
-        "plans",
-        "2026-06-15-pixel-cosmic-pet-ui.md"
-      ),
-      "utf8"
-    );
+  it("documents the current local packaged-app evidence in README instead of plan archives", () => {
+    const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
 
-    expect(plan).not.toContain("- [ ]");
-    expect(plan).toContain("Implemented evidence");
-    expect(plan).toContain("src/renderer/App.test.tsx");
-    expect(plan).toContain("src/main/main.ts");
-    expect(plan).toContain("npm run smoke:ui");
+    expect(readme).toContain("## Current Local Evidence");
+    expect(readme).toContain("<commit>");
+    expect(readme).toContain("Finder Automation");
+    expect(readme).toContain(".skfiy-smoke/finder-<commit>.json");
+    expect(readme).not.toContain("skfiy-alpha-2e292e9");
   });
 
-  it("keeps plan release evidence synced to the latest alpha evidence source", () => {
+  it("keeps latest published alpha release evidence internally consistent", () => {
     const evidence = readLatestAlphaEvidence();
     const shortSha = evidence.commitSha.slice(0, 7);
-    const plans = [
-      readFileSync(
-        path.join(
-          process.cwd(),
-          "docs",
-          "superpowers",
-          "plans",
-          "2026-06-15-skfiy-mvp.md"
-        ),
-        "utf8"
-      ),
-      readFileSync(
-        path.join(
-          process.cwd(),
-          "docs",
-          "superpowers",
-          "plans",
-          "2026-06-15-pixel-cosmic-pet-ui.md"
-        ),
-        "utf8"
-      )
-    ];
 
     expect(evidence.appName).toBe("skfiy");
     expect(evidence.tagName).toBe(`skfiy-alpha-${shortSha}`);
     expect(evidence.releaseUrl).toContain(evidence.tagName);
     expect(evidence.zipSha256).toMatch(/^[a-f0-9]{64}$/);
-
-    for (const plan of plans) {
-      expect(plan).toContain(evidence.tagName);
-      expect(plan).toContain(shortSha);
-      expect(plan).toContain(evidence.smokeArtifacts.ui);
-      expect(plan).toContain(evidence.smokeArtifacts.ghostty);
-      expect(plan).toContain(evidence.smokeArtifacts.chrome);
-      expect(plan).toContain(evidence.smokeArtifacts.finder);
-      expect(plan).toContain(evidence.smokeArtifacts.voice);
-      expect(plan).toContain(evidence.smokeArtifacts.moneyRun);
-      expect(plan).not.toContain("skfiy-alpha-9102f9a");
-      expect(plan).not.toContain(".skfiy-smoke/ui-9102f9a.json");
-
-      const alphaTags = [...plan.matchAll(/skfiy-alpha-([a-f0-9]{7})/g)]
-        .map((match) => match[0]);
-      expect(new Set(alphaTags)).toEqual(new Set([evidence.tagName]));
-
-      const smokeArtifactShas = [...plan.matchAll(/\.skfiy-smoke\/(?:ui|ghostty|chrome|finder|voice|money-run(?:-supervision)?)-([a-f0-9]{7})\.json/g)]
-        .map((match) => match[1]);
-      expect(new Set(smokeArtifactShas)).toEqual(new Set([shortSha]));
-    }
+    expect(evidence.smokeArtifacts.ui).toContain(shortSha);
+    expect(evidence.smokeArtifacts.ghostty).toContain(shortSha);
+    expect(evidence.smokeArtifacts.chrome).toContain(shortSha);
+    expect(evidence.smokeArtifacts.finder).toContain(shortSha);
+    expect(evidence.smokeArtifacts.voice).toContain(shortSha);
+    expect(evidence.smokeArtifacts.moneyRun).toContain(shortSha);
   });
 
   it("documents the alpha workflow with Ghostty matrix evidence required by dogfood verification", () => {
