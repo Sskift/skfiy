@@ -390,7 +390,7 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - `skfiy chrome install-host` writes the native messaging host manifest for the signed app/CLI path
     - host messages use request ids, schema versions, and bounded payload sizes
     - bridge refuses messages when app policy blocks the host/app/session
-    - partial: `src/main/chrome-native-host.ts` now creates the Chrome Native Messaging manifest and user-level install path for the packaged `skfiy` CLI; CLI mutation wiring is still pending
+    - partial: `src/main/chrome-native-host.ts` now creates, installs, reads, and uninstalls the user-level Chrome Native Messaging manifest for the packaged `skfiy` CLI; `skfiy chrome status|install-host|uninstall-host --extension-id <id>` is wired through the CLI with injectable filesystem tests, while request-id/native message payload validation and app-policy bridge enforcement are still pending
   - [ ] Add browser action schema
     - observe current page
     - navigate
@@ -486,14 +486,14 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] implement `skfiy dashboard [--no-open] [--port <port>]`, following OpenClaw's pattern of printing/opening a clean local URL without leaking tokens
     - partial: command normalization and loopback-only descriptor exist; no HTTP server yet
   - [ ] implement `skfiy chrome status|install-host|uninstall-host` for Chrome Native Messaging setup
-    - partial: command surface and native host manifest planner exist; no filesystem install/uninstall mutation yet
+    - partial: command surface, status, install, and uninstall now mutate/read the user-level Chrome Native Messaging manifest for an explicit `--extension-id`; broader Chrome extension connection health and native message bridge runtime are still pending
   - [ ] wrap product smokes behind `skfiy smoke <target>` while keeping npm scripts for development
     - partial: command normalization exists for all smoke targets; command execution wrappers remain pending
   - [ ] add tests that every CLI command can run outside tmux and that `--json` output is stable for the dashboard
     - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; product binary execution tests remain pending
 - [ ] Add local dashboard/control UI
   - [ ] serve loopback-only dashboard from the app or CLI
-    - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; no server yet
+    - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; `src/main/dashboard-server.ts` now serves pure HTTP responses for `/descriptor.json`, `/`, and `/index.html` without starting a socket, opening a browser, or printing tokens; CLI/app server binding remains pending
   - [ ] add token/session auth for non-local or explicit remote modes; do not print secrets into terminal output
   - [ ] implement runtime health panel: app/helper/dashboard/extension PIDs, version, uptime, signing state
     - partial: panel metadata exists in `createDashboardPanels()`

@@ -9,11 +9,13 @@ Source plan: `docs/research/2026-06-16-voice-computer-control-long-plan.md`, sec
 - Add a pure CLI command surface module for planned operator commands.
 - Add JSON-safe output skeletons for command consumers and future dashboard polling.
 - Add a pure dashboard descriptor module for loopback bind metadata and the initial operator panel list.
+- Add a pure dashboard HTTP response helper for `/descriptor.json`, `/`, and `/index.html`.
 - Add an optional source-tree CLI shim that imports built main-process JavaScript only.
+- Wire `skfiy chrome status|install-host|uninstall-host` to user-level Chrome Native Messaging manifest status/install/uninstall when a Chrome extension id is provided.
 
 ## Command Surface
 
-The initial surface is metadata and normalization only. It does not start a dashboard, install a Chrome Native Messaging host, run smokes, write release checks, or create alpha artifacts.
+The initial surface is mostly metadata and normalization. It does not start a dashboard, run smokes, write release checks, or create alpha artifacts. Chrome Native Messaging host status/install/uninstall is the first real mutation-capable CLI slice and writes only the user-level Chrome manifest path.
 
 Commands represented:
 
@@ -27,7 +29,7 @@ Commands represented:
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
 
-Mutating-looking commands are explicit subcommands, but the current module marks them as plan-only with `executesSystemMutation: false`.
+Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`; the remaining mutating-looking commands still return plan/skeleton output.
 
 ## Dashboard Descriptor
 
@@ -40,6 +42,14 @@ The dashboard descriptor always binds to `127.0.0.1`, even if a caller provides 
 - panel list for runtime health, permissions, current turn, replay, app policy, smoke evidence, long-horizon supervision, alerts, and dogfood/release
 
 The dashboard remains optional for Computer Use execution. Future Electron or HTTP wiring should consume this descriptor instead of inventing a second panel inventory.
+
+`src/main/dashboard-server.ts` now exposes a read-only response helper. It serves:
+
+- `GET /descriptor.json`: descriptor JSON with no requested-host echo and no token output.
+- `GET /` and `GET /index.html`: a minimal static HTML shell using the same panel inventory.
+- unsupported methods/routes: `405` or `404`.
+
+It intentionally does not start a socket yet. The future CLI/app server should wrap this helper while binding only `127.0.0.1`.
 
 ## Integration Notes
 

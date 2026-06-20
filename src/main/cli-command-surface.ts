@@ -1,5 +1,11 @@
 import path from "node:path";
 import { createDashboardDescriptor } from "./dashboard-status.js";
+import {
+  installChromeNativeHost,
+  readChromeNativeHostStatus,
+  uninstallChromeNativeHost,
+  type ChromeNativeHostIo
+} from "./chrome-native-host.js";
 
 export const SMOKE_TARGETS = [
   "ui",
@@ -19,7 +25,7 @@ export interface CliCommandDefinition {
   summary: string;
   jsonOutput: boolean;
   plannedMutation: boolean;
-  executesSystemMutation: false;
+  executesSystemMutation: boolean;
   outputShape: string;
 }
 
@@ -59,7 +65,10 @@ export type CliCommandInvocation =
       path: `chrome ${ChromeSubcommand}`;
       subcommand: ChromeSubcommand;
       json: boolean;
-      options: Record<string, never>;
+      options: {
+        extensionIds: string[];
+        cliShimPath: string;
+      };
     }
   | {
       kind: "smoke";
@@ -107,7 +116,9 @@ export interface SkfiyCliIo {
 export interface RunSkfiyCliInput {
   argv: string[];
   rootDir?: string;
+  homeDir?: string;
   generatedAt?: string;
+  chromeNativeHostIo?: ChromeNativeHostIo;
   stdout: SkfiyCliIo;
   stderr: SkfiyCliIo;
 }
@@ -156,18 +167,18 @@ const COMMANDS: CliCommandDefinition[] = [
   },
   {
     path: "chrome install-host",
-    summary: "Plan Chrome Native Messaging host installation without mutating the system.",
+    summary: "Install the Chrome Native Messaging host for the current skfiy CLI.",
     jsonOutput: true,
     plannedMutation: true,
-    executesSystemMutation: false,
+    executesSystemMutation: true,
     outputShape: "chrome-host-plan"
   },
   {
     path: "chrome uninstall-host",
-    summary: "Plan Chrome Native Messaging host removal without mutating the system.",
+    summary: "Uninstall the Chrome Native Messaging host manifest.",
     jsonOutput: true,
     plannedMutation: true,
-    executesSystemMutation: false,
+    executesSystemMutation: true,
     outputShape: "chrome-host-plan"
   },
   ...SMOKE_COMMANDS,
@@ -250,7 +261,10 @@ export function normalizeCliCommand(
       path: `chrome ${subcommand}`,
       subcommand,
       json: argv.includes("--json"),
-      options: {}
+      options: {
+        extensionIds: readRepeatedOptionValues(argv, "--extension-id"),
+        cliShimPath: resolveOptionPath(argv, "--cli", rootDir, path.join(rootDir, "dist", "skfiy"))
+      }
     });
   }
 
@@ -354,7 +368,11 @@ export function createCliOutput(
         generatedAt,
         executesSystemMutation: false,
         extension: { state: "unknown" },
-        nativeHost: { state: "unknown" }
+        nativeHost: {
+          state: "unknown",
+          cliShimPath: invocation.options.cliShimPath,
+          extensionIds: invocation.options.extensionIds
+        }
       };
     }
 
@@ -363,9 +381,13 @@ export function createCliOutput(
       command: invocation.path,
       generatedAt,
       plannedMutation: true,
-      executesSystemMutation: false,
+      executesSystemMutation: true,
       result: "not-run",
-      nativeHostManifest: { state: "not-mutated" }
+      nativeHostManifest: {
+        state: "not-mutated",
+        cliShimPath: invocation.options.cliShimPath,
+        extensionIds: invocation.options.extensionIds
+      }
     };
   }
 
@@ -405,18 +427,106 @@ export function createCliOutput(
 export async function runSkfiyCli({
   argv,
   rootDir,
+  homeDir,
   generatedAt,
+  chromeNativeHostIo,
   stdout,
   stderr
 }: RunSkfiyCliInput): Promise<number> {
-  const result = normalizeCliCommand(argv, { rootDir });
+  const normalizedRootDir = rootDir ?? process.cwd();
+  const result = normalizeCliCommand(argv, { rootDir: normalizedRootDir });
 
   if (!result.ok) {
     stderr.write(`${result.error.message}\n`);
     return 2;
   }
 
+  if (result.invocation.kind === "chrome") {
+    return runChromeNativeHostCli({
+      invocation: result.invocation,
+      generatedAt,
+      homeDir: homeDir ?? process.env.HOME ?? "",
+      io: chromeNativeHostIo,
+      stdout,
+      stderr
+    });
+  }
+
   stdout.write(`${JSON.stringify(createCliOutput(result.invocation, { generatedAt }), null, 2)}\n`);
+  return 0;
+}
+
+async function runChromeNativeHostCli({
+  invocation,
+  generatedAt,
+  homeDir,
+  io,
+  stdout,
+  stderr
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "chrome" }>;
+  generatedAt?: string;
+  homeDir: string;
+  io?: ChromeNativeHostIo;
+  stdout: SkfiyCliIo;
+  stderr: SkfiyCliIo;
+}): Promise<number> {
+  if (invocation.options.extensionIds.length === 0) {
+    stderr.write("Chrome extension id is required. Pass --extension-id <id>.\n");
+    return 2;
+  }
+  if (!homeDir) {
+    stderr.write("Home directory is required to locate the Chrome Native Messaging host manifest.\n");
+    return 2;
+  }
+
+  if (invocation.subcommand === "status") {
+    const nativeHost = await readChromeNativeHostStatus({
+      homeDir,
+      cliShimPath: invocation.options.cliShimPath,
+      extensionIds: invocation.options.extensionIds,
+      io
+    });
+    stdout.write(`${JSON.stringify({
+      schemaVersion: 1,
+      command: invocation.path,
+      generatedAt: generatedAt ?? new Date().toISOString(),
+      executesSystemMutation: false,
+      nativeHost
+    }, null, 2)}\n`);
+    return 0;
+  }
+
+  if (invocation.subcommand === "install-host") {
+    const installResult = await installChromeNativeHost({
+      homeDir,
+      cliShimPath: invocation.options.cliShimPath,
+      extensionIds: invocation.options.extensionIds,
+      io
+    });
+    stdout.write(`${JSON.stringify({
+      schemaVersion: 1,
+      command: invocation.path,
+      generatedAt: generatedAt ?? new Date().toISOString(),
+      executesSystemMutation: true,
+      ...installResult
+    }, null, 2)}\n`);
+    return 0;
+  }
+
+  const uninstallResult = await uninstallChromeNativeHost({
+    homeDir,
+    cliShimPath: invocation.options.cliShimPath,
+    extensionIds: invocation.options.extensionIds,
+    io
+  });
+  stdout.write(`${JSON.stringify({
+    schemaVersion: 1,
+    command: invocation.path,
+    generatedAt: generatedAt ?? new Date().toISOString(),
+    executesSystemMutation: true,
+    ...uninstallResult
+  }, null, 2)}\n`);
   return 0;
 }
 
@@ -487,4 +597,17 @@ function readOptionValue(argv: string[], name: string): string | undefined {
   }
 
   return argv[index + 1];
+}
+
+function readRepeatedOptionValues(argv: string[], name: string): string[] {
+  const values: string[] = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] === name && argv[index + 1]) {
+      values.push(argv[index + 1]);
+      index += 1;
+    }
+  }
+
+  return values;
 }

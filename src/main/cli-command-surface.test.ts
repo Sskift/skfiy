@@ -55,7 +55,7 @@ describe("CLI command surface", () => {
       expect.objectContaining({
         path: "chrome install-host",
         plannedMutation: true,
-        executesSystemMutation: false
+        executesSystemMutation: true
       }),
       expect.objectContaining({
         path: "alpha artifact",
@@ -154,9 +154,14 @@ describe("CLI command surface", () => {
     expectJsonSafe(createCliOutput(invocation));
   });
 
-  it("normalizes Chrome host commands as explicit plan-only mutations", () => {
+  it("normalizes Chrome host commands as explicit native-host operations", () => {
     for (const subcommand of ["status", "install-host", "uninstall-host"] as const) {
-      const invocation = expectInvocation(["chrome", subcommand]);
+      const invocation = expectInvocation([
+        "chrome",
+        subcommand,
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop"
+      ]);
       const output = createCliOutput(invocation, {
         generatedAt: "2026-06-20T00:00:00.000Z"
       });
@@ -164,13 +169,16 @@ describe("CLI command surface", () => {
       expect(invocation).toMatchObject({
         kind: "chrome",
         path: `chrome ${subcommand}`,
-        subcommand
+        subcommand,
+        options: {
+          extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+          cliShimPath: "/repo/dist/skfiy"
+        }
       });
       expect(output).toMatchObject({
         schemaVersion: 1,
         command: `chrome ${subcommand}`,
-        generatedAt: "2026-06-20T00:00:00.000Z",
-        executesSystemMutation: false
+        generatedAt: "2026-06-20T00:00:00.000Z"
       });
       expectJsonSafe(output);
     }
@@ -284,5 +292,75 @@ describe("CLI command surface", () => {
       stderr: { write: (chunk: string) => stderr.push(chunk) }
     })).resolves.toBe(2);
     expect(stderr.at(-1)).toBe("Unknown chrome subcommand: reinstall-host\n");
+  });
+
+  it("runs chrome native host status, install, and uninstall through injected filesystem", async () => {
+    const files: Record<string, string> = {
+      "/repo/dist/skfiy": "#!/usr/bin/env node\n"
+    };
+    const io = {
+      exists: async (targetPath: string) => Object.hasOwn(files, targetPath),
+      mkdir: async (targetPath: string) => {
+        files[targetPath] = files[targetPath] ?? "__dir__";
+      },
+      readFile: async (targetPath: string) => files[targetPath],
+      writeFile: async (targetPath: string, content: string) => {
+        files[targetPath] = content;
+      },
+      rm: async (targetPath: string) => {
+        delete files[targetPath];
+      }
+    };
+    const manifestPath = "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json";
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const base = {
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) },
+      chromeNativeHostIo: io
+    };
+
+    await expect(runSkfiyCli({
+      ...base,
+      argv: ["chrome", "status", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"]
+    })).resolves.toBe(0);
+    expect(JSON.parse(stdout.pop() ?? "{}")).toMatchObject({
+      command: "chrome status",
+      nativeHost: {
+        state: "missing",
+        manifestPath
+      }
+    });
+
+    await expect(runSkfiyCli({
+      ...base,
+      argv: ["chrome", "install-host", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"]
+    })).resolves.toBe(0);
+    expect(JSON.parse(stdout.pop() ?? "{}")).toMatchObject({
+      command: "chrome install-host",
+      result: "installed",
+      manifestPath,
+      executesSystemMutation: true
+    });
+    expect(JSON.parse(files[manifestPath])).toMatchObject({
+      name: "com.sskift.skfiy",
+      path: "/repo/dist/skfiy"
+    });
+
+    await expect(runSkfiyCli({
+      ...base,
+      argv: ["chrome", "uninstall-host", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"]
+    })).resolves.toBe(0);
+    expect(JSON.parse(stdout.pop() ?? "{}")).toMatchObject({
+      command: "chrome uninstall-host",
+      result: "uninstalled",
+      manifestPath,
+      executesSystemMutation: true
+    });
+    expect(files[manifestPath]).toBeUndefined();
+    expect(stderr).toEqual([]);
   });
 });
