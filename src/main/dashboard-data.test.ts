@@ -198,10 +198,10 @@ describe("dashboard snapshot data", () => {
     };
     const mtimes: Record<string, number> = {
       "/repo/.skfiy-smoke/dashboard-old.json": 10,
-      "/repo/.skfiy-smoke/dashboard-current.json": 20,
-      "/repo/.skfiy-smoke/chrome-current.json": 30,
-      "/repo/.skfiy-smoke/cli-current.json": 40,
-      "/repo/.skfiy-smoke/codex-plugin-current.json": 50
+      "/repo/.skfiy-smoke/dashboard-current.json": Date.parse("2026-06-20T00:00:00.000Z"),
+      "/repo/.skfiy-smoke/chrome-current.json": Date.parse("2026-06-18T23:59:59.000Z"),
+      "/repo/.skfiy-smoke/cli-current.json": Date.parse("2026-06-19T23:59:00.000Z"),
+      "/repo/.skfiy-smoke/codex-plugin-current.json": Date.parse("2026-06-19T23:58:00.000Z")
     };
 
     const snapshot = createDashboardWorkspaceSnapshot({
@@ -294,31 +294,44 @@ describe("dashboard snapshot data", () => {
         result: "blocked",
         path: "/repo/.skfiy-smoke/chrome-current.json",
         productPath: "dist/skfiy.app -> Chrome",
-        mtimeMs: 30,
-        blocker: "extension-unavailable"
+        mtimeMs: Date.parse("2026-06-18T23:59:59.000Z"),
+        blocker: "extension-unavailable",
+        ageSeconds: 86401,
+        stale: true
       },
       {
         target: "cli",
         result: "passed",
         path: "/repo/.skfiy-smoke/cli-current.json",
         productPath: "dist/skfiy -> skfiy CLI command matrix",
-        mtimeMs: 40
+        mtimeMs: Date.parse("2026-06-19T23:59:00.000Z"),
+        ageSeconds: 60,
+        stale: false
       },
       {
         target: "codex-plugin",
         result: "passed",
         path: "/repo/.skfiy-smoke/codex-plugin-current.json",
         productPath: "plugin scaffold -> staged marketplace install -> .mcp.json -> packaged skfiy CLI -> MCP stdio",
-        mtimeMs: 50
+        mtimeMs: Date.parse("2026-06-19T23:58:00.000Z"),
+        ageSeconds: 120,
+        stale: false
       },
       {
         target: "dashboard",
         result: "passed",
         path: "/repo/.skfiy-smoke/dashboard-current.json",
         productPath: "dist/skfiy -> skfiy dashboard -> loopback dashboard server",
-        mtimeMs: 20
+        mtimeMs: Date.parse("2026-06-20T00:00:00.000Z"),
+        ageSeconds: 0,
+        stale: false
       }
     ]);
+    expect(snapshot.alerts).toContainEqual({
+      code: "smoke-evidence-stale",
+      severity: "warning",
+      message: "Smoke evidence is stale for: chrome."
+    });
     expect(JSON.stringify(snapshot)).not.toContain("token=");
   });
 });

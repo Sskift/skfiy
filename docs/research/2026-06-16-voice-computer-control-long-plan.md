@@ -547,7 +547,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] implement replay panel: screenshots, OCR labels, accessibility coverage, actions, verification decisions
     - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement evidence panel: latest smoke artifacts, result, product path, blocker reason, stale evidence warning
-    - partial: panel metadata exists in `createDashboardPanels()` and `/snapshot.json` now summarizes the latest `.skfiy-smoke/*.json` artifact per smoke target with result, path, product path, mtime, and blocker when present; stale evidence warnings remain pending
+    - partial: panel metadata exists in `createDashboardPanels()` and `/snapshot.json` now summarizes the latest `.skfiy-smoke/*.json` artifact per smoke target with result, path, product path, mtime, age, stale flag, and blocker when present; dashboard alerts now emit `smoke-evidence-stale` when any latest target artifact is older than 24 hours; HEAD/release identity matching remains pending
   - [ ] implement dogfood/release panel: current alpha, manifest checksum, accepted reports, cohort coverage
     - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement long-horizon panel: `money-run` session status, active pane, current recommendation, recent blocker markers

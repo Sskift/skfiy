@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { DashboardDescriptor } from "./dashboard-status.js";
 
+const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
+
 export interface DashboardSnapshotInput {
   generatedAt?: string;
   descriptor: DashboardDescriptor;
@@ -88,7 +90,8 @@ export function createDashboardSnapshot({
     longHorizon: cloneRecord(longHorizon),
     alerts: createDashboardAlerts({
       permissions,
-      runtimeHealth
+      runtimeHealth,
+      smokeEvidence
     })
   };
 }
@@ -99,6 +102,7 @@ export function createDashboardWorkspaceSnapshot({
   generatedAt,
   io = createDefaultDashboardWorkspaceIo()
 }: DashboardWorkspaceSnapshotInput): DashboardSnapshot {
+  const snapshotGeneratedAt = generatedAt ?? new Date().toISOString();
   const packageInfo = readPackageInfo(rootDir, io);
   const appPath = path.join(rootDir, "dist", "skfiy.app");
   const helperPath = path.join(appPath, "Contents", "MacOS", "skfiy-helper");
@@ -108,7 +112,7 @@ export function createDashboardWorkspaceSnapshot({
   const cliInstalled = io.exists(cliPath);
 
   const snapshot = createDashboardSnapshot({
-    generatedAt,
+    generatedAt: snapshotGeneratedAt,
     descriptor,
     status: {
       app: {
@@ -138,7 +142,7 @@ export function createDashboardWorkspaceSnapshot({
       permissions: readWorkspacePermissions(helperPath, helperInstalled, io)
     },
     smokeEvidence: {
-      artifacts: readLatestSmokeArtifacts(rootDir, io)
+      artifacts: readLatestSmokeArtifacts(rootDir, snapshotGeneratedAt, io)
     }
   });
 
@@ -157,10 +161,14 @@ export function createDashboardWorkspaceSnapshot({
 
 function createDashboardAlerts({
   permissions,
-  runtimeHealth
+  runtimeHealth,
+  smokeEvidence
 }: {
   permissions: Record<string, unknown>;
   runtimeHealth: Record<string, unknown>;
+  smokeEvidence: {
+    artifacts: Array<Record<string, unknown>>;
+  };
 }): Array<Record<string, unknown>> {
   const alerts: Array<Record<string, unknown>> = [];
   const desktopSession = readRecord(runtimeHealth.desktopSession);
@@ -206,6 +214,19 @@ function createDashboardAlerts({
     });
   }
 
+  const staleTargets = smokeEvidence.artifacts
+    .filter((artifact) => artifact.stale === true)
+    .map((artifact) => String(artifact.target))
+    .sort();
+
+  if (staleTargets.length > 0) {
+    alerts.push({
+      code: "smoke-evidence-stale",
+      severity: "warning",
+      message: `Smoke evidence is stale for: ${staleTargets.join(", ")}.`
+    });
+  }
+
   return alerts;
 }
 
@@ -238,6 +259,7 @@ function readPackageInfo(
 
 function readLatestSmokeArtifacts(
   rootDir: string,
+  generatedAt: string,
   io: DashboardWorkspaceIo
 ): Array<Record<string, unknown>> {
   const smokeDir = path.join(rootDir, ".skfiy-smoke");
@@ -267,12 +289,17 @@ function readLatestSmokeArtifacts(
 
     const target = readSmokeTarget(entry, artifact);
     const mtimeMs = io.stat(artifactPath).mtimeMs;
+    const ageSeconds = readSmokeArtifactAgeSeconds(generatedAt, mtimeMs);
     const summary = {
       target,
       result: typeof artifact.result === "string" ? artifact.result : "unknown",
       path: artifactPath,
       ...(typeof artifact.productPath === "string" ? { productPath: artifact.productPath } : {}),
       mtimeMs,
+      ...(ageSeconds === undefined ? {} : {
+        ageSeconds,
+        stale: ageSeconds > STALE_SMOKE_EVIDENCE_SECONDS
+      }),
       ...(typeof artifact.blocker === "string" ? { blocker: artifact.blocker } : {})
     };
     const current = latestByTarget.get(target);
@@ -285,6 +312,16 @@ function readLatestSmokeArtifacts(
   return [...latestByTarget.values()].sort((left, right) =>
     String(left.target).localeCompare(String(right.target))
   );
+}
+
+function readSmokeArtifactAgeSeconds(generatedAt: string, mtimeMs: number): number | undefined {
+  const generatedAtMs = Date.parse(generatedAt);
+
+  if (!Number.isFinite(generatedAtMs) || !Number.isFinite(mtimeMs)) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.floor((generatedAtMs - mtimeMs) / 1000));
 }
 
 function readSmokeTarget(entry: string, artifact: Record<string, unknown>): string {

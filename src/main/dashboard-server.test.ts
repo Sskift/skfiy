@@ -179,9 +179,12 @@ describe("dashboard loopback HTTP response helper", () => {
         result: "passed",
         path: "/repo/.skfiy-smoke/ui-current.json",
         productPath: "dist/skfiy.app",
-        mtimeMs: 42
+        mtimeMs: 42,
+        ageSeconds: expect.any(Number),
+        stale: true
       }
     ]);
+    expect(snapshot.smokeEvidence.artifacts[0].ageSeconds).toBeGreaterThan(86_400);
   });
 
   it("keeps the response helper read-only and minimal for unsupported routes", () => {

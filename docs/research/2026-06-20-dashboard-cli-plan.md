@@ -92,7 +92,7 @@ The dashboard remains optional for Computer Use execution. Future Electron wirin
 `src/main/dashboard-server.ts` now exposes a read-only response helper plus `startDashboardServer()`. It serves:
 
 - `GET /descriptor.json`: descriptor JSON with no requested-host echo and no token output.
-- `GET /snapshot.json`: read-only operator snapshot with runtime health, permissions, current turn, replay, smoke evidence, long-horizon state, and alerts. When `skfiy dashboard` starts the server, the default snapshot reads the local workspace for package metadata, `dist/skfiy.app`, `dist/skfiy`, `dist/skfiy.app` code-signature state, the dashboard server PID/uptime, packaged-helper permission status, packaged-helper desktop-session status, and the latest `.skfiy-smoke/*.json` artifact per smoke target.
+- `GET /snapshot.json`: read-only operator snapshot with runtime health, permissions, current turn, replay, smoke evidence, long-horizon state, and alerts. When `skfiy dashboard` starts the server, the default snapshot reads the local workspace for package metadata, `dist/skfiy.app`, `dist/skfiy`, `dist/skfiy.app` code-signature state, the dashboard server PID/uptime, packaged-helper permission status, packaged-helper desktop-session status, and the latest `.skfiy-smoke/*.json` artifact per smoke target, including artifact age/stale state for local operator warnings.
 - `GET /` and `GET /index.html`: a minimal static HTML shell using the same panel inventory.
 - unsupported methods/routes: `405` or `404`.
 
