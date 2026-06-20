@@ -162,6 +162,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - Dogfood/release: current alpha, manifest, zip checksum, accepted reports, cohort coverage.
 - Data path:
   - main process writes a local append-only event store for turns and smokes.
+  - active-turn and replay panels read `runtime-snapshot.json` from `~/Library/Application Support/skfiy/` for the latest Electron runtime state.
   - dashboard reads via local HTTP plus WebSocket/SSE updates.
   - dashboard never becomes required for Computer Use execution; it observes and approves but does not hide the pet's stop/approval surface.
 
@@ -704,6 +705,17 @@ Do not add more random UI features. The native desktop-control foundation now ex
 8. Run the long-horizon `money-run` supervision field task after release gates pass, preserving product-path launch, approval, screenshot/action verification, stop behavior, dashboard visibility, and `tmuxSupervisionReport` evidence.
 
 This moves skfiy from a locally demonstrated Computer Use foundation to the evidence AIME does not yet cover: native desktop control with voice-first, pet-visible, permissioned execution that survives real tester machines and long-horizon supervision.
+
+## Two-week consolidation plan
+
+The next two weeks should consolidate the product surface rather than add more disconnected demos. Acceptance: the packaged binary is the only supported user-test runtime, and every user-facing test launches `skfiy.app` or `dist/skfiy` instead of tmux, a source-tree dev server, or a loose helper.
+
+1. **Codex plugin adapter:** keep the plugin thin, revalidate against the Codex manual and local plugin cache, ship only skill/MCP metadata, and add a fresh Codex thread plugin-cache install smoke before calling the plugin path product-ready.
+2. **Dashboard/control UI:** follow the OpenClaw-style control plane pattern with loopback-only defaults, clean `skfiy dashboard --json` launch metadata, token-free logs, runtime health, permissions, current turn, replay, app policy, smoke evidence, dogfood/release, alerts, and long-horizon supervision panels.
+3. **Runtime snapshot:** make Electron persist current-turn and replay summaries into `~/Library/Application Support/skfiy/runtime-snapshot.json` so dashboard panels show real voice/Computer Use state instead of placeholder text.
+4. **Binary and CLI:** harden `skfiy status --json`, `skfiy doctor --json`, `skfiy dashboard`, `skfiy chrome status/install-host/uninstall-host`, `skfiy mcp serve --stdio`, and `skfiy smoke <target>` as the stable product API for dashboard, dogfood, and Codex plugin consumers.
+5. **Chrome extension evidence:** keep Native Messaging host heartbeat evidence, then collect one real installed-extension or Chrome-for-Testing/Chromium run that proves structured browser control without relying on branded Chrome's removed `--load-extension` path.
+6. **Field proof:** after dashboard/CLI/plugin smokes pass from the packaged product, rerun real Ghostty/Finder/Chrome/voice smokes, collect accepted tester reports, and only then run the long-horizon `money-run` supervision task.
 
 ## Sources Checked
 

@@ -11,8 +11,9 @@ Research inputs checked before this plan update:
 - OpenAI Codex CLI plugin command reference, fetched 2026-06-20 from `https://developers.openai.com/codex/cli/reference`.
 - OpenAI Codex app deep-link docs, fetched 2026-06-20 from `https://developers.openai.com/codex/app/commands`.
 - OpenClaw docs, fetched 2026-06-20 from `https://docs.openclaw.ai/web/dashboard` and `https://docs.openclaw.ai/web/control-ui`.
+- Manual recheck on 2026-06-20 through `fetch-codex-manual.mjs`: the local Codex manual was current, and the checked sections were `Build plugins`, `Plugins`, and `Codex Chrome extension`.
 - Local Codex plugin cache inspection under `~/.codex/plugins/cache/`.
-- Local `codex plugin --help` command output from the installed Codex CLI.
+- Local `codex plugin --help`, `codex plugin add --help`, and `codex plugin marketplace --help` command output from the installed Codex CLI.
 - Repo-local skfiy scaffold under `plugins/skfiy/`.
 
 ## Local Codex Plugin Implementation Findings
@@ -25,6 +26,7 @@ Codex plugins are installable bundles rather than runtime processes. Local cache
 - The GitHub plugin cache entry has `.app.json` connector wiring beside `.codex-plugin/plugin.json`, proving connector-backed plugins do not need to own the target product runtime.
 - The skfiy plugin scaffold should therefore stay thin: `plugins/skfiy/.codex-plugin/plugin.json` exposes the skill metadata, and `plugins/skfiy/.mcp.json` points at the installed `skfiy mcp serve --stdio` binary command.
 - Codex plugin commands verified locally: `codex plugin add`, `codex plugin list`, `codex plugin remove`, and `codex plugin marketplace`. This matches the plan to test marketplace installation through Codex's own plugin manager instead of editing cached plugin files by hand.
+- The marketplace command surface specifically exposes `codex plugin marketplace add/list/upgrade/remove`, and `codex plugin add` accepts either `plugin@marketplace` or `--marketplace <name>`. That is the correct automation surface for installed-plugin smoke setup.
 
 The product rule is: the Codex plugin can inspect, diagnose, and request skfiy-controlled actions, but it must not become a second desktop-control runtime. Permission checks, app policy, replay records, Chrome Native Messaging, and stop/approval behavior stay inside the packaged `skfiy.app` plus `dist/skfiy` binary.
 
@@ -48,6 +50,18 @@ The dashboard and CLI must run from the same compiled product identity as the ap
 - Chrome Native Messaging host manifests point to the packaged `skfiy` CLI path.
 - `skfiy dashboard`, `skfiy status`, `skfiy doctor`, `skfiy chrome`, `skfiy mcp serve --stdio`, and `skfiy smoke` must work without tmux, source-tree dev servers, or loose helper binaries.
 - JSON output from these commands is a product API for the dashboard and future Codex plugin adapter, so field names should evolve with compatibility tests.
+
+## Binary and CLI Execution Plan
+
+The binary plan is deliberately stricter than a developer convenience plan:
+
+1. Make `dist/skfiy` the one CLI product entry for status, doctor, dashboard, Chrome Native Messaging, MCP, and smoke wrappers.
+2. Keep `skfiy.app`, embedded `skfiy-helper`, and `dist/skfiy` on the same commit identity in release manifests and smoke evidence.
+3. Treat `scripts/skfiy-cli.mjs` and npm scripts as development-only helpers; dogfood and release evidence must point at the packaged CLI or app bundle.
+4. Add compatibility tests for every `--json` output consumed by dashboard, smoke, and plugin MCP tools before changing fields.
+5. Keep mutating command names explicit: `chrome install-host`, `chrome uninstall-host`, `smoke <target>`, release signing, and alpha publishing must never hide behind a read-only status command.
+
+`skfiy dashboard --json` is the launcher contract for agents and scripts. It should return the loopback URL, bind metadata, auth policy, server PID, and token-free descriptor evidence without requiring a browser to open.
 
 ## Scope Landed
 
@@ -101,7 +115,7 @@ Codex plugin packaging stays an adapter layer. A repo-local scaffold is not enou
 - The smoke evidence must include `repoCheckoutUsedForMcp=false`, `marketplaceManifest`, `marketplaceManifestPath`, and `installedPluginRoot` so dashboards can distinguish staged install proof from direct scaffold proof.
 - MCP initialize response now includes short safety instructions for read-only status/doctor use, no desktop control without explicit user approval, app-policy/replay ownership inside skfiy, and the boundary between dashboard/plugin adapter and standalone app runtime.
 - Codex plugin smoke now requires those initialize instructions, so a plugin-facing MCP server without the safety contract cannot be classified as `passed`.
-- A later installed-plugin smoke should run from a fresh Codex app session and prove the cached plugin can find the installed `skfiy` binary without using the source checkout.
+- A later installed-plugin smoke should run as a plugin cache install smoke from a fresh Codex thread and prove the cached plugin can find the installed `skfiy` binary without using the source checkout.
 
 ## Chrome Native Messaging Host
 
@@ -124,6 +138,22 @@ The dashboard should progress as an OpenClaw-style operator surface while stayin
 5. **Long-horizon supervision:** read-only `money-run` tmux session status, active pane, recent blocker markers, last recommendation, and whether skfiy has field-proven sustained supervision after release gates pass.
 
 Remote dashboard access is out of scope until a token/session story exists. Local `127.0.0.1` remains the default, token values must not print to stdout, and any future remote or Tailscale/SSH-tunnel mode must be explicit.
+
+## Two-Week Dashboard Execution Plan
+
+Week A should make the dashboard useful for local operation without turning it into a second app runtime:
+
+1. Finish the runtime snapshot event store: Electron writes active turn, replay, approval, stop, screenshot, action, and verification summaries into `~/Library/Application Support/skfiy/runtime-snapshot.json`; `/snapshot.json` reads it as the current-turn and replay source.
+2. Add live-refresh transport with SSE first, WebSocket later only if bidirectional approval traffic needs it.
+3. Render the dashboard panels from real snapshot fields, not placeholders: runtime health, permissions, current turn, replay, app policy, extension/browser health, smoke evidence, dogfood/release, long-horizon, and alerts.
+4. Keep the desktop pet as the voice/control entry: dashboard actions can inspect, open settings, copy commands, or request approval, but stop/approval visibility must also stay in the pet.
+
+Week B should make it product-grade enough for dogfood:
+
+1. Make `smoke:dashboard` require runtime snapshot coverage for active-turn and replay panels when a recent app turn exists, while still passing cleanly on a fresh install with explicit empty-state reasons.
+2. Add dashboard stale-evidence and blocker banners for sleep/loginwindow, missing TCC grants, stale Chrome extension heartbeat, stale smoke evidence, and release drift.
+3. Add a local-only auth/session design note before any remote or Tailscale mode; OpenClaw's Control UI pattern is the reference, but skfiy must not print token values or imply public exposure is safe.
+4. Add a post-release long-horizon supervision view for `money-run` that shows read-only probe state before the field task and replay-backed action evidence after skfiy performs the task.
 
 ## Dashboard Descriptor
 

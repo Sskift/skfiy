@@ -117,4 +117,49 @@ describe("createTurnReplayStore", () => {
       }
     });
   });
+
+  it("notifies a subscriber whenever replay state changes", () => {
+    const updates: unknown[] = [];
+    const store = createTurnReplayStore({
+      onReplayChanged: (replay) => {
+        updates.push(replay);
+      }
+    });
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "started",
+      command: "pwd",
+      risk: {
+        level: "low",
+        reason: "Read-only terminal command.",
+        requiresApproval: false
+      }
+    });
+    store.recordTaskEvent({
+      status: "executing",
+      message: "Typing command in Ghostty."
+    });
+
+    expect(updates).toHaveLength(3);
+    expect(updates[0]).toMatchObject({
+      transcript: {
+        approvalRequired: false,
+        actions: [],
+        outcome: "running"
+      },
+      timeline: []
+    });
+    expect(updates[2]).toMatchObject({
+      transcript: {
+        command: "pwd"
+      },
+      timeline: [
+        {
+          status: "executing",
+          message: "Typing command in Ghostty."
+        }
+      ]
+    });
+  });
 });

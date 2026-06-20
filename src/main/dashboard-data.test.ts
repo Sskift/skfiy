@@ -345,6 +345,31 @@ describe("dashboard snapshot data", () => {
         launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
         messageType: "skfiy.page.observe",
         requestId: "request-heartbeat"
+      }),
+      "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json": JSON.stringify({
+        schemaVersion: 1,
+        observedAt: "2026-06-19T23:59:30.000Z",
+        currentTurn: {
+          state: "approval_required",
+          command: "pwd",
+          targetApp: "Ghostty",
+          targetBundleId: "com.mitchellh.ghostty",
+          risk: "low",
+          plannerProvider: "External CUA",
+          approvalRequired: true,
+          latestMessage: "Approval required (low): Read-only terminal command.",
+          source: "runtime-snapshot"
+        },
+        replay: {
+          state: "available",
+          outcome: "running",
+          screenshotCount: 1,
+          actionCount: 3,
+          verificationCount: 1,
+          timelineCount: 1,
+          latestMessage: "Approval required (low): Read-only terminal command.",
+          source: "runtime-snapshot"
+        }
       })
     };
     const directories: Record<string, string[]> = {
@@ -594,6 +619,27 @@ describe("dashboard snapshot data", () => {
       microphone: "granted",
       speechRecognition: "not-determined",
       finderAutomation: "unknown"
+    });
+    expect(snapshot.currentTurn).toMatchObject({
+      state: "approval_required",
+      command: "pwd",
+      targetApp: "Ghostty",
+      targetBundleId: "com.mitchellh.ghostty",
+      risk: "low",
+      plannerProvider: "External CUA",
+      approvalRequired: true,
+      latestMessage: "Approval required (low): Read-only terminal command.",
+      source: "runtime-snapshot"
+    });
+    expect(snapshot.replay).toMatchObject({
+      state: "available",
+      outcome: "running",
+      screenshotCount: 1,
+      actionCount: 3,
+      verificationCount: 1,
+      timelineCount: 1,
+      latestMessage: "Approval required (low): Read-only terminal command.",
+      source: "runtime-snapshot"
     });
     expect(snapshot.longHorizon).toMatchObject({
       state: "observing",

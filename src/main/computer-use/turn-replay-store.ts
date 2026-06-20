@@ -24,11 +24,19 @@ export interface TurnReplay {
   timeline: TurnReplayTaskEvent[];
 }
 
-export function createTurnReplayStore() {
+export interface TurnReplayStoreOptions {
+  onReplayChanged?: (replay: TurnReplay | null) => void;
+}
+
+export function createTurnReplayStore(options: TurnReplayStoreOptions = {}) {
   let active = false;
   let hasReplay = false;
   let computerUseEvents: ComputerUseTurnEvent[] = [];
   let timeline: TurnReplayTaskEvent[] = [];
+
+  const notifyReplayChanged = () => {
+    options.onReplayChanged?.(readReplay());
+  };
 
   return {
     startTurn(): void {
@@ -36,6 +44,7 @@ export function createTurnReplayStore() {
       hasReplay = true;
       computerUseEvents = [];
       timeline = [];
+      notifyReplayChanged();
     },
     recordComputerUseEvent(event: ComputerUseTurnEvent): void {
       if (!hasReplay) {
@@ -47,6 +56,7 @@ export function createTurnReplayStore() {
       if (event.type === "completed") {
         active = false;
       }
+      notifyReplayChanged();
     },
     recordTaskEvent(event: TurnReplayTaskEvent): void {
       if (!hasReplay) {
@@ -63,18 +73,23 @@ export function createTurnReplayStore() {
       ) {
         active = false;
       }
+      notifyReplayChanged();
     },
     getReplay(): TurnReplay | null {
-      if (!hasReplay && !active) {
-        return null;
-      }
-
-      return {
-        transcript: createReplayTranscript(computerUseEvents, timeline),
-        timeline: timeline.map((event) => ({ ...event }))
-      };
+      return readReplay();
     }
   };
+
+  function readReplay(): TurnReplay | null {
+    if (!hasReplay && !active) {
+      return null;
+    }
+
+    return {
+      transcript: createReplayTranscript(computerUseEvents, timeline),
+      timeline: timeline.map((event) => ({ ...event }))
+    };
+  }
 }
 
 function createReplayTranscript(

@@ -14,6 +14,7 @@ import {
   CHROME_NATIVE_HOST_NAME,
   createChromeExtensionConnectionStatePath
 } from "./chrome-native-host.js";
+import { readRuntimeSnapshotPanels } from "./runtime-snapshot.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
 const REQUIRED_DOGFOOD_WORKFLOWS = [
@@ -165,6 +166,7 @@ export function createDashboardWorkspaceSnapshot({
     generatedAt: snapshotGeneratedAt,
     io
   });
+  const runtimePanels = readWorkspaceRuntimePanels(io);
 
   const snapshot = createDashboardSnapshot({
     generatedAt: snapshotGeneratedAt,
@@ -191,6 +193,8 @@ export function createDashboardWorkspaceSnapshot({
       desktopSession: readWorkspaceDesktopSession(helperPath, helperInstalled, io),
       permissions: readWorkspacePermissions(helperPath, helperInstalled, io)
     },
+    currentTurn: runtimePanels.currentTurn,
+    replay: runtimePanels.replay,
     smokeEvidence: {
       artifacts: readLatestSmokeArtifacts(rootDir, snapshotGeneratedAt, io)
     },
@@ -434,6 +438,19 @@ function readWorkspaceReleaseDrift(
     releaseCommitSha,
     currentHeadCommitSha
   };
+}
+
+function readWorkspaceRuntimePanels(io: DashboardWorkspaceIo): {
+  currentTurn: Record<string, unknown>;
+  replay: Record<string, unknown>;
+} {
+  return readRuntimeSnapshotPanels({
+    homeDir: io.homeDir?.(),
+    io: {
+      exists: io.exists,
+      readFile: io.readFile
+    }
+  });
 }
 
 function readWorkspaceLongHorizon(io: DashboardWorkspaceIo): Record<string, unknown> {

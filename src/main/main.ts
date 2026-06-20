@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import {
   createTurnReplayStore,
+  type TurnReplay,
   type TurnReplayTaskEvent
 } from "./computer-use/turn-replay-store.js";
 import type {
@@ -85,6 +86,7 @@ import {
   resizePetWindowBoundsKeepingBottom,
   type Size
 } from "./window-position.js";
+import { writeRuntimeSnapshot } from "./runtime-snapshot.js";
 
 type ManualMode = "active" | "quiet";
 type TaskStatus =
@@ -137,7 +139,11 @@ const chromeCdpEndpoint = readChromeCdpEndpoint({
 const plannerProviderSettingsStore = createPlannerProviderSettingsStore(
   readInitialPlannerProviderSettings(process.env)
 );
-const turnReplayStore = createTurnReplayStore();
+const turnReplayStore = createTurnReplayStore({
+  onReplayChanged: (replay) => {
+    persistRuntimeSnapshot(replay);
+  }
+});
 const dictationSettingsStore = createDictationSettingsStore(
   readInitialDictationSettings(process.env)
 );
@@ -151,6 +157,15 @@ let activeTaskController: AbortController | null = null;
 let pendingApproval: PendingApproval | null = null;
 let stopTurnHotkeyRegistered = false;
 let activeDictationProviderStop: (() => Promise<void>) | null = null;
+
+function persistRuntimeSnapshot(replay: TurnReplay | null): void {
+  void writeRuntimeSnapshot({
+    homeDir: os.homedir(),
+    replay
+  }).catch(() => {
+    // Dashboard runtime evidence is best-effort and must not block Computer Use turns.
+  });
+}
 
 function emitTaskEvent(window: BrowserWindow | null, event: TaskEvent) {
   if (!window || window.isDestroyed()) {

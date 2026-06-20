@@ -264,6 +264,31 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("Chrome installed-extension smoke evidence");
   });
 
+  it("records the refreshed Codex plugin research gate and two-week dashboard/CLI consolidation plan", () => {
+    const longPlan = readFileSync(
+      path.join(process.cwd(), "docs", "research", "2026-06-16-voice-computer-control-long-plan.md"),
+      "utf8"
+    );
+    const dashboardPlan = readFileSync(
+      path.join(process.cwd(), "docs", "research", "2026-06-20-dashboard-cli-plan.md"),
+      "utf8"
+    );
+
+    expect(dashboardPlan).toContain("Manual recheck on 2026-06-20");
+    expect(dashboardPlan).toContain("codex plugin marketplace add/list/upgrade/remove");
+    expect(dashboardPlan).toContain("Two-Week Dashboard Execution Plan");
+    expect(dashboardPlan).toContain("runtime snapshot event store");
+    expect(dashboardPlan).toContain("runtime-snapshot.json");
+    expect(dashboardPlan).toContain("`skfiy dashboard --json` is the launcher contract");
+    expect(dashboardPlan).toContain("Binary and CLI Execution Plan");
+    expect(dashboardPlan).toContain("plugin cache install smoke from a fresh Codex thread");
+    expect(longPlan).toContain("Two-week consolidation plan");
+    expect(longPlan).toContain("the packaged binary is the only supported user-test runtime");
+    expect(longPlan).toContain("fresh Codex thread plugin-cache install smoke");
+    expect(longPlan).toContain("runtime-snapshot.json");
+    expect(longPlan).toContain("active-turn and replay panels read `runtime-snapshot.json`");
+  });
+
   it("documents panic stop behavior evidence in alpha and report instructions", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
