@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { execFile, spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +19,7 @@ import {
   createHelpText,
   EXPECTED_TEXT,
   FORM_EXPECTED_TEXT,
+  INSTALLED_EXTENSION_PRODUCT_PATH,
   NATIVE_HOST_BRIDGE_PRODUCT_PATH,
   parseChromeSmokeArgs,
   PRODUCT_PATH
@@ -87,6 +88,7 @@ async function main() {
     formRun: undefined,
     sensitiveFormRun: undefined,
     nativeHostBridgeRun: undefined,
+    installedExtensionRun: undefined,
     fallbackRun: undefined,
     fallbackSwitchRun: undefined,
     permissions: undefined,
@@ -104,6 +106,7 @@ async function main() {
       scriptName: "smoke:chrome"
     });
     evidence.nativeHostBridgeRun = await runChromeNativeHostBridgeSmoke(options);
+    evidence.installedExtensionRun = await runInstalledChromeExtensionSmoke(options);
 
     if (options.currentPageEndpoint) {
       if (!options.keepExisting) {
@@ -135,7 +138,13 @@ async function main() {
         evidence.currentPageRun = evidence.realCurrentPageRun;
         evidence.events = evidence.realCurrentPageRun.events;
         evidence.result = evidence.realCurrentPageRun.result;
-        if (evidence.result === "passed" && evidence.nativeHostBridgeRun.result !== "passed") {
+        if (
+          evidence.result === "passed"
+          && (
+            evidence.nativeHostBridgeRun.result !== "passed"
+            || !isInstalledExtensionSmokeAcceptable(evidence.installedExtensionRun)
+          )
+        ) {
           evidence.result = "failed";
         }
       } finally {
@@ -478,6 +487,494 @@ async function runChromeNativeHostBridgeSmoke(options) {
     };
   } finally {
     await rm(homeDir, { recursive: true, force: true });
+  }
+}
+
+async function runInstalledChromeExtensionSmoke(options) {
+  const extensionPath = path.join(ROOT_DIR, "chrome-extension");
+  const requestId = "chrome-smoke-installed-extension";
+  const homeDir = os.homedir();
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "skfiy-chrome-extension-smoke-"));
+  const chromeUserDataDir = path.join(tempRoot, "chrome-profile");
+  const chromePort = options.chromePort + 2000;
+  const heartbeatPath = path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "skfiy",
+    "chrome-extension-connection.json"
+  );
+  let manifestPath;
+  let manifestBackup;
+  let heartbeatBackup;
+  let extensionId;
+  let launchOrigin;
+  let extensionPageUrl;
+  let response;
+
+  try {
+    await launchChromeWithExtension({
+      chromeAppName: options.chromeAppName,
+      chromeUserDataDir,
+      chromePort,
+      extensionPath
+    });
+    const firstWorker = await findSkfiyExtensionWorker(chromePort, options.timeoutMs);
+    if (!firstWorker.worker) {
+      return createInstalledExtensionLoadBlockedRun({
+        options,
+        chromePort,
+        chromeUserDataDir,
+        extensionPath,
+        heartbeatPath,
+        diagnostic: firstWorker
+      });
+    }
+
+    const { worker: loadedWorker } = firstWorker;
+    extensionId = readExtensionIdFromUrl(loadedWorker.url);
+    launchOrigin = `chrome-extension://${extensionId}/`;
+    await killChromeSmokeProcesses(chromeUserDataDir);
+    await sleep(500);
+
+    manifestPath = createNativeMessagingHostManifestPath(homeDir, options.chromeAppName);
+    manifestBackup = await readOptionalFile(manifestPath);
+    heartbeatBackup = await readOptionalFile(heartbeatPath);
+    await writeNativeMessagingHostManifest({
+      homeDir,
+      cliPath: options.cliPath,
+      extensionId,
+      chromeAppName: options.chromeAppName
+    });
+
+    await launchChromeWithExtension({
+      chromeAppName: options.chromeAppName,
+      chromeUserDataDir,
+      chromePort,
+      extensionPath
+    });
+    await waitForChromeEndpoint(chromePort, options.timeoutMs);
+    const secondWorker = await findSkfiyExtensionWorker(chromePort, options.timeoutMs);
+    if (!secondWorker.worker) {
+      return createInstalledExtensionLoadBlockedRun({
+        options,
+        chromePort,
+        chromeUserDataDir,
+        extensionPath,
+        heartbeatPath,
+        manifestPath,
+        diagnostic: secondWorker
+      });
+    }
+
+    extensionPageUrl = secondWorker.worker.url;
+    const cdp = await createCdpClient(secondWorker.worker.webSocketDebuggerUrl);
+
+    try {
+      await cdp.send("Runtime.enable");
+      const evaluation = await cdp.send("Runtime.evaluate", {
+        expression: createInstalledExtensionNativeMessageExpression(requestId),
+        awaitPromise: true,
+        returnByValue: true
+      });
+      response = readInstalledExtensionNativeMessageEvaluation(evaluation);
+    } finally {
+      cdp.close();
+    }
+
+    let heartbeat;
+    let heartbeatReadError;
+    try {
+      heartbeat = JSON.parse(await readFile(heartbeatPath, "utf8"));
+    } catch (error) {
+      heartbeatReadError = error instanceof Error ? error.message : String(error);
+    }
+    const passed = response?.type === "skfiy.native.response"
+      && response?.requestId === requestId
+      && response?.result === "accepted"
+      && heartbeat?.hostName === "com.sskift.skfiy"
+      && heartbeat?.launchOrigin === launchOrigin
+      && heartbeat?.messageType === "skfiy.page.observe"
+      && heartbeat?.requestId === requestId;
+
+    return {
+      result: passed ? "passed" : "failed",
+      productPath: INSTALLED_EXTENSION_PRODUCT_PATH,
+      chromeLaunch: formatChromeExtensionLaunchCommand(options.chromeAppName, chromePort, chromeUserDataDir, extensionPath),
+      chromePort,
+      extensionPath,
+      extensionPageUrl,
+      extensionId,
+      launchOrigin,
+      firstWorkerUrl: loadedWorker.url,
+      response,
+      heartbeatPath,
+      ...(heartbeat ? { heartbeat } : {}),
+      ...(heartbeatReadError ? { heartbeatReadError } : {}),
+      manifestPath,
+      processesAfterLaunch: await readChromeSmokeProcesses(chromeUserDataDir)
+    };
+  } catch (error) {
+    return {
+      result: "error",
+      productPath: INSTALLED_EXTENSION_PRODUCT_PATH,
+      extensionPath,
+      chromePort,
+      ...(extensionId ? { extensionId } : {}),
+      ...(launchOrigin ? { launchOrigin } : {}),
+      ...(extensionPageUrl ? { extensionPageUrl } : {}),
+      ...(response ? { response } : {}),
+      ...(manifestPath ? { manifestPath } : {}),
+      heartbeatPath,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    await killChromeSmokeProcesses(chromeUserDataDir);
+    await sleep(500);
+    if (manifestPath && manifestBackup) {
+      await restoreOptionalFile(manifestPath, manifestBackup);
+    }
+    if (heartbeatBackup) {
+      await restoreOptionalFile(heartbeatPath, heartbeatBackup);
+    }
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function launchChromeWithExtension({
+  chromeAppName,
+  chromeUserDataDir,
+  chromePort,
+  extensionPath
+}) {
+  await execFileAsync("open", [
+    "-na",
+    chromeAppName,
+    "--args",
+    `--remote-debugging-port=${chromePort}`,
+    `--user-data-dir=${chromeUserDataDir}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+    `--disable-extensions-except=${extensionPath}`,
+    `--load-extension=${extensionPath}`,
+    "about:blank"
+  ]);
+}
+
+async function writeNativeMessagingHostManifest({
+  homeDir,
+  cliPath,
+  extensionId,
+  chromeAppName
+}) {
+  const manifestPath = createNativeMessagingHostManifestPath(homeDir, chromeAppName);
+  const manifest = {
+    name: "com.sskift.skfiy",
+    description: "skfiy desktop Computer Use bridge",
+    path: cliPath,
+    type: "stdio",
+    allowed_origins: [`chrome-extension://${extensionId}/`]
+  };
+
+  await mkdir(path.dirname(manifestPath), { recursive: true });
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  return manifestPath;
+}
+
+function createNativeMessagingHostManifestPath(homeDir, chromeAppName = "") {
+  const supportRoot = readChromeNativeMessagingSupportRoot(chromeAppName);
+  return path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    ...supportRoot,
+    "NativeMessagingHosts",
+    "com.sskift.skfiy.json"
+  );
+}
+
+function readChromeNativeMessagingSupportRoot(chromeAppName) {
+  if (/Chrome for Testing/i.test(chromeAppName)) {
+    return ["Google", "ChromeForTesting"];
+  }
+
+  if (/Chromium/i.test(chromeAppName)) {
+    return ["Chromium"];
+  }
+
+  return ["Google", "Chrome"];
+}
+
+function formatChromeExtensionLaunchCommand(chromeAppName, chromePort, chromeUserDataDir, extensionPath) {
+  return `open -na ${chromeAppName} --args --remote-debugging-port=${chromePort} --user-data-dir=${chromeUserDataDir} --load-extension=${extensionPath}`;
+}
+
+async function readOptionalFile(targetPath) {
+  if (!existsSync(targetPath)) {
+    return { exists: false, content: "" };
+  }
+
+  return {
+    exists: true,
+    content: await readFile(targetPath, "utf8")
+  };
+}
+
+async function restoreOptionalFile(targetPath, backup) {
+  if (backup.exists) {
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, backup.content);
+    return;
+  }
+
+  await rm(targetPath, { force: true });
+}
+
+function createInstalledExtensionLoadBlockedRun({
+  options,
+  chromePort,
+  chromeUserDataDir,
+  extensionPath,
+  heartbeatPath,
+  manifestPath,
+  diagnostic
+}) {
+  const blockedReason = isBrandedChromeLoadExtensionRemoved({
+    chromeAppName: options.chromeAppName,
+    chromeVersion: diagnostic.chromeVersion
+  })
+    ? "branded_chrome_load_extension_removed"
+    : "skfiy_extension_worker_not_loaded";
+
+  return {
+    result: blockedReason === "branded_chrome_load_extension_removed" ? "blocked" : "error",
+    productPath: INSTALLED_EXTENSION_PRODUCT_PATH,
+    chromeLaunch: formatChromeExtensionLaunchCommand(
+      options.chromeAppName,
+      chromePort,
+      chromeUserDataDir,
+      extensionPath
+    ),
+    chromePort,
+    chromeVersion: diagnostic.chromeVersion,
+    extensionPath,
+    heartbeatPath,
+    ...(manifestPath ? { manifestPath } : {}),
+    blockedReason,
+    recommendedBrowser: "Chrome for Testing or Chromium",
+    diagnosticTargets: diagnostic.targets,
+    diagnosticExtensions: diagnostic.extensions
+  };
+}
+
+function isInstalledExtensionSmokeAcceptable(run) {
+  return run?.result === "passed"
+    || (
+      run?.result === "blocked"
+      && run?.blockedReason === "branded_chrome_load_extension_removed"
+    );
+}
+
+function isBrandedChromeLoadExtensionRemoved({ chromeAppName, chromeVersion }) {
+  return /Google Chrome/i.test(chromeAppName)
+    && !/Chrome for Testing/i.test(chromeAppName)
+    && readChromeMajorVersion(chromeVersion) >= 137;
+}
+
+function readChromeMajorVersion(chromeVersion) {
+  const matched = String(chromeVersion ?? "").match(/(?:Chrome|Chromium)\/(\d+)/i);
+  return matched ? Number.parseInt(matched[1], 10) : 0;
+}
+
+async function findSkfiyExtensionWorker(port, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastTargets = [];
+  let lastExtensions = [];
+  let chromeVersion = "";
+  let lastError;
+
+  while (Date.now() < deadline) {
+    try {
+      chromeVersion = chromeVersion || await readChromeVersion(port).catch(() => "");
+      const targets = await readChromeTargets(port);
+      lastTargets = targets;
+      lastExtensions = [];
+      const workers = targets.filter((target) =>
+        target.type === "service_worker"
+          && typeof target.url === "string"
+          && target.url.startsWith("chrome-extension://")
+          && typeof target.webSocketDebuggerUrl === "string"
+      );
+
+      for (const worker of workers) {
+        const extension = await readExtensionWorkerIdentity(worker).catch((error) => ({
+          url: worker.url,
+          error: error instanceof Error ? error.message : String(error)
+        }));
+        lastExtensions.push(extension);
+
+        if (extension.manifestName === "skfiy Chrome Adapter") {
+          return {
+            worker,
+            targets: summarizeChromeTargets(lastTargets),
+            extensions: lastExtensions,
+            chromeVersion
+          };
+        }
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await sleep(250);
+  }
+
+  return {
+    worker: undefined,
+    targets: summarizeChromeTargets(lastTargets),
+    extensions: lastExtensions,
+    chromeVersion,
+    error: lastError instanceof Error ? lastError.message : undefined
+  };
+}
+
+async function readChromeVersion(port) {
+  const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+  if (!response.ok) {
+    throw new Error(`Chrome CDP version endpoint returned HTTP ${response.status}.`);
+  }
+
+  const version = await response.json();
+  return typeof version.Browser === "string" ? version.Browser : "";
+}
+
+async function readChromeTargets(port) {
+  const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+  if (!response.ok) {
+    throw new Error(`Chrome CDP target list returned HTTP ${response.status}.`);
+  }
+
+  return response.json();
+}
+
+function summarizeChromeTargets(targets) {
+  return targets.map((target) => ({
+    type: target.type,
+    url: target.url,
+    title: target.title
+  }));
+}
+
+async function readExtensionWorkerIdentity(worker) {
+  const cdp = await createCdpClient(worker.webSocketDebuggerUrl);
+
+  try {
+    await cdp.send("Runtime.enable");
+    const evaluation = await cdp.send("Runtime.evaluate", {
+      expression: "JSON.stringify({ id: chrome.runtime.id, manifestName: chrome.runtime.getManifest().name, permissions: chrome.runtime.getManifest().permissions ?? [] })",
+      awaitPromise: true,
+      returnByValue: true
+    });
+    const value = evaluation.result?.value;
+    const parsed = typeof value === "string" ? JSON.parse(value) : {};
+
+    return {
+      url: worker.url,
+      id: parsed.id,
+      manifestName: parsed.manifestName,
+      permissions: parsed.permissions
+    };
+  } finally {
+    cdp.close();
+  }
+}
+
+function readExtensionIdFromUrl(url) {
+  const matched = url.match(/^chrome-extension:\/\/([^/]+)\//);
+  if (!matched?.[1]) {
+    throw new Error(`Could not read extension id from URL: ${url}`);
+  }
+
+  return matched[1];
+}
+
+function createInstalledExtensionNativeMessageExpression(requestId) {
+  return `(() => new Promise((resolve) => {
+    const finishJson = (response) => resolve(JSON.stringify(response));
+    if (typeof chrome.runtime.connectNative !== "function") {
+      finishJson({
+        type: "skfiy.native.message",
+        schemaVersion: 1,
+        requestId: ${JSON.stringify(requestId)},
+        ok: false,
+        error: "native_messaging_api_unavailable",
+        runtimeKeys: Object.keys(chrome.runtime).sort(),
+        manifestPermissions: chrome.runtime.getManifest().permissions ?? []
+      });
+      return;
+    }
+
+    const port = chrome.runtime.connectNative("com.sskift.skfiy");
+    let settled = false;
+    const timeout = setTimeout(() => finish({
+      type: "skfiy.native.message",
+      schemaVersion: 1,
+      requestId: ${JSON.stringify(requestId)},
+      ok: false,
+      error: "native_host_timeout"
+    }), 5000);
+    const finish = (response) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      try {
+        port.disconnect();
+      } catch {}
+      finishJson(response);
+    };
+    port.onMessage.addListener((response) => finish(response));
+    port.onDisconnect.addListener(() => finish({
+      type: "skfiy.native.message",
+      schemaVersion: 1,
+      requestId: ${JSON.stringify(requestId)},
+      ok: false,
+      error: chrome.runtime.lastError?.message ?? "native_host_disconnected"
+    }));
+    port.postMessage({
+      schemaVersion: 1,
+      type: "skfiy.page.observe",
+      requestId: ${JSON.stringify(requestId)},
+      payload: { currentTab: true }
+    });
+  }))()`;
+}
+
+function readInstalledExtensionNativeMessageEvaluation(evaluation) {
+  const value = evaluation.result?.value;
+  if (typeof value !== "string") {
+    return {
+      ok: false,
+      error: "extension_evaluation_not_json",
+      valueType: typeof value,
+      resultType: evaluation.result?.type,
+      resultSubtype: evaluation.result?.subtype,
+      exceptionText: evaluation.exceptionDetails?.text,
+      exceptionDescription: evaluation.exceptionDetails?.exception?.description
+    };
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return {
+      ok: false,
+      error: "extension_evaluation_invalid_json",
+      raw: value,
+      reason: error instanceof Error ? error.message : String(error)
+    };
   }
 }
 

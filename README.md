@@ -157,8 +157,11 @@ The local dashboard is an audit plane, not the primary pet UI. It binds to
 permissions, current turn, replay, smoke evidence, extension state, and
 long-horizon supervision. The extension state currently includes packaged CLI
 Native Messaging host manifest evidence plus the latest local extension
-heartbeat from `chrome-extension-connection.json`; a real installed-Chrome
-connected-browser smoke is still pending.
+heartbeat from `chrome-extension-connection.json`. The Chrome smoke now also
+records `installedExtensionRun`; on this machine it is a known blocker because
+branded `Google Chrome` 146 no longer honors automated `--load-extension`
+unpacked extension loading, so the live extension path needs Chrome for Testing,
+Chromium, or a user-installed skfiy extension id before it can pass.
 `smoke:chrome` now also requires `nativeHostBridgeRun.result: passed` from the
 packaged `dist/skfiy -> Chrome Native Messaging heartbeat` path before Chrome
 browser-control evidence can count as passed.

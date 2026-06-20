@@ -190,6 +190,19 @@ describe("dashboard snapshot data", () => {
             messageType: "skfiy.page.observe",
             requestId: "chrome-smoke-native-host"
           }
+        },
+        installedExtensionRun: {
+          result: "blocked",
+          productPath: "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat",
+          chromeVersion: "Chrome/146.0.7680.80",
+          blockedReason: "branded_chrome_load_extension_removed",
+          recommendedBrowser: "Chrome for Testing or Chromium",
+          diagnosticExtensions: [
+            {
+              id: "fignfifoniblkonapihmkfakmlgkbkcf",
+              manifestName: "Google Network Speech"
+            }
+          ]
         }
       }),
       "/repo/.skfiy-smoke/chrome-dashboard-native-bridge-postbuild.json": JSON.stringify({
@@ -210,6 +223,19 @@ describe("dashboard snapshot data", () => {
             messageType: "skfiy.page.observe",
             requestId: "chrome-smoke-native-host"
           }
+        },
+        installedExtensionRun: {
+          result: "blocked",
+          productPath: "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat",
+          chromeVersion: "Chrome/146.0.7680.80",
+          blockedReason: "branded_chrome_load_extension_removed",
+          recommendedBrowser: "Chrome for Testing or Chromium",
+          diagnosticExtensions: [
+            {
+              id: "fignfifoniblkonapihmkfakmlgkbkcf",
+              manifestName: "Google Network Speech"
+            }
+          ]
         }
       }),
       "/repo/.skfiy-smoke/cli-current.json": JSON.stringify({
@@ -389,6 +415,14 @@ describe("dashboard snapshot data", () => {
           heartbeatLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
           heartbeatMessageType: "skfiy.page.observe",
           heartbeatRequestId: "chrome-smoke-native-host"
+        },
+        installedExtension: {
+          result: "blocked",
+          productPath: "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat",
+          chromeVersion: "Chrome/146.0.7680.80",
+          blockedReason: "branded_chrome_load_extension_removed",
+          recommendedBrowser: "Chrome for Testing or Chromium",
+          diagnosticExtensionNames: ["Google Network Speech"]
         }
       },
       {

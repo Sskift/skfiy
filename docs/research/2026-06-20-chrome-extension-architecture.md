@@ -174,6 +174,24 @@ runtime behavior.
 - `skfiy chrome status|install-host|uninstall-host` covers manifest setup and
   local heartbeat-based live connection health, but not full installed-extension
   product smoke yet.
+- `smoke:chrome` now records `installedExtensionRun` separately from the direct
+  packaged Native Messaging host bridge. On the current machine, `Google Chrome`
+  146 reports `blockedReason: branded_chrome_load_extension_removed`; the smoke
+  confirms `--load-extension` only exposes built-in Chrome extensions such as
+  "Google Network Speech", not the unpacked skfiy adapter. This matches Chrome's
+  2025 change removing `--load-extension` from branded Chrome 137+ builds.
+- The next installed-extension proof must therefore run against Chrome for
+  Testing/Chromium, or against a user-installed skfiy extension id in the user's
+  real Chrome profile. Until then, the product gate relies on the packaged
+  `dist/skfiy -> Chrome Native Messaging heartbeat` bridge plus CDP/browser
+  control evidence and keeps the live extension path as an explicit blocker.
 - The popup says "Waiting for skfiy app" until native-host health is wired.
 - A focused Vitest test validates the manifest and skeleton strings without
   launching Chrome.
+
+Relevant Chrome references:
+
+- Chrome Extensions blog, June 2025: `--load-extension` was removed in Chrome
+  137 branded builds, with testing alternatives recommended.
+- Chrome Native Messaging docs: extensions communicate with registered native
+  messaging hosts over stdin/stdout, using host manifests and `allowed_origins`.

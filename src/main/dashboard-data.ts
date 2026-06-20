@@ -306,6 +306,7 @@ function readLatestSmokeArtifacts(
       path: artifactPath,
       ...(typeof artifact.productPath === "string" ? { productPath: artifact.productPath } : {}),
       ...readSmokeArtifactNativeHostBridgeSummary(target, artifact),
+      ...readSmokeArtifactInstalledExtensionSummary(target, artifact),
       mtimeMs,
       ...(ageSeconds === undefined ? {} : {
         ageSeconds,
@@ -323,6 +324,36 @@ function readLatestSmokeArtifacts(
   return [...latestByTarget.values()].sort((left, right) =>
     String(left.target).localeCompare(String(right.target))
   );
+}
+
+function readSmokeArtifactInstalledExtensionSummary(
+  target: string,
+  artifact: Record<string, unknown>
+): Record<string, unknown> {
+  if (target !== "chrome") {
+    return {};
+  }
+
+  const run = readRecord(artifact.installedExtensionRun);
+  if (!run) {
+    return {};
+  }
+
+  const diagnosticExtensions = Array.isArray(run.diagnosticExtensions)
+    ? run.diagnosticExtensions
+      .map((entry) => readRecord(entry)?.manifestName)
+      .filter((name): name is string => typeof name === "string")
+    : [];
+  const installedExtension: Record<string, unknown> = {
+    ...(typeof run.result === "string" ? { result: run.result } : {}),
+    ...(typeof run.productPath === "string" ? { productPath: run.productPath } : {}),
+    ...(typeof run.chromeVersion === "string" ? { chromeVersion: run.chromeVersion } : {}),
+    ...(typeof run.blockedReason === "string" ? { blockedReason: run.blockedReason } : {}),
+    ...(typeof run.recommendedBrowser === "string" ? { recommendedBrowser: run.recommendedBrowser } : {}),
+    ...(diagnosticExtensions.length > 0 ? { diagnosticExtensionNames: diagnosticExtensions } : {})
+  };
+
+  return Object.keys(installedExtension).length > 0 ? { installedExtension } : {};
 }
 
 function readSmokeArtifactNativeHostBridgeSummary(

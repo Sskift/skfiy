@@ -281,11 +281,30 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("classifyChromeBringYourOwnCurrentPageEvidence");
   });
 
+  it("records an installed Chrome extension Native Messaging run in the product smoke source", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
+      "utf8"
+    );
+
+    expect(source).toContain("installedExtensionRun");
+    expect(source).toContain("runInstalledChromeExtensionSmoke");
+    expect(source).toContain("--load-extension=");
+    expect(source).toContain("chrome.runtime.connectNative");
+    expect(source).toContain("findSkfiyExtensionWorker");
+    expect(source).toContain("branded_chrome_load_extension_removed");
+    expect(source).toContain("Chrome for Testing");
+    expect(source).toContain("chrome-smoke-installed-extension");
+    expect(source).toContain("heartbeatReadError");
+  });
+
   it("classifies a completed Chrome extraction with expected text as passed", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-chrome-plan.mjs");
     const {
+      INSTALLED_EXTENSION_PRODUCT_PATH,
       classifyChromeSmokeEvidence
     } = await import(pathToFileURL(modulePath).href) as {
+      INSTALLED_EXTENSION_PRODUCT_PATH: string;
       classifyChromeSmokeEvidence: (input: Record<string, unknown>) => string;
     };
 
@@ -295,6 +314,17 @@ describe("Chrome product smoke script", () => {
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
       nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
+      installedExtensionRun: createPassingInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
+      extractedText: "skfiy chrome smoke ready",
+      events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
+    })).toBe("passed");
+    expect(classifyChromeSmokeEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
+      installedExtensionRun: createBlockedInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
       extractedText: "skfiy chrome smoke ready",
       events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
     })).toBe("passed");
@@ -306,15 +336,26 @@ describe("Chrome product smoke script", () => {
       extractedText: "skfiy chrome smoke ready",
       events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
     })).toBe("failed");
+    expect(classifyChromeSmokeEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
+      extractedText: "skfiy chrome smoke ready",
+      events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
+    })).toBe("failed");
   });
 
   it("classifies a completed Chrome form action with expected text as passed", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-chrome-plan.mjs");
     const {
       FORM_EXPECTED_TEXT,
+      INSTALLED_EXTENSION_PRODUCT_PATH,
       classifyChromeSmokeEvidence
     } = await import(pathToFileURL(modulePath).href) as {
       FORM_EXPECTED_TEXT: string;
+      INSTALLED_EXTENSION_PRODUCT_PATH: string;
       classifyChromeSmokeEvidence: (input: Record<string, unknown>) => string;
     };
 
@@ -324,6 +365,7 @@ describe("Chrome product smoke script", () => {
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
       nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
+      installedExtensionRun: createPassingInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
       expectedText: FORM_EXPECTED_TEXT,
       extractedText: FORM_EXPECTED_TEXT,
       events: [
@@ -413,5 +455,39 @@ function createPassingNativeHostBridgeRun() {
       requestId: "chrome-smoke-native-host"
     },
     heartbeatPath: "/repo/.skfiy-smoke/chrome-native-home/Library/Application Support/skfiy/chrome-extension-connection.json"
+  };
+}
+
+function createPassingInstalledExtensionRun(productPath: string) {
+  return {
+    result: "passed",
+    productPath,
+    extensionId: "abcdefghijklmnopabcdefghijklmnop",
+    launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+    response: {
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "chrome-smoke-installed-extension",
+      result: "accepted"
+    },
+    heartbeat: {
+      schemaVersion: 1,
+      hostName: "com.sskift.skfiy",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.page.observe",
+      requestId: "chrome-smoke-installed-extension"
+    },
+    heartbeatPath: "/tmp/skfiy-extension-home/Library/Application Support/skfiy/chrome-extension-connection.json"
+  };
+}
+
+function createBlockedInstalledExtensionRun(productPath: string) {
+  return {
+    result: "blocked",
+    productPath,
+    blockedReason: "branded_chrome_load_extension_removed",
+    chromeVersion: "Chrome/146.0.7680.80",
+    extensionPath: "/repo/chrome-extension",
+    recommendedBrowser: "Chrome for Testing or Chromium"
   };
 }

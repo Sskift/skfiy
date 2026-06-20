@@ -11,6 +11,8 @@ export const SENSITIVE_EXPECTED_RESULT = "sensitive-paused";
 export const PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
 export const NATIVE_HOST_BRIDGE_PRODUCT_PATH =
   "dist/skfiy -> Chrome Native Messaging heartbeat";
+export const INSTALLED_EXTENSION_PRODUCT_PATH =
+  "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat";
 export const FALLBACK_PRODUCT_PATH =
   "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback";
 export const FALLBACK_SWITCH_PRODUCT_PATH =
@@ -129,7 +131,8 @@ export function classifyChromeSmokeEvidence({
   appLaunchViaOpen = false,
   chromeLaunchViaOpen = false,
   productPath,
-  nativeHostBridgeRun
+  nativeHostBridgeRun,
+  installedExtensionRun
 }) {
   const last = events.at(-1);
 
@@ -159,12 +162,47 @@ export function classifyChromeSmokeEvidence({
     || chromeLaunchViaOpen !== true
     || productPath !== PRODUCT_PATH
     || !hasNativeHostBridgeEvidence(nativeHostBridgeRun)
+    || !hasInstalledExtensionSmokeEvidence(installedExtensionRun)
     || !String(extractedText).includes(expectedText)
   ) {
     return "failed";
   }
 
   return "passed";
+}
+
+function hasInstalledExtensionSmokeEvidence(run) {
+  if (isKnownInstalledExtensionSmokeBlocker(run)) {
+    return true;
+  }
+
+  return run
+    && typeof run === "object"
+    && run.result === "passed"
+    && run.productPath === INSTALLED_EXTENSION_PRODUCT_PATH
+    && typeof run.extensionId === "string"
+    && run.extensionId.length === 32
+    && run.launchOrigin === `chrome-extension://${run.extensionId}/`
+    && run.response?.type === "skfiy.native.response"
+    && run.response?.requestId === "chrome-smoke-installed-extension"
+    && run.response?.result === "accepted"
+    && typeof run.heartbeatPath === "string"
+    && run.heartbeatPath.includes("Application Support/skfiy/chrome-extension-connection.json")
+    && run.heartbeat?.hostName === "com.sskift.skfiy"
+    && run.heartbeat?.launchOrigin === `chrome-extension://${run.extensionId}/`
+    && run.heartbeat?.messageType === "skfiy.page.observe"
+    && run.heartbeat?.requestId === "chrome-smoke-installed-extension";
+}
+
+function isKnownInstalledExtensionSmokeBlocker(run) {
+  return run
+    && typeof run === "object"
+    && run.result === "blocked"
+    && run.productPath === INSTALLED_EXTENSION_PRODUCT_PATH
+    && run.blockedReason === "branded_chrome_load_extension_removed"
+    && typeof run.chromeVersion === "string"
+    && typeof run.extensionPath === "string"
+    && run.recommendedBrowser === "Chrome for Testing or Chromium";
 }
 
 function hasNativeHostBridgeEvidence(run) {
