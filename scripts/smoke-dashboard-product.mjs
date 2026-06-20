@@ -48,6 +48,7 @@ async function main() {
     chromeHostPolicyApi: undefined,
     runtimeSnapshotFixture: undefined,
     runtimeSnapshotCoverage: undefined,
+    freshInstallRuntimeSnapshot: undefined,
     tokenLeakDetected: false,
     result: "not-run"
   };
@@ -91,6 +92,7 @@ async function main() {
       dashboardUrl: launched.cliOutput.url,
       timeoutMs: options.timeoutMs
     });
+    evidence.freshInstallRuntimeSnapshot = await collectFreshInstallRuntimeSnapshotEvidence(options);
     evidence.tokenLeakDetected = hasTokenLeak([
       evidence.cliStdout,
       evidence.cliStderr,
@@ -98,6 +100,7 @@ async function main() {
       JSON.stringify(evidence.snapshotResponse),
       JSON.stringify(evidence.eventsResponse),
       JSON.stringify(evidence.chromeHostPolicyApi),
+      JSON.stringify(evidence.freshInstallRuntimeSnapshot),
       evidence.shellResponse?.body ?? ""
     ]);
     evidence.runtimeSnapshotCoverage = createRuntimeSnapshotCoverage(evidence);
@@ -151,6 +154,59 @@ async function seedRuntimeSnapshotFixture(homeDir) {
     path: snapshotPath,
     snapshot
   };
+}
+
+async function collectFreshInstallRuntimeSnapshotEvidence(options) {
+  const isolatedHomeDir = await mkdtemp(path.join(tmpdir(), "skfiy-dashboard-fresh-home-"));
+  const runtimeSnapshotPath = createRuntimeSnapshotStatePath(isolatedHomeDir);
+  const evidence = {
+    productPath: "smoke:dashboard -> isolated fresh HOME -> missing runtime-snapshot.json",
+    isolatedHomeDir,
+    runtimeSnapshotPath,
+    runtimeSnapshotExistsBeforeLaunch: existsSync(runtimeSnapshotPath),
+    runtimeSnapshotExistsAfterFetch: undefined,
+    cliOutput: undefined,
+    cliStdout: "",
+    cliStderr: "",
+    snapshotResponse: undefined,
+    eventsResponse: undefined,
+    cleanup: undefined,
+    result: "not-run"
+  };
+  let dashboardProcess;
+
+  try {
+    const launched = await launchDashboardCli(options, {
+      homeDir: isolatedHomeDir
+    });
+    dashboardProcess = launched.child;
+    evidence.pid = dashboardProcess.pid;
+    evidence.cliOutput = launched.cliOutput;
+    evidence.cliStdout = launched.stdout;
+    evidence.cliStderr = launched.stderr;
+    evidence.snapshotResponse = await readJsonResponse(
+      new URL("/snapshot.json", launched.cliOutput.url).toString(),
+      options.timeoutMs
+    );
+    evidence.eventsResponse = await readEventStreamResponse(
+      new URL("/events", launched.cliOutput.url).toString(),
+      options.timeoutMs
+    );
+    evidence.runtimeSnapshotExistsAfterFetch = existsSync(runtimeSnapshotPath);
+    evidence.result = "collected";
+  } catch (error) {
+    evidence.result = "error";
+    evidence.error = error instanceof Error ? error.message : String(error);
+  } finally {
+    if (dashboardProcess) {
+      evidence.cleanup = await terminateDashboardProcess(dashboardProcess);
+    }
+    await rm(isolatedHomeDir, { recursive: true, force: true }).catch((error) => {
+      evidence.isolatedHomeCleanupError = error instanceof Error ? error.message : String(error);
+    });
+  }
+
+  return evidence;
 }
 
 function createRuntimeSnapshotStatePath(homeDir) {

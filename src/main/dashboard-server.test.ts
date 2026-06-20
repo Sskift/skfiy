@@ -155,6 +155,10 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("/snapshot.json");
     expect(response.body).toContain("runtime-health");
     expect(response.body).toContain("operator-readiness");
+    expect(response.body).toContain("/api/operator-evidence");
+    expect(response.body).toContain("data-operator-evidence-panel");
+    expect(response.body).toContain("data-operator-evidence-status");
+    expect(response.body).toContain("data-operator-evidence-body");
     expect(response.body).toContain("data-dashboard-root");
     expect(response.body).toContain("data-snapshot-state");
     expect(response.body).toContain("Loading snapshot");
@@ -175,6 +179,7 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain('createChromePolicyButton("reset", "Reset")');
     expect(response.body).toContain("formatChromePolicyEntries(hostPolicy, policy)");
     expect(response.body).toContain("renderLongHorizonPanel");
+    expect(response.body).toContain("renderOperatorEvidencePanel(snapshot)");
     expect(response.body).toContain("renderOperatorReadinessPanel(snapshot)");
     expect(response.body).toContain("groupAlerts(alerts)");
     expect(response.body).toContain("createAlertBand(group)");
@@ -285,6 +290,277 @@ describe("dashboard loopback HTTP response helper", () => {
       longHorizon: { session: "money-run" }
     });
     expect(response.body).not.toContain("token=");
+  });
+
+  it("serves a token-free operator evidence summary for CLI and plugin consumers", () => {
+    const response = createDashboardHttpResponse(
+      {
+        method: "GET",
+        url: "http://127.0.0.1:8787/api/operator-evidence?token=ignored"
+      },
+      {
+        port: 8787,
+        createSnapshot: ({ descriptor }) => ({
+          schemaVersion: 1,
+          generatedAt: "2026-06-20T00:00:00.000Z",
+          descriptor,
+          runtimeHealth: {
+            dashboard: { state: "running", url: descriptor.url },
+            extension: {
+              state: "native-host-installed",
+              bridge: "native-messaging",
+              liveConnection: "stale",
+              nativeHostState: "installed",
+              connection: {
+                state: "stale",
+                liveConnection: "stale",
+                ageSeconds: 120,
+                observedAt: "2026-06-19T23:58:00.000Z",
+                launchOrigin: "https://example.test/?token=secret-token",
+                messageType: "skfiy.page.observe"
+              },
+              hostPolicy: {
+                state: "configured",
+                source: "chrome-host-policy-file",
+                policy: {
+                  defaultMode: "ask",
+                  allowedHosts: ["example.test"],
+                  currentTurnAllowedHosts: ["turn.test"],
+                  blockedHosts: ["blocked.test"]
+                },
+                entries: [
+                  { decision: "allow", scope: "always", host: "example.test" },
+                  { decision: "allow", scope: "current-turn", host: "turn.test" },
+                  { decision: "block", scope: "host", host: "blocked.test" }
+                ]
+              }
+            },
+            nativeHost: {
+              state: "installed",
+              hostName: "com.sskift.skfiy",
+              manifestPath: "/tmp/token=secret-token/native-host.json",
+              allowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"]
+            }
+          },
+          operatorReadiness: {
+            state: "needs-evidence",
+            commandSurface: {
+              state: "ready",
+              path: "/tmp/token=secret-token/skfiy"
+            },
+            extensionReadiness: {
+              state: "needs-evidence",
+              nativeHostState: "installed",
+              reason: "token=secret-token"
+            },
+            packagedBinary: {
+              state: "ready",
+              signingState: "valid"
+            },
+            recentSmokeEvidence: {
+              state: "needs-evidence",
+              missingTargets: ["cli"],
+              recentPassedTargets: ["chrome"]
+            }
+          },
+          permissions: {},
+          currentTurn: {
+            state: "approval_required",
+            source: "runtime-snapshot",
+            targetApp: "Chrome token=secret-token",
+            risk: "medium",
+            approvalState: "pending",
+            command: "open https://example.test/?token=secret-token"
+          },
+          replay: {
+            state: "available",
+            source: "runtime-snapshot",
+            screenshotCount: 2,
+            actionCount: 3,
+            verificationCount: 1,
+            timelineTail: ["token=secret-token"]
+          },
+          smokeEvidence: {
+            artifacts: [
+              {
+                target: "chrome",
+                result: "passed",
+                path: "/tmp/token=secret-token/chrome.json",
+                ageSeconds: 60
+              },
+              {
+                target: "cli",
+                result: "failed",
+                blocker: "token=secret-token",
+                stale: true,
+                ageSeconds: 90_000
+              }
+            ]
+          },
+          dogfoodRelease: { state: "unknown" },
+          longHorizon: { state: "unknown" },
+          alerts: [
+            {
+              code: "chrome-extension-heartbeat-stale",
+              severity: "warning",
+              message: "token=secret-token"
+            }
+          ]
+        })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toBe("application/json; charset=utf-8");
+    expect(response.headers["cache-control"]).toBe("no-store");
+
+    const evidence = JSON.parse(response.body);
+    expect(evidence).toMatchObject({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor: {
+        schemaVersion: 1,
+        url: "http://127.0.0.1:8787/",
+        bind: {
+          host: "127.0.0.1",
+          port: 8787
+        },
+        auth: {
+          mode: "optional-token",
+          tokenPrinted: false
+        },
+        panelCount: expect.any(Number)
+      },
+      snapshot: {
+        schemaVersion: 1,
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        currentTurn: {
+          state: "approval_required",
+          source: "runtime-snapshot",
+          targetApp: "Chrome redacted-secret",
+          risk: "medium",
+          approvalState: "pending"
+        },
+        replay: {
+          state: "available",
+          source: "runtime-snapshot",
+          screenshotCount: 2,
+          actionCount: 3,
+          verificationCount: 1
+        },
+        readiness: {
+          state: "needs-evidence",
+          stateCounts: {
+            ready: 2,
+            "needs-evidence": 2
+          },
+          smokeMissingTargets: ["cli"]
+        },
+        alerts: {
+          total: 1,
+          bySeverity: {
+            error: 0,
+            warning: 1,
+            info: 0
+          },
+          codes: ["chrome-extension-heartbeat-stale"]
+        },
+        extension: {
+          state: "native-host-installed",
+          bridge: "native-messaging",
+          liveConnection: "stale",
+          nativeHostState: "installed",
+          connection: {
+            state: "stale",
+            liveConnection: "stale",
+            ageSeconds: 120,
+            observedAt: "2026-06-19T23:58:00.000Z",
+            messageType: "skfiy.page.observe"
+          },
+          hostPolicy: {
+            state: "configured",
+            source: "chrome-host-policy-file",
+            defaultMode: "ask",
+            entryCount: 3,
+            allowedHostCount: 1,
+            currentTurnAllowedHostCount: 1,
+            blockedHostCount: 1
+          }
+        },
+        nativeHost: {
+          state: "installed",
+          hostName: "com.sskift.skfiy",
+          allowedOriginCount: 1
+        },
+        smokeEvidence: {
+          total: 2,
+          passed: 1,
+          failed: 1,
+          stale: 1,
+          targets: ["chrome", "cli"],
+          staleTargets: ["cli"],
+          newestAgeSeconds: 60,
+          oldestAgeSeconds: 90_000
+        }
+      },
+      status: {
+        state: "needs-attention",
+        dashboardUrl: "http://127.0.0.1:8787/",
+        bind: {
+          host: "127.0.0.1",
+          port: 8787
+        },
+        currentTurnState: "approval_required",
+        replayState: "available",
+        readinessState: "needs-evidence",
+        alertCount: 1,
+        errorAlertCount: 0,
+        warningAlertCount: 1,
+        extensionState: "native-host-installed",
+        nativeHostState: "installed",
+        smokeArtifactCount: 2
+      },
+      outputPolicy: {
+        tokenFree: true,
+        source: "allowlisted-dashboard-summary"
+      }
+    });
+    expect(evidence.snapshot.currentTurn).not.toHaveProperty("command");
+    expect(evidence.snapshot.replay).not.toHaveProperty("timelineTail");
+    expect(response.body).not.toContain("ignored");
+    expect(response.body).not.toContain("secret-token");
+    expect(response.body).not.toContain("token=secret-token");
+    expect(response.body).not.toContain("/tmp/token=secret-token");
+  });
+
+  it("serves operator evidence HEAD without a body", () => {
+    const response = createDashboardHttpResponse(
+      {
+        method: "HEAD",
+        url: "http://127.0.0.1:8787/api/operator-evidence"
+      },
+      {
+        port: 8787
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toBe("application/json; charset=utf-8");
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.body).toBe("");
+  });
+
+  it("rejects mutating operator evidence requests", () => {
+    const response = createDashboardHttpResponse({
+      method: "POST",
+      url: "http://127.0.0.1:8787/api/operator-evidence"
+    });
+
+    expect(response).toMatchObject({
+      status: 405,
+      body: "Method Not Allowed\n"
+    });
+    expect(response.headers["allow"]).toBe("GET, HEAD");
   });
 
   it("serves a workspace-backed snapshot when a root directory is provided", () => {

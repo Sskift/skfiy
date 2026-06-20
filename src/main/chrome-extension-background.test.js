@@ -64,6 +64,8 @@ function createChromeMock(nativeResponses = [], options = {}) {
   const postedMessages = [];
   const ports = [];
   const grantedOrigins = new Set(options.grantedOrigins ?? []);
+  const activeTab = options.activeTab;
+  const contentScriptSession = options.contentScriptSession;
   const runtime = {
     id: "abcdefghijklmnopabcdefghijklmnop",
     lastError: undefined,
@@ -131,9 +133,19 @@ function createChromeMock(nativeResponses = [], options = {}) {
         request: vi.fn()
       },
       tabs: {
-        query: vi.fn(),
+        query: vi.fn(async () => activeTab ? [activeTab] : []),
         get: vi.fn(),
-        sendMessage: vi.fn(),
+        sendMessage: vi.fn(async (_tabId, message) => {
+          if (message?.type === "skfiy.page.diagnostics" && contentScriptSession) {
+            return {
+              type: "skfiy.page.diagnostics_result",
+              schemaVersion: 1,
+              requestId: message.requestId,
+              session: contentScriptSession
+            };
+          }
+          return undefined;
+        }),
         captureVisibleTab: vi.fn()
       },
       scripting: {
@@ -207,10 +219,13 @@ describe("Chrome extension background page routing", () => {
         result: "blocked",
         reason: "chrome_host_permission_missing",
         code: "chrome_host_permission_missing",
+        message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run.",
         host: "allowed.example",
         origin: "https://allowed.example",
         chromeHostPermission: {
-          origins: ["https://allowed.example/*"]
+          state: "missing",
+          origins: ["https://allowed.example/*"],
+          message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
         },
         policyDecision: {
           decision: "allowed",
@@ -303,6 +318,149 @@ describe("Chrome extension background policy sync", () => {
         })
       });
     });
+  });
+
+  it("reports current tab host policy and missing optional host permission in diagnostics", async () => {
+    const mock = createChromeMock([], {
+      activeTab: {
+        id: 42,
+        windowId: 7,
+        url: "https://allowed.example/dashboard"
+      }
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["allowed.example"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    mock.storage[HOST_POLICY_SYNC_STORAGE_KEY] = {
+      schemaVersion: 1,
+      state: "error",
+      source: "native_host",
+      updatedAt: "2026-06-20T10:05:00.000Z",
+      lastError: "Specified native messaging host not found."
+    };
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+      type: HOST_POLICY_SYNC_STATUS,
+      requestId: "popup-status-missing-permission"
+    }, {}, sendResponse);
+
+    expect(keepChannelOpen).toBe(true);
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        type: "skfiy.host_policy.response",
+        requestId: "popup-status-missing-permission",
+        diagnostics: expect.objectContaining({
+          lastError: "Specified native messaging host not found.",
+          nativeHost: expect.objectContaining({
+            connectionState: "unavailable",
+            syncState: "error",
+            syncSource: "native_host",
+            lastError: "Specified native messaging host not found."
+          }),
+          currentTab: expect.objectContaining({
+            state: "available",
+            tabId: 42,
+            windowId: 7,
+            host: "allowed.example",
+            origin: "https://allowed.example",
+            hostPolicy: {
+              decision: "allowed",
+              reason: "host_allowed"
+            },
+            chromeHostPermission: expect.objectContaining({
+              state: "missing",
+              reason: "chrome_host_permission_missing",
+              code: "chrome_host_permission_missing",
+              origins: ["https://allowed.example/*"],
+              message: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
+            }),
+            contentScript: expect.objectContaining({
+              state: "blocked_by_chrome_host_permission",
+              reason: "chrome_host_permission_missing",
+              lastError: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
+            })
+          }),
+          session: expect.objectContaining({
+            state: "blocked_by_chrome_host_permission",
+            host: "allowed.example"
+          })
+        })
+      }));
+    });
+
+    expect(mock.chrome.permissions.contains).toHaveBeenCalledWith({
+      origins: ["https://allowed.example/*"]
+    });
+    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("queries existing content-script session diagnostics when policy and Chrome host permission allow it", async () => {
+    const mock = createChromeMock([], {
+      activeTab: {
+        id: 43,
+        windowId: 8,
+        url: "https://allowed.example/dashboard"
+      },
+      grantedOrigins: ["https://allowed.example/*"],
+      contentScriptSession: {
+        state: "loaded",
+        url: "https://allowed.example/dashboard",
+        host: "allowed.example",
+        title: "Dashboard",
+        sensitivePaused: false,
+        sensitivePauseReason: null,
+        observedAt: "2026-06-20T10:07:00.000Z"
+      }
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["allowed.example"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    mock.chrome.runtime.onMessage.listeners[0]({
+      type: HOST_POLICY_SYNC_STATUS,
+      requestId: "popup-status-session"
+    }, {}, sendResponse);
+
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        diagnostics: expect.objectContaining({
+          currentTab: expect.objectContaining({
+            chromeHostPermission: expect.objectContaining({
+              state: "granted",
+              origins: ["https://allowed.example/*"]
+            }),
+            contentScript: expect.objectContaining({
+              state: "loaded",
+              title: "Dashboard",
+              sensitivePaused: false
+            })
+          }),
+          session: expect.objectContaining({
+            state: "loaded",
+            host: "allowed.example"
+          })
+        })
+      }));
+    });
+
+    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledWith(43, expect.objectContaining({
+      type: "skfiy.page.diagnostics",
+      schemaVersion: 1
+    }));
   });
 
   it("syncs host policy through the native host and records sync status", async () => {

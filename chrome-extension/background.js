@@ -12,6 +12,8 @@ export const HOST_POLICY_SHAPE = Object.freeze({
 export const MESSAGE_TYPES = Object.freeze({
   PAGE_OBSERVE: "skfiy.page.observe",
   PAGE_OBSERVE_RESULT: "skfiy.page.observe_result",
+  PAGE_DIAGNOSTICS: "skfiy.page.diagnostics",
+  PAGE_DIAGNOSTICS_RESULT: "skfiy.page.diagnostics_result",
   PAGE_ACTION: "skfiy.page.action",
   PAGE_ACTION_RESULT: "skfiy.page.action_result",
   PAGE_SCREENSHOT: "skfiy.page.screenshot",
@@ -103,6 +105,14 @@ function getHostPermissionDetails(url) {
   }
 }
 
+function createHostPermissionMessage(permissionDetails) {
+  return `Missing optional Chrome host permission for ${permissionDetails.permissionOrigin}. Grant site access before page diagnostics or actions can run.`;
+}
+
+function readErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function clampDownloadsLimit(value) {
   if (!Number.isFinite(value)) {
     return 20;
@@ -157,18 +167,196 @@ async function readHostPolicySyncStatus(policyOverride) {
   };
 }
 
-async function readHostPolicySnapshot() {
-  const policy = await readHostPolicy();
-  const syncStatus = await readHostPolicySyncStatus(policy);
+async function readActiveTabDiagnosticsTarget() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    return {
+      tab: Array.isArray(tabs) ? tabs[0] : undefined,
+      lastError: null
+    };
+  } catch (error) {
+    return {
+      tab: undefined,
+      lastError: readErrorMessage(error)
+    };
+  }
+}
+
+async function readChromeHostPermissionStatus(permissionDetails) {
+  if (!permissionDetails) {
+    return {
+      state: "not_applicable",
+      reason: "non_http_page",
+      origins: []
+    };
+  }
+
+  const origins = [permissionDetails.permissionOrigin];
+  if (typeof chrome.permissions?.contains !== "function") {
+    return {
+      state: "unknown",
+      reason: "permissions_api_unavailable",
+      code: "chrome_host_permission_unknown",
+      origin: permissionDetails.origin,
+      host: permissionDetails.host,
+      origins
+    };
+  }
+
+  try {
+    const granted = await chrome.permissions.contains({ origins });
+    if (granted) {
+      return {
+        state: "granted",
+        origin: permissionDetails.origin,
+        host: permissionDetails.host,
+        origins
+      };
+    }
+
+    return {
+      state: "missing",
+      reason: "chrome_host_permission_missing",
+      code: "chrome_host_permission_missing",
+      origin: permissionDetails.origin,
+      host: permissionDetails.host,
+      origins,
+      message: createHostPermissionMessage(permissionDetails)
+    };
+  } catch (error) {
+    return {
+      state: "unknown",
+      reason: "permissions_check_failed",
+      code: "chrome_host_permission_unknown",
+      origin: permissionDetails.origin,
+      host: permissionDetails.host,
+      origins,
+      lastError: readErrorMessage(error)
+    };
+  }
+}
+
+async function readContentScriptSession(tab, policyDecision, hostPermission) {
+  if (!Number.isInteger(tab?.id)) {
+    return {
+      state: "unavailable",
+      reason: "missing_tab_id"
+    };
+  }
+
+  if (policyDecision.decision !== "allowed") {
+    return {
+      state: "blocked_by_host_policy",
+      reason: policyDecision.reason
+    };
+  }
+
+  if (hostPermission.state !== "granted" && hostPermission.state !== "not_applicable") {
+    return {
+      state: "blocked_by_chrome_host_permission",
+      reason: hostPermission.reason,
+      lastError: hostPermission.message ?? hostPermission.lastError ?? null
+    };
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: MESSAGE_TYPES.PAGE_DIAGNOSTICS,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: `content-diagnostics-${Date.now()}`
+    });
+
+    if (response?.type === MESSAGE_TYPES.PAGE_DIAGNOSTICS_RESULT && response.session) {
+      return {
+        state: "loaded",
+        ...response.session
+      };
+    }
+
+    return {
+      state: "not_loaded",
+      reason: "diagnostics_response_missing"
+    };
+  } catch (error) {
+    const lastError = readErrorMessage(error);
+    return {
+      state: lastError.includes("Receiving end does not exist") ? "not_loaded" : "unavailable",
+      reason: lastError.includes("Receiving end does not exist")
+        ? "content_script_not_loaded"
+        : "content_script_unavailable",
+      lastError
+    };
+  }
+}
+
+async function readCurrentTabDiagnostics(policy) {
+  const { tab, lastError } = await readActiveTabDiagnosticsTarget();
+  if (!tab) {
+    return {
+      state: "unavailable",
+      host: "",
+      hostPolicy: {
+        decision: "blocked",
+        reason: "active_tab_unavailable"
+      },
+      chromeHostPermission: {
+        state: "unknown",
+        reason: "active_tab_unavailable",
+        origins: []
+      },
+      contentScript: {
+        state: "not_queried",
+        reason: "active_tab_unavailable"
+      },
+      lastError
+    };
+  }
+
+  const host = getHost(tab.url ?? "");
+  const permissionDetails = getHostPermissionDetails(tab.url ?? "");
+  const policyDecision = decideHostPolicy(policy, host);
+  const hostPermission = await readChromeHostPermissionStatus(permissionDetails);
+  const contentScript = await readContentScriptSession(tab, policyDecision, hostPermission);
+
   return {
-    policy,
-    syncStatus,
-    diagnostics: createDiagnostics(policy, syncStatus)
+    state: "available",
+    tabId: tab.id ?? null,
+    windowId: tab.windowId ?? null,
+    host,
+    origin: permissionDetails?.origin ?? null,
+    hostPolicy: policyDecision,
+    chromeHostPermission: hostPermission,
+    contentScript
   };
 }
 
-function createDiagnostics(policy, syncStatus) {
+async function readHostPolicySnapshot() {
+  const policy = await readHostPolicy();
+  const syncStatus = await readHostPolicySyncStatus(policy);
+  const currentTab = await readCurrentTabDiagnostics(policy);
+  return {
+    policy,
+    syncStatus,
+    diagnostics: createDiagnostics(policy, syncStatus, currentTab)
+  };
+}
+
+function readNativeHostConnectionState(syncStatus) {
+  switch (syncStatus.state) {
+    case "synced":
+      return "connected";
+    case "syncing":
+      return "connecting";
+    case "error":
+      return "unavailable";
+    default:
+      return "unknown";
+  }
+}
+
+function createDiagnostics(policy, syncStatus, currentTab) {
   const extension = readExtensionDiagnostics();
+  const nativeHostLastError = syncStatus.lastError ?? syncStatus.error ?? null;
   const hostPolicyEntryCounts = {
     allowedHosts: Array.isArray(policy.allowedHosts) ? policy.allowedHosts.length : 0,
     currentTurnAllowedHosts: Array.isArray(policy.currentTurnAllowedHosts)
@@ -189,18 +377,34 @@ function createDiagnostics(policy, syncStatus) {
     capabilities: extension.capabilities,
     nativeHost: {
       name: NATIVE_MESSAGING_HOST_NAME,
+      connectionState: readNativeHostConnectionState(syncStatus),
       syncState: syncStatus.state,
+      syncSource: syncStatus.source,
       policyState: syncStatus.nativeHostPolicyState ?? syncStatus.hostPolicyState,
-      lastError: syncStatus.lastError,
+      lastError: nativeHostLastError,
       lastRequestId: syncStatus.requestId,
       lastTrigger: syncStatus.trigger,
-      updatedAt: syncStatus.updatedAt
+      updatedAt: syncStatus.updatedAt,
+      requestedAt: syncStatus.requestedAt,
+      completedAt: syncStatus.completedAt
     },
     hostPolicy: {
       defaultMode: policy.defaultMode,
       entryCount: countHostPolicyEntries(policy),
       ...hostPolicyEntryCounts
-    }
+    },
+    currentTab,
+    session: {
+      state: currentTab?.contentScript?.state ?? "not_queried",
+      contentScript: currentTab?.contentScript ?? null,
+      host: currentTab?.host ?? null
+    },
+    lastError: nativeHostLastError
+      ?? currentTab?.chromeHostPermission?.lastError
+      ?? currentTab?.chromeHostPermission?.message
+      ?? currentTab?.contentScript?.lastError
+      ?? currentTab?.lastError
+      ?? null
   };
 }
 
@@ -244,21 +448,26 @@ async function ensureContentScript(tabId) {
 async function ensureHostPermission(tab) {
   const permissionDetails = getHostPermissionDetails(tab?.url ?? "");
   if (!permissionDetails) {
-    return { ok: true };
+    return {
+      ok: true,
+      chromeHostPermission: await readChromeHostPermissionStatus(permissionDetails)
+    };
   }
 
-  const hasPermission = await chrome.permissions.contains({
-    origins: [permissionDetails.permissionOrigin]
-  });
-
-  if (hasPermission) {
-    return { ok: true };
+  const chromeHostPermission = await readChromeHostPermissionStatus(permissionDetails);
+  if (chromeHostPermission.state === "granted") {
+    return {
+      ok: true,
+      chromeHostPermission
+    };
   }
 
   return {
     ok: false,
-    reason: "chrome_host_permission_missing",
-    code: "chrome_host_permission_missing",
+    reason: chromeHostPermission.reason ?? "chrome_host_permission_missing",
+    code: chromeHostPermission.code ?? "chrome_host_permission_missing",
+    message: chromeHostPermission.message ?? chromeHostPermission.lastError ?? createHostPermissionMessage(permissionDetails),
+    chromeHostPermission,
     ...permissionDetails
   };
 }
@@ -288,10 +497,13 @@ async function routePageMessage(message) {
       result: "blocked",
       reason: permissionDecision.reason,
       code: permissionDecision.code,
+      message: permissionDecision.message,
       host,
       origin: permissionDecision.origin,
       chromeHostPermission: {
-        origins: [permissionDecision.permissionOrigin]
+        state: permissionDecision.chromeHostPermission?.state ?? "missing",
+        origins: [permissionDecision.permissionOrigin],
+        message: permissionDecision.message
       },
       policyDecision
     };

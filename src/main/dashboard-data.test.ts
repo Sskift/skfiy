@@ -940,6 +940,76 @@ describe("dashboard snapshot data", () => {
     expect(JSON.stringify(snapshot)).not.toContain("token=");
   });
 
+  it("marks a missing runtime snapshot as an explicit fresh-install empty state", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const runtimePath = createRuntimeSnapshotStatePath("/Users/tester");
+    const files: Record<string, string> = {
+      "/repo/package.json": JSON.stringify({
+        name: "skfiy",
+        version: "0.1.0",
+        description: "Desktop Computer Use prototype"
+      })
+    };
+    const directories: Record<string, string[]> = {
+      "/repo/.skfiy-smoke": []
+    };
+    const io = {
+      exists: (targetPath: string) =>
+        Object.hasOwn(files, targetPath)
+        || Object.hasOwn(directories, targetPath),
+      readFile: (targetPath: string) => files[targetPath],
+      readdir: (targetPath: string) => directories[targetPath] ?? [],
+      stat: () => ({ mtimeMs: 0 }),
+      homeDir: () => "/Users/tester",
+      pid: () => 4242,
+      uptimeSeconds: () => 17,
+      gitHead: () => ({
+        state: "present",
+        commitSha: "fedcba9876543210fedcba9876543210fedcba98"
+      }),
+      tmux: () => ({
+        status: 1,
+        stdout: "",
+        stderr: "tmux session was not found."
+      })
+    };
+
+    const snapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      io
+    });
+
+    expect(snapshot.runtimeHealth.runtimeSnapshot).toEqual({
+      state: "missing",
+      path: runtimePath,
+      reason: "Runtime snapshot has not been recorded yet.",
+      emptyReasonCode: "runtime-snapshot-missing",
+      freshInstall: true
+    });
+    expect(snapshot.currentTurn).toEqual({
+      state: "idle",
+      source: "runtime-snapshot",
+      reason: "Runtime snapshot has not been recorded yet.",
+      emptyReasonCode: "runtime-snapshot-missing",
+      freshInstall: true,
+      path: runtimePath
+    });
+    expect(snapshot.replay).toEqual({
+      state: "empty",
+      source: "runtime-snapshot",
+      reason: "Runtime snapshot has not been recorded yet.",
+      emptyReasonCode: "runtime-snapshot-missing",
+      freshInstall: true,
+      path: runtimePath
+    });
+    expect(snapshot.alerts).not.toContainEqual(expect.objectContaining({
+      code: "runtime-snapshot-repaired"
+    }));
+    expect(JSON.stringify(snapshot)).not.toContain("token=");
+  });
+
   it("isolates a damaged runtime snapshot and replaces it with a clean empty snapshot", () => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const runtimePath = createRuntimeSnapshotStatePath("/Users/tester");

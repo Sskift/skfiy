@@ -46,6 +46,8 @@ const SYNTHETIC_TESTER_ID_PREFIXES = [
   "preflight-",
   "synthetic-"
 ];
+const RUNTIME_SNAPSHOT_MISSING_REASON = "Runtime snapshot has not been recorded yet.";
+const RUNTIME_SNAPSHOT_MISSING_EMPTY_REASON_CODE = "runtime-snapshot-missing";
 
 type DashboardChromeHostPolicySource =
   | "default-policy"
@@ -749,13 +751,19 @@ function readWorkspaceRuntimeSnapshot(
 
   const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
   if (!io.exists(snapshotPath)) {
-    const reason = "Runtime snapshot has not been recorded yet.";
+    const reason = RUNTIME_SNAPSHOT_MISSING_REASON;
+    const missingMetadata = {
+      emptyReasonCode: RUNTIME_SNAPSHOT_MISSING_EMPTY_REASON_CODE,
+      freshInstall: true
+    };
+
     return {
-      ...createMissingRuntimePanels(reason, snapshotPath),
+      ...createMissingRuntimePanels(reason, snapshotPath, undefined, missingMetadata),
       status: {
         state: "missing",
         path: snapshotPath,
-        reason
+        reason,
+        ...missingMetadata
       }
     };
   }
@@ -911,7 +919,8 @@ function createCorruptRuntimeSnapshotPath(
 function createMissingRuntimePanels(
   reason: string,
   pathValue?: string,
-  recovery?: Record<string, unknown>
+  recovery?: Record<string, unknown>,
+  metadata: Record<string, unknown> = {}
 ): {
   currentTurn: Record<string, unknown>;
   replay: Record<string, unknown>;
@@ -921,6 +930,7 @@ function createMissingRuntimePanels(
       state: "idle",
       source: "runtime-snapshot",
       reason,
+      ...metadata,
       ...(pathValue ? { path: pathValue } : {}),
       ...(recovery ? { recovery } : {})
     },
@@ -928,6 +938,7 @@ function createMissingRuntimePanels(
       state: "empty",
       source: "runtime-snapshot",
       reason,
+      ...metadata,
       ...(pathValue ? { path: pathValue } : {}),
       ...(recovery ? { recovery } : {})
     }

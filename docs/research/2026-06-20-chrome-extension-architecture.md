@@ -163,6 +163,12 @@ runtime still needs the long-plan safety model: host approvals, action risk
 classification, screenshot/OCR sensitive-page checks, user-visible pause state,
 and replay evidence.
 
+The content script also answers a read-only `skfiy.page.diagnostics` request
+with page-session metadata: loaded state, URL/host/title, sensitive-pause state,
+and observation time. It does not include page text or form data. The background
+worker only queries that session path when skfiy host policy allows the current
+host and Chrome has granted the matching optional host permission.
+
 ## Fallback Order
 
 The target adapter order remains:
@@ -201,9 +207,15 @@ runtime behavior.
   `dist/skfiy -> Chrome Native Messaging heartbeat` bridge plus CDP/browser
   control evidence and keeps the live extension path as an explicit blocker.
 - The popup now shows the latest host-policy sync state from extension storage
-  (`source`, `updatedAt`, host-policy entry count, and error text) and can
-  manually refresh policy through the native host. Live installed-extension
-  product smoke remains blocked by branded Chrome's unpacked-extension change.
+  (`source`, `updatedAt`, host-policy entry count, and last error text) and can
+  manually refresh policy through the native host. It also exposes the extension
+  manifest version, capabilities, derived native-host connection state, current
+  tab host-policy decision/reason, optional Chrome host-permission state, and
+  content-script page-session state. Missing HTTP/HTTPS optional host permission
+  is reported as a read-only blocked diagnostic with the origin pattern that
+  must be granted before page diagnostics or actions can run. Live
+  installed-extension product smoke remains blocked by branded Chrome's
+  unpacked-extension change.
 - A focused Vitest test validates the manifest and skeleton strings without
   launching Chrome.
 

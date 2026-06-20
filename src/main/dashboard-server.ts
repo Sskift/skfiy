@@ -11,6 +11,7 @@ import {
   type DashboardWorkspaceIo,
   type DashboardSnapshotInput
 } from "./dashboard-data.js";
+import { createDashboardOperatorEvidence } from "./dashboard-operator-evidence.js";
 import {
   applyChromeHostPolicyAction,
   createDefaultChromeHostPolicy,
@@ -80,6 +81,17 @@ export function createDashboardHttpResponse(
     const snapshot = createSnapshotFromOptions(options, descriptor);
 
     return jsonResponse(snapshot, body);
+  }
+
+  if (url.pathname === "/api/operator-evidence") {
+    const descriptor = createDescriptorFromOptions(options);
+    const snapshot = createSnapshotFromOptions(options, descriptor);
+    const evidence = createDashboardOperatorEvidence({
+      descriptor,
+      snapshot
+    });
+
+    return jsonResponse(evidence, body);
   }
 
   if (url.pathname === "/events") {
@@ -492,6 +504,17 @@ function renderDashboardHtml(descriptor: DashboardDescriptor): string {
       ].join("");
     })
     .join("");
+  const operatorEvidencePanel = [
+    '<section class="panel operator-evidence" data-operator-evidence-panel>',
+    '<div class="panel-heading">',
+    "<h2>Operator evidence</h2>",
+    '<span class="panel-status" data-operator-evidence-status>Waiting</span>',
+    "</div>",
+    '<div class="panel-body" data-operator-evidence-body>',
+    '<p class="muted">Loading operator evidence...</p>',
+    "</div>",
+    "</section>"
+  ].join("");
 
   return [
     "<!doctype html>",
@@ -511,6 +534,8 @@ function renderDashboardHtml(descriptor: DashboardDescriptor): string {
     ".links{display:flex;gap:12px;flex-wrap:wrap}",
     "a{color:#0f766e;text-decoration:none}",
     ".snapshot-meta,.muted{color:#5b6673;font-size:13px}",
+    ".operator-evidence{margin-bottom:12px}",
+    ".operator-evidence .panel-body{margin-top:8px}",
     ".dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}",
     ".panel{border:1px solid #d6dbe1;background:#fff;border-radius:8px;padding:14px;min-width:0}",
     ".panel-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}",
@@ -552,8 +577,10 @@ function renderDashboardHtml(descriptor: DashboardDescriptor): string {
     '<nav class="links" aria-label="Dashboard JSON endpoints">',
     '<a href="/descriptor.json">Descriptor JSON</a>',
     '<a href="/snapshot.json">Snapshot JSON</a>',
+    '<a href="/api/operator-evidence">Operator Evidence</a>',
     "</nav>",
     "</div>",
+    operatorEvidencePanel,
     '<div class="dashboard-grid">',
     panels,
     "</div>",
@@ -582,6 +609,15 @@ function renderDashboardScript(): string {
     "",
     "  function setStatus(id, label, kind = \"\") {",
     "    const status = panelStatus(id);",
+    "    if (!status) return;",
+    "    status.textContent = label;",
+    "    status.classList.toggle(\"state-ok\", kind === \"ok\");",
+    "    status.classList.toggle(\"state-warning\", kind === \"warning\");",
+    "    status.classList.toggle(\"state-error\", kind === \"error\");",
+    "  }",
+    "",
+    "  function setOperatorEvidenceStatus(label, kind = \"\") {",
+    "    const status = document.querySelector(\"[data-operator-evidence-status]\");",
     "    if (!status) return;",
     "    status.textContent = label;",
     "    status.classList.toggle(\"state-ok\", kind === \"ok\");",
@@ -646,6 +682,37 @@ function renderDashboardScript(): string {
     "      target.append(list);",
     "    }",
     "    setStatus(id, statusLabel, statusKind);",
+    "  }",
+    "",
+    "  function renderOperatorEvidencePanel(snapshot) {",
+    "    const target = document.querySelector(\"[data-operator-evidence-body]\");",
+    "    if (!target) return;",
+    "    const descriptor = snapshot.descriptor || {};",
+    "    const bind = descriptor.bind || {};",
+    "    const runtime = snapshot.runtimeHealth || {};",
+    "    const readiness = snapshot.operatorReadiness || {};",
+    "    const currentTurn = snapshot.currentTurn || {};",
+    "    const replay = snapshot.replay || {};",
+    "    const extension = runtime.extension || {};",
+    "    const nativeHost = runtime.nativeHost || {};",
+    "    const alerts = readArray(snapshot.alerts);",
+    "    const artifacts = readArray(snapshot.smokeEvidence && snapshot.smokeEvidence.artifacts);",
+    "    const hasError = alerts.some((alert) => alert && alert.severity === \"error\");",
+    "    const hasWarning = alerts.some((alert) => alert && alert.severity === \"warning\");",
+    "    target.replaceChildren();",
+    "    target.append(createMetricList([",
+    "      row(\"endpoint\", \"/api/operator-evidence\"),",
+    "      row(\"dashboard\", descriptor.url),",
+    "      row(\"bind\", bind.host && Number.isInteger(bind.port) ? `${bind.host}:${bind.port}` : undefined),",
+    "      row(\"turn\", currentTurn.state),",
+    "      row(\"replay\", replay.state),",
+    "      row(\"readiness\", readiness.state),",
+    "      row(\"alerts\", alerts.length),",
+    "      row(\"extension\", extension.state),",
+    "      row(\"native host\", nativeHost.state),",
+    "      row(\"smoke artifacts\", artifacts.length)",
+    "    ]));",
+    "    setOperatorEvidenceStatus(hasError || readiness.state === \"blocked\" ? \"Blocked\" : hasWarning ? \"Attention\" : readiness.state || \"Loaded\", hasError || readiness.state === \"blocked\" ? \"error\" : hasWarning ? \"warning\" : \"ok\");",
     "  }",
     "",
     "  function renderRuntimePanel(snapshot) {",
@@ -984,6 +1051,7 @@ function renderDashboardScript(): string {
     "  }",
     "",
     "  function renderSnapshot(snapshot) {",
+    "    renderOperatorEvidencePanel(snapshot);",
     "    renderRuntimePanel(snapshot);",
     "    renderOperatorReadinessPanel(snapshot);",
     "    renderPermissionsPanel(snapshot);",
@@ -1006,6 +1074,7 @@ function renderDashboardScript(): string {
     "    for (const section of document.querySelectorAll(\"[data-panel-id]\")) {",
     "      setStatus(section.getAttribute(\"data-panel-id\"), \"Unavailable\", \"error\");",
     "    }",
+    "    setOperatorEvidenceStatus(\"Unavailable\", \"error\");",
     "  }",
     "",
     "  async function loadSnapshot() {",

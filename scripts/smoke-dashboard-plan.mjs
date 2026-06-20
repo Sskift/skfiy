@@ -107,6 +107,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
     )
     || runtimeSnapshotCoverage.result !== "passed"
     || !hasRuntimeSnapshotCoverageEvidence(evidence.runtimeSnapshotCoverage, runtimeSnapshotCoverage)
+    || !hasFreshInstallRuntimeSnapshotEvidence(evidence.freshInstallRuntimeSnapshot)
     || !hasOperatorReadinessEvidence(snapshot?.operatorReadiness)
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
@@ -513,6 +514,40 @@ function hasRuntimeSnapshotCoverageEvidence(coverage, expectedCoverage) {
     && coverage.replayFields.includes("actions")
     && coverage.replayFields.includes("verifications")
     && coverage.replayFields.includes("timelineTail");
+}
+
+function hasFreshInstallRuntimeSnapshotEvidence(freshInstall) {
+  const snapshot = freshInstall?.snapshotResponse?.body;
+  const runtimeSnapshot = snapshot?.runtimeHealth?.runtimeSnapshot;
+  const currentTurn = snapshot?.currentTurn;
+  const replay = snapshot?.replay;
+  const pathValue = runtimeSnapshot?.path;
+
+  return freshInstall?.productPath === "smoke:dashboard -> isolated fresh HOME -> missing runtime-snapshot.json"
+    && freshInstall?.runtimeSnapshotExistsBeforeLaunch === false
+    && freshInstall?.runtimeSnapshotExistsAfterFetch === false
+    && freshInstall?.snapshotResponse?.status === 200
+    && freshInstall?.cliOutput?.command === "dashboard"
+    && freshInstall?.cliOutput?.result === "running"
+    && hasDashboardEventsEvidence(freshInstall?.eventsResponse)
+    && runtimeSnapshot?.state === "missing"
+    && runtimeSnapshot?.freshInstall === true
+    && runtimeSnapshot?.emptyReasonCode === "runtime-snapshot-missing"
+    && runtimeSnapshot?.reason === "Runtime snapshot has not been recorded yet."
+    && isRuntimeSnapshotPath(pathValue)
+    && currentTurn?.state === "idle"
+    && currentTurn?.source === "runtime-snapshot"
+    && currentTurn?.freshInstall === true
+    && currentTurn?.emptyReasonCode === "runtime-snapshot-missing"
+    && currentTurn?.reason === runtimeSnapshot.reason
+    && currentTurn?.path === pathValue
+    && replay?.state === "empty"
+    && replay?.source === "runtime-snapshot"
+    && replay?.freshInstall === true
+    && replay?.emptyReasonCode === "runtime-snapshot-missing"
+    && replay?.reason === runtimeSnapshot.reason
+    && replay?.path === pathValue
+    && freshInstall?.cleanup?.exited === true;
 }
 
 function hasAvailableRuntimePanelEvidence(currentTurn, replay) {

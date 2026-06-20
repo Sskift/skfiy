@@ -32,6 +32,8 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("runtime-snapshot.json");
     expect(source).toContain("createRuntimeSnapshotCoverage");
     expect(source).toContain("runtimeSnapshotCoverage");
+    expect(source).toContain("collectFreshInstallRuntimeSnapshotEvidence");
+    expect(source).toContain("freshInstallRuntimeSnapshot");
     expect(source).toContain("operatorReadiness");
   });
 
@@ -190,6 +192,64 @@ describe("dashboard product smoke script", () => {
           source: "runtime-snapshot"
         }
       }
+    };
+    const freshInstallRuntimeSnapshot = {
+      productPath: "smoke:dashboard -> isolated fresh HOME -> missing runtime-snapshot.json",
+      isolatedHomeDir: "/var/folders/skfiy-dashboard-fresh-home-abc123",
+      runtimeSnapshotPath: "/var/folders/skfiy-dashboard-fresh-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json",
+      runtimeSnapshotExistsBeforeLaunch: false,
+      runtimeSnapshotExistsAfterFetch: false,
+      cliOutput: {
+        command: "dashboard",
+        result: "running",
+        url: "http://127.0.0.1:51235/"
+      },
+      snapshotResponse: {
+        status: 200,
+        body: {
+          schemaVersion: 1,
+          runtimeHealth: {
+            runtimeSnapshot: {
+              state: "missing",
+              path: "/var/folders/skfiy-dashboard-fresh-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json",
+              reason: "Runtime snapshot has not been recorded yet.",
+              emptyReasonCode: "runtime-snapshot-missing",
+              freshInstall: true
+            }
+          },
+          currentTurn: {
+            state: "idle",
+            source: "runtime-snapshot",
+            reason: "Runtime snapshot has not been recorded yet.",
+            emptyReasonCode: "runtime-snapshot-missing",
+            freshInstall: true,
+            path: "/var/folders/skfiy-dashboard-fresh-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json"
+          },
+          replay: {
+            state: "empty",
+            source: "runtime-snapshot",
+            reason: "Runtime snapshot has not been recorded yet.",
+            emptyReasonCode: "runtime-snapshot-missing",
+            freshInstall: true,
+            path: "/var/folders/skfiy-dashboard-fresh-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json"
+          }
+        }
+      },
+      eventsResponse: {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-store, no-transform"
+        },
+        body: 'event: snapshot\ndata: {"schemaVersion":1,"generatedAt":"2026-06-20T00:00:00.000Z","currentTurn":{"state":"idle","source":"runtime-snapshot","reason":"Runtime snapshot has not been recorded yet.","emptyReasonCode":"runtime-snapshot-missing","freshInstall":true,"path":"/var/folders/skfiy-dashboard-fresh-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json"},"replay":{"state":"empty","source":"runtime-snapshot","reason":"Runtime snapshot has not been recorded yet.","emptyReasonCode":"runtime-snapshot-missing","freshInstall":true,"path":"/var/folders/skfiy-dashboard-fresh-home-abc123/Library/Application Support/skfiy/runtime-snapshot.json"}}\n\n'
+      },
+      cleanup: {
+        signal: "SIGTERM",
+        exited: true,
+        code: 0,
+        signalCode: null
+      },
+      result: "collected"
     };
     const passedEvidence = withRuntimeSnapshotCoverage({
       cliPath: "/repo/dist/skfiy",
@@ -571,10 +631,22 @@ describe("dashboard product smoke script", () => {
         }
       },
       runtimeSnapshotFixture,
+      freshInstallRuntimeSnapshot,
       tokenLeakDetected: false
     });
 
     expect(classifyDashboardSmokeEvidence(passedEvidence)).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      freshInstallRuntimeSnapshot: undefined
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      freshInstallRuntimeSnapshot: {
+        ...freshInstallRuntimeSnapshot,
+        runtimeSnapshotExistsAfterFetch: true
+      }
+    })).toBe("failed");
     expect(passedEvidence.runtimeSnapshotCoverage).toMatchObject({
       result: "passed",
       reason: "Seeded runtime snapshot currentTurn and replay are visible at /snapshot.json.",

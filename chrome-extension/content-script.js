@@ -3,6 +3,8 @@ const MESSAGE_SCHEMA_VERSION = 1;
 const MESSAGE_TYPES = Object.freeze({
   PAGE_OBSERVE: "skfiy.page.observe",
   PAGE_OBSERVE_RESULT: "skfiy.page.observe_result",
+  PAGE_DIAGNOSTICS: "skfiy.page.diagnostics",
+  PAGE_DIAGNOSTICS_RESULT: "skfiy.page.diagnostics_result",
   PAGE_ACTION: "skfiy.page.action",
   PAGE_ACTION_RESULT: "skfiy.page.action_result",
   PAGE_SENSITIVE_PAUSE: "skfiy.page.sensitive_pause"
@@ -108,6 +110,20 @@ function capturePageSnapshot() {
     visibleText: textOf(document.body?.innerText).slice(0, 20000),
     forms: collectFormMetadata(),
     interactiveElements: collectInteractiveElements()
+  };
+}
+
+function readContentScriptSession() {
+  const sensitivePauseReason = document.documentElement.getAttribute("data-skfiy-sensitive-paused");
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    state: "loaded",
+    url: location.href,
+    host: location.host,
+    title: document.title,
+    sensitivePaused: Boolean(sensitivePauseReason),
+    sensitivePauseReason,
+    observedAt: new Date().toISOString()
   };
 }
 
@@ -236,6 +252,16 @@ function runPageAction(action) {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === MESSAGE_TYPES.PAGE_DIAGNOSTICS) {
+    sendResponse({
+      type: MESSAGE_TYPES.PAGE_DIAGNOSTICS_RESULT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      session: readContentScriptSession()
+    });
+    return true;
+  }
+
   if (message?.type === MESSAGE_TYPES.PAGE_OBSERVE) {
     sendResponse({
       type: MESSAGE_TYPES.PAGE_OBSERVE_RESULT,

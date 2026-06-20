@@ -39,6 +39,23 @@ function labelForPolicy(policy, host) {
   return DEFAULT_POLICY_LABEL;
 }
 
+function formatPolicyReason(hostPolicy) {
+  switch (hostPolicy?.reason) {
+    case "host_allowed":
+      return "Host allowed";
+    case "blocked_host":
+      return "Blocked host";
+    case "default_policy":
+      return "Default policy";
+    case "missing_host":
+      return "Missing host";
+    case "active_tab_unavailable":
+      return "Active tab unavailable";
+    default:
+      return hostPolicy?.reason || "Unknown";
+  }
+}
+
 function formatSyncState(state) {
   switch (state) {
     case "synced":
@@ -52,12 +69,15 @@ function formatSyncState(state) {
   }
 }
 
-function formatConnection(syncStatus) {
-  switch (syncStatus?.state) {
+function formatConnection(syncStatus, nativeHost = {}) {
+  switch (nativeHost.connectionState ?? syncStatus?.state) {
+    case "connected":
     case "synced":
       return "Synced with skfiy app";
+    case "connecting":
     case "syncing":
       return "Syncing with skfiy app";
+    case "unavailable":
     case "error":
       return "skfiy app unavailable";
     default:
@@ -94,8 +114,10 @@ function formatCapabilities(capabilities) {
   }
 
   const labels = [
+    ["activeTab", "Active tab"],
     ["nativeMessaging", "Native messaging"],
     ["scripting", "Scripting"],
+    ["storage", "Storage"],
     ["tabs", "Tabs"],
     ["downloads", "Downloads"]
   ]
@@ -103,6 +125,52 @@ function formatCapabilities(capabilities) {
     .map(([, label]) => label);
 
   return labels.length > 0 ? labels.join(", ") : "None";
+}
+
+function formatManifestVersion(extension) {
+  if (extension?.manifestVersion) {
+    return `MV${extension.manifestVersion}`;
+  }
+  return "Unknown";
+}
+
+function formatHostPermission(permission) {
+  switch (permission?.state) {
+    case "granted":
+      return `Granted for ${permission.origins?.[0] ?? permission.origin ?? "current host"}`;
+    case "missing":
+      return permission.message
+        ?? `Missing optional permission for ${permission.origins?.[0] ?? "current host"}`;
+    case "not_applicable":
+      return "Not required for this page";
+    case "unknown":
+      return permission.lastError
+        ? `Unknown: ${permission.lastError}`
+        : "Unknown";
+    default:
+      return "Unknown";
+  }
+}
+
+function formatContentScriptSession(session) {
+  switch (session?.state) {
+    case "loaded":
+      return session.sensitivePaused ? "Loaded, sensitive pause active" : "Loaded";
+    case "blocked_by_host_policy":
+      return "Blocked by host policy";
+    case "blocked_by_chrome_host_permission":
+      return "Blocked by missing host permission";
+    case "unavailable":
+      return session.lastError ? `Unavailable: ${session.lastError}` : "Unavailable";
+    case "unknown":
+      return "Unknown";
+    case "not_queried":
+      return "Not queried";
+    case "not_loaded":
+      return "Not loaded";
+    default:
+      return "Unknown";
+  }
 }
 
 function formatUpdatedAt(updatedAt) {
@@ -118,13 +186,22 @@ function formatUpdatedAt(updatedAt) {
 
 function applySyncStatus(syncStatus, diagnostics) {
   const nativeHost = diagnostics?.nativeHost ?? {};
-  const lastError = nativeHost.lastError ?? syncStatus?.lastError ?? syncStatus?.error;
+  const currentTab = diagnostics?.currentTab ?? {};
+  const lastError = diagnostics?.lastError ?? nativeHost.lastError ?? syncStatus?.lastError ?? syncStatus?.error;
 
+  document.getElementById("native-host").textContent = nativeHost.name ?? "com.sskift.skfiy";
   document.getElementById("extension-version").textContent =
     diagnostics?.extension?.version ? `v${diagnostics.extension.version}` : "Unknown";
+  document.getElementById("extension-manifest-version").textContent =
+    formatManifestVersion(diagnostics?.extension);
   document.getElementById("extension-capabilities").textContent =
     formatCapabilities(diagnostics?.capabilities);
-  document.getElementById("connection-status").textContent = formatConnection(syncStatus);
+  document.getElementById("connection-status").textContent = formatConnection(syncStatus, nativeHost);
+  document.getElementById("host-policy-reason").textContent = formatPolicyReason(currentTab.hostPolicy);
+  document.getElementById("chrome-host-permission").textContent =
+    formatHostPermission(currentTab.chromeHostPermission);
+  document.getElementById("content-script-session").textContent =
+    formatContentScriptSession(diagnostics?.session?.contentScript ?? currentTab.contentScript);
   document.getElementById("native-host-policy-state").textContent = formatPolicyState(
     nativeHost.policyState ?? syncStatus?.nativeHostPolicyState ?? syncStatus?.hostPolicyState
   );

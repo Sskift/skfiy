@@ -65,6 +65,7 @@ export const PERMISSION_SETTINGS_TARGETS = [
 
 export type SmokeTarget = typeof SMOKE_TARGETS[number];
 export type PermissionSettingsTarget = typeof PERMISSION_SETTINGS_TARGETS[number];
+export type DashboardProbeSubcommand = "status" | "snapshot";
 export type ChromeSubcommand = "status" | "install-host" | "uninstall-host";
 export type ChromePolicySubcommand = "show" | "set" | "reset";
 export type McpTransport = "stdio";
@@ -173,6 +174,15 @@ export type CliCommandInvocation =
       options: {
         noOpen: boolean;
         port: number;
+      };
+    }
+  | {
+      kind: "dashboard-probe";
+      path: `dashboard ${DashboardProbeSubcommand}`;
+      subcommand: DashboardProbeSubcommand;
+      json: boolean;
+      options: {
+        url: string;
       };
     }
   | {
@@ -379,6 +389,22 @@ const COMMANDS: CliCommandDefinition[] = [
     outputShape: "dashboard"
   },
   {
+    path: "dashboard status",
+    summary: "Fetch descriptor, snapshot status, and operator readiness from a running dashboard.",
+    jsonOutput: true,
+    plannedMutation: false,
+    executesSystemMutation: false,
+    outputShape: "dashboard-status"
+  },
+  {
+    path: "dashboard snapshot",
+    summary: "Fetch the full snapshot JSON from a running dashboard.",
+    jsonOutput: true,
+    plannedMutation: false,
+    executesSystemMutation: false,
+    outputShape: "dashboard-snapshot"
+  },
+  {
     path: "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
     summary: "Open the matching macOS Privacy & Security permission settings panel.",
     jsonOutput: true,
@@ -511,6 +537,35 @@ export function normalizeCliCommand(
   }
 
   if (command === "dashboard") {
+    const subcommand = argv[1];
+    if (isDashboardProbeSubcommand(subcommand)) {
+      const url = readOptionValue(argv, "--url") ?? readOptionValue(argv, "--dashboard-url");
+
+      if (!url || url.startsWith("--")) {
+        return error(
+          "missing-dashboard-url",
+          `Dashboard ${subcommand} requires --url <url>.`
+        );
+      }
+
+      return ok({
+        kind: "dashboard-probe",
+        path: `dashboard ${subcommand}`,
+        subcommand,
+        json: argv.includes("--json"),
+        options: {
+          url
+        }
+      });
+    }
+
+    if (subcommand && !subcommand.startsWith("--")) {
+      return error(
+        "unknown-dashboard-subcommand",
+        `Unknown dashboard subcommand: ${subcommand}`
+      );
+    }
+
     const port = readNumberOption(argv, "--port", 0);
 
     return ok({
@@ -767,6 +822,13 @@ export function createCliOutput(
     };
   }
 
+  if (invocation.kind === "dashboard-probe") {
+    return createDashboardProbeNotRunOutput({
+      invocation,
+      generatedAt
+    });
+  }
+
   if (invocation.kind === "permissions-open") {
     return createPermissionSettingsOpenOutput({
       invocation,
@@ -876,6 +938,285 @@ export function createCliOutput(
     executesSystemMutation: false,
     result: "not-run"
   };
+}
+
+function createDashboardProbeNotRunOutput({
+  invocation,
+  generatedAt
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "dashboard-probe" }>;
+  generatedAt: string;
+}): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    command: invocation.path,
+    generatedAt,
+    executesSystemMutation: false,
+    result: "not-run",
+    url: sanitizeDashboardUrlForOutput(invocation.options.url),
+    endpoints: createDashboardProbeEndpoints(invocation.options.url),
+    fetch: {
+      descriptor: { state: "unknown" },
+      snapshot: { state: "unknown" },
+      operatorEvidence: { state: "unknown" }
+    },
+    descriptor: { state: "unknown" },
+    snapshot: { state: "unknown" },
+    operatorEvidence: { state: "unknown" },
+    operatorReadiness: { state: "unknown" }
+  };
+}
+
+async function runDashboardProbeCli({
+  invocation,
+  generatedAt,
+  stdout
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "dashboard-probe" }>;
+  generatedAt?: string;
+  stdout: SkfiyCliIo;
+}): Promise<number> {
+  const output = await createDashboardProbeRunOutput({
+    invocation,
+    generatedAt: generatedAt ?? new Date().toISOString()
+  });
+
+  stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+  return output.result === "ok" ? 0 : 1;
+}
+
+async function createDashboardProbeRunOutput({
+  invocation,
+  generatedAt
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "dashboard-probe" }>;
+  generatedAt: string;
+}): Promise<Record<string, unknown>> {
+  const baseOutput = createDashboardProbeNotRunOutput({
+    invocation,
+    generatedAt
+  });
+  const descriptorUrl = createDashboardDescriptorUrl(invocation.options.url);
+  const snapshotUrl = createDashboardSnapshotUrl(invocation.options.url);
+  const operatorEvidenceUrl = createDashboardOperatorEvidenceUrl(invocation.options.url);
+
+  if (!descriptorUrl || !snapshotUrl || !operatorEvidenceUrl) {
+    return {
+      ...baseOutput,
+      result: "error",
+      error: {
+        code: "invalid-dashboard-url",
+        message: `Invalid dashboard URL: ${sanitizeSensitiveString(invocation.options.url)}`
+      },
+      fetch: {
+        descriptor: {
+          state: "not-probed",
+          reason: "Invalid dashboard URL."
+        },
+        snapshot: {
+          state: "not-probed",
+          reason: "Invalid dashboard URL."
+        },
+        operatorEvidence: {
+          state: "not-probed",
+          reason: "Invalid dashboard URL."
+        }
+      }
+    };
+  }
+
+  const [descriptorProbe, snapshotProbe, operatorEvidenceProbe] = await Promise.all([
+    fetchDashboardJson(descriptorUrl),
+    fetchDashboardJson(snapshotUrl),
+    invocation.subcommand === "status"
+      ? fetchDashboardJson(operatorEvidenceUrl)
+      : Promise.resolve({
+          state: "not-requested",
+          url: operatorEvidenceUrl,
+          reason: "dashboard snapshot returns the full snapshot and does not fetch operator evidence."
+        } as Record<string, unknown>)
+  ]);
+  const descriptorBody = readRecord(descriptorProbe.body);
+  const snapshotBody = readRecord(snapshotProbe.body);
+  const operatorEvidenceBody = readRecord(operatorEvidenceProbe.body);
+  const result = descriptorProbe.state === "reachable"
+    && snapshotProbe.state === "reachable"
+    && (
+      invocation.subcommand === "snapshot"
+      || operatorEvidenceProbe.state === "reachable"
+    )
+    ? "ok"
+    : "error";
+  const operatorReadiness = sanitizeTokenFree(
+    readRecord(snapshotBody?.operatorReadiness) ?? { state: "unknown" }
+  );
+  const commonOutput = {
+    ...baseOutput,
+    result,
+    fetch: {
+      descriptor: createDashboardFetchSummary(descriptorProbe),
+      snapshot: createDashboardFetchSummary(snapshotProbe),
+      operatorEvidence: createDashboardFetchSummary(operatorEvidenceProbe)
+    },
+    descriptor: descriptorBody
+      ? sanitizeTokenFree(descriptorBody)
+      : createDashboardFetchSummary(descriptorProbe),
+    operatorEvidence: operatorEvidenceBody
+      ? sanitizeTokenFree(operatorEvidenceBody)
+      : createDashboardFetchSummary(operatorEvidenceProbe),
+    operatorReadiness
+  };
+
+  if (invocation.subcommand === "snapshot") {
+    return {
+      ...commonOutput,
+      snapshot: snapshotBody
+        ? sanitizeTokenFree(snapshotBody)
+        : createDashboardFetchSummary(snapshotProbe)
+    };
+  }
+
+  return {
+    ...commonOutput,
+    snapshot: createDashboardStatusSnapshotSummary(snapshotProbe, snapshotBody)
+  };
+}
+
+function createDashboardStatusSnapshotSummary(
+  probe: Record<string, unknown>,
+  snapshot: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (!snapshot) {
+    return createDashboardFetchSummary(probe);
+  }
+
+  const runtimeHealth = readRecord(snapshot.runtimeHealth);
+  const summary: Record<string, unknown> = {
+    ...createDashboardFetchSummary(probe),
+    schemaVersion: snapshot.schemaVersion,
+    generatedAt: snapshot.generatedAt,
+    runtimeHealth: {
+      dashboard: readRecord(runtimeHealth?.dashboard) ?? { state: "unknown" },
+      cli: readRecord(runtimeHealth?.cli) ?? { state: "unknown" },
+      extension: readRecord(runtimeHealth?.extension) ?? { state: "unknown" },
+      nativeHost: readRecord(runtimeHealth?.nativeHost) ?? { state: "unknown" }
+    },
+    operatorReadiness: readRecord(snapshot.operatorReadiness) ?? { state: "unknown" },
+    smokeEvidence: readRecord(snapshot.smokeEvidence) ?? { artifacts: [] },
+    alerts: Array.isArray(snapshot.alerts) ? snapshot.alerts : []
+  };
+
+  return sanitizeTokenFree(summary) as Record<string, unknown>;
+}
+
+function createDashboardFetchSummary(probe: Record<string, unknown>): Record<string, unknown> {
+  const summary: Record<string, unknown> = {
+    state: readString(probe.state) ?? "unknown"
+  };
+  const url = readString(probe.url);
+  const reason = readString(probe.reason);
+
+  if (url) {
+    summary.url = sanitizeDashboardUrlForOutput(url);
+  }
+  if (typeof probe.status === "number") {
+    summary.status = probe.status;
+  }
+  if (reason) {
+    summary.reason = sanitizeSensitiveString(reason);
+  }
+
+  return summary;
+}
+
+function createDashboardProbeEndpoints(dashboardUrl: string): Record<string, string> {
+  const endpoints: Record<string, string> = {};
+  const descriptorUrl = createDashboardDescriptorUrl(dashboardUrl);
+  const snapshotUrl = createDashboardSnapshotUrl(dashboardUrl);
+
+  if (descriptorUrl) {
+    endpoints.descriptor = sanitizeDashboardUrlForOutput(descriptorUrl);
+  }
+  if (snapshotUrl) {
+    endpoints.snapshot = sanitizeDashboardUrlForOutput(snapshotUrl);
+  }
+  const operatorEvidenceUrl = createDashboardOperatorEvidenceUrl(dashboardUrl);
+  if (operatorEvidenceUrl) {
+    endpoints.operatorEvidence = sanitizeDashboardUrlForOutput(operatorEvidenceUrl);
+  }
+
+  return endpoints;
+}
+
+function sanitizeTokenFree(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeTokenFree(item));
+  }
+
+  const record = readRecord(value);
+  if (record) {
+    const sanitized: Record<string, unknown> = {};
+
+    for (const [key, item] of Object.entries(record)) {
+      if (item === undefined) {
+        continue;
+      }
+      sanitized[key] = isSensitiveFieldName(key)
+        ? "[redacted]"
+        : sanitizeTokenFree(item);
+    }
+
+    return sanitized;
+  }
+
+  return typeof value === "string" ? sanitizeSensitiveString(value) : value;
+}
+
+function sanitizeDashboardUrlForOutput(value: string): string {
+  try {
+    const url = new URL(value);
+
+    url.hash = "";
+    for (const key of [...url.searchParams.keys()]) {
+      if (isSensitiveFieldName(key)) {
+        url.searchParams.delete(key);
+      }
+    }
+
+    return url.toString();
+  } catch {
+    return sanitizeSensitiveString(value);
+  }
+}
+
+function sanitizeSensitiveString(value: string): string {
+  return value
+    .replace(
+      /\b(?:token|access_token|refresh_token|id_token|api_key|authorization|cookie)=([^&\s"']+)/gi,
+      "redacted=[redacted]"
+    )
+    .replace(
+      /\b(?:authorization|bearer|basic)\s+[-._~+/=A-Za-z0-9]+/gi,
+      "redacted [redacted]"
+    );
+}
+
+function isSensitiveFieldName(value: string): boolean {
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  return new Set([
+    "token",
+    "accesstoken",
+    "refreshtoken",
+    "idtoken",
+    "apikey",
+    "authorization",
+    "cookie",
+    "setcookie",
+    "secret",
+    "clientsecret",
+    "password"
+  ]).has(normalized);
 }
 
 function createPermissionSettingsOpenOutput({
@@ -1032,6 +1373,14 @@ export async function runSkfiyCli({
       keepMcpServerAlive,
       stdout,
       stderr
+    });
+  }
+
+  if (result.invocation.kind === "dashboard-probe") {
+    return runDashboardProbeCli({
+      invocation: result.invocation,
+      generatedAt,
+      stdout
     });
   }
 
@@ -2354,6 +2703,14 @@ function createDashboardDescriptorUrl(dashboardUrl: string | undefined): string 
   return createDashboardRelativeUrl("/descriptor.json", dashboardUrl);
 }
 
+function createDashboardSnapshotUrl(dashboardUrl: string | undefined): string | undefined {
+  return createDashboardRelativeUrl("/snapshot.json", dashboardUrl);
+}
+
+function createDashboardOperatorEvidenceUrl(dashboardUrl: string | undefined): string | undefined {
+  return createDashboardRelativeUrl("/api/operator-evidence", dashboardUrl);
+}
+
 function createDashboardApiUrl(dashboardUrl: string | undefined): string | undefined {
   return createDashboardRelativeUrl("/api/chrome-host-policy", dashboardUrl);
 }
@@ -2373,9 +2730,12 @@ function createDashboardRelativeUrl(
   }
 }
 
-async function fetchDashboardJson(targetUrl: string): Promise<Record<string, unknown>> {
+async function fetchDashboardJson(
+  targetUrl: string,
+  options: { timeoutMs?: number } = {}
+): Promise<Record<string, unknown>> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 1_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 1_000);
 
   try {
     const response = await fetch(targetUrl, {
@@ -3015,6 +3375,10 @@ function error(code: string, message: string): NormalizeCliCommandResult {
 
 function isChromeSubcommand(value: string | undefined): value is ChromeSubcommand {
   return value === "status" || value === "install-host" || value === "uninstall-host";
+}
+
+function isDashboardProbeSubcommand(value: string | undefined): value is DashboardProbeSubcommand {
+  return value === "status" || value === "snapshot";
 }
 
 function isChromePolicySubcommand(value: string | undefined): value is ChromePolicySubcommand {

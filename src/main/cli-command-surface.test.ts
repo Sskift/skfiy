@@ -37,6 +37,8 @@ describe("CLI command surface", () => {
       "status",
       "doctor",
       "dashboard",
+      "dashboard status",
+      "dashboard snapshot",
       "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
       "chrome status",
       "chrome policy show",
@@ -110,6 +112,20 @@ describe("CLI command surface", () => {
         executesSystemMutation: false
       }),
       expect.objectContaining({
+        path: "dashboard status",
+        summary: "Fetch descriptor, snapshot status, and operator readiness from a running dashboard.",
+        plannedMutation: false,
+        executesSystemMutation: false,
+        outputShape: "dashboard-status"
+      }),
+      expect.objectContaining({
+        path: "dashboard snapshot",
+        summary: "Fetch the full snapshot JSON from a running dashboard.",
+        plannedMutation: false,
+        executesSystemMutation: false,
+        outputShape: "dashboard-snapshot"
+      }),
+      expect.objectContaining({
         path: "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
         summary: "Open the matching macOS Privacy & Security permission settings panel.",
         plannedMutation: true,
@@ -159,6 +175,8 @@ describe("CLI command surface", () => {
         commands: expect.arrayContaining([
           expect.objectContaining({ path: "status" }),
           expect.objectContaining({ path: "dashboard" }),
+          expect.objectContaining({ path: "dashboard status" }),
+          expect.objectContaining({ path: "dashboard snapshot" }),
           expect.objectContaining({ path: "mcp serve" }),
           expect.objectContaining({ path: "smoke codex-plugin" })
         ])
@@ -332,6 +350,68 @@ describe("CLI command surface", () => {
       result: "not-started"
     });
     expectJsonSafe(createCliOutput(invocation));
+  });
+
+  it("normalizes dashboard status and snapshot probes as read-only JSON commands", () => {
+    const status = expectInvocation([
+      "dashboard",
+      "status",
+      "--json",
+      "--url",
+      "http://127.0.0.1:8787/?token=secret-token"
+    ]);
+    const snapshot = expectInvocation([
+      "dashboard",
+      "snapshot",
+      "--json",
+      "--dashboard-url",
+      "http://127.0.0.1:8787/"
+    ]);
+
+    expect(status).toEqual({
+      kind: "dashboard-probe",
+      path: "dashboard status",
+      subcommand: "status",
+      json: true,
+      options: {
+        url: "http://127.0.0.1:8787/?token=secret-token"
+      }
+    });
+    expect(snapshot).toEqual({
+      kind: "dashboard-probe",
+      path: "dashboard snapshot",
+      subcommand: "snapshot",
+      json: true,
+      options: {
+        url: "http://127.0.0.1:8787/"
+      }
+    });
+    expect(createCliOutput(status, {
+      generatedAt: "2026-06-20T00:00:00.000Z"
+    })).toEqual({
+      schemaVersion: 1,
+      command: "dashboard status",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      executesSystemMutation: false,
+      result: "not-run",
+      url: "http://127.0.0.1:8787/",
+      endpoints: {
+        descriptor: "http://127.0.0.1:8787/descriptor.json",
+        snapshot: "http://127.0.0.1:8787/snapshot.json",
+        operatorEvidence: "http://127.0.0.1:8787/api/operator-evidence"
+      },
+      fetch: {
+        descriptor: { state: "unknown" },
+        snapshot: { state: "unknown" },
+        operatorEvidence: { state: "unknown" }
+      },
+      descriptor: { state: "unknown" },
+      snapshot: { state: "unknown" },
+      operatorEvidence: { state: "unknown" },
+      operatorReadiness: { state: "unknown" }
+    });
+    expectJsonSafe(createCliOutput(status));
+    expectJsonSafe(createCliOutput(snapshot));
   });
 
   it("normalizes Chrome host commands as explicit native-host operations", () => {
@@ -881,6 +961,20 @@ describe("CLI command surface", () => {
       error: {
         code: "unknown-chrome-subcommand",
         message: "Unknown chrome subcommand: reinstall-host"
+      }
+    });
+    expect(normalizeCliCommand(["dashboard", "status", "--json"])).toEqual({
+      ok: false,
+      error: {
+        code: "missing-dashboard-url",
+        message: "Dashboard status requires --url <url>."
+      }
+    });
+    expect(normalizeCliCommand(["dashboard", "events"])).toEqual({
+      ok: false,
+      error: {
+        code: "unknown-dashboard-subcommand",
+        message: "Unknown dashboard subcommand: events"
       }
     });
     expect(normalizeCliCommand(["chrome", "policy", "inspect"])).toEqual({
@@ -1919,6 +2013,231 @@ describe("CLI command surface", () => {
       }
     });
     expect(stderr).toEqual([]);
+  });
+
+  it("runs dashboard status and snapshot probes against loopback JSON without leaking tokens", async () => {
+    const requests: string[] = [];
+    const server = http.createServer((request, response) => {
+      requests.push(request.url ?? "");
+      response.setHeader("content-type", "application/json");
+
+      if (request.url === "/descriptor.json") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          bind: { host: "127.0.0.1", port: 0 },
+          url: "http://127.0.0.1:0/",
+          auth: {
+            mode: "optional-token",
+            tokenPrinted: false
+          },
+          token: "descriptor-secret"
+        }));
+        return;
+      }
+
+      if (request.url === "/snapshot.json") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          generatedAt: "2026-06-20T00:00:00.000Z",
+          runtimeHealth: {
+            dashboard: { state: "running", url: "http://127.0.0.1:0/" },
+            cli: { state: "installed" },
+            extension: {
+              state: "connected",
+              authorization: "Bearer snapshot-secret"
+            },
+            nativeHost: { state: "installed" }
+          },
+          operatorReadiness: {
+            state: "ready",
+            extensionReadiness: {
+              state: "ready",
+              token: "operator-secret"
+            }
+          },
+          smokeEvidence: {
+            artifacts: [
+              {
+                target: "dashboard",
+                result: "passed"
+              }
+            ]
+          },
+          alerts: []
+        }));
+        return;
+      }
+
+      if (request.url === "/api/operator-evidence") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          generatedAt: "2026-06-20T00:00:00.000Z",
+          descriptor: {
+            url: "http://127.0.0.1:0/",
+            token: "evidence-descriptor-secret"
+          },
+          snapshot: {
+            readiness: {
+              state: "ready",
+              bearer: "Bearer evidence-secret"
+            }
+          },
+          status: {
+            state: "ready",
+            dashboardUrl: "http://127.0.0.1:0/"
+          },
+          outputPolicy: {
+            tokenFree: true,
+            source: "allowlisted-dashboard-summary"
+          }
+        }));
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: "not found" }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+
+    try {
+      const address = server.address() as AddressInfo;
+      const dashboardUrl = `http://127.0.0.1:${address.port}/?token=super-secret`;
+      const sanitizedUrl = `http://127.0.0.1:${address.port}/`;
+      const statusStdout: string[] = [];
+      const snapshotStdout: string[] = [];
+      const stderr: string[] = [];
+
+      await expect(runSkfiyCli({
+        argv: ["dashboard", "status", "--json", "--url", dashboardUrl],
+        rootDir: "/repo",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        stdout: { write: (chunk: string) => statusStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+      await expect(runSkfiyCli({
+        argv: ["dashboard", "snapshot", "--json", "--url", dashboardUrl],
+        rootDir: "/repo",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        stdout: { write: (chunk: string) => snapshotStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const statusOutput = JSON.parse(statusStdout.join(""));
+      const snapshotOutput = JSON.parse(snapshotStdout.join(""));
+
+      expect(statusOutput).toMatchObject({
+        schemaVersion: 1,
+        command: "dashboard status",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        executesSystemMutation: false,
+        result: "ok",
+        url: sanitizedUrl,
+        endpoints: {
+          descriptor: `${sanitizedUrl}descriptor.json`,
+          snapshot: `${sanitizedUrl}snapshot.json`,
+          operatorEvidence: `${sanitizedUrl}api/operator-evidence`
+        },
+        fetch: {
+          descriptor: {
+            state: "reachable",
+            status: 200
+          },
+          snapshot: {
+            state: "reachable",
+            status: 200
+          },
+          operatorEvidence: {
+            state: "reachable",
+            status: 200
+          }
+        },
+        descriptor: {
+          schemaVersion: 1,
+          token: "[redacted]"
+        },
+        snapshot: {
+          schemaVersion: 1,
+          runtimeHealth: {
+            dashboard: { state: "running" },
+            extension: {
+              state: "connected",
+              authorization: "[redacted]"
+            }
+          },
+          operatorReadiness: {
+            state: "ready",
+            extensionReadiness: {
+              token: "[redacted]"
+            }
+          }
+        },
+        operatorReadiness: {
+          state: "ready",
+          extensionReadiness: {
+            token: "[redacted]"
+          }
+        },
+        operatorEvidence: {
+          schemaVersion: 1,
+          snapshot: {
+            readiness: {
+              state: "ready",
+              bearer: "redacted [redacted]"
+            }
+          },
+          outputPolicy: {
+            tokenFree: true
+          }
+        }
+      });
+      expect(snapshotOutput).toMatchObject({
+        schemaVersion: 1,
+        command: "dashboard snapshot",
+        result: "ok",
+        snapshot: {
+          schemaVersion: 1,
+          operatorReadiness: {
+            state: "ready",
+            extensionReadiness: {
+              token: "[redacted]"
+            }
+          },
+          runtimeHealth: {
+            extension: {
+              authorization: "[redacted]"
+            }
+          }
+        }
+      });
+      expect(requests).toEqual([
+        "/descriptor.json",
+        "/snapshot.json",
+        "/api/operator-evidence",
+        "/descriptor.json",
+        "/snapshot.json"
+      ]);
+      expect(`${statusStdout.join("")}\n${snapshotStdout.join("")}`).not.toContain("super-secret");
+      expect(`${statusStdout.join("")}\n${snapshotStdout.join("")}`).not.toContain("descriptor-secret");
+      expect(`${statusStdout.join("")}\n${snapshotStdout.join("")}`).not.toContain("snapshot-secret");
+      expect(`${statusStdout.join("")}\n${snapshotStdout.join("")}`).not.toContain("operator-secret");
+      expect(`${statusStdout.join("")}\n${snapshotStdout.join("")}`).not.toContain("evidence-secret");
+      expect(`${statusStdout.join("")}\n${snapshotStdout.join("")}`).not.toContain("evidence-descriptor-secret");
+      expect(`${statusStdout.join("")}\n${snapshotStdout.join("")}`).not.toContain("token=super-secret");
+      expect(stderr).toEqual([]);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
   });
 
   it("runs dashboard through the shared CLI entrypoint without printing tokens", async () => {
