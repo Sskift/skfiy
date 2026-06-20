@@ -1452,7 +1452,22 @@ describe("CLI command surface", () => {
           extensionState: "connected",
           nativeHostState: "installed",
           liveConnection: "connected",
-          extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+          extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+          nextAction: expect.stringContaining("Chrome extension has recently connected"),
+          setupGuide: {
+            state: "ready",
+            nextActions: expect.arrayContaining([
+              expect.objectContaining({
+                id: "verify-live-connection",
+                state: "done"
+              })
+            ]),
+            copyableCommands: expect.arrayContaining([
+              expect.objectContaining({
+                copyText: "skfiy chrome status --cli /repo/dist/skfiy --extension-id abcdefghijklmnopabcdefghijklmnop"
+              })
+            ])
+          }
         },
         moneyRun: {
           state: "ready",
@@ -1943,7 +1958,51 @@ describe("CLI command surface", () => {
       command: "chrome status",
       nativeHost: {
         state: "missing",
-        manifestPath
+        manifestPath,
+        nextAction: expect.stringContaining("skfiy chrome install-host"),
+        setupGuide: {
+          state: "needs_setup",
+          copyableCommands: expect.arrayContaining([
+            expect.objectContaining({
+              copyText: "skfiy chrome install-host --cli /repo/dist/skfiy --extension-id abcdefghijklmnopabcdefghijklmnop"
+            })
+          ])
+        }
+      },
+      extension: {
+        state: "native-host-missing",
+        nextAction: expect.stringContaining("skfiy chrome install-host"),
+        setupGuide: {
+          state: "needs_setup",
+          copyableCommands: expect.arrayContaining([
+            expect.objectContaining({
+              copyText: "skfiy chrome install-host --cli /repo/dist/skfiy --extension-id abcdefghijklmnopabcdefghijklmnop"
+            })
+          ])
+        }
+      },
+      setupGuide: {
+        state: "needs_setup",
+        extensionPath: "/repo/chrome-extension",
+        installHostCommand: [
+          "skfiy",
+          "chrome",
+          "install-host",
+          "--cli",
+          "/repo/dist/skfiy",
+          "--extension-id",
+          "abcdefghijklmnopabcdefghijklmnop"
+        ],
+        nextActions: expect.arrayContaining([
+          expect.objectContaining({
+            id: "install-native-host",
+            state: "needed"
+          }),
+          expect.objectContaining({
+            id: "load-extension",
+            state: "waiting"
+          })
+        ])
       }
     });
 
@@ -2272,6 +2331,23 @@ describe("CLI command surface", () => {
           }
         },
         reason: "Chrome Native Messaging host is installed; no live Chrome extension connection has been observed yet."
+      },
+      setupGuide: {
+        state: "ready",
+        nativeHostManifestPath: manifestPath,
+        connectionHeartbeatPath: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+        hostPolicyPath,
+        extensionPath: "/repo/chrome-extension",
+        nextActions: expect.arrayContaining([
+          expect.objectContaining({
+            id: "install-native-host",
+            state: "done"
+          }),
+          expect.objectContaining({
+            id: "load-extension",
+            state: "waiting"
+          })
+        ])
       }
     });
     expect(stderr).toEqual([]);
@@ -2326,7 +2402,16 @@ describe("CLI command surface", () => {
     expect(JSON.parse(stdout.join(""))).toMatchObject({
       command: "chrome status",
       nativeHost: {
-        state: "installed"
+        state: "installed",
+        nextAction: expect.stringContaining("Chrome extension has recently connected"),
+        setupGuide: {
+          state: "ready",
+          copyableCommands: expect.arrayContaining([
+            expect.objectContaining({
+              copyText: "skfiy chrome status --cli /repo/dist/skfiy --extension-id abcdefghijklmnopabcdefghijklmnop"
+            })
+          ])
+        }
       },
       extension: {
         state: "connected",
@@ -2341,7 +2426,25 @@ describe("CLI command surface", () => {
           launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
           messageType: "skfiy.page.observe",
           requestId: "request-heartbeat"
+        },
+        nextAction: expect.stringContaining("Chrome extension has recently connected"),
+        setupGuide: {
+          state: "ready",
+          copyableCommands: expect.arrayContaining([
+            expect.objectContaining({
+              copyText: "skfiy chrome status --cli /repo/dist/skfiy --extension-id abcdefghijklmnopabcdefghijklmnop"
+            })
+          ])
         }
+      },
+      setupGuide: {
+        state: "ready",
+        nextActions: expect.arrayContaining([
+          expect.objectContaining({
+            id: "verify-live-connection",
+            state: "done"
+          })
+        ])
       }
     });
     expect(stderr).toEqual([]);

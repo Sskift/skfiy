@@ -172,4 +172,129 @@ describe("dashboard evidence summary", () => {
       ["chrome-extension", "blocked"]
     ]);
   });
+
+  it("surfaces Chrome setup guide next actions and commands when present", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: {
+          state: "native-host-missing",
+          setupGuide: {
+            nextActions: [
+              {
+                id: "install-native-host",
+                title: "Install the Chrome Native Messaging host.",
+                command: [
+                  "skfiy",
+                  "chrome",
+                  "install-host",
+                  "--extension-id",
+                  "abcdefghijklmnopabcdefghijklmnop",
+                  "token=secret-token"
+                ]
+              }
+            ],
+            installHostCommand: [
+              "skfiy",
+              "chrome",
+              "install-host",
+              "--extension-id",
+              "abcdefghijklmnopabcdefghijklmnop",
+              "token=secret-token"
+            ],
+            verifyStatusCommand: [
+              "skfiy",
+              "chrome",
+              "status",
+              "--json",
+              "--extension-id",
+              "abcdefghijklmnopabcdefghijklmnop"
+            ],
+            smokeCommand: [
+              "skfiy",
+              "smoke",
+              "chrome",
+              "--output",
+              ".skfiy-smoke/chrome.json"
+            ]
+          }
+        },
+        nativeHost: {
+          state: "missing",
+          hostName: "com.sskift.skfiy",
+          allowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"]
+        }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: { state: "idle" },
+      replay: { state: "available" },
+      smokeEvidence: {
+        artifacts: [
+          {
+            target: "codex-plugin",
+            result: "passed",
+            productPath: "codex plugin marketplace add -> installed skfiy CLI -> MCP stdio"
+          }
+        ]
+      },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const summary = createDashboardEvidenceSummary({ descriptor, snapshot });
+    const chromeLane = summary.lanes.find((lane) => lane.id === "chrome-extension");
+
+    expect(chromeLane).toMatchObject({
+      state: "blocked",
+      setupGuide: {
+        source: "runtime",
+        nativeHostState: "missing",
+        liveConnectionState: "unknown",
+        nextActions: [
+          "Install the Chrome Native Messaging host. skfiy chrome install-host --extension-id abcdefghijklmnopabcdefghijklmnop token=redacted-secret"
+        ],
+        commands: [
+          {
+            id: "install-host",
+            label: "Install host",
+            command: "skfiy chrome install-host --extension-id abcdefghijklmnopabcdefghijklmnop token=redacted-secret"
+          },
+          {
+            id: "status",
+            label: "Status",
+            command: "skfiy chrome status --json --extension-id abcdefghijklmnopabcdefghijklmnop"
+          },
+          {
+            id: "smoke",
+            label: "Smoke",
+            command: "skfiy smoke chrome --output .skfiy-smoke/chrome.json"
+          }
+        ]
+      },
+      nextActions: [
+        "Install the Chrome Native Messaging host. skfiy chrome install-host --extension-id abcdefghijklmnopabcdefghijklmnop token=redacted-secret"
+      ]
+    });
+    expect(chromeLane?.checks).toEqual(expect.arrayContaining([
+      {
+        id: "native-host",
+        label: "Native host install status",
+        state: "blocked",
+        value: "missing"
+      },
+      {
+        id: "live-connection",
+        label: "Live connection status",
+        state: "needs-evidence",
+        value: "unknown"
+      }
+    ]));
+    expect(JSON.stringify(summary)).not.toContain("secret-token");
+  });
 });

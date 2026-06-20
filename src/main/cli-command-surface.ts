@@ -27,6 +27,9 @@ import {
   type ChromeHostPolicyState
 } from "./chrome-host-policy.js";
 import {
+  createChromeReadinessSetupGuide
+} from "./chrome-readiness.js";
+import {
   SKFIY_MCP_TOOL_NAMES,
   runSkfiyMcpStdioServer,
   type SkfiyMcpProviders,
@@ -1418,6 +1421,7 @@ export async function runSkfiyCli({
     return runChromeNativeHostCli({
       invocation: result.invocation,
       generatedAt,
+      rootDir: normalizedRootDir,
       homeDir: homeDir ?? process.env.HOME ?? "",
       io: chromeNativeHostIo,
       stdout,
@@ -2311,6 +2315,24 @@ function createExtensionReadiness(
   const extensionIds = context.extensionIds.length > 0
     ? context.extensionIds
     : readStringArray(nativeHost?.extensionIds);
+  const connection = readRecord(extension?.connection);
+  const setupGuideFields = createChromeSetupGuideFields({
+    extensionState,
+    nativeHostState,
+    liveConnection,
+    extensionIds,
+    cliShimPath: context.cliShimPath,
+    manifestPath: readString(nativeHost?.manifestPath),
+    allowedOrigins: readStringArray(extension?.allowedOrigins).length > 0
+      ? readStringArray(extension?.allowedOrigins)
+      : readStringArray(nativeHost?.allowedOrigins),
+    expectedAllowedOrigins: readStringArray(nativeHost?.expectedAllowedOrigins),
+    nativeHostReason: readString(nativeHost?.reason) ?? readString(extension?.reason),
+    hostPolicy: readRecord(extension?.hostPolicy) as ChromeHostPolicyState | undefined,
+    connectionPath: readString(connection?.path),
+    connectionState: readString(connection?.state),
+    connectionReason: readString(connection?.reason)
+  });
   const observed = extensionIds.length > 0
     || extensionState !== "unknown"
     || nativeHostState !== "unknown";
@@ -2323,7 +2345,8 @@ function createExtensionReadiness(
       nativeHostState,
       liveConnection,
       extensionIds,
-      blockers: []
+      blockers: [],
+      ...setupGuideFields
     };
   }
 
@@ -2359,7 +2382,8 @@ function createExtensionReadiness(
     extensionIds,
     ...(readString(nativeHost?.manifestPath) ? { manifestPath: readString(nativeHost?.manifestPath) } : {}),
     ...(context.cliShimPath ? { cliShimPath: context.cliShimPath } : {}),
-    blockers
+    blockers,
+    ...setupGuideFields
   };
 }
 
@@ -2803,7 +2827,10 @@ function createChromeExtensionAdapterStatus(
     state?: unknown;
     reason?: unknown;
     manifestPath?: unknown;
+    cliShimPath?: unknown;
+    extensionIds?: unknown;
     allowedOrigins?: unknown;
+    expectedAllowedOrigins?: unknown;
   },
   connection?: ChromeExtensionConnectionStatus,
   hostPolicy?: ChromeHostPolicyState
@@ -2820,11 +2847,27 @@ function createChromeExtensionAdapterStatus(
     ...(connection && connection.state !== "unknown" ? { connection } : {}),
     ...(hostPolicy ? { hostPolicy } : {})
   };
+  const createSetupFields = (extensionState: string, nativeHostState: string) => createChromeSetupGuideFields({
+    extensionState,
+    nativeHostState,
+    liveConnection: readConnectionState(connection),
+    extensionIds: readExtensionIdsFromAdapterInput(nativeHost),
+    cliShimPath: readString(nativeHost.cliShimPath),
+    manifestPath: readString(nativeHost.manifestPath),
+    allowedOrigins,
+    expectedAllowedOrigins: readStringArray(nativeHost.expectedAllowedOrigins),
+    nativeHostReason: readString(nativeHost.reason),
+    hostPolicy,
+    connectionPath: connection?.path,
+    connectionState: connection?.state,
+    connectionReason: connection?.reason
+  });
 
   if (connection?.state === "connected") {
     return {
       state: "connected",
-      ...common
+      ...common,
+      ...createSetupFields("connected", readString(nativeHost.state) ?? "unknown")
     };
   }
 
@@ -2832,6 +2875,7 @@ function createChromeExtensionAdapterStatus(
     return {
       state: "native-host-installed",
       ...common,
+      ...createSetupFields("native-host-installed", "installed"),
       reason: "Chrome extension native-message heartbeat is stale."
     };
   }
@@ -2840,6 +2884,7 @@ function createChromeExtensionAdapterStatus(
     return {
       state: "native-host-installed",
       ...common,
+      ...createSetupFields("native-host-installed", "installed"),
       reason: "Chrome Native Messaging host is installed; no live Chrome extension connection has been observed yet."
     };
   }
@@ -2848,6 +2893,7 @@ function createChromeExtensionAdapterStatus(
     return {
       state: "native-host-missing",
       ...common,
+      ...createSetupFields("native-host-missing", "missing"),
       reason: "Chrome Native Messaging host manifest is not installed."
     };
   }
@@ -2856,6 +2902,7 @@ function createChromeExtensionAdapterStatus(
     return {
       state: "native-host-cli-missing",
       ...common,
+      ...createSetupFields("native-host-cli-missing", "cli-missing"),
       reason: "The Chrome Native Messaging host cannot run because the packaged skfiy CLI is missing."
     };
   }
@@ -2864,6 +2911,7 @@ function createChromeExtensionAdapterStatus(
     return {
       state: "native-host-mismatched",
       ...common,
+      ...createSetupFields("native-host-mismatched", "mismatched"),
       reason: "Chrome Native Messaging host manifest points at a different skfiy CLI."
     };
   }
@@ -2872,6 +2920,7 @@ function createChromeExtensionAdapterStatus(
     return {
       state: "native-host-invalid",
       ...common,
+      ...createSetupFields("native-host-invalid", "invalid"),
       reason: "Chrome Native Messaging host manifest is invalid."
     };
   }
@@ -2881,6 +2930,260 @@ function createChromeExtensionAdapterStatus(
       ? nativeHost.reason
       : "Runtime Chrome extension connection is not probed by the CLI status command yet."
   );
+}
+
+function createChromeSetupGuideFields(input: {
+  extensionState: string;
+  nativeHostState: string;
+  liveConnection: string;
+  extensionIds: string[];
+  cliShimPath?: string;
+  manifestPath?: string;
+  allowedOrigins?: string[];
+  expectedAllowedOrigins?: string[];
+  nativeHostReason?: string;
+  hostPolicy?: ChromeHostPolicyState;
+  connectionPath?: string;
+  connectionState?: string;
+  connectionReason?: string;
+  extensionPath?: string;
+}): Record<string, unknown> {
+  const setupGuide = createChromeSetupGuideOutput(input);
+
+  return {
+    nextAction: setupGuide.nextAction,
+    setupGuide,
+    copyableCommands: setupGuide.copyableCommands
+  };
+}
+
+function createChromeSetupGuideOutput(input: {
+  extensionState: string;
+  nativeHostState: string;
+  liveConnection: string;
+  extensionIds: string[];
+  cliShimPath?: string;
+  manifestPath?: string;
+  allowedOrigins?: string[];
+  expectedAllowedOrigins?: string[];
+  nativeHostReason?: string;
+  hostPolicy?: ChromeHostPolicyState;
+  connectionPath?: string;
+  connectionState?: string;
+  connectionReason?: string;
+  extensionPath?: string;
+}): Record<string, unknown> {
+  const extensionIds = dedupeStrings(input.extensionIds);
+  const nativeHostState = readChromeNativeHostSetupState(input.nativeHostState);
+  const hostPolicy = input.hostPolicy ?? createDefaultChromeHostPolicyForSetupGuide();
+  const allowedOrigins = input.allowedOrigins ?? extensionIds.map((extensionId) => `chrome-extension://${extensionId}/`);
+  const liveConnection = input.connectionPath || input.connectionReason || input.connectionState || input.liveConnection !== "unknown"
+    ? {
+        state: readChromeConnectionSetupState(input.connectionState ?? input.liveConnection),
+        path: input.connectionPath ?? "",
+        reason: input.connectionReason
+      }
+    : undefined;
+  const setupGuide = nativeHostState
+    ? createChromeReadinessSetupGuide({
+        nativeHost: {
+          state: nativeHostState,
+          manifestPath: input.manifestPath ?? "",
+          allowedOrigins,
+          expectedAllowedOrigins: input.expectedAllowedOrigins ?? allowedOrigins,
+          reason: input.nativeHostReason ?? "Chrome Native Messaging host status was read from CLI output."
+        },
+        hostPolicy,
+        liveConnection,
+        extensionIds,
+        cliShimPath: input.cliShimPath ?? "",
+        extensionPath: input.extensionPath
+      })
+    : createUnknownChromeSetupGuide({
+        input,
+        extensionIds
+      });
+  const copyableCommands = createCopyableCommandsFromSetupGuide(setupGuide);
+  const nextAction = createChromeNextAction(setupGuide);
+
+  return {
+    ...setupGuide,
+    nextAction,
+    copyableCommands
+  };
+}
+
+function createUnknownChromeSetupGuide({
+  input,
+  extensionIds
+}: {
+  input: {
+    extensionState: string;
+    nativeHostState: string;
+    liveConnection: string;
+    cliShimPath?: string;
+    manifestPath?: string;
+  };
+  extensionIds: string[];
+}): Record<string, unknown> {
+  const extensionIdArgs = extensionIds.length > 0
+    ? extensionIds.flatMap((extensionId) => ["--extension-id", extensionId])
+    : ["--extension-id", "<extension-id>"];
+  const verifyStatusCommand = [
+    "skfiy",
+    "chrome",
+    "status",
+    "--cli",
+    input.cliShimPath ?? "<path-to-skfiy-cli>",
+    ...extensionIdArgs
+  ];
+
+  return {
+    schemaVersion: 1,
+    productPath: "dist/skfiy -> Chrome MV3 extension -> Native Messaging",
+    state: "needs_setup",
+    extensionState: input.extensionState,
+    nativeHostState: input.nativeHostState,
+    liveConnection: input.liveConnection,
+    extensionIds,
+    nativeHostManifestPath: input.manifestPath ?? "",
+    cliShimPath: input.cliShimPath ?? "",
+    installHostCommand: [
+      "skfiy",
+      "chrome",
+      "install-host",
+      "--cli",
+      input.cliShimPath ?? "<path-to-skfiy-cli>",
+      ...extensionIdArgs
+    ],
+    verifyStatusCommand,
+    nextActions: [{
+      id: "verify-live-connection",
+      state: "needed",
+      owner: "skfiy",
+      title: "Collect Chrome extension/native-host status with an extension id.",
+      command: verifyStatusCommand
+    }]
+  };
+}
+
+function createDefaultChromeHostPolicyForSetupGuide(): Pick<ChromeHostPolicyState, "state" | "path" | "reason"> {
+  return {
+    state: "default",
+    path: "",
+    reason: "Chrome host policy was not included in CLI status output."
+  };
+}
+
+function readChromeNativeHostSetupState(value: string): "installed" | "missing" | "mismatched" | "cli-missing" | "invalid" | undefined {
+  return value === "installed"
+    || value === "missing"
+    || value === "mismatched"
+    || value === "cli-missing"
+    || value === "invalid"
+    ? value
+    : undefined;
+}
+
+function readChromeConnectionSetupState(value: string): "connected" | "stale" | "unknown" | "invalid" {
+  return value === "connected" || value === "stale" || value === "invalid"
+    ? value
+    : "unknown";
+}
+
+function createCopyableCommandsFromSetupGuide(setupGuide: {
+  installHostCommand?: unknown;
+  verifyStatusCommand?: unknown;
+  smokeCommand?: unknown;
+  nextActions?: unknown;
+}): Array<Record<string, unknown>> {
+  const commandLines = [
+    readStringArray(setupGuide.installHostCommand),
+    readStringArray(setupGuide.verifyStatusCommand),
+    readStringArray(setupGuide.smokeCommand),
+    ...readChromeSetupActions(setupGuide).map((action) => readStringArray(action.command))
+  ].filter((commandLine) => commandLine.length > 0);
+  const seen = new Set<string>();
+  const copyableCommands: Array<Record<string, unknown>> = [];
+
+  for (const commandLine of commandLines) {
+    const copyText = formatCommandLine(commandLine);
+
+    if (seen.has(copyText)) {
+      continue;
+    }
+    seen.add(copyText);
+    copyableCommands.push({
+      id: readCopyableCommandId(commandLine),
+      command: commandLine[0],
+      args: commandLine.slice(1),
+      copyText
+    });
+  }
+
+  return copyableCommands;
+}
+
+function createChromeNextAction(setupGuide: {
+  nextActions?: unknown;
+}): string {
+  const actions = readChromeSetupActions(setupGuide);
+  const action = actions.find((item) => item.state !== "done")
+    ?? actions.find((item) => item.id === "verify-live-connection")
+    ?? actions[0];
+
+  if (!action) {
+    return "Run `skfiy chrome status --json --extension-id <extension-id>` to collect Chrome extension/native-host status.";
+  }
+
+  const title = readString(action.title) ?? "Collect Chrome extension/native-host status.";
+  const command = readStringArray(action.command);
+
+  return command.length > 0
+    ? `${title} Run \`${formatCommandLine(command)}\`.`
+    : title;
+}
+
+function readChromeSetupActions(setupGuide: {
+  nextActions?: unknown;
+}): Array<Record<string, unknown>> {
+  return Array.isArray(setupGuide.nextActions)
+    ? setupGuide.nextActions.filter((item): item is Record<string, unknown> => Boolean(readRecord(item)))
+    : [];
+}
+
+function readCopyableCommandId(commandLine: string[]): string {
+  const [, ...args] = commandLine;
+  const pathParts = args.filter((arg) => !arg.startsWith("-"));
+
+  return pathParts.length > 0 ? pathParts.join("-") : commandLine[0] ?? "command";
+}
+
+function formatCommandLine(commandLine: string[]): string {
+  return commandLine.map(formatCommandArg).join(" ");
+}
+
+function dedupeStrings(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.length > 0))];
+}
+
+function readExtensionIdsFromAdapterInput(nativeHost: {
+  extensionIds?: unknown;
+  allowedOrigins?: unknown;
+}): string[] {
+  const extensionIds = readStringArray(nativeHost.extensionIds);
+
+  if (extensionIds.length > 0) {
+    return extensionIds;
+  }
+
+  return readStringArray(nativeHost.allowedOrigins)
+    .map((origin) => {
+      const match = origin.match(/^chrome-extension:\/\/([^/]+)\/$/);
+
+      return match?.[1] ?? "";
+    })
+    .filter(Boolean);
 }
 
 async function readChromeExtensionConnectionForStatus(
@@ -3474,6 +3777,7 @@ async function waitForMcpShutdown(server: SkfiyMcpServer): Promise<void> {
 async function runChromeNativeHostCli({
   invocation,
   generatedAt,
+  rootDir,
   homeDir,
   io,
   stdout,
@@ -3481,6 +3785,7 @@ async function runChromeNativeHostCli({
 }: {
   invocation: Extract<CliCommandInvocation, { kind: "chrome" }>;
   generatedAt?: string;
+  rootDir: string;
   homeDir: string;
   io?: ChromeNativeHostIo;
   stdout: SkfiyCliIo;
@@ -3508,20 +3813,45 @@ async function runChromeNativeHostCli({
       io
     });
     const hostPolicy = await readChromeHostPolicyForStatus({
-      rootDir: "",
+      rootDir,
       homeDir,
       appPath: "",
       helperPath: "",
       cliShimPath: invocation.options.cliShimPath,
       extensionIds: invocation.options.extensionIds
     }, io);
+    const extension = createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy);
+    const setupGuideFields = createChromeSetupGuideFields({
+      extensionState: readString(extension.state) ?? "unknown",
+      nativeHostState: nativeHost.state,
+      liveConnection: readString(extension.liveConnection) ?? readConnectionState(extensionConnection),
+      extensionIds: invocation.options.extensionIds,
+      cliShimPath: invocation.options.cliShimPath,
+      manifestPath: nativeHost.manifestPath,
+      allowedOrigins: nativeHost.allowedOrigins,
+      expectedAllowedOrigins: nativeHost.expectedAllowedOrigins,
+      nativeHostReason: nativeHost.reason,
+      hostPolicy,
+      connectionPath: extensionConnection.path,
+      connectionState: extensionConnection.state,
+      connectionReason: extensionConnection.reason,
+      extensionPath: path.join(rootDir, "chrome-extension")
+    });
+
     stdout.write(`${JSON.stringify({
       schemaVersion: 1,
       command: invocation.path,
       generatedAt: generatedAt ?? new Date().toISOString(),
       executesSystemMutation: false,
-      extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy),
-      nativeHost
+      extension: {
+        ...extension,
+        ...setupGuideFields
+      },
+      nativeHost: {
+        ...nativeHost,
+        ...setupGuideFields
+      },
+      setupGuide: setupGuideFields.setupGuide
     }, null, 2)}\n`);
     return 0;
   }

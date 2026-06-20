@@ -203,6 +203,9 @@ packaged `dist/skfiy -> Chrome Native Messaging heartbeat` path before Chrome
 browser-control evidence can count as passed, and installed-extension evidence
 must prove that the native host responded for the same `chrome-extension://.../`
 origin reported by the loaded adapter.
+For manual extension install, Native Messaging manifest setup, heartbeat checks,
+current-tab readiness, and blocker triage, see
+[docs/chrome-extension-setup.md](docs/chrome-extension-setup.md).
 
 ```bash
 ./dist/skfiy status --json

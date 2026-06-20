@@ -43,6 +43,8 @@ export interface EvidenceLane {
   summary: string;
   checks: EvidenceCheck[];
   nextActions: string[];
+  commands?: EvidenceCommand[];
+  setupGuide?: EvidenceSetupGuide;
 }
 
 export interface EvidenceCheck {
@@ -52,6 +54,21 @@ export interface EvidenceCheck {
   value?: string | number | boolean;
   ageSeconds?: number;
   stale?: boolean;
+}
+
+export interface EvidenceCommand {
+  id: string;
+  label: string;
+  command: string;
+  mutates?: boolean;
+}
+
+export interface EvidenceSetupGuide {
+  source: "runtime" | "native-host" | "smoke-artifact" | "derived";
+  nativeHostState: string;
+  liveConnectionState: string;
+  nextActions: string[];
+  commands: EvidenceCommand[];
 }
 
 export function createDashboardEvidenceSummary({
@@ -198,22 +215,29 @@ function createChromeExtensionLane(snapshot: DashboardSnapshot): EvidenceLane {
   const installedExtension = readRecord(artifact?.installedExtension);
   const extensionState = readString(extension.state, "unknown") ?? "unknown";
   const nativeHostState = readString(nativeHost.state, "unknown") ?? "unknown";
+  const liveConnectionState = readChromeLiveConnectionState(extension, extensionState);
   const checks: EvidenceCheck[] = [
     {
       id: "extension-runtime",
-      label: "Live extension heartbeat",
+      label: "Extension runtime",
       state: mapChromeExtensionRuntimeState(extensionState),
       value: extensionState
     },
     {
       id: "native-host",
-      label: "Native Messaging host",
+      label: "Native host install status",
       state: nativeHostState === "installed"
         ? "ready"
         : nativeHostState === "missing" || nativeHostState === "mismatched" || nativeHostState === "invalid" || nativeHostState === "cli-missing"
           ? "blocked"
           : "needs-evidence",
       value: nativeHostState
+    },
+    {
+      id: "live-connection",
+      label: "Live connection status",
+      state: mapChromeLiveConnectionState(liveConnectionState),
+      value: liveConnectionState
     },
     {
       id: "chrome-smoke",
@@ -235,9 +259,15 @@ function createChromeExtensionLane(snapshot: DashboardSnapshot): EvidenceLane {
       value: readString(installedExtension?.result, "missing")
     }
   ];
-  const state = extensionState === "connected"
-    ? readAggregateState(checks.slice(1).map((check) => check.state))
-    : readAggregateState(checks.map((check) => check.state));
+  const state = readAggregateState(checks.map((check) => check.state));
+  const setupGuide = createChromeSetupGuide({
+    extension,
+    nativeHost,
+    artifact,
+    state,
+    nativeHostState,
+    liveConnectionState
+  });
 
   return {
     id: "chrome-extension",
@@ -247,12 +277,322 @@ function createChromeExtensionLane(snapshot: DashboardSnapshot): EvidenceLane {
       ? "Chrome extension heartbeat is connected."
       : "Chrome control has partial evidence but no live extension heartbeat.",
     checks,
-    nextActions: state === "ready" ? [] : [
-      nativeHostState === "installed"
-        ? "Refresh the installed extension heartbeat or rerun the Chrome smoke with a load-extension-friendly browser."
-        : "Install or repair the Chrome Native Messaging host from the packaged skfiy binary."
-    ]
+    nextActions: setupGuide.nextActions,
+    commands: setupGuide.commands,
+    setupGuide
   };
+}
+
+function createChromeSetupGuide({
+  extension,
+  nativeHost,
+  artifact,
+  state,
+  nativeHostState,
+  liveConnectionState
+}: {
+  extension: Record<string, unknown>;
+  nativeHost: Record<string, unknown>;
+  artifact: Record<string, unknown> | undefined;
+  state: EvidenceState;
+  nativeHostState: string;
+  liveConnectionState: string;
+}): EvidenceSetupGuide {
+  const runtimeGuide = normalizeChromeSetupGuide(readRecord(extension.setupGuide), "runtime");
+  const nativeHostGuide = normalizeChromeSetupGuide(readRecord(nativeHost.setupGuide), "native-host");
+  const artifactGuide = normalizeChromeSetupGuide(readRecord(artifact?.setupGuide), "smoke-artifact");
+  const guide = runtimeGuide ?? nativeHostGuide ?? artifactGuide;
+  const extensionId = readChromeExtensionId(extension, nativeHost);
+  const commands = guide?.commands.length ? guide.commands : createDefaultChromeCommands(extensionId);
+  const nextActions = guide?.nextActions.length
+    ? guide.nextActions
+    : createDefaultChromeNextActions({
+      state,
+      nativeHostState,
+      liveConnectionState
+    });
+
+  return {
+    source: guide?.source ?? "derived",
+    nativeHostState,
+    liveConnectionState,
+    nextActions,
+    commands
+  };
+}
+
+function normalizeChromeSetupGuide(
+  guide: Record<string, unknown> | undefined,
+  source: EvidenceSetupGuide["source"]
+): Pick<EvidenceSetupGuide, "source" | "nextActions" | "commands"> | undefined {
+  if (!guide) {
+    return undefined;
+  }
+
+  const nextActions = readSetupActionTexts(guide.nextActions);
+  const commands = dedupeEvidenceCommands([
+    ...readEvidenceCommands(guide.commands),
+    ...readEvidenceCommands(guide.copyableCommands),
+    ...readNamedEvidenceCommands(guide)
+  ]);
+  if (nextActions.length === 0 && commands.length === 0) {
+    return undefined;
+  }
+
+  return {
+    source,
+    nextActions,
+    commands
+  };
+}
+
+function readEvidenceCommands(value: unknown): EvidenceCommand[] {
+  if (Array.isArray(value)) {
+    if (value.every((entry) => typeof entry === "string")) {
+      return normalizeEvidenceCommand(value, "command");
+    }
+
+    return value.flatMap((entry, index) => normalizeEvidenceCommand(entry, `command-${index + 1}`));
+  }
+
+  const record = readRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  return Object.entries(record).flatMap(([key, entry]) =>
+    normalizeEvidenceCommand(entry, key)
+  );
+}
+
+function readNamedEvidenceCommands(guide: Record<string, unknown>): EvidenceCommand[] {
+  return [
+    ["install-host", guide.installHostCommand],
+    ["status", guide.verifyStatusCommand],
+    ["smoke", guide.smokeCommand]
+  ].flatMap(([id, value]) => normalizeEvidenceCommand(value, id as string));
+}
+
+function normalizeEvidenceCommand(value: unknown, idHint: string): EvidenceCommand[] {
+  if (typeof value === "string") {
+    const command = readString(value);
+    return command ? [{
+      id: normalizeCommandId(idHint),
+      label: readCommandLabel(idHint),
+      command
+    }] : [];
+  }
+
+  if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) {
+    const command = sanitizeText(formatCommandParts(value));
+    return command ? [{
+      id: normalizeCommandId(idHint),
+      label: readCommandLabel(idHint),
+      command
+    }] : [];
+  }
+
+  const record = readRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  const command = readString(record.copyText)
+    ?? readString(record.commandText)
+    ?? readString(record.commandLine)
+    ?? readCommandFromRecord(record)
+    ?? readString(record.command ?? record.value);
+  if (!command) {
+    return [];
+  }
+
+  return [{
+    id: normalizeCommandId(readString(record.id) ?? idHint),
+    label: readString(record.label) ?? readCommandLabel(idHint),
+    command,
+    ...(typeof record.mutates === "boolean" ? { mutates: record.mutates } : {})
+  }];
+}
+
+function readCommandFromRecord(record: Record<string, unknown>): string | undefined {
+  const command = readString(record.command);
+  const args = readStringArray(record.args);
+  if (!command || args.length === 0) {
+    return undefined;
+  }
+
+  return sanitizeText(formatCommandParts([command, ...args]));
+}
+
+function dedupeEvidenceCommands(commands: EvidenceCommand[]): EvidenceCommand[] {
+  const seen = new Set<string>();
+  const deduped: EvidenceCommand[] = [];
+  for (const command of commands) {
+    const key = `${command.id}\n${command.command}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(command);
+  }
+
+  return deduped;
+}
+
+function createDefaultChromeCommands(extensionId: string): EvidenceCommand[] {
+  return [
+    {
+      id: "install-host",
+      label: "Install host",
+      command: `skfiy chrome install-host --extension-id ${extensionId}`,
+      mutates: true
+    },
+    {
+      id: "status",
+      label: "Status",
+      command: `skfiy chrome status --json --extension-id ${extensionId}`
+    },
+    {
+      id: "smoke",
+      label: "Smoke",
+      command: "npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json"
+    }
+  ];
+}
+
+function createDefaultChromeNextActions({
+  state,
+  nativeHostState,
+  liveConnectionState
+}: {
+  state: EvidenceState;
+  nativeHostState: string;
+  liveConnectionState: string;
+}): string[] {
+  if (state === "ready") {
+    return [];
+  }
+
+  if (nativeHostState !== "installed") {
+    return ["Install or repair the Chrome Native Messaging host from the packaged skfiy binary."];
+  }
+
+  if (liveConnectionState !== "connected") {
+    return ["Refresh the installed extension heartbeat, then rerun Chrome status."];
+  }
+
+  return ["Rerun the Chrome smoke with a load-extension-friendly browser and capture the artifact."];
+}
+
+function readChromeLiveConnectionState(
+  extension: Record<string, unknown>,
+  extensionState: string
+): string {
+  const connection = readRecord(extension.connection);
+  return readString(extension.liveConnection)
+    ?? readString(connection?.liveConnection)
+    ?? readString(connection?.state)
+    ?? (extensionState === "connected" ? "connected" : "unknown");
+}
+
+function mapChromeLiveConnectionState(state: string): EvidenceState {
+  if (state === "connected") {
+    return "ready";
+  }
+
+  if (state === "invalid") {
+    return "blocked";
+  }
+
+  return "needs-evidence";
+}
+
+function readChromeExtensionId(
+  extension: Record<string, unknown>,
+  nativeHost: Record<string, unknown>
+): string {
+  const explicitIds = [
+    ...readStringArray(extension.extensionIds),
+    ...readStringArray(nativeHost.extensionIds)
+  ];
+  const originIds = [
+    ...readStringArray(extension.allowedOrigins),
+    ...readStringArray(nativeHost.allowedOrigins)
+  ].flatMap((origin) => {
+    const match = origin.match(/^chrome-extension:\/\/([^/]+)\//);
+    return match?.[1] ? [match[1]] : [];
+  });
+
+  return explicitIds[0] ?? originIds[0] ?? "<extension-id>";
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.flatMap((entry) => {
+      const text = readString(entry);
+      return text ? [text] : [];
+    })
+    : [];
+}
+
+function readSetupActionTexts(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.flatMap((entry) => {
+      const text = typeof entry === "string"
+        ? readString(entry)
+        : readSetupActionText(readRecord(entry));
+      return text ? [text] : [];
+    })
+    : [];
+}
+
+function readSetupActionText(action: Record<string, unknown> | undefined): string | undefined {
+  if (!action) {
+    return undefined;
+  }
+
+  const text = readString(action.title)
+    ?? readString(action.guidance)
+    ?? readString(action.nextAction)
+    ?? readString(action.reason);
+  const command = Array.isArray(action.command) && action.command.every((entry) => typeof entry === "string")
+    ? sanitizeText(formatCommandParts(action.command))
+    : readString(action.copyText);
+
+  return text && command ? `${text} ${command}` : text ?? command;
+}
+
+function formatCommandParts(parts: string[]): string {
+  return parts.map((part) =>
+    /^[A-Za-z0-9_./:=@%+-]+$/.test(part) ? part : JSON.stringify(part)
+  ).join(" ");
+}
+
+function normalizeCommandId(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase() || "command";
+}
+
+function readCommandLabel(value: string): string {
+  const normalized = normalizeCommandId(value);
+  if (normalized === "install-host") {
+    return "Install host";
+  }
+  if (normalized === "status") {
+    return "Status";
+  }
+  if (normalized === "smoke") {
+    return "Smoke";
+  }
+
+  return normalized
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ") || "Command";
 }
 
 function findSmokeArtifact(

@@ -123,6 +123,9 @@ describe("Chrome product smoke script", () => {
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
       "--extension-chrome-app"
     );
+    expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
+      "docs/chrome-extension-setup.md"
+    );
     expect(classifyChromeFallbackSmokeEvidence({
       appLaunchViaOpen: true,
       runnerHasTmux: false,
@@ -496,6 +499,34 @@ describe("Chrome product smoke script", () => {
       ]
     })).toBe("sensitive-paused");
   });
+
+  it("keeps a Chrome extension setup guide aligned with smoke diagnostics", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-chrome-plan.mjs");
+    const {
+      CHROME_EXTENSION_SETUP_GUIDE_PATH,
+      validateChromeExtensionSetupGuide
+    } = await import(pathToFileURL(modulePath).href) as {
+      CHROME_EXTENSION_SETUP_GUIDE_PATH: string;
+      validateChromeExtensionSetupGuide: (source: string) => {
+        ok: boolean;
+        missingTerms: string[];
+      };
+    };
+    const guidePath = path.join(process.cwd(), CHROME_EXTENSION_SETUP_GUIDE_PATH);
+
+    expect(CHROME_EXTENSION_SETUP_GUIDE_PATH).toBe("docs/chrome-extension-setup.md");
+    expect(existsSync(guidePath)).toBe(true);
+
+    const guide = readFileSync(guidePath, "utf8");
+
+    expect(validateChromeExtensionSetupGuide(guide)).toEqual({
+      ok: true,
+      missingTerms: []
+    });
+    expect(guide).toContain("current-tab fields");
+    expect(guide).toContain("extension.liveConnection: connected");
+    expect(guide).toContain("Screen locked, display asleep, or `loginwindow` active");
+  });
 });
 
 function createPassingNativeHostBridgeRun() {
@@ -608,6 +639,56 @@ function createPassingReadinessDiagnostics() {
       launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
       messageType: "skfiy.page.observe",
       requestId: "request-1"
+    },
+    setupGuide: {
+      schemaVersion: 1,
+      productPath: "dist/skfiy -> Chrome MV3 extension -> Native Messaging",
+      state: "ready",
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+      expectedAllowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+      nativeHostManifestPath: "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+      cliShimPath: "/repo/dist/skfiy",
+      connectionHeartbeatPath: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+      hostPolicyPath: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+      extensionPath: "/repo/chrome-extension",
+      recommendedBrowsers: [
+        "Google Chrome for Testing",
+        "Chromium",
+        "Google Chrome with manually installed skfiy extension"
+      ],
+      installHostCommand: [
+        "skfiy",
+        "chrome",
+        "install-host",
+        "--cli",
+        "/repo/dist/skfiy",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop"
+      ],
+      verifyStatusCommand: [
+        "skfiy",
+        "chrome",
+        "status",
+        "--cli",
+        "/repo/dist/skfiy",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop"
+      ],
+      smokeCommand: [
+        "skfiy",
+        "smoke",
+        "chrome",
+        "--output",
+        ".skfiy-smoke/chrome.json"
+      ],
+      nextActions: [
+        {
+          id: "verify-live-connection",
+          state: "done",
+          owner: "browser",
+          title: "Chrome extension has recently connected to the native host."
+        }
+      ]
     }
   };
 }

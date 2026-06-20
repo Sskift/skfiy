@@ -331,6 +331,40 @@ describe("dashboard snapshot data", () => {
       "/repo/.skfiy-smoke/chrome-dashboard-native-bridge-postbuild.json": JSON.stringify({
         result: "passed",
         productPath: "renderer -> preload -> main -> CDP -> Chrome",
+        readinessDiagnostics: {
+          setupGuide: {
+            schemaVersion: 1,
+            installHostCommand: [
+              "skfiy",
+              "chrome",
+              "install-host",
+              "--extension-id",
+              "abcdefghijklmnopabcdefghijklmnop"
+            ],
+            verifyStatusCommand: [
+              "skfiy",
+              "chrome",
+              "status",
+              "--extension-id",
+              "abcdefghijklmnopabcdefghijklmnop"
+            ],
+            smokeCommand: [
+              "skfiy",
+              "smoke",
+              "chrome",
+              "--output",
+              ".skfiy-smoke/chrome.json"
+            ],
+            nextActions: [
+              {
+                id: "verify-live-connection",
+                state: "waiting",
+                owner: "browser",
+                title: "Reload the skfiy Chrome extension and verify the native host heartbeat."
+              }
+            ]
+          }
+        },
         nativeHostBridgeRun: {
           result: "passed",
           productPath: "dist/skfiy -> Chrome Native Messaging heartbeat",
@@ -873,6 +907,38 @@ describe("dashboard snapshot data", () => {
         mtimeMs: Date.parse("2026-06-19T23:59:30.000Z"),
         ageSeconds: 30,
         stale: false,
+        setupGuide: {
+          schemaVersion: 1,
+          installHostCommand: [
+            "skfiy",
+            "chrome",
+            "install-host",
+            "--extension-id",
+            "abcdefghijklmnopabcdefghijklmnop"
+          ],
+          verifyStatusCommand: [
+            "skfiy",
+            "chrome",
+            "status",
+            "--extension-id",
+            "abcdefghijklmnopabcdefghijklmnop"
+          ],
+          smokeCommand: [
+            "skfiy",
+            "smoke",
+            "chrome",
+            "--output",
+            ".skfiy-smoke/chrome.json"
+          ],
+          nextActions: [
+            {
+              id: "verify-live-connection",
+              state: "waiting",
+              owner: "browser",
+              title: "Reload the skfiy Chrome extension and verify the native host heartbeat."
+            }
+          ]
+        },
         nativeHostBridge: {
           result: "passed",
           productPath: "dist/skfiy -> Chrome Native Messaging heartbeat",

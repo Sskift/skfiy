@@ -175,8 +175,12 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("/api/chrome-host-policy");
     expect(response.body).toContain("renderEvidenceSummaryPanel(snapshot)");
     expect(response.body).toContain("createEvidenceSummaryLanes(snapshot)");
+    expect(response.body).toContain("createChromeSetupGuide(extension, nativeHost, chromeArtifact)");
     expect(response.body).toContain("data-evidence-lanes");
     expect(response.body).toContain("data-evidence-lane");
+    expect(response.body).toContain("data-evidence-next-actions");
+    expect(response.body).toContain("data-evidence-commands");
+    expect(response.body).toContain("skfiy chrome install-host --extension-id");
     expect(response.body).toContain("renderAppPolicyPanel(snapshot)");
     expect(response.body).toContain("data-chrome-policy-host-input");
     expect(response.body).toContain("data-chrome-policy-feedback");
@@ -574,7 +578,24 @@ describe("dashboard loopback HTTP response helper", () => {
             dashboard: { state: "running", url: descriptor.url },
             extension: {
               state: "native-host-installed",
-              liveConnection: "stale"
+              liveConnection: "stale",
+              setupGuide: {
+                nextActions: [
+                  "Refresh the extension native-host heartbeat."
+                ],
+                commands: [
+                  {
+                    id: "status",
+                    label: "Status",
+                    command: "skfiy chrome status --json --extension-id abcdefghijklmnopabcdefghijklmnop"
+                  },
+                  {
+                    id: "smoke",
+                    label: "Smoke",
+                    command: "npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json"
+                  }
+                ]
+              }
             },
             nativeHost: {
               state: "installed",
@@ -662,6 +683,28 @@ describe("dashboard loopback HTTP response helper", () => {
       ["codex-plugin", "ready"],
       ["chrome-extension", "needs-evidence"]
     ]);
+    expect(summary.lanes.find((lane: { id: string }) => lane.id === "chrome-extension")).toMatchObject({
+      setupGuide: {
+        source: "runtime",
+        nativeHostState: "installed",
+        liveConnectionState: "stale",
+        nextActions: [
+          "Refresh the extension native-host heartbeat."
+        ],
+        commands: [
+          {
+            id: "status",
+            label: "Status",
+            command: "skfiy chrome status --json --extension-id abcdefghijklmnopabcdefghijklmnop"
+          },
+          {
+            id: "smoke",
+            label: "Smoke",
+            command: "npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json"
+          }
+        ]
+      }
+    });
     expect(response.body).not.toContain("ignored");
     expect(response.body).not.toContain("secret-token");
     expect(response.body).not.toContain("token=secret-token");

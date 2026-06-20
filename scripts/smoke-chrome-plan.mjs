@@ -13,6 +13,20 @@ export const NATIVE_HOST_BRIDGE_PRODUCT_PATH =
   "dist/skfiy -> Chrome Native Messaging heartbeat";
 export const INSTALLED_EXTENSION_PRODUCT_PATH =
   "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat";
+export const CHROME_EXTENSION_SETUP_GUIDE_PATH = "docs/chrome-extension-setup.md";
+export const CHROME_EXTENSION_SETUP_GUIDE_REQUIRED_TERMS = [
+  "chrome-extension/manifest.json",
+  "com.sskift.skfiy",
+  "NativeMessagingHosts/com.sskift.skfiy.json",
+  "chrome-extension-connection.json",
+  "chrome install-host --extension-id <extension-id>",
+  "chrome status --extension-id <extension-id>",
+  "Refresh host policy",
+  "Host permission",
+  "Page session",
+  "doctor --json --extension-id <extension-id>",
+  "branded_chrome_load_extension_removed"
+];
 export const INSTALLED_EXTENSION_CHROME_APP_CANDIDATES = [
   "Google Chrome for Testing",
   "Chromium"
@@ -113,6 +127,7 @@ export function createHelpText(defaults) {
   return `Usage: npm run smoke:chrome -- [options]
 
 Runs the packaged skfiy app through a Chrome test-page product path.
+Chrome extension setup guide: ${CHROME_EXTENSION_SETUP_GUIDE_PATH}
 
 Options:
   --app <path>          App bundle path. Default: ${defaults.appPath}
@@ -132,6 +147,17 @@ Options:
   --keep-open           Leave skfiy open after the smoke run.
   -h, --help            Show this help.
 `;
+}
+
+export function validateChromeExtensionSetupGuide(source) {
+  const text = String(source ?? "");
+  const missingTerms = CHROME_EXTENSION_SETUP_GUIDE_REQUIRED_TERMS
+    .filter((term) => !text.includes(term));
+
+  return {
+    ok: missingTerms.length === 0,
+    missingTerms
+  };
 }
 
 export function selectInstalledExtensionChromeApp({
@@ -407,7 +433,53 @@ function hasChromeReadinessDiagnostics(diagnostics) {
     && allowedLiveConnectionStates.has(diagnostics.liveConnection?.state)
     && ["connected", "stale", "unknown"].includes(diagnostics.liveConnection?.liveConnection)
     && typeof diagnostics.liveConnection?.path === "string"
-    && diagnostics.liveConnection.path.includes("Application Support/skfiy/chrome-extension-connection.json");
+    && diagnostics.liveConnection.path.includes("Application Support/skfiy/chrome-extension-connection.json")
+    && hasChromeReadinessSetupGuide(diagnostics.setupGuide);
+}
+
+function hasChromeReadinessSetupGuide(guide) {
+  const allowedStates = new Set(["ready", "needs_setup", "blocked"]);
+
+  return guide
+    && typeof guide === "object"
+    && guide.schemaVersion === 1
+    && guide.productPath === "dist/skfiy -> Chrome MV3 extension -> Native Messaging"
+    && allowedStates.has(guide.state)
+    && Array.isArray(guide.extensionIds)
+    && guide.extensionIds.every((extensionId) =>
+      typeof extensionId === "string" && extensionId.length === 32
+    )
+    && Array.isArray(guide.expectedAllowedOrigins)
+    && guide.expectedAllowedOrigins.every((origin) =>
+      typeof origin === "string" && origin.startsWith("chrome-extension://")
+    )
+    && typeof guide.nativeHostManifestPath === "string"
+    && guide.nativeHostManifestPath.includes("NativeMessagingHosts/com.sskift.skfiy.json")
+    && typeof guide.cliShimPath === "string"
+    && typeof guide.connectionHeartbeatPath === "string"
+    && guide.connectionHeartbeatPath.includes("Application Support/skfiy/chrome-extension-connection.json")
+    && typeof guide.hostPolicyPath === "string"
+    && guide.hostPolicyPath.includes("Application Support/skfiy/chrome-host-policy.json")
+    && Array.isArray(guide.recommendedBrowsers)
+    && guide.recommendedBrowsers.includes("Google Chrome for Testing")
+    && guide.recommendedBrowsers.includes("Chromium")
+    && isCommand(guide.installHostCommand, "install-host")
+    && isCommand(guide.verifyStatusCommand, "status")
+    && isCommand(guide.smokeCommand, "chrome")
+    && Array.isArray(guide.nextActions)
+    && guide.nextActions.some((action) =>
+      action
+      && typeof action === "object"
+      && (action.id === "install-native-host" || action.id === "verify-live-connection")
+      && typeof action.state === "string"
+      && typeof action.title === "string"
+    );
+}
+
+function isCommand(command, expectedTail) {
+  return Array.isArray(command)
+    && command[0] === "skfiy"
+    && command.includes(expectedTail);
 }
 
 export function classifyChromeFallbackSmokeEvidence({

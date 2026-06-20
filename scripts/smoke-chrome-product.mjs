@@ -531,6 +531,7 @@ async function runChromeReadinessDiagnostics(options) {
     homeDir: os.homedir(),
     cliShimPath: options.cliPath,
     extensionIds: [FIXTURE_EXTENSION_ID],
+    extensionPath: path.join(ROOT_DIR, "chrome-extension"),
     approvalProbeCommand: `打开 Chrome 测试页面 https://example.com/skfiy-readiness 并提取正文`
   });
 }

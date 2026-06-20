@@ -1414,6 +1414,7 @@ function readLatestSmokeArtifacts(
       result: typeof artifact.result === "string" ? artifact.result : "unknown",
       path: artifactPath,
       ...(typeof artifact.productPath === "string" ? { productPath: artifact.productPath } : {}),
+      ...readSmokeArtifactSetupGuideSummary(target, artifact),
       ...readSmokeArtifactNativeHostBridgeSummary(target, artifact),
       ...readSmokeArtifactInstalledExtensionSummary(target, artifact),
       mtimeMs,
@@ -1433,6 +1434,22 @@ function readLatestSmokeArtifacts(
   return [...latestByTarget.values()].sort((left, right) =>
     String(left.target).localeCompare(String(right.target))
   );
+}
+
+function readSmokeArtifactSetupGuideSummary(
+  target: string,
+  artifact: Record<string, unknown>
+): Record<string, unknown> {
+  if (target !== "chrome") {
+    return {};
+  }
+
+  const directGuide = readRecord(artifact.setupGuide);
+  const readinessDiagnostics = readRecord(artifact.readinessDiagnostics);
+  const diagnosticsGuide = readRecord(readinessDiagnostics?.setupGuide);
+  const setupGuide = directGuide ?? diagnosticsGuide;
+
+  return setupGuide ? { setupGuide: cloneRecord(setupGuide) } : {};
 }
 
 function readSmokeArtifactInstalledExtensionSummary(

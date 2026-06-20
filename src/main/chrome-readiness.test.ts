@@ -32,9 +32,28 @@ describe("Chrome extension readiness diagnostics", () => {
   const homeDir = "/Users/tester";
   const cliShimPath = "/repo/dist/skfiy";
   const extensionIds = ["abcdefghijklmnopabcdefghijklmnop"];
+  const extensionPath = "/repo/chrome-extension";
   const manifestPath = "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json";
   const hostPolicyPath = createChromeHostPolicyStatePath(homeDir);
   const connectionPath = createChromeExtensionConnectionStatePath(homeDir);
+  const installHostCommand = [
+    "skfiy",
+    "chrome",
+    "install-host",
+    "--cli",
+    cliShimPath,
+    "--extension-id",
+    extensionIds[0]
+  ];
+  const verifyStatusCommand = [
+    "skfiy",
+    "chrome",
+    "status",
+    "--cli",
+    cliShimPath,
+    "--extension-id",
+    extensionIds[0]
+  ];
 
   it("summarizes installed native host, host policy, approval policy, and live connection evidence", async () => {
     const manifest = createChromeNativeHostManifest({
@@ -67,6 +86,7 @@ describe("Chrome extension readiness diagnostics", () => {
       homeDir,
       cliShimPath,
       extensionIds,
+      extensionPath,
       approvalProbeCommand: "打开 Chrome 测试页面 https://Example.com/path 并提取正文",
       generatedAt: "2026-06-20T00:02:00.000Z",
       io
@@ -111,6 +131,60 @@ describe("Chrome extension readiness diagnostics", () => {
         launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
         messageType: "skfiy.page.observe",
         requestId: "request-1"
+      },
+      setupGuide: {
+        schemaVersion: 1,
+        productPath: "dist/skfiy -> Chrome MV3 extension -> Native Messaging",
+        state: "ready",
+        extensionIds,
+        expectedAllowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+        nativeHostManifestPath: manifestPath,
+        cliShimPath,
+        connectionHeartbeatPath: connectionPath,
+        hostPolicyPath,
+        extensionPath,
+        recommendedBrowsers: [
+          "Google Chrome for Testing",
+          "Chromium",
+          "Google Chrome with manually installed skfiy extension"
+        ],
+        installHostCommand,
+        verifyStatusCommand,
+        smokeCommand: [
+          "skfiy",
+          "smoke",
+          "chrome",
+          "--output",
+          ".skfiy-smoke/chrome.json"
+        ],
+        nextActions: [
+          {
+            id: "build-cli",
+            state: "done",
+            owner: "skfiy",
+            title: "Packaged skfiy CLI is available for Native Messaging."
+          },
+          {
+            id: "install-native-host",
+            state: "done",
+            owner: "skfiy",
+            title: "Chrome Native Messaging host manifest is installed.",
+            command: verifyStatusCommand
+          },
+          {
+            id: "repair-host-policy",
+            state: "done",
+            owner: "skfiy",
+            title: "Chrome host policy is readable and fail-closed."
+          },
+          {
+            id: "verify-live-connection",
+            state: "done",
+            owner: "browser",
+            title: "Chrome extension has recently connected to the native host.",
+            command: verifyStatusCommand
+          }
+        ]
       }
     });
   });
@@ -143,6 +217,32 @@ describe("Chrome extension readiness diagnostics", () => {
         state: "unknown",
         liveConnection: "unknown",
         path: connectionPath
+      },
+      setupGuide: {
+        state: "needs_setup",
+        nativeHostManifestPath: manifestPath,
+        connectionHeartbeatPath: connectionPath,
+        installHostCommand,
+        nextActions: [
+          {
+            id: "build-cli",
+            state: "done"
+          },
+          {
+            id: "install-native-host",
+            state: "needed",
+            command: installHostCommand
+          },
+          {
+            id: "repair-host-policy",
+            state: "done"
+          },
+          {
+            id: "load-extension",
+            state: "waiting",
+            command: verifyStatusCommand
+          }
+        ]
       }
     });
   });
@@ -172,6 +272,16 @@ describe("Chrome extension readiness diagnostics", () => {
       hostPolicy: {
         state: "invalid",
         reason: "Chrome host policy file is not valid JSON."
+      },
+      setupGuide: {
+        state: "blocked",
+        nextActions: expect.arrayContaining([
+          expect.objectContaining({
+            id: "repair-host-policy",
+            state: "blocked",
+            command: ["skfiy", "chrome", "policy", "reset"]
+          })
+        ])
       }
     });
   });
