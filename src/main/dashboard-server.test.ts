@@ -97,6 +97,7 @@ describe("dashboard loopback HTTP response helper", () => {
           currentTurn: { state: "idle" },
           replay: { state: "empty" },
           smokeEvidence: { artifacts: [] },
+          dogfoodRelease: { state: "unknown" },
           longHorizon: { state: "unknown", session: "money-run" },
           alerts: []
         })
@@ -122,6 +123,7 @@ describe("dashboard loopback HTTP response helper", () => {
       currentTurn: { state: "idle" },
       replay: { state: "empty" },
       smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
       longHorizon: { session: "money-run" }
     });
     expect(response.body).not.toContain("token=");

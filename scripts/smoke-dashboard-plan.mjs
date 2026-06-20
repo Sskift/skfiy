@@ -111,6 +111,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || !Array.isArray(snapshot?.smokeEvidence?.artifacts)
     || !hasChromeNativeHostBridgeSmokeEvidence(snapshot.smokeEvidence.artifacts)
     || !hasChromeInstalledExtensionSmokeEvidence(snapshot.smokeEvidence.artifacts)
+    || !hasDogfoodReleaseEvidence(snapshot?.dogfoodRelease)
     || snapshot?.longHorizon?.session !== "money-run"
     || !Array.isArray(snapshot?.alerts)
   ) {
@@ -331,4 +332,80 @@ function hasChromeInstalledExtensionSmokeEvidence(artifacts) {
       && Array.isArray(installedExtension?.diagnosticExtensionNames)
       && installedExtension.diagnosticExtensionNames.includes("Google Network Speech");
   });
+}
+
+function hasDogfoodReleaseEvidence(dogfoodRelease) {
+  return typeof dogfoodRelease?.state === "string"
+    && hasLatestAlphaEvidence(dogfoodRelease.latestAlpha)
+    && hasManifestEvidence(dogfoodRelease.manifest)
+    && hasCohortEvidence(dogfoodRelease.cohort);
+}
+
+function hasLatestAlphaEvidence(latestAlpha) {
+  if (!latestAlpha || typeof latestAlpha !== "object") {
+    return false;
+  }
+
+  if (latestAlpha.state === "missing") {
+    return typeof latestAlpha.path === "string";
+  }
+
+  return (latestAlpha.state === "published" || latestAlpha.state === "present")
+    && typeof latestAlpha.tagName === "string"
+    && typeof latestAlpha.commitSha === "string"
+    && typeof latestAlpha.manifestPath === "string"
+    && typeof latestAlpha.zipPath === "string"
+    && isSha256(latestAlpha.zipSha256);
+}
+
+function hasManifestEvidence(manifest) {
+  if (!manifest || typeof manifest !== "object") {
+    return false;
+  }
+
+  if (manifest.state === "missing" || manifest.state === "unknown") {
+    return typeof manifest.reason === "string" || typeof manifest.path === "string";
+  }
+
+  return manifest.state === "present"
+    && typeof manifest.path === "string"
+    && isSha256(manifest.sha256)
+    && typeof manifest.commitSha === "string"
+    && manifest.bundleIdentifier === "com.sskift.skfiy"
+    && isSha256(manifest.zipSha256);
+}
+
+function hasCohortEvidence(cohort) {
+  if (!cohort || typeof cohort !== "object") {
+    return false;
+  }
+
+  return (cohort.state === "present" || cohort.state === "missing")
+    && Number.isInteger(cohort.totalReports)
+    && cohort.totalReports >= 0
+    && Number.isInteger(cohort.acceptedReportCount)
+    && cohort.acceptedReportCount >= 0
+    && Number.isInteger(cohort.distinctRealTesterCount)
+    && cohort.distinctRealTesterCount >= 0
+    && typeof cohort.ready === "boolean"
+    && typeof cohort.passedReady === "boolean"
+    && hasWorkflowCoverage(cohort.workflowCoverage)
+    && hasWorkflowCoverage(cohort.passedWorkflowCoverage)
+    && Array.isArray(cohort.acceptedReportIssueUrls);
+}
+
+function hasWorkflowCoverage(coverage) {
+  const requiredWorkflows = [
+    "coding-terminal",
+    "screenshot-inspection",
+    "finder-file",
+    "browser-fallback"
+  ];
+
+  return coverage && typeof coverage === "object"
+    && requiredWorkflows.every((workflow) => typeof coverage[workflow] === "boolean");
+}
+
+function isSha256(value) {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 }

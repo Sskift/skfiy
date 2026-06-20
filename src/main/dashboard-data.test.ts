@@ -128,6 +128,9 @@ describe("dashboard snapshot data", () => {
           }
         ]
       },
+      dogfoodRelease: {
+        state: "unknown"
+      },
       longHorizon: {
         state: "not-running",
         session: "money-run"
@@ -246,6 +249,86 @@ describe("dashboard snapshot data", () => {
         result: "passed",
         productPath: "plugin scaffold -> staged marketplace install -> .mcp.json -> packaged skfiy CLI -> MCP stdio"
       }),
+      "/repo/docs/release-evidence/latest-alpha.json": JSON.stringify({
+        schemaVersion: 1,
+        appName: "skfiy",
+        tagName: "skfiy-alpha-def4567",
+        releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-def4567",
+        commitSha: "def4567890abcdef1234567890abcdef12345678",
+        artifactBaseName: "skfiy-0.1.0-def4567-macos-unsigned",
+        manifestPath: ".skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
+        zipPath: ".skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.zip",
+        zipSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        smokeArtifacts: {
+          ui: ".skfiy-smoke/ui-def4567.json",
+          ghostty: ".skfiy-smoke/ghostty-def4567.json",
+          chrome: ".skfiy-smoke/chrome-def4567.json",
+          finder: ".skfiy-smoke/finder-def4567.json",
+          voice: ".skfiy-smoke/voice-def4567.json",
+          moneyRun: ".skfiy-smoke/money-run-def4567.json"
+        },
+        dogfoodStatus: "waiting-for-dogfood",
+        publishedAt: "2026-06-19T17:56:02.518Z"
+      }),
+      "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json": JSON.stringify({
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "def4567890abcdef1234567890abcdef12345678",
+        bundleIdentifier: "com.sskift.skfiy",
+        artifactBaseName: "skfiy-0.1.0-def4567-macos-unsigned",
+        zip: {
+          path: ".skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.zip",
+          sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        }
+      }),
+      "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.zip": "zip-bytes",
+      "/repo/.skfiy-dogfood/internal-alpha-cohort.json": JSON.stringify({
+        schemaVersion: 1,
+        cohortName: "internal-alpha",
+        manifestPath: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
+        reports: [
+          {
+            testerId: "tester-a",
+            result: "passed",
+            workflows: ["coding-terminal", "screenshot-inspection"],
+            source: {
+              type: "github-issue",
+              issueUrl: "https://github.com/Sskift/skfiy/issues/101",
+              issueLabels: [
+                "dogfood:accepted",
+                "workflow:coding-terminal",
+                "workflow:screenshot-inspection"
+              ]
+            }
+          },
+          {
+            testerId: "tester-b",
+            result: "passed",
+            workflows: ["finder-file"],
+            source: {
+              type: "github-issue",
+              issueUrl: "https://github.com/Sskift/skfiy/issues/102",
+              issueLabels: [
+                "dogfood:accepted",
+                "workflow:finder-file"
+              ]
+            }
+          },
+          {
+            testerId: "tester-c",
+            result: "blocked",
+            workflows: ["browser-fallback"],
+            source: {
+              type: "github-issue",
+              issueUrl: "https://github.com/Sskift/skfiy/issues/103",
+              issueLabels: [
+                "dogfood:accepted",
+                "workflow:browser-fallback"
+              ]
+            }
+          }
+        ]
+      }),
       "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json": JSON.stringify({
         name: "com.sskift.skfiy",
         description: "skfiy desktop Computer Use bridge",
@@ -265,6 +348,13 @@ describe("dashboard snapshot data", () => {
       })
     };
     const directories: Record<string, string[]> = {
+      "/repo/docs": ["release-evidence"],
+      "/repo/docs/release-evidence": ["latest-alpha.json"],
+      "/repo/.skfiy-alpha": [
+        "skfiy-0.1.0-def4567-macos-unsigned.json",
+        "skfiy-0.1.0-def4567-macos-unsigned.zip"
+      ],
+      "/repo/.skfiy-dogfood": ["internal-alpha-cohort.json"],
       "/repo/.skfiy-smoke": [
         "dashboard-old.json",
         "dashboard-current.json",
@@ -388,6 +478,60 @@ describe("dashboard snapshot data", () => {
           messageType: "skfiy.page.observe",
           requestId: "request-heartbeat"
         }
+      }
+    });
+    expect(snapshot.dogfoodRelease).toMatchObject({
+      state: "cohort-ready",
+      latestAlpha: {
+        state: "published",
+        path: "/repo/docs/release-evidence/latest-alpha.json",
+        tagName: "skfiy-alpha-def4567",
+        releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-def4567",
+        commitSha: "def4567890abcdef1234567890abcdef12345678",
+        shortCommit: "def4567",
+        artifactBaseName: "skfiy-0.1.0-def4567-macos-unsigned",
+        manifestPath: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
+        zipPath: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.zip",
+        zipSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        dogfoodStatus: "waiting-for-dogfood",
+        publishedAt: "2026-06-19T17:56:02.518Z"
+      },
+      manifest: {
+        state: "present",
+        path: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
+        appName: "skfiy",
+        commitSha: "def4567890abcdef1234567890abcdef12345678",
+        bundleIdentifier: "com.sskift.skfiy",
+        zipSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+      },
+      cohort: {
+        state: "present",
+        path: "/repo/.skfiy-dogfood/internal-alpha-cohort.json",
+        cohortName: "internal-alpha",
+        manifestPath: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
+        totalReports: 3,
+        acceptedReportCount: 3,
+        distinctRealTesterCount: 3,
+        ready: true,
+        passedReady: false,
+        workflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": true,
+          "browser-fallback": true
+        },
+        passedWorkflowCoverage: {
+          "coding-terminal": true,
+          "screenshot-inspection": true,
+          "finder-file": true,
+          "browser-fallback": false
+        },
+        acceptedReportIssueUrls: [
+          "https://github.com/Sskift/skfiy/issues/101",
+          "https://github.com/Sskift/skfiy/issues/102",
+          "https://github.com/Sskift/skfiy/issues/103"
+        ]
       }
     });
     expect(snapshot.permissions).toEqual({

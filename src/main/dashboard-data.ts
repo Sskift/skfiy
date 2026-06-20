@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,6 +10,20 @@ import {
 } from "./chrome-native-host.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
+const REQUIRED_DOGFOOD_WORKFLOWS = [
+  "coding-terminal",
+  "screenshot-inspection",
+  "finder-file",
+  "browser-fallback"
+] as const;
+const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
+const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
+const SYNTHETIC_TESTER_ID_PREFIXES = [
+  "local-",
+  "prepare-",
+  "preflight-",
+  "synthetic-"
+];
 
 export interface DashboardSnapshotInput {
   generatedAt?: string;
@@ -19,6 +34,7 @@ export interface DashboardSnapshotInput {
   smokeEvidence?: {
     artifacts: Array<Record<string, unknown>>;
   };
+  dogfoodRelease?: Record<string, unknown>;
   longHorizon?: Record<string, unknown>;
 }
 
@@ -53,6 +69,7 @@ export interface DashboardSnapshot {
   smokeEvidence: {
     artifacts: Array<Record<string, unknown>>;
   };
+  dogfoodRelease: Record<string, unknown>;
   longHorizon: Record<string, unknown>;
   alerts: Array<Record<string, unknown>>;
 }
@@ -64,6 +81,7 @@ export function createDashboardSnapshot({
   currentTurn = { state: "idle" },
   replay = { state: "empty" },
   smokeEvidence = { artifacts: [] },
+  dogfoodRelease = { state: "unknown" },
   longHorizon = { state: "unknown", session: "money-run" }
 }: DashboardSnapshotInput): DashboardSnapshot {
   const permissions = readRecord(status.permissions) ?? createUnknownPermissions();
@@ -93,6 +111,7 @@ export function createDashboardSnapshot({
     smokeEvidence: {
       artifacts: smokeEvidence.artifacts.map((artifact) => cloneRecord(artifact))
     },
+    dogfoodRelease: cloneRecord(dogfoodRelease),
     longHorizon: cloneRecord(longHorizon),
     alerts: createDashboardAlerts({
       permissions,
@@ -153,7 +172,8 @@ export function createDashboardWorkspaceSnapshot({
     },
     smokeEvidence: {
       artifacts: readLatestSmokeArtifacts(rootDir, snapshotGeneratedAt, io)
-    }
+    },
+    dogfoodRelease: readWorkspaceDogfoodRelease(rootDir, io)
   });
 
   return {
@@ -265,6 +285,301 @@ function readPackageInfo(
       reason: error instanceof Error ? error.message : String(error)
     };
   }
+}
+
+function readWorkspaceDogfoodRelease(
+  rootDir: string,
+  io: DashboardWorkspaceIo
+): Record<string, unknown> {
+  const latestAlpha = readWorkspaceLatestAlpha(rootDir, io);
+  const manifest = readWorkspaceLatestAlphaManifest(rootDir, latestAlpha, io);
+  const cohort = readWorkspaceDogfoodCohort(rootDir, io);
+
+  return {
+    state: readDogfoodReleaseState(latestAlpha, cohort),
+    latestAlpha,
+    manifest,
+    cohort
+  };
+}
+
+function readWorkspaceLatestAlpha(
+  rootDir: string,
+  io: DashboardWorkspaceIo
+): Record<string, unknown> {
+  const latestAlphaPath = path.join(rootDir, "docs", "release-evidence", "latest-alpha.json");
+
+  if (!io.exists(latestAlphaPath)) {
+    return {
+      state: "missing",
+      path: latestAlphaPath,
+      reason: "latest alpha release evidence is missing."
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(io.readFile(latestAlphaPath)) as unknown;
+    const record = readRecord(parsed);
+    if (!record) {
+      return {
+        state: "invalid",
+        path: latestAlphaPath,
+        reason: "latest alpha release evidence is not an object."
+      };
+    }
+
+    const commitSha = typeof record.commitSha === "string" ? record.commitSha : undefined;
+    const manifestPath = typeof record.manifestPath === "string"
+      ? resolveWorkspacePath(rootDir, record.manifestPath)
+      : undefined;
+    const zipPath = typeof record.zipPath === "string"
+      ? resolveWorkspacePath(rootDir, record.zipPath)
+      : undefined;
+
+    return {
+      state: typeof record.releaseUrl === "string" ? "published" : "present",
+      path: latestAlphaPath,
+      ...(typeof record.appName === "string" ? { appName: record.appName } : {}),
+      ...(typeof record.tagName === "string" ? { tagName: record.tagName } : {}),
+      ...(typeof record.releaseUrl === "string" ? { releaseUrl: record.releaseUrl } : {}),
+      ...(commitSha ? { commitSha, shortCommit: commitSha.slice(0, 7) } : {}),
+      ...(typeof record.artifactBaseName === "string" ? { artifactBaseName: record.artifactBaseName } : {}),
+      ...(manifestPath ? { manifestPath } : {}),
+      ...(zipPath ? { zipPath } : {}),
+      ...(typeof record.zipSha256 === "string" ? { zipSha256: record.zipSha256 } : {}),
+      ...(typeof record.dogfoodStatus === "string" ? { dogfoodStatus: record.dogfoodStatus } : {}),
+      ...(typeof record.publishedAt === "string" ? { publishedAt: record.publishedAt } : {})
+    };
+  } catch (error) {
+    return {
+      state: "invalid",
+      path: latestAlphaPath,
+      reason: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+function readWorkspaceLatestAlphaManifest(
+  rootDir: string,
+  latestAlpha: Record<string, unknown>,
+  io: DashboardWorkspaceIo
+): Record<string, unknown> {
+  const manifestPath = typeof latestAlpha.manifestPath === "string"
+    ? latestAlpha.manifestPath
+    : undefined;
+
+  if (!manifestPath) {
+    return {
+      state: "unknown",
+      reason: "latest alpha manifest path is missing."
+    };
+  }
+
+  if (!io.exists(manifestPath)) {
+    return {
+      state: "missing",
+      path: manifestPath,
+      reason: "latest alpha manifest is not present in this workspace."
+    };
+  }
+
+  try {
+    const manifestText = io.readFile(manifestPath);
+    const parsed = JSON.parse(manifestText) as unknown;
+    const manifest = readRecord(parsed);
+    if (!manifest) {
+      return {
+        state: "invalid",
+        path: manifestPath,
+        reason: "latest alpha manifest is not an object."
+      };
+    }
+    const zip = readRecord(manifest.zip);
+
+    return {
+      state: "present",
+      path: manifestPath,
+      sha256: createSha256(manifestText),
+      ...(typeof manifest.appName === "string" ? { appName: manifest.appName } : {}),
+      ...(typeof manifest.commitSha === "string" ? { commitSha: manifest.commitSha } : {}),
+      ...(typeof manifest.bundleIdentifier === "string" ? { bundleIdentifier: manifest.bundleIdentifier } : {}),
+      ...(typeof manifest.artifactBaseName === "string" ? { artifactBaseName: manifest.artifactBaseName } : {}),
+      ...(typeof zip?.sha256 === "string" ? { zipSha256: zip.sha256 } : {})
+    };
+  } catch (error) {
+    return {
+      state: "invalid",
+      path: manifestPath,
+      reason: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+function readWorkspaceDogfoodCohort(
+  rootDir: string,
+  io: DashboardWorkspaceIo
+): Record<string, unknown> {
+  const cohortPath = path.join(rootDir, ".skfiy-dogfood", "internal-alpha-cohort.json");
+  const emptyCoverage = createWorkflowCoverage([]);
+
+  if (!io.exists(cohortPath)) {
+    return {
+      state: "missing",
+      path: cohortPath,
+      totalReports: 0,
+      acceptedReportCount: 0,
+      distinctRealTesterCount: 0,
+      ready: false,
+      passedReady: false,
+      workflowCoverage: emptyCoverage.workflowCoverage,
+      passedWorkflowCoverage: emptyCoverage.passedWorkflowCoverage,
+      acceptedReportIssueUrls: []
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(io.readFile(cohortPath)) as unknown;
+    const cohort = readRecord(parsed);
+    if (!cohort) {
+      return {
+        state: "invalid",
+        path: cohortPath,
+        reason: "dogfood cohort is not an object."
+      };
+    }
+    const reports = Array.isArray(cohort.reports)
+      ? cohort.reports.map((report) => readRecord(report)).filter((report): report is Record<string, unknown> => Boolean(report))
+      : [];
+    const acceptedReports = reports.filter(isAcceptedDogfoodReport);
+    const acceptedRealReports = acceptedReports.filter(isRealTesterReport);
+    const workflowCoverage = createWorkflowCoverage(acceptedRealReports);
+    const distinctRealTesterIds = collectDistinctRealTesterIds(acceptedReports);
+    const ready = distinctRealTesterIds.length >= 3
+      && distinctRealTesterIds.length <= 5
+      && allWorkflowsCovered(workflowCoverage.workflowCoverage);
+    const passedReady = ready && allWorkflowsCovered(workflowCoverage.passedWorkflowCoverage);
+
+    return {
+      state: "present",
+      path: cohortPath,
+      ...(typeof cohort.cohortName === "string" ? { cohortName: cohort.cohortName } : {}),
+      ...(typeof cohort.manifestPath === "string" ? { manifestPath: resolveWorkspacePath(rootDir, cohort.manifestPath) } : {}),
+      totalReports: reports.length,
+      acceptedReportCount: acceptedReports.length,
+      distinctRealTesterCount: distinctRealTesterIds.length,
+      ready,
+      passedReady,
+      workflowCoverage: workflowCoverage.workflowCoverage,
+      passedWorkflowCoverage: workflowCoverage.passedWorkflowCoverage,
+      acceptedReportIssueUrls: acceptedReports
+        .map((report) => readAcceptedIssueUrl(report))
+        .filter((issueUrl): issueUrl is string => typeof issueUrl === "string")
+    };
+  } catch (error) {
+    return {
+      state: "invalid",
+      path: cohortPath,
+      reason: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+function readDogfoodReleaseState(
+  latestAlpha: Record<string, unknown>,
+  cohort: Record<string, unknown>
+): string {
+  if (latestAlpha.state !== "published" && latestAlpha.state !== "present") {
+    return `alpha-${String(latestAlpha.state ?? "unknown")}`;
+  }
+
+  if (cohort.passedReady === true) {
+    return "passed-cohort-ready";
+  }
+
+  if (cohort.ready === true) {
+    return "cohort-ready";
+  }
+
+  return typeof latestAlpha.dogfoodStatus === "string"
+    ? latestAlpha.dogfoodStatus
+    : "waiting-for-dogfood";
+}
+
+function createWorkflowCoverage(reports: Array<Record<string, unknown>>): {
+  workflowCoverage: Record<string, boolean>;
+  passedWorkflowCoverage: Record<string, boolean>;
+} {
+  return {
+    workflowCoverage: Object.fromEntries(
+      REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => [
+        workflow,
+        reports.some((report) => reportCoversWorkflow(report, workflow))
+      ])
+    ),
+    passedWorkflowCoverage: Object.fromEntries(
+      REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => [
+        workflow,
+        reports.some((report) =>
+          report.result === "passed" && reportCoversWorkflow(report, workflow)
+        )
+      ])
+    )
+  };
+}
+
+function reportCoversWorkflow(report: Record<string, unknown>, workflow: string): boolean {
+  return Array.isArray(report.workflows)
+    && report.workflows.includes(workflow)
+    && sourceHasWorkflowLabel(report, workflow);
+}
+
+function isAcceptedDogfoodReport(report: Record<string, unknown>): boolean {
+  return readAcceptedIssueUrl(report) !== undefined
+    && sourceHasLabel(report, ACCEPTED_DOGFOOD_LABEL);
+}
+
+function isRealTesterReport(report: Record<string, unknown>): boolean {
+  const testerId = typeof report.testerId === "string" ? report.testerId.trim().toLowerCase() : "";
+  return testerId.length > 0
+    && !SYNTHETIC_TESTER_ID_PREFIXES.some((prefix) => testerId.startsWith(prefix));
+}
+
+function collectDistinctRealTesterIds(reports: Array<Record<string, unknown>>): string[] {
+  return [...new Set(
+    reports
+      .filter(isRealTesterReport)
+      .map((report) => String(report.testerId).trim())
+      .filter(Boolean)
+  )];
+}
+
+function allWorkflowsCovered(coverage: Record<string, boolean>): boolean {
+  return REQUIRED_DOGFOOD_WORKFLOWS.every((workflow) => coverage[workflow] === true);
+}
+
+function sourceHasWorkflowLabel(report: Record<string, unknown>, workflow: string): boolean {
+  return sourceHasLabel(report, `${DOGFOOD_WORKFLOW_LABEL_PREFIX}${workflow}`);
+}
+
+function sourceHasLabel(report: Record<string, unknown>, label: string): boolean {
+  const source = readRecord(report.source);
+  return Array.isArray(source?.issueLabels)
+    && source.issueLabels.includes(label);
+}
+
+function readAcceptedIssueUrl(report: Record<string, unknown>): string | undefined {
+  const source = readRecord(report.source);
+  return source?.type === "github-issue" && typeof source.issueUrl === "string"
+    ? source.issueUrl
+    : undefined;
+}
+
+function resolveWorkspacePath(rootDir: string, value: string): string {
+  return path.isAbsolute(value) ? value : path.join(rootDir, value);
+}
+
+function createSha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 function readLatestSmokeArtifacts(

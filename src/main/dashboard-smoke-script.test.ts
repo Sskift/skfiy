@@ -188,6 +188,51 @@ describe("dashboard product smoke script", () => {
               }
             ]
           },
+          dogfoodRelease: {
+            state: "cohort-ready",
+            latestAlpha: {
+              state: "published",
+              tagName: "skfiy-alpha-def4567",
+              releaseUrl: "https://github.com/Sskift/skfiy/releases/tag/skfiy-alpha-def4567",
+              commitSha: "def4567890abcdef1234567890abcdef12345678",
+              manifestPath: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
+              zipPath: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.zip",
+              zipSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            },
+            manifest: {
+              state: "present",
+              path: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
+              sha256: "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+              commitSha: "def4567890abcdef1234567890abcdef12345678",
+              bundleIdentifier: "com.sskift.skfiy",
+              zipSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            },
+            cohort: {
+              state: "present",
+              totalReports: 3,
+              acceptedReportCount: 3,
+              distinctRealTesterCount: 3,
+              ready: true,
+              passedReady: false,
+              workflowCoverage: {
+                "coding-terminal": true,
+                "screenshot-inspection": true,
+                "finder-file": true,
+                "browser-fallback": true
+              },
+              passedWorkflowCoverage: {
+                "coding-terminal": true,
+                "screenshot-inspection": true,
+                "finder-file": true,
+                "browser-fallback": false
+              },
+              acceptedReportIssueUrls: [
+                "https://github.com/Sskift/skfiy/issues/101",
+                "https://github.com/Sskift/skfiy/issues/102",
+                "https://github.com/Sskift/skfiy/issues/103"
+              ]
+            }
+          },
           longHorizon: { session: "money-run" },
           alerts: []
         }
@@ -275,6 +320,16 @@ describe("dashboard product smoke script", () => {
               }
             ]
           }
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          dogfoodRelease: undefined
         }
       }
     })).toBe("failed");

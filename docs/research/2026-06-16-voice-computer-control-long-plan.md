@@ -551,6 +551,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] implement evidence panel: latest smoke artifacts, result, product path, blocker reason, stale evidence warning
     - partial: panel metadata exists in `createDashboardPanels()` and `/snapshot.json` now summarizes the latest `.skfiy-smoke/*.json` artifact per smoke target with result, path, product path, mtime, age, stale flag, and blocker when present; dashboard alerts now emit `smoke-evidence-stale` when any latest target artifact is older than 24 hours; HEAD/release identity matching remains pending
   - [ ] implement dogfood/release panel: current alpha, manifest checksum, accepted reports, cohort coverage
+    - partial: dashboard dogfood/release snapshot now reads `docs/release-evidence/latest-alpha.json`, the referenced alpha manifest, and `.skfiy-dogfood/internal-alpha-cohort.json`; it exposes `dogfoodRelease.latestAlpha`, manifest checksum, zip SHA256, accepted report URLs/count, distinct real tester count, workflow coverage, passed workflow coverage, `ready`, and `passedReady` without mutating GitHub or local cohort files; live GitHub tracking issue refresh and HEAD/release drift warnings remain pending
     - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement long-horizon panel: `money-run` session status, active pane, current recommendation, recent blocker markers
     - partial: panel metadata exists in `createDashboardPanels()`
