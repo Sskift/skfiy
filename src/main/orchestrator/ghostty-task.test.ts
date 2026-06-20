@@ -120,7 +120,7 @@ function readLatestCompletionMarker(calls: unknown[][]): string | undefined {
     .reverse();
 
   for (const text of typedTexts) {
-    const match = text.match(/SKFIY_DONE_%s_EXIT_%s\\n' '([A-Z]+)'/);
+    const match = text.match(/SKFIY DONE %s STATUS %s\\nSKFIY DONE %s STATUS %s\\n' '([A-Z]+)'/);
     if (match) {
       return `SKFIY_DONE_${match[1]}`;
     }
@@ -208,7 +208,7 @@ describe("runGhosttyCommandTask", () => {
     expect(client.executeAction).toHaveBeenNthCalledWith(6, {
       type: "type_text",
       text: expect.stringMatching(
-        /^pwd; __skfiy_status="\$\?"; printf '\\nSKFIY_DONE_%s_EXIT_%s\\n' '[A-Z]+' "\$__skfiy_status"$/
+        /^pwd; __skfiy_status="\$\?"; printf '\\nSKFIY DONE %s STATUS %s\\nSKFIY DONE %s STATUS %s\\n' '[A-Z]+' "\$__skfiy_status" '[A-Z]+' "\$__skfiy_status"$/
       )
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(7, {

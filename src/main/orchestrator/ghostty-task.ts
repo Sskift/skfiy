@@ -504,7 +504,7 @@ function createCommandCompletionMarker(): string {
 
 function createVerifiableTerminalCommand(command: string, completionMarker: string): string {
   const markerSuffix = completionMarker.replace(/^SKFIY_DONE_/, "");
-  return `${command}; __skfiy_status="$?"; printf '\\nSKFIY_DONE_%s_EXIT_%s\\n' '${markerSuffix}' "$__skfiy_status"`;
+  return `${command}; __skfiy_status="$?"; printf '\\nSKFIY DONE %s STATUS %s\\nSKFIY DONE %s STATUS %s\\n' '${markerSuffix}' "$__skfiy_status" '${markerSuffix}' "$__skfiy_status"`;
 }
 
 function createSessionInitializedEvent(): GhosttyTaskEvent {
