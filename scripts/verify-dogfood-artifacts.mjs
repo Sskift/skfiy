@@ -13,6 +13,7 @@ const execFileAsync = promisify(execFile);
 const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 const CHROME_PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
+const CHROME_NATIVE_HOST_BRIDGE_PRODUCT_PATH = "dist/skfiy -> Chrome Native Messaging heartbeat";
 const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
 const FINDER_ITEM_DRAG_DROP_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder";
 const FINDER_DRAG_PROBE_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
@@ -249,6 +250,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:chrome -- --output <path>"),
     "manifest must require Chrome smoke evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.chromeNativeHostBridge",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Chrome Native Messaging heartbeat evidence"),
+    "manifest must require Chrome Native Messaging heartbeat evidence"
   );
   check(
     checks,
@@ -734,6 +742,12 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
     "chrome.actionVerification",
     hasChromeActionVerification(artifact.events),
     "Chrome smoke must include navigate and extract_text verification events"
+  );
+  check(
+    checks,
+    "chrome.nativeHostBridge",
+    hasChromeNativeHostBridgeEvidence(artifact.nativeHostBridgeRun),
+    "Chrome smoke must include packaged Native Messaging heartbeat evidence"
   );
   check(
     checks,
@@ -1503,6 +1517,28 @@ function hasChromeApprovalEvidence(events) {
 function hasChromeActionVerification(events) {
   return hasTaskEventMessage(events, "Verified navigate:")
     && hasTaskEventMessage(events, "Verified extract_text:");
+}
+
+function hasChromeNativeHostBridgeEvidence(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const command = Array.isArray(value.command) ? value.command : [];
+  return value.result === "passed"
+    && value.productPath === CHROME_NATIVE_HOST_BRIDGE_PRODUCT_PATH
+    && typeof command[0] === "string"
+    && path.basename(command[0]) === "skfiy"
+    && command[1] === "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+    && value.response?.type === "skfiy.native.response"
+    && value.response?.requestId === "chrome-smoke-native-host"
+    && value.response?.result === "accepted"
+    && typeof value.heartbeatPath === "string"
+    && value.heartbeatPath.includes("Application Support/skfiy/chrome-extension-connection.json")
+    && value.heartbeat?.hostName === "com.sskift.skfiy"
+    && value.heartbeat?.launchOrigin === "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+    && value.heartbeat?.messageType === "skfiy.page.observe"
+    && value.heartbeat?.requestId === "chrome-smoke-native-host";
 }
 
 function hasChromeCurrentPageEvidence(value) {
@@ -2293,7 +2329,7 @@ Validates that an alpha manifest references a coherent packaged-app dogfood evid
 
 Options:
   --manifest <path>     Alpha manifest JSON from npm run alpha:artifact.
-  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and selected voice smoke results are passed, including panic stop runtime hotkey and stopTurnBehavior evidence, Chrome current-page observation evidence, external Doubao voice transcript-to-task evidence, and external Doubao voice Ghostty turn replay evidence.
+  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and selected voice smoke results are passed, including panic stop runtime hotkey and stopTurnBehavior evidence, Chrome Native Messaging heartbeat evidence, Chrome current-page observation evidence, external Doubao voice transcript-to-task evidence, and external Doubao voice Ghostty turn replay evidence.
   --require-current-head
                        Fail unless manifest commitSha matches the current git HEAD.
   -h, --help            Show this help.

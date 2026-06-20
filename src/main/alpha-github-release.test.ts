@@ -384,7 +384,8 @@ function createManifest() {
     moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-abcdef1.json",
     requiredDogfoodEvidence: [
       "Panic stop product-path behavior evidence",
-      "Long-horizon money-run supervision evidence"
+      "Long-horizon money-run supervision evidence",
+      "Chrome Native Messaging heartbeat evidence"
     ],
     zip: {
       path: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.zip",

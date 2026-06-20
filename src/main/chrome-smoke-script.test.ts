@@ -294,9 +294,18 @@ describe("Chrome product smoke script", () => {
       chromeLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       extractedText: "skfiy chrome smoke ready",
       events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
     })).toBe("passed");
+    expect(classifyChromeSmokeEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      extractedText: "skfiy chrome smoke ready",
+      events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
+    })).toBe("failed");
   });
 
   it("classifies a completed Chrome form action with expected text as passed", async () => {
@@ -314,6 +323,7 @@ describe("Chrome product smoke script", () => {
       chromeLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       expectedText: FORM_EXPECTED_TEXT,
       extractedText: FORM_EXPECTED_TEXT,
       events: [
@@ -341,6 +351,7 @@ describe("Chrome product smoke script", () => {
       chromeLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       extractedText: "",
       events: [
         {
@@ -368,6 +379,7 @@ describe("Chrome product smoke script", () => {
       chromeLaunchViaOpen: true,
       runnerHasTmux: false,
       productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       extractedText: "",
       events: [
         {
@@ -378,3 +390,28 @@ describe("Chrome product smoke script", () => {
     })).toBe("sensitive-paused");
   });
 });
+
+function createPassingNativeHostBridgeRun() {
+  return {
+    result: "passed",
+    productPath: "dist/skfiy -> Chrome Native Messaging heartbeat",
+    command: [
+      "/repo/dist/skfiy",
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+    ],
+    response: {
+      schemaVersion: 1,
+      type: "skfiy.native.response",
+      requestId: "chrome-smoke-native-host",
+      result: "accepted"
+    },
+    heartbeat: {
+      schemaVersion: 1,
+      hostName: "com.sskift.skfiy",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.page.observe",
+      requestId: "chrome-smoke-native-host"
+    },
+    heartbeatPath: "/repo/.skfiy-smoke/chrome-native-home/Library/Application Support/skfiy/chrome-extension-connection.json"
+  };
+}

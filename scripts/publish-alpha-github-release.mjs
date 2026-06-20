@@ -13,7 +13,8 @@ const DEFAULT_REPO = "Sskift/skfiy";
 const DEFAULT_TRACKING_ISSUE_URL = "https://github.com/Sskift/skfiy/issues/1";
 const REQUIRED_RELEASE_DOGFOOD_EVIDENCE = [
   "Panic stop product-path behavior evidence",
-  "Long-horizon money-run supervision evidence"
+  "Long-horizon money-run supervision evidence",
+  "Chrome Native Messaging heartbeat evidence"
 ];
 
 export function createDefaultGitHubAlphaReleaseOptions(rootDir = DEFAULT_ROOT_DIR) {

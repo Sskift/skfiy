@@ -631,6 +631,9 @@ function validateManifest(manifest) {
   if (!evidence.includes("Panic stop product-path behavior evidence")) {
     throw new Error("alpha manifest must include panic stop product-path behavior evidence.");
   }
+  if (!evidence.includes("Chrome Native Messaging heartbeat evidence")) {
+    throw new Error("alpha manifest must include Chrome Native Messaging heartbeat evidence.");
+  }
 }
 
 async function validateAppBundleIdentity(appPath, io) {

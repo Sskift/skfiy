@@ -25,6 +25,7 @@ describe("dogfood artifact verifier", () => {
     "non-terminal voice route guard runs",
     "Chrome app policy settings",
     "Chrome test-page extraction evidence",
+    "Chrome Native Messaging heartbeat evidence",
     "Chrome current-page observation evidence",
     "Chrome sensitive-page pause evidence",
     "Chrome form action evidence",
@@ -201,6 +202,28 @@ describe("dogfood artifact verifier", () => {
     chromeEndpoint: "http://127.0.0.1:9444",
     appPolicySettings: ghosttyAppPolicySettings,
     extractedText: "skfiy chrome smoke ready",
+    nativeHostBridgeRun: {
+      result: "passed",
+      productPath: "dist/skfiy -> Chrome Native Messaging heartbeat",
+      command: [
+        "/repo/dist/skfiy",
+        "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+      ],
+      response: {
+        schemaVersion: 1,
+        type: "skfiy.native.response",
+        requestId: "chrome-smoke-native-host",
+        result: "accepted"
+      },
+      heartbeatPath: "/repo/.skfiy-smoke/chrome-native-home/Library/Application Support/skfiy/chrome-extension-connection.json",
+      heartbeat: {
+        schemaVersion: 1,
+        hostName: "com.sskift.skfiy",
+        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        messageType: "skfiy.page.observe",
+        requestId: "chrome-smoke-native-host"
+      }
+    },
     currentPageRun: {
       result: "passed",
       command: "观察 Chrome 当前页面并提取正文",
@@ -693,6 +716,7 @@ describe("dogfood artifact verifier", () => {
       requirePassed: true,
       requireCurrentHead: true
     });
+    expect(createDogfoodVerifyHelpText()).toContain("Chrome Native Messaging heartbeat evidence");
     expect(createDogfoodVerifyHelpText()).toContain("Chrome current-page observation evidence");
     expect(createDogfoodVerifyHelpText()).toContain("external Doubao voice transcript-to-task evidence");
     expect(createDogfoodVerifyHelpText()).toContain("external Doubao voice Ghostty turn replay evidence");
@@ -2383,6 +2407,56 @@ describe("dogfood artifact verifier", () => {
       result: "failed",
       errors: expect.arrayContaining([
         expect.stringContaining("chrome.fallbackSwitch")
+      ])
+    });
+  });
+
+  it("fails when Chrome smoke lacks packaged Native Messaging heartbeat evidence", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+    const chromeArtifact = createChromeSmokeArtifact(chromeSmokePath);
+    delete (chromeArtifact as { nativeHostBridgeRun?: unknown }).nativeHostBridgeRun;
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: false
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        voiceSmokeArtifactPath: voiceSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: createGhosttySmokeArtifact(ghosttySmokePath),
+      [chromeSmokePath]: chromeArtifact,
+      [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [voiceSmokePath]: createVoiceSmokeArtifact(voiceSmokePath)
+    }))).resolves.toMatchObject({
+      result: "failed",
+      errors: expect.arrayContaining([
+        expect.stringContaining("chrome.nativeHostBridge")
       ])
     });
   });

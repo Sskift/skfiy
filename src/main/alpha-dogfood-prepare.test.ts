@@ -781,7 +781,8 @@ function createDownloadedManifest() {
       "npm run smoke:voice -- --output <path>",
       "npm run smoke:money-run -- --json-output <path>",
       "Panic stop product-path behavior evidence",
-      "Long-horizon money-run supervision evidence"
+      "Long-horizon money-run supervision evidence",
+      "Chrome Native Messaging heartbeat evidence"
     ]
   };
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFile, spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -19,6 +19,7 @@ import {
   createHelpText,
   EXPECTED_TEXT,
   FORM_EXPECTED_TEXT,
+  NATIVE_HOST_BRIDGE_PRODUCT_PATH,
   parseChromeSmokeArgs,
   PRODUCT_PATH
 } from "./smoke-chrome-plan.mjs";
@@ -85,6 +86,7 @@ async function main() {
     sensitiveRun: undefined,
     formRun: undefined,
     sensitiveFormRun: undefined,
+    nativeHostBridgeRun: undefined,
     fallbackRun: undefined,
     fallbackSwitchRun: undefined,
     permissions: undefined,
@@ -101,6 +103,7 @@ async function main() {
       rootDir: ROOT_DIR,
       scriptName: "smoke:chrome"
     });
+    evidence.nativeHostBridgeRun = await runChromeNativeHostBridgeSmoke(options);
 
     if (options.currentPageEndpoint) {
       if (!options.keepExisting) {
@@ -132,6 +135,9 @@ async function main() {
         evidence.currentPageRun = evidence.realCurrentPageRun;
         evidence.events = evidence.realCurrentPageRun.events;
         evidence.result = evidence.realCurrentPageRun.result;
+        if (evidence.result === "passed" && evidence.nativeHostBridgeRun.result !== "passed") {
+          evidence.result = "failed";
+        }
       } finally {
         cdp.close();
       }
@@ -401,6 +407,9 @@ function assertChromeSmokeReady(options) {
   if (!existsSync(options.appPath)) {
     throw new Error(`App bundle is missing at ${options.appPath}. Run npm run build first.`);
   }
+  if (!existsSync(options.cliPath)) {
+    throw new Error(`Packaged skfiy CLI is missing at ${options.cliPath}. Run npm run build first.`);
+  }
 
   if (typeof WebSocket !== "function") {
     throw new Error("This smoke script requires a Node runtime with global WebSocket support.");
@@ -409,6 +418,114 @@ function assertChromeSmokeReady(options) {
   if (CURRENT_PAGE_COMMAND !== EXPECTED_CURRENT_PAGE_COMMAND) {
     throw new Error("Chrome current-page smoke command changed without updating product evidence.");
   }
+}
+
+async function runChromeNativeHostBridgeSmoke(options) {
+  const launchOrigin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/";
+  const requestId = "chrome-smoke-native-host";
+  const homeDir = await mkdtemp(path.join(os.tmpdir(), "skfiy-chrome-native-host-"));
+  const heartbeatPath = path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "skfiy",
+    "chrome-extension-connection.json"
+  );
+  const command = [options.cliPath, launchOrigin];
+  const message = {
+    schemaVersion: 1,
+    type: "skfiy.page.observe",
+    requestId,
+    payload: { currentTab: true }
+  };
+
+  try {
+    const { code, signal, stdout, stderr } = await runNativeHostFrame({
+      command,
+      homeDir,
+      message
+    });
+    const response = readNativeHostResponse(stdout);
+    const heartbeat = JSON.parse(await readFile(heartbeatPath, "utf8"));
+    const passed = code === 0
+      && signal === null
+      && response?.type === "skfiy.native.response"
+      && response?.requestId === requestId
+      && response?.result === "accepted"
+      && heartbeat?.hostName === "com.sskift.skfiy"
+      && heartbeat?.launchOrigin === launchOrigin
+      && heartbeat?.messageType === "skfiy.page.observe"
+      && heartbeat?.requestId === requestId;
+
+    return {
+      result: passed ? "passed" : "failed",
+      productPath: NATIVE_HOST_BRIDGE_PRODUCT_PATH,
+      command,
+      exitCode: code,
+      signal,
+      response,
+      heartbeatPath,
+      heartbeat,
+      stderr
+    };
+  } catch (error) {
+    return {
+      result: "error",
+      productPath: NATIVE_HOST_BRIDGE_PRODUCT_PATH,
+      command,
+      heartbeatPath,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    await rm(homeDir, { recursive: true, force: true });
+  }
+}
+
+function runNativeHostFrame({ command, homeDir, message }) {
+  return new Promise((resolve, reject) => {
+    const payload = Buffer.from(JSON.stringify(message), "utf8");
+    const frame = Buffer.alloc(payload.byteLength + 4);
+    frame.writeUInt32LE(payload.byteLength, 0);
+    payload.copy(frame, 4);
+
+    const child = spawn(command[0], command.slice(1), {
+      cwd: ROOT_DIR,
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        SKFIY_NATIVE_MESSAGING_HOST: "1"
+      },
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    const stdout = [];
+    const stderr = [];
+
+    child.stdout.on("data", (chunk) => stdout.push(chunk));
+    child.stderr.on("data", (chunk) => stderr.push(chunk));
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      resolve({
+        code: code ?? 1,
+        signal,
+        stdout: Buffer.concat(stdout),
+        stderr: Buffer.concat(stderr).toString("utf8")
+      });
+    });
+    child.stdin.end(frame);
+  });
+}
+
+function readNativeHostResponse(stdout) {
+  if (!Buffer.isBuffer(stdout) || stdout.byteLength < 4) {
+    throw new Error("Chrome Native Messaging host did not write a response frame.");
+  }
+
+  const payloadByteLength = stdout.readUInt32LE(0);
+  if (stdout.byteLength < payloadByteLength + 4) {
+    throw new Error("Chrome Native Messaging host wrote an incomplete response frame.");
+  }
+
+  return JSON.parse(stdout.subarray(4, 4 + payloadByteLength).toString("utf8"));
 }
 
 function formatLaunchCommand(options, chromeEndpoint) {

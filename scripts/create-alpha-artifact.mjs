@@ -38,6 +38,7 @@ const DOGFOOD_EVIDENCE = [
   "non-terminal voice route guard runs",
   "Chrome app policy settings",
   "Chrome test-page extraction evidence",
+  "Chrome Native Messaging heartbeat evidence",
   "Chrome current-page observation evidence",
   "Chrome sensitive-page pause evidence",
   "Chrome form action evidence",

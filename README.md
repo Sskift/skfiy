@@ -159,6 +159,9 @@ long-horizon supervision. The extension state currently includes packaged CLI
 Native Messaging host manifest evidence plus the latest local extension
 heartbeat from `chrome-extension-connection.json`; a real installed-Chrome
 connected-browser smoke is still pending.
+`smoke:chrome` now also requires `nativeHostBridgeRun.result: passed` from the
+packaged `dist/skfiy -> Chrome Native Messaging heartbeat` path before Chrome
+browser-control evidence can count as passed.
 
 ```bash
 ./dist/skfiy status --json

@@ -9,6 +9,8 @@ export const FORM_EXPECTED_TEXT = "skfiy agent@skfiy.test operator form submitte
 export const CURRENT_PAGE_COMMAND = "观察 Chrome 当前页面并提取正文";
 export const SENSITIVE_EXPECTED_RESULT = "sensitive-paused";
 export const PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
+export const NATIVE_HOST_BRIDGE_PRODUCT_PATH =
+  "dist/skfiy -> Chrome Native Messaging heartbeat";
 export const FALLBACK_PRODUCT_PATH =
   "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback";
 export const FALLBACK_SWITCH_PRODUCT_PATH =
@@ -17,6 +19,7 @@ export const FALLBACK_SWITCH_PRODUCT_PATH =
 export function createDefaultChromeSmokeOptions(rootDir) {
   return {
     appPath: path.join(rootDir, "dist", "skfiy.app"),
+    cliPath: path.join(rootDir, "dist", "skfiy"),
     chromeAppName: "Google Chrome",
     port: DEFAULT_PORT,
     chromePort: DEFAULT_CHROME_PORT,
@@ -40,6 +43,10 @@ export function parseChromeSmokeArgs(argv, defaults) {
     switch (arg) {
       case "--app":
         options.appPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--cli":
+        options.cliPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
       case "--chrome-app":
@@ -98,6 +105,7 @@ Runs the packaged skfiy app through a Chrome test-page product path.
 
 Options:
   --app <path>          App bundle path. Default: ${defaults.appPath}
+  --cli <path>          Packaged CLI path for Native Messaging heartbeat. Default: ${defaults.cliPath}
   --chrome-app <name>   macOS Chrome app name. Default: ${defaults.chromeAppName}
   --port <number>       Electron remote debugging port. Default: ${defaults.port}
   --chrome-port <num>   Chrome DevTools Protocol port. Default: ${defaults.chromePort}
@@ -120,7 +128,8 @@ export function classifyChromeSmokeEvidence({
   runnerHasTmux = false,
   appLaunchViaOpen = false,
   chromeLaunchViaOpen = false,
-  productPath
+  productPath,
+  nativeHostBridgeRun
 }) {
   const last = events.at(-1);
 
@@ -149,12 +158,32 @@ export function classifyChromeSmokeEvidence({
     || appLaunchViaOpen !== true
     || chromeLaunchViaOpen !== true
     || productPath !== PRODUCT_PATH
+    || !hasNativeHostBridgeEvidence(nativeHostBridgeRun)
     || !String(extractedText).includes(expectedText)
   ) {
     return "failed";
   }
 
   return "passed";
+}
+
+function hasNativeHostBridgeEvidence(run) {
+  return run
+    && typeof run === "object"
+    && run.result === "passed"
+    && run.productPath === NATIVE_HOST_BRIDGE_PRODUCT_PATH
+    && Array.isArray(run.command)
+    && typeof run.command[0] === "string"
+    && path.basename(run.command[0]) === "skfiy"
+    && run.response?.type === "skfiy.native.response"
+    && run.response?.requestId === "chrome-smoke-native-host"
+    && run.response?.result === "accepted"
+    && typeof run.heartbeatPath === "string"
+    && run.heartbeatPath.includes("Application Support/skfiy/chrome-extension-connection.json")
+    && run.heartbeat?.hostName === "com.sskift.skfiy"
+    && run.heartbeat?.launchOrigin === "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+    && run.heartbeat?.messageType === "skfiy.page.observe"
+    && run.heartbeat?.requestId === "chrome-smoke-native-host";
 }
 
 export function classifyChromeFallbackSmokeEvidence({

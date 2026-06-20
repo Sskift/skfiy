@@ -202,6 +202,8 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("single compiled product entry");
     expect(longPlan).toContain("skfiy.app`, embedded `skfiy-helper`, and `skfiy` CLI");
     expect(dashboardPlan).toContain("OpenClaw Reference Shape");
+    expect(dashboardPlan).toContain("Local Codex Plugin Implementation Findings");
+    expect(dashboardPlan).toContain("Dashboard Roadmap");
     expect(dashboardPlan).toContain("Control UI is an admin surface");
     expect(dashboardPlan).toContain("Binary and CLI Product Contract");
     expect(dashboardPlan).toContain("Codex Plugin Install and Marketplace Notes");
@@ -218,6 +220,12 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("liveConnection: `connected`, `stale`, or `unknown`");
     expect(longPlan).toContain("CLI command matrix smoke");
     expect(longPlan).toContain("fresh Native Messaging heartbeat file");
+    expect(longPlan).toContain("nativeHostBridgeRun.result: passed");
+    expect(longPlan).toContain("dist/skfiy -> Chrome Native Messaging heartbeat");
+    expect(readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8"))
+      .toContain("nativeHostBridgeRun.result: passed");
+    expect(readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8"))
+      .toContain("nativeHostBridgeRun.result: passed");
   });
 
   it("documents panic stop behavior evidence in alpha and report instructions", () => {

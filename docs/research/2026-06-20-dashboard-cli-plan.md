@@ -14,6 +14,18 @@ Research inputs checked before this plan update:
 - Local Codex plugin cache inspection under `~/.codex/plugins/cache/`.
 - Repo-local skfiy scaffold under `plugins/skfiy/`.
 
+## Local Codex Plugin Implementation Findings
+
+Codex plugins are installable bundles rather than runtime processes. Local cache inspection on 2026-06-20 matched the public OpenAI Codex plugin build docs:
+
+- Installed plugins live under `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`.
+- `.codex-plugin/plugin.json` is the entry point and points Codex at optional `skills/`, `.app.json`, `.mcp.json`, hooks, assets, and UI metadata.
+- The bundled Chrome plugin cache entry contains `.codex-plugin/plugin.json`, `skills/`, and assets; the Chrome browser extension/native-host pairing is a separate product integration surfaced by that plugin.
+- The GitHub plugin cache entry contains `.codex-plugin/plugin.json` plus `.app.json`, proving connector-backed plugins do not need to own the target product runtime.
+- The skfiy plugin scaffold should therefore stay thin: `plugins/skfiy/.codex-plugin/plugin.json` exposes the skill metadata, and `plugins/skfiy/.mcp.json` points at the installed `skfiy mcp serve --stdio` binary command.
+
+The product rule is: the Codex plugin can inspect, diagnose, and request skfiy-controlled actions, but it must not become a second desktop-control runtime. Permission checks, app policy, replay records, Chrome Native Messaging, and stop/approval behavior stay inside the packaged `skfiy.app` plus `dist/skfiy` binary.
+
 ## OpenClaw Reference Shape
 
 OpenClaw's dashboard pattern is a local gateway Control UI opened by `openclaw dashboard`: it serves a clean local URL, keeps the Control UI as an admin surface, gates WebSocket/auth access, avoids printing tokens into logs, and focuses on gateway health, sessions, agents, task activity, logs, and operational alerts. The OpenClaw docs explicitly recommend localhost/Tailscale/SSH-tunnel access, store bootstrap tokens in browser session storage rather than logs, and treat the Control UI as an admin surface.
@@ -92,6 +104,20 @@ Codex plugin packaging stays an adapter layer. A repo-local scaffold is not enou
 `skfiy chrome status|install-host|uninstall-host` still owns the user-level Chrome manifest lifecycle. `skfiy chrome status` now returns both the raw `nativeHost` manifest status and a derived `extension` adapter state so dashboard, CLI, and future Codex plugin consumers can distinguish host installation from live extension connection. The packaged `dist/skfiy` shim can now also act as the Native Messaging host when Chrome launches it over stdin/stdout: it reads Chrome's length-prefixed JSON frames, validates schema version/request id/payload size, applies an injectable app-policy block before dispatch, and writes framed JSON responses. The Chrome extension background worker now waits for `port.onMessage` and returns native-host responses instead of fire-and-forget posting.
 
 When the packaged native host receives a valid Chrome extension frame, it now records a local heartbeat at `~/Library/Application Support/skfiy/chrome-extension-connection.json`. CLI and dashboard probes classify extension status as liveConnection: `connected`, `stale`, or `unknown` from that heartbeat and expose the latest message type, request id, launch origin, observed time, and age. This is not yet a full end-to-end installed-Chrome smoke, but it removes the previous gap where a manifest could be installed while the dashboard had no local evidence of a live extension session.
+
+Chrome product smoke now also treats that packaged host bridge as first-class evidence. A passing `smoke:chrome` artifact must include `nativeHostBridgeRun.result: passed`, `nativeHostBridgeRun.productPath: dist/skfiy -> Chrome Native Messaging heartbeat`, the `accepted` native-host response, and a fresh `chrome-extension-connection.json` heartbeat before the CDP/browser-control path can be classified as passed.
+
+## Dashboard Roadmap
+
+The dashboard should progress as an OpenClaw-style operator surface while staying subordinate to the pet and voice bot:
+
+1. **Runtime and permission readiness:** app/helper/CLI presence, signing identity, desktop session, Screen Recording, Accessibility, Microphone, Speech Recognition, Finder Automation, Chrome native-host manifest, and Chrome extension heartbeat.
+2. **Current turn and replay:** transcript state, target app, approval queue, risk level, stop state, screenshots, OCR/accessibility observations, planned actions, execution results, and verification decisions.
+3. **Extension and browser health:** Native Messaging manifest state, `chrome-extension-connection.json` age, live/stale/unknown connection state, current tab observation source, host policy, and fallback path.
+4. **Smoke and release evidence:** latest UI/Ghostty/Chrome/Finder/voice/dashboard/Codex-plugin/money-run artifacts, product paths, blockers, stale evidence warnings, alpha manifest/zip SHA256 identity, and dogfood cohort coverage.
+5. **Long-horizon supervision:** read-only `money-run` tmux session status, active pane, recent blocker markers, last recommendation, and whether skfiy has field-proven sustained supervision after release gates pass.
+
+Remote dashboard access is out of scope until a token/session story exists. Local `127.0.0.1` remains the default, token values must not print to stdout, and any future remote or Tailscale/SSH-tunnel mode must be explicit.
 
 ## Dashboard Descriptor
 
