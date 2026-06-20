@@ -169,6 +169,7 @@ export async function* runGhosttyCommandTask(
     return;
   }
 
+  let sessionInitialized = false;
   const initFailure = await initializeGhosttySession(client, options.signal);
   if (initFailure) {
     yield {
@@ -178,12 +179,6 @@ export async function* runGhosttyCommandTask(
     };
     return;
   }
-
-  yield {
-    type: "session_initialized",
-    title: SKFIY_GHOSTTY_SESSION_TITLE,
-    marker: SKFIY_GHOSTTY_SESSION_MARKER
-  };
 
   if (isAborted(options.signal)) {
     return;
@@ -197,6 +192,10 @@ export async function* runGhosttyCommandTask(
     0,
     session.pid
   );
+  if (!sessionInitialized && hasTerminalTextMarker(before, SKFIY_GHOSTTY_READY_MARKER)) {
+    yield createSessionInitializedEvent();
+    sessionInitialized = true;
+  }
   yield {
     type: "screenshot_before",
     path: before.screenshotPath,
@@ -218,6 +217,7 @@ export async function* runGhosttyCommandTask(
 
     if (beforeRecovery.action === "open") {
       session = await openGhosttySession(client);
+      sessionInitialized = false;
       yield {
         type: "session_opened",
         appName: GHOSTTY_APP_NAME,
@@ -264,12 +264,6 @@ export async function* runGhosttyCommandTask(
         return;
       }
 
-      yield {
-        type: "session_initialized",
-        title: SKFIY_GHOSTTY_SESSION_TITLE,
-        marker: SKFIY_GHOSTTY_SESSION_MARKER
-      };
-
       if (isAborted(options.signal)) {
         return;
       }
@@ -283,6 +277,10 @@ export async function* runGhosttyCommandTask(
       0,
       session.pid
     );
+    if (!sessionInitialized && hasTerminalTextMarker(before, SKFIY_GHOSTTY_READY_MARKER)) {
+      yield createSessionInitializedEvent();
+      sessionInitialized = true;
+    }
     yield {
       type: "screenshot_before",
       path: before.screenshotPath,
@@ -335,18 +333,80 @@ export async function* runGhosttyCommandTask(
     before = readyResult.observation;
 
     if (readyResult.markerObserved) {
+      if (!sessionInitialized) {
+        yield createSessionInitializedEvent();
+        sessionInitialized = true;
+      }
       yield {
         type: "screenshot_before",
         path: before.screenshotPath,
         observation: before
       };
     } else {
+      const retryInitFailure = await initializeGhosttySession(client, options.signal);
+      if (retryInitFailure) {
+        yield {
+          type: "verification_failed",
+          stage: "initialize",
+          reason: retryInitFailure
+        };
+        return;
+      }
+
+      if (isAborted(options.signal)) {
+        return;
+      }
+
+      const retryReadyResult = await observeAppUntilMarker(
+        client,
+        session.bundleId,
+        createScreenshotPath("before", options),
+        options.signal,
+        SESSION_INIT_SETTLE_WAIT_MS,
+        session.pid,
+        SKFIY_GHOSTTY_READY_MARKER,
+        SHELL_READY_OBSERVE_ATTEMPTS
+      );
+      before = retryReadyResult.observation;
+
+      if (!retryReadyResult.markerObserved) {
+        yield {
+          type: "verification_failed",
+          stage: "initialize",
+          reason: "Ghostty shell ready marker was not observed."
+        };
+        return;
+      }
+
+      const retryBeforeRecovery = decideAppRecovery(before, createGhosttyRecoveryTarget(session.pid));
+      if (retryBeforeRecovery.type !== "continue") {
+        yield {
+          type: "verification_failed",
+          stage: "before",
+          reason: retryBeforeRecovery.reason
+        };
+        return;
+      }
+
+      const retryBeforeVerificationFailure = readOwnedGhosttySessionFailure(before, session.pid);
+      if (retryBeforeVerificationFailure) {
+        yield {
+          type: "verification_failed",
+          stage: "before",
+          reason: retryBeforeVerificationFailure
+        };
+        return;
+      }
+
+      if (!sessionInitialized) {
+        yield createSessionInitializedEvent();
+        sessionInitialized = true;
+      }
       yield {
-        type: "verification_failed",
-        stage: "initialize",
-        reason: "Ghostty shell ready marker was not observed."
+        type: "screenshot_before",
+        path: before.screenshotPath,
+        observation: before
       };
-      return;
     }
   }
 
@@ -439,11 +499,33 @@ export async function* runGhosttyCommandTask(
 
 function createCommandCompletionMarker(): string {
   completionMarkerSerial += 1;
-  return `SKFIY_DONE_${completionMarkerSerial}`;
+  return `SKFIY_DONE_${encodeMarkerSerial(completionMarkerSerial)}`;
 }
 
 function createVerifiableTerminalCommand(command: string, completionMarker: string): string {
-  return `${command}; printf '\\n${completionMarker}_EXIT_%s\\n' "$?"`;
+  const markerSuffix = completionMarker.replace(/^SKFIY_DONE_/, "");
+  return `${command}; __skfiy_status="$?"; printf '\\nSKFIY_DONE_%s_EXIT_%s\\n' '${markerSuffix}' "$__skfiy_status"`;
+}
+
+function createSessionInitializedEvent(): GhosttyTaskEvent {
+  return {
+    type: "session_initialized",
+    title: SKFIY_GHOSTTY_SESSION_TITLE,
+    marker: SKFIY_GHOSTTY_SESSION_MARKER
+  };
+}
+
+function encodeMarkerSerial(value: number): string {
+  let n = value;
+  let encoded = "";
+
+  while (n > 0) {
+    n -= 1;
+    encoded = String.fromCharCode(65 + (n % 26)) + encoded;
+    n = Math.floor(n / 26);
+  }
+
+  return encoded;
 }
 
 async function openGhosttySession(client: DesktopClient): Promise<OpenGhosttySessionResult> {

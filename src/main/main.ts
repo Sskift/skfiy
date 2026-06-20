@@ -142,6 +142,7 @@ const dictationSettingsStore = createDictationSettingsStore(
   readInitialDictationSettings(process.env)
 );
 const voiceTurnSessionStore = createVoiceTurnSessionStore();
+const DICTATION_STOP_KEY_SETTLE_WAIT_MS = 300;
 
 let mainWindow: BrowserWindow | null = null;
 let currentTaskId = 0;
@@ -247,30 +248,11 @@ async function stopCurrentDictationProvider(window: BrowserWindow | null): Promi
     const stop = activeDictationProviderStop;
     activeDictationProviderStop = null;
     await stop();
-    return;
   }
+}
 
-  const dictationSettings = dictationSettingsStore.get();
-
-  if (dictationSettings.provider !== "doubao") {
-    return;
-  }
-
-  const voiceTrigger = resolveDictationVoiceTrigger(dictationSettings);
-
-  try {
-    const provider = createDoubaoDictationProvider({
-      helper: createDesktopHelper(),
-      voiceTrigger,
-      emit: (providerEvent) => emitDictationProviderEvent(window, providerEvent)
-    });
-    await provider.stop();
-  } catch (error) {
-    emitTaskEvent(window, {
-      status: "failed",
-      message: error instanceof Error ? error.message : "Doubao dictation could not be stopped."
-    });
-  }
+async function waitForDictationStopKeyToSettle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, DICTATION_STOP_KEY_SETTLE_WAIT_MS));
 }
 
 function emitTurnReplayTaskEvent(window: BrowserWindow | null, event: TaskEvent): void {
@@ -1151,6 +1133,7 @@ ipcMain.handle(
 
     if (options.stopNativeDictation === true) {
       await stopCurrentDictationProvider(window);
+      await waitForDictationStopKeyToSettle();
     }
 
     if (voiceAdmission.decision === "computer_use") {

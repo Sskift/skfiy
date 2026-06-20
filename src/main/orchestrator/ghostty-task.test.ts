@@ -50,7 +50,7 @@ function createDesktopClient(): DesktopClient & {
     ocrImage: vi.fn(async (inputPath: string) => ({
       labels: inputPath.includes("after")
         ? [{
-            text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_0",
+            text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_A",
             confidence: 0.93,
             bounds: { x: 36, y: 420, width: 180, height: 18 }
           }]
@@ -120,9 +120,9 @@ function readLatestCompletionMarker(calls: unknown[][]): string | undefined {
     .reverse();
 
   for (const text of typedTexts) {
-    const match = text.match(/SKFIY_DONE_\d+_EXIT_%s/);
+    const match = text.match(/SKFIY_DONE_%s_EXIT_%s\\n' '([A-Z]+)'/);
     if (match) {
-      return match[0];
+      return `SKFIY_DONE_${match[1]}`;
     }
   }
 
@@ -207,7 +207,9 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(6, {
       type: "type_text",
-      text: expect.stringMatching(/^pwd; printf '\\nSKFIY_DONE_\d+_EXIT_%s\\n' "\$\?"$/)
+      text: expect.stringMatching(
+        /^pwd; __skfiy_status="\$\?"; printf '\\nSKFIY_DONE_%s_EXIT_%s\\n' '[A-Z]+' "\$__skfiy_status"$/
+      )
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(7, {
       type: "press_key",
@@ -254,7 +256,7 @@ describe("runGhosttyCommandTask", () => {
     client.ocrImage.mockImplementation(async (inputPath: string) => ({
       labels: inputPath.includes("after")
         ? [{
-            text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_0",
+            text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_A",
             confidence: 0.93,
             bounds: { x: 36, y: 420, width: 180, height: 18 }
           }]
@@ -339,7 +341,7 @@ describe("runGhosttyCommandTask", () => {
       (action) => action.type === "observe_app" && action.screenshotOutputPath === "/tmp/before.png"
     );
     const userTypeIndex = actions.findIndex(
-      (action) => action.type === "type_text" && action.text.startsWith("pwd; printf")
+      (action) => action.type === "type_text" && action.text.startsWith("pwd; __skfiy_status=")
     );
 
     expect(initIndex).toBeGreaterThan(-1);
@@ -360,12 +362,60 @@ describe("runGhosttyCommandTask", () => {
       .map((action) => action.text);
 
     expect(typedTexts).toContainEqual(expect.stringContaining("SKFIY_SESSION=1"));
-    expect(typedTexts).not.toContainEqual(expect.stringMatching(/^pwd; printf/));
+    expect(typedTexts).not.toContainEqual(expect.stringMatching(/^pwd; __skfiy_status=/));
     expect(events.at(-1)).toMatchObject({
       type: "verification_failed",
       stage: "initialize",
       reason: "Ghostty shell ready marker was not observed."
     });
+    expect(events.some((event) => event.type === "session_initialized")).toBe(false);
+  }, 10000);
+
+  it("reinitializes the skfiy shell once when the ready marker is missing after launch", async () => {
+    const client = createDesktopClient();
+    client.ocrImage.mockImplementation(async (inputPath: string) => {
+      const initTypeCount = client.executeAction.mock.calls
+        .map(([action]) => action as DesktopExecutableAction)
+        .filter((action) => action.type === "type_text" && action.text.includes("SKFIY_SESSION=1"))
+        .length;
+
+      if (inputPath.includes("before")) {
+        return {
+          labels: initTypeCount < 2
+            ? []
+            : [{
+                text: "SKFIY_READY",
+                confidence: 0.92,
+                bounds: { x: 36, y: 120, width: 120, height: 18 }
+              }]
+        };
+      }
+
+      return {
+        labels: [{
+          text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_A",
+          confidence: 0.93,
+          bounds: { x: 36, y: 420, width: 180, height: 18 }
+        }]
+      };
+    });
+
+    const events = await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+    const typedTexts = client.executeAction.mock.calls
+      .map(([action]) => action as DesktopExecutableAction)
+      .filter((action): action is Extract<DesktopExecutableAction, { type: "type_text" }> =>
+        action.type === "type_text"
+      )
+      .map((action) => action.text);
+
+    expect(events.at(-1)).toMatchObject({
+      type: "completed",
+      command: "pwd"
+    });
+    expect(typedTexts.filter((text) => text.includes("SKFIY_SESSION=1"))).toHaveLength(2);
+    expect(typedTexts.findIndex((text) => text.startsWith("pwd; __skfiy_status="))).toBeGreaterThan(
+      typedTexts.findIndex((text) => text.includes("SKFIY_SESSION=1"))
+    );
   });
 
   it("plans a voice request into the terminal command before typing", async () => {
@@ -381,7 +431,7 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).toHaveBeenCalledWith({
       type: "type_text",
-      text: expect.stringContaining("pwd; printf")
+      text: expect.stringContaining("pwd; __skfiy_status=")
     });
     expect(client.executeAction).not.toHaveBeenCalledWith({
       type: "type_text",
@@ -448,7 +498,7 @@ describe("runGhosttyCommandTask", () => {
 
       return {
         labels: [{
-          text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_0",
+          text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_A",
           confidence: 0.93,
           bounds: { x: 36, y: 420, width: 180, height: 18 }
         }]
@@ -487,10 +537,10 @@ describe("runGhosttyCommandTask", () => {
       "locating_app",
       "session_opened",
       "app_activated",
-      "session_initialized",
       "screenshot_before",
       "verification_failed"
     ]);
+    expect(events.some((event) => event.type === "session_initialized")).toBe(false);
     expect(events.at(-1)).toMatchObject({
       type: "verification_failed",
       stage: "before",
@@ -498,7 +548,7 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).not.toHaveBeenCalledWith({
       type: "type_text",
-      text: expect.stringMatching(/^pwd; printf/)
+      text: expect.stringMatching(/^pwd; __skfiy_status=/)
     });
   });
 
@@ -556,12 +606,12 @@ describe("runGhosttyCommandTask", () => {
       "locating_app",
       "session_opened",
       "app_activated",
-      "session_initialized",
       "screenshot_before",
       "recovery_attempted",
       "screenshot_before",
       "verification_failed"
     ]);
+    expect(events.some((event) => event.type === "session_initialized")).toBe(false);
     expect(events.at(-1)).toMatchObject({
       type: "verification_failed",
       stage: "before",
@@ -569,7 +619,7 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).not.toHaveBeenCalledWith({
       type: "type_text",
-      text: expect.stringMatching(/^pwd; printf/)
+      text: expect.stringMatching(/^pwd; __skfiy_status=/)
     });
   });
 
@@ -701,9 +751,9 @@ describe("runGhosttyCommandTask", () => {
       "locating_app",
       "session_opened",
       "app_activated",
-      "session_initialized",
       "screenshot_before"
     ]);
+    expect(events.some((event) => event.type === "session_initialized")).toBe(false);
     expect(client.executeAction).toHaveBeenCalledTimes(5);
   });
 
@@ -879,7 +929,7 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).toHaveBeenNthCalledWith(8, {
       type: "type_text",
-      text: expect.stringContaining("pwd; printf")
+      text: expect.stringContaining("pwd; __skfiy_status=")
     });
   });
 
@@ -977,7 +1027,7 @@ describe("runGhosttyCommandTask", () => {
     });
     expect(client.executeAction).toHaveBeenCalledWith({
       type: "type_text",
-      text: expect.stringContaining("pwd; printf")
+      text: expect.stringContaining("pwd; __skfiy_status=")
     });
     expect(client.executeAction).not.toHaveBeenCalledWith({
       type: "observe_app",
@@ -1079,7 +1129,7 @@ describe("runGhosttyCommandTask", () => {
     ]);
     expect(client.executeAction).toHaveBeenCalledWith({
       type: "type_text",
-      text: expect.stringContaining("sudo spctl --master-disable; printf")
+      text: expect.stringContaining("sudo spctl --master-disable; __skfiy_status=")
     });
     expect(client.executeAction).toHaveBeenCalledWith({
       type: "press_key",

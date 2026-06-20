@@ -3,6 +3,12 @@ import path from "node:path";
 
 export const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 export const REQUIRED_COMPUTER_USE_PERMISSION_KEYS = ["screenRecording", "accessibility"];
+export const REQUIRED_PERMISSION_KEYS = [
+  "screenRecording",
+  "accessibility",
+  "microphone",
+  "speechRecognition"
+];
 export const REQUIRED_PERMISSION_LABELS = ["屏幕录制", "辅助功能", "麦克风", "语音识别"];
 export const REQUIRED_PERMISSION_SETTING_TARGETS = [
   { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
@@ -92,7 +98,7 @@ export function classifyUiSmokeEvidence(evidence) {
   }
 
   if (!evidence.onboardingVisible) {
-    return hasBlockingPermission(evidence.permissions) ? "missing-onboarding" : "no-onboarding";
+    return hasAllRequiredPermissionsGranted(evidence.permissions) ? "passed" : "missing-onboarding";
   }
 
   const rowLabels = new Set(
@@ -162,17 +168,14 @@ function readPositiveInteger(value, flag) {
   return parsed;
 }
 
-function hasBlockingPermission(permissions) {
+function hasAllRequiredPermissionsGranted(permissions) {
   if (!permissions || typeof permissions !== "object") {
-    return true;
+    return false;
   }
 
-  return REQUIRED_COMPUTER_USE_PERMISSION_KEYS.some((permission) => {
-    const status = permissions?.[permission];
-    return !status
-      || status.state === "denied"
-      || status.state === "not-determined";
-  });
+  return REQUIRED_PERMISSION_KEYS.every((permission) =>
+    permissions?.[permission]?.state === "granted"
+  );
 }
 
 function hasRequiredPermissionSettingTargets(permissionSettingTargets) {

@@ -147,10 +147,20 @@ describe("packaged UI product smoke script", () => {
       permissions: {
         screenRecording: { state: "granted" },
         accessibility: { state: "granted" },
+        microphone: { state: "granted" },
+        speechRecognition: { state: "granted" }
+      }
+    })).toBe("passed");
+    expect(classifyUiSmokeEvidence({
+      ...passedEvidence,
+      onboardingVisible: false,
+      permissions: {
+        screenRecording: { state: "granted" },
+        accessibility: { state: "granted" },
         microphone: { state: "not-determined" },
         speechRecognition: { state: "denied" }
       }
-    })).toBe("no-onboarding");
+    })).toBe("missing-onboarding");
   });
 
   it("drives the permission onboarding through the real renderer DOM rather than preload APIs alone", () => {
