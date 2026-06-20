@@ -184,6 +184,15 @@ describe("dashboard snapshot data", () => {
       "/repo/.skfiy-smoke/codex-plugin-current.json": JSON.stringify({
         result: "passed",
         productPath: "plugin scaffold -> staged marketplace install -> .mcp.json -> packaged skfiy CLI -> MCP stdio"
+      }),
+      "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json": JSON.stringify({
+        name: "com.sskift.skfiy",
+        description: "skfiy desktop Computer Use bridge",
+        path: "/repo/dist/skfiy",
+        type: "stdio",
+        allowed_origins: [
+          "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+        ]
       })
     };
     const directories: Record<string, string[]> = {
@@ -218,6 +227,7 @@ describe("dashboard snapshot data", () => {
         readFile: (targetPath) => files[targetPath],
         readdir: (targetPath) => directories[targetPath] ?? [],
         stat: (targetPath) => ({ mtimeMs: mtimes[targetPath] ?? 0 }),
+        homeDir: () => "/Users/tester",
         pid: () => 4242,
         uptimeSeconds: () => 17,
         codeSignature: (appPath) => ({
@@ -279,6 +289,25 @@ describe("dashboard snapshot data", () => {
         frontmostLocalizedName: "loginwindow",
         frontmostProcessIdentifier: 591,
         mainDisplayAsleep: false
+      },
+      nativeHost: {
+        state: "installed",
+        hostName: "com.sskift.skfiy",
+        manifestPath: "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+        cliShimPath: "/repo/dist/skfiy",
+        allowedOrigins: [
+          "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+        ],
+        reason: "Chrome Native Messaging host is installed."
+      },
+      extension: {
+        state: "native-host-installed",
+        bridge: "native-messaging",
+        liveConnection: "unknown",
+        allowedOrigins: [
+          "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+        ],
+        reason: "Chrome Native Messaging host is installed; no live Chrome extension connection has been observed yet."
       }
     });
     expect(snapshot.permissions).toEqual({

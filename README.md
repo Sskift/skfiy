@@ -155,7 +155,9 @@ helpers only.
 The local dashboard is an audit plane, not the primary pet UI. It binds to
 `127.0.0.1`, keeps tokens out of stdout by default, and exposes runtime health,
 permissions, current turn, replay, smoke evidence, extension state, and
-long-horizon supervision.
+long-horizon supervision. The extension state currently includes packaged CLI
+Native Messaging host manifest evidence; live Chrome extension session evidence
+is tracked separately and still needs a real connected-browser smoke.
 
 ```bash
 ./dist/skfiy status --json

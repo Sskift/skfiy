@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { DashboardDescriptor } from "./dashboard-status.js";
+import { CHROME_NATIVE_HOST_NAME } from "./chrome-native-host.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
 
@@ -22,6 +23,7 @@ export interface DashboardWorkspaceIo {
   readFile: (targetPath: string) => string;
   readdir: (targetPath: string) => string[];
   stat: (targetPath: string) => { mtimeMs: number };
+  homeDir?: () => string | undefined;
   pid?: () => number;
   uptimeSeconds?: () => number;
   codeSignature?: (appPath: string) => Record<string, unknown>;
@@ -110,6 +112,11 @@ export function createDashboardWorkspaceSnapshot({
   const appInstalled = io.exists(appPath);
   const helperInstalled = io.exists(helperPath);
   const cliInstalled = io.exists(cliPath);
+  const nativeHost = readWorkspaceChromeNativeHost({
+    cliPath,
+    cliInstalled,
+    io
+  });
 
   const snapshot = createDashboardSnapshot({
     generatedAt: snapshotGeneratedAt,
@@ -131,13 +138,8 @@ export function createDashboardWorkspaceSnapshot({
         pid: readWorkspacePid(io),
         uptimeSeconds: readWorkspaceUptimeSeconds(io)
       },
-      extension: {
-        state: "unknown",
-        reason: "Runtime Chrome extension connection is not probed yet."
-      },
-      nativeHost: {
-        state: "unknown"
-      },
+      extension: createWorkspaceChromeExtensionStatus(nativeHost),
+      nativeHost,
       desktopSession: readWorkspaceDesktopSession(helperPath, helperInstalled, io),
       permissions: readWorkspacePermissions(helperPath, helperInstalled, io)
     },
@@ -352,11 +354,180 @@ function createDefaultDashboardWorkspaceIo(): DashboardWorkspaceIo {
     readFile: (targetPath) => fs.readFileSync(targetPath, "utf8"),
     readdir: (targetPath) => fs.readdirSync(targetPath),
     stat: (targetPath) => fs.statSync(targetPath),
+    homeDir: () => process.env.HOME,
     pid: () => process.pid,
     uptimeSeconds: () => Math.max(0, Math.round(process.uptime())),
     codeSignature: readCodeSignatureSync,
     permissions: readHelperPermissionsSync,
     desktopSession: readHelperDesktopSessionSync
+  };
+}
+
+function readWorkspaceChromeNativeHost({
+  cliPath,
+  cliInstalled,
+  io
+}: {
+  cliPath: string;
+  cliInstalled: boolean;
+  io: DashboardWorkspaceIo;
+}): Record<string, unknown> {
+  const homeDir = io.homeDir?.();
+  if (!homeDir) {
+    return {
+      state: "unknown",
+      hostName: CHROME_NATIVE_HOST_NAME,
+      cliShimPath: cliPath,
+      reason: "Home directory is required to locate the Chrome Native Messaging host manifest."
+    };
+  }
+
+  const manifestPath = path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "Google",
+    "Chrome",
+    "NativeMessagingHosts",
+    `${CHROME_NATIVE_HOST_NAME}.json`
+  );
+
+  if (!cliInstalled) {
+    return {
+      state: "cli-missing",
+      hostName: CHROME_NATIVE_HOST_NAME,
+      manifestPath,
+      cliShimPath: cliPath,
+      allowedOrigins: [],
+      reason: `skfiy CLI shim is missing at ${cliPath}.`
+    };
+  }
+
+  if (!io.exists(manifestPath)) {
+    return {
+      state: "missing",
+      hostName: CHROME_NATIVE_HOST_NAME,
+      manifestPath,
+      cliShimPath: cliPath,
+      allowedOrigins: [],
+      reason: "Chrome Native Messaging host manifest is not installed."
+    };
+  }
+
+  let manifest: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(io.readFile(manifestPath)) as unknown;
+    const record = readRecord(parsed);
+    if (!record) {
+      return {
+        state: "invalid",
+        hostName: CHROME_NATIVE_HOST_NAME,
+        manifestPath,
+        cliShimPath: cliPath,
+        allowedOrigins: [],
+        reason: "Chrome Native Messaging host manifest is not an object."
+      };
+    }
+    manifest = record;
+  } catch {
+    return {
+      state: "invalid",
+      hostName: CHROME_NATIVE_HOST_NAME,
+      manifestPath,
+      cliShimPath: cliPath,
+      allowedOrigins: [],
+      reason: "Chrome Native Messaging host manifest is not valid JSON."
+    };
+  }
+
+  const allowedOrigins = Array.isArray(manifest.allowed_origins)
+    ? manifest.allowed_origins.filter((origin): origin is string => typeof origin === "string")
+    : [];
+  const status = {
+    hostName: CHROME_NATIVE_HOST_NAME,
+    manifestPath,
+    cliShimPath: cliPath,
+    allowedOrigins
+  };
+
+  if (
+    manifest.name !== CHROME_NATIVE_HOST_NAME
+    || manifest.type !== "stdio"
+    || manifest.path !== cliPath
+  ) {
+    return {
+      state: "mismatched",
+      ...status,
+      installedPath: manifest.path,
+      reason: "Chrome Native Messaging host manifest does not match the current skfiy CLI."
+    };
+  }
+
+  return {
+    state: "installed",
+    ...status,
+    reason: "Chrome Native Messaging host is installed."
+  };
+}
+
+function createWorkspaceChromeExtensionStatus(
+  nativeHost: Record<string, unknown>
+): Record<string, unknown> {
+  const allowedOrigins = Array.isArray(nativeHost.allowedOrigins)
+    ? nativeHost.allowedOrigins.filter((origin): origin is string => typeof origin === "string")
+    : [];
+  const common = {
+    bridge: "native-messaging",
+    liveConnection: "unknown",
+    nativeHostState: nativeHost.state,
+    ...(typeof nativeHost.manifestPath === "string" ? { manifestPath: nativeHost.manifestPath } : {}),
+    ...(allowedOrigins.length > 0 ? { allowedOrigins } : {})
+  };
+
+  if (nativeHost.state === "installed") {
+    return {
+      state: "native-host-installed",
+      ...common,
+      reason: "Chrome Native Messaging host is installed; no live Chrome extension connection has been observed yet."
+    };
+  }
+
+  if (nativeHost.state === "missing") {
+    return {
+      state: "native-host-missing",
+      ...common,
+      reason: "Chrome Native Messaging host manifest is not installed."
+    };
+  }
+
+  if (nativeHost.state === "cli-missing") {
+    return {
+      state: "native-host-cli-missing",
+      ...common,
+      reason: "The Chrome Native Messaging host cannot run because the packaged skfiy CLI is missing."
+    };
+  }
+
+  if (nativeHost.state === "mismatched") {
+    return {
+      state: "native-host-mismatched",
+      ...common,
+      reason: "Chrome Native Messaging host manifest points at a different skfiy CLI."
+    };
+  }
+
+  if (nativeHost.state === "invalid") {
+    return {
+      state: "native-host-invalid",
+      ...common,
+      reason: "Chrome Native Messaging host manifest is invalid."
+    };
+  }
+
+  return {
+    state: "unknown",
+    ...common,
+    reason: "Runtime Chrome extension connection is not probed yet."
   };
 }
 

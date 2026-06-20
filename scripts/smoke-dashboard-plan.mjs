@@ -96,6 +96,8 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || snapshot?.runtimeHealth?.app?.state !== "installed"
     || snapshot?.runtimeHealth?.app?.signing?.state !== "valid"
     || snapshot?.runtimeHealth?.cli?.state !== "installed"
+    || !hasNativeHostEvidence(snapshot?.runtimeHealth?.nativeHost)
+    || !hasExtensionAdapterEvidence(snapshot?.runtimeHealth?.extension)
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
     || !Number.isInteger(snapshot?.runtimeHealth?.dashboard?.pid)
@@ -229,4 +231,31 @@ function hasPermissionEvidence(permissions) {
 
 function hasDesktopSessionEvidence(desktopSession) {
   return desktopSession?.state === "controllable" || desktopSession?.state === "blocked";
+}
+
+function hasNativeHostEvidence(nativeHost) {
+  const allowedStates = new Set([
+    "installed",
+    "missing",
+    "mismatched",
+    "cli-missing",
+    "invalid"
+  ]);
+
+  return allowedStates.has(nativeHost?.state)
+    && nativeHost?.hostName === "com.sskift.skfiy"
+    && typeof nativeHost?.manifestPath === "string"
+    && nativeHost.manifestPath.includes("NativeMessagingHosts/com.sskift.skfiy.json")
+    && typeof nativeHost?.cliShimPath === "string"
+    && path.basename(nativeHost.cliShimPath) === "skfiy"
+    && Array.isArray(nativeHost?.allowedOrigins)
+    && typeof nativeHost?.reason === "string";
+}
+
+function hasExtensionAdapterEvidence(extension) {
+  return typeof extension?.state === "string"
+    && extension.state !== "unknown"
+    && extension?.bridge === "native-messaging"
+    && extension?.liveConnection === "unknown"
+    && typeof extension?.reason === "string";
 }

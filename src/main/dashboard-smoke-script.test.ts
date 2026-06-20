@@ -122,6 +122,22 @@ describe("dashboard product smoke script", () => {
                 state: "valid"
               }
             },
+            nativeHost: {
+              state: "missing",
+              hostName: "com.sskift.skfiy",
+              manifestPath: "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+              cliShimPath: "/repo/dist/skfiy",
+              allowedOrigins: [],
+              reason: "Chrome Native Messaging host manifest is not installed."
+            },
+            extension: {
+              state: "native-host-missing",
+              bridge: "native-messaging",
+              liveConnection: "unknown",
+              nativeHostState: "missing",
+              manifestPath: "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+              reason: "Chrome Native Messaging host manifest is not installed."
+            },
             dashboard: {
               state: "running",
               url: "http://127.0.0.1:51234/",
@@ -254,6 +270,21 @@ describe("dashboard product smoke script", () => {
           runtimeHealth: {
             ...passedEvidence.snapshotResponse.body.runtimeHealth,
             desktopSession: {
+              state: "unknown"
+            }
+          }
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          runtimeHealth: {
+            ...passedEvidence.snapshotResponse.body.runtimeHealth,
+            nativeHost: {
               state: "unknown"
             }
           }
