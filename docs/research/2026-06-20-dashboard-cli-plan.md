@@ -88,6 +88,9 @@ Commands represented:
 - `skfiy dashboard [--no-open] [--port <port>] [--json]`
 - `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>`
 - `skfiy chrome status`
+- `skfiy chrome policy show`
+- `skfiy chrome policy set --host <host> --action <always-allow|allow-current-turn|block|ask>`
+- `skfiy chrome policy reset`
 - `skfiy chrome install-host`
 - `skfiy chrome uninstall-host`
 - `skfiy mcp serve --stdio`
@@ -95,7 +98,7 @@ Commands represented:
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
 
-Mutating-looking commands are explicit subcommands. `skfiy permissions open <target>` now reports `executesSystemMutation: true`, opens only fixed `x-apple.systempreferences:` Privacy & Security URLs, and returns the same concrete System Settings/action-plan JSON whether the opener succeeds or fails. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
+Mutating-looking commands are explicit subcommands. `skfiy permissions open <target>` now reports `executesSystemMutation: true`, opens only fixed `x-apple.systempreferences:` Privacy & Security URLs, and returns the same concrete System Settings/action-plan JSON whether the opener succeeds or fails. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy chrome policy set` and `skfiy chrome policy reset` are the user-level Chrome host policy mutations; `skfiy chrome policy show` is read-only. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`.
 
@@ -131,7 +134,7 @@ Chrome product smoke now also treats that packaged host bridge as first-class ev
 
 `smoke:chrome` also records `installedExtensionRun` as a separate browser-extension proof. The current machine runs branded `Google Chrome` 146, where Chrome's 2025 extension changes remove automated `--load-extension` support from Chrome 137+ branded builds. The smoke now detects this precisely: it enumerates extension service workers, reads each worker manifest, rejects built-in workers such as "Google Network Speech", and records `blockedReason: branded_chrome_load_extension_removed` with `recommendedBrowser: Chrome for Testing or Chromium` instead of treating the built-in extension id as skfiy. The dashboard should surface this as a live-extension blocker while still accepting the packaged Native Messaging host bridge and CDP/browser-control evidence.
 
-The Chrome host policy now has a local product state boundary. `src/main/chrome-host-policy.ts` owns the normalized policy shape and the `chrome-host-policy.json` path, `dist/skfiy` Native Messaging can answer `skfiy.host_policy.request` with that state, `skfiy chrome status` and dashboard snapshots include the policy state under `extension.hostPolicy`, and the MV3 background worker persists native-host policy responses into `chrome.storage.local` before routing page observe/action/screenshot requests. The next product gap is wiring app-side approval decisions from the pet/dashboard into this state file and proving a real installed extension can sync and enforce it against a live tab.
+The Chrome host policy now has a local product state boundary. `src/main/chrome-host-policy.ts` owns the normalized policy shape and the `chrome-host-policy.json` path, `dist/skfiy` Native Messaging can answer `skfiy.host_policy.request` with that state, `skfiy chrome status` and dashboard snapshots include the policy state under `extension.hostPolicy`, and `skfiy chrome policy show|set|reset` lets the binary CLI inspect and mutate that same state file. `set` normalizes host inputs, supports `always-allow`, `allow-current-turn`, `block`, and `ask`, and `reset` removes the state file so the policy returns to default ask mode. The MV3 background worker persists native-host policy responses into `chrome.storage.local` before routing page observe/action/screenshot requests. The next product gap is wiring app-side approval decisions from the pet/dashboard into this state file and proving a real installed extension can sync and enforce it against a live tab.
 
 ## Dashboard Roadmap
 

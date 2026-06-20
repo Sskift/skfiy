@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export type ChromeHostPolicyDefaultMode = "ask";
@@ -22,6 +22,10 @@ export interface ChromeHostPolicyIo {
   mkdir: (targetPath: string) => Promise<void>;
   readFile: (targetPath: string) => Promise<string>;
   writeFile: (targetPath: string, content: string) => Promise<void>;
+}
+
+export interface ChromeHostPolicyResetIo extends ChromeHostPolicyIo {
+  rm: (targetPath: string) => Promise<void>;
 }
 
 export interface ChromeHostPolicyState {
@@ -161,6 +165,28 @@ export async function writeChromeHostPolicyState({
   }, null, 2)}\n`);
 
   return state;
+}
+
+export async function resetChromeHostPolicyState({
+  homeDir,
+  io = createDefaultChromeHostPolicyIo()
+}: {
+  homeDir: string;
+  io?: ChromeHostPolicyResetIo;
+}): Promise<ChromeHostPolicyState> {
+  const statePath = createChromeHostPolicyStatePath(homeDir);
+
+  if (await io.exists(statePath)) {
+    await io.rm(statePath);
+  }
+
+  return {
+    schemaVersion: 1,
+    state: "default",
+    path: statePath,
+    policy: createDefaultChromeHostPolicy(),
+    reason: "Chrome host policy has been reset to the default ask mode."
+  };
 }
 
 export function normalizeChromeHostPolicy(value: unknown): ChromeHostPolicy {
@@ -360,13 +386,16 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function createDefaultChromeHostPolicyIo(): ChromeHostPolicyIo {
+function createDefaultChromeHostPolicyIo(): ChromeHostPolicyResetIo {
   return {
     exists: (targetPath) => existsSync(targetPath),
     mkdir: async (targetPath) => {
       await mkdir(targetPath, { recursive: true });
     },
     readFile: async (targetPath) => readFile(targetPath, "utf8"),
-    writeFile
+    writeFile,
+    rm: async (targetPath) => {
+      await rm(targetPath, { force: true });
+    }
   };
 }

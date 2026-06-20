@@ -157,6 +157,11 @@ describe("dashboard product smoke script", () => {
               pid: 4242,
               uptimeSeconds: 17
             },
+            runtimeSnapshot: {
+              state: "missing",
+              path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+              reason: "Runtime snapshot has not been recorded yet."
+            },
             desktopSession: {
               state: "blocked",
               controllable: false,
@@ -171,8 +176,18 @@ describe("dashboard product smoke script", () => {
             speechRecognition: "not-determined",
             finderAutomation: "unknown"
           },
-          currentTurn: { state: "idle" },
-          replay: { state: "empty" },
+          currentTurn: {
+            state: "idle",
+            source: "runtime-snapshot",
+            path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+            reason: "Runtime snapshot has not been recorded yet."
+          },
+          replay: {
+            state: "empty",
+            source: "runtime-snapshot",
+            path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+            reason: "Runtime snapshot has not been recorded yet."
+          },
           smokeEvidence: {
             artifacts: [
               {
@@ -306,6 +321,71 @@ describe("dashboard product smoke script", () => {
     };
 
     expect(classifyDashboardSmokeEvidence(passedEvidence)).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          runtimeHealth: {
+            ...passedEvidence.snapshotResponse.body.runtimeHealth,
+            runtimeSnapshot: {
+              state: "repaired",
+              path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+              isolatedPath: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json.corrupt-20260620T000000000Z-abcdef123456.json",
+              replacementPath: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+              sha256: "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+              observedAt: "2026-06-20T00:00:00.000Z",
+              reason: "Unexpected token d in JSON at position 2"
+            }
+          },
+          currentTurn: {
+            state: "idle",
+            source: "runtime-snapshot",
+            path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+            reason: "Unexpected token d in JSON at position 2",
+            recovery: {
+              state: "repaired",
+              isolatedPath: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json.corrupt-20260620T000000000Z-abcdef123456.json",
+              replacementPath: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json"
+            }
+          },
+          replay: {
+            state: "empty",
+            source: "runtime-snapshot",
+            path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+            reason: "Unexpected token d in JSON at position 2",
+            recovery: {
+              state: "repaired",
+              isolatedPath: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json.corrupt-20260620T000000000Z-abcdef123456.json",
+              replacementPath: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json"
+            }
+          }
+        }
+      }
+    })).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          runtimeHealth: {
+            ...passedEvidence.snapshotResponse.body.runtimeHealth,
+            runtimeSnapshot: {
+              state: "repair-failed",
+              path: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+              isolatedPath: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json.corrupt-20260620T000000000Z-abcdef123456.json",
+              replacementPath: "/Users/tester/Library/Application Support/skfiy/runtime-snapshot.json",
+              sha256: "abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+              observedAt: "2026-06-20T00:00:00.000Z",
+              reason: "Unexpected token d in JSON at position 2",
+              repairError: "permission denied"
+            }
+          }
+        }
+      }
+    })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       snapshotResponse: {

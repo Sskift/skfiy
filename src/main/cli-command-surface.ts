@@ -16,8 +16,14 @@ import {
   type ChromeNativeHostIo
 } from "./chrome-native-host.js";
 import {
+  applyChromeHostPolicyAction,
+  createDefaultChromeHostPolicy,
   createChromeHostPolicyStatePath,
+  decideChromeHostPolicy,
   readChromeHostPolicyState,
+  resetChromeHostPolicyState,
+  writeChromeHostPolicyState,
+  type ChromeHostPolicyAction,
   type ChromeHostPolicyState
 } from "./chrome-host-policy.js";
 import {
@@ -54,6 +60,7 @@ export const PERMISSION_SETTINGS_TARGETS = [
 export type SmokeTarget = typeof SMOKE_TARGETS[number];
 export type PermissionSettingsTarget = typeof PERMISSION_SETTINGS_TARGETS[number];
 export type ChromeSubcommand = "status" | "install-host" | "uninstall-host";
+export type ChromePolicySubcommand = "show" | "set" | "reset";
 export type McpTransport = "stdio";
 
 const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
@@ -165,6 +172,16 @@ export type CliCommandInvocation =
       options: {
         extensionIds: string[];
         cliShimPath: string;
+      };
+    }
+  | {
+      kind: "chrome-policy";
+      path: `chrome policy ${ChromePolicySubcommand}`;
+      subcommand: ChromePolicySubcommand;
+      json: boolean;
+      options: {
+        host?: string;
+        action?: ChromeHostPolicyAction;
       };
     }
   | {
@@ -345,6 +362,30 @@ const COMMANDS: CliCommandDefinition[] = [
     outputShape: "chrome-status"
   },
   {
+    path: "chrome policy show",
+    summary: "Show the user-level Chrome host policy state.",
+    jsonOutput: true,
+    plannedMutation: false,
+    executesSystemMutation: false,
+    outputShape: "chrome-host-policy"
+  },
+  {
+    path: "chrome policy set",
+    summary: "Set a Chrome host policy entry for one host.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-host-policy"
+  },
+  {
+    path: "chrome policy reset",
+    summary: "Reset the user-level Chrome host policy state to ask by default.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-host-policy"
+  },
+  {
     path: "chrome install-host",
     summary: "Install the Chrome Native Messaging host for the current skfiy CLI.",
     jsonOutput: true,
@@ -468,6 +509,55 @@ export function normalizeCliCommand(
 
   if (command === "chrome") {
     const subcommand = argv[1];
+
+    if (subcommand === "policy") {
+      const policySubcommand = argv[2];
+
+      if (!isChromePolicySubcommand(policySubcommand)) {
+        return error(
+          "unknown-chrome-policy-subcommand",
+          `Unknown chrome policy subcommand: ${policySubcommand ?? ""}`
+        );
+      }
+
+      if (policySubcommand === "set") {
+        const host = readOptionValue(argv, "--host");
+        const actionValue = readOptionValue(argv, "--action");
+        const action = normalizeChromePolicySetAction(actionValue);
+
+        if (!host || host.startsWith("--")) {
+          return error(
+            "missing-chrome-policy-host",
+            "Chrome policy set requires --host <host>."
+          );
+        }
+        if (!action) {
+          return error(
+            "unknown-chrome-policy-action",
+            `Unknown chrome policy action: ${actionValue ?? ""}`
+          );
+        }
+
+        return ok({
+          kind: "chrome-policy",
+          path: "chrome policy set",
+          subcommand: policySubcommand,
+          json: argv.includes("--json"),
+          options: {
+            host,
+            action
+          }
+        });
+      }
+
+      return ok({
+        kind: "chrome-policy",
+        path: `chrome policy ${policySubcommand}`,
+        subcommand: policySubcommand,
+        json: argv.includes("--json"),
+        options: {}
+      });
+    }
 
     if (!isChromeSubcommand(subcommand)) {
       return error(
@@ -655,6 +745,30 @@ export function createCliOutput(
     };
   }
 
+  if (invocation.kind === "chrome-policy") {
+    if (invocation.subcommand === "show") {
+      return {
+        schemaVersion: 1,
+        command: "chrome policy show",
+        generatedAt,
+        executesSystemMutation: false,
+        hostPolicy: { state: "unknown" }
+      };
+    }
+
+    return {
+      schemaVersion: 1,
+      command: invocation.path,
+      generatedAt,
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: "not-run",
+      ...(invocation.options.host ? { host: invocation.options.host } : {}),
+      ...(invocation.options.action ? { action: invocation.options.action } : {}),
+      hostPolicy: { state: "not-mutated" }
+    };
+  }
+
   if (invocation.kind === "mcp-serve") {
     return {
       schemaVersion: 1,
@@ -813,6 +927,17 @@ export async function runSkfiyCli({
 
   if (result.invocation.kind === "chrome") {
     return runChromeNativeHostCli({
+      invocation: result.invocation,
+      generatedAt,
+      homeDir: homeDir ?? process.env.HOME ?? "",
+      io: chromeNativeHostIo,
+      stdout,
+      stderr
+    });
+  }
+
+  if (result.invocation.kind === "chrome-policy") {
+    return runChromeHostPolicyCli({
       invocation: result.invocation,
       generatedAt,
       homeDir: homeDir ?? process.env.HOME ?? "",
@@ -2018,6 +2143,94 @@ async function runChromeNativeHostCli({
   return 0;
 }
 
+async function runChromeHostPolicyCli({
+  invocation,
+  generatedAt,
+  homeDir,
+  io,
+  stdout,
+  stderr
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "chrome-policy" }>;
+  generatedAt?: string;
+  homeDir: string;
+  io?: ChromeNativeHostIo;
+  stdout: SkfiyCliIo;
+  stderr: SkfiyCliIo;
+}): Promise<number> {
+  if (!homeDir) {
+    stderr.write("Home directory is required to locate the Chrome host policy state.\n");
+    return 2;
+  }
+
+  if (invocation.subcommand === "show") {
+    const hostPolicy = await readChromeHostPolicyState({
+      homeDir,
+      io
+    });
+
+    stdout.write(`${JSON.stringify({
+      schemaVersion: 1,
+      command: invocation.path,
+      generatedAt: generatedAt ?? new Date().toISOString(),
+      executesSystemMutation: false,
+      hostPolicy
+    }, null, 2)}\n`);
+    return 0;
+  }
+
+  if (invocation.subcommand === "reset") {
+    const hostPolicy = await resetChromeHostPolicyState({
+      homeDir,
+      io
+    });
+
+    stdout.write(`${JSON.stringify({
+      schemaVersion: 1,
+      command: invocation.path,
+      generatedAt: generatedAt ?? new Date().toISOString(),
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: "reset",
+      hostPolicy
+    }, null, 2)}\n`);
+    return 0;
+  }
+
+  const host = normalizeChromePolicyHostForCli(invocation.options.host);
+  if (!host || !invocation.options.action) {
+    stderr.write("Chrome policy set requires --host <host> and --action <always-allow|allow-current-turn|block|ask>.\n");
+    return 2;
+  }
+
+  const current = await readChromeHostPolicyState({
+    homeDir,
+    io
+  });
+  const policy = applyChromeHostPolicyAction(current.policy, {
+    action: invocation.options.action,
+    host
+  });
+  const hostPolicy = await writeChromeHostPolicyState({
+    homeDir,
+    policy,
+    io
+  });
+
+  stdout.write(`${JSON.stringify({
+    schemaVersion: 1,
+    command: invocation.path,
+    generatedAt: generatedAt ?? new Date().toISOString(),
+    plannedMutation: true,
+    executesSystemMutation: true,
+    result: "configured",
+    action: invocation.options.action,
+    host,
+    hostPolicy
+  }, null, 2)}\n`);
+  return 0;
+}
+
 function ok(invocation: CliCommandInvocation): NormalizeCliCommandResult {
   return {
     ok: true,
@@ -2037,6 +2250,37 @@ function error(code: string, message: string): NormalizeCliCommandResult {
 
 function isChromeSubcommand(value: string | undefined): value is ChromeSubcommand {
   return value === "status" || value === "install-host" || value === "uninstall-host";
+}
+
+function isChromePolicySubcommand(value: string | undefined): value is ChromePolicySubcommand {
+  return value === "show" || value === "set" || value === "reset";
+}
+
+function normalizeChromePolicySetAction(value: string | undefined): ChromeHostPolicyAction | undefined {
+  if (value === "always-allow" || value === "always_allow") {
+    return "always_allow";
+  }
+  if (
+    value === "allow-current-turn"
+    || value === "allow_current_turn"
+    || value === "current-turn"
+  ) {
+    return "allow_current_turn";
+  }
+  if (value === "block" || value === "block-host" || value === "block_host") {
+    return "block_host";
+  }
+  if (value === "ask" || value === "ask-host" || value === "ask_host") {
+    return "ask_host";
+  }
+
+  return undefined;
+}
+
+function normalizeChromePolicyHostForCli(value: string | undefined): string | undefined {
+  const decision = decideChromeHostPolicy(createDefaultChromeHostPolicy(), value);
+
+  return decision.host || undefined;
 }
 
 function isPermissionSettingsTarget(value: string | undefined): value is PermissionSettingsTarget {

@@ -4,6 +4,7 @@ import {
   createDashboardSnapshot,
   createDashboardWorkspaceSnapshot
 } from "./dashboard-data";
+import { createRuntimeSnapshotStatePath } from "./runtime-snapshot";
 
 describe("dashboard snapshot data", () => {
   it("composes runtime, permission, replay, smoke, and long-horizon panels from read-only inputs", () => {
@@ -755,5 +756,139 @@ describe("dashboard snapshot data", () => {
       currentHeadCommitSha: "fedcba9876543210fedcba9876543210fedcba98"
     });
     expect(JSON.stringify(snapshot)).not.toContain("token=");
+  });
+
+  it("isolates a damaged runtime snapshot and replaces it with a clean empty snapshot", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const runtimePath = createRuntimeSnapshotStatePath("/Users/tester");
+    const files: Record<string, string> = {
+      "/repo/package.json": JSON.stringify({
+        name: "skfiy",
+        version: "0.1.0",
+        description: "Desktop Computer Use prototype"
+      }),
+      [runtimePath]: "{ damaged runtime snapshot"
+    };
+    const directories: Record<string, string[]> = {
+      "/repo/.skfiy-smoke": []
+    };
+    const renamed: Array<{ fromPath: string; toPath: string }> = [];
+    const writes: Array<{ targetPath: string; content: string }> = [];
+    const io = {
+      exists: (targetPath: string) =>
+        Object.hasOwn(files, targetPath)
+        || Object.hasOwn(directories, targetPath),
+      readFile: (targetPath: string) => files[targetPath],
+      writeFile: (targetPath: string, content: string) => {
+        writes.push({ targetPath, content });
+        files[targetPath] = content;
+      },
+      rename: (fromPath: string, toPath: string) => {
+        renamed.push({ fromPath, toPath });
+        files[toPath] = files[fromPath];
+        delete files[fromPath];
+      },
+      readdir: (targetPath: string) => directories[targetPath] ?? [],
+      stat: () => ({ mtimeMs: 0 }),
+      homeDir: () => "/Users/tester",
+      pid: () => 4242,
+      uptimeSeconds: () => 17,
+      gitHead: () => ({
+        state: "present",
+        commitSha: "fedcba9876543210fedcba9876543210fedcba98"
+      }),
+      tmux: () => ({
+        status: 1,
+        stdout: "",
+        stderr: "tmux session was not found."
+      })
+    };
+
+    const firstSnapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      io
+    });
+
+    expect(renamed).toHaveLength(1);
+    expect(renamed[0].fromPath).toBe(runtimePath);
+    expect(renamed[0].toPath).toMatch(
+      /runtime-snapshot\.json\.corrupt-20260620T000000000Z-[a-f0-9]{12}\.json$/
+    );
+    expect(files[renamed[0].toPath]).toBe("{ damaged runtime snapshot");
+    expect(writes).toHaveLength(1);
+    expect(writes[0].targetPath).toBe(runtimePath);
+    expect(JSON.parse(files[runtimePath])).toMatchObject({
+      schemaVersion: 1,
+      observedAt: "2026-06-20T00:00:00.000Z",
+      currentTurn: {
+        state: "idle",
+        source: "runtime-snapshot"
+      },
+      replay: {
+        state: "empty",
+        source: "runtime-snapshot"
+      }
+    });
+    expect(firstSnapshot.runtimeHealth.runtimeSnapshot).toMatchObject({
+      state: "repaired",
+      path: runtimePath,
+      isolatedPath: renamed[0].toPath,
+      replacementPath: runtimePath,
+      sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      reason: expect.stringContaining("JSON")
+    });
+    expect(firstSnapshot.currentTurn).toMatchObject({
+      state: "idle",
+      source: "runtime-snapshot",
+      path: runtimePath,
+      recovery: {
+        state: "repaired",
+        isolatedPath: renamed[0].toPath,
+        replacementPath: runtimePath
+      }
+    });
+    expect(firstSnapshot.replay).toMatchObject({
+      state: "empty",
+      source: "runtime-snapshot",
+      recovery: {
+        state: "repaired"
+      }
+    });
+    expect(firstSnapshot.alerts).toContainEqual({
+      code: "runtime-snapshot-repaired",
+      severity: "warning",
+      message: "Runtime snapshot was isolated and replaced with an empty snapshot.",
+      path: runtimePath,
+      isolatedPath: renamed[0].toPath
+    });
+    expect(JSON.stringify(firstSnapshot)).not.toContain("token=");
+
+    renamed.length = 0;
+    writes.length = 0;
+
+    const secondSnapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      io
+    });
+
+    expect(renamed).toEqual([]);
+    expect(writes).toEqual([]);
+    expect(secondSnapshot.runtimeHealth.runtimeSnapshot).toMatchObject({
+      state: "available",
+      path: runtimePath,
+      observedAt: "2026-06-20T00:00:00.000Z"
+    });
+    expect(secondSnapshot.currentTurn).toMatchObject({
+      state: "idle",
+      source: "runtime-snapshot"
+    });
+    expect(secondSnapshot.currentTurn).not.toHaveProperty("recovery");
+    expect(secondSnapshot.alerts).not.toContainEqual(expect.objectContaining({
+      code: "runtime-snapshot-repaired"
+    }));
   });
 });

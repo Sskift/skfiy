@@ -98,6 +98,11 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || snapshot?.runtimeHealth?.cli?.state !== "installed"
     || !hasNativeHostEvidence(snapshot?.runtimeHealth?.nativeHost)
     || !hasExtensionAdapterEvidence(snapshot?.runtimeHealth?.extension)
+    || !hasRuntimeSnapshotEvidence(
+      snapshot?.runtimeHealth?.runtimeSnapshot,
+      snapshot?.currentTurn,
+      snapshot?.replay
+    )
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
     || !Number.isInteger(snapshot?.runtimeHealth?.dashboard?.pid)
@@ -296,6 +301,68 @@ function hasExtensionConnectionEvidence(connection) {
     && connection.launchOrigin.startsWith("chrome-extension://")
     && typeof connection?.messageType === "string"
     && typeof connection?.requestId === "string";
+}
+
+function hasRuntimeSnapshotEvidence(runtimeSnapshot, currentTurn, replay) {
+  if (!runtimeSnapshot || typeof runtimeSnapshot !== "object") {
+    return false;
+  }
+
+  if (
+    !currentTurn
+    || typeof currentTurn !== "object"
+    || !replay
+    || typeof replay !== "object"
+    || currentTurn.source !== "runtime-snapshot"
+    || replay.source !== "runtime-snapshot"
+  ) {
+    return false;
+  }
+
+  if (
+    runtimeSnapshot.state === "available"
+    && isRuntimeSnapshotPath(runtimeSnapshot.path)
+    && typeof runtimeSnapshot.observedAt === "string"
+  ) {
+    return true;
+  }
+
+  if (
+    runtimeSnapshot.state === "missing"
+    && isRuntimeSnapshotPath(runtimeSnapshot.path)
+    && typeof runtimeSnapshot.reason === "string"
+    && typeof currentTurn.reason === "string"
+    && typeof replay.reason === "string"
+  ) {
+    return true;
+  }
+
+  if (runtimeSnapshot.state === "repaired" || runtimeSnapshot.state === "isolated") {
+    return isRuntimeSnapshotPath(runtimeSnapshot.path)
+      && isRuntimeSnapshotPath(runtimeSnapshot.replacementPath)
+      && isRuntimeSnapshotIsolationPath(runtimeSnapshot.isolatedPath)
+      && isSha256(runtimeSnapshot.sha256)
+      && typeof runtimeSnapshot.observedAt === "string"
+      && typeof runtimeSnapshot.reason === "string"
+      && currentTurn.recovery?.state === runtimeSnapshot.state
+      && replay.recovery?.state === runtimeSnapshot.state
+      && currentTurn.recovery?.isolatedPath === runtimeSnapshot.isolatedPath
+      && replay.recovery?.isolatedPath === runtimeSnapshot.isolatedPath
+      && currentTurn.recovery?.replacementPath === runtimeSnapshot.replacementPath
+      && replay.recovery?.replacementPath === runtimeSnapshot.replacementPath;
+  }
+
+  return false;
+}
+
+function isRuntimeSnapshotPath(value) {
+  return typeof value === "string"
+    && value.includes("Application Support/skfiy/runtime-snapshot.json");
+}
+
+function isRuntimeSnapshotIsolationPath(value) {
+  return isRuntimeSnapshotPath(value)
+    && /\.corrupt-[0-9A-Za-z]+-[a-f0-9]{12}\.json$/.test(value);
 }
 
 function hasChromeNativeHostBridgeSmokeEvidence(artifacts) {

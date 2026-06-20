@@ -25,7 +25,11 @@ export const MESSAGE_TYPES = Object.freeze({
 });
 
 const HOST_POLICY_STORAGE_KEY = "skfiyHostPolicy";
+const HOST_POLICY_SYNC_STORAGE_KEY = "skfiyHostPolicySync";
 const LAST_SENSITIVE_PAUSE_KEY = "lastSensitivePause";
+const HOST_POLICY_SYNC_REQUEST_PREFIX = "host-policy-sync";
+
+let hostPolicySyncPromise = null;
 
 function getHost(url) {
   try {
@@ -66,6 +70,23 @@ function decideHostPolicy(policy, host) {
     return { decision: "allowed", reason: "host_allowed" };
   }
   return { decision: policy.defaultMode, reason: "default_policy" };
+}
+
+function normalizeSyncTrigger(trigger) {
+  if (typeof trigger !== "string" || trigger.trim().length === 0) {
+    return "manual";
+  }
+  return trigger.trim().replace(/[^a-z0-9_.-]/gi, "_").slice(0, 64);
+}
+
+async function writeHostPolicySyncStatus(status) {
+  await chrome.storage.local.set({
+    [HOST_POLICY_SYNC_STORAGE_KEY]: {
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      updatedAt: new Date().toISOString(),
+      ...status
+    }
+  });
 }
 
 async function ensureContentScript(tabId) {
@@ -197,8 +218,88 @@ async function persistHostPolicyResponse(response) {
   }
 }
 
-function sendNativeMessage(message) {
+export async function syncHostPolicy(trigger = "manual") {
+  const normalizedTrigger = normalizeSyncTrigger(trigger);
+  const requestedAt = new Date().toISOString();
+  const requestId = `${HOST_POLICY_SYNC_REQUEST_PREFIX}-${normalizedTrigger}-${Date.now()}`;
+
+  await writeHostPolicySyncStatus({
+    state: "syncing",
+    trigger: normalizedTrigger,
+    requestId,
+    requestedAt
+  });
+
+  try {
+    const response = await sendNativeMessage({
+      type: MESSAGE_TYPES.HOST_POLICY_REQUEST,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId
+    }, {
+      syncHostPolicy: false
+    });
+    const completedAt = new Date().toISOString();
+
+    if (response?.hostPolicy?.policy) {
+      await writeHostPolicySyncStatus({
+        state: "synced",
+        trigger: normalizedTrigger,
+        requestId,
+        requestedAt,
+        completedAt,
+        hostPolicyState: response.hostPolicy.state ?? "unknown"
+      });
+    } else {
+      await writeHostPolicySyncStatus({
+        state: "error",
+        trigger: normalizedTrigger,
+        requestId,
+        requestedAt,
+        completedAt,
+        error: response?.error ?? response?.reason ?? "host_policy_unavailable"
+      });
+    }
+
+    return response;
+  } catch (error) {
+    const completedAt = new Date().toISOString();
+    const message = error instanceof Error ? error.message : String(error);
+
+    await writeHostPolicySyncStatus({
+      state: "error",
+      trigger: normalizedTrigger,
+      requestId,
+      requestedAt,
+      completedAt,
+      error: message
+    });
+
+    return {
+      type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId,
+      ok: false,
+      error: message
+    };
+  }
+}
+
+function scheduleHostPolicySync(trigger) {
+  if (!hostPolicySyncPromise) {
+    hostPolicySyncPromise = syncHostPolicy(trigger).finally(() => {
+      hostPolicySyncPromise = null;
+    });
+  }
+  return hostPolicySyncPromise;
+}
+
+function sendNativeMessage(message, options = {}) {
   return new Promise((resolve) => {
+    const nativeMessage = unwrapNativeMessage(message);
+    if (options.syncHostPolicy !== false && nativeMessage.type !== MESSAGE_TYPES.HOST_POLICY_REQUEST) {
+      void scheduleHostPolicySync("native_host_connect");
+    }
+
     const port = chrome.runtime.connectNative(NATIVE_MESSAGING_HOST_NAME);
     let settled = false;
     const finish = (response) => {
@@ -221,12 +322,12 @@ function sendNativeMessage(message) {
       finish({
         type: MESSAGE_TYPES.NATIVE_MESSAGE,
         schemaVersion: MESSAGE_SCHEMA_VERSION,
-        requestId: message.requestId ?? "unknown",
+        requestId: nativeMessage.requestId ?? "unknown",
         ok: false,
         error: chrome.runtime.lastError?.message ?? "native_host_disconnected"
       });
     });
-    port.postMessage(unwrapNativeMessage(message));
+    port.postMessage(nativeMessage);
   });
 }
 
@@ -277,4 +378,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
     });
   return true;
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  void scheduleHostPolicySync("runtime_installed");
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void scheduleHostPolicySync("runtime_startup");
 });

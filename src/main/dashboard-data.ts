@@ -20,7 +20,11 @@ import {
   normalizeChromeHostPolicy,
   type ChromeHostPolicyState
 } from "./chrome-host-policy.js";
-import { readRuntimeSnapshotPanels } from "./runtime-snapshot.js";
+import {
+  createRuntimeSnapshotFromReplay,
+  createRuntimeSnapshotStatePath,
+  RUNTIME_SNAPSHOT_SCHEMA_VERSION
+} from "./runtime-snapshot.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
 const REQUIRED_DOGFOOD_WORKFLOWS = [
@@ -58,6 +62,8 @@ export interface DashboardSnapshotInput {
 export interface DashboardWorkspaceIo {
   exists: (targetPath: string) => boolean;
   readFile: (targetPath: string) => string;
+  writeFile?: (targetPath: string, content: string) => void;
+  rename?: (fromPath: string, toPath: string) => void;
   readdir: (targetPath: string) => string[];
   stat: (targetPath: string) => { mtimeMs: number };
   homeDir?: () => string | undefined;
@@ -112,7 +118,8 @@ export function createDashboardSnapshot({
   longHorizon = { state: "unknown", session: "money-run" }
 }: DashboardSnapshotInput): DashboardSnapshot {
   const permissions = readRecord(status.permissions) ?? createUnknownPermissions();
-  const runtimeHealth = {
+  const runtimeSnapshot = readRecord(status.runtimeSnapshot);
+  const runtimeHealth: Record<string, unknown> = {
     app: readRecord(status.app) ?? { state: "unknown" },
     helper: readRecord(status.helper) ?? { state: "unknown" },
     dashboard: readRecord(status.dashboard) ?? {
@@ -126,6 +133,9 @@ export function createDashboardSnapshot({
     nativeHost: readRecord(status.nativeHost) ?? { state: "unknown" },
     desktopSession: readRecord(status.desktopSession) ?? { state: "unknown" }
   };
+  if (runtimeSnapshot) {
+    runtimeHealth.runtimeSnapshot = runtimeSnapshot;
+  }
 
   return {
     schemaVersion: 1,
@@ -173,7 +183,7 @@ export function createDashboardWorkspaceSnapshot({
     io
   });
   const hostPolicy = readWorkspaceChromeHostPolicy(io);
-  const runtimePanels = readWorkspaceRuntimePanels(io);
+  const runtimeSnapshot = readWorkspaceRuntimeSnapshot(io, snapshotGeneratedAt);
 
   const snapshot = createDashboardSnapshot({
     generatedAt: snapshotGeneratedAt,
@@ -198,10 +208,11 @@ export function createDashboardWorkspaceSnapshot({
       extension: createWorkspaceChromeExtensionStatus(nativeHost, extensionConnection, hostPolicy),
       nativeHost,
       desktopSession: readWorkspaceDesktopSession(helperPath, helperInstalled, io),
-      permissions: readWorkspacePermissions(helperPath, helperInstalled, io)
+      permissions: readWorkspacePermissions(helperPath, helperInstalled, io),
+      runtimeSnapshot: runtimeSnapshot.status
     },
-    currentTurn: runtimePanels.currentTurn,
-    replay: runtimePanels.replay,
+    currentTurn: runtimeSnapshot.currentTurn,
+    replay: runtimeSnapshot.replay,
     smokeEvidence: {
       artifacts: readLatestSmokeArtifacts(rootDir, snapshotGeneratedAt, io)
     },
@@ -238,6 +249,7 @@ function createDashboardAlerts({
   const alerts: Array<Record<string, unknown>> = [];
   const desktopSession = readRecord(runtimeHealth.desktopSession);
   const extension = readRecord(runtimeHealth.extension);
+  const runtimeSnapshot = readRecord(runtimeHealth.runtimeSnapshot);
   const releaseDrift = readRecord(dogfoodRelease.releaseDrift);
 
   if (permissions.screenRecording !== "granted") {
@@ -277,6 +289,30 @@ function createDashboardAlerts({
       code: "extension-unknown",
       severity: "warning",
       message: "Chrome extension connection is unknown."
+    });
+  }
+
+  if (runtimeSnapshot?.state === "repaired" || runtimeSnapshot?.state === "isolated") {
+    alerts.push({
+      code: "runtime-snapshot-repaired",
+      severity: "warning",
+      message: runtimeSnapshot.state === "repaired"
+        ? "Runtime snapshot was isolated and replaced with an empty snapshot."
+        : "Runtime snapshot was isolated, but the empty replacement could not be written.",
+      ...(typeof runtimeSnapshot.path === "string" ? { path: runtimeSnapshot.path } : {}),
+      ...(typeof runtimeSnapshot.isolatedPath === "string"
+        ? { isolatedPath: runtimeSnapshot.isolatedPath }
+        : {})
+    });
+  }
+
+  if (runtimeSnapshot?.state === "repair-failed") {
+    alerts.push({
+      code: "runtime-snapshot-repair-failed",
+      severity: "error",
+      message: "Runtime snapshot is invalid and could not be isolated.",
+      ...(typeof runtimeSnapshot.path === "string" ? { path: runtimeSnapshot.path } : {}),
+      ...(typeof runtimeSnapshot.reason === "string" ? { reason: runtimeSnapshot.reason } : {})
     });
   }
 
@@ -447,17 +483,211 @@ function readWorkspaceReleaseDrift(
   };
 }
 
-function readWorkspaceRuntimePanels(io: DashboardWorkspaceIo): {
+function readWorkspaceRuntimeSnapshot(
+  io: DashboardWorkspaceIo,
+  observedAt: string
+): {
+  currentTurn: Record<string, unknown>;
+  replay: Record<string, unknown>;
+  status: Record<string, unknown>;
+} {
+  const homeDir = io.homeDir?.();
+  if (!homeDir) {
+    const reason = "Home directory is required to locate the runtime snapshot.";
+    return {
+      ...createMissingRuntimePanels(reason),
+      status: {
+        state: "unavailable",
+        reason
+      }
+    };
+  }
+
+  const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
+  if (!io.exists(snapshotPath)) {
+    const reason = "Runtime snapshot has not been recorded yet.";
+    return {
+      ...createMissingRuntimePanels(reason, snapshotPath),
+      status: {
+        state: "missing",
+        path: snapshotPath,
+        reason
+      }
+    };
+  }
+
+  let snapshotText: string;
+  try {
+    snapshotText = io.readFile(snapshotPath);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return {
+      ...createMissingRuntimePanels(reason, snapshotPath),
+      status: {
+        state: "unavailable",
+        path: snapshotPath,
+        reason
+      }
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(snapshotText) as unknown;
+    const snapshot = readRecord(parsed);
+    const currentTurn = readRecord(snapshot?.currentTurn);
+    const replay = readRecord(snapshot?.replay);
+    const snapshotObservedAt = typeof snapshot?.observedAt === "string"
+      ? snapshot.observedAt
+      : undefined;
+
+    if (
+      snapshot?.schemaVersion !== RUNTIME_SNAPSHOT_SCHEMA_VERSION
+      || !snapshotObservedAt
+      || !currentTurn
+      || !replay
+    ) {
+      return repairRuntimeSnapshot({
+        io,
+        snapshotPath,
+        snapshotText,
+        observedAt,
+        reason: "Runtime snapshot is not a valid skfiy snapshot."
+      });
+    }
+
+    return {
+      currentTurn: { ...currentTurn },
+      replay: { ...replay },
+      status: {
+        state: "available",
+        path: snapshotPath,
+        observedAt: snapshotObservedAt
+      }
+    };
+  } catch (error) {
+    return repairRuntimeSnapshot({
+      io,
+      snapshotPath,
+      snapshotText,
+      observedAt,
+      reason: error instanceof Error ? error.message : String(error)
+    });
+  }
+}
+
+function repairRuntimeSnapshot({
+  io,
+  snapshotPath,
+  snapshotText,
+  observedAt,
+  reason
+}: {
+  io: DashboardWorkspaceIo;
+  snapshotPath: string;
+  snapshotText: string;
+  observedAt: string;
+  reason: string;
+}): {
+  currentTurn: Record<string, unknown>;
+  replay: Record<string, unknown>;
+  status: Record<string, unknown>;
+} {
+  const sha256 = createSha256(snapshotText);
+  const isolatedPath = createCorruptRuntimeSnapshotPath(snapshotPath, observedAt, sha256);
+  const replacement = createRuntimeSnapshotFromReplay({ replay: null, observedAt });
+  const replacementText = `${JSON.stringify(replacement, null, 2)}\n`;
+  let isolated = false;
+
+  try {
+    if (!io.rename || !io.writeFile) {
+      throw new Error("Dashboard runtime snapshot IO does not support repair writes.");
+    }
+
+    io.rename(snapshotPath, isolatedPath);
+    isolated = true;
+    io.writeFile(snapshotPath, replacementText);
+
+    const recovery = {
+      state: "repaired",
+      isolatedPath,
+      replacementPath: snapshotPath,
+      sha256,
+      observedAt
+    };
+
+    return {
+      ...createMissingRuntimePanels(reason, snapshotPath, recovery),
+      status: {
+        state: "repaired",
+        path: snapshotPath,
+        isolatedPath,
+        replacementPath: snapshotPath,
+        sha256,
+        observedAt,
+        reason
+      }
+    };
+  } catch (error) {
+    const repairError = error instanceof Error ? error.message : String(error);
+    const state = isolated ? "isolated" : "repair-failed";
+    const recovery = {
+      state,
+      isolatedPath,
+      replacementPath: snapshotPath,
+      sha256,
+      observedAt,
+      reason: repairError
+    };
+
+    return {
+      ...createMissingRuntimePanels(reason, snapshotPath, recovery),
+      status: {
+        state,
+        path: snapshotPath,
+        isolatedPath,
+        replacementPath: snapshotPath,
+        sha256,
+        observedAt,
+        reason,
+        repairError
+      }
+    };
+  }
+}
+
+function createCorruptRuntimeSnapshotPath(
+  snapshotPath: string,
+  observedAt: string,
+  sha256: string
+): string {
+  const timestamp = observedAt.replace(/[^0-9A-Za-z]/g, "");
+  return `${snapshotPath}.corrupt-${timestamp}-${sha256.slice(0, 12)}.json`;
+}
+
+function createMissingRuntimePanels(
+  reason: string,
+  pathValue?: string,
+  recovery?: Record<string, unknown>
+): {
   currentTurn: Record<string, unknown>;
   replay: Record<string, unknown>;
 } {
-  return readRuntimeSnapshotPanels({
-    homeDir: io.homeDir?.(),
-    io: {
-      exists: io.exists,
-      readFile: io.readFile
+  return {
+    currentTurn: {
+      state: "idle",
+      source: "runtime-snapshot",
+      reason,
+      ...(pathValue ? { path: pathValue } : {}),
+      ...(recovery ? { recovery } : {})
+    },
+    replay: {
+      state: "empty",
+      source: "runtime-snapshot",
+      reason,
+      ...(pathValue ? { path: pathValue } : {}),
+      ...(recovery ? { recovery } : {})
     }
-  });
+  };
 }
 
 function readWorkspaceLongHorizon(io: DashboardWorkspaceIo): Record<string, unknown> {
@@ -1050,6 +1280,8 @@ function createDefaultDashboardWorkspaceIo(): DashboardWorkspaceIo {
   return {
     exists: (targetPath) => fs.existsSync(targetPath),
     readFile: (targetPath) => fs.readFileSync(targetPath, "utf8"),
+    writeFile: (targetPath, content) => fs.writeFileSync(targetPath, content),
+    rename: (fromPath, toPath) => fs.renameSync(fromPath, toPath),
     readdir: (targetPath) => fs.readdirSync(targetPath),
     stat: (targetPath) => fs.statSync(targetPath),
     homeDir: () => process.env.HOME,

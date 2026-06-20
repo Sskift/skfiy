@@ -59,6 +59,12 @@ describe("Chrome extension adapter skeleton", () => {
     expect(background).toContain("sendNativeMessage");
     expect(background).toContain("persistHostPolicyResponse");
     expect(background).toContain("response?.hostPolicy?.policy");
+    expect(background).toContain('HOST_POLICY_SYNC_STORAGE_KEY = "skfiyHostPolicySync"');
+    expect(background).toContain("syncHostPolicy");
+    expect(background).toContain("writeHostPolicySyncStatus");
+    expect(background).toContain('"native_host_connect"');
+    expect(background).toContain("chrome.runtime.onInstalled.addListener");
+    expect(background).toContain("chrome.runtime.onStartup.addListener");
     expect(background).toContain("port.onMessage.addListener");
     expect(background).toContain("port.onDisconnect.addListener");
 

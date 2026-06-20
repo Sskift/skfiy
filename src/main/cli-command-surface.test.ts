@@ -35,6 +35,9 @@ describe("CLI command surface", () => {
       "dashboard",
       "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
       "chrome status",
+      "chrome policy show",
+      "chrome policy set",
+      "chrome policy reset",
       "chrome install-host",
       "chrome uninstall-host",
       "mcp serve",
@@ -60,6 +63,18 @@ describe("CLI command surface", () => {
         path: "chrome install-host",
         plannedMutation: true,
         executesSystemMutation: true
+      }),
+      expect.objectContaining({
+        path: "chrome policy show",
+        plannedMutation: false,
+        executesSystemMutation: false,
+        outputShape: "chrome-host-policy"
+      }),
+      expect.objectContaining({
+        path: "chrome policy set",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "chrome-host-policy"
       }),
       expect.objectContaining({
         path: "alpha artifact",
@@ -251,6 +266,71 @@ describe("CLI command surface", () => {
       });
       expectJsonSafe(output);
     }
+  });
+
+  it("normalizes Chrome host policy commands as explicit user-level state operations", () => {
+    const show = expectInvocation(["chrome", "policy", "show", "--json"]);
+    const set = expectInvocation([
+      "chrome",
+      "policy",
+      "set",
+      "--host",
+      "https://Example.com/docs",
+      "--action",
+      "always-allow",
+      "--json"
+    ]);
+    const reset = expectInvocation(["chrome", "policy", "reset", "--json"]);
+
+    expect(show).toEqual({
+      kind: "chrome-policy",
+      path: "chrome policy show",
+      subcommand: "show",
+      json: true,
+      options: {}
+    });
+    expect(set).toEqual({
+      kind: "chrome-policy",
+      path: "chrome policy set",
+      subcommand: "set",
+      json: true,
+      options: {
+        host: "https://Example.com/docs",
+        action: "always_allow"
+      }
+    });
+    expect(reset).toEqual({
+      kind: "chrome-policy",
+      path: "chrome policy reset",
+      subcommand: "reset",
+      json: true,
+      options: {}
+    });
+    expect(createCliOutput(show, {
+      generatedAt: "2026-06-20T00:00:00.000Z"
+    })).toEqual({
+      schemaVersion: 1,
+      command: "chrome policy show",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      executesSystemMutation: false,
+      hostPolicy: { state: "unknown" }
+    });
+    expect(createCliOutput(set, {
+      generatedAt: "2026-06-20T00:00:00.000Z"
+    })).toMatchObject({
+      schemaVersion: 1,
+      command: "chrome policy set",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: "not-run",
+      host: "https://Example.com/docs",
+      action: "always_allow",
+      hostPolicy: { state: "not-mutated" }
+    });
+    expectJsonSafe(createCliOutput(show));
+    expectJsonSafe(createCliOutput(set));
+    expectJsonSafe(createCliOutput(reset));
   });
 
   it("normalizes permission settings open commands with concrete macOS action plans", () => {
@@ -675,6 +755,20 @@ describe("CLI command surface", () => {
         message: "Unknown chrome subcommand: reinstall-host"
       }
     });
+    expect(normalizeCliCommand(["chrome", "policy", "inspect"])).toEqual({
+      ok: false,
+      error: {
+        code: "unknown-chrome-policy-subcommand",
+        message: "Unknown chrome policy subcommand: inspect"
+      }
+    });
+    expect(normalizeCliCommand(["chrome", "policy", "set", "--host", "example.com"])).toEqual({
+      ok: false,
+      error: {
+        code: "unknown-chrome-policy-action",
+        message: "Unknown chrome policy action: "
+      }
+    });
     expect(normalizeCliCommand(["permissions", "open", "calendar"])).toEqual({
       ok: false,
       error: {
@@ -1036,6 +1130,128 @@ describe("CLI command surface", () => {
       executesSystemMutation: true
     });
     expect(files[manifestPath]).toBeUndefined();
+    expect(stderr).toEqual([]);
+  });
+
+  it("runs chrome host policy show, set, and reset through injected filesystem", async () => {
+    const files: Record<string, string> = {};
+    const io = {
+      exists: async (targetPath: string) => Object.hasOwn(files, targetPath),
+      mkdir: async (targetPath: string) => {
+        files[targetPath] = files[targetPath] ?? "__dir__";
+      },
+      readFile: async (targetPath: string) => files[targetPath],
+      writeFile: async (targetPath: string, content: string) => {
+        files[targetPath] = content;
+      },
+      rm: async (targetPath: string) => {
+        delete files[targetPath];
+      }
+    };
+    const policyPath = "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json";
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const base = {
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) },
+      chromeNativeHostIo: io
+    };
+
+    await expect(runSkfiyCli({
+      ...base,
+      argv: ["chrome", "policy", "show", "--json"]
+    })).resolves.toBe(0);
+    expect(JSON.parse(stdout.pop() ?? "{}")).toEqual({
+      schemaVersion: 1,
+      command: "chrome policy show",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      executesSystemMutation: false,
+      hostPolicy: {
+        schemaVersion: 1,
+        state: "default",
+        path: policyPath,
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: [],
+          currentTurnAllowedHosts: [],
+          blockedHosts: []
+        },
+        reason: "Chrome host policy has not been configured yet."
+      }
+    });
+
+    await expect(runSkfiyCli({
+      ...base,
+      argv: [
+        "chrome",
+        "policy",
+        "set",
+        "--host",
+        "https://Example.com/docs",
+        "--action",
+        "always-allow",
+        "--json"
+      ]
+    })).resolves.toBe(0);
+    expect(JSON.parse(stdout.pop() ?? "{}")).toMatchObject({
+      schemaVersion: 1,
+      command: "chrome policy set",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: "configured",
+      action: "always_allow",
+      host: "example.com",
+      hostPolicy: {
+        schemaVersion: 1,
+        state: "configured",
+        path: policyPath,
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: ["example.com"],
+          currentTurnAllowedHosts: [],
+          blockedHosts: []
+        }
+      }
+    });
+    expect(JSON.parse(files[policyPath])).toEqual({
+      schemaVersion: 1,
+      policy: {
+        defaultMode: "ask",
+        allowedHosts: ["example.com"],
+        currentTurnAllowedHosts: [],
+        blockedHosts: []
+      }
+    });
+
+    await expect(runSkfiyCli({
+      ...base,
+      argv: ["chrome", "policy", "reset", "--json"]
+    })).resolves.toBe(0);
+    expect(JSON.parse(stdout.pop() ?? "{}")).toMatchObject({
+      schemaVersion: 1,
+      command: "chrome policy reset",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: "reset",
+      hostPolicy: {
+        schemaVersion: 1,
+        state: "default",
+        path: policyPath,
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: [],
+          currentTurnAllowedHosts: [],
+          blockedHosts: []
+        },
+        reason: "Chrome host policy has been reset to the default ask mode."
+      }
+    });
+    expect(files[policyPath]).toBeUndefined();
     expect(stderr).toEqual([]);
   });
 

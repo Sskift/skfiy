@@ -7,6 +7,7 @@ import {
   decideChromeHostPolicy,
   normalizeChromeHostPolicy,
   readChromeHostPolicyState,
+  resetChromeHostPolicyState,
   writeChromeHostPolicyState
 } from "./chrome-host-policy";
 
@@ -23,6 +24,9 @@ describe("Chrome host policy", () => {
       readFile: async (targetPath: string) => store[targetPath],
       writeFile: async (targetPath: string, content: string) => {
         store[targetPath] = content;
+      },
+      rm: async (targetPath: string) => {
+        delete store[targetPath];
       }
     };
   }
@@ -142,6 +146,33 @@ describe("Chrome host policy", () => {
         blockedHosts: ["blocked.example"]
       }
     });
+  });
+
+  it("resets the user-level Chrome host policy state back to the default file absence", async () => {
+    const statePath = createChromeHostPolicyStatePath("/Users/tester");
+    const io = createMemoryChromeHostPolicyIo({
+      [statePath]: JSON.stringify({
+        schemaVersion: 1,
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: ["example.com"],
+          currentTurnAllowedHosts: [],
+          blockedHosts: []
+        }
+      })
+    });
+
+    await expect(resetChromeHostPolicyState({
+      homeDir: "/Users/tester",
+      io
+    })).resolves.toEqual({
+      schemaVersion: 1,
+      state: "default",
+      path: statePath,
+      policy: createDefaultChromeHostPolicy(),
+      reason: "Chrome host policy has been reset to the default ask mode."
+    });
+    expect(io.files[statePath]).toBeUndefined();
   });
 
   it("fails closed to ask-by-default when the host policy file is invalid", async () => {
