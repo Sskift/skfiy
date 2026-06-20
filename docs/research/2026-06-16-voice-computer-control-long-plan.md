@@ -480,7 +480,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [x] build a release package that contains `skfiy.app`, embedded `skfiy-helper`, and a `skfiy` CLI shim
     - packaging now copies `bin/skfiy.mjs` to `dist/skfiy`, alpha artifacts zip both `dist/skfiy.app` and `dist/skfiy`, and manifests record `cliShimPath`
   - [ ] implement `skfiy status --json` for app/helper/permissions/desktop-session/extension/dashboard state
-    - partial: `src/main/cli-command-surface.ts` normalizes `status --json` and emits stable JSON-safe placeholder state
+    - partial: `src/main/cli-command-surface.ts` now runs read-only status probes for `dist/skfiy.app`, the packaged helper, helper-reported permissions, desktop-session controllability, Chrome Native Messaging host status when `--extension-id` is provided, and dashboard descriptor health when `--dashboard-url` is provided; live Chrome extension connection, Finder Automation permission, and dashboard auto-discovery remain pending
   - [ ] implement `skfiy doctor` with concrete remediation for TCC, signing, helper location, Finder Automation, Chrome extension, and desktop sleep/lock blockers
     - partial: command shape and JSON-safe placeholder output exist; real probes/remediation remain pending
   - [ ] implement `skfiy dashboard [--no-open] [--port <port>]`, following OpenClaw's pattern of printing/opening a clean local URL without leaking tokens

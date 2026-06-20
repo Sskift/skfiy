@@ -83,16 +83,45 @@ describe("CLI command surface", () => {
   });
 
   it("normalizes status and doctor into JSON-safe output skeletons", () => {
-    const status = expectInvocation(["status", "--json"]);
+    const status = expectInvocation([
+      "status",
+      "--json",
+      "--extension-id",
+      "abcdefghijklmnopabcdefghijklmnop",
+      "--dashboard-url",
+      "http://127.0.0.1:8787/"
+    ]);
     const doctor = expectInvocation(["doctor"]);
 
-    expect(status).toEqual({
+    expect(status).toMatchObject({
       kind: "status",
       path: "status",
       json: true,
-      options: {}
+      options: {
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+        cliShimPath: "/repo/dist/skfiy",
+        dashboardUrl: "http://127.0.0.1:8787/"
+      }
     });
     expect(createCliOutput(status, {
+      generatedAt: "2026-06-20T00:00:00.000Z"
+    })).toMatchObject({
+      schemaVersion: 1,
+      command: "status",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      app: { state: "unknown" },
+      helper: { state: "unknown" },
+      nativeHost: {
+        state: "unknown",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+      },
+      dashboard: {
+        state: "unknown",
+        url: "http://127.0.0.1:8787/"
+      }
+    });
+    expect(createCliOutput(expectInvocation(["status", "--json"]), {
       generatedAt: "2026-06-20T00:00:00.000Z"
     })).toEqual({
       schemaVersion: 1,
@@ -109,6 +138,11 @@ describe("CLI command surface", () => {
       },
       desktopSession: { state: "unknown" },
       extension: { state: "unknown" },
+      nativeHost: {
+        state: "unknown",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: []
+      },
       dashboard: { state: "not-running" }
     });
 
@@ -367,6 +401,21 @@ describe("CLI command surface", () => {
       argv: ["status", "--json"],
       rootDir: "/repo",
       generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader: async () => ({
+        app: { state: "missing", path: "/repo/dist/skfiy.app" },
+        helper: { state: "missing", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        permissions: {
+          screenRecording: "unknown",
+          accessibility: "unknown",
+          microphone: "unknown",
+          speechRecognition: "unknown",
+          finderAutomation: "unknown"
+        },
+        desktopSession: { state: "unknown" },
+        extension: { state: "unknown" },
+        nativeHost: { state: "unknown", extensionIds: [], cliShimPath: "/repo/dist/skfiy" },
+        dashboard: { state: "not-running" }
+      }),
       stdout: { write: (chunk: string) => stdout.push(chunk) },
       stderr: { write: (chunk: string) => stderr.push(chunk) }
     })).resolves.toBe(0);
@@ -385,6 +434,96 @@ describe("CLI command surface", () => {
       stderr: { write: (chunk: string) => stderr.push(chunk) }
     })).resolves.toBe(2);
     expect(stderr.at(-1)).toBe("Unknown chrome subcommand: reinstall-host\n");
+  });
+
+  it("runs status through concrete probes and keeps the output dashboard-safe", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const statusInputs: unknown[] = [];
+
+    await expect(runSkfiyCli({
+      argv: [
+        "status",
+        "--json",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop",
+        "--dashboard-url",
+        "http://127.0.0.1:8787/"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader: async (input) => {
+        statusInputs.push(input);
+        return {
+          app: { state: "installed", path: "/repo/dist/skfiy.app" },
+          helper: {
+            state: "installed",
+            path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+          },
+          permissions: {
+            screenRecording: "granted",
+            accessibility: "granted",
+            microphone: "denied",
+            speechRecognition: "not-determined",
+            finderAutomation: "unknown"
+          },
+          desktopSession: {
+            state: "controllable",
+            frontmostBundleId: "com.apple.finder",
+            controllable: true
+          },
+          extension: { state: "unknown" },
+          nativeHost: {
+            state: "installed",
+            cliShimPath: "/repo/dist/skfiy",
+            extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+          },
+          dashboard: {
+            state: "running",
+            url: "http://127.0.0.1:8787/"
+          }
+        };
+      },
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(statusInputs).toEqual([{
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      appPath: "/repo/dist/skfiy.app",
+      helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+      cliShimPath: "/repo/dist/skfiy",
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+      dashboardUrl: "http://127.0.0.1:8787/"
+    }]);
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      schemaVersion: 1,
+      command: "status",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      app: { state: "installed" },
+      helper: { state: "installed" },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        microphone: "denied",
+        speechRecognition: "not-determined",
+        finderAutomation: "unknown"
+      },
+      desktopSession: {
+        state: "controllable",
+        frontmostBundleId: "com.apple.finder"
+      },
+      nativeHost: {
+        state: "installed"
+      },
+      dashboard: {
+        state: "running"
+      }
+    });
+    expect(stdout.join("")).not.toContain("token=");
+    expect(stderr).toEqual([]);
   });
 
   it("runs chrome native host status, install, and uninstall through injected filesystem", async () => {

@@ -58,6 +58,10 @@ The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, 
 
 `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` is the repeatable dashboard gate. It uses the same product smoke lock as other packaged smokes, proves the built CLI path instead of a source-tree shim, requires `runnerHasTmux=false`, confirms the loopback bind and descriptor match the CLI output, checks the static shell contains the descriptor link, and keeps tokens out of stdout, descriptor JSON, and shell HTML.
 
+## Status Probe
+
+`skfiy status --json` now runs read-only probes instead of returning only placeholders. It reports whether `dist/skfiy.app` and its packaged helper exist, reads helper permission states, reads desktop-session controllability, checks the Chrome Native Messaging host when `--extension-id <id>` is provided, and checks a running dashboard descriptor when `--dashboard-url <url>` is provided. Missing helpers or failed probes degrade to `unknown`/`not-running` fields so dashboards can render the output without treating status collection itself as a hard failure.
+
 ## Integration Notes
 
 - Build output will place the modules under `dist/main/` through the existing Electron TypeScript config.

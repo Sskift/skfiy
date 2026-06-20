@@ -1,4 +1,5 @@
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createDashboardDescriptor } from "./dashboard-status.js";
 import {
@@ -11,6 +12,10 @@ import {
   uninstallChromeNativeHost,
   type ChromeNativeHostIo
 } from "./chrome-native-host.js";
+import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
+import type {
+  PermissionSummary
+} from "./computer-use/types.js";
 
 export const SMOKE_TARGETS = [
   "ui",
@@ -60,7 +65,11 @@ export type CliCommandInvocation =
       kind: "status";
       path: "status";
       json: boolean;
-      options: Record<string, never>;
+      options: {
+        extensionIds: string[];
+        cliShimPath: string;
+        dashboardUrl?: string;
+      };
     }
   | {
       kind: "doctor";
@@ -147,12 +156,25 @@ export interface SmokeRunnerResult {
   stderr: string;
 }
 
+export interface StatusReaderInput {
+  rootDir: string;
+  homeDir: string;
+  appPath: string;
+  helperPath: string;
+  cliShimPath: string;
+  extensionIds: string[];
+  dashboardUrl?: string;
+}
+
+export type StatusReader = (input: StatusReaderInput) => Promise<Record<string, unknown>>;
+
 export interface RunSkfiyCliInput {
   argv: string[];
   rootDir?: string;
   homeDir?: string;
   generatedAt?: string;
   chromeNativeHostIo?: ChromeNativeHostIo;
+  statusReader?: StatusReader;
   smokeRunner?: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
   dashboardServerStarter?: (input: { port: number }) => Promise<DashboardServer>;
   dashboardOpener?: (url: string) => Promise<void>;
@@ -257,7 +279,11 @@ export function normalizeCliCommand(
       kind: "status",
       path: "status",
       json: argv.includes("--json"),
-      options: {}
+      options: {
+        extensionIds: readRepeatedOptionValues(argv, "--extension-id"),
+        cliShimPath: resolveOptionPath(argv, "--cli", rootDir, path.join(rootDir, "dist", "skfiy")),
+        dashboardUrl: readOptionValue(argv, "--dashboard-url")
+      }
     });
   }
 
@@ -372,7 +398,14 @@ export function createCliOutput(
       },
       desktopSession: { state: "unknown" },
       extension: { state: "unknown" },
-      dashboard: { state: "not-running" }
+      nativeHost: {
+        state: "unknown",
+        cliShimPath: invocation.options.cliShimPath,
+        extensionIds: invocation.options.extensionIds
+      },
+      dashboard: invocation.options.dashboardUrl
+        ? { state: "unknown", url: invocation.options.dashboardUrl }
+        : { state: "not-running" }
     };
   }
 
@@ -475,6 +508,7 @@ export async function runSkfiyCli({
   homeDir,
   generatedAt,
   chromeNativeHostIo,
+  statusReader = readCliStatus,
   smokeRunner = runSmokeScript,
   dashboardServerStarter = startDashboardServer,
   dashboardOpener = openDashboardUrl,
@@ -488,6 +522,18 @@ export async function runSkfiyCli({
   if (!result.ok) {
     stderr.write(`${result.error.message}\n`);
     return 2;
+  }
+
+  if (result.invocation.kind === "status") {
+    return runStatusCli({
+      invocation: result.invocation,
+      generatedAt,
+      rootDir: normalizedRootDir,
+      homeDir: homeDir ?? process.env.HOME ?? "",
+      statusReader,
+      stdout,
+      stderr
+    });
   }
 
   if (result.invocation.kind === "chrome") {
@@ -542,6 +588,243 @@ export async function runSkfiyCli({
 
   stdout.write(`${JSON.stringify(createCliOutput(result.invocation, { generatedAt }), null, 2)}\n`);
   return 0;
+}
+
+async function runStatusCli({
+  invocation,
+  generatedAt,
+  rootDir,
+  homeDir,
+  statusReader,
+  stdout,
+  stderr
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "status" }>;
+  generatedAt?: string;
+  rootDir: string;
+  homeDir: string;
+  statusReader: StatusReader;
+  stdout: SkfiyCliIo;
+  stderr: SkfiyCliIo;
+}): Promise<number> {
+  const appPath = path.join(rootDir, "dist", "skfiy.app");
+  const helperPath = path.join(appPath, "Contents", "MacOS", "skfiy-helper");
+
+  try {
+    const status = await statusReader({
+      rootDir,
+      homeDir,
+      appPath,
+      helperPath,
+      cliShimPath: invocation.options.cliShimPath,
+      extensionIds: invocation.options.extensionIds,
+      dashboardUrl: invocation.options.dashboardUrl
+    });
+
+    stdout.write(`${JSON.stringify({
+      schemaVersion: 1,
+      command: "status",
+      generatedAt: generatedAt ?? new Date().toISOString(),
+      ...status
+    }, null, 2)}\n`);
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    stderr.write(`${message}\n`);
+    stdout.write(`${JSON.stringify({
+      ...createCliOutput(invocation, { generatedAt }),
+      result: "error",
+      error: message
+    }, null, 2)}\n`);
+    return 1;
+  }
+}
+
+async function readCliStatus(input: StatusReaderInput): Promise<Record<string, unknown>> {
+  const appExists = existsSync(input.appPath);
+  const helperExists = existsSync(input.helperPath);
+  const app = {
+    state: appExists ? "installed" : "missing",
+    path: input.appPath
+  };
+  const helper = {
+    state: helperExists ? "installed" : "missing",
+    path: input.helperPath
+  };
+
+  if (!helperExists) {
+    return {
+      app,
+      helper,
+      permissions: createUnknownPermissionStates(),
+      desktopSession: {
+        state: "unknown",
+        reason: `skfiy helper is missing at ${input.helperPath}.`
+      },
+      extension: createUnknownExtensionStatus(),
+      nativeHost: await readNativeHostStatusForStatus(input),
+      dashboard: await readDashboardStatus(input.dashboardUrl)
+    };
+  }
+
+  const desktopHelper = new DesktopHelperClient({
+    helperPath: input.helperPath
+  });
+
+  return {
+    app,
+    helper,
+    permissions: await readPermissionStatesForStatus(desktopHelper),
+    desktopSession: await readDesktopSessionForStatus(desktopHelper),
+    extension: createUnknownExtensionStatus(),
+    nativeHost: await readNativeHostStatusForStatus(input),
+    dashboard: await readDashboardStatus(input.dashboardUrl)
+  };
+}
+
+async function readPermissionStatesForStatus(
+  helper: Pick<DesktopHelperClient, "getPermissions">
+): Promise<Record<string, unknown>> {
+  try {
+    const permissions = await helper.getPermissions();
+
+    return createPermissionStates(permissions);
+  } catch (error) {
+    return {
+      ...createUnknownPermissionStates(),
+      reason: readErrorMessage(error)
+    };
+  }
+}
+
+function createPermissionStates(permissions: PermissionSummary): Record<string, unknown> {
+  return {
+    screenRecording: permissions.screenRecording.state,
+    accessibility: permissions.accessibility.state,
+    microphone: permissions.microphone.state,
+    speechRecognition: permissions.speechRecognition.state,
+    finderAutomation: "unknown"
+  };
+}
+
+function createUnknownPermissionStates(): Record<string, "unknown"> {
+  return {
+    screenRecording: "unknown",
+    accessibility: "unknown",
+    microphone: "unknown",
+    speechRecognition: "unknown",
+    finderAutomation: "unknown"
+  };
+}
+
+async function readDesktopSessionForStatus(
+  helper: Pick<DesktopHelperClient, "getDesktopSessionStatus">
+): Promise<Record<string, unknown>> {
+  try {
+    const status = await helper.getDesktopSessionStatus();
+
+    return {
+      state: status.controllable ? "controllable" : "blocked",
+      ...status
+    };
+  } catch (error) {
+    return {
+      state: "unknown",
+      reason: readErrorMessage(error)
+    };
+  }
+}
+
+async function readNativeHostStatusForStatus(
+  input: StatusReaderInput
+): Promise<Record<string, unknown>> {
+  if (input.extensionIds.length === 0) {
+    return {
+      state: "unknown",
+      cliShimPath: input.cliShimPath,
+      extensionIds: [],
+      reason: "Pass --extension-id <id> to include Chrome Native Messaging host status."
+    };
+  }
+
+  if (!input.homeDir) {
+    return {
+      state: "unknown",
+      cliShimPath: input.cliShimPath,
+      extensionIds: input.extensionIds,
+      reason: "Home directory is required to locate the Chrome Native Messaging host manifest."
+    };
+  }
+
+  try {
+    const nativeHost = await readChromeNativeHostStatus({
+      homeDir: input.homeDir,
+      cliShimPath: input.cliShimPath,
+      extensionIds: input.extensionIds
+    });
+
+    return {
+      ...nativeHost
+    };
+  } catch (error) {
+    return {
+      state: "unknown",
+      cliShimPath: input.cliShimPath,
+      extensionIds: input.extensionIds,
+      reason: readErrorMessage(error)
+    };
+  }
+}
+
+function createUnknownExtensionStatus(): Record<string, string> {
+  return {
+    state: "unknown",
+    reason: "Runtime Chrome extension connection is not probed by the CLI status command yet."
+  };
+}
+
+async function readDashboardStatus(dashboardUrl: string | undefined): Promise<Record<string, unknown>> {
+  if (!dashboardUrl) {
+    return { state: "not-running" };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1_000);
+
+  try {
+    const response = await fetch(new URL("/descriptor.json", dashboardUrl), {
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      return {
+        state: "blocked",
+        url: dashboardUrl,
+        status: response.status
+      };
+    }
+
+    const descriptor = await response.json() as unknown;
+
+    return {
+      state: "running",
+      url: dashboardUrl,
+      descriptor
+    };
+  } catch (error) {
+    return {
+      state: "not-running",
+      url: dashboardUrl,
+      reason: readErrorMessage(error)
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function runSmokeCli({
