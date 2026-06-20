@@ -93,9 +93,15 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || snapshot?.schemaVersion !== 1
     || snapshot?.runtimeHealth?.package?.name !== "skfiy"
     || typeof snapshot?.runtimeHealth?.package?.version !== "string"
+    || snapshot?.runtimeHealth?.app?.state !== "installed"
+    || snapshot?.runtimeHealth?.app?.signing?.state !== "valid"
     || snapshot?.runtimeHealth?.cli?.state !== "installed"
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
+    || !Number.isInteger(snapshot?.runtimeHealth?.dashboard?.pid)
+    || snapshot.runtimeHealth.dashboard.pid <= 0
+    || !Number.isFinite(snapshot?.runtimeHealth?.dashboard?.uptimeSeconds)
+    || snapshot.runtimeHealth.dashboard.uptimeSeconds < 0
     || !snapshot?.permissions
     || !snapshot?.currentTurn
     || !snapshot?.replay

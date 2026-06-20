@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { DashboardDescriptor } from "./dashboard-status.js";
@@ -19,6 +20,9 @@ export interface DashboardWorkspaceIo {
   readFile: (targetPath: string) => string;
   readdir: (targetPath: string) => string[];
   stat: (targetPath: string) => { mtimeMs: number };
+  pid?: () => number;
+  uptimeSeconds?: () => number;
+  codeSignature?: (appPath: string) => Record<string, unknown>;
 }
 
 export interface DashboardWorkspaceSnapshotInput {
@@ -97,23 +101,29 @@ export function createDashboardWorkspaceSnapshot({
   const appPath = path.join(rootDir, "dist", "skfiy.app");
   const helperPath = path.join(appPath, "Contents", "MacOS", "skfiy-helper");
   const cliPath = path.join(rootDir, "dist", "skfiy");
+  const appInstalled = io.exists(appPath);
+  const helperInstalled = io.exists(helperPath);
+  const cliInstalled = io.exists(cliPath);
 
   const snapshot = createDashboardSnapshot({
     generatedAt,
     descriptor,
     status: {
       app: {
-        state: io.exists(appPath) ? "installed" : "missing",
+        state: appInstalled ? "installed" : "missing",
         path: appPath,
-        bundleId: "com.sskift.skfiy"
+        bundleId: "com.sskift.skfiy",
+        signing: readWorkspaceCodeSignature(appPath, appInstalled, io)
       },
       helper: {
-        state: io.exists(helperPath) ? "installed" : "missing",
+        state: helperInstalled ? "installed" : "missing",
         path: helperPath
       },
       dashboard: {
         state: "running",
-        url: descriptor.url
+        url: descriptor.url,
+        pid: readWorkspacePid(io),
+        uptimeSeconds: readWorkspaceUptimeSeconds(io)
       },
       extension: {
         state: "unknown",
@@ -138,7 +148,7 @@ export function createDashboardWorkspaceSnapshot({
       package: packageInfo,
       ...snapshot.runtimeHealth,
       cli: {
-        state: io.exists(cliPath) ? "installed" : "missing",
+        state: cliInstalled ? "installed" : "missing",
         path: cliPath
       }
     }
@@ -288,6 +298,8 @@ function readSmokeTarget(entry: string, artifact: Record<string, unknown>): stri
     "desktop-session",
     "ghostty",
     "chrome",
+    "cli",
+    "codex-plugin",
     "dashboard",
     "finder",
     "voice",
@@ -302,8 +314,104 @@ function createDefaultDashboardWorkspaceIo(): DashboardWorkspaceIo {
     exists: (targetPath) => fs.existsSync(targetPath),
     readFile: (targetPath) => fs.readFileSync(targetPath, "utf8"),
     readdir: (targetPath) => fs.readdirSync(targetPath),
-    stat: (targetPath) => fs.statSync(targetPath)
+    stat: (targetPath) => fs.statSync(targetPath),
+    pid: () => process.pid,
+    uptimeSeconds: () => Math.max(0, Math.round(process.uptime())),
+    codeSignature: readCodeSignatureSync
   };
+}
+
+function readWorkspacePid(io: DashboardWorkspaceIo): number {
+  const pid = io.pid?.();
+
+  return typeof pid === "number" && Number.isSafeInteger(pid) && pid > 0
+    ? pid
+    : process.pid;
+}
+
+function readWorkspaceUptimeSeconds(io: DashboardWorkspaceIo): number {
+  const uptimeSeconds = io.uptimeSeconds?.();
+
+  return typeof uptimeSeconds === "number" && Number.isFinite(uptimeSeconds) && uptimeSeconds >= 0
+    ? Math.round(uptimeSeconds)
+    : Math.max(0, Math.round(process.uptime()));
+}
+
+function readWorkspaceCodeSignature(
+  appPath: string,
+  appInstalled: boolean,
+  io: DashboardWorkspaceIo
+): Record<string, unknown> {
+  if (!appInstalled) {
+    return {
+      state: "missing",
+      appPath,
+      reason: "skfiy.app is missing."
+    };
+  }
+
+  return io.codeSignature?.(appPath) ?? {
+    state: "unknown",
+    appPath,
+    reason: "No code signature probe is configured."
+  };
+}
+
+function readCodeSignatureSync(appPath: string): Record<string, unknown> {
+  const verify = spawnSync("codesign", [
+    "--verify",
+    "--deep",
+    "--strict",
+    "--verbose=2",
+    appPath
+  ], {
+    encoding: "utf8"
+  });
+
+  if (verify.status !== 0) {
+    return {
+      state: "invalid",
+      appPath,
+      reason: readSpawnMessage(verify, "codesign verification failed.")
+    };
+  }
+
+  const details = spawnSync("codesign", [
+    "-dr",
+    "-",
+    appPath
+  ], {
+    encoding: "utf8"
+  });
+  const requirement = `${details.stdout ?? ""}${details.stderr ?? ""}`.trim();
+
+  if (details.status !== 0) {
+    return {
+      state: "invalid",
+      appPath,
+      reason: readSpawnMessage(details, "codesign designated requirement could not be read.")
+    };
+  }
+
+  return {
+    state: requirement.includes('identifier "com.sskift.skfiy"') ? "valid" : "invalid",
+    appPath,
+    requirement,
+    ...(requirement.includes('identifier "com.sskift.skfiy"')
+      ? {}
+      : { reason: "Designated requirement does not include com.sskift.skfiy." })
+  };
+}
+
+function readSpawnMessage(
+  result: ReturnType<typeof spawnSync>,
+  fallback: string
+): string {
+  if (result.error) {
+    return result.error.message;
+  }
+
+  return `${result.stderr ?? ""}${result.stdout ?? ""}`.trim() || fallback;
 }
 
 function createUnknownPermissions(): Record<string, string> {

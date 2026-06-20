@@ -176,6 +176,14 @@ describe("dashboard snapshot data", () => {
         result: "blocked",
         productPath: "dist/skfiy.app -> Chrome",
         blocker: "extension-unavailable"
+      }),
+      "/repo/.skfiy-smoke/cli-current.json": JSON.stringify({
+        result: "passed",
+        productPath: "dist/skfiy -> skfiy CLI command matrix"
+      }),
+      "/repo/.skfiy-smoke/codex-plugin-current.json": JSON.stringify({
+        result: "passed",
+        productPath: "plugin scaffold -> staged marketplace install -> .mcp.json -> packaged skfiy CLI -> MCP stdio"
       })
     };
     const directories: Record<string, string[]> = {
@@ -183,13 +191,17 @@ describe("dashboard snapshot data", () => {
         "dashboard-old.json",
         "dashboard-current.json",
         "chrome-current.json",
+        "cli-current.json",
+        "codex-plugin-current.json",
         "notes.txt"
       ]
     };
     const mtimes: Record<string, number> = {
       "/repo/.skfiy-smoke/dashboard-old.json": 10,
       "/repo/.skfiy-smoke/dashboard-current.json": 20,
-      "/repo/.skfiy-smoke/chrome-current.json": 30
+      "/repo/.skfiy-smoke/chrome-current.json": 30,
+      "/repo/.skfiy-smoke/cli-current.json": 40,
+      "/repo/.skfiy-smoke/codex-plugin-current.json": 50
     };
 
     const snapshot = createDashboardWorkspaceSnapshot({
@@ -205,7 +217,14 @@ describe("dashboard snapshot data", () => {
           || targetPath === "/repo/dist/skfiy",
         readFile: (targetPath) => files[targetPath],
         readdir: (targetPath) => directories[targetPath] ?? [],
-        stat: (targetPath) => ({ mtimeMs: mtimes[targetPath] ?? 0 })
+        stat: (targetPath) => ({ mtimeMs: mtimes[targetPath] ?? 0 }),
+        pid: () => 4242,
+        uptimeSeconds: () => 17,
+        codeSignature: (appPath) => ({
+          state: "valid",
+          appPath,
+          requirement: 'designated => identifier "com.sskift.skfiy"'
+        })
       }
     });
 
@@ -218,7 +237,12 @@ describe("dashboard snapshot data", () => {
       app: {
         state: "installed",
         path: "/repo/dist/skfiy.app",
-        bundleId: "com.sskift.skfiy"
+        bundleId: "com.sskift.skfiy",
+        signing: {
+          state: "valid",
+          appPath: "/repo/dist/skfiy.app",
+          requirement: 'designated => identifier "com.sskift.skfiy"'
+        }
       },
       helper: {
         state: "installed",
@@ -230,7 +254,9 @@ describe("dashboard snapshot data", () => {
       },
       dashboard: {
         state: "running",
-        url: descriptor.url
+        url: descriptor.url,
+        pid: 4242,
+        uptimeSeconds: 17
       }
     });
     expect(snapshot.smokeEvidence.artifacts).toEqual([
@@ -241,6 +267,20 @@ describe("dashboard snapshot data", () => {
         productPath: "dist/skfiy.app -> Chrome",
         mtimeMs: 30,
         blocker: "extension-unavailable"
+      },
+      {
+        target: "cli",
+        result: "passed",
+        path: "/repo/.skfiy-smoke/cli-current.json",
+        productPath: "dist/skfiy -> skfiy CLI command matrix",
+        mtimeMs: 40
+      },
+      {
+        target: "codex-plugin",
+        result: "passed",
+        path: "/repo/.skfiy-smoke/codex-plugin-current.json",
+        productPath: "plugin scaffold -> staged marketplace install -> .mcp.json -> packaged skfiy CLI -> MCP stdio",
+        mtimeMs: 50
       },
       {
         target: "dashboard",

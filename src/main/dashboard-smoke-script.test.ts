@@ -116,9 +116,17 @@ describe("dashboard product smoke script", () => {
               state: "installed",
               path: "/repo/dist/skfiy"
             },
+            app: {
+              state: "installed",
+              signing: {
+                state: "valid"
+              }
+            },
             dashboard: {
               state: "running",
-              url: "http://127.0.0.1:51234/"
+              url: "http://127.0.0.1:51234/",
+              pid: 4242,
+              uptimeSeconds: 17
             }
           },
           permissions: {
@@ -172,6 +180,40 @@ describe("dashboard product smoke script", () => {
             cli: {
               state: "missing",
               path: "/repo/dist/skfiy"
+            }
+          }
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          runtimeHealth: {
+            ...passedEvidence.snapshotResponse.body.runtimeHealth,
+            dashboard: {
+              ...passedEvidence.snapshotResponse.body.runtimeHealth.dashboard,
+              pid: undefined
+            }
+          }
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          runtimeHealth: {
+            ...passedEvidence.snapshotResponse.body.runtimeHealth,
+            app: {
+              ...passedEvidence.snapshotResponse.body.runtimeHealth.app,
+              signing: {
+                state: "unknown"
+              }
             }
           }
         }
