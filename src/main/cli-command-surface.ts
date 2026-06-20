@@ -168,6 +168,17 @@ export type CliCommandInvocation =
       };
     }
   | {
+      kind: "operator-status";
+      path: "operator status";
+      json: boolean;
+      options: {
+        extensionIds: string[];
+        cliShimPath: string;
+        dashboardUrl?: string;
+        requireReady: boolean;
+      };
+    }
+  | {
       kind: "dashboard";
       path: "dashboard";
       json: boolean;
@@ -381,6 +392,14 @@ const COMMANDS: CliCommandDefinition[] = [
     outputShape: "doctor"
   },
   {
+    path: "operator status",
+    summary: "Return a compact read-only readiness summary for operator supervisors.",
+    jsonOutput: true,
+    plannedMutation: false,
+    executesSystemMutation: false,
+    outputShape: "operator-status"
+  },
+  {
     path: "dashboard",
     summary: "Describe the local loopback dashboard command surface.",
     jsonOutput: true,
@@ -532,6 +551,29 @@ export function normalizeCliCommand(
         extensionIds: readRepeatedOptionValues(argv, "--extension-id"),
         cliShimPath: resolveOptionPath(argv, "--cli", rootDir, path.join(rootDir, "dist", "skfiy")),
         dashboardUrl: readOptionValue(argv, "--dashboard-url")
+      }
+    });
+  }
+
+  if (command === "operator") {
+    const subcommand = argv[1];
+
+    if (subcommand !== "status") {
+      return error(
+        "unknown-operator-subcommand",
+        `Unknown operator subcommand: ${subcommand ?? ""}`
+      );
+    }
+
+    return ok({
+      kind: "operator-status",
+      path: "operator status",
+      json: argv.includes("--json"),
+      options: {
+        extensionIds: readRepeatedOptionValues(argv, "--extension-id"),
+        cliShimPath: resolveOptionPath(argv, "--cli", rootDir, path.join(rootDir, "dist", "skfiy")),
+        dashboardUrl: readOptionValue(argv, "--dashboard-url"),
+        requireReady: argv.includes("--require-ready")
       }
     });
   }
@@ -804,6 +846,39 @@ export function createCliOutput(
         dashboardUrl: invocation.options.dashboardUrl
       }
     };
+  }
+
+  if (invocation.kind === "operator-status") {
+    const status = {
+      app: { state: "unknown" },
+      cli: { state: "unknown", path: invocation.options.cliShimPath },
+      helper: { state: "unknown" },
+      permissions: {
+        screenRecording: "unknown",
+        accessibility: "unknown",
+        microphone: "unknown",
+        speechRecognition: "unknown",
+        finderAutomation: "unknown"
+      },
+      desktopSession: { state: "unknown" },
+      extension: { state: "unknown" },
+      nativeHost: {
+        state: "unknown",
+        cliShimPath: invocation.options.cliShimPath,
+        extensionIds: invocation.options.extensionIds
+      },
+      dashboard: invocation.options.dashboardUrl
+        ? { state: "unknown", url: invocation.options.dashboardUrl }
+        : { state: "not-running" },
+      moneyRun: createUnknownMoneyRunStatus()
+    };
+
+    return createOperatorStatusOutput({
+      invocation,
+      generatedAt,
+      status: withStatusReadiness(status, invocation.options),
+      result: "not-run"
+    });
   }
 
   if (invocation.kind === "dashboard") {
@@ -1317,6 +1392,18 @@ export async function runSkfiyCli({
     });
   }
 
+  if (result.invocation.kind === "operator-status") {
+    return runOperatorStatusCli({
+      invocation: result.invocation,
+      generatedAt,
+      rootDir: normalizedRootDir,
+      homeDir: homeDir ?? process.env.HOME ?? "",
+      statusReader,
+      stdout,
+      stderr
+    });
+  }
+
   if (result.invocation.kind === "permissions-open") {
     return runPermissionSettingsOpenCli({
       invocation: result.invocation,
@@ -1567,6 +1654,53 @@ async function runDoctorCli({
   }
 }
 
+async function runOperatorStatusCli({
+  invocation,
+  generatedAt,
+  rootDir,
+  homeDir,
+  statusReader,
+  stdout,
+  stderr
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "operator-status" }>;
+  generatedAt?: string;
+  rootDir: string;
+  homeDir: string;
+  statusReader: StatusReader;
+  stdout: SkfiyCliIo;
+  stderr: SkfiyCliIo;
+}): Promise<number> {
+  const input = createStatusReaderInput({
+    rootDir,
+    homeDir,
+    invocation
+  });
+
+  try {
+    const status = withStatusReadiness(await statusReader(input), input);
+    const output = createOperatorStatusOutput({
+      invocation,
+      generatedAt: generatedAt ?? new Date().toISOString(),
+      status,
+      result: "probed"
+    });
+
+    stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+    return invocation.options.requireReady && output.result !== "ready" ? 1 : 0;
+  } catch (error) {
+    const message = readErrorMessage(error);
+
+    stderr.write(`${message}\n`);
+    stdout.write(`${JSON.stringify({
+      ...createCliOutput(invocation, { generatedAt }),
+      result: "error",
+      error: message
+    }, null, 2)}\n`);
+    return 1;
+  }
+}
+
 function createStatusReaderInput({
   rootDir,
   homeDir,
@@ -1574,7 +1708,7 @@ function createStatusReaderInput({
 }: {
   rootDir: string;
   homeDir: string;
-  invocation: Extract<CliCommandInvocation, { kind: "status" | "doctor" }>;
+  invocation: Extract<CliCommandInvocation, { kind: "status" | "doctor" | "operator-status" }>;
 }): StatusReaderInput {
   const appPath = path.join(rootDir, "dist", "skfiy.app");
 
@@ -1836,6 +1970,163 @@ function createDoctorOutput({
   };
 }
 
+function createOperatorStatusOutput({
+  invocation,
+  generatedAt,
+  status,
+  result
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "operator-status" }>;
+  generatedAt: string;
+  status: Record<string, unknown>;
+  result: "not-run" | "probed";
+}): Record<string, unknown> {
+  const readiness = readRecord(status.readiness)
+    ?? createStatusReadinessSummary(status, invocation.options);
+  const checks = readRecord(readiness.checks);
+  const readinessState = readString(readiness.state) ?? "unknown";
+  const effectiveResult = result === "not-run"
+    ? "not-run"
+    : readinessState === "ready"
+      ? "ready"
+      : readinessState === "unknown"
+        ? "unknown"
+        : "needs-action";
+  const output = {
+    schemaVersion: 1,
+    command: "operator status",
+    generatedAt,
+    result: effectiveResult,
+    ready: effectiveResult === "ready",
+    requireReady: invocation.options.requireReady,
+    executesSystemMutation: false,
+    outputPolicy: {
+      tokenFree: true,
+      stableForAutomation: true,
+      source: "status-reader-summary"
+    },
+    targets: {
+      runtime: readRecord(checks?.runtime) ?? { state: "unknown", ready: false },
+      dashboard: readRecord(checks?.dashboard) ?? { state: "unknown", ready: false },
+      plugin: createOperatorPluginStatus(status, invocation.options.cliShimPath),
+      extension: readRecord(checks?.extension) ?? { state: "unknown", ready: false },
+      moneyRun: readRecord(checks?.moneyRun) ?? { state: "unknown", ready: false }
+    },
+    readiness,
+    blockers: Array.isArray(readiness.blockers) ? readiness.blockers : [],
+    supervision: {
+      mode: "read-only-status",
+      tmuxBackendRequired: false,
+      exitOnNotReady: invocation.options.requireReady,
+      recommendedReadOnlyCommands: createOperatorReadOnlyCommands(invocation)
+    }
+  };
+
+  return sanitizeTokenFree(output) as Record<string, unknown>;
+}
+
+function createOperatorPluginStatus(
+  status: Record<string, unknown>,
+  cliShimPath: string
+): Record<string, unknown> {
+  const cli = readRecord(status.cli);
+  const cliState = readString(cli?.state) ?? "unknown";
+  const state = cliState === "installed"
+    ? "available"
+    : cliState === "unknown"
+      ? "unknown"
+      : "needs-action";
+  const blockers = state === "needs-action"
+    ? [{
+        code: "plugin-cli-not-installed",
+        message: "Codex plugin MCP adapter requires the packaged skfiy CLI.",
+        state: cliState,
+        expected: "installed"
+      }]
+    : [];
+
+  return {
+    state,
+    ready: state === "available",
+    adapter: "codex-plugin-mcp",
+    transport: "stdio",
+    command: "skfiy mcp serve --stdio",
+    cliShimPath,
+    tools: [...SKFIY_MCP_TOOL_NAMES],
+    blockers
+  };
+}
+
+function createOperatorReadOnlyCommands(
+  invocation: Extract<CliCommandInvocation, { kind: "operator-status" }>
+): Array<Record<string, unknown>> {
+  const statusArgs = createStatusLikeArgs("status", invocation.options);
+  const doctorArgs = createStatusLikeArgs("doctor", invocation.options);
+  const commands: Array<Record<string, unknown>> = [
+    {
+      id: "status",
+      command: "skfiy",
+      args: statusArgs
+    },
+    {
+      id: "doctor",
+      command: "skfiy",
+      args: doctorArgs
+    },
+    {
+      id: "plugin-mcp",
+      command: "skfiy",
+      args: ["mcp", "serve", "--stdio", "--json"]
+    }
+  ];
+
+  if (invocation.options.dashboardUrl) {
+    commands.push({
+      id: "dashboard-status",
+      command: "skfiy",
+      args: [
+        "dashboard",
+        "status",
+        "--json",
+        "--url",
+        sanitizeDashboardUrlForOutput(invocation.options.dashboardUrl)
+      ]
+    });
+  }
+
+  if (invocation.options.extensionIds.length > 0) {
+    commands.push({
+      id: "chrome-status",
+      command: "skfiy",
+      args: [
+        "chrome",
+        "status",
+        "--json",
+        ...invocation.options.extensionIds.flatMap((extensionId) => ["--extension-id", extensionId])
+      ]
+    });
+  }
+
+  return commands;
+}
+
+function createStatusLikeArgs(
+  command: "status" | "doctor",
+  options: {
+    extensionIds: string[];
+    dashboardUrl?: string;
+  }
+): string[] {
+  return [
+    command,
+    "--json",
+    ...options.extensionIds.flatMap((extensionId) => ["--extension-id", extensionId]),
+    ...(options.dashboardUrl
+      ? ["--dashboard-url", sanitizeDashboardUrlForOutput(options.dashboardUrl)]
+      : [])
+  ];
+}
+
 function withStatusReadiness<TStatus extends Record<string, unknown>>(
   status: TStatus,
   context: {
@@ -1979,7 +2270,7 @@ function createDashboardReadiness(
       state: "unknown",
       ready: false,
       dashboardState,
-      ...(context.dashboardUrl ? { url: context.dashboardUrl } : {}),
+      ...(context.dashboardUrl ? { url: sanitizeDashboardUrlForOutput(context.dashboardUrl) } : {}),
       blockers: []
     };
   }
@@ -1998,7 +2289,7 @@ function createDashboardReadiness(
     ready: blockers.length === 0,
     dashboardState,
     ...(readString(dashboard?.url) || context.dashboardUrl
-      ? { url: readString(dashboard?.url) ?? context.dashboardUrl }
+      ? { url: sanitizeDashboardUrlForOutput(readString(dashboard?.url) ?? context.dashboardUrl ?? "") }
       : {}),
     ...(apiState ? { chromeHostPolicyApiState: apiState } : {}),
     blockers

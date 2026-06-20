@@ -70,8 +70,29 @@ export interface ChromeNativeHostStatus {
   hostName: typeof CHROME_NATIVE_HOST_NAME;
   manifestPath: string;
   cliShimPath: string;
+  extensionIds: string[];
+  expectedAllowedOrigins: string[];
   allowedOrigins: string[];
+  installedCliShimPath?: string;
+  installedAllowedOrigins?: string[];
+  manifestDiagnostics: ChromeNativeHostManifestDiagnostics;
   reason: string;
+}
+
+export interface ChromeNativeHostManifestDiagnostics {
+  cliShimExists: boolean;
+  manifestExists: boolean;
+  manifestValidJson: boolean;
+  manifestMatches: boolean;
+  expectedPath: string;
+  expectedAllowedOrigins: string[];
+  extensionIds: string[];
+  installedPath?: string;
+  installedAllowedOrigins?: string[];
+  missingAllowedOrigins: string[];
+  extraAllowedOrigins: string[];
+  missingExtensionIds: string[];
+  mismatchedFields: string[];
 }
 
 export interface ChromeNativeBridgeMessage {
@@ -253,29 +274,59 @@ export async function readChromeNativeHostStatus({
   });
 
   if (!(await io.exists(cliShimPath))) {
-    return createStatus(plan, "cli-missing", `skfiy CLI shim is missing at ${cliShimPath}.`);
+    return createStatus(plan, "cli-missing", `skfiy CLI shim is missing at ${cliShimPath}.`, {
+      cliShimExists: false,
+      manifestExists: false
+    });
   }
 
   if (!(await io.exists(plan.manifestPath))) {
-    return createStatus(plan, "missing", "Chrome Native Messaging host manifest is not installed.");
+    return createStatus(plan, "missing", "Chrome Native Messaging host manifest is not installed.", {
+      cliShimExists: true,
+      manifestExists: false
+    });
   }
 
   let installedManifest: ChromeNativeHostManifest;
   try {
     installedManifest = JSON.parse(await io.readFile(plan.manifestPath)) as ChromeNativeHostManifest;
   } catch {
-    return createStatus(plan, "invalid", "Chrome Native Messaging host manifest is not valid JSON.");
+    return createStatus(plan, "invalid", "Chrome Native Messaging host manifest is not valid JSON.", {
+      cliShimExists: true,
+      manifestExists: true,
+      manifestValidJson: false
+    });
   }
 
-  if (JSON.stringify(installedManifest) !== JSON.stringify(plan.manifest)) {
+  const diagnostics = createManifestDiagnostics(plan, {
+    cliShimExists: true,
+    manifestExists: true,
+    manifestValidJson: true,
+    installedManifest
+  });
+
+  if (!diagnostics.manifestMatches) {
     return createStatus(
       plan,
       "mismatched",
-      "Chrome Native Messaging host manifest does not match the current skfiy CLI."
+      "Chrome Native Messaging host manifest does not match the current skfiy CLI.",
+      {
+        cliShimExists: true,
+        manifestExists: true,
+        manifestValidJson: true,
+        installedManifest,
+        diagnostics
+      }
     );
   }
 
-  return createStatus(plan, "installed", "Chrome Native Messaging host is installed.");
+  return createStatus(plan, "installed", "Chrome Native Messaging host is installed.", {
+    cliShimExists: true,
+    manifestExists: true,
+    manifestValidJson: true,
+    installedManifest,
+    diagnostics
+  });
 }
 
 export function createChromeExtensionConnectionStatePath(homeDir: string): string {
@@ -608,16 +659,103 @@ export async function handleChromeNativeBridgeMessage(
 function createStatus(
   plan: ChromeNativeHostInstallPlan,
   state: ChromeNativeHostStatus["state"],
-  reason: string
+  reason: string,
+  input: {
+    cliShimExists: boolean;
+    manifestExists: boolean;
+    manifestValidJson?: boolean;
+    installedManifest?: Partial<ChromeNativeHostManifest>;
+    diagnostics?: ChromeNativeHostManifestDiagnostics;
+  }
 ): ChromeNativeHostStatus {
+  const diagnostics = input.diagnostics ?? createManifestDiagnostics(plan, input);
+
   return {
     state,
     hostName: plan.hostName,
     manifestPath: plan.manifestPath,
     cliShimPath: plan.manifest.path,
+    extensionIds: diagnostics.extensionIds,
+    expectedAllowedOrigins: diagnostics.expectedAllowedOrigins,
     allowedOrigins: plan.manifest.allowed_origins,
+    ...(diagnostics.installedPath ? { installedCliShimPath: diagnostics.installedPath } : {}),
+    ...(diagnostics.installedAllowedOrigins ? { installedAllowedOrigins: diagnostics.installedAllowedOrigins } : {}),
+    manifestDiagnostics: diagnostics,
     reason
   };
+}
+
+function createManifestDiagnostics(
+  plan: ChromeNativeHostInstallPlan,
+  input: {
+    cliShimExists: boolean;
+    manifestExists: boolean;
+    manifestValidJson?: boolean;
+    installedManifest?: Partial<ChromeNativeHostManifest>;
+  }
+): ChromeNativeHostManifestDiagnostics {
+  const expectedAllowedOrigins = plan.manifest.allowed_origins;
+  const installedAllowedOrigins = Array.isArray(input.installedManifest?.allowed_origins)
+    ? input.installedManifest.allowed_origins.filter((origin): origin is string => typeof origin === "string")
+    : undefined;
+  const missingAllowedOrigins = installedAllowedOrigins
+    ? expectedAllowedOrigins.filter((origin) => !installedAllowedOrigins.includes(origin))
+    : [...expectedAllowedOrigins];
+  const extraAllowedOrigins = installedAllowedOrigins
+    ? installedAllowedOrigins.filter((origin) => !expectedAllowedOrigins.includes(origin))
+    : [];
+  const mismatchedFields = collectManifestMismatches(plan.manifest, input.installedManifest, {
+    installedAllowedOrigins,
+    missingAllowedOrigins,
+    extraAllowedOrigins
+  });
+
+  return {
+    cliShimExists: input.cliShimExists,
+    manifestExists: input.manifestExists,
+    manifestValidJson: input.manifestValidJson ?? input.manifestExists,
+    manifestMatches: mismatchedFields.length === 0,
+    expectedPath: plan.manifest.path,
+    expectedAllowedOrigins,
+    extensionIds: expectedAllowedOrigins.map(readExtensionIdFromAllowedOrigin).filter(Boolean),
+    ...(typeof input.installedManifest?.path === "string" ? { installedPath: input.installedManifest.path } : {}),
+    ...(installedAllowedOrigins ? { installedAllowedOrigins } : {}),
+    missingAllowedOrigins,
+    extraAllowedOrigins,
+    missingExtensionIds: missingAllowedOrigins.map(readExtensionIdFromAllowedOrigin).filter(Boolean),
+    mismatchedFields
+  };
+}
+
+function collectManifestMismatches(
+  expected: ChromeNativeHostManifest,
+  installed: Partial<ChromeNativeHostManifest> | undefined,
+  origins: {
+    installedAllowedOrigins?: string[];
+    missingAllowedOrigins: string[];
+    extraAllowedOrigins: string[];
+  }
+): string[] {
+  if (!installed) {
+    return ["manifest"];
+  }
+
+  return [
+    installed.name === expected.name ? "" : "name",
+    installed.description === expected.description ? "" : "description",
+    installed.path === expected.path ? "" : "path",
+    installed.type === expected.type ? "" : "type",
+    Array.isArray(origins.installedAllowedOrigins)
+      && origins.missingAllowedOrigins.length === 0
+      && origins.extraAllowedOrigins.length === 0
+      ? ""
+      : "allowed_origins"
+  ].filter(Boolean);
+}
+
+function readExtensionIdFromAllowedOrigin(origin: string): string {
+  const matched = origin.match(/^chrome-extension:\/\/([a-p]{32})\/$/);
+  return matched?.[1] ?? "";
 }
 
 function normalizeChromeNativeBridgeMessage(message: unknown):

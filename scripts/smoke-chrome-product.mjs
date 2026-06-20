@@ -1120,6 +1120,9 @@ function createNativeHostBridgeDiagnostics({
       name: "com.sskift.skfiy",
       heartbeatState: heartbeat?.hostName === "com.sskift.skfiy" ? "recorded" : "missing",
       policyState: hostPolicy?.state ?? "unknown",
+      launchOrigin: response?.launchOrigin ?? heartbeat?.launchOrigin ?? null,
+      messageType: response?.messageType ?? heartbeat?.messageType ?? null,
+      responseResult: response?.result ?? null,
       lastError: response?.error ?? response?.reason ?? hostPolicyResponse?.error ?? hostPolicyResponse?.reason ?? null
     },
     capabilities: {
@@ -1153,6 +1156,9 @@ function hasInstalledExtensionStatusDiagnostics(status, extensionId) {
     && status.syncStatus?.state === "synced"
     && status.syncStatus?.source === "native_host"
     && status.syncStatus?.lastError === null
+    && status.syncStatus?.nativeBridgeState === "connected"
+    && status.syncStatus?.nativeLaunchOrigin === `chrome-extension://${extensionId}/`
+    && status.syncStatus?.nativeMessageType === "skfiy.host_policy.request"
     && (
       status.syncStatus?.hostPolicyState === "default"
       || status.syncStatus?.hostPolicyState === "configured"
@@ -1163,6 +1169,9 @@ function hasInstalledExtensionStatusDiagnostics(status, extensionId) {
     && status.diagnostics?.capabilities?.nativeMessaging === true
     && status.diagnostics?.capabilities?.scripting === true
     && status.diagnostics?.nativeHost?.name === "com.sskift.skfiy"
+    && status.diagnostics?.nativeHost?.bridgeState === "connected"
+    && status.diagnostics?.nativeHost?.launchOrigin === `chrome-extension://${extensionId}/`
+    && status.diagnostics?.nativeHost?.messageType === "skfiy.host_policy.request"
     && status.diagnostics?.nativeHost?.lastError === null
     && (
       status.diagnostics?.nativeHost?.policyState === "default"
@@ -1178,6 +1187,9 @@ function hasNativeHostBridgeDiagnostics(diagnostics) {
     && typeof diagnostics === "object"
     && diagnostics.nativeHost?.name === "com.sskift.skfiy"
     && diagnostics.nativeHost?.heartbeatState === "recorded"
+    && typeof diagnostics.nativeHost?.launchOrigin === "string"
+    && diagnostics.nativeHost.launchOrigin.startsWith("chrome-extension://")
+    && diagnostics.nativeHost?.messageType === "skfiy.page.observe"
     && diagnostics.nativeHost?.lastError === null
     && (
       diagnostics.nativeHost?.policyState === "default"

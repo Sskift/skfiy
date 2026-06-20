@@ -124,6 +124,9 @@ describe("Chrome extension popup policy sync status", () => {
           entryCount: 3,
           hostPolicyState: "configured",
           nativeHostPolicyState: "configured",
+          nativeBridgeState: "connected",
+          nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          nativeMessageType: "skfiy.host_policy.request",
           lastError: null,
           error: null
         },
@@ -148,9 +151,14 @@ describe("Chrome extension popup policy sync status", () => {
           nativeHost: {
             name: "com.sskift.skfiy",
             connectionState: "connected",
+            bridgeState: "connected",
             syncState: "synced",
             syncSource: "native_host",
             policyState: "configured",
+            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            messageType: "skfiy.host_policy.request",
+            responseType: "skfiy.native.response",
+            responseResult: "accepted",
             lastError: null,
             updatedAt: "2026-06-20T10:00:00.000Z"
           },
@@ -205,6 +213,9 @@ describe("Chrome extension popup policy sync status", () => {
     await waitForAssertion(() => {
       expect(document.getElementById("connection-status").textContent).toBe("Synced with skfiy app");
       expect(document.getElementById("native-host").textContent).toBe("com.sskift.skfiy");
+      expect(document.getElementById("native-bridge-state").textContent).toBe("Connected");
+      expect(document.getElementById("native-launch-origin").textContent)
+        .toBe("chrome-extension://abcdefghijklmnopabcdefghijklmnop/");
       expect(document.getElementById("extension-version").textContent).toBe("v0.0.1");
       expect(document.getElementById("extension-manifest-version").textContent).toBe("MV3");
       expect(document.getElementById("extension-capabilities").textContent).toContain("Native messaging");
@@ -247,6 +258,9 @@ describe("Chrome extension popup policy sync status", () => {
           entryCount: 1,
           hostPolicyState: "configured",
           nativeHostPolicyState: "configured",
+          nativeBridgeState: "unavailable",
+          nativeLaunchOrigin: null,
+          nativeMessageType: "skfiy.host_policy.request",
           lastError: "Specified native messaging host not found.",
           error: "Specified native messaging host not found."
         },
@@ -267,9 +281,12 @@ describe("Chrome extension popup policy sync status", () => {
           nativeHost: {
             name: "com.sskift.skfiy",
             connectionState: "unavailable",
+            bridgeState: "unavailable",
             syncState: "error",
             syncSource: "native_host",
             policyState: "configured",
+            launchOrigin: null,
+            messageType: "skfiy.host_policy.request",
             lastError: "Specified native messaging host not found."
           },
           hostPolicy: {
@@ -321,6 +338,8 @@ describe("Chrome extension popup policy sync status", () => {
 
     await waitForAssertion(() => {
       expect(document.getElementById("connection-status").textContent).toBe("skfiy app unavailable");
+      expect(document.getElementById("native-bridge-state").textContent).toBe("Unavailable");
+      expect(document.getElementById("native-launch-origin").textContent).toBe("Not observed");
       expect(document.getElementById("extension-manifest-version").textContent).toBe("MV3");
       expect(document.getElementById("host-policy").textContent).toBe("Always allowed");
       expect(document.getElementById("host-policy-reason").textContent).toBe("Host allowed");
@@ -356,6 +375,9 @@ describe("Chrome extension popup policy sync status", () => {
               entryCount: 1,
               hostPolicyState: "configured",
               nativeHostPolicyState: "configured",
+              nativeBridgeState: "connected",
+              nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+              nativeMessageType: "skfiy.host_policy.request",
               lastError: null,
               error: null
             },
@@ -372,8 +394,10 @@ describe("Chrome extension popup policy sync status", () => {
               },
               nativeHost: {
                 name: "com.sskift.skfiy",
+                bridgeState: "connected",
                 syncState: "synced",
                 policyState: "configured",
+                launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
                 lastError: null
               },
               hostPolicy: {
@@ -400,6 +424,9 @@ describe("Chrome extension popup policy sync status", () => {
             entryCount: 0,
             hostPolicyState: null,
             nativeHostPolicyState: null,
+            nativeBridgeState: "unknown",
+            nativeLaunchOrigin: null,
+            nativeMessageType: null,
             lastError: null,
             error: null
           },
@@ -413,6 +440,7 @@ describe("Chrome extension popup policy sync status", () => {
             },
             nativeHost: {
               name: "com.sskift.skfiy",
+              bridgeState: "unknown",
               syncState: "unknown",
               policyState: null,
               lastError: null

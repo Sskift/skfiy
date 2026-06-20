@@ -535,6 +535,9 @@ function createPassingNativeHostBridgeRun() {
         name: "com.sskift.skfiy",
         heartbeatState: "recorded",
         policyState: "default",
+        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        messageType: "skfiy.page.observe",
+        responseResult: "accepted",
         lastError: null
       },
       capabilities: {
@@ -637,6 +640,9 @@ function createPassingInstalledExtensionRun(productPath: string) {
         source: "native_host",
         hostPolicyState: "default",
         nativeHostPolicyState: "default",
+        nativeBridgeState: "connected",
+        nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        nativeMessageType: "skfiy.host_policy.request",
         entryCount: 0,
         lastError: null,
         error: null
@@ -661,8 +667,11 @@ function createPassingInstalledExtensionRun(productPath: string) {
         },
         nativeHost: {
           name: "com.sskift.skfiy",
+          bridgeState: "connected",
           syncState: "synced",
           policyState: "default",
+          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          messageType: "skfiy.host_policy.request",
           lastError: null
         },
         hostPolicy: {

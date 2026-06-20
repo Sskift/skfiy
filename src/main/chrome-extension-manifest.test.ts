@@ -87,10 +87,13 @@ describe("Chrome extension adapter skeleton", () => {
 
     expect(popupHtml).toContain("skfiy Chrome Adapter");
     expect(popupHtml).toContain("Manifest");
+    expect(popupHtml).toContain("Launch origin");
     expect(popupHtml).toContain("Host permission");
     expect(popupHtml).toContain("Page session");
     expect(popupHtml).toContain("Refresh host policy");
     expect(popupScript).toContain("Ask by default");
+    expect(popupScript).toContain("formatBridgeState");
+    expect(popupScript).toContain("formatLaunchOrigin");
     expect(popupScript).toContain("formatHostPermission");
     expect(popupScript).toContain("Sensitive content pause");
     expect(popupScript).toContain("HOST_POLICY_SYNC_STATUS");

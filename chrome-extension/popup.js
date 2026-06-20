@@ -85,6 +85,25 @@ function formatConnection(syncStatus, nativeHost = {}) {
   }
 }
 
+function formatBridgeState(nativeHost = {}, syncStatus = {}) {
+  switch (nativeHost.bridgeState ?? syncStatus?.nativeBridgeState) {
+    case "connected":
+      return "Connected";
+    case "connecting":
+      return "Connecting";
+    case "unavailable":
+      return "Unavailable";
+    case "unknown":
+      return "Unknown";
+    default:
+      return nativeHost.bridgeState ?? syncStatus?.nativeBridgeState ?? "Unknown";
+  }
+}
+
+function formatLaunchOrigin(nativeHost = {}, syncStatus = {}) {
+  return nativeHost.launchOrigin ?? syncStatus?.nativeLaunchOrigin ?? "Not observed";
+}
+
 function formatSource(source) {
   if (source === "native_host") {
     return "Native host";
@@ -197,6 +216,8 @@ function applySyncStatus(syncStatus, diagnostics) {
   document.getElementById("extension-capabilities").textContent =
     formatCapabilities(diagnostics?.capabilities);
   document.getElementById("connection-status").textContent = formatConnection(syncStatus, nativeHost);
+  document.getElementById("native-bridge-state").textContent = formatBridgeState(nativeHost, syncStatus);
+  document.getElementById("native-launch-origin").textContent = formatLaunchOrigin(nativeHost, syncStatus);
   document.getElementById("host-policy-reason").textContent = formatPolicyReason(currentTab.hostPolicy);
   document.getElementById("chrome-host-permission").textContent =
     formatHostPermission(currentTab.chromeHostPermission);

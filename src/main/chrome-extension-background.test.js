@@ -44,6 +44,9 @@ function createPolicyResponse(policy = {}) {
     type: "skfiy.native.response",
     requestId: "policy-sync-response",
     result: "accepted",
+    bridgeState: "connected",
+    launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+    messageType: "skfiy.host_policy.request",
     hostPolicy: {
       schemaVersion: 1,
       state: "configured",
@@ -285,6 +288,9 @@ describe("Chrome extension background policy sync", () => {
           requestId: "host-policy-sync-runtime_startup-1",
           hostPolicyState: "configured",
           nativeHostPolicyState: "configured",
+          nativeBridgeState: "connected",
+          nativeLaunchOrigin: null,
+          nativeMessageType: null,
           entryCount: 3,
           lastError: null,
           error: null
@@ -304,6 +310,7 @@ describe("Chrome extension background policy sync", () => {
           }),
           nativeHost: expect.objectContaining({
             name: "com.sskift.skfiy",
+            bridgeState: "connected",
             syncState: "synced",
             policyState: "configured",
             lastError: null
@@ -495,6 +502,11 @@ describe("Chrome extension background policy sync", () => {
       trigger: "runtime_startup",
       requestId: mock.postedMessages[0].requestId,
       hostPolicyState: "configured",
+      nativeBridgeState: "connected",
+      nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      nativeMessageType: "skfiy.host_policy.request",
+      nativeResponseType: "skfiy.native.response",
+      nativeResponseResult: "accepted",
       entryCount: 3
     });
     expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY].requestedAt).toEqual(expect.any(String));
@@ -578,6 +590,11 @@ describe("Chrome extension background policy sync", () => {
           }),
           nativeHost: expect.objectContaining({
             name: "com.sskift.skfiy",
+            bridgeState: "connected",
+            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            messageType: "skfiy.host_policy.request",
+            responseType: "skfiy.native.response",
+            responseResult: "accepted",
             syncState: "synced",
             policyState: "configured",
             lastError: null

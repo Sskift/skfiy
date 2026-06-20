@@ -153,9 +153,13 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("skfiy Dashboard");
     expect(response.body).toContain("/descriptor.json");
     expect(response.body).toContain("/snapshot.json");
+    expect(response.body).toContain("/api/evidence-summary");
     expect(response.body).toContain("runtime-health");
     expect(response.body).toContain("operator-readiness");
     expect(response.body).toContain("/api/operator-evidence");
+    expect(response.body).toContain("data-evidence-summary-panel");
+    expect(response.body).toContain("data-evidence-summary-status");
+    expect(response.body).toContain("data-evidence-summary-body");
     expect(response.body).toContain("data-operator-evidence-panel");
     expect(response.body).toContain("data-operator-evidence-status");
     expect(response.body).toContain("data-operator-evidence-body");
@@ -169,6 +173,10 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain('new EventSource("/events")');
     expect(response.body).toContain('fetch("/snapshot.json", { cache: "no-store" })');
     expect(response.body).toContain("/api/chrome-host-policy");
+    expect(response.body).toContain("renderEvidenceSummaryPanel(snapshot)");
+    expect(response.body).toContain("createEvidenceSummaryLanes(snapshot)");
+    expect(response.body).toContain("data-evidence-lanes");
+    expect(response.body).toContain("data-evidence-lane");
     expect(response.body).toContain("renderAppPolicyPanel(snapshot)");
     expect(response.body).toContain("data-chrome-policy-host-input");
     expect(response.body).toContain("data-chrome-policy-feedback");
@@ -538,6 +546,132 @@ describe("dashboard loopback HTTP response helper", () => {
       {
         method: "HEAD",
         url: "http://127.0.0.1:8787/api/operator-evidence"
+      },
+      {
+        port: 8787
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toBe("application/json; charset=utf-8");
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.body).toBe("");
+  });
+
+  it("serves a dashboard evidence summary for operator, Codex plugin, and Chrome extension supervision", () => {
+    const response = createDashboardHttpResponse(
+      {
+        method: "GET",
+        url: "http://127.0.0.1:8787/api/evidence-summary?token=ignored"
+      },
+      {
+        port: 8787,
+        createSnapshot: ({ descriptor }) => ({
+          schemaVersion: 1,
+          generatedAt: "2026-06-20T00:00:00.000Z",
+          descriptor,
+          runtimeHealth: {
+            dashboard: { state: "running", url: descriptor.url },
+            extension: {
+              state: "native-host-installed",
+              liveConnection: "stale"
+            },
+            nativeHost: {
+              state: "installed",
+              hostName: "com.sskift.skfiy"
+            }
+          },
+          operatorReadiness: {
+            state: "needs-evidence"
+          },
+          permissions: {},
+          currentTurn: {
+            state: "idle",
+            command: "open https://example.test/?token=secret-token"
+          },
+          replay: {
+            state: "available",
+            screenshotCount: 2
+          },
+          smokeEvidence: {
+            artifacts: [
+              {
+                target: "codex-plugin",
+                result: "passed",
+                productPath: "codex plugin marketplace add -> installed skfiy CLI -> MCP stdio",
+                ageSeconds: 30
+              },
+              {
+                target: "chrome",
+                result: "passed",
+                productPath: "renderer -> preload -> main -> CDP -> Chrome",
+                ageSeconds: 45,
+                nativeHostBridge: {
+                  result: "passed"
+                },
+                installedExtension: {
+                  result: "blocked",
+                  blockedReason: "branded_chrome_load_extension_removed"
+                }
+              }
+            ]
+          },
+          dogfoodRelease: { state: "unknown" },
+          longHorizon: {
+            state: "observing",
+            session: "money-run",
+            mutatesSession: false
+          },
+          alerts: [
+            {
+              code: "chrome-extension-heartbeat-stale",
+              severity: "warning",
+              message: "token=secret-token"
+            }
+          ]
+        })
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toBe("application/json; charset=utf-8");
+    expect(response.headers["cache-control"]).toBe("no-store");
+
+    const summary = JSON.parse(response.body);
+    expect(summary).toMatchObject({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      dashboard: {
+        url: "http://127.0.0.1:8787/",
+        endpoint: "/api/evidence-summary"
+      },
+      status: {
+        state: "needs-evidence",
+        laneCount: 3,
+        readyLaneCount: 1,
+        blockedLaneCount: 0,
+        attentionLaneCount: 2
+      },
+      outputPolicy: {
+        tokenFree: true,
+        source: "dashboard-evidence-summary"
+      }
+    });
+    expect(summary.lanes.map((lane: { id: string; state: string }) => [lane.id, lane.state])).toEqual([
+      ["computer-use-operator", "needs-evidence"],
+      ["codex-plugin", "ready"],
+      ["chrome-extension", "needs-evidence"]
+    ]);
+    expect(response.body).not.toContain("ignored");
+    expect(response.body).not.toContain("secret-token");
+    expect(response.body).not.toContain("token=secret-token");
+  });
+
+  it("serves evidence summary HEAD without a body", () => {
+    const response = createDashboardHttpResponse(
+      {
+        method: "HEAD",
+        url: "http://127.0.0.1:8787/api/evidence-summary"
       },
       {
         port: 8787

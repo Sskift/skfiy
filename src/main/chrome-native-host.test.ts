@@ -125,7 +125,26 @@ describe("Chrome Native Messaging host plan", () => {
       hostName: "com.sskift.skfiy",
       manifestPath,
       cliShimPath: "/repo/dist/skfiy",
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+      expectedAllowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
       allowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+      installedCliShimPath: "/repo/dist/skfiy",
+      installedAllowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+      manifestDiagnostics: {
+        cliShimExists: true,
+        manifestExists: true,
+        manifestValidJson: true,
+        manifestMatches: true,
+        expectedPath: "/repo/dist/skfiy",
+        expectedAllowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+        installedPath: "/repo/dist/skfiy",
+        installedAllowedOrigins: ["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"],
+        missingAllowedOrigins: [],
+        extraAllowedOrigins: [],
+        missingExtensionIds: [],
+        mismatchedFields: []
+      },
       reason: "Chrome Native Messaging host is installed."
     });
 
@@ -154,7 +173,69 @@ describe("Chrome Native Messaging host plan", () => {
       })
     })).resolves.toMatchObject({
       state: "mismatched",
-      reason: "Chrome Native Messaging host manifest does not match the current skfiy CLI."
+      reason: "Chrome Native Messaging host manifest does not match the current skfiy CLI.",
+      installedCliShimPath: "/tmp/old-skfiy",
+      manifestDiagnostics: expect.objectContaining({
+        manifestMatches: false,
+        installedPath: "/tmp/old-skfiy",
+        mismatchedFields: ["path"],
+        missingAllowedOrigins: [],
+        missingExtensionIds: []
+      })
+    });
+  });
+
+  it("pinpoints native host manifest extension origin drift", async () => {
+    const manifestPath = "/Users/tester/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json";
+    const manifest = createChromeNativeHostManifest({
+      cliShimPath: "/repo/dist/skfiy",
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+    });
+
+    await expect(readChromeNativeHostStatus({
+      homeDir: "/Users/tester",
+      cliShimPath: "/repo/dist/skfiy",
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop", "bcdefghijklmnopabcdefghijklmnopa"],
+      io: createMemoryChromeHostIo({
+        "/repo/dist/skfiy": "#!/usr/bin/env node\n",
+        [manifestPath]: JSON.stringify({
+          ...manifest,
+          allowed_origins: [
+            "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            "chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba/"
+          ]
+        })
+      })
+    })).resolves.toMatchObject({
+      state: "mismatched",
+      installedAllowedOrigins: [
+        "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        "chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba/"
+      ],
+      manifestDiagnostics: {
+        cliShimExists: true,
+        manifestExists: true,
+        manifestValidJson: true,
+        manifestMatches: false,
+        expectedPath: "/repo/dist/skfiy",
+        expectedAllowedOrigins: [
+          "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          "chrome-extension://bcdefghijklmnopabcdefghijklmnopa/"
+        ],
+        extensionIds: [
+          "abcdefghijklmnopabcdefghijklmnop",
+          "bcdefghijklmnopabcdefghijklmnopa"
+        ],
+        installedPath: "/repo/dist/skfiy",
+        installedAllowedOrigins: [
+          "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          "chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba/"
+        ],
+        missingAllowedOrigins: ["chrome-extension://bcdefghijklmnopabcdefghijklmnopa/"],
+        extraAllowedOrigins: ["chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba/"],
+        missingExtensionIds: ["bcdefghijklmnopabcdefghijklmnopa"],
+        mismatchedFields: ["allowed_origins"]
+      }
     });
   });
 

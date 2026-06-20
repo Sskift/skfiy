@@ -189,14 +189,20 @@ either app is available. Use `--extension-chrome-app <name>` to force that
 browser; otherwise the live extension path remains a clear environment blocker
 on machines with only branded Chrome. The MV3 extension status response exposes
 extension version, capabilities, Native Messaging policy sync state, host-policy
-entry counts, and the latest native-host error for dashboard and popup
-diagnostics. When skfiy host policy allows a Chrome host, the MV3 adapter still
-checks Chrome's optional host permission before injecting the content script;
-missing permission returns a typed `chrome_host_permission_missing` blocker
-instead of silently requesting permission.
+entry counts, native bridge state, native launch origin, message type, and the
+latest native-host error for popup and smoke diagnostics. The native-host status
+also reports expected vs installed `allowed_origins`, missing extension ids, and
+manifest mismatch fields so a stale Chrome extension id is diagnosable without
+opening the manifest by hand. When skfiy host policy allows a Chrome host, the
+MV3 adapter still checks Chrome's optional host permission before injecting the
+content script; missing permission returns a typed
+`chrome_host_permission_missing` blocker instead of silently requesting
+permission.
 `smoke:chrome` now also requires `nativeHostBridgeRun.result: passed` from the
 packaged `dist/skfiy -> Chrome Native Messaging heartbeat` path before Chrome
-browser-control evidence can count as passed.
+browser-control evidence can count as passed, and installed-extension evidence
+must prove that the native host responded for the same `chrome-extension://.../`
+origin reported by the loaded adapter.
 
 ```bash
 ./dist/skfiy status --json

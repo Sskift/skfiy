@@ -36,6 +36,7 @@ describe("CLI command surface", () => {
       "help",
       "status",
       "doctor",
+      "operator status",
       "dashboard",
       "dashboard status",
       "dashboard snapshot",
@@ -76,6 +77,12 @@ describe("CLI command surface", () => {
         path: "status",
         jsonOutput: true,
         executesSystemMutation: false
+      }),
+      expect.objectContaining({
+        path: "operator status",
+        jsonOutput: true,
+        executesSystemMutation: false,
+        outputShape: "operator-status"
       }),
       expect.objectContaining({
         path: "chrome install-host",
@@ -174,6 +181,7 @@ describe("CLI command surface", () => {
         schemaVersion: 1,
         commands: expect.arrayContaining([
           expect.objectContaining({ path: "status" }),
+          expect.objectContaining({ path: "operator status" }),
           expect.objectContaining({ path: "dashboard" }),
           expect.objectContaining({ path: "dashboard status" }),
           expect.objectContaining({ path: "dashboard snapshot" }),
@@ -314,6 +322,110 @@ describe("CLI command surface", () => {
     });
     expectJsonSafe(createCliOutput(status));
     expectJsonSafe(createCliOutput(doctor));
+  });
+
+  it("normalizes operator status into a compact automation-safe readiness summary", () => {
+    const operator = expectInvocation([
+      "operator",
+      "status",
+      "--json",
+      "--require-ready",
+      "--extension-id",
+      "abcdefghijklmnopabcdefghijklmnop",
+      "--dashboard-url",
+      "http://127.0.0.1:8787/?token=secret-token"
+    ]);
+
+    expect(operator).toMatchObject({
+      kind: "operator-status",
+      path: "operator status",
+      json: true,
+      options: {
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+        cliShimPath: "/repo/dist/skfiy",
+        dashboardUrl: "http://127.0.0.1:8787/?token=secret-token",
+        requireReady: true
+      }
+    });
+    const output = createCliOutput(operator, {
+      generatedAt: "2026-06-20T00:00:00.000Z"
+    });
+
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      command: "operator status",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      result: "not-run",
+      ready: false,
+      requireReady: true,
+      executesSystemMutation: false,
+      outputPolicy: {
+        tokenFree: true,
+        stableForAutomation: true
+      },
+      targets: {
+        runtime: {
+          state: "unknown",
+          ready: false
+        },
+        dashboard: {
+          state: "unknown",
+          ready: false,
+          url: "http://127.0.0.1:8787/"
+        },
+        plugin: {
+          state: "unknown",
+          ready: false,
+          adapter: "codex-plugin-mcp",
+          command: "skfiy mcp serve --stdio",
+          cliShimPath: "/repo/dist/skfiy",
+          tools: ["skfiy.status", "skfiy.doctor"]
+        },
+        extension: {
+          state: "needs-action",
+          ready: false,
+          extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+        },
+        moneyRun: {
+          state: "unknown",
+          ready: false,
+          session: "money-run",
+          mutatesSession: false
+        }
+      },
+      supervision: {
+        mode: "read-only-status",
+        tmuxBackendRequired: false,
+        exitOnNotReady: true,
+        recommendedReadOnlyCommands: expect.arrayContaining([
+          {
+            id: "doctor",
+            command: "skfiy",
+            args: [
+              "doctor",
+              "--json",
+              "--extension-id",
+              "abcdefghijklmnopabcdefghijklmnop",
+              "--dashboard-url",
+              "http://127.0.0.1:8787/"
+            ]
+          },
+          {
+            id: "dashboard-status",
+            command: "skfiy",
+            args: [
+              "dashboard",
+              "status",
+              "--json",
+              "--url",
+              "http://127.0.0.1:8787/"
+            ]
+          }
+        ])
+      }
+    });
+    expect(JSON.stringify(output)).not.toContain("secret-token");
+    expectJsonSafe(output);
   });
 
   it("normalizes dashboard as a loopback-only command with no token in output", () => {
@@ -977,6 +1089,13 @@ describe("CLI command surface", () => {
         message: "Unknown dashboard subcommand: events"
       }
     });
+    expect(normalizeCliCommand(["operator", "events"])).toEqual({
+      ok: false,
+      error: {
+        code: "unknown-operator-subcommand",
+        message: "Unknown operator subcommand: events"
+      }
+    });
     expect(normalizeCliCommand(["chrome", "policy", "inspect"])).toEqual({
       ok: false,
       error: {
@@ -1214,6 +1333,219 @@ describe("CLI command surface", () => {
     });
     expect(stdout.join("")).not.toContain("token=");
     expect(stderr).toEqual([]);
+  });
+
+  it("runs operator status as a compact read-only supervisor summary", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const statusInputs: unknown[] = [];
+
+    await expect(runSkfiyCli({
+      argv: [
+        "operator",
+        "status",
+        "--json",
+        "--require-ready",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop",
+        "--dashboard-url",
+        "http://127.0.0.1:8787/?token=secret-token"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader: async (input) => {
+        statusInputs.push(input);
+        return {
+          app: { state: "installed", path: "/repo/dist/skfiy.app" },
+          cli: { state: "installed", path: "/repo/dist/skfiy" },
+          helper: {
+            state: "installed",
+            path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+          },
+          permissions: {
+            screenRecording: "granted",
+            accessibility: "granted",
+            microphone: "granted",
+            speechRecognition: "granted",
+            finderAutomation: "granted"
+          },
+          desktopSession: {
+            state: "controllable",
+            controllable: true
+          },
+          extension: {
+            state: "connected",
+            bridge: "native-messaging",
+            liveConnection: "connected",
+            nativeHostState: "installed"
+          },
+          nativeHost: {
+            state: "installed",
+            cliShimPath: "/repo/dist/skfiy",
+            extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+          },
+          dashboard: {
+            state: "running",
+            url: "http://127.0.0.1:8787/?token=secret-token",
+            api: {
+              chromeHostPolicy: {
+                state: "reachable"
+              }
+            }
+          },
+          moneyRun: {
+            state: "observing",
+            session: "money-run",
+            source: "tmux-read-only-probe",
+            mutatesSession: false
+          }
+        };
+      },
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(statusInputs).toEqual([{
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      appPath: "/repo/dist/skfiy.app",
+      helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+      cliShimPath: "/repo/dist/skfiy",
+      extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+      dashboardUrl: "http://127.0.0.1:8787/?token=secret-token"
+    }]);
+    const output = JSON.parse(stdout.join(""));
+
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      command: "operator status",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      result: "ready",
+      ready: true,
+      requireReady: true,
+      executesSystemMutation: false,
+      targets: {
+        runtime: {
+          state: "ready",
+          ready: true
+        },
+        dashboard: {
+          state: "ready",
+          ready: true,
+          dashboardState: "running",
+          url: "http://127.0.0.1:8787/"
+        },
+        plugin: {
+          state: "available",
+          ready: true,
+          adapter: "codex-plugin-mcp",
+          transport: "stdio",
+          command: "skfiy mcp serve --stdio",
+          cliShimPath: "/repo/dist/skfiy",
+          tools: ["skfiy.status", "skfiy.doctor"],
+          blockers: []
+        },
+        extension: {
+          state: "ready",
+          ready: true,
+          extensionState: "connected",
+          nativeHostState: "installed",
+          liveConnection: "connected",
+          extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+        },
+        moneyRun: {
+          state: "ready",
+          ready: true,
+          session: "money-run",
+          moneyRunState: "observing",
+          source: "tmux-read-only-probe",
+          mutatesSession: false
+        }
+      },
+      readiness: {
+        state: "ready",
+        ready: true,
+        blockers: []
+      },
+      supervision: {
+        mode: "read-only-status",
+        tmuxBackendRequired: false,
+        exitOnNotReady: true,
+        recommendedReadOnlyCommands: expect.arrayContaining([
+          {
+            id: "plugin-mcp",
+            command: "skfiy",
+            args: ["mcp", "serve", "--stdio", "--json"]
+          },
+          {
+            id: "chrome-status",
+            command: "skfiy",
+            args: [
+              "chrome",
+              "status",
+              "--json",
+              "--extension-id",
+              "abcdefghijklmnopabcdefghijklmnop"
+            ]
+          }
+        ])
+      }
+    });
+    expect(JSON.stringify(output)).not.toContain("secret-token");
+    expect(stderr).toEqual([]);
+  });
+
+  it("uses --require-ready to turn operator blockers into a non-zero exit", async () => {
+    const stdout: string[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["operator", "status", "--json", "--require-ready"],
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader: async () => ({
+        app: { state: "missing", path: "/repo/dist/skfiy.app" },
+        cli: { state: "missing", path: "/repo/dist/skfiy" },
+        helper: { state: "missing", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        permissions: {
+          screenRecording: "unknown",
+          accessibility: "unknown",
+          microphone: "unknown",
+          speechRecognition: "unknown",
+          finderAutomation: "unknown"
+        },
+        desktopSession: { state: "unknown" },
+        extension: { state: "unknown" },
+        nativeHost: { state: "unknown", extensionIds: [], cliShimPath: "/repo/dist/skfiy" },
+        dashboard: { state: "not-running" },
+        moneyRun: {
+          state: "blocked",
+          session: "money-run",
+          source: "tmux-read-only-probe",
+          mutatesSession: false
+        }
+      }),
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: () => undefined }
+    })).resolves.toBe(1);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      command: "operator status",
+      result: "needs-action",
+      ready: false,
+      targets: {
+        plugin: {
+          state: "needs-action",
+          ready: false,
+          blockers: [
+            {
+              code: "plugin-cli-not-installed",
+              expected: "installed"
+            }
+          ]
+        }
+      }
+    });
   });
 
   it("treats mutating money-run probes as a readiness blocker", async () => {

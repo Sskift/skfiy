@@ -149,6 +149,14 @@ async function readHostPolicySyncStatus(policyOverride) {
   const status = stored[HOST_POLICY_SYNC_STORAGE_KEY] ?? {};
   const entryCount = countHostPolicyEntries(policy);
   const lastError = status.lastError ?? status.error ?? null;
+  const nativeBridgeState = status.nativeBridgeState
+    ?? (status.state === "synced"
+      ? "connected"
+      : status.state === "syncing"
+        ? "connecting"
+        : status.state === "error"
+          ? "unavailable"
+          : "unknown");
 
   return {
     schemaVersion: MESSAGE_SCHEMA_VERSION,
@@ -162,6 +170,11 @@ async function readHostPolicySyncStatus(policyOverride) {
     completedAt: status.completedAt ?? null,
     hostPolicyState: status.hostPolicyState ?? null,
     nativeHostPolicyState: status.nativeHostPolicyState ?? status.hostPolicyState ?? null,
+    nativeBridgeState,
+    nativeLaunchOrigin: status.nativeLaunchOrigin ?? null,
+    nativeMessageType: status.nativeMessageType ?? null,
+    nativeResponseType: status.nativeResponseType ?? null,
+    nativeResponseResult: status.nativeResponseResult ?? null,
     lastError,
     error: status.error ?? null
   };
@@ -378,9 +391,14 @@ function createDiagnostics(policy, syncStatus, currentTab) {
     nativeHost: {
       name: NATIVE_MESSAGING_HOST_NAME,
       connectionState: readNativeHostConnectionState(syncStatus),
+      bridgeState: syncStatus.nativeBridgeState ?? readNativeHostConnectionState(syncStatus),
       syncState: syncStatus.state,
       syncSource: syncStatus.source,
       policyState: syncStatus.nativeHostPolicyState ?? syncStatus.hostPolicyState,
+      launchOrigin: syncStatus.nativeLaunchOrigin ?? null,
+      messageType: syncStatus.nativeMessageType ?? null,
+      responseType: syncStatus.nativeResponseType ?? null,
+      responseResult: syncStatus.nativeResponseResult ?? null,
       lastError: nativeHostLastError,
       lastRequestId: syncStatus.requestId,
       lastTrigger: syncStatus.trigger,
@@ -647,6 +665,11 @@ export async function syncHostPolicy(trigger = "manual") {
         completedAt,
         hostPolicyState: response.hostPolicy.state ?? "unknown",
         nativeHostPolicyState: response.hostPolicy.state ?? "unknown",
+        nativeBridgeState: response.bridgeState ?? "connected",
+        nativeLaunchOrigin: response.launchOrigin ?? null,
+        nativeMessageType: response.messageType ?? MESSAGE_TYPES.HOST_POLICY_REQUEST,
+        nativeResponseType: response.type ?? null,
+        nativeResponseResult: response.result ?? null,
         entryCount: countHostPolicyEntries(response.hostPolicy.policy)
       });
     } else {
@@ -659,6 +682,11 @@ export async function syncHostPolicy(trigger = "manual") {
         requestedAt,
         completedAt,
         entryCount: countHostPolicyEntries(await readHostPolicy()),
+        nativeBridgeState: response?.bridgeState ?? "unavailable",
+        nativeLaunchOrigin: response?.launchOrigin ?? null,
+        nativeMessageType: response?.messageType ?? null,
+        nativeResponseType: response?.type ?? null,
+        nativeResponseResult: response?.result ?? null,
         lastError: message,
         error: message
       });
@@ -677,6 +705,11 @@ export async function syncHostPolicy(trigger = "manual") {
       requestedAt,
       completedAt,
       entryCount: countHostPolicyEntries(await readHostPolicy()),
+      nativeBridgeState: "unavailable",
+      nativeLaunchOrigin: null,
+      nativeMessageType: MESSAGE_TYPES.HOST_POLICY_REQUEST,
+      nativeResponseType: null,
+      nativeResponseResult: null,
       lastError: message,
       error: message
     });
