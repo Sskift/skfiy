@@ -55,7 +55,7 @@ Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` 
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`.
 
-`npm run smoke:cli` is the binary CLI gate for command stability. Its product path is `dist/skfiy -> skfiy CLI command matrix`; it runs `status --json`, `doctor --json`, `chrome status`, `mcp serve --stdio --json`, `dashboard --no-open --port 0 --json`, `release check --json-output`, `alpha artifact`, and the CLI-wrapped `smoke dashboard --json`. Chrome status uses `.skfiy-cli-smoke/home` as an isolated HOME, dashboard is terminated after JSON evidence is collected, and the nested dashboard smoke owns its own product smoke lock.
+`npm run smoke:cli` is the binary CLI gate for command stability. Its product path is `dist/skfiy -> skfiy CLI command matrix`; it runs `status --json`, `doctor --json`, `chrome status`, `mcp serve --stdio --json`, `dashboard --no-open --port 0 --json`, `release check --json-output`, `alpha artifact`, and the CLI-wrapped `smoke dashboard --json`. Chrome status uses `.skfiy-cli-smoke/home` as an isolated HOME, requires both Native Messaging host evidence and extension-adapter readiness evidence, dashboard is terminated after JSON evidence is collected, and the nested dashboard smoke owns its own product smoke lock.
 
 `skfiy mcp serve --stdio` is the first Codex plugin adapter command. The CLI command surface marks it as read-only and non-mutating, and `src/main/skfiy-mcp-server.ts` defines newline-delimited JSON-RPC stdio transport plus handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`. The repo-local Codex plugin scaffold now lives under `plugins/skfiy/`, with `.codex-plugin/plugin.json`, `.mcp.json`, `skills/control-skfiy/SKILL.md`, and SVG assets. The packaged-binary and staged marketplace install product gap is covered by `smoke:codex-plugin`; the remaining plugin distribution gap is installing the marketplace entry in a fresh Codex app session and proving the cached plugin path resolves the installed `skfiy` binary without a repo checkout.
 
@@ -75,7 +75,7 @@ Codex plugin packaging stays an adapter layer. A repo-local scaffold is not enou
 
 ## Chrome Native Messaging Host
 
-`skfiy chrome status|install-host|uninstall-host` still owns the user-level Chrome manifest lifecycle. The packaged `dist/skfiy` shim can now also act as the Native Messaging host when Chrome launches it over stdin/stdout: it reads Chrome's length-prefixed JSON frames, validates schema version/request id/payload size, applies an injectable app-policy block before dispatch, and writes framed JSON responses. The Chrome extension background worker now waits for `port.onMessage` and returns native-host responses instead of fire-and-forget posting.
+`skfiy chrome status|install-host|uninstall-host` still owns the user-level Chrome manifest lifecycle. `skfiy chrome status` now returns both the raw `nativeHost` manifest status and a derived `extension` adapter state so dashboard, CLI, and future Codex plugin consumers can distinguish host installation from live extension connection. The packaged `dist/skfiy` shim can now also act as the Native Messaging host when Chrome launches it over stdin/stdout: it reads Chrome's length-prefixed JSON frames, validates schema version/request id/payload size, applies an injectable app-policy block before dispatch, and writes framed JSON responses. The Chrome extension background worker now waits for `port.onMessage` and returns native-host responses instead of fire-and-forget posting.
 
 ## Dashboard Descriptor
 
@@ -108,7 +108,7 @@ The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, 
 
 ## Status Probe
 
-`skfiy status --json` now runs read-only probes instead of returning only placeholders. It reports whether `dist/skfiy.app` and its packaged helper exist, reads helper permission states, reads desktop-session controllability, checks the Chrome Native Messaging host when `--extension-id <id>` is provided, and checks a running dashboard descriptor when `--dashboard-url <url>` is provided. Missing helpers or failed probes degrade to `unknown`/`not-running` fields so dashboards can render the output without treating status collection itself as a hard failure.
+`skfiy status --json` now runs read-only probes instead of returning only placeholders. It reports whether `dist/skfiy.app` and its packaged helper exist, reads helper permission states, reads desktop-session controllability, checks the Chrome Native Messaging host when `--extension-id <id>` is provided, derives extension-adapter readiness from that host status, and checks a running dashboard descriptor when `--dashboard-url <url>` is provided. Missing helpers or failed probes degrade to `unknown`/`not-running` fields so dashboards can render the output without treating status collection itself as a hard failure.
 
 ## Doctor Probe
 

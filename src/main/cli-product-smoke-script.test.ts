@@ -134,6 +134,18 @@ describe("CLI product smoke script", () => {
         ? { ...command, tokenLeakDetected: true }
         : command)
     })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      commands: passedEvidence.commands.map((command) => command.id === "chrome-status"
+        ? {
+            ...command,
+            stdoutJson: {
+              ...command.stdoutJson,
+              extension: undefined
+            }
+          }
+        : command)
+    })).toBe("failed");
   });
 });
 
@@ -176,6 +188,33 @@ function createPassingCommandEvidence(command: { id: string; args: string[] }) {
         smoke: {
           result: "passed",
           runnerHasTmux: false
+        }
+      }
+    };
+  }
+
+  if (command.id === "chrome-status") {
+    return {
+      ...base,
+      stdoutJson: {
+        schemaVersion: 1,
+        command: "chrome status",
+        executesSystemMutation: false,
+        nativeHost: {
+          state: "missing",
+          hostName: "com.sskift.skfiy",
+          manifestPath: "/repo/.skfiy-cli-smoke/home/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+          cliShimPath: "/repo/dist/skfiy",
+          allowedOrigins: [],
+          reason: "Chrome Native Messaging host manifest is not installed."
+        },
+        extension: {
+          state: "native-host-missing",
+          bridge: "native-messaging",
+          liveConnection: "unknown",
+          nativeHostState: "missing",
+          manifestPath: "/repo/.skfiy-cli-smoke/home/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
+          reason: "Chrome Native Messaging host manifest is not installed."
         }
       }
     };

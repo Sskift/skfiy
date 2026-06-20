@@ -1024,6 +1024,8 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
   };
 
   if (!helperExists) {
+    const nativeHost = await readNativeHostStatusForStatus(input);
+
     return {
       app,
       helper,
@@ -1032,8 +1034,8 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
         state: "unknown",
         reason: `skfiy helper is missing at ${input.helperPath}.`
       },
-      extension: createUnknownExtensionStatus(),
-      nativeHost: await readNativeHostStatusForStatus(input),
+      extension: createChromeExtensionAdapterStatus(nativeHost),
+      nativeHost,
       dashboard: await readDashboardStatus(input.dashboardUrl)
     };
   }
@@ -1042,13 +1044,15 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
     helperPath: input.helperPath
   });
 
+  const nativeHost = await readNativeHostStatusForStatus(input);
+
   return {
     app,
     helper,
     permissions: await readPermissionStatesForStatus(desktopHelper),
     desktopSession: await readDesktopSessionForStatus(desktopHelper),
-    extension: createUnknownExtensionStatus(),
-    nativeHost: await readNativeHostStatusForStatus(input),
+    extension: createChromeExtensionAdapterStatus(nativeHost),
+    nativeHost,
     dashboard: await readDashboardStatus(input.dashboardUrl)
   };
 }
@@ -1147,11 +1151,77 @@ async function readNativeHostStatusForStatus(
   }
 }
 
-function createUnknownExtensionStatus(): Record<string, string> {
+function createUnknownExtensionStatus(reason = "Runtime Chrome extension connection is not probed by the CLI status command yet."): Record<string, string> {
   return {
     state: "unknown",
-    reason: "Runtime Chrome extension connection is not probed by the CLI status command yet."
+    reason
   };
+}
+
+function createChromeExtensionAdapterStatus(
+  nativeHost: {
+    state?: unknown;
+    reason?: unknown;
+    manifestPath?: unknown;
+    allowedOrigins?: unknown;
+  }
+): Record<string, unknown> {
+  const allowedOrigins = Array.isArray(nativeHost.allowedOrigins)
+    ? nativeHost.allowedOrigins.filter((origin): origin is string => typeof origin === "string")
+    : [];
+  const common = {
+    bridge: "native-messaging",
+    liveConnection: "unknown",
+    nativeHostState: nativeHost.state,
+    ...(typeof nativeHost.manifestPath === "string" ? { manifestPath: nativeHost.manifestPath } : {}),
+    ...(allowedOrigins.length > 0 ? { allowedOrigins } : {})
+  };
+
+  if (nativeHost.state === "installed") {
+    return {
+      state: "native-host-installed",
+      ...common,
+      reason: "Chrome Native Messaging host is installed; no live Chrome extension connection has been observed yet."
+    };
+  }
+
+  if (nativeHost.state === "missing") {
+    return {
+      state: "native-host-missing",
+      ...common,
+      reason: "Chrome Native Messaging host manifest is not installed."
+    };
+  }
+
+  if (nativeHost.state === "cli-missing") {
+    return {
+      state: "native-host-cli-missing",
+      ...common,
+      reason: "The Chrome Native Messaging host cannot run because the packaged skfiy CLI is missing."
+    };
+  }
+
+  if (nativeHost.state === "mismatched") {
+    return {
+      state: "native-host-mismatched",
+      ...common,
+      reason: "Chrome Native Messaging host manifest points at a different skfiy CLI."
+    };
+  }
+
+  if (nativeHost.state === "invalid") {
+    return {
+      state: "native-host-invalid",
+      ...common,
+      reason: "Chrome Native Messaging host manifest is invalid."
+    };
+  }
+
+  return createUnknownExtensionStatus(
+    typeof nativeHost.reason === "string"
+      ? nativeHost.reason
+      : "Runtime Chrome extension connection is not probed by the CLI status command yet."
+  );
 }
 
 async function readDashboardStatus(dashboardUrl: string | undefined): Promise<Record<string, unknown>> {
@@ -1613,6 +1683,7 @@ async function runChromeNativeHostCli({
       command: invocation.path,
       generatedAt: generatedAt ?? new Date().toISOString(),
       executesSystemMutation: false,
+      extension: createChromeExtensionAdapterStatus(nativeHost),
       nativeHost
     }, null, 2)}\n`);
     return 0;
