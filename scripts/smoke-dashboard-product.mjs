@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -36,15 +38,18 @@ async function main() {
     cliOutput: undefined,
     cliStdout: "",
     cliStderr: "",
+    isolatedHomeDir: undefined,
     descriptorResponse: undefined,
     snapshotResponse: undefined,
     eventsResponse: undefined,
     shellResponse: undefined,
+    chromeHostPolicyApi: undefined,
     tokenLeakDetected: false,
     result: "not-run"
   };
   let smokeLock;
   let dashboardProcess;
+  let isolatedHomeDir;
 
   try {
     assertDashboardSmokeReady(options);
@@ -52,8 +57,12 @@ async function main() {
       rootDir: ROOT_DIR,
       scriptName: "smoke:dashboard"
     });
+    isolatedHomeDir = await mkdtemp(path.join(tmpdir(), "skfiy-dashboard-smoke-home-"));
+    evidence.isolatedHomeDir = isolatedHomeDir;
 
-    const launched = await launchDashboardCli(options);
+    const launched = await launchDashboardCli(options, {
+      homeDir: isolatedHomeDir
+    });
     dashboardProcess = launched.child;
     evidence.pid = dashboardProcess.pid;
     evidence.cliOutput = launched.cliOutput;
@@ -72,12 +81,17 @@ async function main() {
       options.timeoutMs
     );
     evidence.shellResponse = await readTextResponse(launched.cliOutput.url, options.timeoutMs);
+    evidence.chromeHostPolicyApi = await exerciseChromeHostPolicyApi({
+      dashboardUrl: launched.cliOutput.url,
+      timeoutMs: options.timeoutMs
+    });
     evidence.tokenLeakDetected = hasTokenLeak([
       evidence.cliStdout,
       evidence.cliStderr,
       JSON.stringify(evidence.descriptorResponse),
       JSON.stringify(evidence.snapshotResponse),
       JSON.stringify(evidence.eventsResponse),
+      JSON.stringify(evidence.chromeHostPolicyApi),
       evidence.shellResponse?.body ?? ""
     ]);
     evidence.result = classifyDashboardSmokeEvidence(evidence);
@@ -92,6 +106,12 @@ async function main() {
   } finally {
     if (dashboardProcess) {
       evidence.cleanup = await terminateDashboardProcess(dashboardProcess);
+    }
+    if (isolatedHomeDir) {
+      await rm(isolatedHomeDir, { recursive: true, force: true }).catch((error) => {
+        evidence.isolatedHomeCleanupError = error instanceof Error ? error.message : String(error);
+        process.exitCode = process.exitCode ?? 1;
+      });
     }
     await smokeLock?.release();
 
@@ -118,10 +138,14 @@ function assertDashboardSmokeReady(options) {
   }
 }
 
-function launchDashboardCli(options) {
+function launchDashboardCli(options, { homeDir } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(options.cliPath, DASHBOARD_ARGS, {
       cwd: ROOT_DIR,
+      env: {
+        ...process.env,
+        ...(homeDir ? { HOME: homeDir } : {})
+      },
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -174,6 +198,35 @@ function launchDashboardCli(options) {
   });
 }
 
+async function exerciseChromeHostPolicyApi({ dashboardUrl, timeoutMs }) {
+  const apiUrl = new URL("/api/chrome-host-policy", dashboardUrl).toString();
+  const productPath = "dist/skfiy -> dashboard /api/chrome-host-policy -> chrome-host-policy.json";
+  const showDefault = await readJsonResponse(apiUrl, timeoutMs);
+  const setResponse = await readJsonRequest(apiUrl, timeoutMs, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "allow-current-turn",
+      host: "https://dashboard-smoke.example/path"
+    })
+  });
+  const showConfigured = await readJsonResponse(apiUrl, timeoutMs);
+  const resetResponse = await readJsonRequest(apiUrl, timeoutMs, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "reset"
+    })
+  });
+
+  return {
+    productPath,
+    apiUrl,
+    showDefault,
+    setResponse,
+    showConfigured,
+    resetResponse
+  };
+}
+
 async function readJsonResponse(url, timeoutMs) {
   const textResponse = await readTextResponse(url, timeoutMs);
   let body;
@@ -195,12 +248,38 @@ async function readJsonResponse(url, timeoutMs) {
   };
 }
 
-async function readTextResponse(url, timeoutMs) {
+async function readJsonRequest(url, timeoutMs, request = {}) {
+  const textResponse = await readTextResponse(url, timeoutMs, request);
+  let body;
+
+  try {
+    body = JSON.parse(textResponse.body);
+  } catch (error) {
+    return {
+      ...textResponse,
+      jsonParseError: error instanceof Error ? error.message : String(error)
+    };
+  }
+
+  return {
+    status: textResponse.status,
+    headers: textResponse.headers,
+    body,
+    rawBody: textResponse.body
+  };
+}
+
+async function readTextResponse(url, timeoutMs, request = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
+      method: request.method ?? "GET",
+      headers: request.body ? {
+        "content-type": "application/json"
+      } : undefined,
+      body: request.body,
       signal: controller.signal
     });
 

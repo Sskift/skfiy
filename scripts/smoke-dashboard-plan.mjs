@@ -127,6 +127,10 @@ export function classifyDashboardSmokeEvidence(evidence) {
     return "failed";
   }
 
+  if (!hasDashboardChromeHostPolicyApiEvidence(evidence.chromeHostPolicyApi)) {
+    return "failed";
+  }
+
   if (
     evidence.shellResponse?.status !== 200
     || !hasDashboardShellEvidence(shellBody)
@@ -285,6 +289,44 @@ function hasChromeHostPolicyEvidence(hostPolicy) {
     && Array.isArray(hostPolicy.policy?.allowedHosts)
     && Array.isArray(hostPolicy.policy?.currentTurnAllowedHosts)
     && Array.isArray(hostPolicy.policy?.blockedHosts);
+}
+
+function hasDashboardChromeHostPolicyApiEvidence(api) {
+  const showDefault = api?.showDefault?.body;
+  const setBody = api?.setResponse?.body;
+  const showConfigured = api?.showConfigured?.body;
+  const resetBody = api?.resetResponse?.body;
+  const configuredPolicy = showConfigured?.hostPolicy?.policy;
+
+  return api?.productPath === "dist/skfiy -> dashboard /api/chrome-host-policy -> chrome-host-policy.json"
+    && typeof api?.apiUrl === "string"
+    && api.apiUrl.includes("/api/chrome-host-policy")
+    && api?.showDefault?.status === 200
+    && api?.setResponse?.status === 200
+    && api?.showConfigured?.status === 200
+    && api?.resetResponse?.status === 200
+    && showDefault?.command === "dashboard chrome policy show"
+    && showDefault?.executesSystemMutation === false
+    && hasChromeHostPolicyEvidence(showDefault?.hostPolicy)
+    && setBody?.command === "dashboard chrome policy set"
+    && setBody?.source === "dashboard"
+    && setBody?.plannedMutation === true
+    && setBody?.executesSystemMutation === true
+    && setBody?.result === "configured"
+    && setBody?.action === "allow_current_turn"
+    && setBody?.host === "dashboard-smoke.example"
+    && hasChromeHostPolicyEvidence(setBody?.hostPolicy)
+    && setBody.hostPolicy.policy.currentTurnAllowedHosts?.includes("dashboard-smoke.example")
+    && showConfigured?.command === "dashboard chrome policy show"
+    && hasChromeHostPolicyEvidence(showConfigured?.hostPolicy)
+    && configuredPolicy?.currentTurnAllowedHosts?.includes("dashboard-smoke.example")
+    && resetBody?.command === "dashboard chrome policy reset"
+    && resetBody?.source === "dashboard"
+    && resetBody?.plannedMutation === true
+    && resetBody?.executesSystemMutation === true
+    && resetBody?.result === "reset"
+    && hasChromeHostPolicyEvidence(resetBody?.hostPolicy)
+    && resetBody.hostPolicy.state === "default";
 }
 
 function hasExtensionConnectionEvidence(connection) {
@@ -455,7 +497,9 @@ function hasDashboardShellEvidence(shellBody) {
     && shellBody.includes("data-dashboard-root")
     && shellBody.includes("data-snapshot-state")
     && shellBody.includes('data-panel-body="long-horizon-supervision"')
+    && shellBody.includes("/api/chrome-host-policy")
     && shellBody.includes('fetch("/snapshot.json", { cache: "no-store" })')
+    && shellBody.includes("renderAppPolicyPanel(snapshot)")
     && shellBody.includes("renderLongHorizonPanel");
 }
 

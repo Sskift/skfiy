@@ -109,7 +109,11 @@ const DASHBOARD_PANELS: DashboardPanel[] = [
       "app-allow-ask-deny",
       "chrome-host-allow-ask-deny"
     ],
-    actions: []
+    actions: [
+      "show-chrome-host-policy",
+      "set-chrome-host-policy",
+      "reset-chrome-host-policy"
+    ]
   },
   {
     id: "smoke-evidence",

@@ -30,6 +30,51 @@ function readUrl(url: string): Promise<{
   });
 }
 
+function requestUrl(
+  url: string,
+  {
+    method = "GET",
+    body
+  }: {
+    method?: string;
+    body?: string;
+  } = {}
+): Promise<{
+  status: number;
+  headers: http.IncomingHttpHeaders;
+  body: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, {
+      method,
+      headers: body ? {
+        "content-type": "application/json",
+        "content-length": Buffer.byteLength(body)
+      } : undefined
+    }, (response) => {
+      let responseBody = "";
+
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        responseBody += chunk;
+      });
+      response.on("end", () => {
+        resolve({
+          status: response.statusCode ?? 0,
+          headers: response.headers,
+          body: responseBody
+        });
+      });
+    });
+
+    request.on("error", reject);
+    if (body) {
+      request.write(body);
+    }
+    request.end();
+  });
+}
+
 function readFirstSseEvent(url: string): Promise<{
   status: number;
   headers: http.IncomingHttpHeaders;
@@ -117,6 +162,8 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain('data-panel-body="dogfood-release"');
     expect(response.body).toContain('new EventSource("/events")');
     expect(response.body).toContain('fetch("/snapshot.json", { cache: "no-store" })');
+    expect(response.body).toContain("/api/chrome-host-policy");
+    expect(response.body).toContain("renderAppPolicyPanel(snapshot)");
     expect(response.body).toContain("renderLongHorizonPanel");
     expect(response.body).not.toContain("token=");
   });
@@ -342,6 +389,107 @@ describe("dashboard loopback HTTP response helper", () => {
       expect(response.event).toContain("event: snapshot\n");
       expect(response.event).toContain('"generatedAt":"2026-06-20T00:00:00.000Z"');
       expect(response.event).not.toContain("token=");
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  it("serves local Chrome host policy show, set, and reset through the loopback server", async () => {
+    const files: Record<string, string> = {};
+    const chromeHostPolicyIo = {
+      exists: async (targetPath: string) => Object.hasOwn(files, targetPath),
+      mkdir: async () => undefined,
+      readFile: async (targetPath: string) => files[targetPath],
+      writeFile: async (targetPath: string, content: string) => {
+        files[targetPath] = content;
+      },
+      rm: async (targetPath: string) => {
+        delete files[targetPath];
+      }
+    };
+    const policyPath = "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json";
+    const dashboard = await startDashboardServer({
+      port: 0,
+      homeDir: "/Users/tester",
+      chromeHostPolicyIo
+    });
+
+    try {
+      const showDefault = await readUrl(`${dashboard.url}api/chrome-host-policy`);
+
+      expect(showDefault.status).toBe(200);
+      expect(showDefault.headers["cache-control"]).toBe("no-store");
+      expect(JSON.parse(showDefault.body)).toMatchObject({
+        command: "dashboard chrome policy show",
+        executesSystemMutation: false,
+        hostPolicy: {
+          state: "default",
+          path: policyPath,
+          policy: {
+            defaultMode: "ask",
+            allowedHosts: [],
+            currentTurnAllowedHosts: [],
+            blockedHosts: []
+          }
+        }
+      });
+
+      const setResponse = await requestUrl(`${dashboard.url}api/chrome-host-policy`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "always-allow",
+          host: "https://Example.com/docs"
+        })
+      });
+
+      expect(setResponse.status).toBe(200);
+      expect(JSON.parse(setResponse.body)).toMatchObject({
+        command: "dashboard chrome policy set",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "configured",
+        action: "always_allow",
+        host: "example.com",
+        hostPolicy: {
+          state: "configured",
+          path: policyPath,
+          policy: {
+            allowedHosts: ["example.com"],
+            currentTurnAllowedHosts: [],
+            blockedHosts: []
+          }
+        }
+      });
+      expect(JSON.parse(files[policyPath])).toMatchObject({
+        schemaVersion: 1,
+        policy: {
+          allowedHosts: ["example.com"]
+        }
+      });
+
+      const resetResponse = await requestUrl(`${dashboard.url}api/chrome-host-policy`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "reset"
+        })
+      });
+
+      expect(resetResponse.status).toBe(200);
+      expect(JSON.parse(resetResponse.body)).toMatchObject({
+        command: "dashboard chrome policy reset",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "reset",
+        hostPolicy: {
+          state: "default",
+          path: policyPath
+        }
+      });
+      expect(files[policyPath]).toBeUndefined();
+      expect(setResponse.body).not.toContain("token=");
+      expect(resetResponse.body).not.toContain("token=");
     } finally {
       await dashboard.close();
     }

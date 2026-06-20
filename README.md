@@ -157,7 +157,9 @@ The local dashboard is an audit plane, not the primary pet UI. It binds to
 permissions, current turn, replay, smoke evidence, extension state, and
 long-horizon supervision. The extension state currently includes packaged CLI
 Native Messaging host manifest evidence plus the latest local extension
-heartbeat from `chrome-extension-connection.json`. The Chrome smoke now also
+heartbeat from `chrome-extension-connection.json`. The dashboard also exposes
+`/api/chrome-host-policy` so local operator flows can show, set, and reset the
+same Chrome host policy used by the CLI and MV3 native-host bridge. The Chrome smoke now also
 records `installedExtensionRun`; on this machine it is a known blocker because
 branded `Google Chrome` 146 no longer honors automated `--load-extension`
 unpacked extension loading, so the live extension path needs Chrome for Testing,

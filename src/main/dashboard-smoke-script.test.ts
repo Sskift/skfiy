@@ -26,6 +26,8 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("\"--json\"");
     expect(source).toContain("/descriptor.json");
     expect(source).toContain("/events");
+    expect(source).toContain("/api/chrome-host-policy");
+    expect(source).toContain("exerciseChromeHostPolicyApi");
   });
 
   it("parses dashboard smoke options for a repeatable loopback product run", async () => {
@@ -315,7 +317,92 @@ describe("dashboard product smoke script", () => {
       },
       shellResponse: {
         status: 200,
-        body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><a href="/descriptor.json"></a><a href="/snapshot.json"></a><section data-panel-body="long-horizon-supervision"></section><script>new EventSource("/events"); fetch("/snapshot.json", { cache: "no-store" }); function renderLongHorizonPanel(){}</script></main><title>skfiy Dashboard</title>'
+        body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><a href="/descriptor.json"></a><a href="/snapshot.json"></a><section data-panel-body="long-horizon-supervision"></section><script>new EventSource("/events"); fetch("/snapshot.json", { cache: "no-store" }); "/api/chrome-host-policy"; function renderAppPolicyPanel(snapshot){} function renderLongHorizonPanel(){}</script></main><title>skfiy Dashboard</title>'
+      },
+      chromeHostPolicyApi: {
+        productPath: "dist/skfiy -> dashboard /api/chrome-host-policy -> chrome-host-policy.json",
+        apiUrl: "http://127.0.0.1:51234/api/chrome-host-policy",
+        showDefault: {
+          status: 200,
+          body: {
+            command: "dashboard chrome policy show",
+            executesSystemMutation: false,
+            hostPolicy: {
+              schemaVersion: 1,
+              state: "default",
+              path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+              policy: {
+                defaultMode: "ask",
+                allowedHosts: [],
+                currentTurnAllowedHosts: [],
+                blockedHosts: []
+              },
+              reason: "Chrome host policy has not been configured yet."
+            }
+          }
+        },
+        setResponse: {
+          status: 200,
+          body: {
+            command: "dashboard chrome policy set",
+            source: "dashboard",
+            plannedMutation: true,
+            executesSystemMutation: true,
+            result: "configured",
+            action: "allow_current_turn",
+            host: "dashboard-smoke.example",
+            hostPolicy: {
+              schemaVersion: 1,
+              state: "configured",
+              path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+              policy: {
+                defaultMode: "ask",
+                allowedHosts: [],
+                currentTurnAllowedHosts: ["dashboard-smoke.example"],
+                blockedHosts: []
+              }
+            }
+          }
+        },
+        showConfigured: {
+          status: 200,
+          body: {
+            command: "dashboard chrome policy show",
+            executesSystemMutation: false,
+            hostPolicy: {
+              schemaVersion: 1,
+              state: "configured",
+              path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+              policy: {
+                defaultMode: "ask",
+                allowedHosts: [],
+                currentTurnAllowedHosts: ["dashboard-smoke.example"],
+                blockedHosts: []
+              }
+            }
+          }
+        },
+        resetResponse: {
+          status: 200,
+          body: {
+            command: "dashboard chrome policy reset",
+            source: "dashboard",
+            plannedMutation: true,
+            executesSystemMutation: true,
+            result: "reset",
+            hostPolicy: {
+              schemaVersion: 1,
+              state: "default",
+              path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+              policy: {
+                defaultMode: "ask",
+                allowedHosts: [],
+                currentTurnAllowedHosts: [],
+                blockedHosts: []
+              }
+            }
+          }
+        }
       },
       tokenLeakDetected: false
     };

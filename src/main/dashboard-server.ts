@@ -11,10 +11,21 @@ import {
   type DashboardWorkspaceIo,
   type DashboardSnapshotInput
 } from "./dashboard-data.js";
+import {
+  applyChromeHostPolicyAction,
+  createDefaultChromeHostPolicy,
+  decideChromeHostPolicy,
+  readChromeHostPolicyState,
+  resetChromeHostPolicyState,
+  writeChromeHostPolicyState,
+  type ChromeHostPolicyAction,
+  type ChromeHostPolicyResetIo
+} from "./chrome-host-policy.js";
 
 export interface DashboardHttpRequest {
   method?: string;
   url: string | URL;
+  body?: string;
 }
 
 export interface DashboardHttpResponse {
@@ -25,6 +36,8 @@ export interface DashboardHttpResponse {
 
 export interface DashboardHttpResponseOptions extends DashboardDescriptorInput {
   rootDir?: string;
+  homeDir?: string;
+  chromeHostPolicyIo?: ChromeHostPolicyResetIo;
   workspaceIo?: DashboardWorkspaceIo;
   createDescriptor?: (input: DashboardDescriptorInput) => DashboardDescriptor;
   createSnapshot?: (input: DashboardSnapshotInput) => DashboardSnapshot;
@@ -91,30 +104,22 @@ export async function startDashboardServer(
   const requestedPort = options.port ?? 0;
   const eventStreams = new Set<http.ServerResponse>();
   const server = http.createServer((request, response) => {
-    const requestUrl = request.url ?? "/";
-    const requestMethod = (request.method ?? "GET").toUpperCase();
+    void handleDashboardServerRequest({
+      request,
+      response,
+      server,
+      options,
+      eventStreams
+    }).catch((error) => {
+      const dashboardResponse = jsonResponse({
+        schemaVersion: 1,
+        result: "error",
+        error: error instanceof Error ? error.message : String(error)
+      }, undefined, 500);
 
-    if (
-      requestMethod === "GET"
-      && parseDashboardRequestUrl(requestUrl).pathname === "/events"
-    ) {
-      streamDashboardEvents(response, {
-        ...options,
-        port: readServerPort(server)
-      }, eventStreams);
-      return;
-    }
-
-    const dashboardResponse = createDashboardHttpResponse({
-      method: request.method,
-      url: requestUrl
-    }, {
-      ...options,
-      port: readServerPort(server)
+      response.writeHead(dashboardResponse.status, dashboardResponse.headers);
+      response.end(dashboardResponse.body);
     });
-
-    response.writeHead(dashboardResponse.status, dashboardResponse.headers);
-    response.end(dashboardResponse.body);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -156,6 +161,59 @@ export async function startDashboardServer(
   };
 }
 
+async function handleDashboardServerRequest({
+  request,
+  response,
+  server,
+  options,
+  eventStreams
+}: {
+  request: http.IncomingMessage;
+  response: http.ServerResponse;
+  server: http.Server;
+  options: DashboardHttpResponseOptions;
+  eventStreams: Set<http.ServerResponse>;
+}): Promise<void> {
+  const requestUrl = request.url ?? "/";
+  const requestMethod = (request.method ?? "GET").toUpperCase();
+  const url = parseDashboardRequestUrl(requestUrl);
+
+  if (requestMethod === "GET" && url.pathname === "/events") {
+    streamDashboardEvents(response, {
+      ...options,
+      port: readServerPort(server)
+    }, eventStreams);
+    return;
+  }
+
+  if (url.pathname === "/api/chrome-host-policy") {
+    const body = requestMethod === "POST" ? await readRequestBody(request) : "";
+    const dashboardResponse = await createDashboardChromeHostPolicyResponse({
+      method: request.method,
+      url: requestUrl,
+      body
+    }, {
+      ...options,
+      port: readServerPort(server)
+    });
+
+    response.writeHead(dashboardResponse.status, dashboardResponse.headers);
+    response.end(dashboardResponse.body);
+    return;
+  }
+
+  const dashboardResponse = createDashboardHttpResponse({
+    method: request.method,
+    url: requestUrl
+  }, {
+    ...options,
+    port: readServerPort(server)
+  });
+
+  response.writeHead(dashboardResponse.status, dashboardResponse.headers);
+  response.end(dashboardResponse.body);
+}
+
 function createDescriptorFromOptions(
   options: DashboardHttpResponseOptions
 ): DashboardDescriptor {
@@ -163,11 +221,129 @@ function createDescriptorFromOptions(
     createDescriptor = createDashboardDescriptor,
     createSnapshot: _createSnapshot,
     rootDir: _rootDir,
+    homeDir: _homeDir,
+    chromeHostPolicyIo: _chromeHostPolicyIo,
     workspaceIo: _workspaceIo,
     ...descriptorInput
   } = options;
 
   return createDescriptor(descriptorInput);
+}
+
+export async function createDashboardChromeHostPolicyResponse(
+  request: DashboardHttpRequest,
+  options: DashboardHttpResponseOptions = {}
+): Promise<DashboardHttpResponse> {
+  const method = (request.method ?? "GET").toUpperCase();
+  const generatedAt = new Date().toISOString();
+
+  if (method !== "GET" && method !== "HEAD" && method !== "POST") {
+    return textResponse(405, "Method Not Allowed\n", {
+      allow: "GET, HEAD, POST"
+    });
+  }
+
+  const homeDir = options.homeDir ?? process.env.HOME ?? "";
+  if (!homeDir) {
+    return jsonResponse({
+      schemaVersion: 1,
+      command: "dashboard chrome policy",
+      generatedAt,
+      executesSystemMutation: false,
+      result: "error",
+      error: {
+        code: "home-dir-required",
+        message: "Home directory is required to locate the Chrome host policy state."
+      }
+    }, method === "HEAD" ? "" : undefined, 503);
+  }
+
+  if (method === "GET" || method === "HEAD") {
+    const hostPolicy = await readChromeHostPolicyState({
+      homeDir,
+      io: options.chromeHostPolicyIo
+    });
+
+    return jsonResponse({
+      schemaVersion: 1,
+      command: "dashboard chrome policy show",
+      generatedAt,
+      executesSystemMutation: false,
+      hostPolicy
+    }, method === "HEAD" ? "" : undefined);
+  }
+
+  const body = parseJsonObject(request.body ?? "");
+  if (!body.ok) {
+    return createDashboardChromePolicyErrorResponse({
+      generatedAt,
+      code: "invalid-json",
+      message: body.error
+    });
+  }
+
+  const action = normalizeDashboardChromePolicyAction(body.value.action);
+  if (!action) {
+    return createDashboardChromePolicyErrorResponse({
+      generatedAt,
+      code: "unknown-action",
+      message: "Chrome host policy action must be always-allow, allow-current-turn, block, ask, or reset."
+    });
+  }
+
+  if (action === "reset") {
+    const hostPolicy = await resetChromeHostPolicyState({
+      homeDir,
+      io: options.chromeHostPolicyIo
+    });
+
+    return jsonResponse({
+      schemaVersion: 1,
+      command: "dashboard chrome policy reset",
+      generatedAt,
+      source: "dashboard",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: "reset",
+      hostPolicy
+    });
+  }
+
+  const host = normalizeDashboardChromePolicyHost(body.value.host);
+  if (!host) {
+    return createDashboardChromePolicyErrorResponse({
+      generatedAt,
+      code: "host-required",
+      message: "Chrome host policy set requires a valid host."
+    });
+  }
+
+  const current = await readChromeHostPolicyState({
+    homeDir,
+    io: options.chromeHostPolicyIo
+  });
+  const policy = applyChromeHostPolicyAction(current.policy, {
+    action,
+    host
+  });
+  const hostPolicy = await writeChromeHostPolicyState({
+    homeDir,
+    policy,
+    io: options.chromeHostPolicyIo
+  });
+
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard chrome policy set",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: true,
+    executesSystemMutation: true,
+    result: "configured",
+    action,
+    host,
+    hostPolicy
+  });
 }
 
 function createSnapshotFromOptions(
@@ -209,9 +385,13 @@ function readServerPort(server: http.Server): number {
   return address.port;
 }
 
-function jsonResponse(value: unknown, bodyOverride?: string): DashboardHttpResponse {
+function jsonResponse(
+  value: unknown,
+  bodyOverride?: string,
+  status = 200
+): DashboardHttpResponse {
   return {
-    status: 200,
+    status,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store"
@@ -491,11 +671,19 @@ function renderDashboardScript(): string {
     "    ]);",
     "  }",
     "",
-    "  function renderAppPolicyPanel() {",
+    "  function renderAppPolicyPanel(snapshot) {",
+    "    const runtime = snapshot.runtimeHealth || {};",
+    "    const extension = runtime.extension || {};",
+    "    const hostPolicy = extension.hostPolicy || {};",
+    "    const policy = hostPolicy.policy || {};",
     "    setRows(\"app-policy\", [",
-    "      row(\"mode\", \"managed in app settings\"),",
-    "      row(\"surface\", \"approval and replay stay inside skfiy\")",
-    "    ], \"Local\", \"ok\");",
+    "      row(\"chrome policy\", hostPolicy.state),",
+    "      row(\"default\", policy.defaultMode),",
+    "      row(\"always allow\", policy.allowedHosts),",
+    "      row(\"current turn\", policy.currentTurnAllowedHosts),",
+    "      row(\"blocked\", policy.blockedHosts),",
+    "      row(\"endpoint\", \"/api/chrome-host-policy\")",
+    "    ], hostPolicy.state || \"Unknown\", hostPolicy.state === \"invalid\" ? \"error\" : \"ok\");",
     "  }",
     "",
     "  function renderSmokeEvidencePanel(snapshot) {",
@@ -631,4 +819,105 @@ function escapeHtml(value: string): string {
         return "&#39;";
     }
   });
+}
+
+function readRequestBody(request: http.IncomingMessage, maxBytes = 32_768): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (Buffer.byteLength(body, "utf8") > maxBytes) {
+        request.destroy();
+        reject(new Error("Dashboard request body exceeded 32768 bytes."));
+      }
+    });
+    request.on("end", () => resolve(body));
+    request.on("error", reject);
+  });
+}
+
+function parseJsonObject(text: string): {
+  ok: true;
+  value: Record<string, unknown>;
+} | {
+  ok: false;
+  error: string;
+} {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {
+        ok: false,
+        error: "Request body must be a JSON object."
+      };
+    }
+
+    return {
+      ok: true,
+      value: parsed as Record<string, unknown>
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+function createDashboardChromePolicyErrorResponse({
+  generatedAt,
+  code,
+  message
+}: {
+  generatedAt: string;
+  code: string;
+  message: string;
+}): DashboardHttpResponse {
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard chrome policy",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: false,
+    executesSystemMutation: false,
+    result: "error",
+    error: {
+      code,
+      message
+    }
+  }, undefined, 400);
+}
+
+function normalizeDashboardChromePolicyAction(
+  value: unknown
+): ChromeHostPolicyAction | "reset" | undefined {
+  if (value === "always-allow" || value === "always_allow") {
+    return "always_allow";
+  }
+  if (
+    value === "allow-current-turn"
+    || value === "allow_current_turn"
+    || value === "current-turn"
+  ) {
+    return "allow_current_turn";
+  }
+  if (value === "block" || value === "block-host" || value === "block_host") {
+    return "block_host";
+  }
+  if (value === "ask" || value === "ask-host" || value === "ask_host") {
+    return "ask_host";
+  }
+  if (value === "reset") {
+    return "reset";
+  }
+
+  return undefined;
+}
+
+function normalizeDashboardChromePolicyHost(value: unknown): string | undefined {
+  const decision = decideChromeHostPolicy(createDefaultChromeHostPolicy(), value);
+
+  return decision.host || undefined;
 }

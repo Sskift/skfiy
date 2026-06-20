@@ -91,6 +91,13 @@ describe("dashboard status descriptor", () => {
       ],
       actions: ["stop-current-turn"]
     });
+    expect(panels.find((panel) => panel.id === "app-policy")).toMatchObject({
+      actions: [
+        "show-chrome-host-policy",
+        "set-chrome-host-policy",
+        "reset-chrome-host-policy"
+      ]
+    });
     expect(panels.find((panel) => panel.id === "alerts")).toMatchObject({
       signals: [
         "permission-missing",
