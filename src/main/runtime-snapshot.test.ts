@@ -154,6 +154,58 @@ describe("runtime snapshot", () => {
     });
   });
 
+  it("records live task event state even before a replay exists", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: {
+        status: "observing",
+        message: "Capturing the desktop.",
+        command: "take screenshot"
+      },
+      observedAt: "2026-06-20T10:01:00.000Z"
+    })).toMatchObject({
+      schemaVersion: 1,
+      observedAt: "2026-06-20T10:01:00.000Z",
+      currentTurn: {
+        state: "observing",
+        command: "take screenshot",
+        latestMessage: "Capturing the desktop.",
+        approvalRequired: false,
+        approvalState: "not-required",
+        stopState: "available",
+        source: "runtime-snapshot",
+        updateSource: "live-task-event"
+      },
+      replay: {
+        state: "empty",
+        source: "runtime-snapshot"
+      }
+    });
+  });
+
+  it("lets the latest live event refresh replay-derived current turn state", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: createReplay(),
+      currentTurn: {
+        status: "completed",
+        message: "Screenshot saved: /tmp/manual.png"
+      },
+      observedAt: "2026-06-20T10:02:00.000Z"
+    })).toMatchObject({
+      currentTurn: {
+        state: "completed",
+        command: "pwd",
+        latestMessage: "Screenshot saved: /tmp/manual.png",
+        updateSource: "live-task-event",
+        stopState: "inactive"
+      },
+      replay: {
+        state: "available",
+        screenshotCount: 1
+      }
+    });
+  });
+
   it("redacts obvious secret-bearing text from snapshot summaries", () => {
     const snapshot = createRuntimeSnapshotFromReplay({
       replay: {
@@ -243,6 +295,41 @@ describe("runtime snapshot", () => {
         state: "available",
         screenshotCount: 1,
         source: "runtime-snapshot"
+      }
+    });
+  });
+
+  it("uses an atomic temp-file rename when the runtime IO supports it", async () => {
+    const files: Record<string, string> = {};
+    const writes: string[] = [];
+    const renames: Array<[string, string]> = [];
+    const runtimePath = createRuntimeSnapshotStatePath("/Users/tester");
+
+    await writeRuntimeSnapshot({
+      homeDir: "/Users/tester",
+      replay: createReplay(),
+      observedAt: "2026-06-20T10:00:00.000Z",
+      io: {
+        mkdir: async () => {},
+        writeFile: async (targetPath, content) => {
+          writes.push(targetPath);
+          files[targetPath] = content;
+        },
+        rename: async (oldPath, newPath) => {
+          renames.push([oldPath, newPath]);
+          files[newPath] = files[oldPath];
+          delete files[oldPath];
+        }
+      }
+    });
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatch(/runtime-snapshot\.json\.tmp-/);
+    expect(renames).toEqual([[writes[0], runtimePath]]);
+    expect(JSON.parse(files[runtimePath])).toMatchObject({
+      schemaVersion: 1,
+      currentTurn: {
+        state: "approval_required"
       }
     });
   });

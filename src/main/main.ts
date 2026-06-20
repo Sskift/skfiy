@@ -87,7 +87,10 @@ import {
   resizePetWindowBoundsKeepingBottom,
   type Size
 } from "./window-position.js";
-import { writeRuntimeSnapshot } from "./runtime-snapshot.js";
+import {
+  writeRuntimeSnapshot,
+  type RuntimeSnapshotCurrentTurnInput
+} from "./runtime-snapshot.js";
 
 type ManualMode = "active" | "quiet";
 type TaskStatus =
@@ -159,16 +162,22 @@ let pendingApproval: PendingApproval | null = null;
 let stopTurnHotkeyRegistered = false;
 let activeDictationProviderStop: (() => Promise<void>) | null = null;
 
-function persistRuntimeSnapshot(replay: TurnReplay | null): void {
+function persistRuntimeSnapshot(
+  replay: TurnReplay | null,
+  currentTurn?: RuntimeSnapshotCurrentTurnInput
+): void {
   void writeRuntimeSnapshot({
     homeDir: os.homedir(),
-    replay
+    replay,
+    currentTurn
   }).catch(() => {
     // Dashboard runtime evidence is best-effort and must not block Computer Use turns.
   });
 }
 
 function emitTaskEvent(window: BrowserWindow | null, event: TaskEvent) {
+  persistRuntimeSnapshot(turnReplayStore.getReplay(), event);
+
   if (!window || window.isDestroyed()) {
     return;
   }

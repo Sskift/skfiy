@@ -24,6 +24,8 @@ export const CHROME_EXTENSION_SETUP_GUIDE_REQUIRED_TERMS = [
   "Refresh host policy",
   "Host permission",
   "Page session",
+  "readinessSnapshot",
+  "remediation",
   "doctor --json --extension-id <extension-id>",
   "branded_chrome_load_extension_removed"
 ];
@@ -345,6 +347,135 @@ export function hasChromePageControlEvidence(pageControl, installedExtensionRun)
     ].includes(pageControl.state);
 }
 
+export function createInstalledExtensionBlockerRemediation({
+  blockedReason = "skfiy_extension_worker_not_loaded",
+  chromeAppName,
+  chromeVersion,
+  recommendedBrowser = "Chrome for Testing or Chromium"
+} = {}) {
+  const common = {
+    schemaVersion: 1,
+    code: blockedReason,
+    docsPath: CHROME_EXTENSION_SETUP_GUIDE_PATH,
+    chromeAppName: typeof chromeAppName === "string" ? chromeAppName : undefined,
+    chromeVersion: typeof chromeVersion === "string" ? chromeVersion : undefined,
+    recommendedBrowser
+  };
+
+  if (blockedReason === "branded_chrome_load_extension_removed") {
+    return {
+      ...common,
+      summary: "Branded Google Chrome blocked automated unpacked extension loading for the installed-extension smoke proof.",
+      nextAction: `Use ${recommendedBrowser}, pass --extension-chrome-app "Google Chrome for Testing", or manually install the skfiy extension before rerunning smoke:chrome.`,
+      commands: [
+        "npm run smoke:chrome -- --extension-chrome-app \"Google Chrome for Testing\" --output .skfiy-smoke/chrome-extension.json"
+      ]
+    };
+  }
+
+  return {
+    ...common,
+    summary: "The skfiy extension service worker was not visible in Chrome DevTools targets.",
+    nextAction: `Open chrome://extensions, verify the unpacked skfiy extension is loaded, or rerun smoke:chrome with ${recommendedBrowser}.`,
+    commands: [
+      "npm run smoke:chrome -- --extension-chrome-app \"Google Chrome for Testing\" --output .skfiy-smoke/chrome-extension.json"
+    ]
+  };
+}
+
+export function createInstalledExtensionBlockers(input = {}) {
+  const remediation = createInstalledExtensionBlockerRemediation(input);
+
+  return [
+    {
+      code: remediation.code,
+      message: remediation.summary,
+      nextAction: remediation.nextAction,
+      docsPath: remediation.docsPath,
+      recommendedBrowser: remediation.recommendedBrowser,
+      ...(remediation.chromeAppName ? { chromeAppName: remediation.chromeAppName } : {}),
+      ...(remediation.chromeVersion ? { chromeVersion: remediation.chromeVersion } : {})
+    }
+  ];
+}
+
+export function createInstalledExtensionReadinessSnapshot({
+  result,
+  extensionId,
+  launchOrigin,
+  extensionStatus,
+  response,
+  heartbeat,
+  heartbeatReadError,
+  blockedReason,
+  blockers = [],
+  remediation
+} = {}) {
+  const statusRecord = readRecord(extensionStatus) ?? {};
+  const diagnostics = readRecord(statusRecord.diagnostics) ?? {};
+  const extension = readRecord(diagnostics.extension) ?? {};
+  const nativeHost = readRecord(diagnostics.nativeHost) ?? {};
+  const syncStatus = readRecord(statusRecord.syncStatus) ?? {};
+  const session = readRecord(diagnostics.session) ?? {};
+  const currentTab = readRecord(diagnostics.currentTab) ?? {};
+  const currentTabContentScript = readRecord(currentTab.contentScript) ?? {};
+  const pageControl = readRecord(statusRecord.pageControl)
+    ?? readRecord(diagnostics.pageControl)
+    ?? readRecord(currentTab.pageControl)
+    ?? readRecord(session.pageControl);
+  const contentScript = readRecord(session.contentScript) ?? currentTabContentScript;
+  const heartbeatState = heartbeat
+    ? "recorded"
+    : heartbeatReadError
+      ? "error"
+      : "not-read";
+
+  return {
+    schemaVersion: 1,
+    state: result === "passed" ? "ready" : blockedReason ? "blocked" : "unknown",
+    extension: {
+      id: extensionId ?? extension.id ?? null,
+      version: extension.version ?? null,
+      manifestVersion: extension.manifestVersion ?? null,
+      minimumChromeVersion: extension.minimumChromeVersion ?? null,
+      capabilities: readRecord(diagnostics.capabilities) ?? null
+    },
+    nativeHost: {
+      state: syncStatus.state === "synced" && nativeHost.bridgeState === "connected"
+        ? "connected"
+        : syncStatus.state ?? nativeHost.bridgeState ?? "unknown",
+      bridgeState: nativeHost.bridgeState ?? syncStatus.nativeBridgeState ?? null,
+      syncState: syncStatus.state ?? nativeHost.syncState ?? null,
+      launchOrigin: launchOrigin ?? nativeHost.launchOrigin ?? syncStatus.nativeLaunchOrigin ?? null,
+      messageType: nativeHost.messageType ?? syncStatus.nativeMessageType ?? null,
+      policyState: nativeHost.policyState ?? syncStatus.nativeHostPolicyState ?? syncStatus.hostPolicyState ?? null,
+      lastError: nativeHost.lastError ?? syncStatus.lastError ?? syncStatus.error ?? null
+    },
+    handshake: {
+      nativeMessage: response?.result ?? null,
+      statusSync: syncStatus.state ?? null,
+      heartbeat: heartbeatState,
+      ...(heartbeatReadError ? { heartbeatReadError } : {})
+    },
+    contentScript: {
+      state: session.state ?? contentScript.state ?? "not-probed",
+      reason: contentScript.reason ?? null,
+      lastError: contentScript.lastError ?? null,
+      observedAt: session.observedAt ?? contentScript.observedAt ?? null
+    },
+    pageControl: pageControl
+      ? {
+          state: pageControl.state ?? "unknown",
+          capable: typeof pageControl.capable === "boolean" ? pageControl.capable : null,
+          nextAction: pageControl.nextAction ?? null,
+          blockerCount: Array.isArray(pageControl.blockers) ? pageControl.blockers.length : 0
+        }
+      : null,
+    blockers: Array.isArray(blockers) ? blockers : [],
+    remediation: remediation ?? null
+  };
+}
+
 function hasNativeHostBridgeEvidence(run) {
   return run
     && typeof run === "object"
@@ -374,6 +505,10 @@ function hasNativeHostBridgeEvidence(run) {
     && run.heartbeat?.messageType === "skfiy.page.observe"
     && run.heartbeat?.requestId === "chrome-smoke-native-host"
     && hasNativeHostBridgeDiagnostics(run.diagnostics);
+}
+
+function readRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
 }
 
 function hasInstalledExtensionStatusDiagnostics(status, extensionId) {

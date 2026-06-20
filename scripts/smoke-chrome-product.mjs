@@ -16,6 +16,9 @@ import {
   classifyChromeFallbackSmokeEvidence,
   classifyChromeSmokeEvidence,
   createDefaultChromeSmokeOptions,
+  createInstalledExtensionBlockerRemediation,
+  createInstalledExtensionBlockers,
+  createInstalledExtensionReadinessSnapshot,
   createHelpText,
   EXPECTED_TEXT,
   FORM_EXPECTED_TEXT,
@@ -664,6 +667,15 @@ async function runInstalledChromeExtensionSmoke(options) {
       && heartbeat?.messageType === "skfiy.page.observe"
       && heartbeat?.requestId === requestId
       && hasInstalledExtensionStatusDiagnostics(extensionStatus, extensionId);
+    const readinessSnapshot = createInstalledExtensionReadinessSnapshot({
+      result: passed ? "passed" : "failed",
+      extensionId,
+      launchOrigin,
+      extensionStatus,
+      response,
+      heartbeat,
+      heartbeatReadError
+    });
 
     return {
       result: passed ? "passed" : "failed",
@@ -683,6 +695,7 @@ async function runInstalledChromeExtensionSmoke(options) {
       firstWorkerUrl: loadedWorker.url,
       response,
       extensionStatus,
+      readinessSnapshot,
       heartbeatPath,
       ...(heartbeat ? { heartbeat } : {}),
       ...(heartbeatReadError ? { heartbeatReadError } : {}),
@@ -841,9 +854,22 @@ function createInstalledExtensionLoadBlockedRun({
   })
     ? "branded_chrome_load_extension_removed"
     : "skfiy_extension_worker_not_loaded";
+  const result = blockedReason === "branded_chrome_load_extension_removed" ? "blocked" : "error";
+  const remediation = createInstalledExtensionBlockerRemediation({
+    blockedReason,
+    chromeAppName,
+    chromeVersion: diagnostic.chromeVersion,
+    recommendedBrowser: "Chrome for Testing or Chromium"
+  });
+  const blockers = createInstalledExtensionBlockers({
+    blockedReason,
+    chromeAppName,
+    chromeVersion: diagnostic.chromeVersion,
+    recommendedBrowser: "Chrome for Testing or Chromium"
+  });
 
   return {
-    result: blockedReason === "branded_chrome_load_extension_removed" ? "blocked" : "error",
+    result,
     productPath: INSTALLED_EXTENSION_PRODUCT_PATH,
     chromeLaunch: formatChromeExtensionLaunchCommand(
       chromeAppName,
@@ -858,6 +884,14 @@ function createInstalledExtensionLoadBlockedRun({
     heartbeatPath,
     ...(manifestPath ? { manifestPath } : {}),
     blockedReason,
+    blockers,
+    remediation,
+    readinessSnapshot: createInstalledExtensionReadinessSnapshot({
+      result,
+      blockedReason,
+      blockers,
+      remediation
+    }),
     recommendedBrowser: "Chrome for Testing or Chromium",
     diagnosticTargets: diagnostic.targets,
     diagnosticExtensions: diagnostic.extensions
@@ -902,9 +936,12 @@ function createChromeSmokePageControlEvidence(evidence) {
         {
           code: installedExtensionRun.blockedReason,
           message: "Google Chrome 137+ branded builds remove automated --load-extension support for this proof path.",
+          nextAction: installedExtensionRun.remediation?.nextAction,
+          docsPath: installedExtensionRun.remediation?.docsPath,
           recommendedBrowser: installedExtensionRun.recommendedBrowser ?? "Chrome for Testing or Chromium"
         }
       ],
+      remediation: installedExtensionRun.remediation ?? null,
       browserSelection: installedExtensionRun.browserSelection ?? null
     };
   }

@@ -35,6 +35,9 @@ import {
   createChromeReadinessSetupGuide
 } from "./chrome-readiness.js";
 import {
+  createRuntimeSnapshotStatePath
+} from "./runtime-snapshot.js";
+import {
   SKFIY_MCP_TOOL_NAMES,
   runSkfiyMcpStdioServer,
   type SkfiyMcpProviders,
@@ -1625,14 +1628,24 @@ async function runStatusCli({
   });
 
   try {
-    const status = withStatusReadiness(await statusReader(input), input);
-
-    stdout.write(`${JSON.stringify({
+    const effectiveGeneratedAt = generatedAt ?? new Date().toISOString();
+    const status = withCliStatusEvidence(
+      withStatusReadiness(await statusReader(input), input),
+      {
+        ...input,
+        generatedAt: effectiveGeneratedAt
+      }
+    );
+    const output = {
       schemaVersion: 1,
       command: "status",
-      generatedAt: generatedAt ?? new Date().toISOString(),
+      generatedAt: effectiveGeneratedAt,
       ...status
-    }, null, 2)}\n`);
+    };
+
+    stdout.write(invocation.json
+      ? `${JSON.stringify(output, null, 2)}\n`
+      : formatStatusTextOutput(output));
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -2272,6 +2285,430 @@ function withStatusReadiness<TStatus extends Record<string, unknown>>(
     ...statusWithEvidence,
     readiness: createStatusReadinessSummary(statusWithEvidence, context)
   };
+}
+
+function withCliStatusEvidence<TStatus extends Record<string, unknown>>(
+  status: TStatus,
+  context: {
+    rootDir: string;
+    homeDir: string;
+    appPath: string;
+    helperPath: string;
+    cliShimPath: string;
+    extensionIds: string[];
+    generatedAt: string;
+  }
+): TStatus & { evidence: Record<string, unknown>; runtimeSnapshot: Record<string, unknown> } {
+  const evidence = createCliStatusEvidence(status, context);
+  const runtimeSnapshot = readRecord(evidence.runtimeSnapshot) ?? {
+    state: "unknown",
+    reason: "CLI status evidence did not include runtime snapshot details."
+  };
+
+  return {
+    ...status,
+    evidence,
+    runtimeSnapshot
+  };
+}
+
+function createCliStatusEvidence(
+  status: Record<string, unknown>,
+  context: {
+    rootDir: string;
+    homeDir: string;
+    appPath: string;
+    helperPath: string;
+    cliShimPath: string;
+    extensionIds: string[];
+    generatedAt: string;
+  }
+): Record<string, unknown> {
+  const extension = readRecord(status.extension);
+  const runtimeSnapshot = readRuntimeSnapshotEvidence(context.homeDir, context.generatedAt);
+  const dashboardSmoke = readLatestDashboardSmokeEvidence(context.rootDir, context.generatedAt);
+
+  return {
+    schemaVersion: 1,
+    source: "skfiy-status-local-evidence",
+    binaryReadiness: createBinaryReadinessEvidence(status, context),
+    extensionPageControl: readRecord(extension?.pageControl)
+      ?? createChromePageControlCapability({
+        extensionState: "unknown",
+        nativeHostState: "unknown",
+        liveConnection: "unknown",
+        extensionIds: context.extensionIds
+      }),
+    runtimeSnapshot,
+    currentTurn: runtimeSnapshot.currentTurn,
+    dashboardSmoke
+  };
+}
+
+function createBinaryReadinessEvidence(
+  status: Record<string, unknown>,
+  context: {
+    appPath: string;
+    helperPath: string;
+    cliShimPath: string;
+  }
+): Record<string, unknown> {
+  const app = readRecord(status.app);
+  const cli = readRecord(status.cli);
+  const helper = readRecord(status.helper);
+  const appState = readString(app?.state) ?? "unknown";
+  const cliState = readString(cli?.state) ?? "unknown";
+  const helperState = readString(helper?.state) ?? "unknown";
+  const ready = appState === "installed"
+    && cliState === "installed"
+    && helperState === "installed";
+
+  return {
+    state: ready
+      ? "ready"
+      : [appState, cliState, helperState].every((state) => state === "unknown")
+        ? "unknown"
+        : "needs-action",
+    ready,
+    app: {
+      state: appState,
+      path: readString(app?.path) ?? context.appPath
+    },
+    cli: {
+      state: cliState,
+      path: readString(cli?.path) ?? context.cliShimPath
+    },
+    helper: {
+      state: helperState,
+      path: readString(helper?.path) ?? context.helperPath
+    }
+  };
+}
+
+function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string): Record<string, unknown> {
+  if (!homeDir) {
+    return {
+      state: "not-probed",
+      currentTurn: {
+        state: "unknown",
+        source: "runtime-snapshot"
+      },
+      reason: "Home directory is required to locate the runtime snapshot."
+    };
+  }
+
+  const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
+  if (!existsSync(snapshotPath)) {
+    return {
+      state: "missing",
+      path: snapshotPath,
+      freshInstall: true,
+      emptyReasonCode: "runtime-snapshot-missing",
+      reason: "Runtime snapshot has not been recorded yet.",
+      currentTurn: {
+        state: "idle",
+        source: "runtime-snapshot",
+        freshInstall: true,
+        emptyReasonCode: "runtime-snapshot-missing"
+      },
+      replay: {
+        state: "empty",
+        source: "runtime-snapshot",
+        freshInstall: true,
+        emptyReasonCode: "runtime-snapshot-missing"
+      }
+    };
+  }
+
+  try {
+    const parsed = readRecord(JSON.parse(readFileSync(snapshotPath, "utf8")));
+    const currentTurn = readRecord(parsed?.currentTurn);
+    const replay = readRecord(parsed?.replay);
+
+    if (parsed?.schemaVersion !== 1 || !currentTurn || !replay) {
+      return {
+        state: "invalid",
+        path: snapshotPath,
+        currentTurn: {
+          state: "unknown",
+          source: "runtime-snapshot"
+        },
+        reason: "Runtime snapshot is not a valid skfiy snapshot."
+      };
+    }
+
+    return compactRecord({
+      state: "available",
+      path: snapshotPath,
+      observedAt: readString(parsed.observedAt),
+      ageSeconds: readObservedAgeSeconds(readString(parsed.observedAt), generatedAt),
+      currentTurn: summarizeRuntimeCurrentTurn(currentTurn),
+      replay: summarizeRuntimeReplay(replay)
+    });
+  } catch (error) {
+    return {
+      state: "invalid",
+      path: snapshotPath,
+      currentTurn: {
+        state: "unknown",
+        source: "runtime-snapshot"
+      },
+      reason: readErrorMessage(error)
+    };
+  }
+}
+
+function summarizeRuntimeCurrentTurn(currentTurn: Record<string, unknown>): Record<string, unknown> {
+  return compactRecord({
+    state: readString(currentTurn.state) ?? "unknown",
+    source: readString(currentTurn.source) ?? "runtime-snapshot",
+    command: sanitizeStatusEvidenceString(readString(currentTurn.command)),
+    targetApp: sanitizeStatusEvidenceString(readString(currentTurn.targetApp)),
+    targetBundleId: readString(currentTurn.targetBundleId),
+    risk: readString(currentTurn.risk),
+    approvalRequired: readBoolean(currentTurn.approvalRequired),
+    approvalState: readString(currentTurn.approvalState),
+    stopState: readString(currentTurn.stopState),
+    updateSource: readString(currentTurn.updateSource),
+    latestMessage: sanitizeStatusEvidenceString(readString(currentTurn.latestMessage)),
+    latestAction: summarizeNamedStatusRecord(readRecord(currentTurn.latestAction), ["type", "action", "stage", "status"]),
+    latestVerification: summarizeNamedStatusRecord(readRecord(currentTurn.latestVerification), ["actionType", "status", "message", "reason"]),
+    latestScreenshot: summarizeNamedStatusRecord(readRecord(currentTurn.latestScreenshot), ["stage", "bundleId", "recommendation", "sourceCount"])
+  });
+}
+
+function summarizeRuntimeReplay(replay: Record<string, unknown>): Record<string, unknown> {
+  return compactRecord({
+    state: readString(replay.state) ?? "unknown",
+    source: readString(replay.source) ?? "runtime-snapshot",
+    outcome: readString(replay.outcome),
+    screenshotCount: readNumber(replay.screenshotCount),
+    actionCount: readNumber(replay.actionCount),
+    verificationCount: readNumber(replay.verificationCount),
+    timelineCount: readNumber(replay.timelineCount),
+    latestMessage: sanitizeStatusEvidenceString(readString(replay.latestMessage))
+  });
+}
+
+function summarizeNamedStatusRecord(
+  record: Record<string, unknown> | undefined,
+  keys: string[]
+): Record<string, unknown> | undefined {
+  if (!record) {
+    return undefined;
+  }
+
+  const summary: Record<string, unknown> = {};
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "string") {
+      summary[key] = sanitizeStatusEvidenceString(value);
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      summary[key] = value;
+    }
+  }
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
+}
+
+function readLatestDashboardSmokeEvidence(
+  rootDir: string,
+  generatedAt: string
+): Record<string, unknown> {
+  const smokeDir = path.join(rootDir, ".skfiy-smoke");
+
+  if (!existsSync(smokeDir)) {
+    return {
+      state: "missing",
+      directory: smokeDir,
+      reason: "No dashboard smoke artifact has been collected yet."
+    };
+  }
+
+  const candidates: Array<{
+    artifact: Record<string, unknown>;
+    filePath: string;
+    mtimeMs: number;
+  }> = [];
+
+  try {
+    for (const entry of readdirSync(smokeDir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) {
+        continue;
+      }
+
+      const filePath = path.join(smokeDir, entry.name);
+      const artifact = readSmokeArtifactFile(filePath);
+
+      if (!artifact || !isDashboardSmokeArtifact(entry.name, artifact)) {
+        continue;
+      }
+
+      candidates.push({
+        artifact,
+        filePath,
+        mtimeMs: statSync(filePath).mtimeMs
+      });
+    }
+  } catch (error) {
+    return {
+      state: "unavailable",
+      directory: smokeDir,
+      reason: readErrorMessage(error)
+    };
+  }
+
+  const latest = candidates.sort((left, right) => right.mtimeMs - left.mtimeMs)[0];
+
+  if (!latest) {
+    return {
+      state: "missing",
+      directory: smokeDir,
+      reason: "No dashboard smoke artifact has been collected yet."
+    };
+  }
+
+  return createDashboardSmokeEvidenceSummary(latest, generatedAt);
+}
+
+function isDashboardSmokeArtifact(fileName: string, artifact: Record<string, unknown>): boolean {
+  return fileName.startsWith("dashboard") || readString(artifact.target) === "dashboard";
+}
+
+function createDashboardSmokeEvidenceSummary(
+  latest: {
+    artifact: Record<string, unknown>;
+    filePath: string;
+    mtimeMs: number;
+  },
+  generatedAt: string
+): Record<string, unknown> {
+  const snapshot = readRecord(readRecord(latest.artifact.snapshotResponse)?.body);
+  const runtimeSnapshot = readRecord(readRecord(snapshot?.runtimeHealth)?.runtimeSnapshot);
+  const smokeEvidence = readRecord(snapshot?.smokeEvidence);
+  const artifacts = Array.isArray(smokeEvidence?.artifacts)
+    ? smokeEvidence.artifacts.filter((item): item is Record<string, unknown> => Boolean(readRecord(item)))
+    : [];
+  const ageSeconds = readArtifactAgeSeconds(latest.mtimeMs, generatedAt);
+  const result = readString(latest.artifact.result) ?? "unknown";
+
+  return compactRecord({
+    state: result,
+    result,
+    path: latest.filePath,
+    timestamp: readString(latest.artifact.timestamp),
+    productPath: readString(latest.artifact.productPath),
+    mtimeMs: latest.mtimeMs,
+    ageSeconds,
+    runtimeSnapshotCoverage: summarizeNamedStatusRecord(
+      readRecord(latest.artifact.runtimeSnapshotCoverage),
+      ["result", "reason"]
+    ),
+    dashboardSnapshot: compactRecord({
+      state: readString(readRecord(snapshot?.runtimeHealth)?.dashboard ? "available" : undefined),
+      runtimeSnapshotState: readString(runtimeSnapshot?.state),
+      currentTurn: summarizeRuntimeCurrentTurn(readRecord(snapshot?.currentTurn) ?? {}),
+      replay: summarizeRuntimeReplay(readRecord(snapshot?.replay) ?? {}),
+      smokeTargets: artifacts.map((artifact) => readString(artifact.target)).filter(Boolean),
+      alertCount: Array.isArray(snapshot?.alerts) ? snapshot.alerts.length : undefined
+    })
+  });
+}
+
+function readArtifactAgeSeconds(mtimeMs: number, generatedAt: string): number | undefined {
+  const generatedAtMs = Date.parse(generatedAt);
+
+  return Number.isFinite(generatedAtMs)
+    ? Math.max(0, Math.floor((generatedAtMs - mtimeMs) / 1000))
+    : undefined;
+}
+
+function readObservedAgeSeconds(observedAt: string | undefined, generatedAt: string): number | undefined {
+  if (!observedAt) {
+    return undefined;
+  }
+
+  const observedAtMs = Date.parse(observedAt);
+  const generatedAtMs = Date.parse(generatedAt);
+
+  return Number.isFinite(observedAtMs) && Number.isFinite(generatedAtMs)
+    ? Math.max(0, Math.round((generatedAtMs - observedAtMs) / 1000))
+    : undefined;
+}
+
+function sanitizeStatusEvidenceString(value: string | undefined): string | undefined {
+  return value ? sanitizeSensitiveString(value) : undefined;
+}
+
+function formatStatusTextOutput(output: Record<string, unknown>): string {
+  const evidence = readRecord(output.evidence);
+  const readiness = readRecord(output.readiness);
+  const binary = readRecord(evidence?.binaryReadiness);
+  const pageControl = readRecord(evidence?.extensionPageControl);
+  const runtimeSnapshot = readRecord(evidence?.runtimeSnapshot);
+  const currentTurn = readRecord(evidence?.currentTurn);
+  const dashboardSmoke = readRecord(evidence?.dashboardSmoke);
+  const lines = [
+    "skfiy status",
+    `readiness: ${readString(readiness?.state) ?? "unknown"}`,
+    `binary: ${formatBinaryReadinessText(binary)}`,
+    `extension page control: ${formatPageControlText(pageControl)}`,
+    `runtime-snapshot: ${formatRuntimeSnapshotText(runtimeSnapshot)}`,
+    `current-turn: ${formatCurrentTurnText(currentTurn)}`,
+    `dashboard smoke: ${formatDashboardSmokeText(dashboardSmoke)}`
+  ];
+
+  return `${lines.join("\n")}\n`;
+}
+
+function formatBinaryReadinessText(binary: Record<string, unknown> | undefined): string {
+  const app = readRecord(binary?.app);
+  const cli = readRecord(binary?.cli);
+  const helper = readRecord(binary?.helper);
+
+  return `state=${readString(binary?.state) ?? "unknown"} app=${readString(app?.state) ?? "unknown"} cli=${readString(cli?.state) ?? "unknown"} helper=${readString(helper?.state) ?? "unknown"}`;
+}
+
+function formatPageControlText(pageControl: Record<string, unknown> | undefined): string {
+  return `state=${readString(pageControl?.state) ?? "unknown"} source=${readString(pageControl?.source) ?? "unknown"}`;
+}
+
+function formatRuntimeSnapshotText(runtimeSnapshot: Record<string, unknown> | undefined): string {
+  const ageSeconds = readNumber(runtimeSnapshot?.ageSeconds);
+  const parts = [
+    readString(runtimeSnapshot?.state) ?? "unknown",
+    ageSeconds !== undefined ? `age=${ageSeconds}s` : undefined,
+    readString(runtimeSnapshot?.path) ? `path=${readString(runtimeSnapshot?.path)}` : undefined
+  ].filter(Boolean);
+
+  return parts.join(" ");
+}
+
+function formatCurrentTurnText(currentTurn: Record<string, unknown> | undefined): string {
+  const command = readString(currentTurn?.command);
+  const targetApp = readString(currentTurn?.targetApp);
+  const latestMessage = readString(currentTurn?.latestMessage);
+  const parts = [
+    readString(currentTurn?.state) ?? "unknown",
+    targetApp ? `target=${targetApp}` : undefined,
+    readString(currentTurn?.approvalState) ? `approval=${readString(currentTurn?.approvalState)}` : undefined,
+    readString(currentTurn?.stopState) ? `stop=${readString(currentTurn?.stopState)}` : undefined,
+    readString(currentTurn?.updateSource) ? `source=${readString(currentTurn?.updateSource)}` : undefined,
+    command ? `command=${JSON.stringify(command)}` : undefined,
+    latestMessage ? `message=${JSON.stringify(latestMessage)}` : undefined
+  ].filter(Boolean);
+
+  return parts.join(" ");
+}
+
+function formatDashboardSmokeText(dashboardSmoke: Record<string, unknown> | undefined): string {
+  const parts = [
+    `state=${readString(dashboardSmoke?.state) ?? "missing"}`,
+    readString(dashboardSmoke?.path) ? `path=${readString(dashboardSmoke?.path)}` : undefined
+  ].filter(Boolean);
+
+  return parts.join(" ");
 }
 
 function withFinderSmokeStatus<TStatus extends Record<string, unknown>>(

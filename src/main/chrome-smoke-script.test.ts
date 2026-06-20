@@ -354,6 +354,116 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("extensionStatus.pageControl");
     expect(source).toContain("chrome-extension-page-control");
     expect(source).toContain("heartbeatReadError");
+    expect(source).toContain("readinessSnapshot");
+    expect(source).toContain("remediation");
+  });
+
+  it("derives installed-extension readiness snapshots and blocker remediation", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-chrome-plan.mjs");
+    const {
+      INSTALLED_EXTENSION_PRODUCT_PATH,
+      createInstalledExtensionBlockerRemediation,
+      createInstalledExtensionBlockers,
+      createInstalledExtensionReadinessSnapshot
+    } = await import(pathToFileURL(modulePath).href) as {
+      INSTALLED_EXTENSION_PRODUCT_PATH: string;
+      createInstalledExtensionBlockerRemediation: (input: Record<string, unknown>) => Record<string, unknown>;
+      createInstalledExtensionBlockers: (input: Record<string, unknown>) => Record<string, unknown>[];
+      createInstalledExtensionReadinessSnapshot: (input: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const passing = createPassingInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH);
+
+    expect(createInstalledExtensionReadinessSnapshot({
+      result: "passed",
+      extensionId: passing.extensionId,
+      launchOrigin: passing.launchOrigin,
+      extensionStatus: passing.extensionStatus,
+      response: passing.response,
+      heartbeat: passing.heartbeat
+    })).toMatchObject({
+      schemaVersion: 1,
+      state: "ready",
+      extension: {
+        id: "abcdefghijklmnopabcdefghijklmnop",
+        version: "0.0.1",
+        manifestVersion: 3,
+        capabilities: expect.objectContaining({
+          nativeMessaging: true,
+          scripting: true
+        })
+      },
+      nativeHost: {
+        state: "connected",
+        bridgeState: "connected",
+        syncState: "synced",
+        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        messageType: "skfiy.host_policy.request",
+        lastError: null
+      },
+      handshake: {
+        nativeMessage: "accepted",
+        statusSync: "synced",
+        heartbeat: "recorded"
+      },
+      contentScript: {
+        state: "loaded"
+      },
+      pageControl: {
+        state: "ready",
+        capable: true,
+        nextAction: "Use extension pageControl for Chrome Computer Use.",
+        blockerCount: 0
+      },
+      blockers: [],
+      remediation: null
+    });
+
+    const remediation = createInstalledExtensionBlockerRemediation({
+      blockedReason: "branded_chrome_load_extension_removed",
+      chromeAppName: "Google Chrome",
+      chromeVersion: "Chrome/146.0.7680.80",
+      recommendedBrowser: "Chrome for Testing or Chromium"
+    });
+    const blockers = createInstalledExtensionBlockers({
+      blockedReason: "branded_chrome_load_extension_removed",
+      chromeAppName: "Google Chrome",
+      chromeVersion: "Chrome/146.0.7680.80",
+      recommendedBrowser: "Chrome for Testing or Chromium"
+    });
+
+    expect(remediation).toMatchObject({
+      schemaVersion: 1,
+      code: "branded_chrome_load_extension_removed",
+      docsPath: "docs/chrome-extension-setup.md",
+      chromeAppName: "Google Chrome",
+      chromeVersion: "Chrome/146.0.7680.80",
+      recommendedBrowser: "Chrome for Testing or Chromium"
+    });
+    expect(String(remediation.nextAction)).toContain("--extension-chrome-app");
+    expect(String((remediation.commands as string[])[0])).toContain("smoke:chrome");
+    expect(blockers).toEqual([
+      expect.objectContaining({
+        code: "branded_chrome_load_extension_removed",
+        nextAction: remediation.nextAction,
+        docsPath: "docs/chrome-extension-setup.md",
+        recommendedBrowser: "Chrome for Testing or Chromium"
+      })
+    ]);
+    expect(createInstalledExtensionReadinessSnapshot({
+      result: "blocked",
+      blockedReason: "branded_chrome_load_extension_removed",
+      blockers,
+      remediation
+    })).toMatchObject({
+      state: "blocked",
+      handshake: {
+        nativeMessage: null,
+        statusSync: null,
+        heartbeat: "not-read"
+      },
+      blockers,
+      remediation
+    });
   });
 
   it("classifies a completed Chrome extraction with expected text as passed", async () => {

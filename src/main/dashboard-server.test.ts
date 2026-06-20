@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import http from "node:http";
+import { waitFor } from "@testing-library/react";
 import { createDashboardDescriptor } from "./dashboard-status";
 import {
   createDashboardHttpResponse,
@@ -118,6 +119,48 @@ function readFirstSseEvent(url: string): Promise<{
   });
 }
 
+async function renderDashboardHtmlWithSnapshot(
+  snapshot: Record<string, unknown>
+): Promise<() => void> {
+  const response = createDashboardHttpResponse({
+    method: "GET",
+    url: "http://127.0.0.1:8787/"
+  });
+  const scriptMatch = response.body.match(/<script>([\s\S]*)<\/script>/);
+  const previousFetch = window.fetch;
+  const previousEventSource = window.EventSource;
+
+  Object.defineProperty(window, "EventSource", {
+    configurable: true,
+    writable: true,
+    value: undefined
+  });
+  window.fetch = async () => ({
+    ok: true,
+    json: async () => snapshot
+  } as Response);
+
+  document.open();
+  document.write(response.body.replace(/<script>[\s\S]*<\/script>/, ""));
+  document.close();
+  window.eval(scriptMatch?.[1] ?? "");
+
+  await waitFor(() => {
+    expect(document.querySelector("[data-snapshot-state]")?.textContent)
+      .toContain("Snapshot");
+  });
+
+  return () => {
+    window.fetch = previousFetch;
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      writable: true,
+      value: previousEventSource
+    });
+    document.body.innerHTML = "";
+  };
+}
+
 describe("dashboard loopback HTTP response helper", () => {
   it("serves the descriptor JSON without echoing requested host or tokens", () => {
     const response = createDashboardHttpResponse(
@@ -217,11 +260,162 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("data-alert-group");
     expect(response.body).toContain("Desktop session");
     expect(response.body).toContain("Chrome bridge");
+    expect(response.body).toContain("RUNTIME_SNAPSHOT_STALE_SECONDS");
+    expect(response.body).toContain("readRuntimeSnapshotFreshness(snapshot, turn)");
+    expect(response.body).toContain("formatRuntimeAction(turn.latestAction)");
+    expect(response.body).toContain("formatRuntimeVerification(turn.latestVerification)");
+    expect(response.body).toContain("formatRuntimeScreenshot(turn.latestScreenshot)");
+    expect(response.body).toContain("formatRuntimeTimelineTail(replay.timelineTail)");
+    expect(response.body).toContain("snapshot freshness");
+    expect(response.body).toContain("snapshot age");
     expect(response.body).toContain('row("approval", turn.approvalState)');
     expect(response.body).toContain('row("stop", turn.stopState)');
-    expect(response.body).toContain('row("latest verify", turn.latestVerification)');
-    expect(response.body).toContain('row("timeline tail", replay.timelineTail)');
+    expect(response.body).toContain('row("latest verify", formatRuntimeVerification(turn.latestVerification))');
+    expect(response.body).toContain('row("timeline tail", formatRuntimeTimelineTail(replay.timelineTail))');
     expect(response.body).not.toContain("token=");
+  });
+
+  it("renders live runtime snapshot freshness and latest turn summaries in the dashboard shell", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "available",
+          observedAt: "2026-06-20T00:00:20.000Z"
+        }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "executing",
+        source: "runtime-snapshot",
+        command: "pwd",
+        targetApp: "Ghostty",
+        latestAction: {
+          type: "type_text",
+          textLength: 3
+        },
+        latestVerification: {
+          type: "verify",
+          actionType: "press_key",
+          status: "passed",
+          message: "enter accepted"
+        },
+        latestScreenshot: {
+          stage: "after",
+          path: "/tmp/after.png",
+          recommendation: "structured_first",
+          sourceCount: 2
+        }
+      },
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        screenshotCount: 2,
+        actionCount: 3,
+        verificationCount: 1,
+        screenshots: [
+          { stage: "before", path: "/tmp/before.png" },
+          {
+            stage: "after",
+            path: "/tmp/after.png",
+            recommendation: "structured_first",
+            sourceCount: 2
+          }
+        ],
+        actions: [
+          { type: "plan", providerLabel: "External CUA", command: "pwd" },
+          { type: "type_text", textLength: 3 }
+        ],
+        verifications: [
+          {
+            type: "verify",
+            actionType: "press_key",
+            status: "passed",
+            message: "enter accepted"
+          }
+        ],
+        timelineTail: [
+          { status: "executing", message: "Typing command." },
+          { status: "completed", command: "pwd" }
+        ]
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    const currentTurnPanel = document.querySelector('[data-panel-id="current-turn"]');
+    const replayPanel = document.querySelector('[data-panel-id="replay"]');
+
+    expect(currentTurnPanel?.textContent).toContain("Stale");
+    expect(currentTurnPanel?.textContent).toContain("snapshot freshness");
+    expect(currentTurnPanel?.textContent).toContain("stale");
+    expect(currentTurnPanel?.textContent).toContain("40s old (2026-06-20T00:00:20.000Z)");
+    expect(currentTurnPanel?.textContent).toContain("runtime-snapshot");
+    expect(currentTurnPanel?.textContent).toContain("type_text: 3 chars");
+    expect(currentTurnPanel?.textContent).toContain("press_key: passed - enter accepted");
+    expect(currentTurnPanel?.textContent).toContain("after: /tmp/after.png (structured_first 2 sources)");
+    expect(replayPanel?.textContent).toContain("Stale");
+    expect(replayPanel?.textContent).toContain("type_text: 3 chars");
+    expect(replayPanel?.textContent).toContain("completed: pwd");
+
+    cleanup();
+  });
+
+  it("renders runtime snapshot empty state without treating fresh installs as stale", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:01:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        runtimeSnapshot: {
+          state: "missing",
+          reason: "Runtime snapshot has not been recorded yet.",
+          emptyReasonCode: "runtime-snapshot-missing",
+          freshInstall: true
+        }
+      },
+      operatorReadiness: { state: "needs-evidence" },
+      permissions: {},
+      currentTurn: {
+        state: "idle",
+        source: "runtime-snapshot",
+        reason: "Runtime snapshot has not been recorded yet.",
+        emptyReasonCode: "runtime-snapshot-missing",
+        freshInstall: true
+      },
+      replay: {
+        state: "empty",
+        source: "runtime-snapshot",
+        reason: "Runtime snapshot has not been recorded yet.",
+        emptyReasonCode: "runtime-snapshot-missing",
+        freshInstall: true
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    const currentTurnPanel = document.querySelector('[data-panel-id="current-turn"]');
+    const replayPanel = document.querySelector('[data-panel-id="replay"]');
+
+    expect(currentTurnPanel?.textContent).toContain("Empty");
+    expect(currentTurnPanel?.textContent).toContain("snapshot freshnessempty");
+    expect(currentTurnPanel?.textContent).toContain("snapshot reasonRuntime snapshot has not been recorded yet.");
+    expect(replayPanel?.textContent).toContain("Empty");
+    expect(replayPanel?.textContent).toContain("snapshot freshnessempty");
+    expect(replayPanel?.textContent).toContain("snapshot reasonRuntime snapshot has not been recorded yet.");
+
+    cleanup();
   });
 
   it("serves a token-free initial snapshot event for local live refresh", () => {

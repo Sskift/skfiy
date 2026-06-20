@@ -19,6 +19,9 @@ import {
   normalizeCliCommand,
   runSkfiyCli
 } from "./cli-command-surface";
+import {
+  createRuntimeSnapshotStatePath
+} from "./runtime-snapshot";
 
 function expectJsonSafe(value: unknown): void {
   expect(JSON.parse(JSON.stringify(value))).toEqual(value);
@@ -1235,6 +1238,114 @@ describe("CLI command surface", () => {
     expect(stderr.at(-1)).toBe("Unknown chrome subcommand: reinstall-host\n");
   });
 
+  it("includes runtime snapshot evidence in status JSON and text output", async () => {
+    const homeDir = createTempRoot();
+    const snapshotPath = path.join(
+      homeDir,
+      "Library",
+      "Application Support",
+      "skfiy",
+      "runtime-snapshot.json"
+    );
+    const statusReader = async () => ({
+      app: { state: "installed", path: "/repo/dist/skfiy.app" },
+      cli: { state: "installed", path: "/repo/dist/skfiy" },
+      helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        microphone: "granted",
+        speechRecognition: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: { state: "controllable", controllable: true },
+      extension: { state: "unknown" },
+      nativeHost: { state: "unknown", extensionIds: [], cliShimPath: "/repo/dist/skfiy" },
+      dashboard: { state: "not-running" },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    try {
+      mkdirSync(path.dirname(snapshotPath), { recursive: true });
+      writeFileSync(snapshotPath, `${JSON.stringify({
+        schemaVersion: 1,
+        observedAt: "2026-06-20T00:00:10.000Z",
+        currentTurn: {
+          state: "observing",
+          command: "take screenshot",
+          latestMessage: "Capturing the desktop.",
+          stopState: "available",
+          updateSource: "live-task-event"
+        },
+        replay: {
+          state: "empty",
+          screenshotCount: 0,
+          actionCount: 0
+        }
+      }, null, 2)}\n`);
+
+      const jsonStdout: string[] = [];
+      const textStdout: string[] = [];
+      const stderr: string[] = [];
+
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: "2026-06-20T00:00:40.000Z",
+        statusReader,
+        stdout: { write: (chunk: string) => jsonStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      expect(JSON.parse(jsonStdout.join(""))).toMatchObject({
+        runtimeSnapshot: {
+          state: "available",
+          path: snapshotPath,
+          observedAt: "2026-06-20T00:00:10.000Z",
+          ageSeconds: 30,
+          currentTurn: {
+            state: "observing",
+            command: "take screenshot",
+            latestMessage: "Capturing the desktop.",
+            stopState: "available",
+            updateSource: "live-task-event"
+          },
+          replay: {
+            state: "empty",
+            screenshotCount: 0,
+            actionCount: 0
+          }
+        }
+      });
+
+      await expect(runSkfiyCli({
+        argv: ["status"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: "2026-06-20T00:00:40.000Z",
+        statusReader,
+        stdout: { write: (chunk: string) => textStdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const textOutput = textStdout.join("");
+
+      expect(textOutput).toContain("runtime-snapshot: available age=30s");
+      expect(textOutput).toContain(
+        'current-turn: observing stop=available source=live-task-event command="take screenshot" message="Capturing the desktop."'
+      );
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
   it("runs status through concrete probes and keeps the output dashboard-safe", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -1400,6 +1511,252 @@ describe("CLI command surface", () => {
     });
     expect(stdout.join("")).not.toContain("token=");
     expect(stderr).toEqual([]);
+  });
+
+  it("summarizes runtime snapshot and dashboard smoke evidence in JSON and text status", async () => {
+    const rootDir = createTempRoot();
+    const homeDir = path.join(rootDir, "home");
+    const runtimeSnapshotPath = createRuntimeSnapshotStatePath(homeDir);
+    const smokeDir = path.join(rootDir, ".skfiy-smoke");
+    const dashboardSmokePath = path.join(smokeDir, "dashboard-current.json");
+    const jsonStdout: string[] = [];
+    const textStdout: string[] = [];
+    const stderr: string[] = [];
+    const statusReader = async () => ({
+      app: { state: "installed", path: path.join(rootDir, "dist", "skfiy.app") },
+      cli: { state: "installed", path: path.join(rootDir, "dist", "skfiy") },
+      helper: {
+        state: "installed",
+        path: path.join(rootDir, "dist", "skfiy.app", "Contents", "MacOS", "skfiy-helper")
+      },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        microphone: "granted",
+        speechRecognition: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: {
+        state: "controllable",
+        controllable: true
+      },
+      extension: {
+        state: "connected",
+        bridge: "native-messaging",
+        liveConnection: "connected",
+        nativeHostState: "installed",
+        pageControl: {
+          state: "ready",
+          reason: "Current page is ready for Computer Use controls.",
+          capabilities: {
+            diagnostics: true,
+            observe: true,
+            domActions: true,
+            click: true,
+            fill: true,
+            scroll: true,
+            screenshot: true
+          },
+          source: "extension.pageControl"
+        }
+      },
+      nativeHost: {
+        state: "installed",
+        cliShimPath: path.join(rootDir, "dist", "skfiy"),
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+      },
+      dashboard: {
+        state: "running",
+        url: "http://127.0.0.1:8787/"
+      },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    mkdirSync(path.dirname(runtimeSnapshotPath), { recursive: true });
+    writeFileSync(runtimeSnapshotPath, `${JSON.stringify({
+      schemaVersion: 1,
+      observedAt: "2026-06-20T00:00:00.000Z",
+      currentTurn: {
+        state: "approval_required",
+        source: "runtime-snapshot",
+        command: "open https://example.test/?token=secret-token",
+        targetApp: "Chrome",
+        targetBundleId: "com.google.Chrome",
+        risk: "medium",
+        approvalRequired: true,
+        approvalState: "required",
+        stopState: "available",
+        latestMessage: "Approval is waiting.",
+        latestAction: {
+          type: "plan",
+          status: "pending"
+        },
+        latestVerification: {
+          actionType: "navigate",
+          status: "pending"
+        }
+      },
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        outcome: "approval_required",
+        screenshotCount: 2,
+        actionCount: 3,
+        verificationCount: 1,
+        timelineCount: 4,
+        latestMessage: "Approval is waiting."
+      }
+    }, null, 2)}\n`);
+    mkdirSync(smokeDir, { recursive: true });
+    writeFileSync(dashboardSmokePath, `${JSON.stringify({
+      timestamp: "2026-06-20T00:00:01.000Z",
+      result: "passed",
+      target: "dashboard",
+      productPath: "dist/skfiy -> skfiy dashboard -> loopback dashboard server",
+      runtimeSnapshotCoverage: {
+        result: "passed",
+        reason: "Seeded runtime snapshot currentTurn and replay are visible at /snapshot.json."
+      },
+      snapshotResponse: {
+        status: 200,
+        body: {
+          schemaVersion: 1,
+          runtimeHealth: {
+            dashboard: { state: "running" },
+            runtimeSnapshot: {
+              state: "available",
+              path: runtimeSnapshotPath,
+              observedAt: "2026-06-20T00:00:00.000Z"
+            }
+          },
+          currentTurn: {
+            state: "approval_required",
+            source: "runtime-snapshot",
+            command: "open https://example.test/?token=smoke-token",
+            targetApp: "Chrome",
+            approvalState: "required",
+            stopState: "available"
+          },
+          replay: {
+            state: "available",
+            source: "runtime-snapshot",
+            screenshotCount: 2,
+            actionCount: 3,
+            verificationCount: 1
+          },
+          smokeEvidence: {
+            artifacts: [
+              { target: "chrome", result: "passed" },
+              { target: "cli", result: "passed" }
+            ]
+          },
+          alerts: []
+        }
+      }
+    }, null, 2)}\n`);
+    utimesSync(dashboardSmokePath, new Date("2026-06-20T00:00:01.000Z"), new Date("2026-06-20T00:00:01.000Z"));
+
+    await expect(runSkfiyCli({
+      argv: [
+        "status",
+        "--json",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop"
+      ],
+      rootDir,
+      homeDir,
+      generatedAt: "2026-06-20T00:00:10.000Z",
+      statusReader,
+      stdout: { write: (chunk: string) => jsonStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+    await expect(runSkfiyCli({
+      argv: [
+        "status",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop"
+      ],
+      rootDir,
+      homeDir,
+      generatedAt: "2026-06-20T00:00:10.000Z",
+      statusReader,
+      stdout: { write: (chunk: string) => textStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    const output = JSON.parse(jsonStdout.join(""));
+
+    expect(output.evidence).toMatchObject({
+      schemaVersion: 1,
+      source: "skfiy-status-local-evidence",
+      binaryReadiness: {
+        state: "ready",
+        ready: true,
+        app: { state: "installed" },
+        cli: { state: "installed" },
+        helper: { state: "installed" }
+      },
+      extensionPageControl: {
+        state: "ready",
+        source: "extension.pageControl"
+      },
+      runtimeSnapshot: {
+        state: "available",
+        path: runtimeSnapshotPath,
+        observedAt: "2026-06-20T00:00:00.000Z",
+        currentTurn: {
+          state: "approval_required",
+          command: "open https://example.test/?redacted=[redacted]",
+          targetApp: "Chrome",
+          approvalState: "required",
+          stopState: "available"
+        },
+        replay: {
+          state: "available",
+          screenshotCount: 2,
+          actionCount: 3,
+          verificationCount: 1
+        }
+      },
+      currentTurn: {
+        state: "approval_required",
+        command: "open https://example.test/?redacted=[redacted]",
+        targetApp: "Chrome"
+      },
+      dashboardSmoke: {
+        state: "passed",
+        result: "passed",
+        path: dashboardSmokePath,
+        ageSeconds: 9,
+        runtimeSnapshotCoverage: {
+          result: "passed"
+        },
+        dashboardSnapshot: {
+          runtimeSnapshotState: "available",
+          currentTurn: {
+            state: "approval_required",
+            command: "open https://example.test/?redacted=[redacted]"
+          },
+          smokeTargets: ["chrome", "cli"],
+          alertCount: 0
+        }
+      }
+    });
+    expect(textStdout.join("")).toContain("skfiy status\n");
+    expect(textStdout.join("")).toContain("binary: state=ready app=installed cli=installed helper=installed");
+    expect(textStdout.join("")).toContain("extension page control: state=ready source=extension.pageControl");
+    expect(textStdout.join("")).toContain("current-turn: approval_required target=Chrome approval=required stop=available command=\"open https://example.test/?redacted=[redacted]\"");
+    expect(textStdout.join("")).toContain(`dashboard smoke: state=passed path=${dashboardSmokePath}`);
+    expect(`${jsonStdout.join("")}\n${textStdout.join("")}`).not.toContain("secret-token");
+    expect(`${jsonStdout.join("")}\n${textStdout.join("")}`).not.toContain("smoke-token");
+    expect(stderr).toEqual([]);
+
+    rmSync(rootDir, { recursive: true, force: true });
   });
 
   it("distinguishes Chrome page-safety from missing page-control readiness", async () => {

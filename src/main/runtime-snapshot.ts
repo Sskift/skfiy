@@ -1,5 +1,5 @@
 import path from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import type { TurnReplay } from "./computer-use/turn-replay-store.js";
 import type {
   TurnTranscriptAction,
@@ -13,6 +13,7 @@ const MAX_RUNTIME_SNAPSHOT_TEXT_LENGTH = 500;
 export interface RuntimeSnapshotIo {
   mkdir: (targetPath: string) => Promise<void>;
   writeFile: (targetPath: string, content: string) => Promise<void>;
+  rename?: (oldPath: string, newPath: string) => Promise<void>;
 }
 
 export interface RuntimeSnapshotReadIo {
@@ -22,6 +23,7 @@ export interface RuntimeSnapshotReadIo {
 
 export interface RuntimeSnapshotInput {
   replay: TurnReplay | null;
+  currentTurn?: RuntimeSnapshotCurrentTurnInput;
   observedAt?: string;
 }
 
@@ -42,6 +44,13 @@ export interface RuntimeSnapshot {
   replay: Record<string, unknown>;
 }
 
+export interface RuntimeSnapshotCurrentTurnInput {
+  state?: string;
+  status?: string;
+  message?: string;
+  command?: string;
+}
+
 export function createRuntimeSnapshotStatePath(homeDir: string): string {
   return path.join(
     homeDir,
@@ -54,16 +63,14 @@ export function createRuntimeSnapshotStatePath(homeDir: string): string {
 
 export function createRuntimeSnapshotFromReplay({
   replay,
+  currentTurn,
   observedAt = new Date().toISOString()
 }: RuntimeSnapshotInput): RuntimeSnapshot {
   if (!replay) {
     return {
       schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
       observedAt,
-      currentTurn: {
-        state: "idle",
-        source: "runtime-snapshot"
-      },
+      currentTurn: createRuntimeCurrentTurnPanel(currentTurn),
       replay: {
         state: "empty",
         source: "runtime-snapshot"
@@ -101,10 +108,8 @@ export function createRuntimeSnapshotFromReplay({
   const latestVerification = verificationSummaries.at(-1);
   const latestScreenshot = screenshotSummaries.at(-1);
 
-  return {
-    schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
-    observedAt,
-    currentTurn: {
+  const snapshotCurrentTurn = mergeRuntimeCurrentTurnPanel(
+    {
       state,
       ...(replay.transcript.command ? { command: sanitizeRuntimeSnapshotText(replay.transcript.command) } : {}),
       ...(latestApp?.name ? { targetApp: latestApp.name } : {}),
@@ -124,6 +129,13 @@ export function createRuntimeSnapshotFromReplay({
       ...(latestScreenshot ? { latestScreenshot } : {}),
       source: "runtime-snapshot"
     },
+    currentTurn
+  );
+
+  return {
+    schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+    observedAt,
+    currentTurn: snapshotCurrentTurn,
     replay: {
       state: "available",
       outcome: replay.transcript.outcome,
@@ -144,14 +156,22 @@ export function createRuntimeSnapshotFromReplay({
 export async function writeRuntimeSnapshot({
   homeDir,
   replay,
+  currentTurn,
   observedAt,
   io = createDefaultRuntimeSnapshotIo()
 }: RuntimeSnapshotWriteInput): Promise<RuntimeSnapshot> {
-  const snapshot = createRuntimeSnapshotFromReplay({ replay, observedAt });
+  const snapshot = createRuntimeSnapshotFromReplay({ replay, currentTurn, observedAt });
   const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
+  const snapshotText = `${JSON.stringify(snapshot, null, 2)}\n`;
 
   await io.mkdir(path.dirname(snapshotPath));
-  await io.writeFile(snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`);
+  if (io.rename) {
+    const tempPath = `${snapshotPath}.tmp-${process.pid}-${Date.now()}`;
+    await io.writeFile(tempPath, snapshotText);
+    await io.rename(tempPath, snapshotPath);
+  } else {
+    await io.writeFile(snapshotPath, snapshotText);
+  }
 
   return snapshot;
 }
@@ -234,6 +254,71 @@ function readTurnStateFromOutcome(outcome: string): string {
 
 function isActiveTurnState(state: string): boolean {
   return state === "observing" || state === "executing" || state === "approval_required";
+}
+
+function createRuntimeCurrentTurnPanel(
+  currentTurn?: RuntimeSnapshotCurrentTurnInput
+): Record<string, unknown> {
+  const state = readRuntimeCurrentTurnState(currentTurn) ?? "idle";
+  const message = readRuntimeCurrentTurnMessage(currentTurn);
+  const command = readRuntimeCurrentTurnCommand(currentTurn);
+
+  return {
+    state,
+    ...(command ? { command } : {}),
+    approvalRequired: state === "approval_required",
+    approvalState: state === "approval_required" ? "required" : "not-required",
+    stopState: isActiveTurnState(state) ? "available" : "inactive",
+    ...(message ? { latestMessage: message } : {}),
+    source: "runtime-snapshot",
+    ...(currentTurn ? { updateSource: "live-task-event" } : {})
+  };
+}
+
+function mergeRuntimeCurrentTurnPanel(
+  base: Record<string, unknown>,
+  currentTurn?: RuntimeSnapshotCurrentTurnInput
+): Record<string, unknown> {
+  if (!currentTurn) {
+    return base;
+  }
+
+  const state = readRuntimeCurrentTurnState(currentTurn);
+  const message = readRuntimeCurrentTurnMessage(currentTurn);
+  const command = readRuntimeCurrentTurnCommand(currentTurn);
+  const nextState = state ?? String(base.state ?? "idle");
+
+  return {
+    ...base,
+    ...(state ? { state } : {}),
+    ...(command ? { command } : {}),
+    ...(message ? { latestMessage: message } : {}),
+    approvalRequired: base.approvalRequired === true || nextState === "approval_required",
+    approvalState: base.approvalRequired === true || nextState === "approval_required"
+      ? "required"
+      : "not-required",
+    stopState: isActiveTurnState(nextState) ? "available" : "inactive",
+    updateSource: "live-task-event"
+  };
+}
+
+function readRuntimeCurrentTurnState(
+  currentTurn?: RuntimeSnapshotCurrentTurnInput
+): string | undefined {
+  const state = currentTurn?.state ?? currentTurn?.status;
+  return state ? sanitizeRuntimeSnapshotText(state) : undefined;
+}
+
+function readRuntimeCurrentTurnMessage(
+  currentTurn?: RuntimeSnapshotCurrentTurnInput
+): string | undefined {
+  return currentTurn?.message ? sanitizeRuntimeSnapshotText(currentTurn.message) : undefined;
+}
+
+function readRuntimeCurrentTurnCommand(
+  currentTurn?: RuntimeSnapshotCurrentTurnInput
+): string | undefined {
+  return currentTurn?.command ? sanitizeRuntimeSnapshotText(currentTurn.command) : undefined;
 }
 
 function summarizeScreenshot(screenshot: TurnTranscriptScreenshot): Record<string, unknown> {
@@ -347,7 +432,8 @@ function createDefaultRuntimeSnapshotIo(): RuntimeSnapshotIo {
     mkdir: async (targetPath) => {
       await mkdir(targetPath, { recursive: true });
     },
-    writeFile
+    writeFile,
+    rename
   };
 }
 

@@ -213,7 +213,10 @@ browser-control evidence can count as passed, and installed-extension evidence
 must prove that the native host responded for the same `chrome-extension://.../`
 origin reported by the loaded adapter. The same artifact now writes a top-level
 `pageControl` readiness object, including unavailable/browser-blocker evidence
-when branded Chrome prevents extension loading.
+when branded Chrome prevents extension loading. Each installed-extension run also
+includes a compact `readinessSnapshot`; when the extension worker cannot load,
+`installedExtensionRun.remediation` carries the recommended browser, docs path,
+and rerun command.
 For manual extension install, Native Messaging manifest setup, heartbeat checks,
 current-tab readiness, and blocker triage, see
 [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md).
@@ -241,6 +244,12 @@ Messaging, ask-by-default host policy, and recent `skfiy.page.observe` heartbeat
 needed for Chrome page-safety. They now also expose structured
 `extension.pageControl` / `preflight.chrome.pageControl` readiness, including
 whether page control is ready, policy/permission blocked, or not yet probed.
+`skfiy status --json` also includes an `evidence` block for CLI-only operator
+checks: packaged app/CLI/helper readiness, `extension.pageControl`, the current
+runtime snapshot turn summary from `runtime-snapshot.json`, and the newest
+dashboard smoke artifact summary from `.skfiy-smoke/dashboard*.json`. Running
+`skfiy status` without `--json` prints the same high-signal readiness fields as
+a stable short text summary.
 
 `plugins/skfiy/.mcp.json` points Codex at the installed `skfiy mcp serve
 --stdio` command. The Codex plugin is an adapter to the installed product, not a

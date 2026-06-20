@@ -11,5 +11,7 @@ describe("runtime snapshot main-process wiring", () => {
     expect(source).toContain("persistRuntimeSnapshot");
     expect(source).toContain("os.homedir()");
     expect(source).toContain("createTurnReplayStore({");
+    expect(source).toContain("type RuntimeSnapshotCurrentTurnInput");
+    expect(source).toContain("persistRuntimeSnapshot(turnReplayStore.getReplay(), event)");
   });
 });

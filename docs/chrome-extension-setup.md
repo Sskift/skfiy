@@ -173,7 +173,10 @@ npm run smoke:chrome -- --extension-chrome-app "Google Chrome for Testing" --out
 The smoke records `readinessDiagnostics`, `nativeHostBridgeRun`, and
 `installedExtensionRun`. A complete installed-extension pass proves the MV3
 extension sent a Native Messaging frame to `dist/skfiy`, the host responded, and
-the heartbeat file matches the loaded `chrome-extension://.../` origin.
+the heartbeat file matches the loaded `chrome-extension://.../` origin. The
+`installedExtensionRun.readinessSnapshot` field summarizes manifest id/version,
+Native Messaging handshake state, content-script state, and pageControl state in
+one small contract for dashboards or handoff reports.
 
 ## Common Blockers
 
@@ -197,7 +200,9 @@ the heartbeat file matches the loaded `chrome-extension://.../` origin.
   when CDP is unavailable and the Chrome path falls back to screenshot or
   pointer control.
 - Branded Chrome blocks automated unpacked loading: use Chrome for Testing or
-  Chromium for `smoke:chrome --extension-chrome-app`.
+  Chromium for `smoke:chrome --extension-chrome-app`. The smoke also writes
+  `installedExtensionRun.remediation` and typed blockers so the next command and
+  docs path are visible without reading raw CDP targets.
 
 ## Reset
 
