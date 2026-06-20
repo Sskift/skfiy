@@ -160,7 +160,26 @@ describe("dashboard product smoke script", () => {
           },
           currentTurn: { state: "idle" },
           replay: { state: "empty" },
-          smokeEvidence: { artifacts: [] },
+          smokeEvidence: {
+            artifacts: [
+              {
+                target: "chrome",
+                result: "passed",
+                path: "/repo/.skfiy-smoke/chrome-current.json",
+                productPath: "renderer -> preload -> main -> CDP -> Chrome",
+                nativeHostBridge: {
+                  result: "passed",
+                  productPath: "dist/skfiy -> Chrome Native Messaging heartbeat",
+                  responseResult: "accepted",
+                  heartbeatPath: "/repo/.skfiy-smoke/chrome-native-home/Library/Application Support/skfiy/chrome-extension-connection.json",
+                  heartbeatHostName: "com.sskift.skfiy",
+                  heartbeatLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+                  heartbeatMessageType: "skfiy.page.observe",
+                  heartbeatRequestId: "chrome-smoke-native-host"
+                }
+              }
+            ]
+          },
           longHorizon: { session: "money-run" },
           alerts: []
         }
@@ -203,6 +222,25 @@ describe("dashboard product smoke script", () => {
         }
       }
     })).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          smokeEvidence: {
+            artifacts: [
+              {
+                target: "chrome",
+                result: "passed",
+                path: "/repo/.skfiy-smoke/chrome-current.json",
+                productPath: "renderer -> preload -> main -> CDP -> Chrome"
+              }
+            ]
+          }
+        }
+      }
+    })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       runnerHasTmux: true

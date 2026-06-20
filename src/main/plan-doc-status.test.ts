@@ -218,6 +218,8 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("OpenClaw docs");
     expect(dashboardPlan).toContain("chrome-extension-connection.json");
     expect(dashboardPlan).toContain("liveConnection: `connected`, `stale`, or `unknown`");
+    expect(dashboardPlan).toContain("requires the latest Chrome smoke summary to expose packaged Native Messaging bridge evidence from `nativeHostBridgeRun`");
+    expect(longPlan).toContain("Chrome smoke summaries now surface `nativeHostBridge` evidence from `nativeHostBridgeRun`");
     expect(longPlan).toContain("CLI command matrix smoke");
     expect(longPlan).toContain("fresh Native Messaging heartbeat file");
     expect(longPlan).toContain("nativeHostBridgeRun.result: passed");

@@ -305,6 +305,7 @@ function readLatestSmokeArtifacts(
       result: typeof artifact.result === "string" ? artifact.result : "unknown",
       path: artifactPath,
       ...(typeof artifact.productPath === "string" ? { productPath: artifact.productPath } : {}),
+      ...readSmokeArtifactNativeHostBridgeSummary(target, artifact),
       mtimeMs,
       ...(ageSeconds === undefined ? {} : {
         ageSeconds,
@@ -324,6 +325,35 @@ function readLatestSmokeArtifacts(
   );
 }
 
+function readSmokeArtifactNativeHostBridgeSummary(
+  target: string,
+  artifact: Record<string, unknown>
+): Record<string, unknown> {
+  if (target !== "chrome") {
+    return {};
+  }
+
+  const run = readRecord(artifact.nativeHostBridgeRun);
+  if (!run) {
+    return {};
+  }
+
+  const response = readRecord(run.response);
+  const heartbeat = readRecord(run.heartbeat);
+  const nativeHostBridge: Record<string, unknown> = {
+    ...(typeof run.result === "string" ? { result: run.result } : {}),
+    ...(typeof run.productPath === "string" ? { productPath: run.productPath } : {}),
+    ...(typeof response?.result === "string" ? { responseResult: response.result } : {}),
+    ...(typeof run.heartbeatPath === "string" ? { heartbeatPath: run.heartbeatPath } : {}),
+    ...(typeof heartbeat?.hostName === "string" ? { heartbeatHostName: heartbeat.hostName } : {}),
+    ...(typeof heartbeat?.launchOrigin === "string" ? { heartbeatLaunchOrigin: heartbeat.launchOrigin } : {}),
+    ...(typeof heartbeat?.messageType === "string" ? { heartbeatMessageType: heartbeat.messageType } : {}),
+    ...(typeof heartbeat?.requestId === "string" ? { heartbeatRequestId: heartbeat.requestId } : {})
+  };
+
+  return Object.keys(nativeHostBridge).length > 0 ? { nativeHostBridge } : {};
+}
+
 function readSmokeArtifactAgeSeconds(generatedAt: string, mtimeMs: number): number | undefined {
   const generatedAtMs = Date.parse(generatedAt);
 
@@ -339,7 +369,7 @@ function readSmokeTarget(entry: string, artifact: Record<string, unknown>): stri
     return artifact.target;
   }
 
-  const normalized = entry.toLowerCase();
+  const normalized = path.basename(entry, ".json").toLowerCase();
   const knownTargets = [
     "ui",
     "desktop-session",
@@ -353,7 +383,12 @@ function readSmokeTarget(entry: string, artifact: Record<string, unknown>): stri
     "money-run"
   ];
 
-  return knownTargets.find((target) => normalized.includes(target)) ?? "unknown";
+  return knownTargets.find((target) =>
+    normalized === target
+    || normalized.startsWith(`${target}-`)
+    || normalized.startsWith(`${target}_`)
+    || normalized.startsWith(`${target}.`)
+  ) ?? "unknown";
 }
 
 function createDefaultDashboardWorkspaceIo(): DashboardWorkspaceIo {

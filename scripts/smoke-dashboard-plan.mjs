@@ -109,6 +109,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || !snapshot?.currentTurn
     || !snapshot?.replay
     || !Array.isArray(snapshot?.smokeEvidence?.artifacts)
+    || !hasChromeNativeHostBridgeSmokeEvidence(snapshot.smokeEvidence.artifacts)
     || snapshot?.longHorizon?.session !== "money-run"
     || !Array.isArray(snapshot?.alerts)
   ) {
@@ -279,4 +280,26 @@ function hasExtensionConnectionEvidence(connection) {
     && connection.launchOrigin.startsWith("chrome-extension://")
     && typeof connection?.messageType === "string"
     && typeof connection?.requestId === "string";
+}
+
+function hasChromeNativeHostBridgeSmokeEvidence(artifacts) {
+  if (!Array.isArray(artifacts)) {
+    return false;
+  }
+
+  return artifacts.some((artifact) => {
+    const nativeHostBridge = artifact?.nativeHostBridge;
+
+    return artifact?.target === "chrome"
+      && nativeHostBridge?.result === "passed"
+      && nativeHostBridge?.productPath === "dist/skfiy -> Chrome Native Messaging heartbeat"
+      && nativeHostBridge?.responseResult === "accepted"
+      && typeof nativeHostBridge?.heartbeatPath === "string"
+      && nativeHostBridge.heartbeatPath.includes("Application Support/skfiy/chrome-extension-connection.json")
+      && nativeHostBridge?.heartbeatHostName === "com.sskift.skfiy"
+      && typeof nativeHostBridge?.heartbeatLaunchOrigin === "string"
+      && nativeHostBridge.heartbeatLaunchOrigin.startsWith("chrome-extension://")
+      && nativeHostBridge?.heartbeatMessageType === "skfiy.page.observe"
+      && nativeHostBridge?.heartbeatRequestId === "chrome-smoke-native-host";
+  });
 }

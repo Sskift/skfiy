@@ -173,9 +173,44 @@ describe("dashboard snapshot data", () => {
         }
       }),
       "/repo/.skfiy-smoke/chrome-current.json": JSON.stringify({
-        result: "blocked",
-        productPath: "dist/skfiy.app -> Chrome",
-        blocker: "extension-unavailable"
+        result: "passed",
+        productPath: "renderer -> preload -> main -> CDP -> Chrome",
+        nativeHostBridgeRun: {
+          result: "passed",
+          productPath: "dist/skfiy -> Chrome Native Messaging heartbeat",
+          response: {
+            type: "skfiy.native.response",
+            requestId: "chrome-smoke-native-host",
+            result: "accepted"
+          },
+          heartbeatPath: "/repo/.skfiy-smoke/chrome-native-home/Library/Application Support/skfiy/chrome-extension-connection.json",
+          heartbeat: {
+            hostName: "com.sskift.skfiy",
+            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            messageType: "skfiy.page.observe",
+            requestId: "chrome-smoke-native-host"
+          }
+        }
+      }),
+      "/repo/.skfiy-smoke/chrome-dashboard-native-bridge-postbuild.json": JSON.stringify({
+        result: "passed",
+        productPath: "renderer -> preload -> main -> CDP -> Chrome",
+        nativeHostBridgeRun: {
+          result: "passed",
+          productPath: "dist/skfiy -> Chrome Native Messaging heartbeat",
+          response: {
+            type: "skfiy.native.response",
+            requestId: "chrome-smoke-native-host",
+            result: "accepted"
+          },
+          heartbeatPath: "/repo/.skfiy-smoke/chrome-native-home-postbuild/Library/Application Support/skfiy/chrome-extension-connection.json",
+          heartbeat: {
+            hostName: "com.sskift.skfiy",
+            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            messageType: "skfiy.page.observe",
+            requestId: "chrome-smoke-native-host"
+          }
+        }
       }),
       "/repo/.skfiy-smoke/cli-current.json": JSON.stringify({
         result: "passed",
@@ -208,6 +243,7 @@ describe("dashboard snapshot data", () => {
         "dashboard-old.json",
         "dashboard-current.json",
         "chrome-current.json",
+        "chrome-dashboard-native-bridge-postbuild.json",
         "cli-current.json",
         "codex-plugin-current.json",
         "notes.txt"
@@ -217,6 +253,7 @@ describe("dashboard snapshot data", () => {
       "/repo/.skfiy-smoke/dashboard-old.json": 10,
       "/repo/.skfiy-smoke/dashboard-current.json": Date.parse("2026-06-20T00:00:00.000Z"),
       "/repo/.skfiy-smoke/chrome-current.json": Date.parse("2026-06-18T23:59:59.000Z"),
+      "/repo/.skfiy-smoke/chrome-dashboard-native-bridge-postbuild.json": Date.parse("2026-06-19T23:59:30.000Z"),
       "/repo/.skfiy-smoke/cli-current.json": Date.parse("2026-06-19T23:59:00.000Z"),
       "/repo/.skfiy-smoke/codex-plugin-current.json": Date.parse("2026-06-19T23:58:00.000Z")
     };
@@ -337,13 +374,22 @@ describe("dashboard snapshot data", () => {
     expect(snapshot.smokeEvidence.artifacts).toEqual([
       {
         target: "chrome",
-        result: "blocked",
-        path: "/repo/.skfiy-smoke/chrome-current.json",
-        productPath: "dist/skfiy.app -> Chrome",
-        mtimeMs: Date.parse("2026-06-18T23:59:59.000Z"),
-        blocker: "extension-unavailable",
-        ageSeconds: 86401,
-        stale: true
+        result: "passed",
+        path: "/repo/.skfiy-smoke/chrome-dashboard-native-bridge-postbuild.json",
+        productPath: "renderer -> preload -> main -> CDP -> Chrome",
+        mtimeMs: Date.parse("2026-06-19T23:59:30.000Z"),
+        ageSeconds: 30,
+        stale: false,
+        nativeHostBridge: {
+          result: "passed",
+          productPath: "dist/skfiy -> Chrome Native Messaging heartbeat",
+          responseResult: "accepted",
+          heartbeatPath: "/repo/.skfiy-smoke/chrome-native-home-postbuild/Library/Application Support/skfiy/chrome-extension-connection.json",
+          heartbeatHostName: "com.sskift.skfiy",
+          heartbeatLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          heartbeatMessageType: "skfiy.page.observe",
+          heartbeatRequestId: "chrome-smoke-native-host"
+        }
       },
       {
         target: "cli",
@@ -373,11 +419,9 @@ describe("dashboard snapshot data", () => {
         stale: false
       }
     ]);
-    expect(snapshot.alerts).toContainEqual({
-      code: "smoke-evidence-stale",
-      severity: "warning",
-      message: "Smoke evidence is stale for: chrome."
-    });
+    expect(snapshot.alerts).not.toContainEqual(expect.objectContaining({
+      code: "smoke-evidence-stale"
+    }));
     expect(JSON.stringify(snapshot)).not.toContain("token=");
   });
 });
