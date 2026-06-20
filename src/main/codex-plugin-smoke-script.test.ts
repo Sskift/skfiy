@@ -51,10 +51,11 @@ describe("Codex plugin product smoke script", () => {
     const defaults = createDefaultCodexPluginSmokeOptions("/repo");
 
     expect(PRODUCT_PATH)
-      .toBe("plugin scaffold -> .mcp.json -> packaged skfiy CLI -> MCP stdio");
+      .toBe("plugin scaffold -> staged marketplace install -> .mcp.json -> packaged skfiy CLI -> MCP stdio");
     expect(EXPECTED_MCP_ARGS).toEqual(["mcp", "serve", "--stdio"]);
     expect(defaults).toMatchObject({
       pluginRoot: path.join("/repo", "plugins", "skfiy"),
+      installStagingDir: path.join("/repo", ".skfiy-plugin-install", "codex-plugin"),
       mcpConfigPath: path.join("/repo", "plugins", "skfiy", ".mcp.json"),
       cliPath: path.join("/repo", "dist", "skfiy"),
       timeoutMs: 8_000,
@@ -64,6 +65,8 @@ describe("Codex plugin product smoke script", () => {
     expect(parseCodexPluginSmokeArgs([
       "--plugin-root",
       "plugins/skfiy",
+      "--install-staging-dir",
+      ".skfiy-plugin-install/codex-plugin",
       "--mcp-config",
       "plugins/skfiy/.mcp.json",
       "--cli",
@@ -75,6 +78,7 @@ describe("Codex plugin product smoke script", () => {
       "--require-passed"
     ], defaults)).toMatchObject({
       pluginRoot: path.resolve("plugins/skfiy"),
+      installStagingDir: path.resolve(".skfiy-plugin-install/codex-plugin"),
       mcpConfigPath: path.resolve("plugins/skfiy/.mcp.json"),
       cliPath: path.resolve("dist/skfiy"),
       outputPath: path.resolve(".skfiy-smoke/codex-plugin.json"),
@@ -97,8 +101,24 @@ describe("Codex plugin product smoke script", () => {
     const passedEvidence = {
       productPath: PRODUCT_PATH,
       runnerHasTmux: false,
-      pluginRoot: "/repo/plugins/skfiy",
-      mcpConfigPath: "/repo/plugins/skfiy/.mcp.json",
+      sourcePluginRoot: "/repo/plugins/skfiy",
+      installStagingDir: "/repo/.skfiy-plugin-install/codex-plugin",
+      marketplaceRoot: "/repo/.skfiy-plugin-install/codex-plugin/marketplace",
+      marketplaceManifestPath: "/repo/.skfiy-plugin-install/codex-plugin/marketplace/marketplace.json",
+      marketplaceManifest: {
+        name: "skfiy-local",
+        interface: { displayName: "skfiy Local" },
+        plugins: [{
+          name: "skfiy",
+          source: { source: "local", path: "./plugins/skfiy" },
+          policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+          category: "Productivity"
+        }]
+      },
+      installedPluginRoot: "/repo/.skfiy-plugin-install/codex-plugin/marketplace/plugins/skfiy",
+      pluginRoot: "/repo/.skfiy-plugin-install/codex-plugin/marketplace/plugins/skfiy",
+      mcpConfigPath: "/repo/.skfiy-plugin-install/codex-plugin/marketplace/plugins/skfiy/.mcp.json",
+      repoCheckoutUsedForMcp: false,
       mcpServerName: "skfiy",
       configuredCommand: "skfiy",
       configuredArgs: ["mcp", "serve", "--stdio"],
@@ -137,6 +157,22 @@ describe("Codex plugin product smoke script", () => {
     };
 
     expect(classifyCodexPluginSmokeEvidence(passedEvidence)).toBe("passed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
+      repoCheckoutUsedForMcp: true
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
+      marketplaceManifest: {
+        ...passedEvidence.marketplaceManifest,
+        plugins: []
+      }
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...passedEvidence,
+      pluginRoot: "/repo/plugins/skfiy",
+      mcpConfigPath: "/repo/plugins/skfiy/.mcp.json"
+    })).toBe("failed");
     expect(classifyCodexPluginSmokeEvidence({
       ...passedEvidence,
       runnerHasTmux: true

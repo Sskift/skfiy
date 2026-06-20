@@ -165,7 +165,9 @@ long-horizon supervision.
 `plugins/skfiy/.mcp.json` points Codex at the installed `skfiy mcp serve
 --stdio` command. The Codex plugin is an adapter to the installed product, not a
 runtime replacement; desktop control still goes through skfiy's app policy,
-permission preflight, approval prompts, and replay evidence.
+permission preflight, approval prompts, and replay evidence. `smoke:codex-plugin`
+copies the scaffold into `.skfiy-plugin-install/` for staged marketplace proof
+without mutating the user's global Codex marketplace.
 
 ## Development
 

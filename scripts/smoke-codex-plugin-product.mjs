@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -28,8 +28,16 @@ async function main() {
 
   const evidence = {
     timestamp: new Date().toISOString(),
-    pluginRoot: options.pluginRoot,
-    mcpConfigPath: options.mcpConfigPath,
+    sourcePluginRoot: options.pluginRoot,
+    installStagingDir: options.installStagingDir,
+    marketplaceRoot: undefined,
+    marketplaceManifestPath: undefined,
+    marketplaceManifest: undefined,
+    installedPluginRoot: undefined,
+    pluginRoot: undefined,
+    sourceMcpConfigPath: options.mcpConfigPath,
+    mcpConfigPath: undefined,
+    repoCheckoutUsedForMcp: undefined,
     mcpServerName: "skfiy",
     configuredCommand: undefined,
     configuredArgs: undefined,
@@ -54,7 +62,17 @@ async function main() {
   try {
     assertCodexPluginSmokeReady(options);
 
-    const mcpServer = await readCodexPluginMcpServer(options.mcpConfigPath);
+    const stagedInstall = await stageCodexPluginInstall(options);
+
+    evidence.marketplaceRoot = stagedInstall.marketplaceRoot;
+    evidence.marketplaceManifestPath = stagedInstall.marketplaceManifestPath;
+    evidence.marketplaceManifest = stagedInstall.marketplaceManifest;
+    evidence.installedPluginRoot = stagedInstall.installedPluginRoot;
+    evidence.pluginRoot = stagedInstall.installedPluginRoot;
+    evidence.mcpConfigPath = stagedInstall.mcpConfigPath;
+    evidence.repoCheckoutUsedForMcp = false;
+
+    const mcpServer = await readCodexPluginMcpServer(stagedInstall.mcpConfigPath);
     evidence.configuredCommand = mcpServer.command;
     evidence.configuredArgs = mcpServer.args;
     evidence.configuredEnv = mcpServer.env;
@@ -103,6 +121,49 @@ function assertCodexPluginSmokeReady(options) {
   if (!existsSync(options.cliPath)) {
     throw new Error(`Built CLI is missing at ${options.cliPath}. Run npm run build first.`);
   }
+}
+
+export async function stageCodexPluginInstall(options) {
+  const marketplaceRoot = path.join(options.installStagingDir, "marketplace");
+  const installedPluginRoot = path.join(marketplaceRoot, "plugins", "skfiy");
+  const marketplaceManifestPath = path.join(marketplaceRoot, "marketplace.json");
+  const marketplaceManifest = createCodexPluginMarketplaceManifest();
+
+  await rm(options.installStagingDir, { recursive: true, force: true });
+  await mkdir(path.dirname(installedPluginRoot), { recursive: true });
+  await cp(options.pluginRoot, installedPluginRoot, { recursive: true });
+  await writeFile(marketplaceManifestPath, `${JSON.stringify(marketplaceManifest, null, 2)}\n`);
+
+  return {
+    marketplaceRoot,
+    marketplaceManifestPath,
+    marketplaceManifest,
+    installedPluginRoot,
+    mcpConfigPath: path.join(installedPluginRoot, ".mcp.json")
+  };
+}
+
+function createCodexPluginMarketplaceManifest() {
+  return {
+    name: "skfiy-local",
+    interface: {
+      displayName: "skfiy Local"
+    },
+    plugins: [
+      {
+        name: "skfiy",
+        source: {
+          source: "local",
+          path: "./plugins/skfiy"
+        },
+        policy: {
+          installation: "AVAILABLE",
+          authentication: "ON_INSTALL"
+        },
+        category: "Productivity"
+      }
+    ]
+  };
 }
 
 export async function readCodexPluginMcpServer(mcpConfigPath) {

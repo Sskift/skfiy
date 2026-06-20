@@ -73,4 +73,10 @@ describe("repo-local Codex plugin scaffold", () => {
     expect(skill).toContain("Do not run desktop control without explicit user approval");
     expect(skill).not.toContain("[TODO");
   });
+
+  it("keeps Codex plugin install staging artifacts out of git", () => {
+    const gitignore = readFileSync(path.join(process.cwd(), ".gitignore"), "utf8");
+
+    expect(gitignore).toContain(".skfiy-plugin-install/");
+  });
 });

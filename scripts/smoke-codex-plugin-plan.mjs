@@ -1,7 +1,7 @@
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 
-export const PRODUCT_PATH = "plugin scaffold -> .mcp.json -> packaged skfiy CLI -> MCP stdio";
+export const PRODUCT_PATH = "plugin scaffold -> staged marketplace install -> .mcp.json -> packaged skfiy CLI -> MCP stdio";
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const EXPECTED_MCP_ARGS = ["mcp", "serve", "--stdio"];
 export const EXPECTED_MCP_TOOLS = ["skfiy.status", "skfiy.doctor"];
@@ -11,6 +11,7 @@ export function createDefaultCodexPluginSmokeOptions(rootDir) {
 
   return {
     pluginRoot,
+    installStagingDir: path.join(rootDir, ".skfiy-plugin-install", "codex-plugin"),
     mcpConfigPath: path.join(pluginRoot, ".mcp.json"),
     cliPath: path.join(rootDir, "dist", "skfiy"),
     timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -29,6 +30,10 @@ export function parseCodexPluginSmokeArgs(argv, defaults) {
     switch (arg) {
       case "--plugin-root":
         options.pluginRoot = path.resolve(readRequiredValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--install-staging-dir":
+        options.installStagingDir = path.resolve(readRequiredValue(argv, index, arg));
         index += 1;
         break;
       case "--mcp-config":
@@ -68,6 +73,8 @@ export function classifyCodexPluginSmokeEvidence(evidence) {
     || evidence.runnerHasTmux
     || evidence.productPath !== PRODUCT_PATH
     || evidence.mcpServerName !== "skfiy"
+    || evidence.repoCheckoutUsedForMcp !== false
+    || !hasValidMarketplaceInstall(evidence)
     || evidence.configuredCommand !== "skfiy"
     || !sameStringArray(evidence.configuredArgs, EXPECTED_MCP_ARGS)
     || !isBuiltCliPath(evidence.packagedCliPath)
@@ -111,6 +118,8 @@ plugin scaffold -> .mcp.json -> dist/skfiy mcp serve --stdio -> skfiy.status.
 
 Options:
   --plugin-root <path>  Codex plugin root. Default: ${defaults.pluginRoot}
+  --install-staging-dir <path>
+                         Temporary installed-plugin staging root. Default: ${defaults.installStagingDir}
   --mcp-config <path>   Plugin MCP config path. Default: ${defaults.mcpConfigPath}
   --cli <path>          Built CLI path. Default: ${defaults.cliPath}
   --timeout-ms <ms>     Wait time for MCP responses. Default: ${defaults.timeoutMs}
@@ -196,4 +205,39 @@ function hasSkfiySafetyInstructions(instructions) {
     && normalized.includes("standalone skfiy app")
     && normalized.includes("app policy")
     && normalized.includes("replay evidence");
+}
+
+function hasValidMarketplaceInstall(evidence) {
+  if (
+    typeof evidence.sourcePluginRoot !== "string"
+    || typeof evidence.installStagingDir !== "string"
+    || typeof evidence.marketplaceRoot !== "string"
+    || typeof evidence.marketplaceManifestPath !== "string"
+    || typeof evidence.installedPluginRoot !== "string"
+    || evidence.pluginRoot !== evidence.installedPluginRoot
+    || evidence.sourcePluginRoot === evidence.installedPluginRoot
+    || evidence.mcpConfigPath !== path.join(evidence.installedPluginRoot, ".mcp.json")
+  ) {
+    return false;
+  }
+
+  const manifest = evidence.marketplaceManifest;
+  const entry = Array.isArray(manifest?.plugins)
+    ? manifest.plugins.find((plugin) => plugin?.name === "skfiy")
+    : undefined;
+
+  if (
+    manifest?.name !== "skfiy-local"
+    || manifest?.interface?.displayName !== "skfiy Local"
+    || entry?.source?.source !== "local"
+    || entry?.source?.path !== "./plugins/skfiy"
+    || entry?.policy?.installation !== "AVAILABLE"
+    || entry?.policy?.authentication !== "ON_INSTALL"
+    || entry?.category !== "Productivity"
+  ) {
+    return false;
+  }
+
+  return path.normalize(path.join(evidence.marketplaceRoot, entry.source.path))
+    === path.normalize(evidence.installedPluginRoot);
 }
