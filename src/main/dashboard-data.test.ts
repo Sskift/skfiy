@@ -6,6 +6,52 @@ import {
 } from "./dashboard-data";
 import { createRuntimeSnapshotStatePath } from "./runtime-snapshot";
 
+function createPageControlStatus({
+  extension
+}: {
+  extension: Record<string, unknown>;
+}): Record<string, unknown> {
+  return {
+    permissions: {
+      screenRecording: "granted",
+      accessibility: "granted",
+      microphone: "granted",
+      speechRecognition: "granted",
+      finderAutomation: "granted"
+    },
+    desktopSession: {
+      state: "controllable",
+      frontmostBundleId: "com.google.Chrome",
+      mainDisplayAsleep: false
+    },
+    nativeHost: {
+      state: "installed",
+      hostName: "com.sskift.skfiy"
+    },
+    extension: {
+      bridge: "native-messaging",
+      liveConnection: "connected",
+      nativeHostState: "installed",
+      ...extension
+    },
+    cli: {
+      state: "installed",
+      path: "/repo/dist/skfiy"
+    },
+    app: {
+      state: "installed",
+      path: "/repo/dist/skfiy.app",
+      signing: {
+        state: "valid"
+      }
+    },
+    helper: {
+      state: "installed",
+      path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+    }
+  };
+}
+
 describe("dashboard snapshot data", () => {
   it("composes runtime, permission, replay, smoke, and long-horizon panels from read-only inputs", () => {
     const snapshot = createDashboardSnapshot({
@@ -87,7 +133,16 @@ describe("dashboard snapshot data", () => {
         },
         extension: {
           state: "unknown",
-          reason: "Runtime Chrome extension connection is not probed yet."
+          reason: "Runtime Chrome extension connection is not probed yet.",
+          pageControl: {
+            schemaVersion: 1,
+            state: "not-probed",
+            source: "dashboard-empty",
+            capable: false,
+            reason: "Chrome pageControl readiness has not been probed yet.",
+            capabilities: {},
+            nextAction: "Probe pageControl readiness from Chrome extension diagnostics."
+          }
         },
         nativeHost: {
           state: "installed",
@@ -194,9 +249,10 @@ describe("dashboard snapshot data", () => {
           message: "Finder Automation has not been proven yet."
         },
         {
-          code: "extension-unknown",
+          code: "chrome-extension-not-connected",
           severity: "warning",
-          message: "Chrome extension connection is unknown."
+          message: "Chrome extension is not connected, so pageControl readiness cannot be trusted.",
+          extensionState: "unknown"
         }
       ]
     });
@@ -263,10 +319,193 @@ describe("dashboard snapshot data", () => {
       observedAt: "2026-06-19T22:00:00.000Z"
     });
     expect(snapshot.alerts).toContainEqual({
-      code: "extension-unknown",
+      code: "chrome-extension-not-connected",
       severity: "warning",
-      message: "Chrome extension connection is unknown."
+      message: "Chrome extension is not connected, so pageControl readiness cannot be trusted.",
+      extensionState: "native-host-installed"
     });
+  });
+
+  it("normalizes connected Chrome pageControl readiness from runtime health", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: createPageControlStatus({
+        extension: {
+          state: "connected",
+          pageControl: {
+            schemaVersion: 1,
+            state: "ready",
+            reason: "Content script loaded and DOM controls are available.",
+            source: "extension-diagnostics",
+            activeTab: {
+              state: "available",
+              tabId: 7,
+              windowId: 1,
+              host: "example.test"
+            },
+            contentScript: {
+              state: "loaded"
+            },
+            capabilities: {
+              domActions: true,
+              screenshot: true,
+              click: true,
+              fill: true,
+              submit: true,
+              scroll: true
+            },
+            nextAction: "Ready for pageControl actions."
+          }
+        }
+      })
+    });
+
+    expect(snapshot.runtimeHealth.extension).toMatchObject({
+      state: "connected",
+      pageControl: {
+        schemaVersion: 1,
+        state: "ready",
+        source: "runtime-health",
+        capable: true,
+        reason: "Content script loaded and DOM controls are available.",
+        activeTab: {
+          state: "available",
+          tabId: 7,
+          windowId: 1,
+          host: "example.test"
+        },
+        contentScript: {
+          state: "loaded"
+        },
+        capabilities: {
+          domActions: true,
+          screenshot: true,
+          click: true,
+          fill: true,
+          submit: true,
+          scroll: true
+        },
+        nextAction: "Ready for pageControl actions."
+      }
+    });
+    expect(snapshot.alerts).not.toContainEqual(expect.objectContaining({
+      code: expect.stringMatching(/^page-control/)
+    }));
+  });
+
+  it("synthesizes not-probed pageControl and alerts when connected Chrome has no readiness evidence", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: createPageControlStatus({
+        extension: {
+          state: "connected"
+        }
+      })
+    });
+
+    expect(snapshot.runtimeHealth.extension).toMatchObject({
+      state: "connected",
+      pageControl: {
+        schemaVersion: 1,
+        state: "not-probed",
+        source: "dashboard-empty",
+        capable: false,
+        reason: "Chrome pageControl readiness has not been probed yet.",
+        capabilities: {},
+        nextAction: "Probe pageControl readiness from Chrome extension diagnostics."
+      }
+    });
+    expect(snapshot.alerts).toContainEqual({
+      code: "page-control-missing",
+      severity: "warning",
+      message: "Chrome extension is connected, but pageControl readiness has not been probed."
+    });
+  });
+
+  it("does not treat pageSafety-only Chrome smoke evidence as pageControl readiness", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: createPageControlStatus({
+        extension: {
+          state: "connected"
+        }
+      }),
+      smokeEvidence: {
+        artifacts: [
+          {
+            target: "chrome",
+            result: "passed",
+            pageSafety: {
+              state: "clear",
+              source: "chrome-smoke",
+              sensitivePause: false,
+              pauseCount: 0,
+              checkedRuns: 1
+            }
+          }
+        ]
+      }
+    });
+
+    expect(snapshot.runtimeHealth.extension).toMatchObject({
+      state: "connected",
+      pageControl: {
+        state: "not-probed",
+        source: "dashboard-empty",
+        capable: false
+      }
+    });
+    expect(snapshot.alerts).toContainEqual(expect.objectContaining({
+      code: "page-control-missing"
+    }));
+  });
+
+  it("classifies policy-blocked pageControl separately from missing readiness", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: createPageControlStatus({
+        extension: {
+          state: "connected",
+          pageControl: {
+            schemaVersion: 1,
+            state: "blocked_by_host_policy",
+            reason: "Host policy has not allowed this page.",
+            source: "extension-diagnostics",
+            capabilities: {
+              domActions: false,
+              screenshot: false,
+              click: false,
+              fill: false,
+              submit: false,
+              scroll: false
+            },
+            blockers: [
+              {
+                code: "blocked_by_host_policy",
+                reason: "host_policy_blocked",
+                message: "Host policy has not allowed this page."
+              }
+            ]
+          }
+        }
+      })
+    });
+
+    expect(snapshot.alerts).toContainEqual({
+      code: "page-control-policy-blocked",
+      severity: "warning",
+      message: "Chrome pageControl is blocked by host policy or Chrome host permission.",
+      state: "blocked_by_host_policy",
+      reason: "Host policy has not allowed this page.",
+      nextAction: "Allow the current host in dashboard Chrome policy, then rerun diagnostics."
+    });
+    expect(snapshot.alerts).not.toContainEqual(expect.objectContaining({
+      code: "page-control-missing"
+    }));
   });
 
   it("creates a workspace-backed snapshot from package, binary, and smoke artifact evidence", () => {

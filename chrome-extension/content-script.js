@@ -123,6 +123,15 @@ function collectInteractiveElements() {
     }));
 }
 
+function createActionReadiness(capable, reason, nextAction) {
+  return {
+    capable,
+    state: capable ? "available" : "blocked",
+    reason,
+    nextAction
+  };
+}
+
 function readPageControlReadiness(
   pageSafety = collectPageSafety(),
   forms = collectFormMetadata(),
@@ -133,19 +142,49 @@ function readPageControlReadiness(
   const fillableForms = forms.filter((element) => ["input", "textarea", "select"].includes(element.tag));
   const sensitiveForms = forms.filter((element) => element.sensitive);
   const pageNeedsConfirmation = pageSafety.state === "needs_confirmation";
+  const blockedReason = sensitivePauseReason
+    ?? (pageNeedsConfirmation ? "Page safety requires confirmation before DOM actions." : null);
+  const actionsBlocked = Boolean(blockedReason);
   const state = sensitivePauseReason
     ? "sensitive-paused"
     : pageNeedsConfirmation
       ? "needs_confirmation"
       : "ready";
+  const actions = {
+    click: createActionReadiness(
+      !actionsBlocked && interactiveElements.length > 0,
+      blockedReason ?? (interactiveElements.length > 0 ? "Clickable elements are available." : "No clickable elements detected."),
+      blockedReason ? "confirm_sensitive_page" : "send_page_action"
+    ),
+    fill: createActionReadiness(
+      !actionsBlocked && fillableForms.some((element) => !element.sensitive),
+      blockedReason ?? (fillableForms.some((element) => !element.sensitive)
+        ? "Non-sensitive fillable fields are available."
+        : "No non-sensitive fillable fields detected."),
+      blockedReason ? "confirm_sensitive_page" : "send_page_action"
+    ),
+    submit: createActionReadiness(
+      !actionsBlocked && Boolean(document.querySelector("form")),
+      blockedReason ?? (document.querySelector("form") ? "Forms are available." : "No forms detected."),
+      blockedReason ? "confirm_sensitive_page" : "send_page_action"
+    ),
+    scroll: createActionReadiness(
+      !actionsBlocked,
+      blockedReason ?? "Scrolling is available.",
+      blockedReason ? "confirm_sensitive_page" : "send_page_action"
+    )
+  };
+  const capable = Object.values(actions).some((action) => action.capable);
 
   return {
     schemaVersion: MESSAGE_SCHEMA_VERSION,
+    capable,
     state,
     reason: sensitivePauseReason
       ?? (pageNeedsConfirmation
         ? "Page safety requires confirmation before DOM actions."
         : "Content script loaded and DOM controls are available."),
+    nextAction: blockedReason ? "confirm_sensitive_page" : "send_page_action",
     contentScript: {
       state: "loaded",
       diagnostics: true,
@@ -155,13 +194,27 @@ function readPageControlReadiness(
     capabilities: {
       diagnostics: true,
       observe: true,
-      domActions: true,
-      click: interactiveElements.length > 0,
-      fill: fillableForms.some((element) => !element.sensitive),
-      submit: Boolean(document.querySelector("form")),
-      scroll: true,
+      domActions: capable,
+      click: actions.click.capable,
+      fill: actions.fill.capable,
+      submit: actions.submit.capable,
+      scroll: actions.scroll.capable,
       screenshot: "background_required"
     },
+    actions,
+    forms: {
+      total: forms.length,
+      fillable: fillableForms.length,
+      sensitive: sensitiveForms.length
+    },
+    sensitiveForms: sensitiveForms.map((element) => ({
+      id: element.id,
+      tag: element.tag,
+      type: element.type,
+      label: element.label,
+      role: element.role,
+      bounds: element.bounds
+    })),
     counts: {
       interactiveElements: interactiveElements.length,
       forms: forms.length,
@@ -334,6 +387,12 @@ function runPageAction(action) {
   }
 
   const pageSafety = collectPageSafety();
+  const sensitivePauseReason = document.documentElement.getAttribute("data-skfiy-sensitive-paused");
+  const pauseableAction = ["click", "fill", "submit", "scroll"].includes(action?.kind);
+  if (sensitivePauseReason && pauseableAction && action?.confirmed !== true) {
+    return markSensitivePause(sensitivePauseReason, action, pageSafety);
+  }
+
   const confirmationRequired = action?.confirmed !== true
     && ["click", "fill", "submit"].includes(action?.kind)
     && pageSafety.state === "needs_confirmation";

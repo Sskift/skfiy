@@ -288,7 +288,7 @@ async function readContentScriptSession(tab, policyDecision, hostPermission) {
 
     return {
       state: "not_loaded",
-      reason: "diagnostics_response_missing"
+      reason: "content_script_not_loaded"
     };
   } catch (error) {
     const lastError = readErrorMessage(error);
@@ -367,6 +367,37 @@ function readNativeHostConnectionState(syncStatus) {
   }
 }
 
+function createControlReadiness(capable, reason, nextAction) {
+  return {
+    capable,
+    state: capable ? "available" : "blocked",
+    reason,
+    nextAction
+  };
+}
+
+function nextActionForPageControl(state) {
+  switch (state) {
+    case "ready":
+    case "partial":
+      return "ingest_page_control";
+    case "sensitive-paused":
+    case "needs_confirmation":
+      return "confirm_sensitive_page";
+    case "blocked_by_chrome_host_permission":
+      return "grant_chrome_host_permission";
+    case "blocked_by_host_policy":
+      return "allow_host";
+    case "content_script_not_loaded":
+    case "not_loaded":
+      return "reload_or_inject_content_script";
+    case "unavailable":
+      return "select_active_tab";
+    default:
+      return "inspect_extension_status";
+  }
+}
+
 function createPageControlReadiness(capabilities, currentTab) {
   const contentScript = currentTab?.contentScript ?? {};
   const contentControl = contentScript.pageControl && typeof contentScript.pageControl === "object"
@@ -383,6 +414,15 @@ function createPageControlReadiness(capabilities, currentTab) {
     && hostPolicyAllowed
     && capabilities?.activeTab === true
     && capabilities?.tabs === true;
+  const screenshotReason = screenshotAvailable
+    ? "Visible tab screenshots are available."
+    : !activeTabAvailable
+      ? "Active Chrome tab is unavailable."
+      : !hostPolicyAllowed
+        ? "Host policy has not allowed this page."
+        : capabilities?.activeTab !== true
+          ? "Extension activeTab permission is unavailable."
+          : "Extension tabs permission is unavailable.";
   const domActionsAvailable = hostPolicyAllowed && hostPermissionReady && contentScriptLoaded
     && contentCapabilities.domActions !== false;
   const blockers = [];
@@ -422,18 +462,65 @@ function createPageControlReadiness(capabilities, currentTab) {
         ? blockers[0].code
         : contentControl.state === "sensitive-paused" || contentControl.state === "needs_confirmation"
           ? contentControl.state
-          : "ready";
+          : screenshotAvailable
+            ? "ready"
+            : "partial";
+  const reason = blockers[0]?.message
+    ?? contentControl.reason
+    ?? (state === "partial" ? screenshotReason : "Current page is ready for Computer Use controls.");
+  const nextAction = nextActionForPageControl(state);
+  const contentActions = contentControl.actions && typeof contentControl.actions === "object"
+    ? contentControl.actions
+    : {};
+  const actions = {
+    click: contentActions.click ?? createControlReadiness(
+      domActionsAvailable && contentCapabilities.click !== false,
+      reason,
+      nextAction
+    ),
+    fill: contentActions.fill ?? createControlReadiness(
+      domActionsAvailable && contentCapabilities.fill === true,
+      reason,
+      nextAction
+    ),
+    submit: contentActions.submit ?? createControlReadiness(
+      domActionsAvailable && contentCapabilities.submit === true,
+      reason,
+      nextAction
+    ),
+    scroll: contentActions.scroll ?? createControlReadiness(
+      domActionsAvailable && contentCapabilities.scroll !== false,
+      reason,
+      nextAction
+    )
+  };
+  for (const key of Object.keys(actions)) {
+    if (!domActionsAvailable || state === "sensitive-paused" || state === "needs_confirmation") {
+      actions[key] = {
+        ...actions[key],
+        capable: false,
+        state: "blocked",
+        reason,
+        nextAction
+      };
+    }
+  }
+  const domActionCapable = Object.values(actions).some((action) => action.capable);
 
   return {
     schemaVersion: MESSAGE_SCHEMA_VERSION,
+    capable: state === "ready" || state === "partial",
     state,
-    reason: blockers[0]?.message ?? contentControl.reason ?? "Current page is ready for Computer Use controls.",
+    reason,
+    nextAction,
     activeTab: {
       state: activeTabAvailable ? "available" : "unavailable",
       tabId: currentTab?.tabId ?? null,
       windowId: currentTab?.windowId ?? null,
       host: currentTab?.host ?? ""
     },
+    hostPolicy: currentTab?.hostPolicy ?? null,
+    chromeHostPermission: currentTab?.chromeHostPermission ?? null,
     contentScript: {
       state: contentScript.state ?? "not_queried",
       reason: contentScript.reason ?? null,
@@ -442,14 +529,16 @@ function createPageControlReadiness(capabilities, currentTab) {
     capabilities: {
       diagnostics: contentScriptLoaded,
       observe: domActionsAvailable && contentCapabilities.observe !== false,
-      domActions: domActionsAvailable,
-      click: domActionsAvailable && contentCapabilities.click !== false,
-      fill: domActionsAvailable && contentCapabilities.fill === true,
-      submit: domActionsAvailable && contentCapabilities.submit === true,
-      scroll: domActionsAvailable && contentCapabilities.scroll !== false,
+      domActions: domActionCapable,
+      click: actions.click.capable,
+      fill: actions.fill.capable,
+      submit: actions.submit.capable,
+      scroll: actions.scroll.capable,
       screenshot: screenshotAvailable,
       downloads: capabilities?.downloads === true
     },
+    screenshot: createControlReadiness(screenshotAvailable, screenshotReason, screenshotAvailable ? "capture_visible_tab" : nextAction),
+    actions,
     blockers,
     pageSafety: contentControl.pageSafety ?? contentScript.pageSafety ?? null,
     sensitivePause: contentControl.sensitivePause ?? {
@@ -457,6 +546,8 @@ function createPageControlReadiness(capabilities, currentTab) {
       reason: contentScript.sensitivePauseReason ?? null,
       kind: contentScript.sensitivePauseKind ?? null
     },
+    forms: contentControl.forms ?? null,
+    sensitiveForms: contentControl.sensitiveForms ?? [],
     counts: contentControl.counts ?? null,
     observedAt: contentScript.observedAt ?? null
   };
@@ -892,6 +983,7 @@ async function handleRuntimeMessage(message) {
       requestId: message.requestId,
       policy,
       syncStatus,
+      pageControl: diagnostics.session.pageControl,
       diagnostics
     };
   }
@@ -904,6 +996,7 @@ async function handleRuntimeMessage(message) {
       requestId: message.requestId,
       policy,
       syncStatus,
+      pageControl: diagnostics.session.pageControl,
       diagnostics
     };
   }
@@ -917,6 +1010,7 @@ async function handleRuntimeMessage(message) {
       requestId: message.requestId,
       policy,
       syncStatus,
+      pageControl: diagnostics.session.pageControl,
       diagnostics
     };
   }

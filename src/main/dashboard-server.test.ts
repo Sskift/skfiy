@@ -184,7 +184,17 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("skfiy chrome install-host --extension-id");
     expect(response.body).toContain("renderAppPolicyPanel(snapshot)");
     expect(response.body).toContain("createChromePageSafetyRows(chromeArtifact)");
+    expect(response.body).toContain("createChromePageControlRows(snapshot, chromeArtifact)");
     expect(response.body).toContain("chrome page safety");
+    expect(response.body).toContain("chrome pageControl");
+    expect(response.body).toContain("pageControl capable");
+    expect(response.body).toContain("active tab");
+    expect(response.body).toContain("content script");
+    expect(response.body).toContain("DOM actions");
+    expect(response.body).toContain("click/fill/submit/scroll");
+    expect(response.body).toContain("pageControl reason");
+    expect(response.body).toContain("pageControl next");
+    expect(response.body).toContain("pageControlEvidenceState(pageControl.state)");
     expect(response.body).toContain("sensitive-form-prefill");
     expect(response.body).toContain("createFinderSmokeRows(finderArtifact)");
     expect(response.body).toContain("desktop preflight");

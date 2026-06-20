@@ -365,5 +365,23 @@ function hasPluginChromeBridgeStatus(status, extensionIds) {
     && extension.state !== "unknown"
     && extension?.bridge === "native-messaging"
     && allowedLiveConnectionStates.has(extension?.liveConnection)
-    && typeof extension?.nativeHostState === "string";
+    && typeof extension?.nativeHostState === "string"
+    && hasPluginChromePageControlStatus(extension?.pageControl);
+}
+
+function hasPluginChromePageControlStatus(pageControl) {
+  return pageControl
+    && typeof pageControl === "object"
+    && !Array.isArray(pageControl)
+    && pageControl.schemaVersion === 1
+    && typeof pageControl.state === "string"
+    && pageControl.state.length > 0
+    && pageControl.state !== "unknown"
+    && typeof pageControl.reason === "string"
+    && pageControl.reason.length > 0
+    && pageControl.capabilities
+    && typeof pageControl.capabilities === "object"
+    && !Array.isArray(pageControl.capabilities)
+    && typeof pageControl.source === "string"
+    && pageControl.source.length > 0;
 }

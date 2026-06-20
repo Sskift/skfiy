@@ -236,7 +236,9 @@ preflight blockers are separated from real Automation permission blockers.
 `extension.capabilities.pageSafety` plus `extension.pageSafety` /
 `preflight.chrome.pageSafety` evidence so automation can verify the Native
 Messaging, ask-by-default host policy, and recent `skfiy.page.observe` heartbeat
-needed for Chrome page-safety.
+needed for Chrome page-safety. They now also expose structured
+`extension.pageControl` / `preflight.chrome.pageControl` readiness, including
+whether page control is ready, policy/permission blocked, or not yet probed.
 
 `plugins/skfiy/.mcp.json` points Codex at the installed `skfiy mcp serve
 --stdio` command. The Codex plugin is an adapter to the installed product, not a
@@ -250,7 +252,10 @@ and verifies MCP status from that cached copy. The smoke removes the temporary
 Codex home and does not mutate the user's global Codex marketplace. Pass
 `--extension-id <id>` to the smoke when you want the MCP `skfiy.status` call to
 also prove the packaged CLI can read Chrome Native Messaging and
-extension-adapter state for that browser bridge.
+extension-adapter state for that browser bridge. That bridge proof now requires
+structured `extension.pageControl` readiness, so Codex plugin consumers can
+distinguish ready page control, policy/permission blockers, and a not-yet-probed
+extension session.
 
 ## Development
 

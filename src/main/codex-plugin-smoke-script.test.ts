@@ -278,7 +278,14 @@ describe("Codex plugin product smoke script", () => {
           liveConnection: "unknown",
           nativeHostState: "missing",
           manifestPath: "/repo/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
-          reason: "Chrome Native Messaging host manifest is not installed."
+          reason: "Chrome Native Messaging host manifest is not installed.",
+          pageControl: {
+            schemaVersion: 1,
+            state: "not-probed",
+            reason: "Chrome extension page-control readiness has not been reported yet.",
+            capabilities: {},
+            source: "status-extension-adapter"
+          }
         }
       },
       cacheInstall: {
@@ -299,7 +306,14 @@ describe("Codex plugin product smoke script", () => {
             liveConnection: "unknown",
             nativeHostState: "missing",
             manifestPath: "/repo/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json",
-            reason: "Chrome Native Messaging host manifest is not installed."
+            reason: "Chrome Native Messaging host manifest is not installed.",
+            pageControl: {
+              schemaVersion: 1,
+              state: "not-probed",
+              reason: "Chrome extension page-control readiness has not been reported yet.",
+              capabilities: {},
+              source: "status-extension-adapter"
+            }
           }
         }
       }
@@ -312,6 +326,16 @@ describe("Codex plugin product smoke script", () => {
       status: {
         ...bridgeEvidence.status,
         extension: { state: "unknown" }
+      }
+    })).toBe("failed");
+    expect(classifyCodexPluginSmokeEvidence({
+      ...bridgeEvidence,
+      status: {
+        ...bridgeEvidence.status,
+        extension: {
+          ...bridgeEvidence.status.extension,
+          pageControl: undefined
+        }
       }
     })).toBe("failed");
     expect(classifyCodexPluginSmokeEvidence({

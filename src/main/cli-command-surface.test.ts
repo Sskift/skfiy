@@ -90,20 +90,20 @@ describe("CLI command surface", () => {
         path: "status",
         jsonOutput: true,
         executesSystemMutation: false,
-        capabilities: ["chrome-extension-page-safety"]
+        capabilities: ["chrome-extension-page-safety", "chrome-extension-page-control"]
       }),
       expect.objectContaining({
         path: "doctor",
         jsonOutput: true,
         executesSystemMutation: false,
-        capabilities: ["chrome-extension-page-safety"]
+        capabilities: ["chrome-extension-page-safety", "chrome-extension-page-control"]
       }),
       expect.objectContaining({
         path: "operator status",
         jsonOutput: true,
         executesSystemMutation: false,
         outputShape: "operator-status",
-        capabilities: ["chrome-extension-page-safety"]
+        capabilities: ["chrome-extension-page-safety", "chrome-extension-page-control"]
       }),
       expect.objectContaining({
         path: "chrome install-host",
@@ -121,7 +121,7 @@ describe("CLI command surface", () => {
         plannedMutation: false,
         executesSystemMutation: false,
         outputShape: "chrome-status",
-        capabilities: ["chrome-extension-page-safety"]
+        capabilities: ["chrome-extension-page-safety", "chrome-extension-page-control"]
       }),
       expect.objectContaining({
         path: "chrome policy set",
@@ -307,13 +307,22 @@ describe("CLI command surface", () => {
       extension: {
         state: "unknown",
         capabilities: {
-          pageSafety: false
+          pageSafety: false,
+          pageControl: false
         },
         pageSafety: {
           schemaVersion: 1,
           capability: "chrome-extension-page-safety",
           capable: false,
           state: "unknown"
+        },
+        pageControl: {
+          schemaVersion: 1,
+          capability: "chrome-extension-page-control",
+          state: "not-probed",
+          reason: "Chrome extension page control readiness has not been reported yet.",
+          capabilities: {},
+          source: "not-probed"
         }
       },
       nativeHost: {
@@ -355,12 +364,13 @@ describe("CLI command surface", () => {
       diagnostics: [],
       nextActions: [],
       capabilities: {
-        chromeExtensionPageSafety: false
+        chromeExtensionPageSafety: false,
+        chromeExtensionPageControl: false
       },
       statusProbe: {
         extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
         dashboardUrl: "http://127.0.0.1:8787/",
-        capabilities: ["chrome-extension-page-safety"]
+        capabilities: ["chrome-extension-page-safety", "chrome-extension-page-control"]
       }
     });
     expectJsonSafe(createCliOutput(status));
@@ -1267,7 +1277,21 @@ describe("CLI command surface", () => {
             state: "connected",
             bridge: "native-messaging",
             liveConnection: "connected",
-            nativeHostState: "installed"
+            nativeHostState: "installed",
+            pageControl: {
+              state: "ready",
+              reason: "Current page is ready for Computer Use controls.",
+              capabilities: {
+                diagnostics: true,
+                observe: true,
+                domActions: true,
+                click: true,
+                fill: true,
+                scroll: true,
+                screenshot: true
+              },
+              source: "extension.pageControl"
+            }
           },
           nativeHost: {
             state: "installed",
@@ -1378,7 +1402,7 @@ describe("CLI command surface", () => {
     expect(stderr).toEqual([]);
   });
 
-  it("exposes Chrome page-safety capability evidence in status and doctor JSON", async () => {
+  it("distinguishes Chrome page-safety from missing page-control readiness", async () => {
     const statusStdout: string[] = [];
     const doctorStdout: string[] = [];
     const stderr: string[] = [];
@@ -1490,7 +1514,8 @@ describe("CLI command surface", () => {
 
     expect(statusOutput.extension).toMatchObject({
       capabilities: {
-        pageSafety: true
+        pageSafety: true,
+        pageControl: false
       },
       pageSafety: {
         schemaVersion: 1,
@@ -1518,18 +1543,31 @@ describe("CLI command surface", () => {
           extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
           cliShimPath: "/repo/dist/skfiy"
         }
+      },
+      pageControl: {
+        schemaVersion: 1,
+        capability: "chrome-extension-page-control",
+        state: "needs-action",
+        reason: "Chrome extension did not report pageControl readiness for the current page.",
+        capabilities: {},
+        source: "cli-status-derived"
       }
     });
     expect(statusOutput.readiness.checks.extension.pageSafety).toMatchObject({
       capable: true,
       state: "ready"
     });
+    expect(statusOutput.readiness.checks.extension.pageControl).toMatchObject({
+      state: "needs-action",
+      source: "cli-status-derived"
+    });
     expect(doctorOutput).toMatchObject({
       schemaVersion: 1,
       command: "doctor",
-      result: "ok",
+      result: "needs-action",
       capabilities: {
-        chromeExtensionPageSafety: true
+        chromeExtensionPageSafety: true,
+        chromeExtensionPageControl: false
       },
       preflight: {
         chrome: {
@@ -1537,9 +1575,208 @@ describe("CLI command surface", () => {
             capability: "chrome-extension-page-safety",
             capable: true,
             state: "ready"
+          },
+          pageControl: {
+            capability: "chrome-extension-page-control",
+            state: "needs-action",
+            source: "cli-status-derived"
           }
         }
+      },
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          code: "chrome-page-control-readiness",
+          severity: "warning",
+          nextAction: expect.stringContaining("skfiy chrome status --json")
+        })
+      ])
+    });
+    expect(stderr).toEqual([]);
+  });
+
+  it("reports Chrome page-control readiness as not-probed when no extension evidence exists", () => {
+    const status = createCliOutput(expectInvocation(["status", "--json"]), {
+      generatedAt: "2026-06-20T00:00:00.000Z"
+    });
+
+    expect(status).toMatchObject({
+      extension: {
+        pageControl: {
+          schemaVersion: 1,
+          capability: "chrome-extension-page-control",
+          state: "not-probed",
+          reason: "Chrome extension page control readiness has not been reported yet.",
+          capabilities: {},
+          source: "not-probed",
+          nextAction: "Run `skfiy chrome status --json --extension-id <extension-id>` after opening a controllable Chrome page."
+        }
       }
+    });
+  });
+
+  it("passes through Chrome page-control readiness from extension diagnostics into status and doctor", async () => {
+    const statusStdout: string[] = [];
+    const doctorStdout: string[] = [];
+    const stderr: string[] = [];
+    const statusReader = async () => ({
+      app: { state: "installed", path: "/repo/dist/skfiy.app" },
+      cli: { state: "installed", path: "/repo/dist/skfiy" },
+      helper: {
+        state: "installed",
+        path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+      },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        microphone: "granted",
+        speechRecognition: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: {
+        state: "controllable",
+        controllable: true
+      },
+      extension: {
+        state: "connected",
+        bridge: "native-messaging",
+        liveConnection: "connected",
+        nativeHostState: "installed",
+        diagnostics: {
+          currentTab: {
+            state: "available",
+            pageControl: {
+              state: "ready",
+              reason: "Current page is ready for Computer Use controls.",
+              capabilities: {
+                diagnostics: true,
+                observe: true,
+                domActions: true,
+                click: true,
+                fill: true,
+                submit: true,
+                scroll: true,
+                screenshot: true
+              },
+              counts: {
+                interactiveElements: 4,
+                forms: 1,
+                fillableForms: 1,
+                sensitiveForms: 0
+              },
+              pageSafety: {
+                state: "clear"
+              },
+              sensitivePause: {
+                active: false
+              },
+              observedAt: "2026-06-20T00:00:00.000Z"
+            }
+          }
+        }
+      },
+      nativeHost: {
+        state: "installed",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+      },
+      dashboard: {
+        state: "running",
+        url: "http://127.0.0.1:8787/",
+        api: {
+          chromeHostPolicy: {
+            state: "reachable"
+          }
+        }
+      },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    await expect(runSkfiyCli({
+      argv: [
+        "status",
+        "--json",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader,
+      stdout: { write: (chunk: string) => statusStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+    await expect(runSkfiyCli({
+      argv: [
+        "doctor",
+        "--json",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader,
+      signatureReader: async () => ({ state: "valid" }),
+      stdout: { write: (chunk: string) => doctorStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    const statusOutput = JSON.parse(statusStdout.join(""));
+    const doctorOutput = JSON.parse(doctorStdout.join(""));
+
+    expect(statusOutput.extension).toMatchObject({
+      capabilities: {
+        pageControl: true
+      },
+      pageControl: {
+        schemaVersion: 1,
+        capability: "chrome-extension-page-control",
+        state: "ready",
+        reason: "Current page is ready for Computer Use controls.",
+        source: "extension.diagnostics.currentTab.pageControl",
+        capabilities: {
+          domActions: true,
+          click: true,
+          fill: true,
+          submit: true,
+          scroll: true,
+          screenshot: true
+        },
+        counts: {
+          interactiveElements: 4,
+          forms: 1
+        },
+        pageSafety: {
+          state: "clear"
+        },
+        sensitivePause: {
+          active: false
+        }
+      }
+    });
+    expect(statusOutput.readiness.checks.extension.pageControl).toMatchObject({
+      state: "ready",
+      source: "extension.diagnostics.currentTab.pageControl"
+    });
+    expect(doctorOutput).toMatchObject({
+      result: "ok",
+      capabilities: {
+        chromeExtensionPageControl: true
+      },
+      preflight: {
+        chrome: {
+          pageControl: {
+            state: "ready",
+            source: "extension.diagnostics.currentTab.pageControl"
+          }
+        }
+      },
+      diagnostics: []
     });
     expect(stderr).toEqual([]);
   });
@@ -1587,7 +1824,21 @@ describe("CLI command surface", () => {
             state: "connected",
             bridge: "native-messaging",
             liveConnection: "connected",
-            nativeHostState: "installed"
+            nativeHostState: "installed",
+            pageControl: {
+              state: "ready",
+              reason: "Current page is ready for Computer Use controls.",
+              capabilities: {
+                diagnostics: true,
+                observe: true,
+                domActions: true,
+                click: true,
+                fill: true,
+                scroll: true,
+                screenshot: true
+              },
+              source: "extension.pageControl"
+            }
           },
           nativeHost: {
             state: "installed",

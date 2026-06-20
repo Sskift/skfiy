@@ -300,6 +300,7 @@ function formatReadyControls(capabilities = {}) {
     ["domActions", "DOM actions"],
     ["click", "click"],
     ["fill", "fill"],
+    ["submit", "submit"],
     ["scroll", "scroll"]
   ]
     .filter(([key]) => capabilities[key] === true)
@@ -317,6 +318,8 @@ function formatPageControlReadiness(pageControl) {
   switch (pageControl?.state) {
     case "ready":
       return `Ready (${formatReadyControls(capabilities)})`;
+    case "partial":
+      return `Partial (${formatReadyControls(capabilities)})${reason}`;
     case "sensitive-paused":
       return `Paused${reason}`;
     case "needs_confirmation":

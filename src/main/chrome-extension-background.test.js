@@ -81,7 +81,8 @@ function createChromeMock(nativeResponses = [], options = {}) {
       version: "0.0.1",
       minimum_chrome_version: "116",
       permissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
-      optional_host_permissions: ["http://*/*", "https://*/*"]
+      optional_host_permissions: ["http://*/*", "https://*/*"],
+      ...(options.manifest ?? {})
     })),
     connectNative: vi.fn(() => {
       const onMessage = createEvent();
@@ -295,6 +296,13 @@ describe("Chrome extension background policy sync", () => {
           lastError: null,
           error: null
         }),
+        pageControl: expect.objectContaining({
+          capable: false,
+          state: "unavailable",
+          activeTab: expect.objectContaining({
+            state: "unavailable"
+          })
+        }),
         diagnostics: expect.objectContaining({
           extension: expect.objectContaining({
             id: "abcdefghijklmnopabcdefghijklmnop",
@@ -393,10 +401,25 @@ describe("Chrome extension background policy sync", () => {
               lastError: "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run."
             }),
             pageControl: expect.objectContaining({
+              capable: false,
               state: "blocked_by_chrome_host_permission",
+              nextAction: "grant_chrome_host_permission",
               capabilities: expect.objectContaining({
                 screenshot: true,
                 domActions: false
+              }),
+              actions: {
+                click: expect.objectContaining({ capable: false }),
+                fill: expect.objectContaining({ capable: false }),
+                submit: expect.objectContaining({ capable: false }),
+                scroll: expect.objectContaining({ capable: false })
+              },
+              hostPolicy: {
+                decision: "allowed",
+                reason: "host_allowed"
+              },
+              chromeHostPermission: expect.objectContaining({
+                state: "missing"
               }),
               blockers: expect.arrayContaining([
                 expect.objectContaining({
@@ -495,13 +518,24 @@ describe("Chrome extension background policy sync", () => {
               sensitivePaused: false
             }),
             pageControl: expect.objectContaining({
+              capable: true,
               state: "ready",
+              nextAction: "ingest_page_control",
               capabilities: expect.objectContaining({
                 screenshot: true,
                 domActions: true,
                 click: true,
                 fill: true,
                 scroll: true
+              }),
+              screenshot: expect.objectContaining({
+                capable: true,
+                state: "available"
+              }),
+              actions: expect.objectContaining({
+                click: expect.objectContaining({ capable: true }),
+                fill: expect.objectContaining({ capable: true }),
+                scroll: expect.objectContaining({ capable: true })
               }),
               counts: expect.objectContaining({
                 interactiveElements: 4,
@@ -529,6 +563,145 @@ describe("Chrome extension background policy sync", () => {
       type: "skfiy.page.diagnostics",
       schemaVersion: 1
     }));
+  });
+
+  it("reports missing content script readiness without injecting during status reads", async () => {
+    const mock = createChromeMock([], {
+      activeTab: {
+        id: 44,
+        windowId: 9,
+        url: "https://allowed.example/dashboard"
+      },
+      grantedOrigins: ["https://allowed.example/*"]
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["allowed.example"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    mock.chrome.runtime.onMessage.listeners[0]({
+      type: HOST_POLICY_SYNC_STATUS,
+      requestId: "popup-status-no-content-script"
+    }, {}, sendResponse);
+
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        pageControl: expect.objectContaining({
+          capable: false,
+          state: "content_script_not_loaded",
+          nextAction: "reload_or_inject_content_script",
+          capabilities: expect.objectContaining({
+            screenshot: true,
+            domActions: false,
+            click: false,
+            fill: false,
+            submit: false,
+            scroll: false
+          })
+        }),
+        diagnostics: expect.objectContaining({
+          currentTab: expect.objectContaining({
+            contentScript: expect.objectContaining({
+              state: "not_loaded",
+              reason: "content_script_not_loaded"
+            }),
+            pageControl: expect.objectContaining({
+              state: "content_script_not_loaded"
+            })
+          })
+        })
+      }));
+    });
+
+    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledWith(44, expect.objectContaining({
+      type: "skfiy.page.diagnostics"
+    }));
+  });
+
+  it("reports DOM actions separately when screenshot permission is unavailable", async () => {
+    const mock = createChromeMock([], {
+      activeTab: {
+        id: 45,
+        windowId: 10,
+        url: "https://allowed.example/dashboard"
+      },
+      grantedOrigins: ["https://allowed.example/*"],
+      manifest: {
+        permissions: ["downloads", "nativeMessaging", "scripting", "storage"]
+      },
+      contentScriptSession: {
+        state: "loaded",
+        host: "allowed.example",
+        pageControl: {
+          capable: true,
+          state: "ready",
+          capabilities: {
+            diagnostics: true,
+            observe: true,
+            domActions: true,
+            click: true,
+            fill: true,
+            submit: true,
+            scroll: true,
+            screenshot: "background_required"
+          },
+          actions: {
+            click: { capable: true, state: "available", nextAction: "send_page_action" },
+            fill: { capable: true, state: "available", nextAction: "send_page_action" },
+            submit: { capable: true, state: "available", nextAction: "send_page_action" },
+            scroll: { capable: true, state: "available", nextAction: "send_page_action" }
+          }
+        }
+      }
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["allowed.example"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    mock.chrome.runtime.onMessage.listeners[0]({
+      type: HOST_POLICY_SYNC_STATUS,
+      requestId: "popup-status-no-screenshot"
+    }, {}, sendResponse);
+
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        pageControl: expect.objectContaining({
+          capable: true,
+          state: "partial",
+          reason: "Extension activeTab permission is unavailable.",
+          capabilities: expect.objectContaining({
+            screenshot: false,
+            domActions: true,
+            click: true,
+            fill: true,
+            submit: true,
+            scroll: true
+          }),
+          screenshot: {
+            capable: false,
+            state: "blocked",
+            reason: "Extension activeTab permission is unavailable.",
+            nextAction: "ingest_page_control"
+          },
+          actions: expect.objectContaining({
+            click: expect.objectContaining({ capable: true }),
+            submit: expect.objectContaining({ capable: true })
+          })
+        })
+      }));
+    });
   });
 
   it("syncs host policy through the native host and records sync status", async () => {
@@ -644,6 +817,9 @@ describe("Chrome extension background policy sync", () => {
           entryCount: 2,
           lastError: null,
           error: null
+        }),
+        pageControl: expect.objectContaining({
+          state: "unavailable"
         }),
         diagnostics: expect.objectContaining({
           capabilities: expect.objectContaining({

@@ -38,6 +38,8 @@ function sendContentMessage(listener, message) {
 beforeEach(() => {
   document.body.innerHTML = "";
   document.title = "";
+  document.documentElement.removeAttribute("data-skfiy-sensitive-paused");
+  document.documentElement.removeAttribute("data-skfiy-sensitive-pause-kind");
   globalThis.CSS = {
     escape: (value) => String(value).replace(/"/g, "\\\"")
   };
@@ -96,7 +98,9 @@ describe("Chrome extension content script", () => {
           state: "clear"
         },
         pageControl: {
+          capable: true,
           state: "ready",
+          nextAction: "send_page_action",
           capabilities: {
             diagnostics: true,
             observe: true,
@@ -107,6 +111,34 @@ describe("Chrome extension content script", () => {
             scroll: true,
             screenshot: "background_required"
           },
+          actions: {
+            click: {
+              capable: true,
+              state: "available",
+              nextAction: "send_page_action"
+            },
+            fill: {
+              capable: true,
+              state: "available",
+              nextAction: "send_page_action"
+            },
+            submit: {
+              capable: true,
+              state: "available",
+              nextAction: "send_page_action"
+            },
+            scroll: {
+              capable: true,
+              state: "available",
+              nextAction: "send_page_action"
+            }
+          },
+          forms: {
+            total: 2,
+            fillable: 1,
+            sensitive: 0
+          },
+          sensitiveForms: [],
           counts: {
             interactiveElements: 3,
             forms: 2,
@@ -188,6 +220,119 @@ describe("Chrome extension content script", () => {
         state: "needs_confirmation"
       })
     }));
+
+    const diagnostics = sendContentMessage(listener, {
+      type: "skfiy.page.diagnostics",
+      requestId: "diagnostics-risk"
+    });
+
+    expect(diagnostics.response).toMatchObject({
+      type: "skfiy.page.diagnostics_result",
+      requestId: "diagnostics-risk",
+      session: {
+        sensitivePaused: true,
+        sensitivePauseReason: "Sensitive page content requires confirmation",
+        pageControl: {
+          capable: false,
+          state: "sensitive-paused",
+          reason: "Sensitive page content requires confirmation",
+          nextAction: "confirm_sensitive_page",
+          capabilities: {
+            domActions: false,
+            click: false,
+            fill: false,
+            submit: false,
+            scroll: false
+          },
+          actions: {
+            click: {
+              capable: false,
+              state: "blocked",
+              reason: "Sensitive page content requires confirmation",
+              nextAction: "confirm_sensitive_page"
+            },
+            fill: {
+              capable: false,
+              state: "blocked",
+              nextAction: "confirm_sensitive_page"
+            },
+            submit: {
+              capable: false,
+              state: "blocked",
+              nextAction: "confirm_sensitive_page"
+            },
+            scroll: {
+              capable: false,
+              state: "blocked",
+              nextAction: "confirm_sensitive_page"
+            }
+          }
+        }
+      }
+    });
+  });
+
+  it("reports sensitive form metadata without advertising executable actions", async () => {
+    const mock = createChromeMock();
+    globalThis.chrome = mock.chrome;
+    document.title = "Sign in";
+    document.body.innerHTML = `
+      <main>
+        <h1>Enter password and one-time code</h1>
+        <form id="login">
+          <input id="password" name="password" type="password" aria-label="Password">
+          <input id="otp" name="otp" aria-label="One-time code">
+          <button id="submit">Sign in</button>
+        </form>
+      </main>
+    `;
+
+    await importContentScript();
+    const listener = mock.listener();
+
+    const diagnostics = sendContentMessage(listener, {
+      type: "skfiy.page.diagnostics",
+      requestId: "sensitive-form"
+    });
+
+    expect(diagnostics.response).toMatchObject({
+      session: {
+        pageSafety: {
+          state: "needs_confirmation"
+        },
+        pageControl: {
+          capable: false,
+          state: "needs_confirmation",
+          reason: "Page safety requires confirmation before DOM actions.",
+          nextAction: "confirm_sensitive_page",
+          capabilities: {
+            domActions: false,
+            click: false,
+            fill: false,
+            submit: false,
+            scroll: false
+          },
+          forms: {
+            total: 3,
+            fillable: 2,
+            sensitive: 2
+          },
+          sensitiveForms: expect.arrayContaining([
+            expect.objectContaining({
+              id: "form-0",
+              tag: "input",
+              type: "password",
+              label: "Password"
+            }),
+            expect.objectContaining({
+              id: "form-1",
+              tag: "input",
+              label: "One-time code"
+            })
+          ])
+        }
+      }
+    });
   });
 
   it("executes payload.action on safe pages and allows confirmed clicks on risky pages", async () => {

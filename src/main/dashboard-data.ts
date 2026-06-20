@@ -159,6 +159,10 @@ export function createDashboardSnapshot({
   if (runtimeSnapshot) {
     runtimeHealth.runtimeSnapshot = runtimeSnapshot;
   }
+  runtimeHealth.extension = {
+    ...(readRecord(runtimeHealth.extension) ?? {}),
+    pageControl: readDashboardPageControlEvidence(runtimeHealth, smokeEvidence.artifacts)
+  };
 
   return {
     schemaVersion: 1,
@@ -455,6 +459,7 @@ function createDashboardAlerts({
   const runtimeSnapshot = readRecord(runtimeHealth.runtimeSnapshot);
   const releaseDrift = readRecord(dogfoodRelease.releaseDrift);
   const finderSmoke = readDashboardFinderSmokeSummary(smokeEvidence.artifacts);
+  const pageControl = readDashboardPageControlEvidence(runtimeHealth, smokeEvidence.artifacts);
 
   if (permissions.screenRecording !== "granted") {
     alerts.push({
@@ -604,9 +609,34 @@ function createDashboardAlerts({
 
   if (extension?.state !== "connected") {
     alerts.push({
-      code: "extension-unknown",
+      code: "chrome-extension-not-connected",
       severity: "warning",
-      message: "Chrome extension connection is unknown."
+      message: "Chrome extension is not connected, so pageControl readiness cannot be trusted.",
+      ...(typeof extension?.state === "string" ? { extensionState: extension.state } : {})
+    });
+  } else if (pageControl.state === "not-probed") {
+    alerts.push({
+      code: "page-control-missing",
+      severity: "warning",
+      message: "Chrome extension is connected, but pageControl readiness has not been probed."
+    });
+  } else if (isDashboardPageControlPolicyBlocked(pageControl)) {
+    alerts.push({
+      code: "page-control-policy-blocked",
+      severity: "warning",
+      message: "Chrome pageControl is blocked by host policy or Chrome host permission.",
+      ...(typeof pageControl.state === "string" ? { state: pageControl.state } : {}),
+      ...(typeof pageControl.reason === "string" ? { reason: pageControl.reason } : {}),
+      ...(typeof pageControl.nextAction === "string" ? { nextAction: pageControl.nextAction } : {})
+    });
+  } else if (isDashboardPageControlUncontrollable(pageControl)) {
+    alerts.push({
+      code: "page-control-uncontrollable",
+      severity: "warning",
+      message: "Chrome pageControl has been probed but cannot control the active page.",
+      ...(typeof pageControl.state === "string" ? { state: pageControl.state } : {}),
+      ...(typeof pageControl.reason === "string" ? { reason: pageControl.reason } : {}),
+      ...(typeof pageControl.nextAction === "string" ? { nextAction: pageControl.nextAction } : {})
     });
   }
 
@@ -1489,6 +1519,7 @@ function readLatestSmokeArtifacts(
       ...readSmokeArtifactSetupGuideSummary(target, artifact),
       ...readSmokeArtifactNativeHostBridgeSummary(target, artifact),
       ...readSmokeArtifactInstalledExtensionSummary(target, artifact),
+      ...readSmokeArtifactPageControlSummary(target, artifact),
       ...readSmokeArtifactPageSafetySummary(target, artifact),
       ...readSmokeArtifactFinderSummary(target, artifact),
       mtimeMs,
@@ -1558,6 +1589,26 @@ function readSmokeArtifactInstalledExtensionSummary(
   };
 
   return Object.keys(installedExtension).length > 0 ? { installedExtension } : {};
+}
+
+function readSmokeArtifactPageControlSummary(
+  target: string,
+  artifact: Record<string, unknown>
+): Record<string, unknown> {
+  if (target !== "chrome") {
+    return {};
+  }
+
+  const pageControl = readDashboardPageControlFromCandidates([
+    readRecord(artifact.pageControl),
+    readRecord(artifact.chromePageControl),
+    readDashboardPageControlFromDiagnostics(readRecord(artifact.diagnostics)),
+    readDashboardPageControlFromDiagnostics(readRecord(artifact.extensionDiagnostics)),
+    readDashboardPageControlFromDiagnostics(readRecord(readRecord(artifact.installedExtensionRun)?.diagnostics)),
+    readDashboardPageControlFromDiagnostics(readRecord(readRecord(artifact.readinessDiagnostics)?.extensionDiagnostics))
+  ], "chrome-smoke");
+
+  return pageControl ? { pageControl } : {};
 }
 
 function readSmokeArtifactPageSafetySummary(
@@ -1905,6 +1956,288 @@ function readChromeFieldSelectors(fields: unknown[]): string[] {
   return fields
     .map((field) => readRecord(field)?.selector)
     .filter((selector): selector is string => typeof selector === "string" && selector.length > 0);
+}
+
+function readDashboardPageControlEvidence(
+  runtimeHealth: Record<string, unknown>,
+  artifacts: Array<Record<string, unknown>>
+): Record<string, unknown> {
+  return readDashboardPageControlFromRuntime(runtimeHealth)
+    ?? createDashboardPageControlSummary(
+      readRecord(artifacts.find((artifact) => artifact.target === "chrome")?.pageControl),
+      "chrome-smoke"
+    )
+    ?? createDashboardPageControlNotProbed();
+}
+
+function readDashboardPageControlFromRuntime(
+  runtimeHealth: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  const extension = readRecord(runtimeHealth.extension);
+  if (!extension) {
+    return undefined;
+  }
+
+  return readDashboardPageControlFromCandidates([
+    readRecord(extension.pageControl),
+    readDashboardPageControlFromDiagnostics(readRecord(extension.diagnostics)),
+    readRecord(readRecord(extension.currentTab)?.pageControl),
+    readRecord(readRecord(extension.session)?.pageControl)
+  ], "runtime-health");
+}
+
+function readDashboardPageControlFromDiagnostics(
+  diagnostics: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  return readRecord(diagnostics?.pageControl)
+    ?? readRecord(readRecord(diagnostics?.currentTab)?.pageControl)
+    ?? readRecord(readRecord(diagnostics?.session)?.pageControl);
+}
+
+function readDashboardPageControlFromCandidates(
+  candidates: unknown[],
+  source: string
+): Record<string, unknown> | undefined {
+  for (const candidate of candidates) {
+    const pageControl = createDashboardPageControlSummary(readRecord(candidate), source);
+    if (pageControl) {
+      return pageControl;
+    }
+  }
+
+  return undefined;
+}
+
+function createDashboardPageControlSummary(
+  pageControl: Record<string, unknown> | undefined,
+  source: string
+): Record<string, unknown> | undefined {
+  if (!pageControl) {
+    return undefined;
+  }
+
+  const state = readNonEmptyStringValue(pageControl.state) ?? "not-probed";
+  const capabilities = readDashboardPageControlCapabilities(readRecord(pageControl.capabilities));
+  const activeTab = readDashboardPageControlActiveTab(readRecord(pageControl.activeTab));
+  const contentScript = readDashboardPageControlContentScript(readRecord(pageControl.contentScript));
+  const blockers = readDashboardPageControlBlockers(pageControl.blockers);
+  const counts = readDashboardPageControlCounts(readRecord(pageControl.counts));
+  const reason = readNonEmptyStringValue(pageControl.reason)
+    ?? readNonEmptyStringValue(blockers[0]?.message)
+    ?? readNonEmptyStringValue(blockers[0]?.reason)
+    ?? (state === "not-probed" ? "Chrome pageControl readiness has not been probed yet." : undefined);
+  const nextAction = readNonEmptyStringValue(pageControl.nextAction)
+    ?? readNonEmptyStringValue(pageControl.guidance)
+    ?? readDashboardPageControlNextAction(state, capabilities, contentScript, blockers);
+  const summary: Record<string, unknown> = {
+    schemaVersion: typeof pageControl.schemaVersion === "number" ? pageControl.schemaVersion : 1,
+    state,
+    source,
+    capable: typeof pageControl.capable === "boolean"
+      ? pageControl.capable
+      : isDashboardPageControlCapable(state, capabilities),
+    reason: reason ?? "Chrome pageControl readiness has not reported a reason.",
+    ...(nextAction ? { nextAction } : {}),
+    ...(activeTab ? { activeTab } : {}),
+    ...(contentScript ? { contentScript } : {}),
+    capabilities,
+    ...(blockers.length > 0 ? { blockers } : {}),
+    ...(counts ? { counts } : {}),
+    ...(typeof pageControl.observedAt === "string" ? { observedAt: pageControl.observedAt } : {})
+  };
+
+  return summary;
+}
+
+function createDashboardPageControlNotProbed(): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    state: "not-probed",
+    source: "dashboard-empty",
+    capable: false,
+    reason: "Chrome pageControl readiness has not been probed yet.",
+    capabilities: {},
+    nextAction: "Probe pageControl readiness from Chrome extension diagnostics."
+  };
+}
+
+function readNonEmptyStringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function readDashboardPageControlCapabilities(
+  capabilities: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  if (!capabilities) {
+    return {};
+  }
+
+  return [
+    "diagnostics",
+    "observe",
+    "domActions",
+    "screenshot",
+    "click",
+    "fill",
+    "submit",
+    "scroll"
+  ].reduce<Record<string, unknown>>((summary, key) => {
+    const value = capabilities[key];
+    if (typeof value === "boolean" || typeof value === "string") {
+      summary[key] = value;
+    }
+    return summary;
+  }, {});
+}
+
+function readDashboardPageControlActiveTab(
+  activeTab: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!activeTab) {
+    return undefined;
+  }
+
+  const summary: Record<string, unknown> = {
+    ...(typeof activeTab.state === "string" ? { state: activeTab.state } : {}),
+    ...(Number.isInteger(activeTab.tabId) ? { tabId: activeTab.tabId } : {}),
+    ...(Number.isInteger(activeTab.windowId) ? { windowId: activeTab.windowId } : {}),
+    ...(typeof activeTab.host === "string" ? { host: activeTab.host } : {})
+  };
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
+}
+
+function readDashboardPageControlContentScript(
+  contentScript: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!contentScript) {
+    return undefined;
+  }
+
+  const summary: Record<string, unknown> = {
+    ...(typeof contentScript.state === "string" ? { state: contentScript.state } : {}),
+    ...(typeof contentScript.reason === "string" ? { reason: contentScript.reason } : {}),
+    ...(typeof contentScript.lastError === "string" ? { lastError: contentScript.lastError } : {})
+  };
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
+}
+
+function readDashboardPageControlBlockers(value: unknown): Array<Record<string, string>> {
+  return Array.isArray(value)
+    ? value
+      .map((entry) => readRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+      .map((entry) => ({
+        ...(typeof entry.code === "string" ? { code: entry.code } : {}),
+        ...(typeof entry.reason === "string" ? { reason: entry.reason } : {}),
+        ...(typeof entry.message === "string" ? { message: entry.message } : {})
+      }))
+      .filter((entry) => Object.keys(entry).length > 0)
+    : [];
+}
+
+function readDashboardPageControlCounts(
+  counts: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!counts) {
+    return undefined;
+  }
+
+  const summary = [
+    "interactiveElements",
+    "forms",
+    "fillableForms",
+    "sensitiveForms"
+  ].reduce<Record<string, unknown>>((record, key) => {
+    if (Number.isFinite(counts[key])) {
+      record[key] = counts[key];
+    }
+    return record;
+  }, {});
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
+}
+
+function readDashboardPageControlNextAction(
+  state: string,
+  capabilities: Record<string, unknown>,
+  contentScript: Record<string, unknown> | undefined,
+  blockers: Array<Record<string, string>>
+): string | undefined {
+  const blockerCode = blockers[0]?.code;
+  if (state === "not-probed") {
+    return "Probe pageControl readiness from Chrome extension diagnostics.";
+  }
+  if (state === "blocked_by_host_policy" || blockerCode === "blocked_by_host_policy") {
+    return "Allow the current host in dashboard Chrome policy, then rerun diagnostics.";
+  }
+  if (state === "blocked_by_chrome_host_permission" || blockerCode === "blocked_by_chrome_host_permission") {
+    return "Grant Chrome host permission for the current page, then rerun diagnostics.";
+  }
+  if (
+    state === "content_script_not_loaded"
+    || state === "not_loaded"
+    || contentScript?.state === "not_loaded"
+    || contentScript?.state === "not_queried"
+  ) {
+    return "Reload the active page or extension so the content script can report controls.";
+  }
+  if (state === "unavailable" || state === "active_tab_unavailable" || blockerCode === "active_tab_unavailable") {
+    return "Open an active Chrome tab and rerun extension diagnostics.";
+  }
+  if (!isDashboardPageControlCapable(state, capabilities)) {
+    return "Restore DOM actions or screenshot capability before using pageControl.";
+  }
+
+  return undefined;
+}
+
+function isDashboardPageControlCapable(
+  state: string,
+  capabilities: Record<string, unknown>
+): boolean {
+  const hasReadyCapability = [
+    capabilities.domActions,
+    capabilities.screenshot,
+    capabilities.click,
+    capabilities.fill,
+    capabilities.submit,
+    capabilities.scroll
+  ].some((value) => value === true || value === "background_required");
+
+  return ["ready", "sensitive-paused", "needs_confirmation"].includes(state) && hasReadyCapability;
+}
+
+function isDashboardPageControlPolicyBlocked(
+  pageControl: Record<string, unknown>
+): boolean {
+  const state = typeof pageControl.state === "string" ? pageControl.state : "";
+  const blockerCodes = Array.isArray(pageControl.blockers)
+    ? pageControl.blockers
+      .map((blocker) => readRecord(blocker)?.code)
+      .filter((code): code is string => typeof code === "string")
+    : [];
+
+  return state === "blocked_by_host_policy"
+    || state === "blocked_by_chrome_host_permission"
+    || blockerCodes.includes("blocked_by_host_policy")
+    || blockerCodes.includes("blocked_by_chrome_host_permission");
+}
+
+function isDashboardPageControlUncontrollable(
+  pageControl: Record<string, unknown>
+): boolean {
+  const state = typeof pageControl.state === "string" ? pageControl.state : "";
+  const capabilities = readRecord(pageControl.capabilities) ?? {};
+  const blockedStates = new Set([
+    "unavailable",
+    "active_tab_unavailable",
+    "content_script_not_loaded",
+    "not_loaded"
+  ]);
+
+  return blockedStates.has(state) || pageControl.capable === false || !isDashboardPageControlCapable(state, capabilities);
 }
 
 function createChromeExtensionBrowserSelectionSummary(

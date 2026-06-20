@@ -225,7 +225,7 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("configuredCommandUsed=true");
     expect(dashboardPlan).toContain("resolvedCommandPath");
     expect(dashboardPlan).toContain("smoke:codex-plugin -- --extension-id <id>");
-    expect(dashboardPlan).toContain("Chrome Native Messaging `nativeHost` state plus derived `extension` adapter state");
+    expect(dashboardPlan).toContain("Chrome Native Messaging `nativeHost` state, derived `extension` adapter state, and structured `extension.pageControl` readiness");
     expect(dashboardPlan).toContain("MCP initialize response now includes short safety instructions");
     expect(dashboardPlan).toContain("Codex plugin smoke now requires those initialize instructions");
     expect(dashboardPlan).toContain("OpenAI Codex plugin build docs");
