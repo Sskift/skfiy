@@ -26,6 +26,17 @@ export const SMOKE_TARGETS = [
 export type SmokeTarget = typeof SMOKE_TARGETS[number];
 export type ChromeSubcommand = "status" | "install-host" | "uninstall-host";
 
+const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
+  ui: "scripts/smoke-ui-product.mjs",
+  "desktop-session": "scripts/smoke-desktop-session.mjs",
+  ghostty: "scripts/smoke-ghostty-product.mjs",
+  chrome: "scripts/smoke-chrome-product.mjs",
+  dashboard: "scripts/smoke-dashboard-product.mjs",
+  finder: "scripts/smoke-finder-product.mjs",
+  voice: "scripts/smoke-voice-product.mjs",
+  "money-run": "scripts/smoke-money-run-supervision.mjs"
+};
+
 export interface CliCommandDefinition {
   path: string;
   summary: string;
@@ -82,7 +93,11 @@ export type CliCommandInvocation =
       target: SmokeTarget;
       json: boolean;
       outputPath: string;
-      options: Record<string, never>;
+      options: {
+        requirePassed: boolean;
+        scriptPath: string;
+        scriptArgs: string[];
+      };
     }
   | {
       kind: "release-check";
@@ -119,12 +134,26 @@ export interface SkfiyCliIo {
   write: (chunk: string) => unknown;
 }
 
+export interface SmokeRunnerInput {
+  target: SmokeTarget;
+  cwd: string;
+  scriptPath: string;
+  args: string[];
+}
+
+export interface SmokeRunnerResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
 export interface RunSkfiyCliInput {
   argv: string[];
   rootDir?: string;
   homeDir?: string;
   generatedAt?: string;
   chromeNativeHostIo?: ChromeNativeHostIo;
+  smokeRunner?: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
   dashboardServerStarter?: (input: { port: number }) => Promise<DashboardServer>;
   dashboardOpener?: (url: string) => Promise<void>;
   keepDashboardAlive?: boolean;
@@ -134,10 +163,10 @@ export interface RunSkfiyCliInput {
 
 const SMOKE_COMMANDS: CliCommandDefinition[] = SMOKE_TARGETS.map((target) => ({
   path: `smoke ${target}`,
-  summary: `Plan the ${target} smoke target and output artifact.`,
+  summary: `Run the ${target} smoke target and output artifact.`,
   jsonOutput: true,
-  plannedMutation: false,
-  executesSystemMutation: false,
+  plannedMutation: true,
+  executesSystemMutation: true,
   outputShape: "smoke"
 }));
 
@@ -283,14 +312,19 @@ export function normalizeCliCommand(
     if (!isSmokeTarget(target)) {
       return error("unknown-smoke-target", `Unknown smoke target: ${target ?? ""}`);
     }
+    const smokeArgv = argv.slice(2);
 
     return ok({
       kind: "smoke",
       path: `smoke ${target}`,
       target,
       json: argv.includes("--json"),
-      outputPath: resolveOptionPath(argv, "--output", rootDir, ""),
-      options: {}
+      outputPath: resolveOptionPath(smokeArgv, "--output", rootDir, ""),
+      options: {
+        requirePassed: smokeArgv.includes("--require-passed"),
+        scriptPath: createSmokeScriptPath(target, rootDir),
+        scriptArgs: createSmokeScriptArgs(smokeArgv, rootDir)
+      }
     });
   }
 
@@ -407,8 +441,10 @@ export function createCliOutput(
       generatedAt,
       target: invocation.target,
       outputPath: invocation.outputPath,
+      scriptPath: invocation.options.scriptPath,
+      scriptArgs: invocation.options.scriptArgs,
       result: "not-run",
-      executesSystemMutation: false
+      executesSystemMutation: true
     };
   }
 
@@ -439,6 +475,7 @@ export async function runSkfiyCli({
   homeDir,
   generatedAt,
   chromeNativeHostIo,
+  smokeRunner = runSmokeScript,
   dashboardServerStarter = startDashboardServer,
   dashboardOpener = openDashboardUrl,
   keepDashboardAlive = true,
@@ -459,6 +496,17 @@ export async function runSkfiyCli({
       generatedAt,
       homeDir: homeDir ?? process.env.HOME ?? "",
       io: chromeNativeHostIo,
+      stdout,
+      stderr
+    });
+  }
+
+  if (result.invocation.kind === "smoke") {
+    return runSmokeCli({
+      invocation: result.invocation,
+      generatedAt,
+      rootDir: normalizedRootDir,
+      smokeRunner,
       stdout,
       stderr
     });
@@ -494,6 +542,88 @@ export async function runSkfiyCli({
 
   stdout.write(`${JSON.stringify(createCliOutput(result.invocation, { generatedAt }), null, 2)}\n`);
   return 0;
+}
+
+async function runSmokeCli({
+  invocation,
+  generatedAt,
+  rootDir,
+  smokeRunner,
+  stdout,
+  stderr
+}: {
+  invocation: Extract<CliCommandInvocation, { kind: "smoke" }>;
+  generatedAt?: string;
+  rootDir: string;
+  smokeRunner: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
+  stdout: SkfiyCliIo;
+  stderr: SkfiyCliIo;
+}): Promise<number> {
+  let smokeResult: SmokeRunnerResult;
+
+  try {
+    smokeResult = await smokeRunner({
+      target: invocation.target,
+      cwd: rootDir,
+      scriptPath: invocation.options.scriptPath,
+      args: invocation.options.scriptArgs
+    });
+  } catch (error) {
+    stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    stdout.write(`${JSON.stringify({
+      ...createCliOutput(invocation, { generatedAt }),
+      result: "error",
+      exitCode: 1,
+      error: error instanceof Error ? error.message : String(error)
+    }, null, 2)}\n`);
+    return 1;
+  }
+
+  const smoke = parseSmokeJson(smokeResult.stdout);
+  const result = typeof smoke?.result === "string"
+    ? smoke.result
+    : smokeResult.exitCode === 0 ? "completed" : "failed";
+
+  stdout.write(`${JSON.stringify({
+    ...createCliOutput(invocation, { generatedAt }),
+    result,
+    exitCode: smokeResult.exitCode,
+    smoke,
+    smokeStderr: smokeResult.stderr
+  }, null, 2)}\n`);
+
+  return smokeResult.exitCode;
+}
+
+function runSmokeScript(input: SmokeRunnerInput): Promise<SmokeRunnerResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [
+      input.scriptPath,
+      ...input.args
+    ], {
+      cwd: input.cwd,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      resolve({
+        exitCode: code ?? 1,
+        stdout,
+        stderr
+      });
+    });
+  });
 }
 
 function openDashboardUrl(url: string): Promise<void> {
@@ -623,6 +753,56 @@ function isChromeSubcommand(value: string | undefined): value is ChromeSubcomman
 
 function isSmokeTarget(value: string | undefined): value is SmokeTarget {
   return SMOKE_TARGETS.includes(value as SmokeTarget);
+}
+
+function createSmokeScriptPath(target: SmokeTarget, rootDir: string): string {
+  return path.join(rootDir, ...SMOKE_SCRIPT_FILES[target].split("/"));
+}
+
+function createSmokeScriptArgs(argv: string[], rootDir: string): string[] {
+  const args: string[] = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+
+    if (arg === "--json") {
+      continue;
+    }
+
+    if (arg === "--output") {
+      const value = argv[index + 1];
+
+      if (value === undefined || value.startsWith("--")) {
+        args.push(arg);
+      } else {
+        args.push(arg, path.isAbsolute(value) ? value : path.resolve(rootDir, value));
+        index += 1;
+      }
+      continue;
+    }
+
+    args.push(arg);
+  }
+
+  return args;
+}
+
+function parseSmokeJson(stdout: string): Record<string, unknown> | undefined {
+  const trimmed = stdout.trim();
+
+  if (!trimmed) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function readNumberOption(argv: string[], name: string, fallback: number): number {

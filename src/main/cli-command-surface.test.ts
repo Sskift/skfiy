@@ -25,7 +25,7 @@ function expectInvocation(argv: string[], rootDir = "/repo") {
 }
 
 describe("CLI command surface", () => {
-  it("defines the planned operator commands without wiring system mutations", () => {
+  it("defines operator commands and marks mutation-capable commands explicitly", () => {
     const surface = createCliCommandSurface();
 
     expect(surface.schemaVersion).toBe(1);
@@ -62,6 +62,12 @@ describe("CLI command surface", () => {
         path: "alpha artifact",
         plannedMutation: true,
         executesSystemMutation: false
+      }),
+      expect.objectContaining({
+        path: "smoke dashboard",
+        summary: "Run the dashboard smoke target and output artifact.",
+        plannedMutation: true,
+        executesSystemMutation: true
       })
     ]));
     expect(SMOKE_TARGETS).toEqual([
@@ -205,7 +211,15 @@ describe("CLI command surface", () => {
       kind: "smoke",
       path: "smoke dashboard",
       target: "dashboard",
-      outputPath: "/repo/.skfiy-smoke/dashboard.json"
+      outputPath: "/repo/.skfiy-smoke/dashboard.json",
+      options: {
+        requirePassed: false,
+        scriptPath: "/repo/scripts/smoke-dashboard-product.mjs",
+        scriptArgs: [
+          "--output",
+          "/repo/.skfiy-smoke/dashboard.json"
+        ]
+      }
     });
     expect(release).toMatchObject({
       kind: "release-check",
@@ -220,7 +234,13 @@ describe("CLI command surface", () => {
       command: "smoke dashboard",
       target: "dashboard",
       outputPath: "/repo/.skfiy-smoke/dashboard.json",
-      result: "not-run"
+      scriptPath: "/repo/scripts/smoke-dashboard-product.mjs",
+      scriptArgs: [
+        "--output",
+        "/repo/.skfiy-smoke/dashboard.json"
+      ],
+      result: "not-run",
+      executesSystemMutation: true
     });
     expect(createCliOutput(release)).toMatchObject({
       command: "release check",
@@ -232,6 +252,77 @@ describe("CLI command surface", () => {
       result: "not-run",
       executesSystemMutation: false
     });
+  });
+
+  it("runs product smoke scripts through the shared CLI entrypoint", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const smokeRuns: Array<{
+      cwd: string;
+      scriptPath: string;
+      args: string[];
+      target: string;
+    }> = [];
+
+    await expect(runSkfiyCli({
+      argv: [
+        "smoke",
+        "dashboard",
+        "--output",
+        ".skfiy-smoke/dashboard-cli.json",
+        "--require-passed",
+        "--json"
+      ],
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      smokeRunner: async (input) => {
+        smokeRuns.push(input);
+        return {
+          exitCode: 0,
+          stdout: `${JSON.stringify({
+            result: "passed",
+            productPath: "dist/skfiy -> skfiy dashboard -> loopback dashboard server",
+            runnerHasTmux: false
+          }, null, 2)}\n`,
+          stderr: ""
+        };
+      },
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(smokeRuns).toEqual([
+      {
+        target: "dashboard",
+        cwd: "/repo",
+        scriptPath: "/repo/scripts/smoke-dashboard-product.mjs",
+        args: [
+          "--output",
+          "/repo/.skfiy-smoke/dashboard-cli.json",
+          "--require-passed"
+        ]
+      }
+    ]);
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      schemaVersion: 1,
+      command: "smoke dashboard",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      target: "dashboard",
+      outputPath: "/repo/.skfiy-smoke/dashboard-cli.json",
+      scriptPath: "/repo/scripts/smoke-dashboard-product.mjs",
+      scriptArgs: [
+        "--output",
+        "/repo/.skfiy-smoke/dashboard-cli.json",
+        "--require-passed"
+      ],
+      result: "passed",
+      exitCode: 0,
+      smoke: {
+        result: "passed",
+        runnerHasTmux: false
+      }
+    });
+    expect(stderr).toEqual([]);
   });
 
   it("reports unknown commands and smoke targets without throwing", () => {

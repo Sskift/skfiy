@@ -30,7 +30,9 @@ Commands represented:
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
 
-Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`; the remaining mutating-looking commands still return plan/skeleton output.
+Mutating-looking commands are explicit subcommands. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
+
+`skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`.
 
 ## Dashboard Descriptor
 

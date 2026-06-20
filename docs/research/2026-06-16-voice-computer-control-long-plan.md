@@ -488,7 +488,7 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] implement `skfiy chrome status|install-host|uninstall-host` for Chrome Native Messaging setup
     - partial: command surface, status, install, and uninstall now mutate/read the user-level Chrome Native Messaging manifest for an explicit `--extension-id`; broader Chrome extension connection health and native message bridge runtime are still pending
   - [ ] wrap product smokes behind `skfiy smoke <target>` while keeping npm scripts for development
-    - partial: command normalization exists for all smoke targets, now including `dashboard`; command execution wrappers remain pending
+    - partial: command normalization and script execution wrappers exist for all smoke targets, now including `dashboard`; the current wrapper runs the repo-local smoke scripts directly with Node instead of npm, so installed-app packaging of smoke runners remains pending
   - [ ] add tests that every CLI command can run outside tmux and that `--json` output is stable for the dashboard
     - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; product binary execution tests remain pending
 - [ ] Add local dashboard/control UI
