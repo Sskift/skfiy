@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "skfiy": {
+      "command": "skfiy",
+      "args": [
+        "mcp",
+        "serve",
+        "--stdio"
+      ],
+      "env": {
+        "SKFIY_MCP_SOURCE": "codex-plugin"
+      }
+    }
+  }
+}

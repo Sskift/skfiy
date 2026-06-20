@@ -1,0 +1,40 @@
+{
+  "name": "skfiy",
+  "version": "0.1.0",
+  "description": "Voice-first desktop Computer Use runtime for permissioned macOS app control.",
+  "author": {
+    "name": "Sskift"
+  },
+  "homepage": "https://github.com/Sskift/skfiy",
+  "repository": "https://github.com/Sskift/skfiy",
+  "license": "UNLICENSED",
+  "keywords": [
+    "computer-use",
+    "desktop-control",
+    "voice",
+    "macos"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "skfiy",
+    "shortDescription": "Control the skfiy desktop Computer Use runtime.",
+    "longDescription": "skfiy lets Codex inspect the installed skfiy runtime, read permission and diagnostic state, and prepare permissioned desktop Computer Use turns through the packaged skfiy app and CLI.",
+    "developerName": "Sskift",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "websiteURL": "https://github.com/Sskift/skfiy",
+    "defaultPrompt": [
+      "Check skfiy desktop control readiness",
+      "Open the skfiy operator dashboard",
+      "Review skfiy Computer Use diagnostics"
+    ],
+    "brandColor": "#10A37F",
+    "composerIcon": "./assets/skfiy-composer.svg",
+    "logo": "./assets/skfiy-logo.svg",
+    "screenshots": []
+  }
+}

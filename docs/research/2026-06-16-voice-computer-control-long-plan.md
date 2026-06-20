@@ -523,11 +523,11 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
 - [ ] Add Codex plugin adapter after the standalone binary runtime is stable
   - [x] Research Codex plugin implementation before planning the adapter
     - findings: Codex plugins bundle skills, app integrations, MCP servers, lifecycle hooks, and assets; `.codex-plugin/plugin.json` is the entry point; marketplace entries govern install/auth policy; installed copies are loaded from `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`; the local Chrome plugin's Codex package is separate from the browser extension and native host it installs
-  - [ ] build a `skfiy` Codex plugin scaffold only after the binary runtime is stable
-    - scaffold must include `.codex-plugin/plugin.json`, a `skills/control-skfiy/SKILL.md` workflow, optional `.mcp.json`, icon assets, and no automatic desktop-control hook
+  - [x] build a `skfiy` Codex plugin scaffold only after the binary runtime is stable
+    - scaffold lives under `plugins/skfiy/` with `.codex-plugin/plugin.json`, `skills/control-skfiy/SKILL.md`, `.mcp.json`, SVG icon assets, and no automatic desktop-control hook; `plugin-creator` validation passes and the MCP config points at the installed `skfiy mcp serve --stdio` command
   - [ ] expose a plugin-safe MCP/app command surface backed by the installed `skfiy` binary
     - required commands: `skfiy status --json`, `skfiy doctor --json`, `skfiy mcp serve --stdio`, `skfiy dashboard --no-open --json`, `skfiy smoke <target> --output <path> --json`
-    - partial: `skfiy mcp serve --stdio` is now part of the CLI command surface, with JSON-safe smoke output, newline-delimited JSON-RPC stdio transport, and MCP handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`; binary smoke now sends real stdio JSON-RPC to `dist/skfiy` and receives MCP responses; the remaining gap is plugin scaffold creation plus installed-plugin smoke evidence
+    - partial: `skfiy mcp serve --stdio` is now part of the CLI command surface, with JSON-safe smoke output, newline-delimited JSON-RPC stdio transport, and MCP handlers for `initialize`, `tools/list`, `tools/call skfiy.status`, and `tools/call skfiy.doctor`; binary smoke now sends real stdio JSON-RPC to `dist/skfiy` and receives MCP responses; the remaining gap is installed-plugin smoke evidence
   - [ ] add plugin validation and smoke evidence
     - acceptance: plugin manifest validates, Codex can discover the skill, plugin-scoped MCP can read status, and a disabled plugin does not break the standalone desktop app
 - [ ] Add local dashboard/control UI
