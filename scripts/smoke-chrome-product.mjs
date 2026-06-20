@@ -22,7 +22,8 @@ import {
   INSTALLED_EXTENSION_PRODUCT_PATH,
   NATIVE_HOST_BRIDGE_PRODUCT_PATH,
   parseChromeSmokeArgs,
-  PRODUCT_PATH
+  PRODUCT_PATH,
+  selectInstalledExtensionChromeApp
 } from "./smoke-chrome-plan.mjs";
 import { writeSmokeEvidence } from "./smoke-ghostty-plan.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
@@ -519,6 +520,12 @@ async function runInstalledChromeExtensionSmoke(options) {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "skfiy-chrome-extension-smoke-"));
   const chromeUserDataDir = path.join(tempRoot, "chrome-profile");
   const chromePort = options.chromePort + 2000;
+  const browserSelection = selectInstalledExtensionChromeApp({
+    chromeAppName: options.chromeAppName,
+    extensionChromeAppName: options.extensionChromeAppName,
+    availableAppNames: discoverInstalledExtensionChromeAppNames()
+  });
+  const extensionChromeAppName = browserSelection.chromeAppName;
   const heartbeatPath = path.join(
     homeDir,
     "Library",
@@ -536,7 +543,7 @@ async function runInstalledChromeExtensionSmoke(options) {
 
   try {
     await launchChromeWithExtension({
-      chromeAppName: options.chromeAppName,
+      chromeAppName: extensionChromeAppName,
       chromeUserDataDir,
       chromePort,
       extensionPath
@@ -544,7 +551,8 @@ async function runInstalledChromeExtensionSmoke(options) {
     const firstWorker = await findSkfiyExtensionWorker(chromePort, options.timeoutMs);
     if (!firstWorker.worker) {
       return createInstalledExtensionLoadBlockedRun({
-        options,
+        chromeAppName: extensionChromeAppName,
+        browserSelection,
         chromePort,
         chromeUserDataDir,
         extensionPath,
@@ -559,18 +567,18 @@ async function runInstalledChromeExtensionSmoke(options) {
     await killChromeSmokeProcesses(chromeUserDataDir);
     await sleep(500);
 
-    manifestPath = createNativeMessagingHostManifestPath(homeDir, options.chromeAppName);
+    manifestPath = createNativeMessagingHostManifestPath(homeDir, extensionChromeAppName);
     manifestBackup = await readOptionalFile(manifestPath);
     heartbeatBackup = await readOptionalFile(heartbeatPath);
     await writeNativeMessagingHostManifest({
       homeDir,
       cliPath: options.cliPath,
       extensionId,
-      chromeAppName: options.chromeAppName
+      chromeAppName: extensionChromeAppName
     });
 
     await launchChromeWithExtension({
-      chromeAppName: options.chromeAppName,
+      chromeAppName: extensionChromeAppName,
       chromeUserDataDir,
       chromePort,
       extensionPath
@@ -579,7 +587,8 @@ async function runInstalledChromeExtensionSmoke(options) {
     const secondWorker = await findSkfiyExtensionWorker(chromePort, options.timeoutMs);
     if (!secondWorker.worker) {
       return createInstalledExtensionLoadBlockedRun({
-        options,
+        chromeAppName: extensionChromeAppName,
+        browserSelection,
         chromePort,
         chromeUserDataDir,
         extensionPath,
@@ -622,7 +631,13 @@ async function runInstalledChromeExtensionSmoke(options) {
     return {
       result: passed ? "passed" : "failed",
       productPath: INSTALLED_EXTENSION_PRODUCT_PATH,
-      chromeLaunch: formatChromeExtensionLaunchCommand(options.chromeAppName, chromePort, chromeUserDataDir, extensionPath),
+      chromeLaunch: formatChromeExtensionLaunchCommand(
+        extensionChromeAppName,
+        chromePort,
+        chromeUserDataDir,
+        extensionPath
+      ),
+      browserSelection,
       chromePort,
       extensionPath,
       extensionPageUrl,
@@ -641,6 +656,7 @@ async function runInstalledChromeExtensionSmoke(options) {
       result: "error",
       productPath: INSTALLED_EXTENSION_PRODUCT_PATH,
       extensionPath,
+      browserSelection,
       chromePort,
       ...(extensionId ? { extensionId } : {}),
       ...(launchOrigin ? { launchOrigin } : {}),
@@ -728,6 +744,23 @@ function readChromeNativeMessagingSupportRoot(chromeAppName) {
   return ["Google", "Chrome"];
 }
 
+function discoverInstalledExtensionChromeAppNames() {
+  const appNames = [
+    "Google Chrome for Testing",
+    "Chromium",
+    "Google Chrome"
+  ];
+
+  return appNames.filter((appName) => isMacAppInstalled(appName));
+}
+
+function isMacAppInstalled(appName) {
+  return [
+    path.join("/Applications", `${appName}.app`),
+    path.join(os.homedir(), "Applications", `${appName}.app`)
+  ].some((appPath) => existsSync(appPath));
+}
+
 function formatChromeExtensionLaunchCommand(chromeAppName, chromePort, chromeUserDataDir, extensionPath) {
   return `open -na ${chromeAppName} --args --remote-debugging-port=${chromePort} --user-data-dir=${chromeUserDataDir} --load-extension=${extensionPath}`;
 }
@@ -754,7 +787,8 @@ async function restoreOptionalFile(targetPath, backup) {
 }
 
 function createInstalledExtensionLoadBlockedRun({
-  options,
+  chromeAppName,
+  browserSelection,
   chromePort,
   chromeUserDataDir,
   extensionPath,
@@ -763,7 +797,7 @@ function createInstalledExtensionLoadBlockedRun({
   diagnostic
 }) {
   const blockedReason = isBrandedChromeLoadExtensionRemoved({
-    chromeAppName: options.chromeAppName,
+    chromeAppName,
     chromeVersion: diagnostic.chromeVersion
   })
     ? "branded_chrome_load_extension_removed"
@@ -773,11 +807,12 @@ function createInstalledExtensionLoadBlockedRun({
     result: blockedReason === "branded_chrome_load_extension_removed" ? "blocked" : "error",
     productPath: INSTALLED_EXTENSION_PRODUCT_PATH,
     chromeLaunch: formatChromeExtensionLaunchCommand(
-      options.chromeAppName,
+      chromeAppName,
       chromePort,
       chromeUserDataDir,
       extensionPath
     ),
+    browserSelection,
     chromePort,
     chromeVersion: diagnostic.chromeVersion,
     extensionPath,

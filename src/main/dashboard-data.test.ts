@@ -198,6 +198,13 @@ describe("dashboard snapshot data", () => {
         installedExtensionRun: {
           result: "blocked",
           productPath: "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat",
+          browserSelection: {
+            chromeAppName: "Google Chrome",
+            source: "fallback-primary-browser",
+            loadExtensionFriendly: false,
+            availableAppNames: ["Google Chrome"],
+            candidateAppNames: ["Google Chrome for Testing", "Chromium"]
+          },
           chromeVersion: "Chrome/146.0.7680.80",
           blockedReason: "branded_chrome_load_extension_removed",
           recommendedBrowser: "Chrome for Testing or Chromium",
@@ -231,6 +238,13 @@ describe("dashboard snapshot data", () => {
         installedExtensionRun: {
           result: "blocked",
           productPath: "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat",
+          browserSelection: {
+            chromeAppName: "Google Chrome",
+            source: "fallback-primary-browser",
+            loadExtensionFriendly: false,
+            availableAppNames: ["Google Chrome"],
+            candidateAppNames: ["Google Chrome for Testing", "Chromium"]
+          },
           chromeVersion: "Chrome/146.0.7680.80",
           blockedReason: "branded_chrome_load_extension_removed",
           recommendedBrowser: "Chrome for Testing or Chromium",
@@ -731,6 +745,13 @@ describe("dashboard snapshot data", () => {
         installedExtension: {
           result: "blocked",
           productPath: "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat",
+          browserSelection: {
+            chromeAppName: "Google Chrome",
+            source: "fallback-primary-browser",
+            loadExtensionFriendly: false,
+            availableAppNames: ["Google Chrome"],
+            candidateAppNames: ["Google Chrome for Testing", "Chromium"]
+          },
           chromeVersion: "Chrome/146.0.7680.80",
           blockedReason: "branded_chrome_load_extension_removed",
           recommendedBrowser: "Chrome for Testing or Chromium",

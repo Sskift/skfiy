@@ -436,10 +436,16 @@ function hasChromeInstalledExtensionSmokeEvidence(artifacts) {
 
   return artifacts.some((artifact) => {
     const installedExtension = artifact?.installedExtension;
+    const browserSelection = installedExtension?.browserSelection;
+    const hasBrowserSelection = typeof browserSelection?.chromeAppName === "string"
+      && typeof browserSelection?.source === "string"
+      && typeof browserSelection?.loadExtensionFriendly === "boolean"
+      && Array.isArray(browserSelection?.candidateAppNames);
 
     if (
       artifact?.target !== "chrome"
       || installedExtension?.productPath !== "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat"
+      || !hasBrowserSelection
     ) {
       return false;
     }

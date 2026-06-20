@@ -1210,9 +1210,13 @@ function readSmokeArtifactInstalledExtensionSummary(
       .map((entry) => readRecord(entry)?.manifestName)
       .filter((name): name is string => typeof name === "string")
     : [];
+  const browserSelection = createChromeExtensionBrowserSelectionSummary(
+    readRecord(run.browserSelection)
+  );
   const installedExtension: Record<string, unknown> = {
     ...(typeof run.result === "string" ? { result: run.result } : {}),
     ...(typeof run.productPath === "string" ? { productPath: run.productPath } : {}),
+    ...(browserSelection ? { browserSelection } : {}),
     ...(typeof run.chromeVersion === "string" ? { chromeVersion: run.chromeVersion } : {}),
     ...(typeof run.blockedReason === "string" ? { blockedReason: run.blockedReason } : {}),
     ...(typeof run.recommendedBrowser === "string" ? { recommendedBrowser: run.recommendedBrowser } : {}),
@@ -1220,6 +1224,30 @@ function readSmokeArtifactInstalledExtensionSummary(
   };
 
   return Object.keys(installedExtension).length > 0 ? { installedExtension } : {};
+}
+
+function createChromeExtensionBrowserSelectionSummary(
+  selection: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!selection) {
+    return undefined;
+  }
+
+  const summary = {
+    ...(typeof selection.chromeAppName === "string" ? { chromeAppName: selection.chromeAppName } : {}),
+    ...(typeof selection.source === "string" ? { source: selection.source } : {}),
+    ...(typeof selection.loadExtensionFriendly === "boolean"
+      ? { loadExtensionFriendly: selection.loadExtensionFriendly }
+      : {}),
+    ...(Array.isArray(selection.availableAppNames)
+      ? { availableAppNames: selection.availableAppNames.filter((name): name is string => typeof name === "string") }
+      : {}),
+    ...(Array.isArray(selection.candidateAppNames)
+      ? { candidateAppNames: selection.candidateAppNames.filter((name): name is string => typeof name === "string") }
+      : {})
+  };
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
 }
 
 function readSmokeArtifactNativeHostBridgeSummary(

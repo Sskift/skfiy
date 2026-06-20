@@ -162,8 +162,11 @@ heartbeat from `chrome-extension-connection.json`. The dashboard also exposes
 same Chrome host policy used by the CLI and MV3 native-host bridge. The Chrome smoke now also
 records `installedExtensionRun`; on this machine it is a known blocker because
 branded `Google Chrome` 146 no longer honors automated `--load-extension`
-unpacked extension loading, so the live extension path needs Chrome for Testing,
-Chromium, or a user-installed skfiy extension id before it can pass.
+unpacked extension loading, so `smoke:chrome` now auto-prefers Google Chrome for
+Testing or Chromium for the installed-extension proof when either app is
+available. Use `--extension-chrome-app <name>` to force that browser; otherwise
+the live extension path remains a clear environment blocker on machines with
+only branded Chrome.
 `smoke:chrome` now also requires `nativeHostBridgeRun.result: passed` from the
 packaged `dist/skfiy -> Chrome Native Messaging heartbeat` path before Chrome
 browser-control evidence can count as passed.

@@ -36,7 +36,8 @@ describe("Chrome product smoke script", () => {
       PRODUCT_PATH,
       createDefaultChromeSmokeOptions,
       createHelpText,
-      parseChromeSmokeArgs
+      parseChromeSmokeArgs,
+      selectInstalledExtensionChromeApp
     } = await import(pathToFileURL(modulePath).href) as {
       FALLBACK_PRODUCT_PATH: string;
       FALLBACK_SWITCH_PRODUCT_PATH: string;
@@ -51,6 +52,7 @@ describe("Chrome product smoke script", () => {
         argv: string[],
         defaults: Record<string, unknown>
       ) => Record<string, unknown>;
+      selectInstalledExtensionChromeApp: (input: Record<string, unknown>) => Record<string, unknown>;
     };
 
     expect(PRODUCT_PATH).toBe("renderer -> preload -> main -> CDP -> Chrome");
@@ -79,9 +81,47 @@ describe("Chrome product smoke script", () => {
       currentPageEndpoint: "http://127.0.0.1:9222",
       outputPath: path.resolve(".skfiy-smoke/chrome-real-page.json")
     });
+    expect(parseChromeSmokeArgs(
+      [
+        "--extension-chrome-app",
+        "Google Chrome for Testing",
+        "--output",
+        ".skfiy-smoke/chrome-cft.json"
+      ],
+      createDefaultChromeSmokeOptions("/repo")
+    )).toMatchObject({
+      extensionChromeAppName: "Google Chrome for Testing",
+      outputPath: path.resolve(".skfiy-smoke/chrome-cft.json")
+    });
+    expect(selectInstalledExtensionChromeApp({
+      chromeAppName: "Google Chrome",
+      availableAppNames: ["Google Chrome for Testing", "Google Chrome"]
+    })).toMatchObject({
+      chromeAppName: "Google Chrome for Testing",
+      source: "auto-discovered-loadable-browser",
+      loadExtensionFriendly: true
+    });
+    expect(selectInstalledExtensionChromeApp({
+      chromeAppName: "Google Chrome",
+      extensionChromeAppName: "Chromium",
+      availableAppNames: ["Google Chrome for Testing"]
+    })).toMatchObject({
+      chromeAppName: "Chromium",
+      source: "explicit-extension-chrome-app"
+    });
+    expect(selectInstalledExtensionChromeApp({
+      chromeAppName: "Google Chrome"
+    })).toMatchObject({
+      chromeAppName: "Google Chrome",
+      source: "fallback-primary-browser",
+      recommendedBrowser: "Chrome for Testing or Chromium"
+    });
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain("smoke:chrome");
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
       "--current-page-endpoint"
+    );
+    expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
+      "--extension-chrome-app"
     );
     expect(classifyChromeFallbackSmokeEvidence({
       appLaunchViaOpen: true,
@@ -291,6 +331,9 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("runInstalledChromeExtensionSmoke");
     expect(source).toContain("--load-extension=");
     expect(source).toContain("chrome.runtime.connectNative");
+    expect(source).toContain("selectInstalledExtensionChromeApp");
+    expect(source).toContain("discoverInstalledExtensionChromeAppNames");
+    expect(source).toContain("browserSelection");
     expect(source).toContain("findSkfiyExtensionWorker");
     expect(source).toContain("hostPolicyResponse");
     expect(source).toContain("skfiy.host_policy.request");

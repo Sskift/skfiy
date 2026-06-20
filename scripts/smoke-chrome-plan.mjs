@@ -13,6 +13,10 @@ export const NATIVE_HOST_BRIDGE_PRODUCT_PATH =
   "dist/skfiy -> Chrome Native Messaging heartbeat";
 export const INSTALLED_EXTENSION_PRODUCT_PATH =
   "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat";
+export const INSTALLED_EXTENSION_CHROME_APP_CANDIDATES = [
+  "Google Chrome for Testing",
+  "Chromium"
+];
 export const FALLBACK_PRODUCT_PATH =
   "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback";
 export const FALLBACK_SWITCH_PRODUCT_PATH =
@@ -23,6 +27,7 @@ export function createDefaultChromeSmokeOptions(rootDir) {
     appPath: path.join(rootDir, "dist", "skfiy.app"),
     cliPath: path.join(rootDir, "dist", "skfiy"),
     chromeAppName: "Google Chrome",
+    extensionChromeAppName: undefined,
     port: DEFAULT_PORT,
     chromePort: DEFAULT_CHROME_PORT,
     timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -53,6 +58,10 @@ export function parseChromeSmokeArgs(argv, defaults) {
         break;
       case "--chrome-app":
         options.chromeAppName = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--extension-chrome-app":
+        options.extensionChromeAppName = readValue(argv, index, arg);
         index += 1;
         break;
       case "--port":
@@ -109,6 +118,8 @@ Options:
   --app <path>          App bundle path. Default: ${defaults.appPath}
   --cli <path>          Packaged CLI path for Native Messaging heartbeat. Default: ${defaults.cliPath}
   --chrome-app <name>   macOS Chrome app name. Default: ${defaults.chromeAppName}
+  --extension-chrome-app <name>
+                        Browser app for installed-extension smoke. Auto-prefers Chrome for Testing/Chromium when available.
   --port <number>       Electron remote debugging port. Default: ${defaults.port}
   --chrome-port <num>   Chrome DevTools Protocol port. Default: ${defaults.chromePort}
   --timeout-ms <number> Renderer and Chrome wait timeout. Default: ${defaults.timeoutMs}
@@ -121,6 +132,59 @@ Options:
   --keep-open           Leave skfiy open after the smoke run.
   -h, --help            Show this help.
 `;
+}
+
+export function selectInstalledExtensionChromeApp({
+  chromeAppName,
+  extensionChromeAppName,
+  availableAppNames = []
+}) {
+  const normalizedAvailable = availableAppNames.filter((name) => typeof name === "string");
+  const candidates = INSTALLED_EXTENSION_CHROME_APP_CANDIDATES;
+
+  if (extensionChromeAppName) {
+    return {
+      chromeAppName: extensionChromeAppName,
+      source: "explicit-extension-chrome-app",
+      loadExtensionFriendly: isLoadExtensionFriendlyChromeAppName(extensionChromeAppName),
+      candidateAppNames: candidates,
+      availableAppNames: normalizedAvailable
+    };
+  }
+
+  if (isLoadExtensionFriendlyChromeAppName(chromeAppName)) {
+    return {
+      chromeAppName,
+      source: "primary-browser",
+      loadExtensionFriendly: true,
+      candidateAppNames: candidates,
+      availableAppNames: normalizedAvailable
+    };
+  }
+
+  const discovered = candidates.find((candidate) => normalizedAvailable.includes(candidate));
+  if (discovered) {
+    return {
+      chromeAppName: discovered,
+      source: "auto-discovered-loadable-browser",
+      loadExtensionFriendly: true,
+      candidateAppNames: candidates,
+      availableAppNames: normalizedAvailable
+    };
+  }
+
+  return {
+    chromeAppName,
+    source: "fallback-primary-browser",
+    loadExtensionFriendly: isLoadExtensionFriendlyChromeAppName(chromeAppName),
+    candidateAppNames: candidates,
+    availableAppNames: normalizedAvailable,
+    recommendedBrowser: "Chrome for Testing or Chromium"
+  };
+}
+
+export function isLoadExtensionFriendlyChromeAppName(chromeAppName) {
+  return /Chrome for Testing|Chromium/i.test(String(chromeAppName ?? ""));
 }
 
 export function classifyChromeSmokeEvidence({
