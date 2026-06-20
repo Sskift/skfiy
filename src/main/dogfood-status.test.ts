@@ -3701,7 +3701,8 @@ function createManifest({
 }) {
   const requiredEvidence = [
     "Long-horizon money-run supervision evidence",
-    "Chrome Native Messaging heartbeat evidence"
+    "Chrome Native Messaging heartbeat evidence",
+    "Chrome installed-extension smoke evidence"
   ];
 
   if (includePanicStopProductPathEvidence) {

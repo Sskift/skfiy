@@ -281,7 +281,7 @@ body:
     id: chrome_extraction
     attributes:
       label: Chrome extracted text
-      description: Paste Chrome smoke product path, Native Messaging heartbeat evidence, extractedText, navigate/extract verification events, current-page observation evidence, optional real current-page BYO observation evidence, sensitive-page/form pause evidence, and screenshot fallback switching evidence.
+      description: Paste Chrome smoke product path, Native Messaging heartbeat evidence, installedExtensionRun evidence, extractedText, navigate/extract verification events, current-page observation evidence, optional real current-page BYO observation evidence, sensitive-page/form pause evidence, and screenshot fallback switching evidence.
       placeholder: |
         nativeHostBridgeRun.result: passed
         nativeHostBridgeRun.productPath: dist/skfiy -> Chrome Native Messaging heartbeat
@@ -289,6 +289,10 @@ body:
         nativeHostBridgeRun.heartbeat.hostName: com.sskift.skfiy
         nativeHostBridgeRun.heartbeat.messageType: skfiy.page.observe
         nativeHostBridgeRun.heartbeat.requestId: chrome-smoke-native-host
+        installedExtensionRun.productPath: Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat
+        installedExtensionRun.result: passed or blocked
+        installedExtensionRun.blockedReason: branded_chrome_load_extension_removed
+        installedExtensionRun.recommendedBrowser: Chrome for Testing or Chromium
         productPath: renderer -> preload -> main -> CDP -> Chrome
         extractedText: skfiy chrome smoke ready
         Verified navigate: Navigated to: ...

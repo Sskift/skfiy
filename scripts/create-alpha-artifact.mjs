@@ -39,6 +39,7 @@ const DOGFOOD_EVIDENCE = [
   "Chrome app policy settings",
   "Chrome test-page extraction evidence",
   "Chrome Native Messaging heartbeat evidence",
+  "Chrome installed-extension smoke evidence",
   "Chrome current-page observation evidence",
   "Chrome sensitive-page pause evidence",
   "Chrome form action evidence",

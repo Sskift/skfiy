@@ -14,6 +14,7 @@ const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onbo
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 const CHROME_PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
 const CHROME_NATIVE_HOST_BRIDGE_PRODUCT_PATH = "dist/skfiy -> Chrome Native Messaging heartbeat";
+const CHROME_INSTALLED_EXTENSION_PRODUCT_PATH = "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat";
 const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
 const FINDER_ITEM_DRAG_DROP_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder";
 const FINDER_DRAG_PROBE_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
@@ -257,6 +258,13 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     Array.isArray(manifest?.requiredDogfoodEvidence)
       && manifest.requiredDogfoodEvidence.includes("Chrome Native Messaging heartbeat evidence"),
     "manifest must require Chrome Native Messaging heartbeat evidence"
+  );
+  check(
+    checks,
+    "manifest.requiredDogfoodEvidence.chromeInstalledExtension",
+    Array.isArray(manifest?.requiredDogfoodEvidence)
+      && manifest.requiredDogfoodEvidence.includes("Chrome installed-extension smoke evidence"),
+    "manifest must require Chrome installed-extension smoke evidence"
   );
   check(
     checks,
@@ -748,6 +756,12 @@ function verifyChromeSmoke(artifact, expectedPath, options, checks) {
     "chrome.nativeHostBridge",
     hasChromeNativeHostBridgeEvidence(artifact.nativeHostBridgeRun),
     "Chrome smoke must include packaged Native Messaging heartbeat evidence"
+  );
+  check(
+    checks,
+    "chrome.installedExtension",
+    hasChromeInstalledExtensionEvidence(artifact.installedExtensionRun),
+    "Chrome smoke must include installed-extension Native Messaging evidence or a known Chrome load-extension blocker"
   );
   check(
     checks,
@@ -1541,6 +1555,59 @@ function hasChromeNativeHostBridgeEvidence(value) {
     && value.heartbeat?.requestId === "chrome-smoke-native-host";
 }
 
+function hasChromeInstalledExtensionEvidence(value) {
+  if (!value || typeof value !== "object" || value.productPath !== CHROME_INSTALLED_EXTENSION_PRODUCT_PATH) {
+    return false;
+  }
+
+  if (value.result === "passed") {
+    return hasPassedChromeInstalledExtensionEvidence(value);
+  }
+
+  if (value.result === "blocked") {
+    return hasKnownChromeInstalledExtensionBlockerEvidence(value);
+  }
+
+  return false;
+}
+
+function hasPassedChromeInstalledExtensionEvidence(value) {
+  const extensionId = typeof value.extensionId === "string" ? value.extensionId : "";
+  return isChromeExtensionId(extensionId)
+    && typeof value.extensionPath === "string"
+    && value.extensionPath.length > 0
+    && value.launchOrigin === `chrome-extension://${extensionId}/`
+    && value.response?.type === "skfiy.native.response"
+    && value.response?.requestId === "chrome-smoke-installed-extension"
+    && value.response?.result === "accepted"
+    && typeof value.heartbeatPath === "string"
+    && value.heartbeatPath.includes("Application Support/skfiy/chrome-extension-connection.json")
+    && value.heartbeat?.hostName === "com.sskift.skfiy"
+    && value.heartbeat?.launchOrigin === `chrome-extension://${extensionId}/`
+    && value.heartbeat?.messageType === "skfiy.page.observe"
+    && value.heartbeat?.requestId === "chrome-smoke-installed-extension";
+}
+
+function hasKnownChromeInstalledExtensionBlockerEvidence(value) {
+  return value.blockedReason === "branded_chrome_load_extension_removed"
+    && value.recommendedBrowser === "Chrome for Testing or Chromium"
+    && typeof value.chromeVersion === "string"
+    && value.chromeVersion.startsWith("Chrome/")
+    && typeof value.extensionPath === "string"
+    && value.extensionPath.length > 0
+    && typeof value.heartbeatPath === "string"
+    && value.heartbeatPath.includes("Application Support/skfiy/chrome-extension-connection.json")
+    && Array.isArray(value.diagnosticExtensions)
+    && value.diagnosticExtensions.some((extension) =>
+      isChromeExtensionId(extension?.id)
+        && extension.manifestName === "Google Network Speech"
+    );
+}
+
+function isChromeExtensionId(value) {
+  return typeof value === "string" && /^[a-p]{32}$/.test(value);
+}
+
 function hasChromeCurrentPageEvidence(value) {
   return Boolean(value)
     && value.result === "passed"
@@ -2329,7 +2396,7 @@ Validates that an alpha manifest references a coherent packaged-app dogfood evid
 
 Options:
   --manifest <path>     Alpha manifest JSON from npm run alpha:artifact.
-  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and selected voice smoke results are passed, including panic stop runtime hotkey and stopTurnBehavior evidence, Chrome Native Messaging heartbeat evidence, Chrome current-page observation evidence, external Doubao voice transcript-to-task evidence, and external Doubao voice Ghostty turn replay evidence.
+  --require-passed      Fail unless UI, Ghostty, Chrome, Finder, and selected voice smoke results are passed, including panic stop runtime hotkey and stopTurnBehavior evidence, Chrome Native Messaging heartbeat evidence, Chrome installed-extension smoke evidence, Chrome current-page observation evidence, external Doubao voice transcript-to-task evidence, and external Doubao voice Ghostty turn replay evidence.
   --require-current-head
                        Fail unless manifest commitSha matches the current git HEAD.
   -h, --help            Show this help.

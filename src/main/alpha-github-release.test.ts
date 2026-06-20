@@ -385,7 +385,8 @@ function createManifest() {
     requiredDogfoodEvidence: [
       "Panic stop product-path behavior evidence",
       "Long-horizon money-run supervision evidence",
-      "Chrome Native Messaging heartbeat evidence"
+      "Chrome Native Messaging heartbeat evidence",
+      "Chrome installed-extension smoke evidence"
     ],
     zip: {
       path: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.zip",

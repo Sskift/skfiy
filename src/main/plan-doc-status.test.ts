@@ -237,8 +237,15 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("Chrome for Testing/Chromium or a user-installed skfiy extension");
     expect(readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8"))
       .toContain("nativeHostBridgeRun.result: passed");
+    expect(readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8"))
+      .toContain("Chrome installed-extension smoke evidence");
     expect(readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8"))
       .toContain("nativeHostBridgeRun.result: passed");
+    expect(readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8"))
+      .toContain("Chrome installed-extension smoke evidence");
+    expect(readFileSync(path.join(process.cwd(), ".github", "ISSUE_TEMPLATE", "skfiy-dogfood.yml"), "utf8"))
+      .toContain("installedExtensionRun");
+    expect(longPlan).toContain("Chrome installed-extension smoke evidence");
   });
 
   it("documents panic stop behavior evidence in alpha and report instructions", () => {

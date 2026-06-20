@@ -634,6 +634,9 @@ function validateManifest(manifest) {
   if (!evidence.includes("Chrome Native Messaging heartbeat evidence")) {
     throw new Error("alpha manifest must include Chrome Native Messaging heartbeat evidence.");
   }
+  if (!evidence.includes("Chrome installed-extension smoke evidence")) {
+    throw new Error("alpha manifest must include Chrome installed-extension smoke evidence.");
+  }
 }
 
 async function validateAppBundleIdentity(appPath, io) {

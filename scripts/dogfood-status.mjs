@@ -38,7 +38,8 @@ const REQUIRED_WORKFLOW_IDS = [
 const REQUIRED_STATUS_DOGFOOD_EVIDENCE = [
   "Panic stop product-path behavior evidence",
   "Long-horizon money-run supervision evidence",
-  "Chrome Native Messaging heartbeat evidence"
+  "Chrome Native Messaging heartbeat evidence",
+  "Chrome installed-extension smoke evidence"
 ];
 const PREPARED_ALPHA_MANIFEST_PLACEHOLDER = "<path-to-downloaded-alpha-manifest.json>";
 const BLOCKING_PERMISSION_STATES = new Set([
