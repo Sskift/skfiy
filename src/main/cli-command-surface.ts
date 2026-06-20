@@ -17,6 +17,7 @@ export const SMOKE_TARGETS = [
   "desktop-session",
   "ghostty",
   "chrome",
+  "dashboard",
   "finder",
   "voice",
   "money-run"

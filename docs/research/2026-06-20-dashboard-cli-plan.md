@@ -12,6 +12,7 @@ Source plan: `docs/research/2026-06-16-voice-computer-control-long-plan.md`, sec
 - Add a dashboard HTTP response helper and loopback server for `/descriptor.json`, `/`, and `/index.html`.
 - Add an optional source-tree CLI shim that imports built main-process JavaScript only.
 - Wire `skfiy chrome status|install-host|uninstall-host` to user-level Chrome Native Messaging manifest status/install/uninstall when a Chrome extension id is provided.
+- Add a formal product smoke wrapper, `npm run smoke:dashboard`, that launches the built `dist/skfiy` CLI with `dashboard --no-open --port 0 --json`, fetches `/descriptor.json` plus the dashboard shell, rejects token leakage, and terminates the dashboard process after evidence collection.
 
 ## Command Surface
 
@@ -25,7 +26,7 @@ Commands represented:
 - `skfiy chrome status`
 - `skfiy chrome install-host`
 - `skfiy chrome uninstall-host`
-- `skfiy smoke <ui|desktop-session|ghostty|chrome|finder|voice|money-run> --output <path>`
+- `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|finder|voice|money-run> --output <path>`
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
 
@@ -50,6 +51,10 @@ The dashboard remains optional for Computer Use execution. Future Electron wirin
 - unsupported methods/routes: `405` or `404`.
 
 The CLI wraps this helper through `skfiy dashboard`. It binds only `127.0.0.1`, opens the clean local URL by default, and skips opening when `--no-open` is present.
+
+## Product Smoke
+
+`npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` is the repeatable dashboard gate. It uses the same product smoke lock as other packaged smokes, proves the built CLI path instead of a source-tree shim, requires `runnerHasTmux=false`, confirms the loopback bind and descriptor match the CLI output, checks the static shell contains the descriptor link, and keeps tokens out of stdout, descriptor JSON, and shell HTML.
 
 ## Integration Notes
 

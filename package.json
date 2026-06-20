@@ -26,6 +26,7 @@
     "release:mac:notarize": "node scripts/sign-notarize-macos.mjs --sign --notarize --execute",
     "smoke:ghostty": "node scripts/smoke-ghostty-product.mjs",
     "smoke:chrome": "node scripts/smoke-chrome-product.mjs",
+    "smoke:dashboard": "node scripts/smoke-dashboard-product.mjs",
     "smoke:finder": "node scripts/smoke-finder-product.mjs",
     "smoke:ui": "node scripts/smoke-ui-product.mjs",
     "smoke:desktop-session": "node scripts/smoke-desktop-session.mjs",

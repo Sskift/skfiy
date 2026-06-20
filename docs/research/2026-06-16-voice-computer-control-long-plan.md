@@ -177,7 +177,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>`.
   - `skfiy dashboard [--no-open] [--port <port>]`.
   - `skfiy chrome status`, `skfiy chrome install-host`, `skfiy chrome uninstall-host`.
-  - `skfiy smoke <ui|desktop-session|ghostty|chrome|finder|voice|money-run> --output <path>`.
+  - `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|finder|voice|money-run> --output <path>`.
   - `skfiy release check --json-output <path>` and `skfiy alpha artifact`.
 - CLI safety rules:
   - No command should require a tmux session.
@@ -484,11 +484,11 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - [ ] implement `skfiy doctor` with concrete remediation for TCC, signing, helper location, Finder Automation, Chrome extension, and desktop sleep/lock blockers
     - partial: command shape and JSON-safe placeholder output exist; real probes/remediation remain pending
   - [ ] implement `skfiy dashboard [--no-open] [--port <port>]`, following OpenClaw's pattern of printing/opening a clean local URL without leaking tokens
-    - partial: command normalization, loopback-only HTTP server, `/descriptor.json`, static HTML shell, default macOS URL open, and `--no-open` are wired; full dashboard data panels and app/Electron lifecycle integration remain pending
+    - partial: command normalization, loopback-only HTTP server, `/descriptor.json`, static HTML shell, default macOS URL open, `--no-open`, and product smoke coverage are wired; full dashboard data panels and app/Electron lifecycle integration remain pending
   - [ ] implement `skfiy chrome status|install-host|uninstall-host` for Chrome Native Messaging setup
     - partial: command surface, status, install, and uninstall now mutate/read the user-level Chrome Native Messaging manifest for an explicit `--extension-id`; broader Chrome extension connection health and native message bridge runtime are still pending
   - [ ] wrap product smokes behind `skfiy smoke <target>` while keeping npm scripts for development
-    - partial: command normalization exists for all smoke targets; command execution wrappers remain pending
+    - partial: command normalization exists for all smoke targets, now including `dashboard`; command execution wrappers remain pending
   - [ ] add tests that every CLI command can run outside tmux and that `--json` output is stable for the dashboard
     - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; product binary execution tests remain pending
 - [ ] Add local dashboard/control UI
@@ -509,8 +509,8 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
     - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement long-horizon panel: `money-run` session status, active pane, current recommendation, recent blocker markers
     - partial: panel metadata exists in `createDashboardPanels()`
-  - [ ] add smoke for `skfiy dashboard --no-open --json` and browser dashboard load
-    - partial: build-product CLI verification now exercises `./dist/skfiy dashboard --no-open --port 0 --json`, fetches `/descriptor.json`, and shuts the server down; formal npm smoke wrapper remains pending
+  - [x] add smoke for `skfiy dashboard --no-open --json` and browser dashboard load
+    - `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json --require-passed` launches the built `dist/skfiy` CLI, runs `dashboard --no-open --port 0 --json`, fetches `/descriptor.json` plus `/`, verifies loopback bind and token-free output, and shuts the server down after evidence collection
 - [x] Add app allowlist/denylist UI.
   - settings panel now exposes allow/ask/deny policies for Ghostty, Chrome, and Finder; Ghostty defaults to allow for the current product smoke path, while ask/deny can gate Computer Use before touching the app
 - [x] Add per-turn approval transcript:

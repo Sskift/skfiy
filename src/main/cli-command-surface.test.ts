@@ -40,6 +40,7 @@ describe("CLI command surface", () => {
       "smoke desktop-session",
       "smoke ghostty",
       "smoke chrome",
+      "smoke dashboard",
       "smoke finder",
       "smoke voice",
       "smoke money-run",
@@ -68,6 +69,7 @@ describe("CLI command surface", () => {
       "desktop-session",
       "ghostty",
       "chrome",
+      "dashboard",
       "finder",
       "voice",
       "money-run"
@@ -187,9 +189,9 @@ describe("CLI command surface", () => {
   it("normalizes smoke, release, and alpha artifact paths", () => {
     const smoke = expectInvocation([
       "smoke",
-      "chrome",
+      "dashboard",
       "--output",
-      ".skfiy-smoke/chrome.json"
+      ".skfiy-smoke/dashboard.json"
     ]);
     const release = expectInvocation([
       "release",
@@ -201,9 +203,9 @@ describe("CLI command surface", () => {
 
     expect(smoke).toMatchObject({
       kind: "smoke",
-      path: "smoke chrome",
-      target: "chrome",
-      outputPath: "/repo/.skfiy-smoke/chrome.json"
+      path: "smoke dashboard",
+      target: "dashboard",
+      outputPath: "/repo/.skfiy-smoke/dashboard.json"
     });
     expect(release).toMatchObject({
       kind: "release-check",
@@ -215,9 +217,9 @@ describe("CLI command surface", () => {
       path: "alpha artifact"
     });
     expect(createCliOutput(smoke)).toMatchObject({
-      command: "smoke chrome",
-      target: "chrome",
-      outputPath: "/repo/.skfiy-smoke/chrome.json",
+      command: "smoke dashboard",
+      target: "dashboard",
+      outputPath: "/repo/.skfiy-smoke/dashboard.json",
       result: "not-run"
     });
     expect(createCliOutput(release)).toMatchObject({
