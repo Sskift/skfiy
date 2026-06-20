@@ -14,6 +14,8 @@ describe("alpha artifact packaging", () => {
         commitSha: string;
       }) => {
         appPath: string;
+        cliShimPath: string;
+        stagingDir: string;
         outputDir: string;
         artifactBaseName: string;
         zipPath: string;
@@ -28,6 +30,8 @@ describe("alpha artifact packaging", () => {
       commitSha: "abcdef1234567890"
     })).toEqual({
       appPath: "/repo/dist/skfiy.app",
+      cliShimPath: "/repo/dist/skfiy",
+      stagingDir: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned",
       outputDir: "/repo/.skfiy-alpha",
       artifactBaseName: "skfiy-0.1.0-abcdef1-macos-unsigned",
       zipPath: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.zip",
@@ -36,23 +40,29 @@ describe("alpha artifact packaging", () => {
     });
   });
 
-  it("builds the ditto command without flattening the app bundle", async () => {
+  it("builds the ditto command from a single staging directory", async () => {
     const modulePath = path.join(process.cwd(), "scripts/create-alpha-artifact.mjs");
     const {
       createZipCommand
     } = await import(pathToFileURL(modulePath).href) as {
-      createZipCommand: (input: { appPath: string; zipPath: string }) => {
+      createZipCommand: (input: { stagingDir: string; zipPath: string }) => {
         command: string;
         args: string[];
       };
     };
 
     expect(createZipCommand({
-      appPath: "/repo/dist/skfiy.app",
+      stagingDir: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned",
       zipPath: "/repo/.skfiy-alpha/skfiy.zip"
     })).toEqual({
       command: "ditto",
-      args: ["-c", "-k", "--keepParent", "/repo/dist/skfiy.app", "/repo/.skfiy-alpha/skfiy.zip"]
+      args: [
+        "-c",
+        "-k",
+        "--keepParent",
+        "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned",
+        "/repo/.skfiy-alpha/skfiy.zip"
+      ]
     });
   });
 
@@ -65,6 +75,7 @@ describe("alpha artifact packaging", () => {
       createAlphaManifest: (input: {
         plan: {
           appPath: string;
+          cliShimPath: string;
           artifactBaseName: string;
           bundleIdentifier: string;
           manifestPath: string;
@@ -123,6 +134,7 @@ describe("alpha artifact packaging", () => {
     expect(createAlphaManifest({
       plan: {
         appPath: "/repo/dist/skfiy.app",
+        cliShimPath: "/repo/dist/skfiy",
         artifactBaseName: "skfiy-0.1.0-abcdef1-macos-unsigned",
         bundleIdentifier: "com.sskift.skfiy",
         manifestPath: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json",
@@ -165,6 +177,9 @@ describe("alpha artifact packaging", () => {
         "npm run smoke:finder -- --output <path>",
         "npm run smoke:voice -- --output <path>",
         "npm run smoke:money-run -- --json-output <path>",
+        "skfiy status --json",
+        "skfiy doctor",
+        "skfiy dashboard --no-open --json",
         "Permission settings direct links",
         "Panic stop runtime hotkey evidence",
         "Panic stop product-path behavior evidence",
@@ -207,6 +222,7 @@ describe("alpha artifact packaging", () => {
       createAlphaManifest: (input: {
         plan: {
           appPath: string;
+          cliShimPath: string;
           artifactBaseName: string;
           bundleIdentifier: string;
           manifestPath: string;
@@ -229,6 +245,7 @@ describe("alpha artifact packaging", () => {
     expect(() => createAlphaManifest({
       plan: {
         appPath: "/repo/dist/skfiy.app",
+        cliShimPath: "/repo/dist/skfiy",
         artifactBaseName: "skfiy-0.1.0-abcdef1-macos-unsigned",
         bundleIdentifier: "com.sskift.skfiy",
         manifestPath: "/repo/.skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json",

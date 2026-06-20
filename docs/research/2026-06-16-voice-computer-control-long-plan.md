@@ -377,17 +377,20 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
     - `npm run smoke:chrome -- --current-page-endpoint http://127.0.0.1:9222 --output .skfiy-smoke/chrome-real-page.json` attaches `dist/skfiy.app` to a user-provided Chrome CDP endpoint, does not launch a temporary Chrome profile, runs `观察 Chrome 当前页面并提取正文`, records `targetMode: bring-your-own-current-page`, `chromeLaunchViaOpen=false`, `realCurrentPageRun`, and rejects any `Verified navigate` event
   - remaining product evidence gap: Chrome now counts as dogfood coverage for isolated safe-page CDP extraction, current-page DOM observation, sensitive-page pause, selector-based multi-field form fill/click, no-CDP screenshot fallback, configured-CDP failure switching, and BYO current-page observation wiring; the next gap is collecting passed `browser-fallback` cohort evidence from real logged-in pages with consenting dogfood users
 - Add Chrome extension adapter plan:
-  - [ ] Research spike: document Codex Chrome extension public behavior and current local extension surface before coding
+  - [x] Research spike: document Codex Chrome extension public behavior and current local extension surface before coding
     - required notes: plugin install flow, Connected state, native app communication, website host approvals, allowlist/blocklist, tab grouping, debugger/page access, history/download/bookmark/tab-group permissions, and user-tab claiming/finalization behavior
     - output: a short architecture note under `docs/research/` comparing skfiy extension responsibilities with Codex's public behavior, explicitly marking private Codex implementation details as unknown
-  - [ ] Create `chrome-extension/` Manifest V3 skeleton
+    - landed in `docs/research/2026-06-20-chrome-extension-architecture.md`
+  - [x] Create `chrome-extension/` Manifest V3 skeleton
     - service worker owns connection lifecycle and tab routing
     - content script collects DOM/visible text/ARIA/role/bounds/form metadata
     - extension popup shows connection and current host policy only; it is not the main UI
+    - landed as a static, lowercase `skfiy` MV3 skeleton under `chrome-extension/`, covered by `src/main/chrome-extension-manifest.test.ts`
   - [ ] Create native messaging bridge
     - `skfiy chrome install-host` writes the native messaging host manifest for the signed app/CLI path
     - host messages use request ids, schema versions, and bounded payload sizes
     - bridge refuses messages when app policy blocks the host/app/session
+    - partial: `src/main/chrome-native-host.ts` now creates the Chrome Native Messaging manifest and user-level install path for the packaged `skfiy` CLI; CLI mutation wiring is still pending
   - [ ] Add browser action schema
     - observe current page
     - navigate
@@ -474,23 +477,38 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - GitHub dogfood issue form now requires alpha manifest, alpha zip, commit SHA, UI smoke artifact, UI pet drag evidence, panic stop evidence from `runtimeStatus.stopTurnHotkey` and `stopTurnBehavior`, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, voice smoke artifact, `runnerHasTmux`, app bundle preflight (`appPath`, LaunchServices launch command, `appLaunchViaOpen`, `runnerHasTmux`, and product path), permission states, ASR provider, external Doubao voice transcript-to-task evidence, external Doubao voice Ghostty turn replay evidence, external Doubao voice no-transcript/cancellation evidence, Computer Use result, screenshot paths, action verification events, app policy settings, Chrome extracted text, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence, Finder item drag/drop evidence, Finder before/after tree, clipboard approval runs, and generated cohort source identity (`artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, source commit matching report `commitSha`)
   - `dogfood:report` now rejects accepted issue bodies whose `app bundle preflight` is missing or does not match the UI smoke artifact `appPath`, LaunchServices launch command, `appLaunchViaOpen`, `runnerHasTmux`, and product path; rejects missing or mismatched `UI pet drag evidence` whose result/source/window bounds/deltas/upward movement/click suppression do not match the UI smoke artifact `petDrag`; and rejects missing or mismatched `panic stop` evidence whose accelerator/label/registered/source do not match smoke artifact `runtimeStatus.stopTurnHotkey` or whose behavior fields do not match `stopTurnBehavior`
 - [ ] Add first-class binary and CLI distribution
-  - [ ] build a release package that contains `skfiy.app`, embedded `skfiy-helper`, and a `skfiy` CLI shim
+  - [x] build a release package that contains `skfiy.app`, embedded `skfiy-helper`, and a `skfiy` CLI shim
+    - packaging now copies `bin/skfiy.mjs` to `dist/skfiy`, alpha artifacts zip both `dist/skfiy.app` and `dist/skfiy`, and manifests record `cliShimPath`
   - [ ] implement `skfiy status --json` for app/helper/permissions/desktop-session/extension/dashboard state
+    - partial: `src/main/cli-command-surface.ts` normalizes `status --json` and emits stable JSON-safe placeholder state
   - [ ] implement `skfiy doctor` with concrete remediation for TCC, signing, helper location, Finder Automation, Chrome extension, and desktop sleep/lock blockers
+    - partial: command shape and JSON-safe placeholder output exist; real probes/remediation remain pending
   - [ ] implement `skfiy dashboard [--no-open] [--port <port>]`, following OpenClaw's pattern of printing/opening a clean local URL without leaking tokens
+    - partial: command normalization and loopback-only descriptor exist; no HTTP server yet
   - [ ] implement `skfiy chrome status|install-host|uninstall-host` for Chrome Native Messaging setup
+    - partial: command surface and native host manifest planner exist; no filesystem install/uninstall mutation yet
   - [ ] wrap product smokes behind `skfiy smoke <target>` while keeping npm scripts for development
+    - partial: command normalization exists for all smoke targets; command execution wrappers remain pending
   - [ ] add tests that every CLI command can run outside tmux and that `--json` output is stable for the dashboard
+    - partial: pure CLI surface tests cover JSON-safe output shapes and no system mutations; product binary execution tests remain pending
 - [ ] Add local dashboard/control UI
   - [ ] serve loopback-only dashboard from the app or CLI
+    - partial: `src/main/dashboard-status.ts` defines the loopback-only dashboard descriptor and panel inventory; no server yet
   - [ ] add token/session auth for non-local or explicit remote modes; do not print secrets into terminal output
   - [ ] implement runtime health panel: app/helper/dashboard/extension PIDs, version, uptime, signing state
+    - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement permissions panel: Screen Recording, Accessibility, Microphone, Speech Recognition, Finder Automation, Chrome extension
+    - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement active-turn panel: transcript, voice provider, target app, risk, approvals, stop
+    - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement replay panel: screenshots, OCR labels, accessibility coverage, actions, verification decisions
+    - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement evidence panel: latest smoke artifacts, result, product path, blocker reason, stale evidence warning
+    - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement dogfood/release panel: current alpha, manifest checksum, accepted reports, cohort coverage
+    - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] implement long-horizon panel: `money-run` session status, active pane, current recommendation, recent blocker markers
+    - partial: panel metadata exists in `createDashboardPanels()`
   - [ ] add smoke for `skfiy dashboard --no-open --json` and browser dashboard load
 - [x] Add app allowlist/denylist UI.
   - settings panel now exposes allow/ask/deny policies for Ghostty, Chrome, and Finder; Ghostty defaults to allow for the current product smoke path, while ask/deny can gate Computer Use before touching the app

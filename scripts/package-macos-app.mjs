@@ -37,7 +37,9 @@ export function createPackagePlan({
     bundledAppPath: path.join(resourcesPath, "app"),
     bundledExecutablePath: path.join(appBundlePath, "Contents", "MacOS", "skfiy"),
     bundledHelperPath: path.join(appBundlePath, "Contents", "MacOS", "skfiy-helper"),
+    cliShimPath: path.join(rootDir, "dist", "skfiy"),
     appPackageJsonPath: path.join(resourcesPath, "app", "package.json"),
+    sourceCliShimPath: path.join(rootDir, "bin", "skfiy.mjs"),
     sourceHelperPath: path.join(rootDir, "dist", "skfiy-helper"),
     sourceMainPath: path.join(rootDir, "dist", "main"),
     sourceRendererPath: path.join(rootDir, "dist", "renderer"),
@@ -56,6 +58,7 @@ export async function packageMacosApp({
   assertPathExists(plan.sourceRendererPath, "compiled renderer");
   assertPathExists(plan.sourceSharedPath, "compiled shared modules");
   assertPathExists(plan.sourceHelperPath, "compiled skfiy helper");
+  assertPathExists(plan.sourceCliShimPath, "skfiy CLI shim");
 
   await fs.rm(plan.appBundlePath, { force: true, recursive: true });
   await fs.cp(plan.electronAppPath, plan.appBundlePath, ELECTRON_APP_COPY_OPTIONS);
@@ -79,6 +82,8 @@ export async function packageMacosApp({
   );
   await fs.copyFile(plan.sourceHelperPath, plan.bundledHelperPath);
   await fs.chmod(plan.bundledHelperPath, 0o755);
+  await fs.copyFile(plan.sourceCliShimPath, plan.cliShimPath);
+  await fs.chmod(plan.cliShimPath, 0o755);
   await signNestedCode(plan.nestedCodePaths);
   await execFileAsync(plan.adhocSignCommand.command, plan.adhocSignCommand.args);
   await execFileAsync(plan.verifyCodeSignCommand.command, plan.verifyCodeSignCommand.args);

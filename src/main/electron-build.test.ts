@@ -15,7 +15,7 @@ describe("Electron build wiring", () => {
   it("defines a real macOS app bundle package plan for user-facing testing", async () => {
     const packageJson = JSON.parse(
       readFileSync(path.join(process.cwd(), "package.json"), "utf8")
-    ) as { scripts: Record<string, string> };
+    ) as { bin?: Record<string, string>; scripts: Record<string, string> };
     const packagingModuleUrl = pathToFileURL(
       path.join(process.cwd(), "scripts/package-macos-app.mjs")
     ).href;
@@ -41,7 +41,9 @@ describe("Electron build wiring", () => {
         bundledAppPath: string;
         bundledExecutablePath: string;
         bundledHelperPath: string;
+        cliShimPath: string;
         nestedCodePaths: string[];
+        sourceCliShimPath: string;
       };
       createAdhocCodeSignCommand: (appPath: string) => {
         command: string;
@@ -57,6 +59,7 @@ describe("Electron build wiring", () => {
     expect(packageJson.scripts["package:mac"]).toBe("node scripts/package-macos-app.mjs");
     expect(packageJson.scripts["alpha:artifact"]).toBe("node scripts/create-alpha-artifact.mjs");
     expect(packageJson.scripts.build).toContain("npm run package:mac");
+    expect(packageJson.bin?.skfiy).toBe("bin/skfiy.mjs");
     expect(packaging.ELECTRON_APP_COPY_OPTIONS).toMatchObject({
       recursive: true,
       verbatimSymlinks: true
@@ -77,7 +80,9 @@ describe("Electron build wiring", () => {
       bundleIdentifier: "com.sskift.skfiy",
       bundledAppPath: "/repo/dist/skfiy.app/Contents/Resources/app",
       bundledExecutablePath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy",
-      bundledHelperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+      bundledHelperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+      cliShimPath: "/repo/dist/skfiy",
+      sourceCliShimPath: "/repo/bin/skfiy.mjs"
     });
     expect(packagePlan.verifyCodeSignCommand).toEqual({
       command: "codesign",
@@ -120,6 +125,8 @@ describe("Electron build wiring", () => {
     expect(packagingScript).toContain('name: "skfiy"');
     expect(packagingScript).toContain('path.join(plan.appBundlePath, "Contents", "MacOS", "Electron")');
     expect(packagingScript).toContain("await fs.rename(electronExecutablePath, plan.bundledExecutablePath)");
+    expect(packagingScript).toContain("await fs.copyFile(plan.sourceCliShimPath, plan.cliShimPath)");
+    expect(packagingScript).toContain("await fs.chmod(plan.cliShimPath, 0o755)");
     expect(packagingScript).toContain("await execFileAsync(plan.adhocSignCommand.command, plan.adhocSignCommand.args)");
   });
 

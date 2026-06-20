@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>skfiy Chrome Adapter</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        min-width: 280px;
+        margin: 0;
+        padding: 14px;
+        background: Canvas;
+        color: CanvasText;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: 0;
+      }
+
+      dl {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 8px 12px;
+        margin: 0;
+        font-size: 13px;
+      }
+
+      dt {
+        color: color-mix(in srgb, CanvasText 68%, transparent);
+      }
+
+      dd {
+        margin: 0;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+
+      #sensitive-pause {
+        margin-top: 12px;
+        padding: 8px;
+        border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+        border-radius: 6px;
+        font-size: 13px;
+      }
+
+      [hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>skfiy Chrome Adapter</h1>
+      <dl>
+        <dt>Native host</dt>
+        <dd id="native-host">com.sskift.skfiy</dd>
+        <dt>Connection</dt>
+        <dd id="connection-status">Checking</dd>
+        <dt>Current host</dt>
+        <dd id="current-host">Unknown</dd>
+        <dt>Host policy</dt>
+        <dd id="host-policy">Ask by default</dd>
+      </dl>
+      <div id="sensitive-pause" hidden>Sensitive content pause</div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

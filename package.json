@@ -5,6 +5,9 @@
   "description": "Desktop Computer Use prototype focused on Ghostty control and screenshots.",
   "type": "module",
   "main": "dist/main/main.js",
+  "bin": {
+    "skfiy": "bin/skfiy.mjs"
+  },
   "scripts": {
     "dev": "npm run dev:renderer",
     "dev:renderer": "vite --host 127.0.0.1",

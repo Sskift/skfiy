@@ -1,0 +1,157 @@
+# Chrome Extension Adapter Architecture
+
+Date: 2026-06-20
+
+## Scope
+
+This note covers the first skfiy Chrome extension adapter groundwork from the
+2026-06-16 voice computer control long plan. It is not a Codex plugin design
+and it does not describe private OpenAI implementation internals.
+
+The first checked-in extension is a static Manifest V3 skeleton under
+`chrome-extension/`. It has no build tooling, no bundled app integration, and no
+native host installer yet. Its job is to pin the adapter boundary before the
+signed app, CLI, dashboard, and smoke tests wire it into product execution.
+
+## Public Codex Behavior Used As Reference
+
+The current public Codex manual describes the Chrome extension as a plugin-set-up
+extension for tasks that need a user's signed-in Chrome state. It says the setup
+flow is initiated from Codex Plugins, installs the Codex Chrome extension, asks
+the user to approve Chrome permission prompts, and expects the extension popup
+to show a Connected state.
+
+Public docs also describe these product behaviors:
+
+- Codex should prefer the in-app browser for local development servers,
+  file-backed previews, and public pages that do not need the user's Chrome
+  profile.
+- Codex can use Chrome when the task needs logged-in browser context, and can
+  group thread browser work into Chrome tab groups.
+- Website access is host-based and ask-by-default. The user can allow a website
+  for the current chat, always allow the host, or decline the website.
+- Allowlist and blocklist settings are user-managed. Removing an allowlist entry
+  makes Codex ask again; removing a blocklist entry lets Codex ask again.
+- Browser history is treated separately: Codex asks when it wants history, scopes
+  the access to the request, and does not offer an always-allow option.
+- Chrome's install prompt may include broad extension capabilities, including
+  debugger/page access, read/change website data, browsing history, notifications,
+  bookmarks, downloads, native application communication, and tab groups.
+- The extension may need file URL access when a task uploads a local file.
+
+Private Codex implementation details are unknown. Unknowns include the native
+host name, message schemas, content script layout, service worker state machine,
+tab claiming/finalization protocol, screenshot transport, host policy storage,
+history filtering, debugger usage, cleanup behavior, and sensitive-action
+classifiers. skfiy should not copy or infer those details.
+
+The local long plan also records that the current Codex Chrome surface exposes a
+controllable-tab model with explicit user-tab claiming and session cleanup. Treat
+that as a product-level reference point only: skfiy should support clear session
+ownership and cleanup, but the private Codex claiming/finalization protocol is
+unknown.
+
+Sources:
+
+- OpenAI Codex manual, `Codex Chrome extension`, fetched 2026-06-20 from
+  `https://developers.openai.com/codex/app/chrome-extension`.
+- Local long plan:
+  `docs/research/2026-06-16-voice-computer-control-long-plan.md`.
+
+## Skfiy Responsibilities
+
+skfiy's extension is a product adapter for the skfiy desktop runtime, not the
+first step in a Codex plugin. A later Codex plugin can expose skfiy through MCP
+or app integrations after the local runtime is stable.
+
+The extension owns browser-local observation and action routing:
+
+- Service worker: connection lifecycle, active-tab routing, native messaging
+  bridge boundary, host policy checks, and dynamic content-script injection.
+- Content script: DOM snapshot, visible text, form metadata, ARIA/role-style
+  labels, element bounds, and page-local structured actions.
+- Popup: connection and current-host policy status only. It is not the main
+  dashboard and it must not become the approval surface for long-running turns.
+
+The native messaging host name is `com.sskift.skfiy`. The host manifest will be
+installed later by `skfiy chrome install-host`, which is intentionally out of
+scope for this first static skeleton. The native host should connect to the
+signed skfiy app or CLI path, not to tmux or a development shell.
+
+## Host Policy
+
+The default host policy is ask. The skeleton keeps `host_permissions` empty and
+declares HTTP/HTTPS in `optional_host_permissions` so future product code can
+request host access only after skfiy's app policy allows the host for the turn.
+
+The policy shape is:
+
+```json
+{
+  "defaultMode": "ask",
+  "allowedHosts": [],
+  "currentTurnAllowedHosts": [],
+  "blockedHosts": []
+}
+```
+
+Initial behavior:
+
+- blocked hosts fail closed;
+- always-allowed and current-turn hosts can receive observe/action messages;
+- all other hosts return a host-policy response asking the app to prompt the
+  user.
+
+Browser history is not part of this skeleton. Future history access must stay
+turn-scoped and explicit, with no always-allow option.
+
+## Message Contracts
+
+The first structured message names are stable strings, not a complete schema:
+
+- `skfiy.page.observe`
+- `skfiy.page.observe_result`
+- `skfiy.page.action`
+- `skfiy.page.action_result`
+- `skfiy.page.sensitive_pause`
+- `skfiy.host_policy.request`
+- `skfiy.host_policy.response`
+- `skfiy.native.message`
+
+Every native-bound message should carry a request id, a schema version, and a
+bounded payload. The skeleton only declares the boundary; the app-side bridge,
+payload limits, and schema validation remain future work.
+
+## Sensitive Content Pause
+
+The content script has a deliberately small sensitive-field affordance. It marks
+the document with `data-skfiy-sensitive-paused`, sends
+`skfiy.page.sensitive_pause`, and returns `sensitive-paused` when a fill/click
+targets password, two-factor, payment, token, secret, or key-like fields.
+
+This is only a page-local guardrail for the first adapter skeleton. The product
+runtime still needs the long-plan safety model: host approvals, action risk
+classification, screenshot/OCR sensitive-page checks, user-visible pause state,
+and replay evidence.
+
+## Fallback Order
+
+The target adapter order remains:
+
+1. Chrome extension structured observe/action.
+2. Existing CDP structured control.
+3. macOS screenshot/OCR/Accessibility fallback.
+
+The checked-in skeleton implements only the first layer's static files and
+contracts. It does not yet replace CDP smoke coverage or alter existing Chrome
+runtime behavior.
+
+## Integration Notes
+
+- No `package.json`, Electron main process, smoke script, CLI, or dashboard files
+  are modified by this step.
+- The extension is not yet packaged, installed, or connected to the signed app.
+- `skfiy chrome status|install-host|uninstall-host` is still a later CLI task.
+- The popup says "Waiting for skfiy app" until native-host health is wired.
+- A focused Vitest test validates the manifest and skeleton strings without
+  launching Chrome.

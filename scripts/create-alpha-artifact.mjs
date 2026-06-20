@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -18,6 +18,9 @@ const DOGFOOD_EVIDENCE = [
   "npm run smoke:finder -- --output <path>",
   "npm run smoke:voice -- --output <path>",
   "npm run smoke:money-run -- --json-output <path>",
+  "skfiy status --json",
+  "skfiy doctor",
+  "skfiy dashboard --no-open --json",
   "Permission settings direct links",
   "Panic stop runtime hotkey evidence",
   "Panic stop product-path behavior evidence",
@@ -55,6 +58,7 @@ export function createAlphaArtifactPlan({
   version,
   commitSha,
   appPath = path.join(rootDir, "dist", "skfiy.app"),
+  cliShimPath = path.join(rootDir, "dist", "skfiy"),
   outputDir = path.join(rootDir, ".skfiy-alpha")
 }) {
   const shortSha = commitSha.slice(0, 7) || "unknown";
@@ -62,18 +66,20 @@ export function createAlphaArtifactPlan({
 
   return {
     appPath,
+    cliShimPath,
     outputDir,
     artifactBaseName,
+    stagingDir: path.join(outputDir, artifactBaseName),
     zipPath: path.join(outputDir, `${artifactBaseName}.zip`),
     manifestPath: path.join(outputDir, `${artifactBaseName}.json`),
     bundleIdentifier: BUNDLE_IDENTIFIER
   };
 }
 
-export function createZipCommand({ appPath, zipPath }) {
+export function createZipCommand({ stagingDir, zipPath }) {
   return {
     command: "ditto",
-    args: ["-c", "-k", "--keepParent", appPath, zipPath]
+    args: ["-c", "-k", "--keepParent", stagingDir, zipPath]
   };
 }
 
@@ -111,6 +117,7 @@ export function createAlphaManifest({
     notarized: false,
     createdAt,
     appPath: plan.appPath,
+    cliShimPath: plan.cliShimPath,
     artifactBaseName: plan.artifactBaseName,
     manifestPath: plan.manifestPath,
     zip: {
@@ -267,8 +274,19 @@ export async function createAlphaArtifact({
   if (!io.exists(plan.appPath)) {
     throw new Error(`App bundle is missing at ${plan.appPath}. Run npm run build first.`);
   }
+  if (!io.exists(plan.cliShimPath)) {
+    throw new Error(`CLI shim is missing at ${plan.cliShimPath}. Run npm run build first.`);
+  }
 
   await io.mkdir(plan.outputDir, { recursive: true });
+  await io.rm(plan.stagingDir, { force: true, recursive: true });
+  await io.mkdir(plan.stagingDir, { recursive: true });
+  await io.cp(plan.appPath, path.join(plan.stagingDir, "skfiy.app"), {
+    recursive: true,
+    verbatimSymlinks: true
+  });
+  await io.cp(plan.cliShimPath, path.join(plan.stagingDir, "skfiy"));
+  await io.chmod(path.join(plan.stagingDir, "skfiy"), 0o755);
   const zipCommand = createZipCommand(plan);
   await io.execFile(zipCommand.command, zipCommand.args);
   const zipStats = await io.stat(plan.zipPath);
@@ -295,6 +313,9 @@ function createDefaultIo() {
   return {
     exists: existsSync,
     mkdir,
+    rm,
+    cp,
+    chmod,
     stat,
     writeFile,
     execFile: execFileAsync,
