@@ -164,7 +164,7 @@ describe("implementation plan status docs", () => {
     }
   });
 
-  it("keeps the long plan recommended next move focused on remaining field gates", () => {
+  it("keeps the long plan recommended next move focused on app-agnostic product gates", () => {
     const longPlan = readFileSync(
       path.join(process.cwd(), "docs", "research", "2026-06-16-voice-computer-control-long-plan.md"),
       "utf8"
@@ -172,8 +172,11 @@ describe("implementation plan status docs", () => {
     const recommendedNextMove = longPlan.slice(longPlan.indexOf("## Recommended Next Move"));
     const recommendedNextMoveText = recommendedNextMove.toLowerCase();
 
+    expect(recommendedNextMoveText).toContain("write the chrome extension architecture note first");
+    expect(recommendedNextMoveText).toContain("build the `skfiy` cli skeleton and dashboard command");
+    expect(recommendedNextMoveText).toContain("create the dashboard/control ui as a local audit surface");
     expect(recommendedNextMoveText).toContain("product-path native speech turn after speech recognition permission is granted");
-    expect(recommendedNextMoveText).toContain("rerun ghostty, finder, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes");
+    expect(recommendedNextMoveText).toContain("rerun ghostty, finder, chrome extension, dashboard, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes");
     expect(recommendedNextMoveText).toContain("collect 3-5 accepted real tester reports");
     expect(recommendedNextMoveText).toContain("run the long-horizon `money-run` supervision field task after release gates pass");
     expect(recommendedNextMove).not.toContain("Implement dedicated Ghostty session.");

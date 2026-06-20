@@ -13,6 +13,9 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 ### External
 
 - OpenAI Computer Use frames the core loop as model-operated software through screenshots plus interface actions executed by the host harness. Codex Computer Use also makes the permission model explicit: Screen Recording for seeing, Accessibility for clicking/typing, app-level approvals for what can be controlled.
+- Codex Chrome extension is the closest browser-control reference for skfiy. Public docs describe it as a plugin-installed Chrome extension for tasks requiring the user's signed-in Chrome state; it uses host/domain approvals, allowlist/blocklist controls, tab grouping, Chrome extension permissions including debugger/page access, browsing history, downloads/bookmarks/tab groups, and native-app communication. The current local Codex Chrome surface also exposes a controllable-tab model with explicit user-tab claiming and session cleanup. The private implementation is not public, so skfiy should not copy it; instead, build a Chrome extension adapter with the same product properties: structured DOM actions, per-host approvals, native messaging to the skfiy app, and screenshot fallback.
+- Codex plugin architecture is broader than a Chrome extension: public docs define plugins as bundles of skills, app integrations, and MCP servers, with marketplace distribution. skfiy's Chrome extension should be a product adapter first; a later Codex plugin can expose skfiy to Codex as an MCP/app integration after skfiy's own runtime is stable.
+- OpenClaw-style dashboards show the right operator surface: a local gateway/control UI, safe dashboard URL opening through CLI, WebSocket/auth gating, live health, active sessions, task/sub-agent activity, cost/context trends, alert banners, auto-refresh, and local-only defaults. skfiy should treat dashboard as an ops/audit plane, not as the primary pet UI.
 - Anthropic's computer use announcement confirms the same shape: looking at screen, moving cursor, clicking, typing. It also explicitly labels the capability experimental and error-prone, so reliability and recovery are not optional add-ons.
 - Microsoft Copilot Studio Computer Use and Power Automate Desktop show the enterprise automation angle: natural language is useful, but users still need repeatable desktop flows, connectors, and auditable runs.
 - Apple Voice Control shows a mature UI-control pattern for voice: numbered item overlays and grid drill-down. This is important because pure coordinate clicking is brittle; users need inspectable grounding when the agent is uncertain.
@@ -47,8 +50,8 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 5. **The pet UI is not yet a trustworthy control surface.**
    It has improved from a window to a pet, but it still lacks strong affordances for listening/thinking/acting/needs-approval, durable drag behavior across spaces/screens, and a permission/status center that users can understand.
 
-6. **No binary distribution path.**
-   The project needs Electron packaging, helper embedding, stable bundle ID, signing/notarization plan, permissions docs, and a "developer mode vs installed app" split.
+6. **No complete binary and CLI distribution path.**
+   The app bundle and embedded helper exist, but the project still needs a first-class user binary story: signed/notarized app, a simple `skfiy` CLI shim, dashboard open/status commands, Chrome native-messaging host registration, release artifact checks, and a clear "developer mode vs installed app" split.
 
 7. **Safety is too shallow.**
    Risk classification exists for terminal commands, but system-wide control needs app allowlists, sensitive-screen detection, credential handling, clipboard rules, approval policies, and kill switch behavior.
@@ -123,13 +126,66 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - Read terminal state via screenshots plus optional shell markers.
   - Never type into unknown foreground terminal without confirmation.
 - Chrome second:
-  - Prefer AIME/Chrome-extension-style structured browser control if available.
+  - Prefer Codex/AIME-style structured browser control when available.
+  - Build a skfiy Chrome extension adapter instead of relying only on CDP:
+    - Manifest V3 extension with content script, background service worker, and restricted host permissions.
+    - Native Messaging host that connects the extension to the signed skfiy app/CLI, not to a tmux process.
+    - Per-host app policy mirroring Codex's website allow/ask/deny model.
+    - DOM snapshot, visible text extraction, ARIA/role tree, element bounding boxes, form metadata, downloads/uploads status, tab URL/title, and page screenshot hooks.
+    - Structured actions: navigate, click selector/role/text, fill fields, submit forms, scroll, focus, keyboard shortcuts, upload file after explicit approval, and read current page without navigation.
+    - Sensitive-content guard before fills/clicks for password, payment, auth, account deletion, security settings, and external side-effect flows.
+    - Fallback switching: extension -> CDP -> macOS screenshot/OCR/Accessibility.
+    - Evidence parity with existing smoke output: product path, host approval, before/after page state, action verification, sensitive pause, fallback reason, cleanup.
   - Fall back to screenshot Computer Use.
 - Finder/Lark third:
   - Finder for file organization.
   - Lark/Feishu for office workflows only after policy/permissions are ready.
 
-### 6. Evaluation Harness
+### 6. Dashboard and Operator Plane
+
+- Dashboard is a local control and audit plane, separate from the desktop pet.
+- Default bind should be loopback-only, for example `http://127.0.0.1:<port>/`, with optional token auth and no token printed into logs.
+- Open via CLI:
+  - `skfiy dashboard`
+  - `skfiy dashboard --no-open`
+  - `skfiy dashboard --json`
+- Initial panels:
+  - Runtime health: app/helper/dashboard/extension status, PID, uptime, version, bundle id, signing state.
+  - Permission health: Screen Recording, Accessibility, Microphone, Speech Recognition, Finder Automation, Chrome extension connection.
+  - Current turn: voice provider, transcript, target app, policy decision, risk, current status, stop button.
+  - Replay timeline: screenshots, OCR labels, accessibility coverage, actions, verification decisions, approval decisions.
+  - App policy: allow/ask/deny per app and per Chrome host.
+  - Smoke evidence: latest UI/Ghostty/Chrome/Finder/voice/money-run artifacts and pass/block reasons.
+  - Long-horizon supervision: tmux `money-run` status, active pane summary, recent risk markers, read-only probe evidence.
+  - Alerts: permission missing, desktop locked/asleep, helper not signed, extension disconnected, smoke evidence stale, release artifact older than HEAD.
+  - Dogfood/release: current alpha, manifest, zip checksum, accepted reports, cohort coverage.
+- Data path:
+  - main process writes a local append-only event store for turns and smokes.
+  - dashboard reads via local HTTP plus WebSocket/SSE updates.
+  - dashboard never becomes required for Computer Use execution; it observes and approves but does not hide the pet's stop/approval surface.
+
+### 7. Binary, CLI, and Native Host
+
+- Ship one product, not a tmux backend:
+  - `skfiy.app` as the signed desktop app.
+  - `skfiy-helper` embedded in `Contents/MacOS`.
+  - `skfiy` CLI shim installed by the app or release package.
+  - Chrome Native Messaging host manifest installed by `skfiy chrome install-host`.
+- CLI command surface:
+  - `skfiy status --json`: app/helper/permissions/desktop-session/extension/dashboard status.
+  - `skfiy doctor`: actionable permission and packaging diagnostics.
+  - `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>`.
+  - `skfiy dashboard [--no-open] [--port <port>]`.
+  - `skfiy chrome status`, `skfiy chrome install-host`, `skfiy chrome uninstall-host`.
+  - `skfiy smoke <ui|desktop-session|ghostty|chrome|finder|voice|money-run> --output <path>`.
+  - `skfiy release check --json-output <path>` and `skfiy alpha artifact`.
+- CLI safety rules:
+  - No command should require a tmux session.
+  - No token should be printed by default.
+  - Mutating commands require explicit subcommands and clear output.
+  - `--json` output must be stable enough for dashboard and future agents.
+
+### 8. Evaluation Harness
 
 - Deterministic task scripts:
   - open Ghostty clean shell
@@ -320,6 +376,48 @@ Goal: move from scripted Ghostty automation toward Computer Use behavior.
   - [x] bring-your-own Chrome current-page dogfood mode
     - `npm run smoke:chrome -- --current-page-endpoint http://127.0.0.1:9222 --output .skfiy-smoke/chrome-real-page.json` attaches `dist/skfiy.app` to a user-provided Chrome CDP endpoint, does not launch a temporary Chrome profile, runs `观察 Chrome 当前页面并提取正文`, records `targetMode: bring-your-own-current-page`, `chromeLaunchViaOpen=false`, `realCurrentPageRun`, and rejects any `Verified navigate` event
   - remaining product evidence gap: Chrome now counts as dogfood coverage for isolated safe-page CDP extraction, current-page DOM observation, sensitive-page pause, selector-based multi-field form fill/click, no-CDP screenshot fallback, configured-CDP failure switching, and BYO current-page observation wiring; the next gap is collecting passed `browser-fallback` cohort evidence from real logged-in pages with consenting dogfood users
+- Add Chrome extension adapter plan:
+  - [ ] Research spike: document Codex Chrome extension public behavior and current local extension surface before coding
+    - required notes: plugin install flow, Connected state, native app communication, website host approvals, allowlist/blocklist, tab grouping, debugger/page access, history/download/bookmark/tab-group permissions, and user-tab claiming/finalization behavior
+    - output: a short architecture note under `docs/research/` comparing skfiy extension responsibilities with Codex's public behavior, explicitly marking private Codex implementation details as unknown
+  - [ ] Create `chrome-extension/` Manifest V3 skeleton
+    - service worker owns connection lifecycle and tab routing
+    - content script collects DOM/visible text/ARIA/role/bounds/form metadata
+    - extension popup shows connection and current host policy only; it is not the main UI
+  - [ ] Create native messaging bridge
+    - `skfiy chrome install-host` writes the native messaging host manifest for the signed app/CLI path
+    - host messages use request ids, schema versions, and bounded payload sizes
+    - bridge refuses messages when app policy blocks the host/app/session
+  - [ ] Add browser action schema
+    - observe current page
+    - navigate
+    - click element by selector/role/text
+    - fill field
+    - submit/click button
+    - scroll
+    - screenshot page
+    - read downloads status
+  - [ ] Add host policy
+    - ask per host by default
+    - allow current turn
+    - always allow host
+    - block host
+    - never read browsing history unless explicitly requested for that turn
+  - [ ] Add safety checks
+    - pause on password/payment/OTP/security/account-deletion/content-exfiltration cues
+    - confirm before submitting forms with external side effects
+    - confirm before file upload/download path exposure
+  - [ ] Add smoke tests
+    - extension connection status
+    - current signed-in tab observation without navigation
+    - safe form fill/click
+    - sensitive form pause
+    - blocked host
+    - extension unavailable -> CDP fallback
+    - CDP unavailable -> screenshot fallback
+  - [ ] Dogfood gate
+    - at least one consenting real logged-in page task passes through extension structured control
+    - artifacts include host policy decision, tab title/url, observed elements count, action verification, and fallback not used unless explicitly testing fallback
 - Add Finder proof of concept:
   - [x] organize a test folder
     - safe planner groups files into Images/Documents/Code/Archives/Other folders
@@ -375,6 +473,25 @@ Goal: make it suitable for a small internal dogfood, and decide whether to integ
   - cohort evidence verifier now runs as `npm run dogfood:cohort -- --cohort <path>` and checks 3-5 distinct real testers, shared alpha manifest, `appLaunchViaOpen=true`, `runnerHasTmux=false`, UI/Ghostty/Chrome/Finder/voice artifact paths, `uiPetDragEvidence.verifiedBy=dogfood:report`, `stopTurnEvidence.verifiedBy=dogfood:report`, macOS permission states, accepted GitHub issue source metadata with issue alpha manifest/zip/commit identity, and coverage for `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`; workflow coverage counts only reports that satisfy the report-level source/artifact/UI-pet-drag/stop-turn/permission/identity gates
   - GitHub dogfood issue form now requires alpha manifest, alpha zip, commit SHA, UI smoke artifact, UI pet drag evidence, panic stop evidence from `runtimeStatus.stopTurnHotkey` and `stopTurnBehavior`, Ghostty smoke artifact, Chrome smoke artifact, Finder smoke artifact, voice smoke artifact, `runnerHasTmux`, app bundle preflight (`appPath`, LaunchServices launch command, `appLaunchViaOpen`, `runnerHasTmux`, and product path), permission states, ASR provider, external Doubao voice transcript-to-task evidence, external Doubao voice Ghostty turn replay evidence, external Doubao voice no-transcript/cancellation evidence, Computer Use result, screenshot paths, action verification events, app policy settings, Chrome extracted text, Chrome current-page observation evidence, Chrome sensitive-page pause evidence, Chrome form action evidence, Chrome screenshot fallback evidence, Chrome fallback switching evidence, Finder observe_app evidence, Finder semantic selection evidence, Finder plan preview evidence, Finder plan confirmation evidence, Finder item drag/drop evidence, Finder before/after tree, clipboard approval runs, and generated cohort source identity (`artifactSource=github-issue-smoke-artifacts`, issue alpha manifest/zip/commit identity, source commit matching report `commitSha`)
   - `dogfood:report` now rejects accepted issue bodies whose `app bundle preflight` is missing or does not match the UI smoke artifact `appPath`, LaunchServices launch command, `appLaunchViaOpen`, `runnerHasTmux`, and product path; rejects missing or mismatched `UI pet drag evidence` whose result/source/window bounds/deltas/upward movement/click suppression do not match the UI smoke artifact `petDrag`; and rejects missing or mismatched `panic stop` evidence whose accelerator/label/registered/source do not match smoke artifact `runtimeStatus.stopTurnHotkey` or whose behavior fields do not match `stopTurnBehavior`
+- [ ] Add first-class binary and CLI distribution
+  - [ ] build a release package that contains `skfiy.app`, embedded `skfiy-helper`, and a `skfiy` CLI shim
+  - [ ] implement `skfiy status --json` for app/helper/permissions/desktop-session/extension/dashboard state
+  - [ ] implement `skfiy doctor` with concrete remediation for TCC, signing, helper location, Finder Automation, Chrome extension, and desktop sleep/lock blockers
+  - [ ] implement `skfiy dashboard [--no-open] [--port <port>]`, following OpenClaw's pattern of printing/opening a clean local URL without leaking tokens
+  - [ ] implement `skfiy chrome status|install-host|uninstall-host` for Chrome Native Messaging setup
+  - [ ] wrap product smokes behind `skfiy smoke <target>` while keeping npm scripts for development
+  - [ ] add tests that every CLI command can run outside tmux and that `--json` output is stable for the dashboard
+- [ ] Add local dashboard/control UI
+  - [ ] serve loopback-only dashboard from the app or CLI
+  - [ ] add token/session auth for non-local or explicit remote modes; do not print secrets into terminal output
+  - [ ] implement runtime health panel: app/helper/dashboard/extension PIDs, version, uptime, signing state
+  - [ ] implement permissions panel: Screen Recording, Accessibility, Microphone, Speech Recognition, Finder Automation, Chrome extension
+  - [ ] implement active-turn panel: transcript, voice provider, target app, risk, approvals, stop
+  - [ ] implement replay panel: screenshots, OCR labels, accessibility coverage, actions, verification decisions
+  - [ ] implement evidence panel: latest smoke artifacts, result, product path, blocker reason, stale evidence warning
+  - [ ] implement dogfood/release panel: current alpha, manifest checksum, accepted reports, cohort coverage
+  - [ ] implement long-horizon panel: `money-run` session status, active pane, current recommendation, recent blocker markers
+  - [ ] add smoke for `skfiy dashboard --no-open --json` and browser dashboard load
 - [x] Add app allowlist/denylist UI.
   - settings panel now exposes allow/ask/deny policies for Ghostty, Chrome, and Finder; Ghostty defaults to allow for the current product smoke path, while ask/deny can gate Computer Use before touching the app
 - [x] Add per-turn approval transcript:
@@ -512,11 +629,14 @@ With one engineer, the same scope is closer to 6-8 weeks because packaging, ASR,
 
 Do not add more random UI features. The native desktop-control foundation now exists: stable app identity, permission onboarding, packaged helper attribution, dedicated Ghostty session isolation, replay logs, and fail-closed desktop-session preflight are implemented. The next implementation milestone is field proof:
 
-1. Complete the product-path native speech turn after Speech Recognition permission is granted.
-2. Unlock and keep the tester Mac awake, rerun `smoke:desktop-session`, then rerun Ghostty, Finder, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes.
-3. Collect 3-5 accepted real tester reports covering `coding-terminal`, `screenshot-inspection`, `finder-file`, and `browser-fallback`.
-4. Run `dogfood:collect`, `dogfood:cohort`, and the strict `dogfood:cohort --require-passed` gate on those accepted reports.
-5. Run the long-horizon `money-run` supervision field task after release gates pass, preserving product-path launch, approval, screenshot/action verification, stop behavior, and `tmuxSupervisionReport` evidence.
+1. Write the Chrome extension architecture note first, based on Codex Chrome extension public behavior and current local extension surface; then implement the skfiy Manifest V3 extension plus native messaging host.
+2. Build the `skfiy` CLI skeleton and dashboard command before adding more UI controls: `skfiy status`, `skfiy doctor`, `skfiy dashboard`, and `skfiy chrome status/install-host` should become the operator entry points.
+3. Create the dashboard/control UI as a local audit surface for permissions, current turn, replay, smoke evidence, extension state, dogfood/release state, and `money-run` supervision.
+4. Complete the product-path native speech turn after Speech Recognition permission is granted.
+5. Unlock and keep the tester Mac awake, rerun `smoke:desktop-session`, then rerun Ghostty, Finder, Chrome extension, dashboard, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes.
+6. Collect 3-5 accepted real tester reports covering `coding-terminal`, `screenshot-inspection`, `finder-file`, `browser-fallback`, and one extension-backed logged-in Chrome workflow.
+7. Run `dogfood:collect`, `dogfood:cohort`, and the strict `dogfood:cohort --require-passed` gate on those accepted reports.
+8. Run the long-horizon `money-run` supervision field task after release gates pass, preserving product-path launch, approval, screenshot/action verification, stop behavior, dashboard visibility, and `tmuxSupervisionReport` evidence.
 
 This moves skfiy from a locally demonstrated Computer Use foundation to the evidence AIME does not yet cover: native desktop control with voice-first, pet-visible, permissioned execution that survives real tester machines and long-horizon supervision.
 
@@ -526,6 +646,14 @@ External:
 
 - OpenAI API Computer Use guide: https://developers.openai.com/api/docs/guides/tools-computer-use
 - OpenAI Codex app Computer Use guide: https://developers.openai.com/codex/app/computer-use
+- OpenAI Codex Chrome extension guide: https://developers.openai.com/codex/app/chrome-extension
+- OpenAI Codex plugins guide: https://developers.openai.com/codex/plugins
+- OpenAI Codex build plugins guide: https://developers.openai.com/codex/plugins/build
+- Local Codex manual refresh on 2026-06-20: `/var/folders/3s/779dy7bj14g6nkh43dcw_jj40000gn/T/openai-docs-cache/codex-manual.md`
+- OpenClaw dashboard docs: https://docs.openclaw.ai/web/dashboard
+- OpenClaw dashboard CLI docs: https://docs.openclaw.ai/cli/dashboard
+- OpenClaw Dashboard reference implementation: https://github.com/mudrii/openclaw-dashboard
+- Mission Control / Autensa OpenClaw dashboard article: https://pub.towardsai.net/mission-control-an-orchestration-dashboard-for-openclaw-c3454f959b15
 - Anthropic computer use announcement: https://www.anthropic.com/news/3-5-models-and-computer-use
 - Microsoft Copilot Studio Computer Use: https://learn.microsoft.com/en-us/microsoft-copilot-studio/computer-use
 - Microsoft Power Automate Desktop flows: https://learn.microsoft.com/en-us/power-automate/desktop-flows/introduction
