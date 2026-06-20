@@ -54,6 +54,8 @@ describe("Chrome extension adapter skeleton", () => {
     expect(background).toContain("clampDownloadsLimit");
     expect(background).toContain('"skfiy.host_policy.request"');
     expect(background).toContain('"skfiy.host_policy.response"');
+    expect(background).toContain('"skfiy.host_policy.sync_status"');
+    expect(background).toContain('"skfiy.host_policy.sync_refresh"');
     expect(background).toContain("captureVisibleTab");
     expect(background).toContain("chrome.downloads.search");
     expect(background).toContain("sendNativeMessage");
@@ -79,7 +81,10 @@ describe("Chrome extension adapter skeleton", () => {
     expect(contentScript).toContain('action.kind === "submit"');
 
     expect(popupHtml).toContain("skfiy Chrome Adapter");
+    expect(popupHtml).toContain("Refresh host policy");
     expect(popupScript).toContain("Ask by default");
     expect(popupScript).toContain("Sensitive content pause");
+    expect(popupScript).toContain("HOST_POLICY_SYNC_STATUS");
+    expect(popupScript).toContain("HOST_POLICY_SYNC_REFRESH");
   });
 });

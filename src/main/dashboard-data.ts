@@ -18,6 +18,7 @@ import {
   createChromeHostPolicyStatePath,
   createDefaultChromeHostPolicy,
   normalizeChromeHostPolicy,
+  type ChromeHostPolicy,
   type ChromeHostPolicyState
 } from "./chrome-host-policy.js";
 import {
@@ -45,6 +46,17 @@ const SYNTHETIC_TESTER_ID_PREFIXES = [
   "preflight-",
   "synthetic-"
 ];
+
+type DashboardChromeHostPolicySource =
+  | "default-policy"
+  | "chrome-host-policy-file"
+  | "invalid-chrome-host-policy-file";
+
+type DashboardChromeHostPolicyState = ChromeHostPolicyState & {
+  source: DashboardChromeHostPolicySource;
+  updatedAt?: string;
+  entries: Array<Record<string, unknown>>;
+};
 
 export interface DashboardSnapshotInput {
   generatedAt?: string;
@@ -1404,7 +1416,7 @@ function readWorkspaceChromeNativeHost({
 function createWorkspaceChromeExtensionStatus(
   nativeHost: Record<string, unknown>,
   connection?: Record<string, unknown>,
-  hostPolicy?: ChromeHostPolicyState
+  hostPolicy?: DashboardChromeHostPolicyState
 ): Record<string, unknown> {
   const allowedOrigins = Array.isArray(nativeHost.allowedOrigins)
     ? nativeHost.allowedOrigins.filter((origin): origin is string => typeof origin === "string")
@@ -1552,7 +1564,7 @@ function readWorkspaceChromeExtensionConnection({
   };
 }
 
-function readWorkspaceChromeHostPolicy(io: DashboardWorkspaceIo): ChromeHostPolicyState | undefined {
+function readWorkspaceChromeHostPolicy(io: DashboardWorkspaceIo): DashboardChromeHostPolicyState | undefined {
   const homeDir = io.homeDir?.();
   if (!homeDir) {
     return undefined;
@@ -1560,43 +1572,93 @@ function readWorkspaceChromeHostPolicy(io: DashboardWorkspaceIo): ChromeHostPoli
 
   const statePath = createChromeHostPolicyStatePath(homeDir);
   if (!io.exists(statePath)) {
-    return {
+    return createDashboardChromeHostPolicyState({
       schemaVersion: 1,
       state: "default",
       path: statePath,
       policy: createDefaultChromeHostPolicy(),
       reason: "Chrome host policy has not been configured yet."
-    };
+    }, "default-policy");
   }
+  const updatedAt = readWorkspaceFileUpdatedAt(statePath, io);
 
   try {
     const parsed = JSON.parse(io.readFile(statePath)) as unknown;
     const record = readRecord(parsed);
     if (!record) {
-      return {
+      return createDashboardChromeHostPolicyState({
         schemaVersion: 1,
         state: "invalid",
         path: statePath,
         policy: createDefaultChromeHostPolicy(),
         reason: "Chrome host policy file is not an object."
-      };
+      }, "invalid-chrome-host-policy-file", updatedAt);
     }
 
-    return {
+    return createDashboardChromeHostPolicyState({
       schemaVersion: 1,
       state: "configured",
       path: statePath,
       policy: normalizeChromeHostPolicy(record.policy)
-    };
+    }, "chrome-host-policy-file", updatedAt);
   } catch {
-    return {
+    return createDashboardChromeHostPolicyState({
       schemaVersion: 1,
       state: "invalid",
       path: statePath,
       policy: createDefaultChromeHostPolicy(),
       reason: "Chrome host policy file is not valid JSON."
-    };
+    }, "invalid-chrome-host-policy-file", updatedAt);
   }
+}
+
+function createDashboardChromeHostPolicyState(
+  state: ChromeHostPolicyState,
+  source: DashboardChromeHostPolicySource,
+  updatedAt?: string
+): DashboardChromeHostPolicyState {
+  return {
+    ...state,
+    source,
+    ...(updatedAt ? { updatedAt } : {}),
+    entries: createChromeHostPolicyEntries(state.policy)
+  };
+}
+
+function createChromeHostPolicyEntries(policy: ChromeHostPolicy): Array<Record<string, unknown>> {
+  return [
+    ...policy.allowedHosts.map((host) => ({
+      host,
+      scope: "always",
+      decision: "allow"
+    })),
+    ...policy.currentTurnAllowedHosts.map((host) => ({
+      host,
+      scope: "current-turn",
+      decision: "allow"
+    })),
+    ...policy.blockedHosts.map((host) => ({
+      host,
+      scope: "host",
+      decision: "block"
+    }))
+  ];
+}
+
+function readWorkspaceFileUpdatedAt(
+  targetPath: string,
+  io: DashboardWorkspaceIo
+): string | undefined {
+  try {
+    const mtimeMs = io.stat(targetPath).mtimeMs;
+    if (Number.isFinite(mtimeMs)) {
+      return new Date(mtimeMs).toISOString();
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
 }
 
 function readWorkspaceConnectionState(connection: Record<string, unknown> | undefined): string {

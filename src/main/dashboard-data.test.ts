@@ -406,7 +406,8 @@ describe("dashboard snapshot data", () => {
       "/repo/.skfiy-smoke/chrome-current.json": Date.parse("2026-06-18T23:59:59.000Z"),
       "/repo/.skfiy-smoke/chrome-dashboard-native-bridge-postbuild.json": Date.parse("2026-06-19T23:59:30.000Z"),
       "/repo/.skfiy-smoke/cli-current.json": Date.parse("2026-06-19T23:59:00.000Z"),
-      "/repo/.skfiy-smoke/codex-plugin-current.json": Date.parse("2026-06-19T23:58:00.000Z")
+      "/repo/.skfiy-smoke/codex-plugin-current.json": Date.parse("2026-06-19T23:58:00.000Z"),
+      "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json": Date.parse("2026-06-19T23:59:10.000Z")
     };
     const tmuxCalls: string[] = [];
     const windowsOutput = [
@@ -561,12 +562,31 @@ describe("dashboard snapshot data", () => {
           schemaVersion: 1,
           state: "configured",
           path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+          source: "chrome-host-policy-file",
+          updatedAt: "2026-06-19T23:59:10.000Z",
           policy: {
             defaultMode: "ask",
             allowedHosts: ["example.com"],
             currentTurnAllowedHosts: ["turn.example"],
             blockedHosts: ["blocked.example"]
-          }
+          },
+          entries: [
+            {
+              host: "example.com",
+              scope: "always",
+              decision: "allow"
+            },
+            {
+              host: "turn.example",
+              scope: "current-turn",
+              decision: "allow"
+            },
+            {
+              host: "blocked.example",
+              scope: "host",
+              decision: "block"
+            }
+          ]
         }
       }
     });

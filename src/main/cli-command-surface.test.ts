@@ -1,4 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -936,6 +938,7 @@ describe("CLI command surface", () => {
     const stderr: string[] = [];
     const statusInputs: unknown[] = [];
     const signatureInputs: unknown[] = [];
+    const hostPolicyPath = "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json";
 
     await expect(runSkfiyCli({
       argv: [
@@ -953,6 +956,7 @@ describe("CLI command surface", () => {
         statusInputs.push(input);
         return {
           app: { state: "installed", path: "/repo/dist/skfiy.app" },
+          cli: { state: "installed", path: "/repo/dist/skfiy" },
           helper: {
             state: "missing",
             path: "/repo/dist/skfiy.app/Contents/Resources/skfiy-helper"
@@ -969,7 +973,23 @@ describe("CLI command surface", () => {
             frontmostBundleId: "com.apple.loginwindow",
             mainDisplayAsleep: true
           },
-          extension: { state: "unknown" },
+          extension: {
+            state: "native-host-missing",
+            bridge: "native-messaging",
+            liveConnection: "unknown",
+            nativeHostState: "missing",
+            hostPolicy: {
+              schemaVersion: 1,
+              state: "default",
+              path: hostPolicyPath,
+              policy: {
+                defaultMode: "ask",
+                allowedHosts: [],
+                currentTurnAllowedHosts: [],
+                blockedHosts: []
+              }
+            }
+          },
           nativeHost: {
             state: "missing",
             cliShimPath: "/repo/dist/skfiy",
@@ -979,7 +999,14 @@ describe("CLI command surface", () => {
           dashboard: {
             state: "not-running",
             url: "http://127.0.0.1:8787/",
-            reason: "fetch failed"
+            reason: "fetch failed",
+            api: {
+              chromeHostPolicy: {
+                state: "not-probed",
+                url: "http://127.0.0.1:8787/api/chrome-host-policy",
+                reason: "Dashboard descriptor is not reachable."
+              }
+            }
           }
         };
       },
@@ -1014,6 +1041,46 @@ describe("CLI command surface", () => {
       command: "doctor",
       generatedAt: "2026-06-20T00:00:00.000Z",
       result: "needs-action"
+    });
+    expect(output.preflight).toMatchObject({
+      runtime: {
+        appPath: "/repo/dist/skfiy.app",
+        appState: "installed",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        helperState: "missing",
+        cliPath: "/repo/dist/skfiy",
+        cliState: "installed",
+        signature: {
+          state: "invalid"
+        }
+      },
+      dashboard: {
+        state: "not-running",
+        url: "http://127.0.0.1:8787/",
+        api: {
+          chromeHostPolicy: {
+            state: "not-probed",
+            url: "http://127.0.0.1:8787/api/chrome-host-policy"
+          }
+        }
+      },
+      chrome: {
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+        extension: {
+          state: "native-host-missing",
+          bridge: "native-messaging",
+          liveConnection: "unknown"
+        },
+        nativeHost: {
+          state: "missing",
+          cliShimPath: "/repo/dist/skfiy"
+        },
+        hostPolicy: {
+          schemaVersion: 1,
+          state: "default",
+          path: hostPolicyPath
+        }
+      }
     });
     expect(output.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -1060,6 +1127,113 @@ describe("CLI command surface", () => {
       "Run a Finder smoke once and grant Finder Automation when macOS prompts."
     ]));
     expect(JSON.stringify(output)).not.toContain("token=");
+    expect(stderr).toEqual([]);
+  });
+
+  it("probes dashboard Chrome host policy API through concrete status collection", async () => {
+    const server = http.createServer((request, response) => {
+      response.setHeader("content-type", "application/json");
+
+      if (request.url === "/descriptor.json") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          name: "skfiy-dashboard",
+          bind: { host: "127.0.0.1", port: 0 }
+        }));
+        return;
+      }
+
+      if (request.url === "/api/chrome-host-policy") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          source: "dashboard",
+          hostPolicy: {
+            state: "default"
+          }
+        }));
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: "not found" }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+
+    try {
+      const address = server.address() as AddressInfo;
+      const dashboardUrl = `http://127.0.0.1:${address.port}/`;
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+
+      await expect(runSkfiyCli({
+        argv: ["status", "--json", "--dashboard-url", dashboardUrl],
+        rootDir: "/repo",
+        homeDir: "",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      expect(JSON.parse(stdout.join(""))).toMatchObject({
+        schemaVersion: 1,
+        command: "status",
+        dashboard: {
+          state: "running",
+          url: dashboardUrl,
+          api: {
+            chromeHostPolicy: {
+              state: "reachable",
+              url: `${dashboardUrl}api/chrome-host-policy`,
+              status: 200
+            }
+          }
+        }
+      });
+      expect(stderr).toEqual([]);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+
+  it("keeps invalid dashboard URLs as status data instead of CLI failures", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["status", "--json", "--dashboard-url", "not a url"],
+      rootDir: "/repo",
+      homeDir: "",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      schemaVersion: 1,
+      command: "status",
+      dashboard: {
+        state: "not-running",
+        url: "not a url",
+        reason: "Invalid dashboard URL: not a url",
+        api: {
+          chromeHostPolicy: {
+            state: "not-probed",
+            reason: "Invalid dashboard URL."
+          }
+        }
+      }
+    });
     expect(stderr).toEqual([]);
   });
 

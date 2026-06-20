@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const HOST_POLICY_STORAGE_KEY = "skfiyHostPolicy";
 const HOST_POLICY_SYNC_STORAGE_KEY = "skfiyHostPolicySync";
+const HOST_POLICY_SYNC_STATUS = "skfiy.host_policy.sync_status";
+const HOST_POLICY_SYNC_REFRESH = "skfiy.host_policy.sync_refresh";
 
 function createEvent() {
   const listeners = [];
@@ -156,6 +158,54 @@ afterEach(() => {
 });
 
 describe("Chrome extension background policy sync", () => {
+  it("returns stored policy sync status with a normalized entry count", async () => {
+    const mock = createChromeMock();
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["example.com"],
+      currentTurnAllowedHosts: ["turn.example"],
+      blockedHosts: ["blocked.example"]
+    };
+    mock.storage[HOST_POLICY_SYNC_STORAGE_KEY] = {
+      schemaVersion: 1,
+      state: "synced",
+      source: "native_host",
+      trigger: "runtime_startup",
+      updatedAt: "2026-06-20T10:00:00.000Z",
+      requestId: "host-policy-sync-runtime_startup-1",
+      hostPolicyState: "configured"
+    };
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+      type: HOST_POLICY_SYNC_STATUS,
+      requestId: "popup-status"
+    }, {}, sendResponse);
+
+    expect(keepChannelOpen).toBe(true);
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith({
+        type: "skfiy.host_policy.response",
+        schemaVersion: 1,
+        requestId: "popup-status",
+        policy: mock.storage[HOST_POLICY_STORAGE_KEY],
+        syncStatus: expect.objectContaining({
+          schemaVersion: 1,
+          state: "synced",
+          source: "native_host",
+          trigger: "runtime_startup",
+          updatedAt: "2026-06-20T10:00:00.000Z",
+          requestId: "host-policy-sync-runtime_startup-1",
+          hostPolicyState: "configured",
+          entryCount: 3,
+          error: null
+        })
+      });
+    });
+  });
+
   it("syncs host policy through the native host and records sync status", async () => {
     const mock = createChromeMock([createPolicyResponse()]);
     globalThis.chrome = mock.chrome;
@@ -184,9 +234,11 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
       schemaVersion: 1,
       state: "synced",
+      source: "native_host",
       trigger: "runtime_startup",
       requestId: mock.postedMessages[0].requestId,
-      hostPolicyState: "configured"
+      hostPolicyState: "configured",
+      entryCount: 3
     });
     expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY].requestedAt).toEqual(expect.any(String));
     expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY].completedAt).toEqual(expect.any(String));
@@ -227,6 +279,49 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-runtime_installed-/);
     expect(mock.postedMessages[1].requestId).toMatch(/^host-policy-sync-runtime_startup-/);
     expect(mock.storage[HOST_POLICY_STORAGE_KEY].allowedHosts).toEqual(["startup.example"]);
+  });
+
+  it("lets the popup trigger a manual native host policy refresh", async () => {
+    const mock = createChromeMock([
+      createPolicyResponse({ allowedHosts: ["manual.example"], blockedHosts: [] })
+    ]);
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+      type: HOST_POLICY_SYNC_REFRESH,
+      requestId: "popup-refresh"
+    }, {}, sendResponse);
+
+    expect(keepChannelOpen).toBe(true);
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith({
+        type: "skfiy.host_policy.response",
+        schemaVersion: 1,
+        requestId: "popup-refresh",
+        policy: expect.objectContaining({
+          allowedHosts: ["manual.example"],
+          currentTurnAllowedHosts: ["turn.example"],
+          blockedHosts: []
+        }),
+        syncStatus: expect.objectContaining({
+          state: "synced",
+          source: "native_host",
+          trigger: "popup_manual",
+          hostPolicyState: "configured",
+          entryCount: 2,
+          error: null
+        })
+      });
+    });
+
+    expect(mock.postedMessages).toHaveLength(1);
+    expect(mock.postedMessages[0]).toMatchObject({
+      schemaVersion: 1,
+      type: "skfiy.host_policy.request"
+    });
+    expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-popup_manual-/);
   });
 
   it("schedules a host policy sync when forwarding a native host message", async () => {
@@ -299,8 +394,56 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.storage[HOST_POLICY_STORAGE_KEY]).toBeUndefined();
     expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
       state: "error",
+      source: "native_host",
       trigger: "runtime_installed",
       error: "Specified native messaging host not found."
     });
+  });
+
+  it("records malformed native policy responses as errors and recovers on the next refresh", async () => {
+    const mock = createChromeMock([
+      {
+        schemaVersion: 1,
+        type: "skfiy.host_policy.response",
+        requestId: "malformed-policy",
+        result: "accepted"
+      },
+      createPolicyResponse({ allowedHosts: ["recovered.example"], currentTurnAllowedHosts: [], blockedHosts: [] })
+    ]);
+    globalThis.chrome = mock.chrome;
+    const background = await importBackground();
+
+    await expect(background.syncHostPolicy("popup_manual")).resolves.toMatchObject({
+      result: "accepted"
+    });
+
+    expect(mock.storage[HOST_POLICY_STORAGE_KEY]).toBeUndefined();
+    expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
+      state: "error",
+      source: "native_host",
+      trigger: "popup_manual",
+      error: "host_policy_unavailable"
+    });
+
+    await expect(background.syncHostPolicy("popup_manual")).resolves.toMatchObject({
+      hostPolicy: {
+        state: "configured",
+        policy: expect.objectContaining({
+          allowedHosts: ["recovered.example"]
+        })
+      }
+    });
+
+    expect(mock.storage[HOST_POLICY_STORAGE_KEY]).toMatchObject({
+      allowedHosts: ["recovered.example"]
+    });
+    expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
+      state: "synced",
+      source: "native_host",
+      trigger: "popup_manual",
+      hostPolicyState: "configured",
+      entryCount: 1
+    });
+    expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY].error).toBeUndefined();
   });
 });

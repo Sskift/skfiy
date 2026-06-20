@@ -21,6 +21,8 @@ export const MESSAGE_TYPES = Object.freeze({
   PAGE_SENSITIVE_PAUSE: "skfiy.page.sensitive_pause",
   HOST_POLICY_REQUEST: "skfiy.host_policy.request",
   HOST_POLICY_RESPONSE: "skfiy.host_policy.response",
+  HOST_POLICY_SYNC_STATUS: "skfiy.host_policy.sync_status",
+  HOST_POLICY_SYNC_REFRESH: "skfiy.host_policy.sync_refresh",
   NATIVE_MESSAGE: "skfiy.native.message"
 });
 
@@ -56,6 +58,45 @@ async function readHostPolicy() {
   return {
     ...HOST_POLICY_SHAPE,
     ...(stored[HOST_POLICY_STORAGE_KEY] ?? {})
+  };
+}
+
+function countHostPolicyEntries(policy) {
+  return [
+    policy?.allowedHosts,
+    policy?.currentTurnAllowedHosts,
+    policy?.blockedHosts
+  ].reduce((count, entries) => {
+    return count + (Array.isArray(entries) ? entries.length : 0);
+  }, 0);
+}
+
+async function readHostPolicySyncStatus(policyOverride) {
+  const policy = policyOverride ?? await readHostPolicy();
+  const stored = await chrome.storage.local.get(HOST_POLICY_SYNC_STORAGE_KEY);
+  const status = stored[HOST_POLICY_SYNC_STORAGE_KEY] ?? {};
+  const entryCount = countHostPolicyEntries(policy);
+
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    state: status.state ?? "unknown",
+    source: status.source ?? (status.state === "synced" ? "native_host" : "local_storage"),
+    updatedAt: status.updatedAt ?? null,
+    entryCount,
+    trigger: status.trigger ?? null,
+    requestId: status.requestId ?? null,
+    requestedAt: status.requestedAt ?? null,
+    completedAt: status.completedAt ?? null,
+    hostPolicyState: status.hostPolicyState ?? null,
+    error: status.error ?? null
+  };
+}
+
+async function readHostPolicySnapshot() {
+  const policy = await readHostPolicy();
+  return {
+    policy,
+    syncStatus: await readHostPolicySyncStatus(policy)
   };
 }
 
@@ -243,19 +284,23 @@ export async function syncHostPolicy(trigger = "manual") {
     if (response?.hostPolicy?.policy) {
       await writeHostPolicySyncStatus({
         state: "synced",
+        source: "native_host",
         trigger: normalizedTrigger,
         requestId,
         requestedAt,
         completedAt,
-        hostPolicyState: response.hostPolicy.state ?? "unknown"
+        hostPolicyState: response.hostPolicy.state ?? "unknown",
+        entryCount: countHostPolicyEntries(response.hostPolicy.policy)
       });
     } else {
       await writeHostPolicySyncStatus({
         state: "error",
+        source: "native_host",
         trigger: normalizedTrigger,
         requestId,
         requestedAt,
         completedAt,
+        entryCount: countHostPolicyEntries(await readHostPolicy()),
         error: response?.error ?? response?.reason ?? "host_policy_unavailable"
       });
     }
@@ -267,10 +312,12 @@ export async function syncHostPolicy(trigger = "manual") {
 
     await writeHostPolicySyncStatus({
       state: "error",
+      source: "native_host",
       trigger: normalizedTrigger,
       requestId,
       requestedAt,
       completedAt,
+      entryCount: countHostPolicyEntries(await readHostPolicy()),
       error: message
     });
 
@@ -345,12 +392,36 @@ async function handleRuntimeMessage(message) {
   }
 
   if (message?.type === MESSAGE_TYPES.HOST_POLICY_REQUEST) {
-    const policy = await readHostPolicy();
+    const { policy, syncStatus } = await readHostPolicySnapshot();
     return {
       type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
       requestId: message.requestId,
-      policy
+      policy,
+      syncStatus
+    };
+  }
+
+  if (message?.type === MESSAGE_TYPES.HOST_POLICY_SYNC_STATUS) {
+    const { policy, syncStatus } = await readHostPolicySnapshot();
+    return {
+      type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      policy,
+      syncStatus
+    };
+  }
+
+  if (message?.type === MESSAGE_TYPES.HOST_POLICY_SYNC_REFRESH) {
+    await syncHostPolicy("popup_manual");
+    const { policy, syncStatus } = await readHostPolicySnapshot();
+    return {
+      type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      policy,
+      syncStatus
     };
   }
 

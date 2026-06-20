@@ -1207,11 +1207,27 @@ function createDoctorOutput({
     }
   };
   const app = readRecord(status.app);
+  const cli = readRecord(status.cli);
   const helper = readRecord(status.helper);
   const permissions = readRecord(status.permissions);
   const desktopSession = readRecord(status.desktopSession);
+  const extension = readRecord(status.extension);
   const nativeHost = readRecord(status.nativeHost);
   const dashboard = readRecord(status.dashboard);
+  const hostPolicy = readRecord(extension?.hostPolicy) ?? {
+    state: statusInput.homeDir ? "unknown" : "not-probed",
+    path: statusInput.homeDir ? createChromeHostPolicyStatePath(statusInput.homeDir) : undefined,
+    reason: statusInput.homeDir
+      ? "Chrome host policy was not included in status output."
+      : "Home directory is required to locate the Chrome host policy file."
+  };
+  const dashboardApi = readRecord(readRecord(dashboard?.api)?.chromeHostPolicy) ?? {
+    state: statusInput.dashboardUrl ? "unknown" : "not-probed",
+    url: createDashboardApiUrl(statusInput.dashboardUrl),
+    reason: statusInput.dashboardUrl
+      ? "Dashboard Chrome host policy API was not included in status output."
+      : "Pass --dashboard-url <url> to probe dashboard API reachability."
+  };
 
   if (app?.state !== "installed") {
     addDiagnostic({
@@ -1219,6 +1235,15 @@ function createDoctorOutput({
       severity: "error",
       message: `skfiy.app is missing at ${statusInput.appPath}.`,
       nextAction: "Run `npm run build` to create dist/skfiy.app and the CLI shim."
+    });
+  }
+
+  if (cli?.state === "missing") {
+    addDiagnostic({
+      code: "cli-binary-missing",
+      severity: "error",
+      message: `Packaged skfiy CLI is missing at ${statusInput.cliShimPath}.`,
+      nextAction: "Run `npm run build` so dist/skfiy exists before product smoke or dogfood runs."
     });
   }
 
@@ -1323,8 +1348,65 @@ function createDoctorOutput({
     });
   }
 
+  if (
+    statusInput.dashboardUrl
+    && dashboard?.state === "running"
+    && dashboardApi.state !== "reachable"
+  ) {
+    addDiagnostic({
+      code: "dashboard-api-unreachable",
+      severity: "warning",
+      message: "The dashboard is running, but its Chrome host policy API is not reachable.",
+      nextAction: "Restart `skfiy dashboard --no-open --json` and rerun `skfiy doctor --json --dashboard-url <url>`.",
+      details: {
+        url: dashboardApi.url,
+        state: dashboardApi.state,
+        status: dashboardApi.status,
+        reason: dashboardApi.reason
+      }
+    });
+  }
+
+  if (hostPolicy.state === "invalid") {
+    addDiagnostic({
+      code: "chrome-host-policy-invalid",
+      severity: "warning",
+      message: typeof hostPolicy.reason === "string"
+        ? hostPolicy.reason
+        : "Chrome host policy state is invalid.",
+      nextAction: "Run `skfiy chrome policy reset` to return Chrome host policy to default ask mode.",
+      details: {
+        path: hostPolicy.path
+      }
+    });
+  }
+
   return {
     result: diagnostics.length === 0 ? "ok" : "needs-action",
+    preflight: {
+      runtime: {
+        appPath: statusInput.appPath,
+        appState: app?.state ?? "unknown",
+        helperPath: statusInput.helperPath,
+        helperState: helper?.state ?? "unknown",
+        cliPath: statusInput.cliShimPath,
+        cliState: cli?.state ?? "unknown",
+        signature
+      },
+      dashboard: {
+        state: dashboard?.state ?? "unknown",
+        url: statusInput.dashboardUrl,
+        api: {
+          chromeHostPolicy: dashboardApi
+        }
+      },
+      chrome: {
+        extensionIds: statusInput.extensionIds,
+        extension: extension ?? { state: "unknown" },
+        nativeHost: nativeHost ?? { state: "unknown" },
+        hostPolicy
+      }
+    },
     diagnostics,
     nextActions,
     status,
@@ -1339,6 +1421,10 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
     state: appExists ? "installed" : "missing",
     path: input.appPath
   };
+  const cli = {
+    state: existsSync(input.cliShimPath) ? "installed" : "missing",
+    path: input.cliShimPath
+  };
   const helper = {
     state: helperExists ? "installed" : "missing",
     path: input.helperPath
@@ -1351,6 +1437,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
 
     return {
       app,
+      cli,
       helper,
       permissions: createUnknownPermissionStates(),
       desktopSession: {
@@ -1373,6 +1460,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
 
   return {
     app,
+    cli,
     helper,
     permissions: await readPermissionStatesForStatus(desktopHelper),
     desktopSession: await readDesktopSessionForStatus(desktopHelper),
@@ -1629,33 +1717,104 @@ async function readDashboardStatus(dashboardUrl: string | undefined): Promise<Re
     return { state: "not-running" };
   }
 
+  const descriptorUrl = createDashboardDescriptorUrl(dashboardUrl);
+  const chromeHostPolicyApiUrl = createDashboardApiUrl(dashboardUrl);
+
+  if (!descriptorUrl || !chromeHostPolicyApiUrl) {
+    return {
+      state: "not-running",
+      url: dashboardUrl,
+      reason: `Invalid dashboard URL: ${dashboardUrl}`,
+      api: {
+        chromeHostPolicy: {
+          state: "not-probed",
+          url: chromeHostPolicyApiUrl,
+          reason: "Invalid dashboard URL."
+        }
+      }
+    };
+  }
+
+  const descriptorProbe = await fetchDashboardJson(descriptorUrl);
+
+  if (descriptorProbe.state !== "reachable") {
+    return {
+      state: descriptorProbe.state === "blocked" ? "blocked" : "not-running",
+      url: dashboardUrl,
+      status: descriptorProbe.status,
+      reason: descriptorProbe.reason,
+      api: {
+        chromeHostPolicy: {
+          state: "not-probed",
+          url: chromeHostPolicyApiUrl,
+          reason: "Dashboard descriptor is not reachable."
+        }
+      }
+    };
+  }
+
+  return {
+    state: "running",
+    url: dashboardUrl,
+    descriptor: descriptorProbe.body,
+    api: {
+      chromeHostPolicy: await fetchDashboardJson(chromeHostPolicyApiUrl)
+    }
+  };
+}
+
+function createDashboardDescriptorUrl(dashboardUrl: string | undefined): string | undefined {
+  return createDashboardRelativeUrl("/descriptor.json", dashboardUrl);
+}
+
+function createDashboardApiUrl(dashboardUrl: string | undefined): string | undefined {
+  return createDashboardRelativeUrl("/api/chrome-host-policy", dashboardUrl);
+}
+
+function createDashboardRelativeUrl(
+  pathname: string,
+  dashboardUrl: string | undefined
+): string | undefined {
+  if (!dashboardUrl) {
+    return undefined;
+  }
+
+  try {
+    return new URL(pathname, dashboardUrl).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchDashboardJson(targetUrl: string): Promise<Record<string, unknown>> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1_000);
 
   try {
-    const response = await fetch(new URL("/descriptor.json", dashboardUrl), {
+    const response = await fetch(targetUrl, {
       signal: controller.signal
     });
 
     if (!response.ok) {
       return {
         state: "blocked",
-        url: dashboardUrl,
+        url: targetUrl,
         status: response.status
       };
     }
 
-    const descriptor = await response.json() as unknown;
+    const body = await response.json() as unknown;
 
     return {
-      state: "running",
-      url: dashboardUrl,
-      descriptor
+      state: "reachable",
+      url: targetUrl,
+      status: response.status,
+      body
     };
   } catch (error) {
     return {
       state: "not-running",
-      url: dashboardUrl,
+      url: targetUrl,
       reason: readErrorMessage(error)
     };
   } finally {

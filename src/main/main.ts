@@ -22,6 +22,7 @@ import {
   decideAppPolicy,
   readInitialAppPolicySettings
 } from "./app-policy-settings.js";
+import { applyApprovedChromeTaskHostPolicy } from "./chrome-approval-policy.js";
 import { createChromeCdpClient } from "./chrome-cdp-client.js";
 import { readChromeCdpEndpoint } from "./chrome-cdp-settings.js";
 import { createTmuxSupervisionClient } from "./tmux-supervision-client.js";
@@ -686,6 +687,45 @@ async function runCommandTask(
       command
     });
     return;
+  }
+
+  if (approved && route.kind === "chrome") {
+    const hostPolicyApproval = await applyApprovedChromeTaskHostPolicy({
+      command,
+      route,
+      homeDir: os.homedir()
+    });
+
+    if (hostPolicyApproval.status === "blocked") {
+      pendingApproval = null;
+      activeTaskController?.abort();
+      activeTaskController = null;
+      currentTaskId += 1;
+      emitTurnReplayTaskEvent(window, {
+        status: "failed",
+        message: `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`
+      });
+      return;
+    }
+
+    if (hostPolicyApproval.status === "failed") {
+      pendingApproval = null;
+      activeTaskController?.abort();
+      activeTaskController = null;
+      currentTaskId += 1;
+      emitTurnReplayTaskEvent(window, {
+        status: "failed",
+        message: `Chrome host policy approval failed: ${hostPolicyApproval.message}`
+      });
+      return;
+    }
+
+    if (hostPolicyApproval.status === "updated") {
+      emitTurnReplayTaskEvent(window, {
+        status: "executing",
+        message: `Chrome host policy allowed for current turn: ${hostPolicyApproval.host}`
+      });
+    }
   }
 
   const taskId = currentTaskId + 1;

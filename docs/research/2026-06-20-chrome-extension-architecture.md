@@ -193,7 +193,10 @@ runtime behavior.
   real Chrome profile. Until then, the product gate relies on the packaged
   `dist/skfiy -> Chrome Native Messaging heartbeat` bridge plus CDP/browser
   control evidence and keeps the live extension path as an explicit blocker.
-- The popup says "Waiting for skfiy app" until native-host health is wired.
+- The popup now shows the latest host-policy sync state from extension storage
+  (`source`, `updatedAt`, host-policy entry count, and error text) and can
+  manually refresh policy through the native host. Live installed-extension
+  product smoke remains blocked by branded Chrome's unpacked-extension change.
 - A focused Vitest test validates the manifest and skeleton strings without
   launching Chrome.
 
