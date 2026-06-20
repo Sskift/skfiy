@@ -350,6 +350,9 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("chrome-smoke-extension-status");
     expect(source).toContain("skfiy.host_policy.sync_refresh");
     expect(source).toContain("skfiyChromeAdapterDiagnostics");
+    expect(source).toContain("createChromeSmokePageControlEvidence");
+    expect(source).toContain("extensionStatus.pageControl");
+    expect(source).toContain("chrome-extension-page-control");
     expect(source).toContain("heartbeatReadError");
   });
 
@@ -371,6 +374,7 @@ describe("Chrome product smoke script", () => {
       readinessDiagnostics: createPassingReadinessDiagnostics(),
       nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       installedExtensionRun: createPassingInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
+      pageControl: createPassingPageControlEvidence(),
       extractedText: "skfiy chrome smoke ready",
       events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
     })).toBe("passed");
@@ -382,9 +386,21 @@ describe("Chrome product smoke script", () => {
       readinessDiagnostics: createPassingReadinessDiagnostics(),
       nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       installedExtensionRun: createBlockedInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
+      pageControl: createBlockedPageControlEvidence(),
       extractedText: "skfiy chrome smoke ready",
       events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
     })).toBe("passed");
+    expect(classifyChromeSmokeEvidence({
+      appLaunchViaOpen: true,
+      chromeLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> CDP -> Chrome",
+      readinessDiagnostics: createPassingReadinessDiagnostics(),
+      nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
+      installedExtensionRun: createPassingInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
+      extractedText: "skfiy chrome smoke ready",
+      events: [{ status: "completed", message: "Chrome test page extracted: skfiy chrome smoke ready" }]
+    })).toBe("failed");
     expect(classifyChromeSmokeEvidence({
       appLaunchViaOpen: true,
       chromeLaunchViaOpen: true,
@@ -434,6 +450,7 @@ describe("Chrome product smoke script", () => {
       readinessDiagnostics: createPassingReadinessDiagnostics(),
       nativeHostBridgeRun: createPassingNativeHostBridgeRun(),
       installedExtensionRun: createPassingInstalledExtensionRun(INSTALLED_EXTENSION_PRODUCT_PATH),
+      pageControl: createPassingPageControlEvidence(),
       expectedText: FORM_EXPECTED_TEXT,
       extractedText: FORM_EXPECTED_TEXT,
       events: [
@@ -728,6 +745,7 @@ function createPassingInstalledExtensionRun(productPath: string) {
         lastError: null,
         error: null
       },
+      pageControl: createPassingPageControlEvidence(),
       diagnostics: {
         schemaVersion: 1,
         extension: {
@@ -761,6 +779,10 @@ function createPassingInstalledExtensionRun(productPath: string) {
           allowedHosts: 0,
           currentTurnAllowedHosts: 0,
           blockedHosts: 0
+        },
+        session: {
+          state: "loaded",
+          pageControl: createPassingPageControlEvidence()
         }
       }
     },
@@ -772,6 +794,57 @@ function createPassingInstalledExtensionRun(productPath: string) {
       requestId: "chrome-smoke-installed-extension"
     },
     heartbeatPath: "/tmp/skfiy-extension-home/Library/Application Support/skfiy/chrome-extension-connection.json"
+  };
+}
+
+function createPassingPageControlEvidence() {
+  return {
+    schemaVersion: 1,
+    capability: "chrome-extension-page-control",
+    state: "ready",
+    capable: true,
+    reason: "Current page is ready for Computer Use controls.",
+    nextAction: "Use extension pageControl for Chrome Computer Use.",
+    source: "extensionStatus.pageControl",
+    capabilities: {
+      diagnostics: true,
+      observe: true,
+      domActions: true,
+      click: true,
+      fill: true,
+      submit: true,
+      scroll: true,
+      screenshot: true
+    },
+    activeTab: {
+      state: "available",
+      tabId: 1,
+      windowId: 1,
+      host: "example.com"
+    },
+    contentScript: {
+      state: "loaded"
+    }
+  };
+}
+
+function createBlockedPageControlEvidence() {
+  return {
+    schemaVersion: 1,
+    capability: "chrome-extension-page-control",
+    state: "unavailable",
+    capable: false,
+    reason: "Installed Chrome extension pageControl could not be probed because branded Chrome blocked automated unpacked extension loading.",
+    nextAction: "Use Chrome for Testing, Chromium, or a manually installed skfiy extension, then rerun `npm run smoke:chrome`.",
+    source: "installed-extension-run",
+    capabilities: {},
+    blockers: [
+      {
+        code: "branded_chrome_load_extension_removed",
+        message: "Google Chrome 137+ branded builds remove automated --load-extension support for this proof path.",
+        recommendedBrowser: "Chrome for Testing or Chromium"
+      }
+    ]
   };
 }
 

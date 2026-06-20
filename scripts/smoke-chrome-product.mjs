@@ -19,6 +19,7 @@ import {
   createHelpText,
   EXPECTED_TEXT,
   FORM_EXPECTED_TEXT,
+  hasChromePageControlEvidence,
   INSTALLED_EXTENSION_PRODUCT_PATH,
   NATIVE_HOST_BRIDGE_PRODUCT_PATH,
   parseChromeSmokeArgs,
@@ -91,6 +92,7 @@ async function main() {
     sensitiveFormRun: undefined,
     nativeHostBridgeRun: undefined,
     installedExtensionRun: undefined,
+    pageControl: undefined,
     readinessDiagnostics: undefined,
     fallbackRun: undefined,
     fallbackSwitchRun: undefined,
@@ -111,6 +113,7 @@ async function main() {
     evidence.readinessDiagnostics = await runChromeReadinessDiagnostics(options);
     evidence.nativeHostBridgeRun = await runChromeNativeHostBridgeSmoke(options);
     evidence.installedExtensionRun = await runInstalledChromeExtensionSmoke(options);
+    evidence.pageControl = createChromeSmokePageControlEvidence(evidence);
 
     if (options.currentPageEndpoint) {
       if (!options.keepExisting) {
@@ -147,6 +150,7 @@ async function main() {
           && (
             evidence.nativeHostBridgeRun.result !== "passed"
             || !isInstalledExtensionSmokeAcceptable(evidence.installedExtensionRun)
+            || !hasChromePageControlEvidence(evidence.pageControl, evidence.installedExtensionRun)
           )
         ) {
           evidence.result = "failed";
@@ -866,6 +870,138 @@ function isInstalledExtensionSmokeAcceptable(run) {
       run?.result === "blocked"
       && run?.blockedReason === "branded_chrome_load_extension_removed"
     );
+}
+
+function createChromeSmokePageControlEvidence(evidence) {
+  const reported = readChromeSmokePageControlFromExtensionStatus(
+    evidence.installedExtensionRun?.extensionStatus
+  );
+
+  if (reported) {
+    return normalizeChromeSmokePageControlEvidence(
+      reported.record,
+      reported.source
+    );
+  }
+
+  const installedExtensionRun = evidence.installedExtensionRun;
+  if (
+    installedExtensionRun?.result === "blocked"
+    && installedExtensionRun.blockedReason === "branded_chrome_load_extension_removed"
+  ) {
+    return {
+      schemaVersion: 1,
+      capability: "chrome-extension-page-control",
+      state: "unavailable",
+      capable: false,
+      reason: "Installed Chrome extension pageControl could not be probed because branded Chrome blocked automated unpacked extension loading.",
+      nextAction: "Use Chrome for Testing, Chromium, or a manually installed skfiy extension, then rerun `npm run smoke:chrome`.",
+      source: "installed-extension-run",
+      capabilities: {},
+      blockers: [
+        {
+          code: installedExtensionRun.blockedReason,
+          message: "Google Chrome 137+ branded builds remove automated --load-extension support for this proof path.",
+          recommendedBrowser: installedExtensionRun.recommendedBrowser ?? "Chrome for Testing or Chromium"
+        }
+      ],
+      browserSelection: installedExtensionRun.browserSelection ?? null
+    };
+  }
+
+  const nativeHostState = evidence.readinessDiagnostics?.nativeHost?.state;
+  const liveConnection = evidence.readinessDiagnostics?.liveConnection?.liveConnection;
+  return {
+    schemaVersion: 1,
+    capability: "chrome-extension-page-control",
+    state: "not-probed",
+    capable: false,
+    reason: "Chrome smoke did not receive pageControl readiness from an installed skfiy extension.",
+    nextAction: "Load the skfiy extension in Chrome for Testing, Chromium, or a manually installed Chrome extension session, then rerun `npm run smoke:chrome`.",
+    source: "chrome-smoke",
+    capabilities: {},
+    evidence: {
+      ...(typeof nativeHostState === "string" ? { nativeHostState } : {}),
+      ...(typeof liveConnection === "string" ? { liveConnection } : {})
+    }
+  };
+}
+
+function readChromeSmokePageControlFromExtensionStatus(status) {
+  const diagnostics = readRecord(status?.diagnostics);
+  const candidates = [
+    [readRecord(status?.pageControl), "extensionStatus.pageControl"],
+    [readRecord(diagnostics?.pageControl), "extensionStatus.diagnostics.pageControl"],
+    [readRecord(readRecord(diagnostics?.currentTab)?.pageControl), "extensionStatus.diagnostics.currentTab.pageControl"],
+    [readRecord(readRecord(diagnostics?.session)?.pageControl), "extensionStatus.diagnostics.session.pageControl"]
+  ];
+
+  for (const [record, source] of candidates) {
+    if (record) {
+      return { record, source };
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeChromeSmokePageControlEvidence(pageControl, source) {
+  const capabilities = readRecord(pageControl.capabilities) ?? {};
+  const state = typeof pageControl.state === "string" && pageControl.state.length > 0
+    ? pageControl.state
+    : "not-probed";
+
+  return {
+    ...pageControl,
+    schemaVersion: 1,
+    capability: "chrome-extension-page-control",
+    state,
+    capable: typeof pageControl.capable === "boolean"
+      ? pageControl.capable
+      : isChromeSmokePageControlCapable(state, capabilities),
+    reason: typeof pageControl.reason === "string" && pageControl.reason.length > 0
+      ? pageControl.reason
+      : "Installed extension reported pageControl readiness without a reason.",
+    nextAction: typeof pageControl.nextAction === "string" && pageControl.nextAction.length > 0
+      ? pageControl.nextAction
+      : createChromeSmokePageControlNextAction(state),
+    source: typeof pageControl.source === "string" && pageControl.source.length > 0
+      ? pageControl.source
+      : source,
+    capabilities
+  };
+}
+
+function isChromeSmokePageControlCapable(state, capabilities) {
+  return ["ready", "partial", "sensitive-paused", "needs_confirmation"].includes(state)
+    && Object.values(capabilities).some((value) => value === true || value === "background_required");
+}
+
+function createChromeSmokePageControlNextAction(state) {
+  switch (state) {
+    case "ready":
+    case "partial":
+      return "Use extension pageControl for Chrome Computer Use.";
+    case "sensitive-paused":
+    case "needs_confirmation":
+      return "Ask for explicit confirmation before continuing page actions.";
+    case "blocked_by_host_policy":
+      return "Allow the active host in skfiy Chrome host policy, then rerun diagnostics.";
+    case "blocked_by_chrome_host_permission":
+      return "Grant Chrome site access for the active host, then rerun diagnostics.";
+    case "content_script_not_loaded":
+    case "not_loaded":
+      return "Reload the active page or extension so the content script can report controls.";
+    case "unavailable":
+    case "active_tab_unavailable":
+      return "Open an active controllable Chrome tab, then rerun extension diagnostics.";
+    default:
+      return "Rerun Chrome extension diagnostics after loading the skfiy extension.";
+  }
+}
+
+function readRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
 }
 
 function isBrandedChromeLoadExtensionRemoved({ chromeAppName, chromeVersion }) {

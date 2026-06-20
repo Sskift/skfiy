@@ -223,6 +223,7 @@ export function classifyChromeSmokeEvidence({
   productPath,
   nativeHostBridgeRun,
   installedExtensionRun,
+  pageControl,
   readinessDiagnostics
 }) {
   const last = events.at(-1);
@@ -255,6 +256,7 @@ export function classifyChromeSmokeEvidence({
     || !hasChromeReadinessDiagnostics(readinessDiagnostics)
     || !hasNativeHostBridgeEvidence(nativeHostBridgeRun)
     || !hasInstalledExtensionSmokeEvidence(installedExtensionRun)
+    || !hasChromePageControlEvidence(pageControl, installedExtensionRun)
     || !String(extractedText).includes(expectedText)
   ) {
     return "failed";
@@ -296,6 +298,51 @@ function isKnownInstalledExtensionSmokeBlocker(run) {
     && typeof run.chromeVersion === "string"
     && typeof run.extensionPath === "string"
     && run.recommendedBrowser === "Chrome for Testing or Chromium";
+}
+
+export function hasChromePageControlEvidence(pageControl, installedExtensionRun) {
+  if (
+    !pageControl
+    || typeof pageControl !== "object"
+    || Array.isArray(pageControl)
+    || pageControl.schemaVersion !== 1
+    || pageControl.capability !== "chrome-extension-page-control"
+    || typeof pageControl.state !== "string"
+    || pageControl.state.length === 0
+    || pageControl.state === "unknown"
+    || typeof pageControl.reason !== "string"
+    || pageControl.reason.length === 0
+    || typeof pageControl.source !== "string"
+    || pageControl.source.length === 0
+    || typeof pageControl.capable !== "boolean"
+    || !pageControl.capabilities
+    || typeof pageControl.capabilities !== "object"
+    || Array.isArray(pageControl.capabilities)
+  ) {
+    return false;
+  }
+
+  if (isKnownInstalledExtensionSmokeBlocker(installedExtensionRun)) {
+    const blockers = Array.isArray(pageControl.blockers) ? pageControl.blockers : [];
+    return pageControl.state === "unavailable"
+      && blockers.some((blocker) => blocker?.code === installedExtensionRun.blockedReason);
+  }
+
+  return installedExtensionRun?.result === "passed"
+    && [
+      "ready",
+      "partial",
+      "sensitive-paused",
+      "needs_confirmation",
+      "blocked_by_host_policy",
+      "blocked_by_chrome_host_permission",
+      "content_script_not_loaded",
+      "not_loaded",
+      "unavailable",
+      "active_tab_unavailable",
+      "not-probed",
+      "needs-action"
+    ].includes(pageControl.state);
 }
 
 function hasNativeHostBridgeEvidence(run) {
