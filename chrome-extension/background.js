@@ -47,7 +47,7 @@ const NATIVE_MESSAGE_TIMEOUT_MS = 3_000;
 const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
   manifest_version: 3,
   name: "skfiy Chrome Adapter",
-  version: "0.0.4",
+  version: "0.0.6",
   minimum_chrome_version: "116",
   permissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
   optional_host_permissions: ["http://*/*", "https://*/*"]
@@ -700,16 +700,40 @@ async function summarizeDiscoverableTab(tab, policy) {
 }
 
 async function discoverChromeTabs(requestId = `tabs-discover-${Date.now()}`) {
-  const policy = await readHostPolicy();
-  const tabs = await chrome.tabs.query({});
-  const summaries = [];
-  for (const tab of Array.isArray(tabs) ? tabs : []) {
-    summaries.push(await summarizeDiscoverableTab(tab, policy));
+  let pageTabs;
+  try {
+    const policy = await readHostPolicy();
+    const tabs = await chrome.tabs.query({});
+    const summaries = [];
+    for (const tab of Array.isArray(tabs) ? tabs : []) {
+      try {
+        summaries.push(await summarizeDiscoverableTab(tab, policy));
+      } catch (error) {
+        summaries.push({
+          id: Number.isInteger(tab?.id) ? tab.id : undefined,
+          windowId: Number.isInteger(tab?.windowId) ? tab.windowId : undefined,
+          title: typeof tab?.title === "string" ? tab.title : "",
+          url: redactTabUrl(tab?.url ?? ""),
+          host: getHost(tab?.url ?? ""),
+          state: "blocked",
+          eligible: false,
+          blocker: "tab_summary_failed",
+          reason: readErrorMessage(error),
+          nextAction: "inspect_extension_status"
+        });
+      }
+    }
+    pageTabs = {
+      result: "passed",
+      tabs: summaries
+    };
+  } catch (error) {
+    pageTabs = {
+      result: "blocked",
+      reason: readErrorMessage(error),
+      tabs: []
+    };
   }
-  const pageTabs = {
-    result: "passed",
-    tabs: summaries
-  };
   let nativeHeartbeat;
   try {
     nativeHeartbeat = await sendNativeMessage({
@@ -733,8 +757,9 @@ async function discoverChromeTabs(requestId = `tabs-discover-${Date.now()}`) {
     type: MESSAGE_TYPES.TABS_DISCOVER_RESULT,
     schemaVersion: MESSAGE_SCHEMA_VERSION,
     requestId,
-    result: "passed",
-    tabs: summaries,
+    result: pageTabs.result,
+    ...(pageTabs.reason ? { reason: pageTabs.reason } : {}),
+    tabs: pageTabs.tabs,
     nativeHeartbeat
   };
 }
@@ -1882,6 +1907,12 @@ async function scheduleExistingWakeTabs() {
 }
 
 function registerTabHeartbeatListeners() {
+  chrome.tabs?.onCreated?.addListener?.((tab) => {
+    const wakeDirective = readWakeDirective(tab?.pendingUrl ?? tab?.url);
+    if (scheduleWakeDirective(wakeDirective)) {
+      return;
+    }
+  });
   chrome.tabs?.onActivated?.addListener?.((activeInfo) => {
     setTimeout(() => {
       void scheduleNativeHeartbeat("tab_activated", activeInfo?.tabId);

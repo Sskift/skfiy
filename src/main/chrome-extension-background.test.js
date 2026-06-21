@@ -165,9 +165,13 @@ function createChromeMock(nativeResponses = [], options = {}) {
         request: vi.fn()
       },
       tabs: {
+        onCreated: createEvent(),
         onActivated: createEvent(),
         onUpdated: createEvent(),
         query: vi.fn(async (queryInfo = {}) => {
+          if (options.queryTabsError) {
+            throw new Error(options.queryTabsError);
+          }
           if (allTabs) {
             if (queryInfo.active === true && queryInfo.currentWindow === true) {
               const active = allTabs.find((tab) => tab.active) ?? activeTab;
@@ -1311,6 +1315,116 @@ describe("Chrome extension background policy sync", () => {
                 expect.objectContaining({
                   id: 41,
                   host: "loaded.example"
+                })
+              ])
+            })
+          })
+        })
+      ]));
+    });
+  });
+
+  it("records tab discovery blocker evidence when Chrome tab query fails", async () => {
+    const mock = createChromeMock([
+      {
+        schemaVersion: 1,
+        type: "skfiy.native.response",
+        requestId: "tabs-discover-response",
+        result: "accepted",
+        bridgeState: "connected",
+        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        messageType: TABS_DISCOVER
+      }
+    ], {
+      queryTabsError: "Tabs cannot be queried in this context"
+    });
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    mock.chrome.runtime.onMessage.listeners[0]({
+      type: TABS_DISCOVER,
+      requestId: "tabs-query-error"
+    }, {}, sendResponse);
+
+    await waitForAssertion(() => {
+      expect(mock.postedMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          schemaVersion: 1,
+          type: TABS_DISCOVER,
+          payload: expect.objectContaining({
+            pageTabs: expect.objectContaining({
+              result: "blocked",
+              reason: "Tabs cannot be queried in this context",
+              tabs: []
+            })
+          })
+        })
+      ]));
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        type: "skfiy.tabs.discover_result",
+        result: "blocked",
+        reason: "Tabs cannot be queried in this context",
+        tabs: []
+      }));
+    });
+  });
+
+  it("runs tab discovery when a tabs wake page is created", async () => {
+    const mock = createChromeMock([
+      {
+        schemaVersion: 1,
+        type: "skfiy.native.response",
+        requestId: "tabs-discover-response",
+        result: "accepted",
+        bridgeState: "connected",
+        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        messageType: TABS_DISCOVER
+      }
+    ], {
+      allTabs: [
+        {
+          id: 99,
+          windowId: 7,
+          active: true,
+          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs&skfiyWakeAction=tabs"
+        },
+        {
+          id: 41,
+          windowId: 7,
+          title: "Created app",
+          url: "https://created.example/dashboard"
+        }
+      ]
+    });
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    expect(mock.chrome.tabs.onCreated.addListener).toHaveBeenCalledTimes(1);
+    mock.chrome.tabs.onCreated.listeners[0]({
+      id: 99,
+      windowId: 7,
+      active: true,
+      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs&skfiyWakeAction=tabs"
+    });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    await waitForAssertion(() => {
+      expect(mock.postedMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          schemaVersion: 1,
+          type: TABS_DISCOVER,
+          payload: expect.objectContaining({
+            pageTabs: expect.objectContaining({
+              result: "passed",
+              tabs: expect.arrayContaining([
+                expect.objectContaining({
+                  id: 99,
+                  blocker: "chrome_extension_page"
+                }),
+                expect.objectContaining({
+                  id: 41,
+                  host: "created.example"
                 })
               ])
             })
