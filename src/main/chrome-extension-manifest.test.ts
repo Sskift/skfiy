@@ -63,6 +63,11 @@ describe("Chrome extension adapter skeleton", () => {
     expect(background).toContain('"skfiy.host_policy.response"');
     expect(background).toContain('"skfiy.host_policy.sync_status"');
     expect(background).toContain('"skfiy.host_policy.sync_refresh"');
+    expect(background).toContain('"skfiy.native.heartbeat"');
+    expect(background).toContain('"skfiy.dev.reload"');
+    expect(background).toContain("pingNativeHeartbeat");
+    expect(background).toContain("requestDevReload");
+    expect(background).toContain("chrome.runtime.reload");
     expect(background).toContain("captureVisibleTab");
     expect(background).toContain("chrome.downloads.search");
     expect(background).toContain("sendNativeMessage");
@@ -103,7 +108,11 @@ describe("Chrome extension adapter skeleton", () => {
     expect(popupHtml).toContain("Host permission");
     expect(popupHtml).toContain("Page session");
     expect(popupHtml).toContain("Page control");
+    expect(popupHtml).toContain("Heartbeat");
+    expect(popupHtml).toContain("Dev reload");
     expect(popupHtml).toContain("Refresh host policy");
+    expect(popupHtml).toContain("Check heartbeat");
+    expect(popupHtml).toContain("Reload extension");
     expect(popupScript).toContain("Ask by default");
     expect(popupScript).toContain("formatBridgeState");
     expect(popupScript).toContain("formatLaunchOrigin");
@@ -112,5 +121,7 @@ describe("Chrome extension adapter skeleton", () => {
     expect(popupScript).toContain("Sensitive content pause");
     expect(popupScript).toContain("HOST_POLICY_SYNC_STATUS");
     expect(popupScript).toContain("HOST_POLICY_SYNC_REFRESH");
+    expect(popupScript).toContain("NATIVE_HEARTBEAT");
+    expect(popupScript).toContain("DEV_RELOAD_REQUEST");
   });
 });

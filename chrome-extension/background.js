@@ -27,13 +27,20 @@ export const MESSAGE_TYPES = Object.freeze({
   HOST_POLICY_RESPONSE: "skfiy.host_policy.response",
   HOST_POLICY_SYNC_STATUS: "skfiy.host_policy.sync_status",
   HOST_POLICY_SYNC_REFRESH: "skfiy.host_policy.sync_refresh",
+  NATIVE_HEARTBEAT: "skfiy.native.heartbeat",
+  NATIVE_HEARTBEAT_RESULT: "skfiy.native.heartbeat_result",
+  DEV_RELOAD_STATUS: "skfiy.dev.reload_status",
+  DEV_RELOAD_REQUEST: "skfiy.dev.reload",
+  DEV_RELOAD_RESULT: "skfiy.dev.reload_result",
   NATIVE_MESSAGE: "skfiy.native.message"
 });
 
 const HOST_POLICY_STORAGE_KEY = "skfiyHostPolicy";
 const HOST_POLICY_SYNC_STORAGE_KEY = "skfiyHostPolicySync";
+const DEV_RELOAD_STORAGE_KEY = "skfiyDevReload";
 const LAST_SENSITIVE_PAUSE_KEY = "lastSensitivePause";
 const HOST_POLICY_SYNC_REQUEST_PREFIX = "host-policy-sync";
+const DEV_RELOAD_DELAY_MS = 250;
 const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
   manifest_version: 3,
   name: "skfiy Chrome Adapter",
@@ -230,6 +237,72 @@ async function readHostPolicySyncStatus(policyOverride) {
   };
 }
 
+async function writeDevReloadStatus(status) {
+  await chrome.storage.local.set({
+    [DEV_RELOAD_STORAGE_KEY]: {
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      updatedAt: new Date().toISOString(),
+      reloadAvailable: typeof chrome.runtime.reload === "function",
+      reloadDelayMs: DEV_RELOAD_DELAY_MS,
+      ...status
+    }
+  });
+}
+
+function summarizeHeartbeatFromSyncStatus(syncStatus) {
+  const lastError = syncStatus?.lastError ?? syncStatus?.error ?? null;
+  const state = syncStatus?.state === "synced"
+    ? "connected"
+    : syncStatus?.state === "syncing"
+      ? "checking"
+      : syncStatus?.state === "error"
+        ? "error"
+        : "unknown";
+
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    state,
+    trigger: syncStatus?.trigger ?? null,
+    requestId: syncStatus?.requestId ?? null,
+    requestedAt: syncStatus?.requestedAt ?? null,
+    completedAt: syncStatus?.completedAt ?? null,
+    updatedAt: syncStatus?.updatedAt ?? null,
+    bridgeState: syncStatus?.nativeBridgeState ?? null,
+    launchOrigin: syncStatus?.nativeLaunchOrigin ?? null,
+    messageType: syncStatus?.nativeMessageType ?? null,
+    responseType: syncStatus?.nativeResponseType ?? null,
+    responseResult: syncStatus?.nativeResponseResult ?? null,
+    lastError
+  };
+}
+
+async function readDevReloadStatus(syncStatusOverride) {
+  const stored = await chrome.storage.local.get(DEV_RELOAD_STORAGE_KEY);
+  const status = stored[DEV_RELOAD_STORAGE_KEY] ?? {};
+  const heartbeat = syncStatusOverride
+    ? summarizeHeartbeatFromSyncStatus(syncStatusOverride)
+    : status.heartbeat ?? null;
+
+  return {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    state: status.state ?? "idle",
+    source: status.source ?? "extension",
+    reloadAvailable: typeof chrome.runtime.reload === "function",
+    reloadDelayMs: status.reloadDelayMs ?? DEV_RELOAD_DELAY_MS,
+    requestedAt: status.requestedAt ?? null,
+    completedAt: status.completedAt ?? null,
+    reloadAt: status.reloadAt ?? null,
+    updatedAt: status.updatedAt ?? null,
+    requestId: status.requestId ?? null,
+    trigger: status.trigger ?? null,
+    reason: status.reason ?? null,
+    message: status.message ?? null,
+    browserPolicy: status.browserPolicy ?? null,
+    heartbeat,
+    lastError: status.lastError ?? null
+  };
+}
+
 async function readActiveTabDiagnosticsTarget() {
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -397,10 +470,11 @@ async function readHostPolicySnapshot() {
   const policy = await readHostPolicy();
   const syncStatus = await readHostPolicySyncStatus(policy);
   const currentTab = await readCurrentTabDiagnostics(policy);
+  const devReload = await readDevReloadStatus(syncStatus);
   return {
     policy,
     syncStatus,
-    diagnostics: createDiagnostics(policy, syncStatus, currentTab)
+    diagnostics: createDiagnostics(policy, syncStatus, currentTab, devReload)
   };
 }
 
@@ -621,7 +695,7 @@ function createPageControlReadiness(capabilities, currentTab) {
   };
 }
 
-function createDiagnostics(policy, syncStatus, currentTab) {
+function createDiagnostics(policy, syncStatus, currentTab, devReload) {
   const extension = readExtensionDiagnostics();
   const pageControl = createPageControlReadiness(extension.capabilities, currentTab);
   const currentTabWithPageControl = currentTab
@@ -669,6 +743,7 @@ function createDiagnostics(policy, syncStatus, currentTab) {
       entryCount: countHostPolicyEntries(policy),
       ...hostPolicyEntryCounts
     },
+    devReload: devReload ?? null,
     currentTab: currentTabWithPageControl,
     session: {
       state: currentTab?.contentScript?.state ?? "not_queried",
@@ -983,6 +1058,99 @@ export async function syncHostPolicy(trigger = "manual") {
   }
 }
 
+export async function pingNativeHeartbeat(trigger = "manual") {
+  await syncHostPolicy(trigger);
+  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+
+  return {
+    type: MESSAGE_TYPES.NATIVE_HEARTBEAT_RESULT,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId: syncStatus.requestId ?? `${HOST_POLICY_SYNC_REQUEST_PREFIX}-${normalizeSyncTrigger(trigger)}`,
+    policy,
+    syncStatus,
+    heartbeat: summarizeHeartbeatFromSyncStatus(syncStatus),
+    pageControl: diagnostics.session.pageControl,
+    diagnostics
+  };
+}
+
+export async function requestDevReload(requestId = `dev-reload-${Date.now()}`) {
+  const requestedAt = new Date().toISOString();
+  const reloadAvailable = typeof chrome.runtime.reload === "function";
+  const trigger = "popup_dev_reload";
+
+  await writeDevReloadStatus({
+    state: "checking",
+    source: "extension",
+    trigger,
+    requestId,
+    requestedAt,
+    message: "Checking Native Messaging heartbeat before reload."
+  });
+
+  const heartbeatSnapshot = await pingNativeHeartbeat(trigger);
+  const completedAt = new Date().toISOString();
+  const heartbeat = heartbeatSnapshot.heartbeat;
+  const reloadAt = reloadAvailable
+    ? new Date(Date.now() + DEV_RELOAD_DELAY_MS).toISOString()
+    : null;
+  const devReload = {
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    state: reloadAvailable ? "scheduled" : "blocked",
+    source: "extension",
+    reloadAvailable,
+    reloadDelayMs: DEV_RELOAD_DELAY_MS,
+    requestedAt,
+    completedAt,
+    reloadAt,
+    updatedAt: completedAt,
+    requestId,
+    trigger,
+    reason: reloadAvailable
+      ? (heartbeat.state === "connected" ? "heartbeat_connected" : "heartbeat_not_connected")
+      : "runtime_reload_unavailable",
+    message: reloadAvailable
+      ? (heartbeat.state === "connected"
+        ? "Reload scheduled after a connected Native Messaging heartbeat."
+        : "Reload scheduled, but the Native Messaging heartbeat is not connected. Check Last error before relying on liveConnection.")
+      : "Chrome runtime.reload is unavailable in this browser context. Reload from chrome://extensions.",
+    browserPolicy: reloadAvailable ? "extension_context_reload" : "chrome_runtime_reload_unavailable",
+    heartbeat,
+    lastError: reloadAvailable ? null : "runtime_reload_unavailable"
+  };
+
+  await writeDevReloadStatus(devReload);
+  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+
+  if (reloadAvailable) {
+    globalThis.setTimeout(() => {
+      try {
+        chrome.runtime.reload();
+      } catch (error) {
+        void writeDevReloadStatus({
+          ...devReload,
+          state: "error",
+          updatedAt: new Date().toISOString(),
+          lastError: readErrorMessage(error),
+          message: readErrorMessage(error)
+        });
+      }
+    }, DEV_RELOAD_DELAY_MS);
+  }
+
+  return {
+    type: MESSAGE_TYPES.DEV_RELOAD_RESULT,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId,
+    policy,
+    syncStatus,
+    heartbeat,
+    devReload,
+    pageControl: diagnostics.session.pageControl,
+    diagnostics
+  };
+}
+
 function scheduleHostPolicySync(trigger) {
   if (!hostPolicySyncPromise) {
     hostPolicySyncPromise = syncHostPolicy(trigger).finally(() => {
@@ -1087,6 +1255,32 @@ async function handleRuntimeMessage(message) {
     };
   }
 
+  if (message?.type === MESSAGE_TYPES.NATIVE_HEARTBEAT) {
+    const result = await pingNativeHeartbeat("popup_heartbeat");
+    return {
+      ...result,
+      requestId: message.requestId
+    };
+  }
+
+  if (message?.type === MESSAGE_TYPES.DEV_RELOAD_STATUS) {
+    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+    return {
+      type: MESSAGE_TYPES.DEV_RELOAD_STATUS,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      policy,
+      syncStatus,
+      devReload: diagnostics.devReload,
+      pageControl: diagnostics.session.pageControl,
+      diagnostics
+    };
+  }
+
+  if (message?.type === MESSAGE_TYPES.DEV_RELOAD_REQUEST) {
+    return requestDevReload(message.requestId);
+  }
+
   if (message?.type === MESSAGE_TYPES.PAGE_SENSITIVE_PAUSE) {
     await chrome.storage.local.set({
       [LAST_SENSITIVE_PAUSE_KEY]: {
@@ -1115,6 +1309,20 @@ globalThis.skfiyChromeAdapterDiagnostics = Object.freeze({
   refreshHostPolicy(requestId = "extension-diagnostics-refresh") {
     return handleRuntimeMessage({
       type: MESSAGE_TYPES.HOST_POLICY_SYNC_REFRESH,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId
+    });
+  },
+  pingNativeHeartbeat(requestId = "extension-diagnostics-heartbeat") {
+    return handleRuntimeMessage({
+      type: MESSAGE_TYPES.NATIVE_HEARTBEAT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId
+    });
+  },
+  requestDevReload(requestId = "extension-diagnostics-dev-reload") {
+    return handleRuntimeMessage({
+      type: MESSAGE_TYPES.DEV_RELOAD_REQUEST,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
       requestId
     });

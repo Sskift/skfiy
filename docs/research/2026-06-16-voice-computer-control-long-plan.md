@@ -15,7 +15,8 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 - OpenAI Computer Use frames the core loop as model-operated software through screenshots plus interface actions executed by the host harness. Codex Computer Use also makes the permission model explicit: Screen Recording for seeing, Accessibility for clicking/typing, app-level approvals for what can be controlled.
 - Codex Chrome extension is the closest browser-control reference for skfiy. Public docs describe it as a plugin-installed Chrome extension for tasks requiring the user's signed-in Chrome state; it uses host/domain approvals, allowlist/blocklist controls, tab grouping, Chrome extension permissions including debugger/page access, browsing history, downloads/bookmarks/tab groups, and native-app communication. The current local Codex Chrome surface also exposes a controllable-tab model with explicit user-tab claiming and session cleanup. The private implementation is not public, so skfiy should not copy it; instead, build a Chrome extension adapter with the same product properties: structured DOM actions, per-host approvals, native messaging to the skfiy app, and screenshot fallback.
 - Codex plugin architecture is broader than a Chrome extension: public docs define plugins as bundles of skills, app integrations, MCP servers, and lifecycle hooks, with marketplace distribution and manifest paths rooted under `.codex-plugin/plugin.json`. Local inspection on 2026-06-20 confirmed the same implementation shape: installed plugins live under `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`, `plugin.json` points at `skills/`, `.app.json`, `.mcp.json`, hooks, and assets, and `codex plugin --help` exposes `add`, `list`, `remove`, and `marketplace` as the local install-control surface. The bundled Chrome plugin cache entry has no `.app.json` and no `.mcp.json`; it exposes skills, docs, scripts, and assets while the Chrome extension/native-host pair remains a separate product integration. The GitHub plugin cache entry has `.app.json` connector wiring. skfiy's Chrome extension should be a product adapter first; a later Codex plugin can expose skfiy to Codex as an MCP/app integration after skfiy's own runtime is stable.
-- OpenClaw-style dashboards show the right operator surface: a local gateway/control UI, safe dashboard URL opening through CLI, WebSocket/auth gating, live health, active sessions, task/sub-agent activity, cost/context trends, alert banners, auto-refresh, and local-only defaults. OpenClaw's Control UI reference capabilities include sessions, cron, exec approvals, config, MCP server status, logs, updates, and live tool activity; skfiy should map those ideas to Computer Use evidence rather than copying a chat-first dashboard. skfiy should treat dashboard as an ops/audit plane, not as the primary pet UI.
+- OpenClaw-style dashboards show the right product surface direction: a local Gateway/Control UI, safe dashboard URL opening through CLI, auth/session gating, live health, active sessions, task/sub-agent activity, approvals, logs, updates, and live tool activity. Public references checked on 2026-06-21 include `https://docs.openclaw.ai/web/dashboard`, `https://docs.openclaw.ai/web/control-ui`, and community "Mission Control" descriptions that organize agents, tasks, live feeds, approvals, and job config. skfiy should map those ideas to end-user Computer Use control and recovery, not copy a chat-first or raw developer dashboard.
+- HeroUI is the preferred dashboard component family. External docs checked on 2026-06-21 describe HeroUI v3 as accessible React components on React Aria and Tailwind CSS, and local `cube20` plus `codebase/x` references confirm the pattern: quiet work-focused surfaces, sidebars, compact cards, chips, action bars, status icons, list views, command/search surfaces, and a separate advanced/debug route. skfiy should adopt the same visual density and component vocabulary for the user dashboard instead of growing the current inline HTML panel shell.
 - Anthropic's computer use announcement confirms the same shape: looking at screen, moving cursor, clicking, typing. It also explicitly labels the capability experimental and error-prone, so reliability and recovery are not optional add-ons.
 - Microsoft Copilot Studio Computer Use and Power Automate Desktop show the enterprise automation angle: natural language is useful, but users still need repeatable desktop flows, connectors, and auditable runs.
 - Apple Voice Control shows a mature UI-control pattern for voice: numbered item overlays and grid drill-down. This is important because pure coordinate clicking is brittle; users need inspectable grounding when the agent is uncertain.
@@ -50,10 +51,13 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
 5. **The pet UI is not yet a trustworthy control surface.**
    It has improved from a window to a pet, but it still lacks strong affordances for listening/thinking/acting/needs-approval, durable drag behavior across spaces/screens, and a permission/status center that users can understand.
 
-6. **No complete binary and CLI distribution path.**
+6. **The dashboard is still developer-shaped.**
+   The current dashboard proves loopback serving, SSE, snapshots, policy APIs, smoke evidence, and release alerts, but its first screen is still organized around raw runtime health, JSON endpoints, smoke artifacts, and operator evidence. The product target is a user dashboard: "what is skfiy doing, what can it safely control, what needs my approval, what failed, what can I undo/stop, and what should I do next." Developer diagnostics must move behind an Advanced/Diagnostics view.
+
+7. **No complete binary and CLI distribution path.**
    The app bundle and embedded helper exist, but the project still needs a first-class user binary story: signed/notarized app, a simple `skfiy` CLI shim, dashboard open/status commands, Chrome native-messaging host registration, release artifact checks, and a clear "developer mode vs installed app" split.
 
-7. **Safety is too shallow.**
+8. **Safety is too shallow.**
    Risk classification exists for terminal commands, but system-wide control needs app allowlists, sensitive-screen detection, credential handling, clipboard rules, approval policies, and kill switch behavior.
 
 ## Target Architecture
@@ -143,29 +147,38 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - Finder for file organization.
   - Lark/Feishu for office workflows only after policy/permissions are ready.
 
-### 6. Dashboard and Operator Plane
+### 6. User Dashboard and Control Plane
 
-- Dashboard is a local control and audit plane, separate from the desktop pet.
-- Default bind should be loopback-only, for example `http://127.0.0.1:<port>/`, with optional token auth and no token printed into logs.
+- Dashboard is a user control plane for skfiy, not a developer diagnostics page. The first screen must answer ordinary product questions:
+  - Is skfiy idle, listening, thinking, acting, blocked, or waiting for me?
+  - Which app/page/session is under control right now?
+  - What permissions or approvals are needed before the next action?
+  - What did skfiy just do, and was it verified?
+  - How do I stop, pause, resume, retry, or revoke access?
+- The desktop pet remains the primary voice entry and immediate stop/approval surface. The dashboard is the larger "home base" for status, setup, supervision, history, and safe controls.
+- Default bind stays loopback-only, for example `http://127.0.0.1:<port>/`, with optional token auth and no token printed into logs.
 - Open via CLI:
   - `skfiy dashboard`
   - `skfiy dashboard --no-open`
   - `skfiy dashboard --json`
-- Initial panels:
-  - Runtime health: app/helper/dashboard/extension status, PID, uptime, version, bundle id, signing state.
-  - Permission health: Screen Recording, Accessibility, Microphone, Speech Recognition, Finder Automation, Chrome extension connection.
-  - Current turn: voice provider, transcript, target app, policy decision, risk, current status, stop button.
-  - Replay timeline: screenshots, OCR labels, accessibility coverage, actions, verification decisions, approval decisions.
-  - App policy: allow/ask/deny per app and per Chrome host.
-  - Smoke evidence: latest UI/Ghostty/Chrome/dashboard/Codex plugin/Finder/voice/money-run artifacts and pass/block reasons.
-  - Long-horizon supervision: tmux `money-run` status, active pane summary, recent risk markers, read-only probe evidence.
-  - Alerts: permission missing, desktop locked/asleep, helper not signed, extension disconnected, smoke evidence stale, release artifact older than HEAD.
-  - Dogfood/release: current alpha, manifest, zip checksum, accepted reports, cohort coverage.
+- User-facing navigation, inspired by local `cube20`, local `codebase/x`, and OpenClaw Mission Control:
+  - **Home:** assistant state, current task, target app/site, next recommended action, and a prominent stop/pause control.
+  - **Approvals:** pending app/host/file/clipboard/network approvals with clear allow-once/always/block choices.
+  - **Activity:** recent turns, screenshots, verified actions, failures, retries, and undo/recovery affordances.
+  - **Apps and Sites:** app allow/ask/deny policy, Chrome host policy, extension connection, and fallback mode.
+  - **Permissions:** macOS Screen Recording, Accessibility, Microphone, Speech Recognition, Finder Automation, and setup actions.
+  - **Agents:** long-horizon supervision targets such as `money-run`, active sub-agent/task state, and recent blocker markers.
+  - **Releases:** dogfood/update state only when useful to the user, not as the first screen.
+  - **Advanced Diagnostics:** raw JSON endpoints, smoke artifacts, signing, PIDs, uptime, `runnerHasTmux`, stale evidence, and developer-only fields.
+- UI system:
+  - short term: refactor the inline HTML dashboard into the user information architecture above while keeping the zero-build loopback server stable;
+  - mid term: move dashboard UI into a React/Vite bundle served by `skfiy dashboard`, using HeroUI/HeroUI Pro style primitives from `codebase/x` (`AppLayout`, sidebar, cards, chips, list views, action bars, status icons) plus skfiy-specific components for turns, approvals, and Computer Use replay;
+  - visual tone: quiet, dense, utilitarian, 8px-or-less radii, clear icon controls, no marketing hero, no raw JSON on the first screen.
 - Data path:
   - main process writes a local append-only event store for turns and smokes.
   - active-turn and replay panels read `runtime-snapshot.json` from `~/Library/Application Support/skfiy/` for the latest Electron runtime state, including bounded approval/stop/action/verification/screenshot/timeline summaries for dashboard inspection without loading raw transcripts.
-  - dashboard reads via local HTTP plus WebSocket/SSE updates.
-  - dashboard never becomes required for Computer Use execution; it observes and approves but does not hide the pet's stop/approval surface.
+  - dashboard reads via local HTTP plus SSE updates; WebSocket is reserved for bidirectional approvals only after the auth/session story is explicit.
+  - dashboard never becomes required for Computer Use execution; it observes, approves, and explains while the pet keeps the immediate stop/approval affordance.
 
 ### 7. Binary, CLI, and Native Host
 

@@ -16,6 +16,13 @@ Research inputs checked before this plan update:
 - OpenAI Codex CLI plugin command reference, fetched 2026-06-20 from `https://developers.openai.com/codex/cli/reference`.
 - OpenAI Codex app deep-link docs, fetched 2026-06-20 from `https://developers.openai.com/codex/app/commands`.
 - OpenClaw docs, fetched 2026-06-20 from `https://docs.openclaw.ai/web/dashboard` and `https://docs.openclaw.ai/web/control-ui`.
+- OpenClaw docs and community Mission Control references, rechecked 2026-06-21
+  from `https://docs.openclaw.ai/web/dashboard`,
+  `https://docs.openclaw.ai/web/control-ui`, and public Mission Control
+  descriptions.
+- HeroUI docs, checked 2026-06-21 from `https://www.heroui.com/`,
+  `https://www.heroui.com/docs/react/components`, and local `cube20` /
+  `codebase/x` implementations.
 - Manual recheck on 2026-06-20 through `fetch-codex-manual.mjs`: the local Codex manual was current, and the checked sections were `Build plugins`, `Plugins`, and `Codex Chrome extension`.
 - Local Codex plugin cache inspection under `~/.codex/plugins/cache/`.
 - Local `codex plugin --help`, `codex plugin add --help`, and `codex plugin marketplace --help` command output from the installed Codex CLI.
@@ -43,7 +50,13 @@ Control UI reference capabilities that should inform skfiy's operator plane incl
 
 Control UI is an admin surface, so skfiy should treat any future remote dashboard mode as privileged and require explicit authentication, scope, and transport choices.
 
-For skfiy, the equivalent surface is not the primary user experience. The pet and voice turn remain the entry point. The dashboard is the operator plane for Computer Use evidence: permission state, desktop-session health, app/helper/extension runtime status, active turn state, replay screenshots/actions, host/app policy, smoke artifacts, dogfood/release readiness, and long-horizon `money-run` supervision.
+For skfiy, the equivalent surface should be a user dashboard rather than the
+primary voice entry. The pet and voice turn remain the entry point. The
+dashboard is the larger control plane for assistant state, approvals, recent
+activity, app/site access, permissions, long-horizon supervision, and an
+Advanced Diagnostics section for Computer Use evidence such as desktop-session
+health, app/helper/extension runtime status, replay screenshots/actions,
+host/app policy, smoke artifacts, dogfood/release readiness, and `money-run`.
 
 ## Binary and CLI Product Contract
 
@@ -106,6 +119,7 @@ Commands represented:
 - `skfiy doctor`
 - `skfiy dashboard [--no-open] [--port <port>] [--json]`
 - `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>`
+- `skfiy chrome extension-info`
 - `skfiy chrome status`
 - `skfiy chrome policy show`
 - `skfiy chrome policy set --host <host> --action <always-allow|allow-current-turn|block|ask>`
@@ -173,33 +187,100 @@ activation, non-browser UI observation, global screenshots, and pointer/keyboard
 execution, while the extension specializes in current-tab DOM control, Chrome
 host policy, downloads, and visible-tab evidence.
 
-## Dashboard Roadmap
+## User Dashboard Roadmap
 
-The dashboard should progress as an OpenClaw-style operator surface while staying subordinate to the pet and voice bot:
+2026-06-21 update: the dashboard target is a user-facing control plane, not a
+developer/operator diagnostics page. The current loopback server, snapshot API,
+SSE, Chrome policy API, and smoke gates remain useful infrastructure, but the
+first screen must read like a product dashboard.
 
-1. **Runtime and permission readiness:** app/helper/CLI presence, signing identity, desktop session, Screen Recording, Accessibility, Microphone, Speech Recognition, Finder Automation, Chrome native-host manifest, and Chrome extension heartbeat.
-2. **Current turn and replay:** transcript state, target app, approval queue, risk level, stop state, screenshots, OCR/accessibility observations, planned actions, execution results, and verification decisions.
-3. **Extension and browser health:** Native Messaging manifest state, `chrome-extension-connection.json` age, live/stale/unknown connection state, current tab observation source, host policy, and fallback path.
-4. **Smoke and release evidence:** latest UI/Ghostty/Chrome/Finder/voice/dashboard/Codex-plugin/money-run artifacts, product paths, blockers, stale evidence warnings, alpha manifest/zip SHA256 identity, and dogfood cohort coverage.
-5. **Long-horizon supervision:** read-only `money-run` tmux session status, active pane, recent blocker markers, last recommendation, and whether skfiy has field-proven sustained supervision after release gates pass.
+Reference shape checked for this update:
 
-Remote dashboard access is out of scope until a token/session story exists. Local `127.0.0.1` remains the default, token values must not print to stdout, and any future remote or Tailscale/SSH-tunnel mode must be explicit.
+- `cube20` local web app: compact HeroUI/Tailwind cards, chips, actions, and a
+  quiet account/control dashboard rather than a raw diagnostics page.
+- `codebase/x` local web app: HeroUI/HeroUI Pro component family, semantic theme
+  tokens, app shell/sidebar, item cards, list views, status icons, action bars,
+  command/search surfaces, and a separate debug route.
+- OpenClaw public Control UI/Gateway docs and Mission Control examples: local
+  dashboard URL, session/auth boundary, live gateway health, agents/tasks,
+  approvals, logs, updates, and real-time activity feed.
 
-## Two-Week Dashboard Execution Plan
+The dashboard should progress as a skfiy user control plane while staying
+subordinate to the pet and voice bot:
 
-Week A should make the dashboard useful for local operation without turning it into a second app runtime:
+1. **Home:** assistant state, target app/site/session, active task summary,
+   next recommended action, and stop/pause/resume.
+2. **Approvals:** pending app, host, clipboard, file, network, and sensitive UI
+   decisions with allow-once/always/block choices.
+3. **Activity:** recent voice turns, verified actions, before/after screenshots,
+   failures, retries, and recovery suggestions without raw event names on the
+   first screen.
+4. **Apps and sites:** app allow/ask/deny, Chrome host policy, extension live
+   connection, current-tab readiness, host permission state, and
+   extension/CDP/screenshot fallback mode.
+5. **Permissions:** Screen Recording, Accessibility, Microphone, Speech
+   Recognition, Finder Automation, Chrome extension, and setup actions.
+6. **Agents:** long-horizon targets such as `money-run`, active sub-agent/task
+   state, recent blocker markers, and field-test readiness.
+7. **Releases:** dogfood/update state only when useful to the user, not as a
+   first-screen debug panel.
+8. **Advanced Diagnostics:** descriptor/snapshot/evidence JSON, smoke artifacts,
+   product paths, stale evidence warnings, alpha manifest/zip identity, signing
+   state, PIDs, uptime, and `runnerHasTmux`.
 
-1. Finish the runtime snapshot event store: Electron writes active turn, replay, approval, stop, screenshot, action, and verification summaries into `~/Library/Application Support/skfiy/runtime-snapshot.json`; `/snapshot.json` reads it as the current-turn and replay source. The bounded approval/stop/action/verification/screenshot/timeline summaries are now represented in the snapshot contract; the next gap is streaming this file from every live Electron turn, not only replay-derived writes and seeded smoke fixtures.
-2. Add live-refresh transport with SSE first, WebSocket later only if bidirectional approval traffic needs it.
-3. Render the dashboard panels from real snapshot fields, not placeholders: runtime health, permissions, current turn, replay, app policy, extension/browser health, smoke evidence, dogfood/release, long-horizon, and alerts.
-4. Keep the desktop pet as the voice/control entry: dashboard actions can inspect, open settings, copy commands, or request approval, but stop/approval visibility must also stay in the pet.
+Remote dashboard access is out of scope until a token/session story exists.
+Local `127.0.0.1` remains the default, token values must not print to stdout,
+and any future remote or Tailscale/SSH-tunnel mode must be explicit.
 
-Week B should make it product-grade enough for dogfood:
+## Two-Week User Dashboard Execution Plan
 
-1. Make `smoke:dashboard` require runtime snapshot coverage for active-turn and replay panels when a recent app turn exists, while still passing cleanly on a fresh install with explicit empty-state reasons. The packaged gate now requires seeded current-turn command/target plus bounded approval/stop state, latest action, latest verification, latest screenshot, replay screenshots/actions/verifications, and timeline tail; it also launches a second isolated fresh HOME with no `runtime-snapshot.json` and requires `/snapshot.json` plus SSE to expose `freshInstall: true`, `emptyReasonCode: "runtime-snapshot-missing"`, `currentTurn.state: "idle"`, and `replay.state: "empty"` before classifying dashboard evidence as passed. The remaining refinement is detecting whether a real installed runtime had a recent app turn and escalating stale or missing turn streams differently from a clean first run.
-2. Add dashboard stale-evidence and blocker banners for sleep/loginwindow, missing TCC grants, stale Chrome extension heartbeat, stale smoke evidence, and release drift. The machine-readable alert codes are present, and the HTML dashboard shell now groups them into higher-signal operator bands by failing domain and severity.
-3. Add a local-only auth/session design note before any remote or Tailscale mode; OpenClaw's Control UI pattern is the reference, but skfiy must not print token values or imply public exposure is safe.
-4. Add a post-release long-horizon supervision view for `money-run` that shows read-only probe state before the field task and replay-backed action evidence after skfiy performs the task.
+Week A should make the existing loopback dashboard user-readable without waiting
+for a full React migration:
+
+1. Preserve `/snapshot.json`, `/events`, `/api/chrome-host-policy`, and product
+   smoke contracts.
+2. Reframe the first screen from runtime/dev panels into Home, Approvals,
+   Activity, Apps and Sites, Permissions, Agents, Releases, and Advanced
+   Diagnostics. Runtime health, smoke evidence, release drift, and raw JSON move
+   behind Advanced unless they block the user.
+3. Replace developer labels such as "operator readiness", "runtime snapshot",
+   "native host", and raw smoke target names with user labels such as "Ready to
+   control Chrome", "Needs extension refresh", "Desktop is locked", "Waiting for
+   approval", and "Last action verified".
+4. Finish runtime snapshot streaming: Electron writes active turn, replay,
+   approval, stop, screenshot, action, and verification summaries into
+   `~/Library/Application Support/skfiy/runtime-snapshot.json`; `/snapshot.json`
+   reads it as the current-turn and replay source. The bounded summaries are
+   already represented in the contract; the next gap is streaming this file from
+   every live Electron turn, not only replay-derived writes and seeded smoke
+   fixtures.
+5. Use SSE for live refresh. WebSocket is deferred until dashboard approvals
+   become bidirectional and auth/session rules are explicit.
+6. Keep the desktop pet as the voice/control entry. Dashboard actions can
+   inspect, open settings, copy commands, set app/host policy, request approval,
+   or stop a turn, but stop/approval visibility must also stay in the pet.
+
+Week B should make the dashboard product-grade and prepare the HeroUI migration:
+
+1. Make `smoke:dashboard` verify the user information architecture: first screen
+   has assistant state, next action, stop affordance, approvals, recent activity,
+   app/site readiness, permission setup, and an Advanced/Diagnostics section for
+   raw data. Keep the existing machine-readable snapshot/smoke assertions.
+2. Add user-facing blocker banners for sleep/loginwindow, missing TCC grants,
+   stale Chrome extension heartbeat, stale smoke evidence, release drift, and
+   live extension connection gaps. The existing alert codes become the data
+   source; the UI groups them by what the user can do next.
+3. Add a local-only auth/session design note before any remote or Tailscale mode;
+   OpenClaw's Control UI pattern is the reference, but skfiy must not print token
+   values or imply public exposure is safe.
+4. Add a post-release long-horizon supervision view for `money-run` that shows
+   read-only probe state before the field task and replay-backed action evidence
+   after skfiy performs the task.
+5. Start the React/HeroUI migration as a separate dashboard bundle after the
+   user-mode shell is stable. Use local `codebase/x` patterns: semantic theme
+   tokens, sidebar/app shell, compact item cards, chips, status icons, list
+   views, action bars, command/search entry, and an explicit Advanced route. Do
+   not put raw developer panels on Home.
 
 ## Dashboard Descriptor
 

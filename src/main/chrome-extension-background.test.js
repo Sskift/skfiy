@@ -6,6 +6,8 @@ const HOST_POLICY_STORAGE_KEY = "skfiyHostPolicy";
 const HOST_POLICY_SYNC_STORAGE_KEY = "skfiyHostPolicySync";
 const HOST_POLICY_SYNC_STATUS = "skfiy.host_policy.sync_status";
 const HOST_POLICY_SYNC_REFRESH = "skfiy.host_policy.sync_refresh";
+const NATIVE_HEARTBEAT = "skfiy.native.heartbeat";
+const DEV_RELOAD_REQUEST = "skfiy.dev.reload";
 const PAGE_CONTROL_HEALTH = "skfiy.page_control.health";
 
 function createEvent() {
@@ -76,6 +78,7 @@ function createChromeMock(nativeResponses = [], options = {}) {
     onMessage: createEvent(),
     onInstalled: createEvent(),
     onStartup: createEvent(),
+    ...(options.reloadUnavailable ? {} : { reload: options.reload ?? vi.fn() }),
     getManifest: vi.fn(() => ({
       manifest_version: 3,
       name: "skfiy Chrome Adapter",
@@ -943,6 +946,114 @@ describe("Chrome extension background policy sync", () => {
       type: "skfiy.host_policy.request"
     });
     expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-popup_manual-/);
+  });
+
+  it("lets the popup trigger a native heartbeat without changing the host protocol", async () => {
+    const mock = createChromeMock([
+      createPolicyResponse({ allowedHosts: ["heartbeat.example"], currentTurnAllowedHosts: [], blockedHosts: [] })
+    ]);
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+      type: NATIVE_HEARTBEAT,
+      requestId: "popup-heartbeat"
+    }, {}, sendResponse);
+
+    expect(keepChannelOpen).toBe(true);
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        type: "skfiy.native.heartbeat_result",
+        schemaVersion: 1,
+        requestId: "popup-heartbeat",
+        heartbeat: expect.objectContaining({
+          state: "connected",
+          trigger: "popup_heartbeat",
+          bridgeState: "connected",
+          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          messageType: "skfiy.host_policy.request",
+          responseType: "skfiy.native.response",
+          responseResult: "accepted",
+          lastError: null
+        }),
+        diagnostics: expect.objectContaining({
+          devReload: expect.objectContaining({
+            state: "idle",
+            heartbeat: expect.objectContaining({
+              state: "connected",
+              trigger: "popup_heartbeat"
+            })
+          }),
+          nativeHost: expect.objectContaining({
+            bridgeState: "connected",
+            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            messageType: "skfiy.host_policy.request"
+          })
+        })
+      }));
+    });
+
+    expect(mock.postedMessages).toHaveLength(1);
+    expect(mock.postedMessages[0]).toMatchObject({
+      schemaVersion: 1,
+      type: "skfiy.host_policy.request"
+    });
+    expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-popup_heartbeat-/);
+  });
+
+  it("schedules an extension reload after recording a diagnostic heartbeat", async () => {
+    const mock = createChromeMock([
+      createPolicyResponse({ allowedHosts: ["reload.example"], currentTurnAllowedHosts: [], blockedHosts: [] })
+    ]);
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+      type: DEV_RELOAD_REQUEST,
+      requestId: "popup-dev-reload"
+    }, {}, sendResponse);
+
+    expect(keepChannelOpen).toBe(true);
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        type: "skfiy.dev.reload_result",
+        schemaVersion: 1,
+        requestId: "popup-dev-reload",
+        heartbeat: expect.objectContaining({
+          state: "connected",
+          trigger: "popup_dev_reload"
+        }),
+        devReload: expect.objectContaining({
+          state: "scheduled",
+          reloadAvailable: true,
+          reason: "heartbeat_connected",
+          browserPolicy: "extension_context_reload",
+          heartbeat: expect.objectContaining({
+            state: "connected"
+          })
+        }),
+        diagnostics: expect.objectContaining({
+          devReload: expect.objectContaining({
+            state: "scheduled",
+            heartbeat: expect.objectContaining({
+              state: "connected"
+            })
+          })
+        })
+      }));
+    });
+
+    expect(mock.postedMessages).toHaveLength(1);
+    expect(mock.postedMessages[0]).toMatchObject({
+      schemaVersion: 1,
+      type: "skfiy.host_policy.request"
+    });
+    expect(mock.chrome.runtime.reload).not.toHaveBeenCalled();
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(mock.chrome.runtime.reload).toHaveBeenCalledTimes(1);
   });
 
   it("schedules a host policy sync when forwarding a native host message", async () => {

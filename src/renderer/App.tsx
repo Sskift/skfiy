@@ -1,9 +1,23 @@
-import { CirclePause, ExternalLink, Play, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CirclePause,
+  ClipboardList,
+  ExternalLink,
+  History,
+  Play,
+  RefreshCw,
+  RotateCcw,
+  ShieldCheck,
+  ShieldQuestion,
+  SlidersHorizontal
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
   useMemo,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent
@@ -865,6 +879,301 @@ function readDesktopSessionPermissionState(
   return "unknown";
 }
 
+function canStopTurn(status: TaskStatus): boolean {
+  return (
+    status === "observing"
+    || status === "executing"
+    || status === "approval_required"
+    || status === "needs_confirmation"
+  );
+}
+
+function getDashboardStatusCopy(
+  task: TaskView,
+  listening: boolean
+): { label: string; detail: string; tone: "success" | "warning" | "danger" | "neutral" } {
+  if (listening) {
+    return {
+      label: "正在听取指令",
+      detail: "语音输入已打开",
+      tone: "warning"
+    };
+  }
+
+  switch (task.status) {
+    case "observing":
+      return { label: "正在观察桌面", detail: task.message, tone: "warning" };
+    case "executing":
+      return { label: "正在执行任务", detail: task.message, tone: "warning" };
+    case "approval_required":
+      return { label: "等待审批", detail: task.message, tone: "warning" };
+    case "needs_confirmation":
+      return { label: "需要人工确认", detail: task.message, tone: "warning" };
+    case "completed":
+      return { label: "任务已完成", detail: task.message, tone: "success" };
+    case "failed":
+      return { label: "任务失败", detail: task.message, tone: "danger" };
+    case "idle":
+    default:
+      return { label: "待命中", detail: task.message, tone: "neutral" };
+  }
+}
+
+function getRiskCopy(risk?: TurnTranscript["risk"]): {
+  label: string;
+  detail: string;
+  tone: "success" | "warning" | "danger" | "neutral";
+} {
+  if (!risk) {
+    return {
+      label: "未评估风险",
+      detail: "下一次执行前会重新检查权限和动作风险",
+      tone: "neutral"
+    };
+  }
+
+  if (risk.level === "blocked") {
+    return { label: "已阻止", detail: risk.reason, tone: "danger" };
+  }
+
+  if (risk.level === "high") {
+    return { label: "高风险", detail: risk.reason, tone: "danger" };
+  }
+
+  if (risk.level === "medium") {
+    return {
+      label: risk.requiresApproval ? "中风险，需要审批" : "中风险",
+      detail: risk.reason,
+      tone: "warning"
+    };
+  }
+
+  return { label: "低风险", detail: risk.reason, tone: "success" };
+}
+
+function getPermissionHealthCopy(
+  permissions: PermissionSummary,
+  diagnostics: DesktopSessionDiagnostics,
+  provider: DictationProviderSelection
+): { label: string; detail: string; tone: "success" | "warning" | "danger" | "neutral" } {
+  if (diagnostics.state === "blocked") {
+    return {
+      label: "桌面暂不可控",
+      detail: diagnostics.reason,
+      tone: "danger"
+    };
+  }
+
+  const missingRows = readMissingPermissionRows(permissions, provider);
+  if (missingRows.length > 0) {
+    return {
+      label: `${missingRows.length} 项授权待处理`,
+      detail: missingRows.map((row) => row.label).join("、"),
+      tone: "warning"
+    };
+  }
+
+  if (diagnostics.state === "controllable") {
+    return {
+      label: "授权已就绪",
+      detail: "桌面会话可控",
+      tone: "success"
+    };
+  }
+
+  return {
+    label: "授权待检查",
+    detail: "刷新后确认屏幕录制、辅助功能和语音入口状态",
+    tone: "neutral"
+  };
+}
+
+function getPolicySummary(settings: AppPolicySettings): string {
+  const askCount = settings.apps.filter((entry) => entry.policy === "ask").length;
+  const denyCount = settings.apps.filter((entry) => entry.policy === "deny").length;
+
+  if (denyCount > 0) {
+    return `${denyCount} 个应用已阻止，${askCount} 个应用执行前询问`;
+  }
+
+  if (askCount > 0) {
+    return `${askCount} 个应用执行前询问`;
+  }
+
+  return "常用应用已允许";
+}
+
+function getRecentExecutionCopy(replay: TurnReplay | null): {
+  label: string;
+  detail: string;
+  tone: "success" | "warning" | "danger" | "neutral";
+} {
+  const transcript = replay?.transcript;
+  if (!transcript) {
+    return {
+      label: "暂无最近执行",
+      detail: "完成一次任务后会显示摘要",
+      tone: "neutral"
+    };
+  }
+
+  const outcomeCopy: Record<TurnTranscriptOutcome, string> = {
+    completed: "已完成",
+    approval_required: "等待审批",
+    verification_failed: "需要确认",
+    failed: "失败",
+    running: "进行中"
+  };
+  const tone =
+    transcript.outcome === "completed"
+      ? "success"
+      : transcript.outcome === "failed" || transcript.outcome === "verification_failed"
+        ? "danger"
+        : "warning";
+
+  return {
+    label: outcomeCopy[transcript.outcome],
+    detail: transcript.command ?? "最近任务未记录命令",
+    tone
+  };
+}
+
+function DashboardSignal({
+  detail,
+  icon,
+  label,
+  tone
+}: {
+  detail: string;
+  icon: ReactNode;
+  label: string;
+  tone: "success" | "warning" | "danger" | "neutral";
+}) {
+  return (
+    <div className="dashboard-signal" data-tone={tone}>
+      <span aria-hidden="true">{icon}</span>
+      <div>
+        <strong>{label}</strong>
+        <em>{detail}</em>
+      </div>
+    </div>
+  );
+}
+
+function UserDashboardPanel({
+  appPolicySettings,
+  desktopSessionDiagnostics,
+  dictationSettings,
+  listening,
+  onApprove,
+  onDeny,
+  onRefresh,
+  onStop,
+  permissions,
+  permissionsLoading,
+  plannerProviderSettings,
+  task,
+  turnReplay
+}: {
+  appPolicySettings: AppPolicySettings;
+  desktopSessionDiagnostics: DesktopSessionDiagnostics;
+  dictationSettings: DictationSettings;
+  listening: boolean;
+  onApprove: () => void;
+  onDeny: () => void;
+  onRefresh: () => void;
+  onStop: () => void;
+  permissions: PermissionSummary;
+  permissionsLoading: boolean;
+  plannerProviderSettings: PlannerProviderSettings;
+  task: TaskView;
+  turnReplay: TurnReplay | null;
+}) {
+  const status = getDashboardStatusCopy(task, listening);
+  const permissionHealth = getPermissionHealthCopy(
+    permissions,
+    desktopSessionDiagnostics,
+    dictationSettings.provider
+  );
+  const risk = getRiskCopy(turnReplay?.transcript.risk);
+  const recent = getRecentExecutionCopy(turnReplay);
+  const canStop = listening || canStopTurn(task.status);
+  const canApprove = task.status === "approval_required";
+
+  return (
+    <section className="dashboard-panel" aria-label="用户态 dashboard">
+      <div className="dashboard-heading">
+        <div>
+          <strong>助手状态</strong>
+          <span>{status.detail}</span>
+        </div>
+        <em data-tone={status.tone}>{status.label}</em>
+      </div>
+
+      <div className="dashboard-signals">
+        <DashboardSignal
+          icon={<ClipboardList size={14} />}
+          label="当前任务"
+          detail={status.label}
+          tone={status.tone}
+        />
+        <DashboardSignal
+          icon={permissionHealth.tone === "success" ? <ShieldCheck size={14} /> : <ShieldQuestion size={14} />}
+          label={permissionsLoading ? "正在检查授权" : permissionHealth.label}
+          detail={`${permissionHealth.detail} · ${getPolicySummary(appPolicySettings)}`}
+          tone={permissionHealth.tone}
+        />
+        <DashboardSignal
+          icon={risk.tone === "success" ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+          label={risk.label}
+          detail={risk.detail}
+          tone={risk.tone}
+        />
+        <DashboardSignal
+          icon={<History size={14} />}
+          label={recent.label}
+          detail={recent.detail}
+          tone={recent.tone}
+        />
+      </div>
+
+      <div className="dashboard-actions" aria-label="任务操作">
+        <button type="button" aria-label="刷新 dashboard 状态" onClick={onRefresh}>
+          <RefreshCw size={13} aria-hidden="true" />
+          <span>刷新</span>
+        </button>
+        {canStop ? (
+          <button type="button" aria-label={listening ? "停止语音" : "停止任务"} onClick={onStop}>
+            <CirclePause size={13} aria-hidden="true" />
+            <span>停止</span>
+          </button>
+        ) : null}
+        {canApprove ? (
+          <>
+            <button type="button" aria-label="确认" onClick={onApprove}>
+              <Play size={13} aria-hidden="true" />
+              <span>确认</span>
+            </button>
+            <button type="button" aria-label="拒绝" onClick={onDeny}>
+              <CirclePause size={13} aria-hidden="true" />
+              <span>拒绝</span>
+            </button>
+          </>
+        ) : null}
+        <button type="button" aria-label="撤销最近动作" disabled>
+          <RotateCcw size={13} aria-hidden="true" />
+          <span>撤销</span>
+        </button>
+      </div>
+
+      <div className="dashboard-runtime-strip" aria-label="运行偏好">
+        <span>{readDictationProviderLabel(dictationSettings.provider)}</span>
+        <span>{plannerProviderSettings.mode === "disabled" ? "规划已关闭" : "规划可用"}</span>
+      </div>
+    </section>
+  );
+}
+
 function DesktopPet({
   state,
   onClick,
@@ -1164,6 +1473,11 @@ export default function App() {
       setTurnReplay(null);
     }
   }, [api]);
+
+  const refreshDashboardStatus = useCallback(() => {
+    void refreshPermissions();
+    void refreshTurnReplay();
+  }, [refreshPermissions, refreshTurnReplay]);
 
   useEffect(() => {
     if (detailsOpen) {
@@ -1622,6 +1936,21 @@ export default function App() {
         >
           {detailsOpen ? (
             <>
+              <UserDashboardPanel
+                appPolicySettings={appPolicySettings}
+                desktopSessionDiagnostics={desktopSessionDiagnostics}
+                dictationSettings={dictationSettings}
+                listening={listening}
+                onApprove={() => void approveTask()}
+                onDeny={() => void denyTask()}
+                onRefresh={refreshDashboardStatus}
+                onStop={() => void stopCurrentTurn()}
+                permissions={permissions}
+                permissionsLoading={permissionsLoading}
+                plannerProviderSettings={plannerProviderSettings}
+                task={task}
+                turnReplay={turnReplay}
+              />
               <p>设置</p>
               <div className="provider-panel" aria-label="语音入口">
                 <div className="provider-heading">
@@ -1676,42 +2005,53 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              <div className="app-policy-panel" aria-label="规划模式">
-                <div className="app-policy-heading">
-                  <strong>规划模式</strong>
+              <details className="advanced-panel" aria-label="诊断/高级">
+                <summary>
                   <span>
-                    {plannerProviderSettings.mode === "external-cua"
-                      ? plannerProviderSettings.externalProviderLabel
-                      : "Computer Use"}
+                    <SlidersHorizontal size={13} aria-hidden="true" />
+                    诊断/高级
                   </span>
-                </div>
-                <div className="provider-switch" role="group" aria-label="Computer Use planner">
-                  {PLANNER_PROVIDER_OPTIONS.map((option) => (
-                    <button
-                      type="button"
-                      key={option.mode}
-                      aria-label={option.aria}
-                      aria-pressed={plannerProviderSettings.mode === option.mode}
-                      onClick={() => void selectPlannerProviderMode(option.mode)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                {plannerProviderSettings.mode === "external-cua" ? (
-                  <div className="settings-grid" aria-label="External CUA 配置">
-                    <span>Endpoint</span>
-                    <strong>
-                      {plannerProviderSettings.externalEndpoint ? "Endpoint 已配置" : "Endpoint 未配置"}
-                    </strong>
-                    <span>API Key</span>
-                    <strong>
-                      {plannerProviderSettings.externalApiKeyConfigured ? "API Key 已配置" : "API Key 未配置"}
-                    </strong>
+                  <em>回放与规划</em>
+                </summary>
+                <div className="advanced-panel-body">
+                  <div className="app-policy-panel" aria-label="规划模式">
+                    <div className="app-policy-heading">
+                      <strong>规划模式</strong>
+                      <span>
+                        {plannerProviderSettings.mode === "external-cua"
+                          ? plannerProviderSettings.externalProviderLabel
+                          : "Computer Use"}
+                      </span>
+                    </div>
+                    <div className="provider-switch" role="group" aria-label="Computer Use planner">
+                      {PLANNER_PROVIDER_OPTIONS.map((option) => (
+                        <button
+                          type="button"
+                          key={option.mode}
+                          aria-label={option.aria}
+                          aria-pressed={plannerProviderSettings.mode === option.mode}
+                          onClick={() => void selectPlannerProviderMode(option.mode)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                    {plannerProviderSettings.mode === "external-cua" ? (
+                      <div className="settings-grid" aria-label="External CUA 配置">
+                        <span>Endpoint</span>
+                        <strong>
+                          {plannerProviderSettings.externalEndpoint ? "Endpoint 已配置" : "Endpoint 未配置"}
+                        </strong>
+                        <span>API Key</span>
+                        <strong>
+                          {plannerProviderSettings.externalApiKeyConfigured ? "API Key 已配置" : "API Key 未配置"}
+                        </strong>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-              <LocalReplayViewer replay={turnReplay} />
+                  <LocalReplayViewer replay={turnReplay} />
+                </div>
+              </details>
               <div className="permissions-panel" aria-label="权限">
                 <div className="permissions-heading">
                   <strong>权限</strong>

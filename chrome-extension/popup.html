@@ -113,6 +113,10 @@
         <dd id="native-host-policy-state">Unknown</dd>
         <dt>Policy sync</dt>
         <dd id="policy-sync-state">Unknown</dd>
+        <dt>Heartbeat</dt>
+        <dd id="native-heartbeat">Unknown</dd>
+        <dt>Dev reload</dt>
+        <dd id="dev-reload-status">Idle</dd>
         <dt>Sync source</dt>
         <dd id="policy-sync-source">Local storage</dd>
         <dt>Entries</dt>
@@ -123,6 +127,8 @@
         <dd id="policy-sync-error" hidden>None</dd>
       </dl>
       <button id="sync-policy-button" type="button">Refresh host policy</button>
+      <button id="heartbeat-button" type="button">Check heartbeat</button>
+      <button id="dev-reload-button" type="button">Reload extension</button>
       <div id="sensitive-pause" hidden>Sensitive content pause</div>
     </main>
     <script src="popup.js"></script>

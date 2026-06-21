@@ -12,7 +12,9 @@ const HOST_POLICY_SHAPE = Object.freeze({
 
 const MESSAGE_TYPES = Object.freeze({
   HOST_POLICY_SYNC_STATUS: "skfiy.host_policy.sync_status",
-  HOST_POLICY_SYNC_REFRESH: "skfiy.host_policy.sync_refresh"
+  HOST_POLICY_SYNC_REFRESH: "skfiy.host_policy.sync_refresh",
+  NATIVE_HEARTBEAT: "skfiy.native.heartbeat",
+  DEV_RELOAD_REQUEST: "skfiy.dev.reload"
 });
 
 function hostFromUrl(url) {
@@ -124,6 +126,57 @@ function formatPolicyState(state) {
       return "Invalid";
     default:
       return "Unknown";
+  }
+}
+
+function formatHeartbeat(heartbeat, syncStatus = {}) {
+  const current = heartbeat && typeof heartbeat === "object"
+    ? heartbeat
+    : {};
+  const state = current.state
+    ?? (syncStatus.state === "synced" ? "connected" : syncStatus.state)
+    ?? "unknown";
+  const updatedAt = current.completedAt ?? current.updatedAt ?? syncStatus.completedAt ?? syncStatus.updatedAt;
+  const suffix = updatedAt ? ` at ${formatUpdatedAt(updatedAt)}` : "";
+  const lastError = current.lastError ?? syncStatus.lastError ?? syncStatus.error;
+
+  switch (state) {
+    case "connected":
+      return `Connected${suffix}`;
+    case "checking":
+    case "syncing":
+      return "Checking";
+    case "error":
+      return lastError ? `Error: ${lastError}` : "Error";
+    case "unknown":
+      return "Not checked";
+    default:
+      return formatDiagnosticToken(state);
+  }
+}
+
+function formatDevReload(devReload = {}) {
+  const lastError = devReload.lastError;
+
+  switch (devReload.state) {
+    case "checking":
+      return "Checking heartbeat";
+    case "scheduled":
+      return devReload.reloadAt
+        ? `Reload scheduled for ${formatUpdatedAt(devReload.reloadAt)}`
+        : "Reload scheduled";
+    case "blocked":
+      return devReload.message ?? "Reload blocked";
+    case "error":
+      return lastError ? `Error: ${lastError}` : "Error";
+    case "idle":
+    case undefined:
+    case null:
+      return devReload.reloadAvailable === false
+        ? "Unavailable in this browser context"
+        : "Idle";
+    default:
+      return formatDiagnosticToken(devReload.state);
   }
 }
 
@@ -371,6 +424,7 @@ function formatUpdatedAt(updatedAt) {
 function applySyncStatus(syncStatus, diagnostics) {
   const nativeHost = diagnostics?.nativeHost ?? {};
   const currentTab = diagnostics?.currentTab ?? {};
+  const devReload = diagnostics?.devReload ?? {};
   const lastError = diagnostics?.lastError ?? nativeHost.lastError ?? syncStatus?.lastError ?? syncStatus?.error;
 
   document.getElementById("native-host").textContent = nativeHost.name ?? "com.sskift.skfiy";
@@ -395,6 +449,9 @@ function applySyncStatus(syncStatus, diagnostics) {
     nativeHost.policyState ?? syncStatus?.nativeHostPolicyState ?? syncStatus?.hostPolicyState
   );
   document.getElementById("policy-sync-state").textContent = formatSyncState(syncStatus?.state);
+  document.getElementById("native-heartbeat").textContent =
+    formatHeartbeat(devReload.heartbeat, syncStatus);
+  document.getElementById("dev-reload-status").textContent = formatDevReload(devReload);
   document.getElementById("policy-sync-source").textContent = formatSource(syncStatus?.source);
   document.getElementById("policy-sync-entry-count").textContent = String(syncStatus?.entryCount ?? 0);
   document.getElementById("policy-sync-updated-at").textContent = formatUpdatedAt(syncStatus?.updatedAt);
@@ -467,8 +524,64 @@ async function refreshHostPolicy() {
   }
 }
 
+async function checkHeartbeat() {
+  const button = document.getElementById("heartbeat-button");
+  button.disabled = true;
+  document.getElementById("native-heartbeat").textContent = "Checking";
+
+  try {
+    const snapshot = await requestPolicySnapshot(MESSAGE_TYPES.NATIVE_HEARTBEAT);
+    applySyncStatus(snapshot?.syncStatus, snapshot?.diagnostics);
+  } catch (error) {
+    applySyncStatus({
+      state: "error",
+      source: "native_host",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      lastError: error instanceof Error ? error.message : "Unable to check heartbeat",
+      error: error instanceof Error ? error.message : "Unable to check heartbeat"
+    }, undefined);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function reloadExtension() {
+  const button = document.getElementById("dev-reload-button");
+  button.disabled = true;
+  document.getElementById("dev-reload-status").textContent = "Checking heartbeat";
+
+  try {
+    const snapshot = await requestPolicySnapshot(MESSAGE_TYPES.DEV_RELOAD_REQUEST);
+    applySyncStatus(snapshot?.syncStatus, snapshot?.diagnostics);
+    document.getElementById("dev-reload-status").textContent =
+      formatDevReload(snapshot?.devReload ?? snapshot?.diagnostics?.devReload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to reload extension";
+    document.getElementById("dev-reload-status").textContent = `Error: ${message}`;
+    applySyncStatus({
+      state: "error",
+      source: "native_host",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      lastError: message,
+      error: message
+    }, undefined);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 document.getElementById("sync-policy-button").addEventListener("click", () => {
   void refreshHostPolicy();
+});
+
+document.getElementById("heartbeat-button").addEventListener("click", () => {
+  void checkHeartbeat();
+});
+
+document.getElementById("dev-reload-button").addEventListener("click", () => {
+  void reloadExtension();
 });
 
 void renderPopup().catch((error) => {

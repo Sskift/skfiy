@@ -494,6 +494,20 @@ describe("App", () => {
     expect((window.skfiy as DesktopApi).prepareDictation).not.toHaveBeenCalled();
   });
 
+  it("shows a user-mode dashboard summary before advanced diagnostics", async () => {
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const dashboard = await screen.findByLabelText("用户态 dashboard");
+    expect(within(dashboard).getByText("助手状态")).toBeInTheDocument();
+    expect(within(dashboard).getByText("当前任务")).toBeInTheDocument();
+    expect(within(dashboard).getByText(/授权/)).toBeInTheDocument();
+    expect(within(dashboard).getByText("未评估风险")).toBeInTheDocument();
+    expect(within(dashboard).getByText("暂无最近执行")).toBeInTheDocument();
+    expect(screen.getByText("诊断/高级")).toBeInTheDocument();
+  });
+
   it("shows startup guard warnings as a non-blocking pet bubble", async () => {
     const api = window.skfiy as DesktopApi;
     api.getStartupWarnings = vi.fn<DesktopApi["getStartupWarnings"]>().mockResolvedValue([
@@ -657,6 +671,7 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+    fireEvent.click(screen.getByText("诊断/高级"));
 
     await waitFor(() => {
       expect(screen.getByText("规划模式")).toBeInTheDocument();
@@ -691,6 +706,7 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+    fireEvent.click(screen.getByText("诊断/高级"));
 
     await waitFor(() => {
       expect(screen.getByText("External CUA")).toBeInTheDocument();
@@ -798,6 +814,7 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+    fireEvent.click(screen.getByText("诊断/高级"));
 
     let replayPanel: HTMLElement | undefined;
     await waitFor(() => {

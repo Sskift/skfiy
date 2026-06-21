@@ -98,12 +98,14 @@ extension origin in `allowed_origins`.
 
 ## Confirm The Bridge
 
-Open the extension popup and click **Refresh host policy**. The useful fields
-are:
+Open the extension popup and click **Refresh host policy** or
+**Check heartbeat**. Both actions send a Native Messaging request through the
+installed host and update the heartbeat evidence. The useful fields are:
 
 - `Connection`: should move to `Synced with skfiy app`.
 - `Bridge`: should be `Connected`.
 - `Launch origin`: should be `chrome-extension://<extension-id>/`.
+- `Heartbeat`: should move to `Connected ...` after the native host responds.
 - `Native policy`: should be `Default`, `Configured`, or `Invalid`.
 - `Policy sync`: should be `Synced`.
 - `Last error`: should stay hidden.
@@ -131,6 +133,31 @@ Expected heartbeat shape:
 `extension.liveConnection: connected`, `stale`, `unknown`, or `invalid`.
 Heartbeat evidence is fresh for five minutes. A stale or unknown heartbeat means
 the native host may be installed but the extension has not talked to it recently.
+
+## Development Reload
+
+After the first **Load unpacked** install, day-to-day extension source edits do
+not require returning to `chrome://extensions` for the reload button. Open the
+skfiy extension popup and click **Reload extension**. The background worker will:
+
+1. send a Native Messaging heartbeat using the existing
+   `skfiy.host_policy.request` frame,
+2. write diagnostic state into `chrome.storage.local` so the popup can show
+   whether the heartbeat connected or failed,
+3. call Chrome's `chrome.runtime.reload()` API from the extension context.
+
+If the Native Messaging host is still unavailable, the popup keeps the reload
+diagnostic visible and still schedules the browser reload when
+`chrome.runtime.reload()` is available. This helps apply local JavaScript and
+manifest-adjacent edits even while `extension.liveConnection` is `unknown`; use
+the `Heartbeat` and `Last error` rows to diagnose the bridge separately.
+
+Chrome does not let an unpacked MV3 extension watch arbitrary local source files
+or silently reload itself from outside the extension context. If
+`Dev reload` says the reload API is unavailable, use the normal
+`chrome://extensions` reload button for that browser/context. Do not bypass
+Chrome's extension security policy with private browser files or unsupported
+automation.
 
 ## Check Current Tab Readiness
 
@@ -208,9 +235,12 @@ contract for dashboards or handoff reports.
 - Native host missing: run `./dist/skfiy chrome install-host --extension-id <id>`.
 - Native host mismatched: rebuild and reinstall after the extension id or CLI
   path changes.
-- No live heartbeat: open the popup and click **Refresh host policy**; check
-  that the Native Messaging manifest `allowed_origins` contains the current
-  extension id.
+- No live heartbeat: open the popup and click **Check heartbeat** or
+  **Refresh host policy**; check that the Native Messaging manifest
+  `allowed_origins` contains the current extension id.
+- Source edit not visible in Chrome: open the popup and click
+  **Reload extension**. If `Dev reload` reports the runtime reload API is
+  unavailable, reload from `chrome://extensions`.
 - Host policy blocked: approve the host for the current turn or set/reset the
   local Chrome host policy.
 - Missing Chrome host permission: grant site access for the current site in the

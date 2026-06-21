@@ -199,7 +199,9 @@ describe("implementation plan status docs", () => {
     expect(longPlan).toContain("skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|codex-plugin|finder|voice|money-run>");
     expect(longPlan).toContain("skfiy commands --json");
     expect(longPlan).toContain("plugin-installed MCP smoke can start the packaged `skfiy` binary");
-    expect(longPlan).toContain("OpenClaw-style dashboard");
+    expect(longPlan).toContain("OpenClaw-style dashboards show the right product surface direction");
+    expect(longPlan).toContain("Dashboard is a user control plane for skfiy, not a developer diagnostics page.");
+    expect(longPlan).toContain("HeroUI is the preferred dashboard component family");
     expect(longPlan).toContain("single compiled product entry");
     expect(longPlan).toContain("skfiy.app`, embedded `skfiy-helper`, and `skfiy` CLI");
     expect(dashboardPlan).toContain("OpenClaw Reference Shape");
@@ -207,7 +209,11 @@ describe("implementation plan status docs", () => {
     expect(dashboardPlan).toContain("codex plugin --help");
     expect(dashboardPlan).toContain("Chrome plugin cache entry has no `.app.json` and no `.mcp.json`");
     expect(dashboardPlan).toContain("GitHub plugin cache entry has `.app.json` connector wiring");
-    expect(dashboardPlan).toContain("Dashboard Roadmap");
+    expect(dashboardPlan).toContain("User Dashboard Roadmap");
+    expect(dashboardPlan).toContain("first screen must read like a product dashboard");
+    expect(dashboardPlan).toContain("local `codebase/x` patterns");
+    expect(dashboardPlan).toContain("semantic theme");
+    expect(dashboardPlan).toContain("tokens, app shell/sidebar");
     expect(dashboardPlan).toContain("Control UI is an admin surface");
     expect(dashboardPlan).toContain("Control UI reference capabilities");
     expect(dashboardPlan).toContain("sessions, cron, exec approvals, config, MCP server status, logs, updates, and live tool activity");
@@ -288,8 +294,10 @@ describe("implementation plan status docs", () => {
 
     expect(dashboardPlan).toContain("Manual recheck on 2026-06-20");
     expect(dashboardPlan).toContain("codex plugin marketplace add/list/upgrade/remove");
-    expect(dashboardPlan).toContain("Two-Week Dashboard Execution Plan");
-    expect(dashboardPlan).toContain("runtime snapshot event store");
+    expect(dashboardPlan).toContain("Two-Week User Dashboard Execution Plan");
+    expect(dashboardPlan).toContain("first screen");
+    expect(dashboardPlan).toContain("stop affordance");
+    expect(dashboardPlan).toContain("Finish runtime snapshot streaming");
     expect(dashboardPlan).toContain("runtime-snapshot.json");
     expect(dashboardPlan).toContain("latest action, latest verification, latest screenshot, replay screenshots/actions/verifications, and timeline tail");
     expect(dashboardPlan).toContain("`skfiy dashboard --json` is the launcher contract");
