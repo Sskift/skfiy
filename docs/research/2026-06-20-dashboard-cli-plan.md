@@ -257,9 +257,10 @@ Events fallback. Codex may still reload the extension card during development
 now that Chrome developer-mode permissions are granted, but the product is not
 complete until screenshot evidence or a proven fallback is closed, fresh MV3
 `skfiy.tabs.discover` evidence is produced or the fallback is explicitly
-accepted in product UX, repeatable replay evidence is recorded, user-facing
-dashboard controls are visible, and stable dashboard-safe blockers are returned
-without falling back to hidden Browser Use or a tmux process.
+accepted in product UX, repeatable replay evidence is recorded, the user-facing
+Chrome control card grows into one-click dashboard launchers plus Activity
+history, and stable dashboard-safe blockers are returned without falling back to
+hidden Browser Use or a tmux process.
 
 2026-06-21 implementation update: the first action bridge is now field-proven
 for authorized ordinary HTTP(S) pages. `src/main/chrome-extension-page-control.ts`
@@ -304,6 +305,16 @@ complete.
 developer/operator diagnostics page. The current loopback server, snapshot API,
 SSE, Chrome policy API, and smoke gates remain useful infrastructure, but the
 first screen must read like a product dashboard.
+
+2026-06-21 implementation update: the Apps and Sites panel now includes a
+user-facing Chrome control card from commit `e7005fc`. It distinguishes DOM
+control readiness from screenshot readiness, surfaces skfiy host approval,
+Chrome site access, extension refresh, internal-page, tab-fallback, and
+screenshot-fallback states, and shows copyable packaged `./dist/skfiy chrome
+... --json` commands for eligible pages. This is the first dashboard slice for
+browser control, not the final control plane: local one-click launchers,
+Activity history for launched/copied actions, and a green dashboard product
+smoke remain open.
 
 Reference shape checked for this update:
 
@@ -374,11 +385,14 @@ for a full React migration:
 6. Keep the desktop pet as the voice/control entry. Dashboard actions can
    inspect, open settings, copy commands, set app/host policy, request approval,
    or stop a turn, but stop/approval visibility must also stay in the pet.
-7. Add a Chrome page-control summary card sourced from `extension.pageControl`.
-   It must show the current tab host, readiness state, host-policy decision,
-   Chrome optional host permission state, Chrome capture permission state,
-   content-script state, and available actions. The card must not imply Chrome
-   can control `chrome://` or `chrome-extension://` pages.
+7. Keep the Chrome page-control summary card sourced from
+   `extension.pageControl` as the first browser-control dashboard surface. It
+   now shows current-page readiness, host-policy decision, Chrome optional host
+   permission state, Chrome capture permission state, extension refresh state,
+   fallback mode, and copyable packaged commands. Next work is to connect those
+   commands to local-only launch endpoints and Activity entries. The card must
+   never imply Chrome can control `chrome://`, `chrome-extension://`, `file://`,
+   or unsupported pages.
 
 Week B should make the dashboard product-grade and prepare the HeroUI migration:
 
@@ -401,11 +415,12 @@ Week B should make the dashboard product-grade and prepare the HeroUI migration:
    tokens, sidebar/app shell, compact item cards, chips, status icons, list
    views, action bars, command/search entry, and an explicit Advanced route. Do
    not put raw developer panels on Home.
-6. Add browser-control task launchers only after Week A exposes honest readiness
+6. Add browser-control task launchers now that Week A exposes honest readiness
    states. Initial launchers should be local-page safe tasks: observe current
    page, screenshot current page, click a confirmed selector, fill approved
-   fields, submit an approved test form, and scroll. Each launcher must record
-   before/after page state and a verification result.
+   fields, submit an approved test form, and scroll. Each launcher must invoke
+   packaged `dist/skfiy`, record before/after page state, and write a
+   verification result into Activity.
 
 ## Two-Week Browser Extension Execution Plan
 
@@ -471,16 +486,18 @@ Detailed task handoff:
    JavaScript refreshes, but service-worker re-registration can still require
    Chrome's extension-card reload; packaged extension uploads and Chrome Web
    Store updates remain explicit browser/distribution operations.
-7. Add dashboard display for the new commands. The user dashboard should show
-   copyable commands and one-click local actions only for eligible HTTP(S) pages;
-   otherwise it should show the concrete next action: allow host, grant Chrome
-   site access, grant Chrome capture permission, reload extension, reload stale
-   extension registration, open a normal web page, or switch to screenshot
-   fallback.
+7. Continue dashboard display for the new commands. The user dashboard now shows
+   copyable commands only for eligible HTTP(S) pages; otherwise it shows the
+   concrete next action: allow host, grant Chrome site access, grant Chrome
+   capture permission, reload extension, reload stale extension registration,
+   open a normal web page, or switch to screenshot fallback. The next product
+   step is one-click local actions plus Activity evidence.
 8. Add product tests. Unit tests should cover every blocker state. A real
-   installed-extension smoke should use the manually installed id when provided
-   and should record DOM-action readiness plus the screenshot-ready or
-   screenshot-blocked lane on an authorized localhost page.
+   installed-extension smoke should use the manually installed id when provided,
+   serve a local HTTP page, select an eligible tab via `skfiy chrome tabs`,
+   run reload/observe/fill/click/submit/scroll sequentially, and record
+   DOM-action readiness plus the screenshot-ready or screenshot-blocked lane on
+   an authorized localhost page.
 
 ### Week B: Move From Demo Page To Repeated Use
 
