@@ -182,7 +182,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - `skfiy doctor`: actionable permission and packaging diagnostics.
   - `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>`.
   - `skfiy dashboard [--no-open] [--port <port>]`.
-  - `skfiy chrome status`, `skfiy chrome install-host`, `skfiy chrome uninstall-host`.
+  - `skfiy chrome extension-info`, `skfiy chrome status`, `skfiy chrome install-host`, `skfiy chrome uninstall-host`.
   - `skfiy mcp serve --stdio`: Codex plugin-facing MCP entry point for read-only status/doctor tools.
   - `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|codex-plugin|finder|voice|money-run> --output <path>`.
   - `skfiy release check --json-output <path>` and `skfiy alpha artifact`.

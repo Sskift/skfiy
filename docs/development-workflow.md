@@ -36,6 +36,21 @@ This document is mandatory for all skfiy work. It exists because desktop agents 
 8. **Voice tests must separate microphone, ASR, and action execution.**
    A voice result is not valid unless the report states which ASR provider was used, whether microphone permission was granted, how transcription entered skfiy, which downstream command/action was executed, and, for passed Ghostty voice runs, the `turnReplay` evidence for the verified type/enter actions and before/after screenshots.
 
+## Documentation And Artifact Hygiene
+
+Current operator instructions live in `README.md`, `docs/README.md`,
+`docs/development-workflow.md`, `docs/internal-alpha-build.md`, and
+`docs/chrome-extension-setup.md`. Treat `docs/research/` as a dated archive:
+do not append routine status updates to old plans after the durable behavior has
+landed; move lasting instructions into the canonical docs instead.
+
+Generated local evidence is intentionally ignored by git. Keep current
+`.skfiy-smoke/`, `.skfiy-alpha/`, `.skfiy-cli-smoke/`, and `.skfiy-dogfood/`
+artifacts only while they are needed for active debugging, release evidence, or
+dogfood handoff. Delete stale alpha zips, superseded smoke copies, helper build
+caches, and `.DS_Store` files when they no longer match the current commit or
+the published `docs/release-evidence/latest-alpha.json`.
+
 ## Launch Policy
 
 ### Valid for User-Facing Demo

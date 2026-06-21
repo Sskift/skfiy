@@ -38,12 +38,18 @@ through the packaged app/helper.
 npm run build
 ```
 
-2. Open Chrome, Chrome for Testing, or Chromium.
+2. Print the local extension path, manifest summary, and follow-up commands:
 
-3. Go to `chrome://extensions`, enable Developer mode, choose **Load unpacked**,
+```bash
+./dist/skfiy chrome extension-info --json
+```
+
+3. Open Chrome, Chrome for Testing, or Chromium.
+
+4. Go to `chrome://extensions`, enable Developer mode, choose **Load unpacked**,
    and select the repository's `chrome-extension/` folder.
 
-4. Copy the 32-character extension id from the extension card. Use that exact id
+5. Copy the 32-character extension id from the extension card. Use that exact id
    in all native-host commands. If you reload the unpacked extension from a
    different path and Chrome assigns a new id, reinstall the native host.
 

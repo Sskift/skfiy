@@ -63,6 +63,7 @@ describe("CLI command surface", () => {
       "dashboard snapshot",
       "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
       "chrome status",
+      "chrome extension-info",
       "chrome policy show",
       "chrome policy set",
       "chrome policy reset",
@@ -130,6 +131,13 @@ describe("CLI command surface", () => {
         executesSystemMutation: false,
         outputShape: "chrome-status",
         capabilities: ["chrome-extension-page-safety", "chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "chrome extension-info",
+        plannedMutation: false,
+        executesSystemMutation: false,
+        outputShape: "chrome-extension-info",
+        capabilities: ["chrome-extension-page-control"]
       }),
       expect.objectContaining({
         path: "chrome policy set",
@@ -3349,6 +3357,103 @@ describe("CLI command surface", () => {
       }
     });
     expect(stderr).toEqual([]);
+  });
+
+  it("prints Chrome unpacked extension setup info without requiring an extension id", async () => {
+    const rootDir = createTempRoot();
+    const extensionDir = path.join(rootDir, "chrome-extension");
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    try {
+      mkdirSync(extensionDir, { recursive: true });
+      writeFileSync(path.join(extensionDir, "manifest.json"), `${JSON.stringify({
+        manifest_version: 3,
+        name: "skfiy Chrome Adapter",
+        version: "0.0.1",
+        description: "Static Manifest V3 skeleton for the skfiy browser adapter.",
+        minimum_chrome_version: "116",
+        action: {
+          default_popup: "popup.html"
+        },
+        background: {
+          service_worker: "background.js",
+          type: "module"
+        },
+        permissions: ["activeTab", "nativeMessaging"],
+        host_permissions: [],
+        optional_host_permissions: ["http://*/*", "https://*/*"]
+      })}\n`);
+
+      await expect(runSkfiyCli({
+        argv: ["chrome", "extension-info", "--json"],
+        rootDir,
+        homeDir: "/Users/tester",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const output = JSON.parse(stdout.join(""));
+      expect(output).toMatchObject({
+        schemaVersion: 1,
+        command: "chrome extension-info",
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        plannedMutation: false,
+        executesSystemMutation: false,
+        result: "available",
+        extension: {
+          state: "available",
+          path: extensionDir,
+          manifestPath: path.join(extensionDir, "manifest.json"),
+          idState: "unknown-until-loaded",
+          manifest: {
+            manifestVersion: 3,
+            name: "skfiy Chrome Adapter",
+            version: "0.0.1",
+            permissions: ["activeTab", "nativeMessaging"],
+            optionalHostPermissions: ["http://*/*", "https://*/*"],
+            backgroundServiceWorker: "background.js",
+            actionDefaultPopup: "popup.html"
+          }
+        },
+        browserSetup: {
+          state: "manual-required",
+          chromeUrl: "chrome://extensions/",
+          loadUnpackedPath: extensionDir
+        },
+        installHostCommand: [
+          "skfiy",
+          "chrome",
+          "install-host",
+          "--cli",
+          path.join(rootDir, "dist", "skfiy"),
+          "--extension-id",
+          "<extension-id>"
+        ],
+        verifyStatusCommand: [
+          "skfiy",
+          "chrome",
+          "status",
+          "--cli",
+          path.join(rootDir, "dist", "skfiy"),
+          "--extension-id",
+          "<extension-id>"
+        ],
+        copyableCommands: expect.arrayContaining([
+          expect.objectContaining({
+            copyText: `skfiy chrome install-host --cli ${path.join(rootDir, "dist", "skfiy")} --extension-id "<extension-id>"`
+          }),
+          expect.objectContaining({
+            copyText: `skfiy chrome status --cli ${path.join(rootDir, "dist", "skfiy")} --extension-id "<extension-id>"`
+          })
+        ])
+      });
+      expect(JSON.stringify(output)).not.toContain("token=");
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+    }
   });
 
   it("runs chrome native host status, install, and uninstall through injected filesystem", async () => {

@@ -1,6 +1,11 @@
-# Dashboard CLI Groundwork Plan
+# Dashboard CLI Groundwork Notes
 
 Date: 2026-06-20
+
+Status: archived implementation context. Current operator instructions live in
+`README.md`, `docs/README.md`, `docs/development-workflow.md`,
+`docs/internal-alpha-build.md`, and `docs/chrome-extension-setup.md`; this note
+records the research inputs and landed dashboard/CLI shape that led there.
 
 Source plan: `docs/research/2026-06-16-voice-computer-control-long-plan.md`, sections "Dashboard and Operator Plane", "Binary, CLI, and Native Host", and "Recommended Next Move".
 

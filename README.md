@@ -1,7 +1,8 @@
 # skfiy
 
-skfiy is a voice-first macOS desktop pet for local Computer Use experiments.
-It is designed as an app-agnostic desktop control runtime: observe any visible
+skfiy is a voice-first macOS Computer Use runtime with a desktop pet, packaged
+CLI, local dashboard, and app adapters for local experiments. It is designed as
+an app-agnostic desktop control runtime: observe any visible
 macOS app, decide the next action, execute clicks/typing/dragging/hotkeys, then
 verify the result from screenshots, OCR, accessibility metadata, and replay
 events. Ghostty, Chrome, Finder, screenshots, and tmux supervision are the first
@@ -60,6 +61,20 @@ Generated evidence directories are ignored by git. Keep only the current commit
 artifacts needed for active debugging and dogfood status; old alpha zips,
 historic smoke output, stale dogfood downloads, `.DS_Store`, and helper build
 caches can be deleted locally.
+
+## Documentation Map
+
+- [docs/README.md](docs/README.md): repository documentation index, archive
+  policy, and local artifact cleanup rules.
+- [docs/development-workflow.md](docs/development-workflow.md): mandatory
+  product-path testing contract for user-visible work.
+- [docs/internal-alpha-build.md](docs/internal-alpha-build.md): unsigned alpha
+  artifact, GitHub pre-release, dogfood, and cohort workflow.
+- [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md): manual
+  unpacked extension install, native host setup, and bridge diagnostics.
+- [docs/research/](docs/research/): historical research and implementation
+  notes. Fold durable operational instructions back into the README or workflow
+  docs instead of treating old plans as live checklists.
 
 ## MVP Scope
 
@@ -234,11 +249,16 @@ global screenshots, pointer/keyboard actions, and non-browser UI.
 For manual extension install, Native Messaging manifest setup, heartbeat checks,
 current-tab readiness, and blocker triage, see
 [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md).
+`./dist/skfiy chrome extension-info --json` prints the local unpacked extension
+path, manifest summary, Chrome Extension Manager handoff steps, and copyable
+`chrome install-host` / `chrome status` commands for the extension id Chrome
+shows after loading.
 
 ```bash
 ./dist/skfiy status --json
 ./dist/skfiy doctor --json
 ./dist/skfiy dashboard --no-open --port 0 --json
+./dist/skfiy chrome extension-info --json
 ./dist/skfiy mcp serve --stdio
 ./dist/skfiy smoke money-run --output .skfiy-smoke/money-run.json --json
 ```

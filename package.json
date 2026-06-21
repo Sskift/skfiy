@@ -2,7 +2,23 @@
   "name": "skfiy",
   "version": "0.1.0",
   "private": true,
-  "description": "Desktop Computer Use prototype focused on Ghostty control and screenshots.",
+  "description": "Voice-first macOS Computer Use runtime with a desktop pet, packaged CLI, dashboard, and app adapters.",
+  "keywords": [
+    "computer-use",
+    "macos",
+    "desktop-automation",
+    "voice-control",
+    "electron",
+    "chrome-extension"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sskift/skfiy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sskift/skfiy/issues"
+  },
+  "homepage": "https://github.com/Sskift/skfiy#readme",
   "type": "module",
   "main": "dist/main/main.js",
   "bin": {
