@@ -3831,6 +3831,97 @@ describe("CLI command surface", () => {
     expect(stderr).toEqual([]);
   });
 
+  it("reports an extension card reload requirement when reload is blocked by stale service worker registration", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const files: Record<string, string> = {
+      "/repo/chrome-extension/manifest.json": JSON.stringify({
+        manifest_version: 3,
+        name: "skfiy Chrome Adapter",
+        version: "0.0.6"
+      }),
+      "/Users/tester/Library/Application Support/Google/Chrome/Default/Secure Preferences": JSON.stringify({
+        extensions: {
+          settings: {
+            abcdefghijklmnopabcdefghijklmnop: {
+              path: "/repo/chrome-extension",
+              service_worker_registration_info: {
+                version: "0.0.5"
+              }
+            }
+          }
+        }
+      })
+    };
+    const chromeExtensionReloader = vi.fn(async () => ({
+      schemaVersion: 1 as const,
+      result: "blocked" as const,
+      productPath: "cli -> helper activate_app -> helper observe_app -> helper ocr_image -> helper click -> extension wake page -> native-host heartbeat" as const,
+      extensionId: "abcdefghijklmnopabcdefghijklmnop",
+      managerUrl: "chrome://extensions/",
+      wakeUrl: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42",
+      contextReloadUrl: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyWakeAction=dev-reload&skfiyTargetTabId=42",
+      screenshotPath: "/tmp/skfiy-chrome-extension-reload.png",
+      ocrLabelCount: 0,
+      observedWindowTitle: "扩展程序",
+      extensionConnection: {
+        state: "connected" as const,
+        liveConnection: "connected" as const,
+        path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+        ageSeconds: 0,
+        observedAt: "2026-06-21T12:00:00.000Z",
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-popup-wake",
+        pageControl: {
+          state: "blocked_by_host_policy",
+          activeTab: {
+            tabId: 42
+          }
+        }
+      },
+      reason: "desktop-session-locked",
+      candidates: [],
+      nextAction: "Unlock the desktop, keep the display awake, then retry `skfiy chrome reload-extension`."
+    }));
+
+    await expect(runSkfiyCli({
+      argv: [
+        "chrome",
+        "reload-extension",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop",
+        "--target-tab-id",
+        "42"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-21T12:00:00.000Z",
+      chromeNativeHostIo: createMemoryChromeIo(files),
+      chromeExtensionReloader,
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(1);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      schemaVersion: 1,
+      command: "chrome reload-extension",
+      result: "blocked",
+      reason: "extension-card-reload-required",
+      extensionRegistration: {
+        state: "stale",
+        localManifestVersion: "0.0.6",
+        registeredVersion: "0.0.5",
+        extensionPath: "/repo/chrome-extension"
+      },
+      desktopFallback: {
+        reason: "desktop-session-locked"
+      },
+      nextAction: "Open chrome://extensions on an unlocked desktop, click the skfiy extension reload button, then retry `skfiy chrome reload-extension`."
+    });
+    expect(chromeExtensionReloader).toHaveBeenCalledTimes(1);
+    expect(stderr).toEqual([]);
+  });
+
   it("runs chrome observe through the extension page-control invoker", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];

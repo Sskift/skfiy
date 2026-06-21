@@ -1086,22 +1086,44 @@ document.getElementById("dev-reload-button").addEventListener("click", () => {
   void reloadExtension();
 });
 
+let autoWakeActionStarted = false;
+
+function startAutoWakeAction() {
+  if (!shouldAutoCheckHeartbeat() || autoWakeActionStarted) {
+    return false;
+  }
+
+  autoWakeActionStarted = true;
+  const wakeAction = readWakeAction();
+  if (wakeAction === "observe") {
+    void observeCurrentPageFromWake();
+    return true;
+  }
+  if (wakeAction === "tabs") {
+    void runTabDiscoveryFromWake();
+    return true;
+  }
+  if (wakeAction === "dev-reload") {
+    void reloadExtension();
+    return true;
+  }
+  if (["screenshot", "click", "fill", "submit", "scroll"].includes(wakeAction)) {
+    // The background service worker owns wake actions from extension tabs.
+    // Running them here as well duplicates clicks/submits and can trip Chrome capture quotas.
+    return true;
+  }
+
+  void checkHeartbeat();
+  return true;
+}
+
+if (shouldAutoCheckHeartbeat() && readWakeAction() === "tabs") {
+  startAutoWakeAction();
+}
+
 void renderPopup()
   .then(() => {
-    if (shouldAutoCheckHeartbeat()) {
-      if (readWakeAction() === "observe") {
-        void observeCurrentPageFromWake();
-      } else if (readWakeAction() === "tabs") {
-        void runTabDiscoveryFromWake();
-      } else if (readWakeAction() === "dev-reload") {
-        void reloadExtension();
-      } else if (["screenshot", "click", "fill", "submit", "scroll"].includes(readWakeAction())) {
-        // The background service worker owns wake actions from extension tabs.
-        // Running them here as well duplicates clicks/submits and can trip Chrome capture quotas.
-      } else {
-        void checkHeartbeat();
-      }
-    }
+    startAutoWakeAction();
   })
   .catch((error) => {
     document.getElementById("connection-status").textContent =

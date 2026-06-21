@@ -33,7 +33,7 @@ describe("Chrome extension adapter skeleton", () => {
       type: "module"
     });
     expect(manifest.action).toMatchObject({ default_popup: "popup.html" });
-    expect(manifest.version).toBe("0.0.6");
+    expect(manifest.version).toBe("0.0.7");
     expect(manifest.permissions).toEqual(
       expect.arrayContaining(["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"])
     );

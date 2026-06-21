@@ -47,7 +47,7 @@ const NATIVE_MESSAGE_TIMEOUT_MS = 3_000;
 const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
   manifest_version: 3,
   name: "skfiy Chrome Adapter",
-  version: "0.0.6",
+  version: "0.0.7",
   minimum_chrome_version: "116",
   permissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
   optional_host_permissions: ["http://*/*", "https://*/*"]
@@ -1928,6 +1928,9 @@ function registerTabHeartbeatListeners() {
         return;
       }
       if (isOwnExtensionUrl(changeInfo?.url) || isOwnExtensionUrl(tab?.url)) {
+        setTimeout(() => {
+          void scheduleExistingWakeTabs();
+        }, 150);
         return;
       }
       setTimeout(() => {

@@ -154,6 +154,8 @@ const CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY = "chrome-extension-page-control"
 const CHROME_PAGE_OBSERVE_MESSAGE_TYPE = "skfiy.page.observe";
 const CHROME_EXTENSION_REGISTRATION_STALE_NEXT_ACTION =
   "Reload the skfiy extension card in Chrome Extension Manager so Chrome re-registers the MV3 service worker, then retry `skfiy chrome tabs`.";
+const CHROME_EXTENSION_CARD_RELOAD_REQUIRED_NEXT_ACTION =
+  "Open chrome://extensions on an unlocked desktop, click the skfiy extension reload button, then retry `skfiy chrome reload-extension`.";
 
 type ChromeExtensionRegistrationStatus = {
   state: "fresh" | "stale" | "missing" | "unknown" | "invalid";
@@ -6108,11 +6110,33 @@ async function runChromeNativeHostCli({
         generatedAt,
         io
       });
+      const extensionRegistration = reloadResult.result === "blocked"
+        ? await readChromeExtensionRegistrationStatus({
+          rootDir,
+          homeDir,
+          extensionId: invocation.options.extensionIds[0],
+          io
+        })
+        : undefined;
+      const reloadOutput = extensionRegistration?.state === "stale"
+        ? {
+          ...reloadResult,
+          reason: "extension-card-reload-required",
+          extensionRegistration,
+          desktopFallback: compactRecord({
+            reason: reloadResult.reason,
+            nextAction: reloadResult.nextAction,
+            observedWindowTitle: reloadResult.observedWindowTitle,
+            screenshotPath: reloadResult.screenshotPath
+          }),
+          nextAction: CHROME_EXTENSION_CARD_RELOAD_REQUIRED_NEXT_ACTION
+        }
+        : reloadResult;
       stdout.write(`${JSON.stringify({
         command: invocation.path,
         generatedAt: generatedAt ?? new Date().toISOString(),
         executesSystemMutation: true,
-        ...reloadResult
+        ...reloadOutput
       }, null, 2)}\n`);
       return reloadResult.result === "blocked" ? 1 : 0;
     } catch (error) {

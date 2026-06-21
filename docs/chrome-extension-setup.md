@@ -181,9 +181,12 @@ button in `chrome://extensions`, then rerun:
 ./dist/skfiy chrome tabs --extension-id <id> --json
 ```
 
-The product should report this as `extension-registration-stale` with the local
-manifest version, registered service-worker version, extension path, and next
-action instead of a generic tab-discovery failure.
+`skfiy chrome tabs` reports this as `extension-registration-stale` with the
+local manifest version, registered service-worker version, extension path, and
+next action instead of a generic tab-discovery failure. `skfiy chrome
+reload-extension` reports the same condition as
+`extension-card-reload-required` and preserves the desktop fallback blocker under
+`desktopFallback` when the screen is locked or unavailable.
 
 Chrome does not let an unpacked MV3 extension watch arbitrary local source files
 or silently reload itself from outside the extension context. If

@@ -1309,6 +1309,57 @@ describe("Chrome extension popup policy sync status", () => {
     }));
   });
 
+  it("runs tab discovery from wake URLs even when initial popup render fails", async () => {
+    installPopupDocument();
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyWakeAction=tabs");
+    const mock = createPopupChromeMock({
+      onSendMessage: async (message) => {
+        if (message.type === HOST_POLICY_SYNC_STATUS) {
+          throw new Error("popup status unavailable");
+        }
+        if (message.type === TABS_DISCOVER) {
+          return {
+            type: "skfiy.tabs.discover_result",
+            schemaVersion: 1,
+            requestId: message.requestId,
+            result: "passed",
+            tabs: [
+              {
+                id: 42,
+                windowId: 7,
+                state: "eligible",
+                eligible: true,
+                title: "skfiy action smoke",
+                url: "http://127.0.0.1:63852/"
+              }
+            ],
+            nativeHeartbeat: {
+              result: "accepted"
+            }
+          };
+        }
+        return {
+          type: "skfiy.native.heartbeat_result",
+          result: "accepted"
+        };
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: TABS_DISCOVER,
+        schemaVersion: 1,
+        requestId: expect.stringContaining("popup-tabs-")
+      }));
+    });
+    expect(mock.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: NATIVE_HEARTBEAT
+    }));
+  });
+
   it("does not capture page screenshots from wake URLs inside the popup", async () => {
     installPopupDocument();
     window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot");

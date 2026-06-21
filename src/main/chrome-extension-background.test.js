@@ -1434,6 +1434,69 @@ describe("Chrome extension background policy sync", () => {
     });
   });
 
+  it("recovers tab discovery when an extension wake update omits the query string", async () => {
+    const mock = createChromeMock([
+      {
+        schemaVersion: 1,
+        type: "skfiy.native.response",
+        requestId: "tabs-discover-response",
+        result: "accepted",
+        bridgeState: "connected",
+        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        messageType: TABS_DISCOVER
+      }
+    ], {
+      allTabs: [
+        {
+          id: 99,
+          windowId: 7,
+          active: true,
+          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=recovered-tabs&skfiyWakeAction=tabs"
+        },
+        {
+          id: 41,
+          windowId: 7,
+          title: "Recovered app",
+          url: "https://recovered.example/dashboard"
+        }
+      ]
+    });
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    mock.chrome.tabs.onUpdated.listeners[0](99, { status: "complete" }, {
+      id: 99,
+      windowId: 7,
+      active: true,
+      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html"
+    });
+    await new Promise((resolve) => setTimeout(resolve, 450));
+
+    await waitForAssertion(() => {
+      expect(mock.postedMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          schemaVersion: 1,
+          type: TABS_DISCOVER,
+          payload: expect.objectContaining({
+            pageTabs: expect.objectContaining({
+              result: "passed",
+              tabs: expect.arrayContaining([
+                expect.objectContaining({
+                  id: 99,
+                  blocker: "chrome_extension_page"
+                }),
+                expect.objectContaining({
+                  id: 41,
+                  host: "recovered.example"
+                })
+              ])
+            })
+          })
+        })
+      ]));
+    });
+  });
+
   it("refreshes page-control heartbeat when the active tab finishes loading", async () => {
     const mock = createChromeMock([
       createPolicyResponse({ allowedHosts: ["127.0.0.1:63852"], currentTurnAllowedHosts: [], blockedHosts: [] }),

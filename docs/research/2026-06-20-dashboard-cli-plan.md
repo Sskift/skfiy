@@ -286,14 +286,16 @@ The follow-up tab-discovery implementation adds `skfiy chrome tabs`,
 scanning for wake tabs that loaded before the service worker woke, wake handling
 for newly created extension tabs, bounded `chrome.tabs.query` failure evidence,
 per-tab summary blockers, and a typed registration-drift diagnostic. The local
-unpacked manifest is now `0.0.6`; Chrome still reports the installed extension
-service worker at `0.0.5` after the latest extension-context reload attempt.
-The current live blocker is therefore `extension-registration-stale`, not an
-ambiguous tabs protocol failure: the extension must either advance Chrome's
-registered service worker to `0.0.6` without desktop clicking, or return a
-user-facing extension-card reload blocker. Once Chrome is registration-fresh,
-the next proof is fresh `skfiy.tabs.discover` / `pageTabs` evidence from the
-compiled command.
+unpacked manifest is now `0.0.7`; Chrome currently reports the installed
+extension service worker at `0.0.6` until the extension card or an equivalent
+Chrome-supported reload re-registers the updated background worker.
+The current live blocker is therefore stale Chrome service-worker registration,
+not an ambiguous tabs protocol failure. `skfiy chrome tabs` reports that as
+`extension-registration-stale`; `skfiy chrome reload-extension` now reports the
+same product condition as `extension-card-reload-required` with version/path
+evidence and preserves any locked/asleep desktop fallback under
+`desktopFallback`. Once Chrome is registration-fresh, the next proof is fresh
+`skfiy.tabs.discover` / `pageTabs` evidence from the compiled command.
 
 ## User Dashboard Roadmap
 
@@ -428,17 +430,19 @@ Detailed task handoff:
    and next action. It marks `chrome://`, `chrome-extension://`, `file://`,
    unsupported schemes, missing skfiy host policy, blocked hosts, missing Chrome
    optional host permission, stale content scripts, tab-query failure, and
-   per-tab summary failure as distinct states. The 0.0.6 background also scans
-   existing wake tabs and reacts when a wake tab is newly created, so a wake URL
-   opened while the service worker is asleep should no longer disappear. The
+   per-tab summary failure as distinct states. The 0.0.7 background also scans
+   existing wake tabs, reacts when a wake tab is newly created, and rescans
+   existing wake tabs when Chrome reports an extension page update without the
+   original query string, so a wake URL opened while the service worker is asleep
+   or partially reported by `tabs.onUpdated` should no longer disappear. The
    remaining Week A proof is live and split into two gates: first, move the
-   installed extension registration from Chrome's current `0.0.5` to local
-   `0.0.6`; second, require fresh `skfiy.tabs.discover` evidence from the
+   installed extension registration from Chrome's current `0.0.6` to local
+   `0.0.7`; second, require fresh `skfiy.tabs.discover` evidence from the
    packaged command before it replaces AppleScript or manual tab ids in real
    smokes. Codex Chrome control can list but cannot claim `chrome://extensions/`,
-   so product code must keep returning a typed `extension-registration-stale` or
-   `desktop-session-locked` blocker until a Chrome-supported re-registration
-   path exists.
+   so product code must keep returning a typed `extension-registration-stale`,
+   `extension-card-reload-required`, or `desktop-session-locked` blocker until a
+   Chrome-supported re-registration path exists.
 3. Fix screenshot readiness before screenshot capture. Health/status/dashboard
    must report DOM actions and screenshot separately: a page with skfiy host
    approval, Chrome site access, and loaded content script can be actionable for
