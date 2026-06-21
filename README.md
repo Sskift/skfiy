@@ -175,7 +175,11 @@ dashboard, extension, and `money-run`. It also performs a read-only tmux probe o
 adapters can show long-horizon readiness without controlling the session.
 `skfiy dashboard --json` returns the loopback URL, server PID, auth/update
 metadata, event-store contract, and matching descriptor in one token-free
-launcher response.
+launcher response. It also writes
+`~/Library/Application Support/skfiy/dashboard-server.json`, so
+`skfiy status --json` and `skfiy doctor --json` can auto-discover the current
+dashboard, verify the recorded PID, and probe the descriptor plus
+`/api/chrome-host-policy` without requiring `--dashboard-url`.
 Dashboard alerts now use stable blocker codes for locked `loginwindow` sessions,
 display sleep, missing TCC grants, stale Chrome extension heartbeats, stale smoke
 evidence, and release drift. The dashboard also reads the latest Finder smoke
@@ -239,8 +243,9 @@ current-tab readiness, and blocker triage, see
 ./dist/skfiy smoke money-run --output .skfiy-smoke/money-run.json --json
 ```
 
-Use `./dist/skfiy doctor --json --dashboard-url <url> --extension-id <id>`
-before real desktop tests. The doctor output includes a `preflight` block with
+Use `./dist/skfiy doctor --json --extension-id <id>` before real desktop tests;
+add `--dashboard-url <url>` only when you want to override the auto-discovered
+local dashboard. The doctor output includes a `preflight` block with
 the packaged app/helper/CLI paths, code-signature state, dashboard descriptor
 and Chrome host-policy API reachability, Chrome extension/native-host state, and
 the user-level Chrome host policy file path. It also includes
@@ -378,6 +383,11 @@ npm run dogfood:cohort -- \
 The UI smoke uses the compiled app bundle, drags the real desktop pet upward,
 checks the native window bounds changed, verifies the post-drag click is
 suppressed, and then clicks the pet to capture permission onboarding evidence.
+The dashboard smoke launches the compiled CLI dashboard with an isolated HOME,
+then runs the compiled CLI again as `skfiy status --json` without
+`--dashboard-url`; passing evidence requires status to auto-discover the
+dashboard from `dashboard-server.json` and match the dashboard URL, PID, state
+path, readiness, and Chrome host-policy API probe.
 
 Run `smoke:desktop-session` before Computer Use product smokes when the machine
 has just been unlocked or permission state looks inconsistent. It records the

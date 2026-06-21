@@ -12,6 +12,11 @@ import {
   type DashboardServer
 } from "./dashboard-server.js";
 import {
+  createDashboardServerState,
+  readDashboardServerState,
+  writeDashboardServerState
+} from "./dashboard-server-state.js";
+import {
   createChromeExtensionConnectionStatePath,
   installChromeNativeHost,
   readChromeExtensionConnectionStatus,
@@ -1415,6 +1420,7 @@ export async function runSkfiyCli({
   stderr
 }: RunSkfiyCliInput): Promise<number> {
   const normalizedRootDir = rootDir ?? process.cwd();
+  const effectiveHomeDir = homeDir ?? process.env.HOME ?? "";
   const result = normalizeCliCommand(argv, { rootDir: normalizedRootDir });
 
   if (!result.ok) {
@@ -1427,7 +1433,7 @@ export async function runSkfiyCli({
       invocation: result.invocation,
       generatedAt,
       rootDir: normalizedRootDir,
-      homeDir: homeDir ?? process.env.HOME ?? "",
+      homeDir: effectiveHomeDir,
       statusReader,
       stdout,
       stderr
@@ -1439,7 +1445,7 @@ export async function runSkfiyCli({
       invocation: result.invocation,
       generatedAt,
       rootDir: normalizedRootDir,
-      homeDir: homeDir ?? process.env.HOME ?? "",
+      homeDir: effectiveHomeDir,
       statusReader,
       signatureReader,
       stdout,
@@ -1452,7 +1458,7 @@ export async function runSkfiyCli({
       invocation: result.invocation,
       generatedAt,
       rootDir: normalizedRootDir,
-      homeDir: homeDir ?? process.env.HOME ?? "",
+      homeDir: effectiveHomeDir,
       statusReader,
       stdout,
       stderr
@@ -1474,7 +1480,7 @@ export async function runSkfiyCli({
       invocation: result.invocation,
       generatedAt,
       rootDir: normalizedRootDir,
-      homeDir: homeDir ?? process.env.HOME ?? "",
+      homeDir: effectiveHomeDir,
       io: chromeNativeHostIo,
       stdout,
       stderr
@@ -1485,7 +1491,7 @@ export async function runSkfiyCli({
     return runChromeHostPolicyCli({
       invocation: result.invocation,
       generatedAt,
-      homeDir: homeDir ?? process.env.HOME ?? "",
+      homeDir: effectiveHomeDir,
       io: chromeNativeHostIo,
       stdout,
       stderr
@@ -1508,7 +1514,7 @@ export async function runSkfiyCli({
       invocation: result.invocation,
       generatedAt,
       rootDir: normalizedRootDir,
-      homeDir: homeDir ?? process.env.HOME ?? "",
+      homeDir: effectiveHomeDir,
       mcpServerStarter,
       mcpStdin,
       statusReader,
@@ -1528,6 +1534,7 @@ export async function runSkfiyCli({
   }
 
   if (result.invocation.kind === "dashboard") {
+    const dashboardGeneratedAt = generatedAt ?? new Date().toISOString();
     const dashboard = await dashboardServerStarter({
       port: result.invocation.options.port,
       rootDir: normalizedRootDir
@@ -1535,14 +1542,37 @@ export async function runSkfiyCli({
     const descriptor = createDashboardDescriptor({
       port: dashboard.bind.port
     });
+    let dashboardStatePath: string | undefined;
+    let dashboardStateError: string | undefined;
+
+    if (effectiveHomeDir) {
+      try {
+        dashboardStatePath = await writeDashboardServerState({
+          homeDir: effectiveHomeDir,
+          state: createDashboardServerState({
+            pid: process.pid,
+            url: dashboard.url,
+            bind: dashboard.bind,
+            startedAt: dashboardGeneratedAt,
+            rootDir: normalizedRootDir
+          })
+        });
+      } catch (error) {
+        dashboardStateError = readErrorMessage(error);
+      }
+    } else {
+      dashboardStateError = "Home directory is required to record dashboard server state.";
+    }
 
     stdout.write(`${JSON.stringify({
       schemaVersion: 1,
       command: "dashboard",
-      generatedAt: generatedAt ?? new Date().toISOString(),
+      generatedAt: dashboardGeneratedAt,
       serverPid: process.pid,
       bind: descriptor.bind,
       url: descriptor.url,
+      ...(dashboardStatePath ? { statePath: dashboardStatePath } : {}),
+      ...(dashboardStateError ? { stateWriteError: dashboardStateError } : {}),
       shouldOpen: !result.invocation.options.noOpen,
       tokenPrinted: false,
       auth: descriptor.auth,
@@ -3759,7 +3789,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
     const extensionConnection = await readChromeExtensionConnectionForStatus(input);
     const hostPolicy = await readChromeHostPolicyForStatus(input);
     const [dashboard, moneyRun] = await Promise.all([
-      readDashboardStatus(input.dashboardUrl),
+      readDashboardStatus(input.dashboardUrl, input.homeDir),
       readMoneyRunStatusForStatus()
     ]);
 
@@ -3789,7 +3819,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
   const [permissions, desktopSession, dashboard, moneyRun] = await Promise.all([
     readPermissionStatesForStatus(desktopHelper),
     readDesktopSessionForStatus(desktopHelper),
-    readDashboardStatus(input.dashboardUrl),
+    readDashboardStatus(input.dashboardUrl, input.homeDir),
     readMoneyRunStatusForStatus()
   ]);
 
@@ -4777,19 +4807,29 @@ function readConnectionState(connection: ChromeExtensionConnectionStatus | undef
     : "unknown";
 }
 
-async function readDashboardStatus(dashboardUrl: string | undefined): Promise<Record<string, unknown>> {
-  if (!dashboardUrl) {
-    return { state: "not-running" };
+async function readDashboardStatus(
+  dashboardUrl: string | undefined,
+  homeDir?: string
+): Promise<Record<string, unknown>> {
+  const discovered = dashboardUrl
+    ? undefined
+    : readDashboardStatusFromState(homeDir);
+  const effectiveDashboardUrl = dashboardUrl ?? readString(discovered?.url);
+
+  if (!effectiveDashboardUrl) {
+    return discovered ?? { state: "not-running" };
   }
 
-  const descriptorUrl = createDashboardDescriptorUrl(dashboardUrl);
-  const chromeHostPolicyApiUrl = createDashboardApiUrl(dashboardUrl);
+  const descriptorUrl = createDashboardDescriptorUrl(effectiveDashboardUrl);
+  const chromeHostPolicyApiUrl = createDashboardApiUrl(effectiveDashboardUrl);
 
   if (!descriptorUrl || !chromeHostPolicyApiUrl) {
     return {
       state: "not-running",
-      url: dashboardUrl,
-      reason: `Invalid dashboard URL: ${dashboardUrl}`,
+      url: effectiveDashboardUrl,
+      ...(discovered ? { source: "dashboard-server-state" } : {}),
+      ...(readString(discovered?.statePath) ? { statePath: readString(discovered?.statePath) } : {}),
+      reason: `Invalid dashboard URL: ${effectiveDashboardUrl}`,
       api: {
         chromeHostPolicy: {
           state: "not-probed",
@@ -4805,7 +4845,11 @@ async function readDashboardStatus(dashboardUrl: string | undefined): Promise<Re
   if (descriptorProbe.state !== "reachable") {
     return {
       state: descriptorProbe.state === "blocked" ? "blocked" : "not-running",
-      url: dashboardUrl,
+      url: effectiveDashboardUrl,
+      ...(discovered ? { source: "dashboard-server-state" } : {}),
+      ...(readString(discovered?.statePath) ? { statePath: readString(discovered?.statePath) } : {}),
+      ...(readNumber(discovered?.pid) !== undefined ? { pid: readNumber(discovered?.pid) } : {}),
+      ...(readString(discovered?.startedAt) ? { startedAt: readString(discovered?.startedAt) } : {}),
       status: descriptorProbe.status,
       reason: descriptorProbe.reason,
       api: {
@@ -4820,12 +4864,58 @@ async function readDashboardStatus(dashboardUrl: string | undefined): Promise<Re
 
   return {
     state: "running",
-    url: dashboardUrl,
+    url: effectiveDashboardUrl,
+    ...(discovered ? { source: "dashboard-server-state" } : {}),
+    ...(readString(discovered?.statePath) ? { statePath: readString(discovered?.statePath) } : {}),
+    ...(readNumber(discovered?.pid) !== undefined ? { pid: readNumber(discovered?.pid) } : {}),
+    ...(readString(discovered?.startedAt) ? { startedAt: readString(discovered?.startedAt) } : {}),
     descriptor: descriptorProbe.body,
     api: {
       chromeHostPolicy: await fetchDashboardJson(chromeHostPolicyApiUrl)
     }
   };
+}
+
+function readDashboardStatusFromState(homeDir: string | undefined): Record<string, unknown> | undefined {
+  const result = readDashboardServerState(homeDir);
+  if (!result.state) {
+    return {
+      state: "not-running",
+      ...(result.statePath ? { statePath: result.statePath } : {}),
+      ...(result.reason ? { reason: result.reason } : {})
+    };
+  }
+
+  if (!isPidRunning(result.state.pid)) {
+    return {
+      state: "not-running",
+      source: "dashboard-server-state",
+      statePath: result.statePath,
+      url: result.state.url,
+      pid: result.state.pid,
+      startedAt: result.state.startedAt,
+      reason: "Recorded dashboard process is no longer running."
+    };
+  }
+
+  return {
+    state: "unknown",
+    source: "dashboard-server-state",
+    statePath: result.statePath,
+    url: result.state.url,
+    pid: result.state.pid,
+    startedAt: result.state.startedAt,
+    bind: result.state.bind
+  };
+}
+
+function isPidRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function createDashboardDescriptorUrl(dashboardUrl: string | undefined): string | undefined {

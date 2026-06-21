@@ -361,6 +361,7 @@ describe("dashboard product smoke script", () => {
         serverPid: 4242,
         bind: { host: "127.0.0.1", port: 51234 },
         url: "http://127.0.0.1:51234/",
+        statePath: "/Users/tester/Library/Application Support/skfiy/dashboard-server.json",
         shouldOpen: false,
         tokenPrinted: false,
         auth: {
@@ -729,6 +730,46 @@ describe("dashboard product smoke script", () => {
           }
         }
       },
+      dashboardStatusAutoDiscovery: {
+        productPath: "dist/skfiy dashboard -> dashboard-server.json -> skfiy status --json",
+        command: ["/repo/dist/skfiy", "status", "--json"],
+        homeDir: "/Users/tester",
+        expectedUrl: "http://127.0.0.1:51234/",
+        expectedPid: 4242,
+        expectedStatePath: "/Users/tester/Library/Application Support/skfiy/dashboard-server.json",
+        exitCode: 0,
+        signal: null,
+        stdout: "{}",
+        stderr: "",
+        tokenLeakDetected: false,
+        stdoutJson: {
+          schemaVersion: 1,
+          command: "status",
+          dashboard: {
+            state: "running",
+            source: "dashboard-server-state",
+            url: "http://127.0.0.1:51234/",
+            pid: 4242,
+            statePath: "/Users/tester/Library/Application Support/skfiy/dashboard-server.json",
+            api: {
+              chromeHostPolicy: {
+                state: "reachable",
+                status: 200
+              }
+            }
+          },
+          readiness: {
+            checks: {
+              dashboard: {
+                ready: true,
+                state: "ready",
+                dashboardState: "running",
+                url: "http://127.0.0.1:51234/"
+              }
+            }
+          }
+        }
+      },
       runtimeSnapshotFixture,
       freshInstallRuntimeSnapshot,
       missingAfterTurnRuntimeSnapshot,
@@ -750,6 +791,10 @@ describe("dashboard product smoke script", () => {
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       missingAfterTurnRuntimeSnapshot: undefined
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      dashboardStatusAutoDiscovery: undefined
     })).toBe("failed");
     expect(passedEvidence.runtimeSnapshotCoverage).toMatchObject({
       result: "passed",

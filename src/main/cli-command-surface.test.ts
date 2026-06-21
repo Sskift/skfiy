@@ -23,6 +23,10 @@ import {
   createRuntimeSnapshotStatePath,
   createRuntimeTurnMarkerStatePath
 } from "./runtime-snapshot";
+import {
+  createDashboardServerState,
+  createDashboardServerStatePath
+} from "./dashboard-server-state";
 
 function expectJsonSafe(value: unknown): void {
   expect(JSON.parse(JSON.stringify(value))).toEqual(value);
@@ -3210,6 +3214,112 @@ describe("CLI command surface", () => {
     }
   });
 
+  it("auto-discovers a running dashboard from the local server state file", async () => {
+    const homeDir = createTempRoot();
+    const server = http.createServer((request, response) => {
+      response.setHeader("content-type", "application/json");
+
+      if (request.url === "/descriptor.json") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          name: "skfiy-dashboard",
+          bind: { host: "127.0.0.1", port: 0 }
+        }));
+        return;
+      }
+
+      if (request.url === "/api/chrome-host-policy") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          source: "dashboard",
+          hostPolicy: {
+            state: "default"
+          }
+        }));
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: "not found" }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+
+    try {
+      const address = server.address() as AddressInfo;
+      const dashboardUrl = `http://127.0.0.1:${address.port}/`;
+      const startedAt = "2026-06-20T00:00:00.000Z";
+      const statePath = createDashboardServerStatePath(homeDir);
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+
+      mkdirSync(path.dirname(statePath), { recursive: true });
+      writeFileSync(statePath, `${JSON.stringify(createDashboardServerState({
+        pid: process.pid,
+        url: dashboardUrl,
+        bind: {
+          host: "127.0.0.1",
+          port: address.port
+        },
+        startedAt,
+        rootDir: "/repo"
+      }), null, 2)}\n`);
+
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: startedAt,
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      expect(JSON.parse(stdout.join(""))).toMatchObject({
+        schemaVersion: 1,
+        command: "status",
+        dashboard: {
+          state: "running",
+          source: "dashboard-server-state",
+          statePath,
+          url: dashboardUrl,
+          pid: process.pid,
+          startedAt,
+          api: {
+            chromeHostPolicy: {
+              state: "reachable",
+              url: `${dashboardUrl}api/chrome-host-policy`,
+              status: 200
+            }
+          }
+        },
+        readiness: {
+          checks: {
+            dashboard: {
+              ready: true,
+              state: "ready",
+              dashboardState: "running",
+              url: dashboardUrl
+            }
+          }
+        }
+      });
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(homeDir, { recursive: true, force: true });
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+
   it("keeps invalid dashboard URLs as status data instead of CLI failures", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -4050,6 +4160,7 @@ describe("CLI command surface", () => {
   });
 
   it("runs dashboard through the shared CLI entrypoint without printing tokens", async () => {
+    const homeDir = createTempRoot();
     const stdout: string[] = [];
     const stderr: string[] = [];
     const started: Array<{ port: number; rootDir?: string }> = [];
@@ -4057,6 +4168,7 @@ describe("CLI command surface", () => {
     await expect(runSkfiyCli({
       argv: ["dashboard", "--no-open", "--port", "0", "--json"],
       rootDir: "/repo",
+      homeDir,
       generatedAt: "2026-06-20T00:00:00.000Z",
       stdout: { write: (chunk: string) => stdout.push(chunk) },
       stderr: { write: (chunk: string) => stderr.push(chunk) },
@@ -4072,6 +4184,7 @@ describe("CLI command surface", () => {
     })).resolves.toBe(0);
 
     expect(started).toEqual([{ port: 0, rootDir: "/repo" }]);
+    const statePath = createDashboardServerStatePath(homeDir);
     const output = JSON.parse(stdout.join(""));
     expect(output).toMatchObject({
       schemaVersion: 1,
@@ -4083,6 +4196,7 @@ describe("CLI command surface", () => {
         port: 51234
       },
       url: "http://127.0.0.1:51234/",
+      statePath,
       result: "running",
       shouldOpen: false,
       tokenPrinted: false,
@@ -4118,14 +4232,28 @@ describe("CLI command surface", () => {
         }
       }
     });
+    expect(JSON.parse(readFileSync(statePath, "utf8"))).toMatchObject({
+      schemaVersion: 1,
+      pid: process.pid,
+      url: "http://127.0.0.1:51234/",
+      bind: {
+        host: "127.0.0.1",
+        port: 51234
+      },
+      startedAt: "2026-06-20T00:00:00.000Z",
+      rootDir: "/repo"
+    });
     expect(JSON.stringify(output)).not.toContain("token=");
     expect(stderr).toEqual([]);
+    rmSync(homeDir, { recursive: true, force: true });
   });
 
   it("opens dashboard URL by default and skips opening when --no-open is set", async () => {
+    const homeDir = createTempRoot();
     const openedUrls: string[] = [];
     const createBase = (stdout: string[]) => ({
       rootDir: "/repo",
+      homeDir,
       generatedAt: "2026-06-20T00:00:00.000Z",
       stdout: { write: (chunk: string) => stdout.push(chunk) },
       stderr: { write: () => undefined },
@@ -4154,11 +4282,14 @@ describe("CLI command surface", () => {
     expect(openedUrls).toEqual(["http://127.0.0.1:8788/"]);
     expect(JSON.parse(firstStdout.join(""))).toMatchObject({
       url: "http://127.0.0.1:8788/",
+      statePath: createDashboardServerStatePath(homeDir),
       shouldOpen: true
     });
     expect(JSON.parse(secondStdout.join(""))).toMatchObject({
       url: "http://127.0.0.1:8789/",
+      statePath: createDashboardServerStatePath(homeDir),
       shouldOpen: false
     });
+    rmSync(homeDir, { recursive: true, force: true });
   });
 });

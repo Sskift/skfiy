@@ -46,6 +46,7 @@ async function main() {
     eventsResponse: undefined,
     shellResponse: undefined,
     chromeHostPolicyApi: undefined,
+    dashboardStatusAutoDiscovery: undefined,
     runtimeSnapshotFixture: undefined,
     runtimeSnapshotCoverage: undefined,
     freshInstallRuntimeSnapshot: undefined,
@@ -93,6 +94,10 @@ async function main() {
       dashboardUrl: launched.cliOutput.url,
       timeoutMs: options.timeoutMs
     });
+    evidence.dashboardStatusAutoDiscovery = await collectDashboardStatusAutoDiscoveryEvidence(options, {
+      homeDir: isolatedHomeDir,
+      cliOutput: launched.cliOutput
+    });
     evidence.freshInstallRuntimeSnapshot = await collectFreshInstallRuntimeSnapshotEvidence(options);
     evidence.missingAfterTurnRuntimeSnapshot = await collectMissingAfterTurnRuntimeSnapshotEvidence(options);
     evidence.tokenLeakDetected = hasTokenLeak([
@@ -102,6 +107,7 @@ async function main() {
       JSON.stringify(evidence.snapshotResponse),
       JSON.stringify(evidence.eventsResponse),
       JSON.stringify(evidence.chromeHostPolicyApi),
+      JSON.stringify(evidence.dashboardStatusAutoDiscovery),
       JSON.stringify(evidence.freshInstallRuntimeSnapshot),
       JSON.stringify(evidence.missingAfterTurnRuntimeSnapshot),
       evidence.shellResponse?.body ?? ""
@@ -156,6 +162,24 @@ async function seedRuntimeSnapshotFixture(homeDir) {
     productPath: "smoke:dashboard -> isolated HOME -> runtime-snapshot.json",
     path: snapshotPath,
     snapshot
+  };
+}
+
+async function collectDashboardStatusAutoDiscoveryEvidence(options, { homeDir, cliOutput }) {
+  const command = [options.cliPath, "status", "--json"];
+  const result = await runCliJsonCommand(command, {
+    homeDir,
+    timeoutMs: options.timeoutMs
+  });
+
+  return {
+    productPath: "dist/skfiy dashboard -> dashboard-server.json -> skfiy status --json",
+    command,
+    homeDir,
+    expectedUrl: cliOutput?.url,
+    expectedPid: cliOutput?.serverPid,
+    expectedStatePath: cliOutput?.statePath,
+    ...result
   };
 }
 
@@ -467,6 +491,84 @@ function launchDashboardCli(options, { homeDir } = {}) {
       settle(() => reject(new Error(
         `Dashboard CLI exited before printing JSON: code=${code ?? "null"} signal=${signal ?? "null"} stderr=${stderr.trim()}`
       )));
+    });
+  });
+}
+
+function runCliJsonCommand(command, { homeDir, timeoutMs }) {
+  return new Promise((resolve) => {
+    const child = spawn(command[0], command.slice(1), {
+      cwd: ROOT_DIR,
+      env: {
+        ...process.env,
+        ...(homeDir ? { HOME: homeDir } : {})
+      },
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        child.kill("SIGTERM");
+        resolve({
+          exitCode: null,
+          signal: "timeout",
+          stdout,
+          stderr,
+          stdoutJson: undefined,
+          tokenLeakDetected: hasTokenLeak([stdout, stderr]),
+          error: `Timed out after ${timeoutMs}ms.`
+        });
+      }
+    }, timeoutMs);
+    const settle = (payload) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        resolve(payload);
+      }
+    };
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", (error) => {
+      settle({
+        exitCode: null,
+        signal: "error",
+        stdout,
+        stderr,
+        stdoutJson: undefined,
+        tokenLeakDetected: hasTokenLeak([stdout, stderr]),
+        error: error instanceof Error ? error.message : String(error)
+      });
+    });
+    child.once("exit", (code, signal) => {
+      let stdoutJson;
+      let jsonParseError;
+
+      try {
+        stdoutJson = JSON.parse(stdout);
+      } catch (error) {
+        jsonParseError = error instanceof Error ? error.message : String(error);
+      }
+
+      settle({
+        exitCode: code,
+        signal,
+        stdout,
+        stderr,
+        stdoutJson,
+        tokenLeakDetected: hasTokenLeak([stdout, stderr]),
+        ...(jsonParseError ? { jsonParseError } : {})
+      });
     });
   });
 }

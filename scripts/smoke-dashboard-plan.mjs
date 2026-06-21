@@ -74,6 +74,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || cliOutput?.shouldOpen !== false
     || cliOutput?.tokenPrinted !== false
     || !hasDashboardLauncherContract(cliOutput)
+    || !hasDashboardServerStatePath(cliOutput?.statePath)
     || !isLoopbackBind(outputBind)
     || !isMatchingDashboardUrl(cliOutput?.url, outputBind)
   ) {
@@ -138,6 +139,10 @@ export function classifyDashboardSmokeEvidence(evidence) {
     return "failed";
   }
 
+  if (!hasDashboardStatusAutoDiscoveryEvidence(evidence.dashboardStatusAutoDiscovery, cliOutput)) {
+    return "failed";
+  }
+
   if (
     evidence.shellResponse?.status !== 200
     || !hasDashboardShellEvidence(shellBody)
@@ -169,6 +174,11 @@ function hasDashboardLauncherContract(cliOutput) {
     && sameBind(cliOutput.bind, descriptor.bind)
     && descriptor.url === cliOutput.url
     && isMatchingDashboardUrl(descriptor.url, descriptor.bind);
+}
+
+function hasDashboardServerStatePath(statePath) {
+  return typeof statePath === "string"
+    && statePath.includes("Application Support/skfiy/dashboard-server.json");
 }
 
 export function createRuntimeSnapshotCoverage(evidence) {
@@ -424,6 +434,34 @@ function hasDashboardChromeHostPolicyApiEvidence(api) {
     && resetBody?.result === "reset"
     && hasChromeHostPolicyEvidence(resetBody?.hostPolicy)
     && resetBody.hostPolicy.state === "default";
+}
+
+function hasDashboardStatusAutoDiscoveryEvidence(evidence, cliOutput) {
+  const status = evidence?.stdoutJson;
+  const dashboard = status?.dashboard;
+  const dashboardReadiness = status?.readiness?.checks?.dashboard;
+
+  return evidence?.productPath === "dist/skfiy dashboard -> dashboard-server.json -> skfiy status --json"
+    && Array.isArray(evidence?.command)
+    && evidence.command.length === 3
+    && path.basename(evidence.command[0]) === "skfiy"
+    && evidence.command[1] === "status"
+    && evidence.command[2] === "--json"
+    && evidence?.exitCode === 0
+    && !evidence?.signal
+    && evidence?.tokenLeakDetected === false
+    && status?.schemaVersion === 1
+    && status?.command === "status"
+    && dashboard?.state === "running"
+    && dashboard?.source === "dashboard-server-state"
+    && dashboard?.url === cliOutput?.url
+    && dashboard?.pid === cliOutput?.serverPid
+    && dashboard?.statePath === cliOutput?.statePath
+    && dashboard?.api?.chromeHostPolicy?.state === "reachable"
+    && dashboardReadiness?.ready === true
+    && dashboardReadiness?.state === "ready"
+    && dashboardReadiness?.dashboardState === "running"
+    && dashboardReadiness?.url === cliOutput?.url;
 }
 
 function hasExtensionConnectionEvidence(connection) {
