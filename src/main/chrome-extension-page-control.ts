@@ -66,6 +66,7 @@ export async function invokeChromeExtensionPageControl({
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
   pollTimeoutMs = DEFAULT_POLL_TIMEOUT_MS
 }: ChromeExtensionPageControlInput): Promise<ChromeExtensionPageControlResult> {
+  const requestGeneratedAt = generatedAt ?? new Date().toISOString();
   const wakeUrl = createChromeExtensionWakeUrl(extensionId, {
     targetTabId,
     wakeAction: action,
@@ -78,13 +79,14 @@ export async function invokeChromeExtensionPageControl({
   const extensionConnection = await pollPageControlConnection({
     action,
     homeDir,
-    generatedAt,
+    generatedAt: requestGeneratedAt,
     io,
     wait,
     intervalMs: pollIntervalMs,
     timeoutMs: pollTimeoutMs
   });
-  const verified = isExpectedConnection(extensionConnection, action);
+  const verified = isExpectedConnection(extensionConnection, action, requestGeneratedAt);
+  const blocker = verified ? undefined : createPageControlBlocker(action, extensionConnection);
 
   return {
     schemaVersion: 1,
@@ -94,8 +96,9 @@ export async function invokeChromeExtensionPageControl({
     wakeUrl,
     extensionConnection,
     ...(verified ? {} : {
-      reason: `page-control-${action}-not-verified`,
-      nextAction: `Reload the skfiy Chrome extension, verify the target tab is an allowed HTTP(S) page with Chrome site access, then retry \`skfiy chrome ${action}\`.`
+      reason: blocker?.reason ?? `page-control-${action}-not-verified`,
+      nextAction: blocker?.nextAction
+        ?? `Reload the skfiy Chrome extension, verify the target tab is an allowed HTTP(S) page with Chrome site access, then retry \`skfiy chrome ${action}\`.`
     })
   };
 }
@@ -125,7 +128,7 @@ async function pollPageControlConnection({
   });
 
   while (Date.now() <= deadline) {
-    if (isExpectedConnection(latest, action)) {
+    if (isExpectedConnection(latest, action, generatedAt)) {
       return latest;
     }
     await wait(intervalMs);
@@ -141,15 +144,26 @@ async function pollPageControlConnection({
 
 function isExpectedConnection(
   connection: ChromeExtensionConnectionStatus,
-  action: ChromeExtensionPageControlAction
+  action: ChromeExtensionPageControlAction,
+  generatedAt: string
 ): boolean {
   const pageControlConnection = connection as ChromeExtensionConnectionStatus & {
     pageActionResult?: unknown;
     pageScreenshot?: unknown;
+    latestCommand?: {
+      observedAt?: unknown;
+      messageType?: unknown;
+      pageActionResult?: unknown;
+      pageScreenshot?: unknown;
+      pageObservation?: unknown;
+    };
   };
 
   if (connection.state !== "connected") {
     return false;
+  }
+  if (isExpectedCommandEvidence(pageControlConnection.latestCommand, action, generatedAt)) {
+    return true;
   }
   if (action === "observe") {
     return connection.messageType === "skfiy.page.observe"
@@ -157,13 +171,121 @@ function isExpectedConnection(
   }
   if (action === "screenshot") {
     return connection.messageType === "skfiy.page.screenshot"
-      && Boolean(pageControlConnection.pageScreenshot);
+      && hasScreenshotData(pageControlConnection.pageScreenshot);
   }
   if (action === "click" || action === "fill" || action === "submit" || action === "scroll") {
     return connection.messageType === "skfiy.page.action"
-      && Boolean(pageControlConnection.pageActionResult);
+      && hasExpectedActionResult(pageControlConnection.pageActionResult, action);
   }
   return false;
+}
+
+function isExpectedCommandEvidence(
+  command: {
+    observedAt?: unknown;
+    messageType?: unknown;
+    pageActionResult?: unknown;
+    pageScreenshot?: unknown;
+    pageObservation?: unknown;
+  } | undefined,
+  action: ChromeExtensionPageControlAction,
+  generatedAt: string
+): boolean {
+  if (!command || typeof command.messageType !== "string" || !isFreshCommand(command.observedAt, generatedAt)) {
+    return false;
+  }
+  if (action === "observe") {
+    return command.messageType === "skfiy.page.observe"
+      && Boolean(command.pageObservation);
+  }
+  if (action === "screenshot") {
+    return command.messageType === "skfiy.page.screenshot"
+      && hasScreenshotData(command.pageScreenshot);
+  }
+  if (action === "click" || action === "fill" || action === "submit" || action === "scroll") {
+    return command.messageType === "skfiy.page.action"
+      && hasExpectedActionResult(command.pageActionResult, action);
+  }
+  return false;
+}
+
+function isFreshCommand(observedAt: unknown, generatedAt: string): boolean {
+  if (typeof observedAt !== "string") {
+    return false;
+  }
+  const observedAtMs = Date.parse(observedAt);
+  const generatedAtMs = Date.parse(generatedAt);
+  return Number.isFinite(observedAtMs)
+    && Number.isFinite(generatedAtMs)
+    && observedAtMs >= generatedAtMs;
+}
+
+function createPageControlBlocker(
+  action: ChromeExtensionPageControlAction,
+  connection: ChromeExtensionConnectionStatus
+): { reason: string; nextAction: string } | undefined {
+  if (action !== "screenshot") {
+    return undefined;
+  }
+
+  const screenshotReason = readScreenshotBlockerReason(connection);
+  if (!screenshotReason) {
+    return undefined;
+  }
+
+  if (screenshotReason.includes("MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND")) {
+    return {
+      reason: "chrome-capture-quota-exceeded",
+      nextAction: "Wait at least one second before retrying `skfiy chrome screenshot`; Chrome rate-limits visible-tab capture calls."
+    };
+  }
+
+  if (screenshotReason.includes("<all_urls>") || screenshotReason.includes("activeTab")) {
+    return {
+      reason: "chrome-capture-permission-missing",
+      nextAction: "Chrome rejected visible-tab capture without an activeTab grant or <all_urls> capture permission. Grant the required Chrome extension permission, or unlock the desktop and use the screenshot fallback."
+    };
+  }
+
+  return {
+    reason: "chrome-capture-blocked",
+    nextAction: `Chrome rejected visible-tab capture: ${screenshotReason}`
+  };
+}
+
+function readScreenshotBlockerReason(connection: ChromeExtensionConnectionStatus): string | undefined {
+  const directScreenshot = readRecord((connection as { pageScreenshot?: unknown }).pageScreenshot);
+  const latestCommand = readRecord((connection as { latestCommand?: unknown }).latestCommand);
+  const latestScreenshot = readRecord(latestCommand?.pageScreenshot);
+  const reason = directScreenshot?.reason ?? latestScreenshot?.reason;
+  return typeof reason === "string" && reason.length > 0 ? reason : undefined;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function hasScreenshotData(value: unknown): boolean {
+  return Boolean(
+    value
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && (value as { hasDataUrl?: unknown }).hasDataUrl === true
+  );
+}
+
+function hasExpectedActionResult(
+  value: unknown,
+  action: ChromeExtensionPageControlAction
+): boolean {
+  return Boolean(
+    value
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && (value as { action?: unknown }).action === action
+  );
 }
 
 function sleep(ms: number): Promise<void> {

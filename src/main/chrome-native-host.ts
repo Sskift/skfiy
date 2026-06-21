@@ -147,6 +147,16 @@ export interface ChromeExtensionConnectionHeartbeatInput {
   pageScreenshot?: Record<string, unknown>;
 }
 
+export interface ChromeExtensionCommandEvidence {
+  observedAt?: string;
+  launchOrigin?: string;
+  messageType?: string;
+  requestId?: string;
+  pageObservation?: Record<string, unknown>;
+  pageActionResult?: Record<string, unknown>;
+  pageScreenshot?: Record<string, unknown>;
+}
+
 export interface ChromeExtensionConnectionStatus {
   state: "connected" | "stale" | "unknown" | "invalid";
   liveConnection: "connected" | "stale" | "unknown";
@@ -161,6 +171,7 @@ export interface ChromeExtensionConnectionStatus {
   pageObservation?: Record<string, unknown>;
   pageActionResult?: Record<string, unknown>;
   pageScreenshot?: Record<string, unknown>;
+  latestCommand?: ChromeExtensionCommandEvidence;
 }
 
 export interface ChromeNativeMessagingHostIo {
@@ -370,6 +381,17 @@ export async function writeChromeExtensionConnectionHeartbeat({
   const statePath = createChromeExtensionConnectionStatePath(homeDir);
   const boundedPageActionResult = summarizePageActionResultForHeartbeat(pageActionResult);
   const boundedPageScreenshot = summarizePageScreenshotForHeartbeat(pageScreenshot);
+  const latestCommand = await createLatestCommandEvidence({
+    io,
+    statePath,
+    observedAt,
+    launchOrigin,
+    messageType,
+    requestId,
+    pageObservation,
+    pageActionResult: boundedPageActionResult,
+    pageScreenshot: boundedPageScreenshot
+  });
   const heartbeat = {
     schemaVersion: 1,
     hostName: CHROME_NATIVE_HOST_NAME,
@@ -380,7 +402,8 @@ export async function writeChromeExtensionConnectionHeartbeat({
     ...(pageControl ? { pageControl } : {}),
     ...(pageObservation ? { pageObservation } : {}),
     ...(boundedPageActionResult ? { pageActionResult: boundedPageActionResult } : {}),
-    ...(boundedPageScreenshot ? { pageScreenshot: boundedPageScreenshot } : {})
+    ...(boundedPageScreenshot ? { pageScreenshot: boundedPageScreenshot } : {}),
+    ...(latestCommand ? { latestCommand } : {})
   };
 
   await io.mkdir(path.dirname(statePath));
@@ -391,6 +414,50 @@ export async function writeChromeExtensionConnectionHeartbeat({
   );
 
   return heartbeat;
+}
+
+async function createLatestCommandEvidence({
+  io,
+  statePath,
+  observedAt,
+  launchOrigin,
+  messageType,
+  requestId,
+  pageObservation,
+  pageActionResult,
+  pageScreenshot
+}: {
+  io: ChromeNativeHostIo;
+  statePath: string;
+  observedAt: string;
+  launchOrigin?: string;
+  messageType: string;
+  requestId: string;
+  pageObservation?: Record<string, unknown>;
+  pageActionResult?: Record<string, unknown>;
+  pageScreenshot?: Record<string, unknown>;
+}): Promise<ChromeExtensionCommandEvidence | undefined> {
+  if (pageObservation || pageActionResult || pageScreenshot) {
+    return {
+      observedAt,
+      ...(launchOrigin ? { launchOrigin } : {}),
+      messageType,
+      requestId,
+      ...(pageObservation ? { pageObservation } : {}),
+      ...(pageActionResult ? { pageActionResult } : {}),
+      ...(pageScreenshot ? { pageScreenshot } : {})
+    };
+  }
+
+  try {
+    if (!(await io.exists(statePath))) {
+      return undefined;
+    }
+    const existing = readRecord(JSON.parse(await io.readFile(statePath)) as unknown);
+    return summarizeLatestCommandEvidence(existing?.latestCommand);
+  } catch {
+    return undefined;
+  }
 }
 
 async function writeChromeExtensionConnectionHeartbeatFile(
@@ -481,6 +548,9 @@ export async function readChromeExtensionConnectionStatus({
       : {}),
     ...(summarizePageScreenshotForHeartbeat(heartbeat.pageScreenshot)
       ? { pageScreenshot: summarizePageScreenshotForHeartbeat(heartbeat.pageScreenshot) }
+      : {}),
+    ...(summarizeLatestCommandEvidence(heartbeat.latestCommand)
+      ? { latestCommand: summarizeLatestCommandEvidence(heartbeat.latestCommand) }
       : {})
   };
 }
@@ -969,6 +1039,30 @@ function summarizePageScreenshotForHeartbeat(value: unknown): Record<string, unk
   };
 
   return Object.keys(summary).length > 0 ? summary : undefined;
+}
+
+function summarizeLatestCommandEvidence(value: unknown): ChromeExtensionCommandEvidence | undefined {
+  const record = readRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  const pageObservation = readRecord(record.pageObservation);
+  const pageActionResult = summarizePageActionResultForHeartbeat(record.pageActionResult);
+  const pageScreenshot = summarizePageScreenshotForHeartbeat(record.pageScreenshot);
+  const summary: ChromeExtensionCommandEvidence = {
+    ...(readBoundedString(record.observedAt) ? { observedAt: readBoundedString(record.observedAt) } : {}),
+    ...(readBoundedString(record.launchOrigin) ? { launchOrigin: readBoundedString(record.launchOrigin) } : {}),
+    ...(readBoundedString(record.messageType) ? { messageType: readBoundedString(record.messageType) } : {}),
+    ...(readBoundedString(record.requestId) ? { requestId: readBoundedString(record.requestId) } : {}),
+    ...(pageObservation ? { pageObservation } : {}),
+    ...(pageActionResult ? { pageActionResult } : {}),
+    ...(pageScreenshot ? { pageScreenshot } : {})
+  };
+
+  return summary.messageType && summary.requestId
+    ? summary
+    : undefined;
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {

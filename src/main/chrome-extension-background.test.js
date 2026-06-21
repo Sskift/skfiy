@@ -171,6 +171,10 @@ function createChromeMock(nativeResponses = [], options = {}) {
             ? activeTab
             : undefined
         )),
+        update: vi.fn(async (tabId, updateProperties) => ({
+          id: tabId,
+          ...(updateProperties ?? {})
+        })),
         sendMessage: vi.fn(async (_tabId, message) => {
           if (message?.type === "skfiy.page.diagnostics" && contentScriptSessions) {
             const session = contentScriptSessions.shift();
@@ -213,7 +217,12 @@ function createChromeMock(nativeResponses = [], options = {}) {
           }
           return undefined;
         }),
-        captureVisibleTab: vi.fn(async () => options.captureVisibleTabDataUrl)
+        captureVisibleTab: vi.fn(async () => {
+          if (options.captureVisibleTabError) {
+            throw new Error(options.captureVisibleTabError);
+          }
+          return options.captureVisibleTabDataUrl;
+        })
       },
       scripting: {
         executeScript: vi.fn()
@@ -1238,6 +1247,9 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.chrome.tabs.captureVisibleTab).toHaveBeenCalledWith(7, {
       format: "png"
     });
+    expect(mock.chrome.tabs.update).toHaveBeenCalledWith(42, {
+      active: true
+    });
     expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(1, 42, expect.objectContaining({
       type: PAGE_ACTION,
       tabId: 42,
@@ -1329,6 +1341,120 @@ describe("Chrome extension background policy sync", () => {
     ]);
     expect(mock.postedMessages[2].payload.pageActionResult.value).toBeUndefined();
     expect(mock.postedMessages[2].payload.pageActionResult.text).toBeUndefined();
+  });
+
+  it("deduplicates repeated tab update events for the same action wake URL", async () => {
+    const mock = createChromeMock([
+      createPageObserveResponse()
+    ], {
+      grantedOrigins: ["http://127.0.0.1/*"],
+      pageActionResults: [
+        { result: "passed", action: "fill" }
+      ]
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["127.0.0.1:63852"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
+      if (tabId === 42) {
+        return {
+          id: 42,
+          windowId: 7,
+          url: "http://127.0.0.1:63852/"
+        };
+      }
+      return undefined;
+    });
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const url = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=dedupe-1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=skfiy";
+    mock.chrome.tabs.onUpdated.listeners[0](99, {
+      url
+    }, {
+      id: 99,
+      windowId: 7,
+      url
+    });
+    mock.chrome.tabs.onUpdated.listeners[0](99, {
+      status: "complete"
+    }, {
+      id: 99,
+      windowId: 7,
+      url
+    });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mock.postedMessages).toHaveLength(1);
+    expect(mock.postedMessages[0]).toMatchObject({
+      type: PAGE_ACTION,
+      payload: {
+        pageActionResult: {
+          action: "fill",
+          targetTabId: 42,
+          selector: "#name"
+        }
+      }
+    });
+  });
+
+  it("records a bounded screenshot blocker when Chrome captureVisibleTab fails", async () => {
+    const mock = createChromeMock([
+      createPageObserveResponse()
+    ], {
+      grantedOrigins: ["http://127.0.0.1/*"],
+      captureVisibleTabError: "The active tab cannot be captured"
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["127.0.0.1:63852"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
+      if (tabId === 42) {
+        return {
+          id: 42,
+          windowId: 7,
+          url: "http://127.0.0.1:63852/"
+        };
+      }
+      return undefined;
+    });
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    mock.chrome.tabs.onUpdated.listeners[0](99, {
+      status: "complete"
+    }, {
+      id: 99,
+      windowId: 7,
+      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot"
+    });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    await waitForAssertion(() => {
+      expect(mock.postedMessages).toHaveLength(1);
+      expect(mock.postedMessages[0]).toMatchObject({
+        schemaVersion: 1,
+        type: PAGE_SCREENSHOT,
+        payload: {
+          source: "popup_wake",
+          targetTabId: 42,
+          pageScreenshot: {
+            type: "skfiy.page.screenshot_result",
+            result: "blocked",
+            targetTabId: 42,
+            reason: "The active tab cannot be captured",
+            hasDataUrl: false
+          }
+        }
+      });
+    });
   });
 
   it("lets the popup trigger a manual native host policy refresh", async () => {

@@ -16,6 +16,8 @@ const MESSAGE_TYPES = Object.freeze({
   NATIVE_HEARTBEAT: "skfiy.native.heartbeat",
   DEV_RELOAD_REQUEST: "skfiy.dev.reload",
   PAGE_OBSERVE: "skfiy.page.observe",
+  PAGE_ACTION: "skfiy.page.action",
+  PAGE_SCREENSHOT: "skfiy.page.screenshot",
   NATIVE_MESSAGE: "skfiy.native.message"
 });
 
@@ -653,6 +655,19 @@ function readWakeAction() {
   }
 }
 
+function readWakeParam(name) {
+  try {
+    return new URL(globalThis.location?.href ?? "").searchParams.get(name) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function readWakeDy() {
+  const parsed = Number.parseInt(readWakeParam("skfiyDy"), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 async function refreshHostPolicy() {
   const button = document.getElementById("sync-policy-button");
   button.disabled = true;
@@ -770,6 +785,209 @@ async function observeCurrentPageFromWake() {
   }
 }
 
+function createPageControlRequestFromWake() {
+  const targetTabId = readTargetTabId();
+  const wakeAction = readWakeAction();
+  const requestId = `popup-${wakeAction}-${Date.now()}`;
+
+  if (wakeAction === "screenshot") {
+    return {
+      type: MESSAGE_TYPES.PAGE_SCREENSHOT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId,
+      ...(Number.isInteger(targetTabId) ? { tabId: targetTabId } : {}),
+      payload: {
+        format: "png"
+      }
+    };
+  }
+
+  const selector = readWakeParam("skfiySelector");
+  const action = (() => {
+    if (wakeAction === "click") {
+      return { kind: "click", selector };
+    }
+    if (wakeAction === "fill") {
+      return { kind: "fill", selector, value: readWakeParam("skfiyText") };
+    }
+    if (wakeAction === "submit") {
+      return { kind: "submit", selector, confirmed: true };
+    }
+    if (wakeAction === "scroll") {
+      return { kind: "scroll", deltaY: readWakeDy() };
+    }
+    return undefined;
+  })();
+
+  if (!action) {
+    return undefined;
+  }
+
+  return {
+    type: MESSAGE_TYPES.PAGE_ACTION,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId,
+    ...(Number.isInteger(targetTabId) ? { tabId: targetTabId } : {}),
+    payload: {
+      action
+    }
+  };
+}
+
+function readRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
+}
+
+function readString(value) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function summarizePageScreenshot(response, targetTabId) {
+  const record = readRecord(response) ?? {};
+  const dataUrl = readString(record.dataUrl);
+
+  return {
+    type: readString(record.type) ?? "skfiy.page.screenshot_result",
+    ...(readString(record.requestId) ? { requestId: record.requestId } : {}),
+    ...(readString(record.result) ? { result: record.result } : {}),
+    ...(readNumber(record.tabId) ? { tabId: record.tabId } : {}),
+    ...(Number.isInteger(targetTabId) ? { targetTabId } : {}),
+    ...(readString(record.host) ? { host: record.host } : {}),
+    ...(readString(record.format) ? { format: record.format } : {}),
+    hasDataUrl: Boolean(dataUrl),
+    ...(dataUrl ? { dataUrlBytes: dataUrl.length } : {}),
+    ...(readString(record.reason) ? { reason: record.reason } : {})
+  };
+}
+
+function summarizePageActionResult(response, targetTabId, action) {
+  const record = readRecord(response) ?? {};
+  const actionName = readString(record.action) ?? readString(action?.kind);
+  const selector = readString(record.selector) ?? readString(action?.selector);
+  const deltaY = readNumber(record.deltaY) ?? readNumber(action?.deltaY);
+
+  return {
+    type: readString(record.type) ?? "skfiy.page.action_result",
+    ...(readString(record.requestId) ? { requestId: record.requestId } : {}),
+    ...(readString(record.result) ? { result: record.result } : {}),
+    ...(actionName ? { action: actionName } : {}),
+    ...(readString(record.reason) ? { reason: record.reason } : {}),
+    ...(Number.isInteger(targetTabId) ? { targetTabId } : {}),
+    ...(selector ? { selector } : {}),
+    ...(typeof deltaY === "number" ? { deltaY } : {})
+  };
+}
+
+async function captureScreenshotFromWake(targetTabId, format, requestId) {
+  let tab;
+  try {
+    if (Number.isInteger(targetTabId) && typeof chrome.tabs.get === "function") {
+      tab = await chrome.tabs.get(targetTabId);
+    }
+    if (Number.isInteger(targetTabId) && typeof chrome.tabs.update === "function") {
+      await chrome.tabs.update(targetTabId, {
+        active: true
+      });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    if (typeof chrome.tabs.captureVisibleTab !== "function") {
+      throw new Error("chrome.tabs.captureVisibleTab is unavailable");
+    }
+
+    const windowId = readNumber(tab?.windowId);
+    const captureOptions = { format };
+    const dataUrl = typeof windowId === "number"
+      ? await chrome.tabs.captureVisibleTab(windowId, captureOptions)
+      : await chrome.tabs.captureVisibleTab(captureOptions);
+
+    return {
+      type: "skfiy.page.screenshot_result",
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId,
+      result: "passed",
+      ...(Number.isInteger(targetTabId) ? { tabId: targetTabId } : {}),
+      ...(readString(hostFromUrl(tab?.url ?? "")) ? { host: hostFromUrl(tab?.url ?? "") } : {}),
+      format,
+      dataUrl
+    };
+  } catch (error) {
+    return {
+      type: "skfiy.page.screenshot_result",
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId,
+      result: "blocked",
+      reason: error instanceof Error ? error.message : "capture_visible_tab_failed",
+      ...(Number.isInteger(targetTabId) ? { tabId: targetTabId } : {}),
+      ...(readString(hostFromUrl(tab?.url ?? "")) ? { host: hostFromUrl(tab?.url ?? "") } : {}),
+      format
+    };
+  }
+}
+
+async function runPageControlFromWake() {
+  const request = createPageControlRequestFromWake();
+  const targetTabId = readTargetTabId();
+
+  if (!request) {
+    await checkHeartbeat();
+    return;
+  }
+
+  try {
+    const response = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
+      ? await captureScreenshotFromWake(targetTabId, request.payload.format, request.requestId)
+      : await chrome.runtime.sendMessage(request);
+    const nativeRequestId = `popup-${readWakeAction()}-native-${Date.now()}`;
+    const payload = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
+      ? {
+          source: "popup_wake",
+          ...(Number.isInteger(targetTabId) ? { targetTabId } : {}),
+          format: request.payload.format,
+          pageScreenshot: summarizePageScreenshot(response, targetTabId)
+        }
+      : {
+          source: "popup_wake",
+          ...(Number.isInteger(targetTabId) ? { targetTabId } : {}),
+          action: request.payload.action,
+          pageActionResult: summarizePageActionResult(response, targetTabId, request.payload.action)
+        };
+    const snapshot = await chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.NATIVE_MESSAGE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: nativeRequestId,
+      payload: {
+        type: request.type,
+        schemaVersion: MESSAGE_SCHEMA_VERSION,
+        requestId: nativeRequestId,
+        payload
+      }
+    });
+    applySyncStatus({
+      state: snapshot?.result === "accepted" ? "synced" : "error",
+      source: "native_host",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      nativeBridgeState: snapshot?.result === "accepted" ? "connected" : "unavailable",
+      nativeMessageType: request.type,
+      lastError: snapshot?.reason ?? snapshot?.error ?? null,
+      error: snapshot?.reason ?? snapshot?.error ?? null
+    }, undefined);
+  } catch (error) {
+    applySyncStatus({
+      state: "error",
+      source: "native_host",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      lastError: error instanceof Error ? error.message : "Unable to run page action",
+      error: error instanceof Error ? error.message : "Unable to run page action"
+    }, undefined);
+  }
+}
+
 async function reloadExtension() {
   const button = document.getElementById("dev-reload-button");
   button.disabled = true;
@@ -843,6 +1061,11 @@ void renderPopup()
     if (shouldAutoCheckHeartbeat()) {
       if (readWakeAction() === "observe") {
         void observeCurrentPageFromWake();
+      } else if (readWakeAction() === "dev-reload") {
+        void reloadExtension();
+      } else if (["screenshot", "click", "fill", "submit", "scroll"].includes(readWakeAction())) {
+        // The background service worker owns wake actions from extension tabs.
+        // Running them here as well duplicates clicks/submits and can trip Chrome capture quotas.
       } else {
         void checkHeartbeat();
       }

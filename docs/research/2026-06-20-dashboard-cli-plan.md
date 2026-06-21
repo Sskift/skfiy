@@ -148,10 +148,12 @@ target the requested Chrome tab id, wait for Native Messaging heartbeat
 evidence, and return dashboard-safe JSON with `action`, `wakeUrl`,
 `extensionConnection`, and bounded `pageObservation`, `pageActionResult`, or
 `pageScreenshot` fields when verified. It is not enough to call Chrome control
-complete: `chrome tabs`, extension-context self reload, user dashboard controls,
-and real installed-extension action smoke are still open. The dashboard should
-surface this as "action commands built; real action smoke pending" instead of
-implying full Codex Chrome parity.
+complete: extension-context reload plus observe/fill/click/submit/scroll have
+real installed-extension proof, but `chrome tabs`, screenshot capture/fallback,
+user dashboard controls, and automated installed-extension action smoke are
+still open. The dashboard should surface this as "Chrome observe and DOM actions
+verified; screenshot capture blocked by Chrome permission or desktop fallback"
+instead of implying full Codex Chrome parity.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`. `money-run` is the one script-level exception: the CLI accepts the same user-facing `--output` flag but forwards it as `--json-output` to `scripts/smoke-money-run-supervision.mjs`.
 
@@ -238,47 +240,39 @@ labels, reload now reports `screen-observation-empty` and does not click.
 This is P0 browser-control readiness, not full Codex Chrome parity. Current
 scope is authorized ordinary HTTP(S) pages only. `chrome://` internal pages,
 `chrome-extension://` pages, pages without skfiy host-policy approval, pages
-without Chrome optional host permission, and side-effectful form/account flows
-must stay blocked or require explicit approval. The next product gap is exposing
-the ready extension capabilities as user-facing CLI/dashboard actions rather
-than only readiness evidence.
+without Chrome optional host permission, screenshot capture without the required
+Chrome permission, and side-effectful form/account flows must stay blocked or
+require explicit approval. The next product gap is exposing verified extension
+capabilities as repeatable CLI smoke and user-facing dashboard actions rather
+than only readiness evidence or manual command runs.
 
 2026-06-21 P0 clarification: the answer to "can skfiy control Chrome now?" is
 "not yet as a product promise." The installed extension can prove a target page
 is ready for structured control, and Codex can temporarily reload the extension
 card during development now that Chrome developer-mode permissions are granted.
-But the product is not complete until packaged `dist/skfiy` commands can
-observe, screenshot, click, fill, submit, and scroll the requested target tab,
-record replay evidence, and return stable dashboard-safe blockers without
-falling back to hidden Browser Use or a tmux process.
+But the product is not complete until packaged `dist/skfiy` commands can also
+discover target tabs, produce screenshot evidence or a proven fallback, record
+repeatable replay evidence, surface user-facing dashboard controls, and return
+stable dashboard-safe blockers without falling back to hidden Browser Use or a
+tmux process.
 
-2026-06-21 implementation update: the first slice of that gap is implemented.
-`src/main/chrome-extension-page-control.ts` now backs `skfiy chrome observe`,
-`chrome-extension/popup.js` handles `skfiyWakeAction=observe`, and
-`src/main/chrome-native-host.ts` records `pageObservation` in the same local
-heartbeat file consumed by status and dashboard paths. Focused red/green tests,
-the combined CLI/native-host/popup suite, TypeScript, and `npm run build` have
-passed locally. A real installed-extension observe run through compiled
-`./dist/skfiy` also passed on 2026-06-21 against
-`http://127.0.0.1:63852/`: the command returned `result: "verified"` and
-`pageObservation.visibleText` contained
-`skfiy observe live smoke 2026-06-21 compiled binary path`. Local evidence was
-persisted to `.skfiy-smoke/chrome-observe-live.json`. This proves read-only
-observe for authorized ordinary HTTP(S) pages; screenshot/click/fill/submit and
-scroll still need their own packaged commands and real smoke evidence before
-browser control can be called complete.
-
-2026-06-21 action-bridge planning update: a subagent inspection found that the
-extension layer already has the core primitives for the next slice. Background
-can route `skfiy.page.screenshot` through `chrome.tabs.captureVisibleTab`, and
-content script can execute `skfiy.page.action` for `click`, `fill`, confirmed
-`submit`, and `scroll`. The missing product work is therefore not a new
-extension architecture; it is wiring packaged CLI subcommands, adding wake URL
-parameters for selector/text/delta, persisting bounded `pageActionResult` and
-`pageScreenshot` fields in the Native Messaging heartbeat, and recording
-before/after dashboard-safe evidence in real local page smokes. A red CLI test
-already exists for those five commands, and currently fails with exit code `2`
-because the subcommands are not wired yet.
+2026-06-21 implementation update: the first action bridge is now field-proven
+for authorized ordinary HTTP(S) pages. `src/main/chrome-extension-page-control.ts`
+backs `skfiy chrome observe/screenshot/click/fill/submit/scroll`, wake URLs carry
+action parameters, `chrome-extension/background.js` owns action and screenshot
+wake execution, `chrome-extension/popup.js` only runs `dev-reload` wake requests,
+and `src/main/chrome-native-host.ts` preserves `latestCommand` so later health
+heartbeats cannot hide action evidence. The focused Chrome slice, TypeScript,
+and `npm run build` passed locally: 6 Vitest files / 126 tests, `npx tsc
+--noEmit`, and a packaged `dist/skfiy.app`, `dist/skfiy-helper`, and
+`dist/skfiy` rebuild. Real compiled-binary runs against
+`http://127.0.0.1:63852/?skfiy_action_live=20260621&clean=3` verified
+extension-context reload, observe, fill, click, submit, and scroll, with final
+visible page text `clicked 1` plus `submitted skfiy #2`. Screenshot no longer
+fails ambiguously: the latest real run records `reason:
+"chrome-capture-permission-missing"` with Chrome's `Either the '<all_urls>' or
+'activeTab' permission is required.` message, while desktop screenshot fallback
+is separately blocked when macOS reports a locked/asleep loginwindow session.
 
 ## User Dashboard Roadmap
 
@@ -411,11 +405,12 @@ Detailed task handoff:
    tab is eligible for page control. It should mark `chrome://`,
    `chrome-extension://`, `file://`, missing host, blocked host, and missing
    Chrome optional host permission as distinct states.
-3. Convert action commands from unit-green to field-green. `skfiy chrome
-   observe`, `screenshot`, `click`, `fill`, `submit`, and `scroll` now exist in
-   the packaged CLI; the remaining Week A work is to prove them on an authorized
-   localhost tab with before/after page evidence, screenshot metadata, target
-   tab verification, and sensitive-field refusal.
+3. Convert the manual action proof into automated product smoke. `skfiy chrome
+   reload-extension`, `observe`, `fill`, `click`, `submit`, and `scroll` now
+   have real compiled-binary evidence on an authorized localhost tab; the
+   remaining Week A work is to encode that sequence in `smoke:chrome`, preserve
+   one artifact per command, keep action runs sequential, and keep screenshot as
+   blocked until Chrome capture permission or desktop fallback is proven.
 4. Promote reload verification. A `verified` reload result should require
    `pageControl.activeTab.tabId === targetTabId` and, for action readiness,
    `pageControl.state === "ready"`. A stale popup/internal-tab heartbeat should

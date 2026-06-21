@@ -53,6 +53,7 @@ const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
 
 let hostPolicySyncPromise = null;
 let nativeHeartbeatPromise = null;
+const processedWakeDirectiveKeys = new Set();
 
 function readExtensionManifest() {
   if (typeof chrome.runtime.getManifest === "function") {
@@ -932,12 +933,31 @@ async function routePageScreenshot(message) {
   }
 
   const format = message.payload?.format === "jpeg" ? "jpeg" : "png";
-  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-    format,
-    ...(format === "jpeg" && typeof message.payload?.quality === "number"
-      ? { quality: message.payload.quality }
-      : {})
-  });
+  let dataUrl;
+  try {
+    if (typeof chrome.tabs.update === "function") {
+      await chrome.tabs.update(tab.id, {
+        active: true
+      });
+    }
+    dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+      format,
+      ...(format === "jpeg" && typeof message.payload?.quality === "number"
+        ? { quality: message.payload.quality }
+        : {})
+    });
+  } catch (error) {
+    return {
+      type: MESSAGE_TYPES.PAGE_SCREENSHOT_RESULT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      result: "blocked",
+      reason: error instanceof Error ? error.message : "capture_visible_tab_failed",
+      host,
+      tabId: tab.id,
+      format
+    };
+  }
 
   return {
     type: MESSAGE_TYPES.PAGE_SCREENSHOT_RESULT,
@@ -1295,6 +1315,7 @@ function readWakeDirective(url) {
   const dyValue = params.get("skfiyDy");
   const dy = dyValue ? Number.parseInt(dyValue, 10) : NaN;
   return {
+    wakeId: params.get("skfiyWake") ?? "",
     targetTabId: readWakeTargetTabIdFromParams(params),
     wakeAction: params.get("skfiyWakeAction") ?? "",
     selector: params.get("skfiySelector") ?? "",
@@ -1312,12 +1333,44 @@ function mergeWakeDirectives(primary, fallback) {
   }
 
   return {
+    wakeId: primary.wakeId || fallback.wakeId,
     targetTabId: Number.isInteger(primary.targetTabId) ? primary.targetTabId : fallback.targetTabId,
     wakeAction: primary.wakeAction || fallback.wakeAction,
     selector: primary.selector || fallback.selector,
     text: primary.text || fallback.text,
     dy: Number.isFinite(primary.dy) ? primary.dy : fallback.dy
   };
+}
+
+function createWakeDirectiveKey(directive) {
+  if (!directive || !Number.isInteger(directive.targetTabId)) {
+    return undefined;
+  }
+
+  return [
+    directive.wakeId || "no-wake-id",
+    directive.targetTabId,
+    directive.wakeAction || "heartbeat",
+    directive.selector || "",
+    directive.dy ?? "",
+    directive.text ? "text" : ""
+  ].join("|");
+}
+
+function claimWakeDirective(directive) {
+  const key = createWakeDirectiveKey(directive);
+  if (!key) {
+    return true;
+  }
+  if (processedWakeDirectiveKeys.has(key)) {
+    return false;
+  }
+  processedWakeDirectiveKeys.add(key);
+  if (processedWakeDirectiveKeys.size > 200) {
+    processedWakeDirectiveKeys.clear();
+    processedWakeDirectiveKeys.add(key);
+  }
+  return true;
 }
 
 function readObject(value) {
@@ -1567,6 +1620,9 @@ function registerTabHeartbeatListeners() {
       const wakeTargetTabId = wakeDirective?.targetTabId;
       const wakeAction = wakeDirective?.wakeAction ?? "";
       if (Number.isInteger(wakeTargetTabId)) {
+        if (!claimWakeDirective(wakeDirective)) {
+          return;
+        }
         setTimeout(() => {
           if (wakeAction === "observe") {
             void sendWakePageObservation(wakeTargetTabId);

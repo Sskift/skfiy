@@ -341,6 +341,73 @@ describe("Chrome Native Messaging host plan", () => {
     });
   });
 
+  it("preserves the latest page-control command when readiness health follows it", async () => {
+    const io = createMemoryChromeHostIo();
+    const statePath = createChromeExtensionConnectionStatePath("/Users/tester");
+
+    await writeChromeExtensionConnectionHeartbeat({
+      homeDir: "/Users/tester",
+      observedAt: "2026-06-21T11:05:00.000Z",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.page.screenshot",
+      requestId: "popup-screenshot-native-1",
+      pageScreenshot: {
+        type: "skfiy.page.screenshot_result",
+        requestId: "popup-screenshot-1",
+        result: "passed",
+        tabId: 42,
+        targetTabId: 42,
+        host: "127.0.0.1:63852",
+        format: "png",
+        dataUrl: `data:image/png;base64,${"a".repeat(256)}`
+      },
+      io
+    });
+
+    await writeChromeExtensionConnectionHeartbeat({
+      homeDir: "/Users/tester",
+      observedAt: "2026-06-21T11:05:01.000Z",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.page.observe",
+      requestId: "page-control-health-tab_activated-1",
+      pageControl: {
+        state: "ready"
+      },
+      io
+    });
+
+    expect(JSON.parse(io.files[statePath])).toMatchObject({
+      messageType: "skfiy.page.observe",
+      requestId: "page-control-health-tab_activated-1",
+      latestCommand: {
+        observedAt: "2026-06-21T11:05:00.000Z",
+        messageType: "skfiy.page.screenshot",
+        requestId: "popup-screenshot-native-1",
+        pageScreenshot: {
+          result: "passed",
+          targetTabId: 42,
+          hasDataUrl: true,
+          dataUrlBytes: "data:image/png;base64,".length + 256
+        }
+      }
+    });
+
+    await expect(readChromeExtensionConnectionStatus({
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-21T11:05:02.000Z",
+      io
+    })).resolves.toMatchObject({
+      messageType: "skfiy.page.observe",
+      latestCommand: {
+        messageType: "skfiy.page.screenshot",
+        requestId: "popup-screenshot-native-1",
+        pageScreenshot: {
+          hasDataUrl: true
+        }
+      }
+    });
+  });
+
   it("writes Chrome extension heartbeat evidence through an atomic temp-file rename when available", async () => {
     const io = createMemoryChromeHostIo();
     const renames: Array<{ sourcePath: string; targetPath: string }> = [];

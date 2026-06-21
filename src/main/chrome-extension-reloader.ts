@@ -64,6 +64,8 @@ export interface ChromeExtensionReloadResult {
   extensionId: string;
   managerUrl: string;
   wakeUrl: string;
+  contextReloadUrl?: string;
+  reloadStrategy?: "extension-context-wake" | "desktop-extension-card";
   screenshotPath: string;
   ocrLabelCount: number;
   observedWindowTitle?: string;
@@ -91,6 +93,43 @@ export async function reloadChromeExtensionWithDesktopControl({
   const checkedExtensionId = requireChromeExtensionId(extensionId);
   const managerUrl = createChromeExtensionManagerUrl(checkedExtensionId);
   const wakeUrl = createChromeExtensionWakeUrl(checkedExtensionId, { targetTabId });
+  const contextReloadUrl = Number.isInteger(targetTabId)
+    ? createChromeExtensionWakeUrl(checkedExtensionId, {
+      targetTabId,
+      wakeAction: "dev-reload"
+    })
+    : undefined;
+
+  if (contextReloadUrl) {
+    const extensionConnection = await tryChromeExtensionContextReload({
+      contextReloadUrl,
+      wakeUrl,
+      opener,
+      wait,
+      homeDir,
+      generatedAt,
+      io,
+      pollIntervalMs,
+      pollTimeoutMs
+    });
+
+    if (isVerifiedReloadConnection(extensionConnection, targetTabId)) {
+      return {
+        schemaVersion: 1,
+        result: "verified",
+        productPath: CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
+        extensionId: checkedExtensionId,
+        managerUrl,
+        wakeUrl,
+        contextReloadUrl,
+        reloadStrategy: "extension-context-wake",
+        screenshotPath,
+        ocrLabelCount: 0,
+        extensionConnection,
+        candidates: []
+      };
+    }
+  }
 
   await opener(managerUrl);
   await wait(DEFAULT_OPEN_SETTLE_MS);
@@ -114,6 +153,7 @@ export async function reloadChromeExtensionWithDesktopControl({
       extensionId: checkedExtensionId,
       managerUrl,
       wakeUrl,
+      ...(contextReloadUrl ? { contextReloadUrl } : {}),
       screenshotPath: state.screenshotPath,
       ocrLabelCount: 0,
       observedWindowTitle: readPrimaryWindowTitle(state),
@@ -142,6 +182,7 @@ export async function reloadChromeExtensionWithDesktopControl({
       extensionId: checkedExtensionId,
       managerUrl,
       wakeUrl,
+      ...(contextReloadUrl ? { contextReloadUrl } : {}),
       screenshotPath: state.screenshotPath,
       ocrLabelCount: ocr.labels.length,
       observedWindowTitle: readPrimaryWindowTitle(state),
@@ -167,7 +208,7 @@ export async function reloadChromeExtensionWithDesktopControl({
     timeoutMs: pollTimeoutMs
   });
 
-  const verified = extensionConnection.state === "connected";
+  const verified = isVerifiedReloadConnection(extensionConnection, targetTabId);
   return {
     schemaVersion: 1,
     result: verified ? "verified" : "clicked",
@@ -175,6 +216,8 @@ export async function reloadChromeExtensionWithDesktopControl({
     extensionId: checkedExtensionId,
     managerUrl,
     wakeUrl,
+    ...(contextReloadUrl ? { contextReloadUrl } : {}),
+    reloadStrategy: "desktop-extension-card",
     screenshotPath: state.screenshotPath,
     ocrLabelCount: ocr.labels.length,
     observedWindowTitle: readPrimaryWindowTitle(state),
@@ -341,6 +384,58 @@ export async function openChromeExtensionManagerPage(url: string): Promise<void>
   });
 }
 
+async function tryChromeExtensionContextReload({
+  contextReloadUrl,
+  wakeUrl,
+  opener,
+  wait,
+  homeDir,
+  generatedAt,
+  io,
+  pollIntervalMs,
+  pollTimeoutMs
+}: {
+  contextReloadUrl: string;
+  wakeUrl: string;
+  opener: ChromeExtensionPageOpener;
+  wait: (ms: number) => Promise<void>;
+  homeDir: string;
+  generatedAt?: string;
+  io?: ChromeNativeHostIo;
+  pollIntervalMs: number;
+  pollTimeoutMs: number;
+}): Promise<ChromeExtensionConnectionStatus> {
+  await opener(contextReloadUrl);
+  await wait(DEFAULT_AFTER_CLICK_SETTLE_MS);
+  await opener(wakeUrl);
+  await wait(DEFAULT_OPEN_SETTLE_MS);
+  return pollChromeExtensionConnection({
+    homeDir,
+    generatedAt,
+    io,
+    wait,
+    intervalMs: pollIntervalMs,
+    timeoutMs: pollTimeoutMs
+  });
+}
+
+function isVerifiedReloadConnection(
+  connection: ChromeExtensionConnectionStatus,
+  targetTabId?: number
+): boolean {
+  if (connection.state !== "connected") {
+    return false;
+  }
+  if (!Number.isInteger(targetTabId)) {
+    return true;
+  }
+
+  const pageControl = readRecord(connection.pageControl);
+  const activeTab = readRecord(pageControl?.activeTab);
+  return readNumber(activeTab?.tabId) === targetTabId
+    && pageControl?.state === "ready";
+}
+
 async function pollChromeExtensionConnection({
   homeDir,
   generatedAt,
@@ -368,6 +463,16 @@ async function pollChromeExtensionConnection({
   }
 
   return latest;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function findTextReloadTarget(

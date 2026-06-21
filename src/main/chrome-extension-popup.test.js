@@ -9,6 +9,8 @@ const HOST_POLICY_SYNC_REFRESH = "skfiy.host_policy.sync_refresh";
 const NATIVE_HEARTBEAT = "skfiy.native.heartbeat";
 const DEV_RELOAD_REQUEST = "skfiy.dev.reload";
 const PAGE_OBSERVE = "skfiy.page.observe";
+const PAGE_ACTION = "skfiy.page.action";
+const PAGE_SCREENSHOT = "skfiy.page.screenshot";
 const NATIVE_MESSAGE = "skfiy.native.message";
 
 function readExtensionFile(relativePath) {
@@ -75,7 +77,16 @@ function createPopupChromeMock(options = {}) {
         }
       },
       tabs: {
-        query: vi.fn(async () => [tab])
+        query: vi.fn(async () => [tab]),
+        get: vi.fn(async (tabId) => (
+          options.tabsById?.[tabId]
+          ?? (tab?.id === tabId ? tab : undefined)
+        )),
+        update: vi.fn(async (tabId, updateProperties) => ({
+          id: tabId,
+          ...(updateProperties ?? {})
+        })),
+        captureVisibleTab: vi.fn(async () => options.captureVisibleTabDataUrl)
       }
     },
     storage,
@@ -860,6 +871,117 @@ describe("Chrome extension popup policy sync status", () => {
     });
   });
 
+  it("auto-schedules extension context reload from dev-reload wake URLs", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/popup.html?skfiyWake=1&skfiyWakeAction=dev-reload&skfiyTargetTabId=42"
+    );
+    installPopupDocument();
+    const policy = createPolicy();
+    const mock = createPopupChromeMock({
+      policy,
+      onSendMessage: (message) => {
+        if (message.type === DEV_RELOAD_REQUEST) {
+          return {
+            type: "skfiy.dev.reload_result",
+            schemaVersion: 1,
+            requestId: message.requestId,
+            policy,
+            syncStatus: {
+              schemaVersion: 1,
+              state: "synced",
+              source: "native_host",
+              updatedAt: "2026-06-21T08:02:00.000Z",
+              completedAt: "2026-06-21T08:02:00.000Z",
+              entryCount: 0,
+              nativeBridgeState: "connected",
+              nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+              nativeMessageType: "skfiy.host_policy.request",
+              nativeResponseType: "skfiy.native.response",
+              nativeResponseResult: "accepted"
+            },
+            devReload: {
+              schemaVersion: 1,
+              state: "scheduled",
+              reloadAvailable: true,
+              reloadAt: "2026-06-21T08:02:01.000Z",
+              reason: "heartbeat_connected",
+              browserPolicy: "extension_context_reload",
+              heartbeat: {
+                state: "connected",
+                completedAt: "2026-06-21T08:02:00.000Z",
+                messageType: "skfiy.host_policy.request",
+                responseResult: "accepted"
+              }
+            },
+            diagnostics: {
+              schemaVersion: 1,
+              capabilities: { nativeMessaging: true },
+              nativeHost: {
+                name: "com.sskift.skfiy",
+                bridgeState: "connected",
+                syncState: "synced",
+                launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+              },
+              devReload: {
+                state: "scheduled",
+                reloadAvailable: true,
+                heartbeat: {
+                  state: "connected",
+                  completedAt: "2026-06-21T08:02:00.000Z"
+                }
+              }
+            }
+          };
+        }
+
+        return {
+          type: "skfiy.host_policy.response",
+          schemaVersion: 1,
+          requestId: "popup-status",
+          policy,
+          syncStatus: {
+            schemaVersion: 1,
+            state: "unknown",
+            source: "local_storage",
+            entryCount: 0
+          },
+          diagnostics: {
+            schemaVersion: 1,
+            capabilities: { nativeMessaging: true },
+            nativeHost: {
+              name: "com.sskift.skfiy",
+              bridgeState: "unknown",
+              syncState: "unknown"
+            },
+            devReload: {
+              state: "idle",
+              reloadAvailable: true,
+              heartbeat: { state: "unknown" }
+            }
+          }
+        };
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: DEV_RELOAD_REQUEST,
+        schemaVersion: 1
+      }));
+      expect(mock.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+        type: NATIVE_HEARTBEAT,
+        schemaVersion: 1
+      }));
+      expect(document.getElementById("dev-reload-status").textContent)
+        .toContain("Reload scheduled");
+    });
+  });
+
   it("lets the user schedule an extension reload from the popup", async () => {
     installPopupDocument();
     const policy = createPolicy();
@@ -1123,5 +1245,90 @@ describe("Chrome extension popup policy sync status", () => {
         })
       ]));
     });
+  });
+
+  it("does not capture page screenshots from wake URLs inside the popup", async () => {
+    installPopupDocument();
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot");
+    const policy = createPolicy();
+    const sentMessages = [];
+    const mock = createPopupChromeMock({
+      policy,
+      tabsById: {
+        42: {
+          id: 42,
+          windowId: 7,
+          url: "http://127.0.0.1:63852/"
+        }
+      },
+      onSendMessage: (message) => {
+        sentMessages.push(message);
+        return {
+          type: "skfiy.host_policy.response",
+          schemaVersion: 1,
+          requestId: message.requestId,
+          policy,
+          syncStatus: {
+            schemaVersion: 1,
+            state: "synced",
+            source: "native_host",
+            entryCount: 0
+          },
+          diagnostics: {
+            nativeHost: {
+              name: "com.sskift.skfiy",
+              connectionState: "connected"
+            }
+          }
+        };
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(sentMessages.filter((message) => message.type === NATIVE_MESSAGE)).toEqual([]);
+    expect(mock.chrome.tabs.get).not.toHaveBeenCalled();
+    expect(mock.chrome.tabs.update).not.toHaveBeenCalled();
+    expect(mock.chrome.tabs.captureVisibleTab).not.toHaveBeenCalled();
+  });
+
+  it("does not run page actions from wake URLs inside the popup", async () => {
+    installPopupDocument();
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=secret");
+    const policy = createPolicy();
+    const sentMessages = [];
+    const mock = createPopupChromeMock({
+      policy,
+      onSendMessage: (message) => {
+        sentMessages.push(message);
+        return {
+          type: "skfiy.host_policy.response",
+          schemaVersion: 1,
+          requestId: message.requestId,
+          policy,
+          syncStatus: {
+            schemaVersion: 1,
+            state: "synced",
+            source: "native_host",
+            entryCount: 0
+          },
+          diagnostics: {
+            nativeHost: {
+              name: "com.sskift.skfiy",
+              connectionState: "connected"
+            }
+          }
+        };
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(sentMessages.filter((message) => message.type === PAGE_ACTION)).toEqual([]);
+    expect(sentMessages.filter((message) => message.type === NATIVE_MESSAGE)).toEqual([]);
   });
 });

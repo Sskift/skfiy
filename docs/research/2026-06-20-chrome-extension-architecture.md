@@ -220,16 +220,23 @@ runtime behavior.
   an authorized localhost HTTP tab. The next architecture gap is turning that
   readiness into packaged CLI/dashboard page actions and a repeatable
   installed-extension smoke, not just popup diagnostics.
-- 2026-06-21 implementation update: `skfiy chrome observe` is now the first
-  packaged CLI page-control action in the source tree. The CLI opens an
-  extension wake URL with `skfiyWakeAction=observe`, the popup relays a bounded
-  `skfiy.page.observe` result for the requested tab, and the Native Messaging
-  host persists `pageObservation` in `chrome-extension-connection.json`.
-  Architecture-wise this validates the chosen wake-url/native-heartbeat path.
-  Product-wise the real installed-extension observe smoke passed on 2026-06-21
-  through compiled `./dist/skfiy` against an authorized localhost HTTP page, with
-  evidence in `.skfiy-smoke/chrome-observe-live.json`. Screenshot, click, fill,
-  submit, and scroll are the next actions to add after observe.
+- 2026-06-21 implementation update: `skfiy chrome observe`, `screenshot`,
+  `click`, `fill`, `submit`, and `scroll` are now packaged CLI page-control
+  commands. The CLI opens extension wake URLs with explicit action parameters,
+  the background service worker owns screenshot/action execution for the target
+  tab, popup wake handling is limited to extension-context `dev-reload`, and the
+  Native Messaging host persists bounded `pageObservation`, `pageActionResult`,
+  `pageScreenshot`, and `latestCommand` evidence in
+  `chrome-extension-connection.json`. Architecture-wise this validates the
+  wake-url/native-heartbeat path and avoids duplicate click/submit/capture
+  execution from popup plus background. Product-wise real compiled-binary runs
+  passed for extension-context reload, observe, fill, click, submit, and scroll
+  on an authorized localhost HTTP page. Screenshot is implemented but currently
+  blocked by Chrome capture permission (`Either the '<all_urls>' or 'activeTab'
+  permission is required.`) until the extension permission path or desktop
+  fallback is proven. Next architecture gaps are tab discovery, repeatable
+  installed-extension smoke, dashboard launchers, and sensitive/logged-in
+  workflow recovery.
 - A focused Vitest test validates the manifest and skeleton strings without
   launching Chrome.
 
