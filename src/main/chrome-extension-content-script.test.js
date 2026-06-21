@@ -11,6 +11,12 @@ function createChromeMock() {
         onMessage: {
           addListener: vi.fn((listener) => {
             listeners.push(listener);
+          }),
+          removeListener: vi.fn((listener) => {
+            const index = listeners.indexOf(listener);
+            if (index !== -1) {
+              listeners.splice(index, 1);
+            }
           })
         },
         sendMessage: vi.fn()
@@ -63,9 +69,23 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete globalThis.chrome;
+  delete globalThis.__skfiyContentScriptOnMessage;
 });
 
 describe("Chrome extension content script", () => {
+  it("replaces an existing content-script message listener on reinjection", async () => {
+    const mock = createChromeMock();
+    const oldListener = vi.fn();
+    globalThis.chrome = mock.chrome;
+    globalThis.__skfiyContentScriptOnMessage = oldListener;
+
+    await importContentScript();
+
+    expect(mock.chrome.runtime.onMessage.removeListener).toHaveBeenCalledWith(oldListener);
+    expect(mock.chrome.runtime.onMessage.addListener).toHaveBeenCalledTimes(1);
+    expect(globalThis.__skfiyContentScriptOnMessage).not.toBe(oldListener);
+  });
+
   it("reports page control readiness and DOM action capabilities", async () => {
     const mock = createChromeMock();
     globalThis.chrome = mock.chrome;

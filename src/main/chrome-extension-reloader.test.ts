@@ -102,8 +102,8 @@ describe("Chrome extension reloader", () => {
     expect(target).toEqual({
       strategy: "extension-card-layout",
       label: `ID: ${EXTENSION_ID}`,
-      x: 985,
-      y: 566,
+      x: 677,
+      y: 558,
       confidence: 0.74
     });
   });
@@ -136,6 +136,10 @@ describe("Chrome extension reloader", () => {
       y: 296,
       confidence: 0.72
     });
+  });
+
+  it("does not click a generic window fallback when OCR cannot see the extension card", () => {
+    expect(findChromeExtensionReloadTarget([], createAppState(), EXTENSION_ID)).toBeUndefined();
   });
 
   it("clicks reload and verifies the native host heartbeat", async () => {
@@ -195,8 +199,8 @@ describe("Chrome extension reloader", () => {
       ),
       target: {
         strategy: "extension-card-layout",
-        x: 985,
-        y: 566
+        x: 677,
+        y: 558
       },
       extensionConnection: {
         state: "connected",
@@ -212,6 +216,32 @@ describe("Chrome extension reloader", () => {
         /^chrome-extension:\/\/plcpkkhlcacihjfohlojdknnkademlno\/popup\.html\?skfiyWake=\d+$/
       )
     );
-    expect(helper.click).toHaveBeenCalledWith(985, 566);
+    expect(helper.click).toHaveBeenCalledWith(677, 558);
+  });
+
+  it("blocks reload without clicking when screen observation is empty", async () => {
+    const homeDir = "/Users/tester";
+    const helper = {
+      activateApp: vi.fn(async () => ({ ok: true })),
+      getAppState: vi.fn(async () => createAppState("/tmp/black.png")),
+      ocrImage: vi.fn(async () => ({ labels: [] })),
+      click: vi.fn(async () => ({ ok: true }))
+    };
+
+    await expect(reloadChromeExtensionWithDesktopControl({
+      extensionId: EXTENSION_ID,
+      homeDir,
+      generatedAt: GENERATED_AT,
+      helper,
+      opener: vi.fn(async () => undefined),
+      io: createMemoryIo({}),
+      wait: async () => undefined
+    })).resolves.toMatchObject({
+      result: "blocked",
+      reason: "screen-observation-empty",
+      nextAction: expect.stringContaining("Wake the display")
+    });
+
+    expect(helper.click).not.toHaveBeenCalled();
   });
 });

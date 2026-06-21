@@ -107,6 +107,7 @@ export async function reloadChromeExtensionWithDesktopControl({
   const target = findChromeExtensionReloadTarget(elements, observedState, checkedExtensionId);
 
   if (!target) {
+    const observationEmpty = ocr.labels.length === 0;
     const extensionConnection = await readChromeExtensionConnectionStatus({
       homeDir,
       generatedAt,
@@ -123,9 +124,11 @@ export async function reloadChromeExtensionWithDesktopControl({
       ocrLabelCount: ocr.labels.length,
       observedWindowTitle: readPrimaryWindowTitle(state),
       extensionConnection,
-      reason: "reload-target-not-found",
+      reason: observationEmpty ? "screen-observation-empty" : "reload-target-not-found",
       candidates: summarizeCandidates(elements),
-      nextAction: "Open chrome://extensions, enable Developer mode, and retry `skfiy chrome reload-extension`."
+      nextAction: observationEmpty
+        ? "Wake the display and verify Screen Recording permission, then retry `skfiy chrome reload-extension`."
+        : "Open chrome://extensions, enable Developer mode, and retry `skfiy chrome reload-extension`."
     };
   }
 
@@ -215,15 +218,6 @@ export function findChromeExtensionReloadTarget(
     };
   }
 
-  if (primaryWindow) {
-    return {
-      strategy: "window-layout",
-      x: Math.round(primaryWindow.bounds.x + primaryWindow.bounds.width * 0.75),
-      y: Math.round(primaryWindow.bounds.y + primaryWindow.bounds.height * 0.31),
-      confidence: 0.45
-    };
-  }
-
   return undefined;
 }
 
@@ -274,16 +268,18 @@ function findExtensionCardReloadTarget(
     return undefined;
   }
 
+  const cardTextLeft = Math.min(...sameCardElements.map((element) => element.bounds.x));
+  const x = Math.round(cardTextLeft + 235);
   const y = Math.round(anchor
     ? anchor.bounds.y + anchor.bounds.height / 2
     : serviceWorker
-      ? serviceWorker.bounds.y + serviceWorker.bounds.height / 2 + 58
+      ? serviceWorker.bounds.y + serviceWorker.bounds.height / 2 + 50
       : skfiyName.bounds.y + skfiyName.bounds.height / 2 + 80);
 
   return {
     strategy: "extension-card-layout",
     label: skfiyName.label,
-    x: Math.round(primaryWindow.bounds.x + primaryWindow.bounds.width * 0.755),
+    x,
     y,
     confidence: anchor ? 0.82 : 0.74
   };

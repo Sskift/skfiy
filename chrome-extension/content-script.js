@@ -1,3 +1,4 @@
+(() => {
 const MESSAGE_SCHEMA_VERSION = 1;
 
 const MESSAGE_TYPES = Object.freeze({
@@ -478,7 +479,12 @@ function runPageAction(action) {
   return { result: "blocked", reason: "unsupported_or_missing_target" };
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+const previousSkfiyContentScriptOnMessage = globalThis.__skfiyContentScriptOnMessage;
+if (typeof previousSkfiyContentScriptOnMessage === "function") {
+  chrome.runtime.onMessage.removeListener(previousSkfiyContentScriptOnMessage);
+}
+
+const handleSkfiyContentScriptMessage = (message, _sender, sendResponse) => {
   if (message?.type === MESSAGE_TYPES.PAGE_CONTROL_HEALTH) {
     const session = readContentScriptSession();
     sendResponse({
@@ -524,4 +530,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   return false;
-});
+};
+
+globalThis.__skfiyContentScriptOnMessage = handleSkfiyContentScriptMessage;
+chrome.runtime.onMessage.addListener(handleSkfiyContentScriptMessage);
+})();

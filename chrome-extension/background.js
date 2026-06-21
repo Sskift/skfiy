@@ -388,7 +388,7 @@ async function readChromeHostPermissionStatus(permissionDetails) {
   }
 }
 
-async function readContentScriptSession(tab, policyDecision, hostPermission) {
+async function readContentScriptSession(tab, policyDecision, hostPermission, options = {}) {
   if (!Number.isInteger(tab?.id)) {
     return {
       state: "unavailable",
@@ -411,6 +411,35 @@ async function readContentScriptSession(tab, policyDecision, hostPermission) {
     };
   }
 
+  const firstAttempt = await requestContentScriptDiagnostics(tab);
+  if (firstAttempt.state === "loaded") {
+    return firstAttempt;
+  }
+
+  if (options.injectContentScript === true && firstAttempt.reason === "content_script_not_loaded") {
+    try {
+      await ensureContentScript(tab.id);
+    } catch (error) {
+      return {
+        state: "unavailable",
+        reason: "content_script_injection_failed",
+        lastError: readErrorMessage(error),
+        previousState: firstAttempt.state,
+        previousReason: firstAttempt.reason
+      };
+    }
+
+    const secondAttempt = await requestContentScriptDiagnostics(tab);
+    return {
+      ...secondAttempt,
+      injected: true
+    };
+  }
+
+  return firstAttempt;
+}
+
+async function requestContentScriptDiagnostics(tab) {
   try {
     const response = await chrome.tabs.sendMessage(tab.id, {
       type: MESSAGE_TYPES.PAGE_DIAGNOSTICS,
@@ -441,7 +470,7 @@ async function readContentScriptSession(tab, policyDecision, hostPermission) {
   }
 }
 
-async function readCurrentTabDiagnostics(policy, tabId) {
+async function readCurrentTabDiagnostics(policy, tabId, options = {}) {
   const { tab, lastError } = await readActiveTabDiagnosticsTarget(tabId);
   if (!tab) {
     return {
@@ -468,7 +497,7 @@ async function readCurrentTabDiagnostics(policy, tabId) {
   const permissionDetails = getHostPermissionDetails(tab.url ?? "");
   const policyDecision = decideHostPolicy(policy, host);
   const hostPermission = await readChromeHostPermissionStatus(permissionDetails);
-  const contentScript = await readContentScriptSession(tab, policyDecision, hostPermission);
+  const contentScript = await readContentScriptSession(tab, policyDecision, hostPermission, options);
 
   return {
     state: "available",
@@ -482,10 +511,10 @@ async function readCurrentTabDiagnostics(policy, tabId) {
   };
 }
 
-async function readHostPolicySnapshot(tabId) {
+async function readHostPolicySnapshot(tabId, options = {}) {
   const policy = await readHostPolicy();
   const syncStatus = await readHostPolicySyncStatus(policy);
-  const currentTab = await readCurrentTabDiagnostics(policy, tabId);
+  const currentTab = await readCurrentTabDiagnostics(policy, tabId, options);
   const devReload = await readDevReloadStatus(syncStatus);
   return {
     policy,
@@ -495,7 +524,9 @@ async function readHostPolicySnapshot(tabId) {
 }
 
 async function readPageControlHealth(requestId = "page-control-health", tabId) {
-  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(tabId);
+  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(tabId, {
+    injectContentScript: true
+  });
   const pageControl = diagnostics.session.pageControl;
 
   return {
@@ -1077,7 +1108,9 @@ export async function syncHostPolicy(trigger = "manual") {
 
 export async function pingNativeHeartbeat(trigger = "manual", tabId) {
   await syncHostPolicy(trigger);
-  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(tabId);
+  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(tabId, {
+    injectContentScript: true
+  });
   const pageControlHeartbeat = await sendPageControlNativeHeartbeat(
     trigger,
     diagnostics.session.pageControl
@@ -1222,8 +1255,61 @@ function scheduleHostPolicySync(trigger) {
   return hostPolicySyncPromise;
 }
 
-function scheduleNativeHeartbeat(trigger, tabId) {
+function isOwnExtensionUrl(url) {
+  return typeof url === "string"
+    && url.startsWith(`chrome-extension://${chrome.runtime.id}/`);
+}
+
+function readWakeTargetTabId(url) {
+  if (!isOwnExtensionUrl(url)) {
+    return undefined;
+  }
+
+  try {
+    const value = new URL(url).searchParams.get("skfiyTargetTabId");
+    const parsed = value ? Number.parseInt(value, 10) : NaN;
+    return Number.isInteger(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function readNativeHeartbeatTabDirective(tabId) {
+  if (!Number.isInteger(tabId)) {
+    return {
+      skip: false
+    };
+  }
+
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const url = tab?.url ?? tab?.pendingUrl;
+    if (!isOwnExtensionUrl(url)) {
+      return {
+        skip: false
+      };
+    }
+
+    return {
+      skip: true,
+      targetTabId: readWakeTargetTabId(url)
+    };
+  } catch {
+    return {
+      skip: false
+    };
+  }
+}
+
+async function scheduleNativeHeartbeat(trigger, tabId) {
   if (Number.isInteger(tabId)) {
+    const directive = await readNativeHeartbeatTabDirective(tabId);
+    if (Number.isInteger(directive.targetTabId)) {
+      return pingNativeHeartbeat("popup_wake", directive.targetTabId);
+    }
+    if (directive.skip) {
+      return undefined;
+    }
     return pingNativeHeartbeat(trigger, tabId);
   }
 
@@ -1247,11 +1333,25 @@ function scheduleExtensionLoadedHeartbeat() {
 
 function registerTabHeartbeatListeners() {
   chrome.tabs?.onActivated?.addListener?.((activeInfo) => {
-    void scheduleNativeHeartbeat("tab_activated", activeInfo?.tabId);
+    setTimeout(() => {
+      void scheduleNativeHeartbeat("tab_activated", activeInfo?.tabId);
+    }, 150);
   });
-  chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
+  chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo, tab) => {
     if (changeInfo?.status === "complete" || typeof changeInfo?.url === "string") {
-      void scheduleNativeHeartbeat("tab_updated", tabId);
+      const wakeTargetTabId = readWakeTargetTabId(changeInfo?.url) ?? readWakeTargetTabId(tab?.url);
+      if (Number.isInteger(wakeTargetTabId)) {
+        setTimeout(() => {
+          void pingNativeHeartbeat("popup_wake", wakeTargetTabId);
+        }, 150);
+        return;
+      }
+      if (isOwnExtensionUrl(changeInfo?.url) || isOwnExtensionUrl(tab?.url)) {
+        return;
+      }
+      setTimeout(() => {
+        void scheduleNativeHeartbeat("tab_updated", tabId);
+      }, 150);
     }
   });
 }
