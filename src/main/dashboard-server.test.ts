@@ -197,6 +197,16 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain("/descriptor.json");
     expect(response.body).toContain("/snapshot.json");
     expect(response.body).toContain("/api/evidence-summary");
+    expect(response.body).toContain('aria-label="skfiy user dashboard"');
+    expect(response.body).toContain('data-user-panel="home"');
+    expect(response.body).toContain('data-user-panel="approvals"');
+    expect(response.body).toContain('data-user-panel="activity"');
+    expect(response.body).toContain('data-user-panel="apps-sites"');
+    expect(response.body).toContain('data-user-panel="permissions"');
+    expect(response.body).toContain('data-user-panel="agents"');
+    expect(response.body).toContain("renderUserDashboard(snapshot)");
+    expect(response.body).toContain("readUserNextAction(snapshot)");
+    expect(response.body).toContain("Advanced Diagnostics");
     expect(response.body).toContain("runtime-health");
     expect(response.body).toContain("operator-readiness");
     expect(response.body).toContain("/api/operator-evidence");
