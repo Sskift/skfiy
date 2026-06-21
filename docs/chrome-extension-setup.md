@@ -195,7 +195,7 @@ automation.
 ## Check Current Tab Readiness
 
 For a normal `http:` or `https:` page, the popup's current-tab fields should
-look like this before page observation or actions are considered ready:
+look like this before page observation or DOM actions are considered ready:
 
 - `Current host`: the host you expect skfiy to control.
 - `Host policy`: `Always allowed` or `Allowed this turn`, or `Ask by default`
@@ -203,6 +203,14 @@ look like this before page observation or actions are considered ready:
 - `Policy reason`: `Host allowed` after approval.
 - `Host permission`: `Granted for http(s)://host/*`.
 - `Page session`: `Loaded`.
+
+This means skfiy may observe the page and run approved DOM actions such as
+click, fill, submit, and scroll. Screenshot capture is a separate readiness lane.
+Background `chrome.tabs.captureVisibleTab` requires either Chrome capture
+permission for `<all_urls>` or an activeTab user gesture. If the current site is
+granted but capture permission is missing, health/status should show the page
+control state as `partial`, with DOM actions available and screenshot blocked
+with `nextAction: "grant_chrome_capture_permission"`.
 
 The background worker only queries the content-script session when the skfiy
 host policy allows the host and Chrome has granted the optional host permission.
@@ -218,6 +226,22 @@ extension details page, grant site access for the current site, return to the
 tab, and click **Refresh host policy**. On `chrome://`, `file://`, extension
 pages, or other non-HTTP pages, host permission can be `Not required for this
 page`, but structured page actions may still be unavailable.
+
+If screenshot readiness says Chrome capture permission is missing, the expected
+interim command result is:
+
+```json
+{
+  "result": "blocked",
+  "reason": "chrome-capture-permission-missing",
+  "nextAction": "grant_chrome_capture_permission"
+}
+```
+
+Do not treat current-site host permission as screenshot permission. Until the
+extension has a user-granted capture path or the packaged desktop screenshot
+fallback is proven on an unlocked display, screenshot can remain blocked while
+DOM page control is usable.
 
 For machine probes, the background worker and content script both respond to the
 read-only `skfiy.page_control.health` message. The response includes the
@@ -282,6 +306,10 @@ contract for dashboards or handoff reports.
   local Chrome host policy.
 - Missing Chrome host permission: grant site access for the current site in the
   extension details page.
+- Missing Chrome capture permission: screenshot capture can be blocked even when
+  DOM actions are ready. Grant the extension a capture-capable permission path or
+  run the packaged desktop screenshot fallback after the Mac is unlocked and
+  Screen Recording is granted to `dist/skfiy.app`.
 - Login or sensitive form visible: skfiy should pause rather than fill
   passwords, one-time codes, tokens, API keys, or payment fields.
 - Screen locked, display asleep, or `loginwindow` active: unlock the Mac and

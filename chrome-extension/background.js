@@ -47,7 +47,7 @@ const NATIVE_MESSAGE_TIMEOUT_MS = 3_000;
 const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
   manifest_version: 3,
   name: "skfiy Chrome Adapter",
-  version: "0.0.3",
+  version: "0.0.4",
   minimum_chrome_version: "116",
   permissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
   optional_host_permissions: ["http://*/*", "https://*/*"]
@@ -392,6 +392,55 @@ async function readChromeHostPermissionStatus(permissionDetails) {
   }
 }
 
+function createChromeCapturePermissionMessage() {
+  return "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.";
+}
+
+async function readChromeCapturePermissionStatus(tab) {
+  if (!Number.isInteger(tab?.id)) {
+    return {
+      state: "unknown",
+      reason: "active_tab_unavailable",
+      origins: ["<all_urls>"]
+    };
+  }
+  if (typeof chrome.permissions?.contains !== "function") {
+    return {
+      state: "unknown",
+      reason: "permissions_api_unavailable",
+      code: "chrome_capture_permission_unknown",
+      origins: ["<all_urls>"]
+    };
+  }
+
+  try {
+    const granted = await chrome.permissions.contains({ origins: ["<all_urls>"] });
+    if (granted) {
+      return {
+        state: "granted",
+        reason: "all_urls_granted",
+        origins: ["<all_urls>"]
+      };
+    }
+
+    return {
+      state: "missing",
+      reason: "chrome_capture_permission_missing",
+      code: "chrome_capture_permission_missing",
+      origins: ["<all_urls>"],
+      message: createChromeCapturePermissionMessage()
+    };
+  } catch (error) {
+    return {
+      state: "unknown",
+      reason: "permissions_check_failed",
+      code: "chrome_capture_permission_unknown",
+      origins: ["<all_urls>"],
+      lastError: readErrorMessage(error)
+    };
+  }
+}
+
 async function readContentScriptSession(tab, policyDecision, hostPermission, options = {}) {
   if (!Number.isInteger(tab?.id)) {
     return {
@@ -501,6 +550,7 @@ async function readCurrentTabDiagnostics(policy, tabId, options = {}) {
   const permissionDetails = getHostPermissionDetails(tab.url ?? "");
   const policyDecision = decideHostPolicy(policy, host);
   const hostPermission = await readChromeHostPermissionStatus(permissionDetails);
+  const capturePermission = await readChromeCapturePermissionStatus(tab);
   const contentScript = await readContentScriptSession(tab, policyDecision, hostPermission, options);
 
   return {
@@ -511,6 +561,7 @@ async function readCurrentTabDiagnostics(policy, tabId, options = {}) {
     origin: permissionDetails?.origin ?? null,
     hostPolicy: policyDecision,
     chromeHostPermission: hostPermission,
+    chromeCapturePermission: capturePermission,
     contentScript
   };
 }
@@ -742,6 +793,8 @@ function nextActionForPageControl(state) {
       return "grant_chrome_host_permission";
     case "blocked_by_host_policy":
       return "allow_host";
+    case "chrome_capture_permission_missing":
+      return "grant_chrome_capture_permission";
     case "content_script_not_loaded":
     case "not_loaded":
       return "reload_or_inject_content_script";
@@ -763,20 +816,28 @@ function createPageControlReadiness(capabilities, currentTab) {
   const activeTabAvailable = currentTab?.state === "available" && Number.isInteger(currentTab?.tabId);
   const hostPolicyAllowed = currentTab?.hostPolicy?.decision === "allowed";
   const hostPermissionReady = ["granted", "not_applicable"].includes(currentTab?.chromeHostPermission?.state);
+  const capturePermissionReady = currentTab?.chromeCapturePermission?.state === "granted";
   const contentScriptLoaded = contentScript.state === "loaded";
   const screenshotAvailable = activeTabAvailable
     && hostPolicyAllowed
-    && capabilities?.activeTab === true
-    && capabilities?.tabs === true;
+    && capabilities?.tabs === true
+    && capturePermissionReady;
   const screenshotReason = screenshotAvailable
     ? "Visible tab screenshots are available."
     : !activeTabAvailable
       ? "Active Chrome tab is unavailable."
       : !hostPolicyAllowed
         ? "Host policy has not allowed this page."
-        : capabilities?.activeTab !== true
-          ? "Extension activeTab permission is unavailable."
-          : "Extension tabs permission is unavailable.";
+        : capabilities?.tabs !== true
+          ? "Extension tabs permission is unavailable."
+          : currentTab?.chromeCapturePermission?.message
+            ?? currentTab?.chromeCapturePermission?.lastError
+            ?? createChromeCapturePermissionMessage();
+  const screenshotNextAction = screenshotAvailable
+    ? "capture_visible_tab"
+    : currentTab?.chromeCapturePermission?.state === "missing"
+      ? "grant_chrome_capture_permission"
+      : nextActionForPageControl("partial");
   const domActionsAvailable = hostPolicyAllowed && hostPermissionReady && contentScriptLoaded
     && contentCapabilities.domActions !== false;
   const blockers = [];
@@ -823,28 +884,31 @@ function createPageControlReadiness(capabilities, currentTab) {
     ?? contentControl.reason
     ?? (state === "partial" ? screenshotReason : "Current page is ready for Computer Use controls.");
   const nextAction = nextActionForPageControl(state);
+  const actionAvailableReason = domActionsAvailable
+    ? "DOM actions are available."
+    : reason;
   const contentActions = contentControl.actions && typeof contentControl.actions === "object"
     ? contentControl.actions
     : {};
   const actions = {
     click: contentActions.click ?? createControlReadiness(
       domActionsAvailable && contentCapabilities.click !== false,
-      reason,
+      actionAvailableReason,
       nextAction
     ),
     fill: contentActions.fill ?? createControlReadiness(
       domActionsAvailable && contentCapabilities.fill === true,
-      reason,
+      actionAvailableReason,
       nextAction
     ),
     submit: contentActions.submit ?? createControlReadiness(
       domActionsAvailable && contentCapabilities.submit === true,
-      reason,
+      actionAvailableReason,
       nextAction
     ),
     scroll: contentActions.scroll ?? createControlReadiness(
       domActionsAvailable && contentCapabilities.scroll !== false,
-      reason,
+      actionAvailableReason,
       nextAction
     )
   };
@@ -875,6 +939,7 @@ function createPageControlReadiness(capabilities, currentTab) {
     },
     hostPolicy: currentTab?.hostPolicy ?? null,
     chromeHostPermission: currentTab?.chromeHostPermission ?? null,
+    chromeCapturePermission: currentTab?.chromeCapturePermission ?? null,
     contentScript: {
       state: contentScript.state ?? "not_queried",
       reason: contentScript.reason ?? null,
@@ -891,7 +956,7 @@ function createPageControlReadiness(capabilities, currentTab) {
       screenshot: screenshotAvailable,
       downloads: capabilities?.downloads === true
     },
-    screenshot: createControlReadiness(screenshotAvailable, screenshotReason, screenshotAvailable ? "capture_visible_tab" : nextAction),
+    screenshot: createControlReadiness(screenshotAvailable, screenshotReason, screenshotNextAction),
     actions,
     blockers,
     pageSafety: contentControl.pageSafety ?? contentScript.pageSafety ?? null,

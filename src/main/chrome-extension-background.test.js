@@ -673,7 +673,7 @@ describe("Chrome extension background policy sync", () => {
               state: "blocked_by_chrome_host_permission",
               nextAction: "grant_chrome_host_permission",
               capabilities: expect.objectContaining({
-                screenshot: true,
+                screenshot: false,
                 domActions: false
               }),
               actions: {
@@ -722,7 +722,7 @@ describe("Chrome extension background policy sync", () => {
         windowId: 8,
         url: "https://allowed.example/dashboard"
       },
-      grantedOrigins: ["https://allowed.example/*"],
+      grantedOrigins: ["https://allowed.example/*", "<all_urls>"],
       contentScriptSession: {
         state: "loaded",
         url: "https://allowed.example/dashboard",
@@ -833,6 +833,82 @@ describe("Chrome extension background policy sync", () => {
     }));
   });
 
+  it("does not report screenshot available when only the current host is granted", async () => {
+    const mock = createChromeMock([], {
+      activeTab: {
+        id: 46,
+        windowId: 8,
+        url: "https://allowed.example/dashboard"
+      },
+      grantedOrigins: ["https://allowed.example/*"],
+      contentScriptSession: {
+        state: "loaded",
+        host: "allowed.example",
+        pageControl: {
+          state: "ready",
+          capabilities: {
+            diagnostics: true,
+            observe: true,
+            domActions: true,
+            click: true,
+            fill: true,
+            submit: true,
+            scroll: true,
+            screenshot: "background_required"
+          },
+          actions: {
+            click: { capable: true, state: "available", nextAction: "send_page_action" },
+            fill: { capable: true, state: "available", nextAction: "send_page_action" },
+            submit: { capable: true, state: "available", nextAction: "send_page_action" },
+            scroll: { capable: true, state: "available", nextAction: "send_page_action" }
+          }
+        }
+      }
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["allowed.example"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    mock.chrome.runtime.onMessage.listeners[0]({
+      type: HOST_POLICY_SYNC_STATUS,
+      requestId: "popup-status-site-only-capture"
+    }, {}, sendResponse);
+
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        pageControl: expect.objectContaining({
+          capable: true,
+          state: "partial",
+          reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
+          capabilities: expect.objectContaining({
+            domActions: true,
+            screenshot: false
+          }),
+          chromeCapturePermission: expect.objectContaining({
+            state: "missing",
+            origins: ["<all_urls>"]
+          }),
+          screenshot: {
+            capable: false,
+            state: "blocked",
+            reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
+            nextAction: "grant_chrome_capture_permission"
+          },
+          actions: expect.objectContaining({
+            click: expect.objectContaining({ capable: true }),
+            submit: expect.objectContaining({ capable: true })
+          })
+        })
+      }));
+    });
+  });
+
   it("returns a read-only page-control health protocol for smoke and operator probes", async () => {
     const pageControl = {
       schemaVersion: 1,
@@ -857,7 +933,7 @@ describe("Chrome extension background policy sync", () => {
         windowId: 10,
         url: "https://allowed.example/dashboard"
       },
-      grantedOrigins: ["https://allowed.example/*"],
+      grantedOrigins: ["https://allowed.example/*", "<all_urls>"],
       contentScriptSession: {
         state: "loaded",
         url: "https://allowed.example/dashboard",
@@ -930,7 +1006,7 @@ describe("Chrome extension background policy sync", () => {
         windowId: 9,
         url: "https://allowed.example/dashboard"
       },
-      grantedOrigins: ["https://allowed.example/*"]
+      grantedOrigins: ["https://allowed.example/*", "<all_urls>"]
     });
     mock.storage[HOST_POLICY_STORAGE_KEY] = {
       defaultMode: "ask",
@@ -990,9 +1066,6 @@ describe("Chrome extension background policy sync", () => {
         url: "https://allowed.example/dashboard"
       },
       grantedOrigins: ["https://allowed.example/*"],
-      manifest: {
-        permissions: ["downloads", "nativeMessaging", "scripting", "storage"]
-      },
       contentScriptSession: {
         state: "loaded",
         host: "allowed.example",
@@ -1038,7 +1111,7 @@ describe("Chrome extension background policy sync", () => {
         pageControl: expect.objectContaining({
           capable: true,
           state: "partial",
-          reason: "Extension activeTab permission is unavailable.",
+          reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
           capabilities: expect.objectContaining({
             screenshot: false,
             domActions: true,
@@ -1050,8 +1123,8 @@ describe("Chrome extension background policy sync", () => {
           screenshot: {
             capable: false,
             state: "blocked",
-            reason: "Extension activeTab permission is unavailable.",
-            nextAction: "ingest_page_control"
+            reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.",
+            nextAction: "grant_chrome_capture_permission"
           },
           actions: expect.objectContaining({
             click: expect.objectContaining({ capable: true }),
@@ -1314,7 +1387,7 @@ describe("Chrome extension background policy sync", () => {
       createPolicyResponse({ allowedHosts: ["127.0.0.1:63852"], currentTurnAllowedHosts: [], blockedHosts: [] }),
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*"],
+      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
       contentScriptSession: {
         state: "loaded",
         host: "127.0.0.1:63852",
@@ -1912,7 +1985,7 @@ describe("Chrome extension background policy sync", () => {
         windowId: 7,
         url: "http://127.0.0.1:63852/"
       },
-      grantedOrigins: ["http://127.0.0.1/*"],
+      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
       contentScriptSessions: [
         undefined,
         {

@@ -276,17 +276,21 @@ fails ambiguously: the latest real run records `reason:
 "chrome-capture-permission-missing"` with Chrome's `Either the '<all_urls>' or
 'activeTab' permission is required.` message, while desktop screenshot fallback
 is separately blocked when macOS reports a locked/asleep loginwindow session.
+The readiness contract must treat that as a separate lane: current-site optional
+host permission is sufficient for DOM observe/click/fill/submit/scroll, but not
+for background `chrome.tabs.captureVisibleTab`; dashboard/status should show
+`pageControl.state: "partial"` when DOM actions are ready and screenshot capture
+still needs `<all_urls>` permission, an activeTab gesture, or desktop fallback.
 The follow-up tab-discovery implementation adds `skfiy chrome tabs`,
 `skfiy.tabs.discover`, bounded `pageTabs` Native Messaging evidence, startup
 scanning for wake tabs that loaded before the service worker woke, and a typed
-registration-drift diagnostic. Its real installed-extension proof is currently
-blocked by Chrome service-worker registration drift: the local unpacked manifest
-is `0.0.3`, Chrome still records
-`service_worker_registration_info.version: "0.0.2"` for extension id
-`plcpkkhlcacihjfohlojdknnkademlno`, and the stored extension path is still the
-expected repository `chrome-extension/` directory. The packaged command now
-reports this as `extension-registration-stale` instead of a generic tab
-verification failure.
+registration-drift diagnostic. Earlier real installed-extension proof was
+blocked by Chrome service-worker registration drift; after the screenshot
+readiness change, the local unpacked manifest and Chrome registered service
+worker both report `0.0.4`. The current live blocker has moved to
+`chrome-tabs-not-verified`: the wake URL opens and Native Messaging remains
+connected, but no fresh `skfiy.tabs.discover` / `pageTabs` command evidence is
+written yet.
 
 ## User Dashboard Roadmap
 
@@ -321,7 +325,8 @@ subordinate to the pet and voice bot:
    extension/CDP/screenshot fallback mode. For Chrome, the primary user state
    should distinguish "Can control this page", "Needs skfiy host approval",
    "Needs Chrome site access", "Extension needs refresh", "Internal Chrome page
-   cannot be controlled", and "Falling back to screenshot".
+   cannot be controlled", "DOM actions ready but screenshot needs permission",
+   and "Falling back to screenshot".
 5. **Permissions:** Screen Recording, Accessibility, Microphone, Speech
    Recognition, Finder Automation, Chrome extension, and setup actions.
 6. **Agents:** long-horizon targets such as `money-run`, active sub-agent/task
@@ -365,9 +370,9 @@ for a full React migration:
    or stop a turn, but stop/approval visibility must also stay in the pet.
 7. Add a Chrome page-control summary card sourced from `extension.pageControl`.
    It must show the current tab host, readiness state, host-policy decision,
-   Chrome optional host permission state, content-script state, and available
-   actions. The card must not imply Chrome can control `chrome://` or
-   `chrome-extension://` pages.
+   Chrome optional host permission state, Chrome capture permission state,
+   content-script state, and available actions. The card must not imply Chrome
+   can control `chrome://` or `chrome-extension://` pages.
 
 Week B should make the dashboard product-grade and prepare the HeroUI migration:
 
@@ -431,17 +436,26 @@ Detailed task handoff:
    ids in real smokes. Codex Chrome control can list but cannot claim
    `chrome://extensions/`, so this reload remains a browser/desktop action until
    a Chrome-supported re-registration path exists.
-3. Convert the manual action proof into automated product smoke. `skfiy chrome
+3. Fix screenshot readiness before screenshot capture. Health/status/dashboard
+   must report DOM actions and screenshot separately: a page with skfiy host
+   approval, Chrome site access, and loaded content script can be actionable for
+   observe/click/fill/submit/scroll while screenshot remains blocked by missing
+   `<all_urls>` or activeTab gesture permission. The regression test lives in
+   `src/main/chrome-extension-background.test.js`, and full screenshot pass
+   still requires `pageScreenshot.hasDataUrl: true` or a proven packaged desktop
+   fallback.
+4. Convert the manual action proof into automated product smoke. `skfiy chrome
    reload-extension`, `observe`, `fill`, `click`, `submit`, and `scroll` now
    have real compiled-binary evidence on an authorized localhost tab; the
    remaining Week A work is to encode that sequence in `smoke:chrome`, preserve
    one artifact per command, keep action runs sequential, and keep screenshot as
    blocked until Chrome capture permission or desktop fallback is proven.
-4. Promote reload verification. A `verified` reload result should require
+5. Promote reload verification. A `verified` reload result should require
    `pageControl.activeTab.tabId === targetTabId` and, for action readiness,
-   `pageControl.state === "ready"`. A stale popup/internal-tab heartbeat should
-   be `blocked`, not `verified`.
-5. Define the extension update boundary. In development, Codex may click the
+   DOM action readiness for the requested page. A stale popup/internal-tab
+   heartbeat should be `blocked`, not `verified`, and screenshot readiness must
+   remain partial until capture permission/fallback is proven.
+6. Define the extension update boundary. In development, Codex may click the
    Chrome extension card reload button after source changes while skfiy is still
    gaining self-reload ability; in product, skfiy owns extension-context reload,
    freshness checks, Chrome registration drift diagnostics, and target-tab
@@ -449,14 +463,16 @@ Detailed task handoff:
    JavaScript refreshes, but service-worker re-registration can still require
    Chrome's extension-card reload; packaged extension uploads and Chrome Web
    Store updates remain explicit browser/distribution operations.
-6. Add dashboard display for the new commands. The user dashboard should show
+7. Add dashboard display for the new commands. The user dashboard should show
    copyable commands and one-click local actions only for eligible HTTP(S) pages;
    otherwise it should show the concrete next action: allow host, grant Chrome
-   site access, reload extension, reload stale extension registration, open a
-   normal web page, or switch to screenshot fallback.
-7. Add product tests. Unit tests should cover every blocker state. A real
+   site access, grant Chrome capture permission, reload extension, reload stale
+   extension registration, open a normal web page, or switch to screenshot
+   fallback.
+8. Add product tests. Unit tests should cover every blocker state. A real
    installed-extension smoke should use the manually installed id when provided
-   and should record `ready` evidence on an authorized localhost page.
+   and should record DOM-action readiness plus the screenshot-ready or
+   screenshot-blocked lane on an authorized localhost page.
 
 ### Week B: Move From Demo Page To Repeated Use
 
