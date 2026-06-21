@@ -1274,6 +1274,64 @@ function readWakeTargetTabId(url) {
   }
 }
 
+function readWakeAction(url) {
+  if (!isOwnExtensionUrl(url)) {
+    return "";
+  }
+
+  try {
+    return new URL(url).searchParams.get("skfiyWakeAction") ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function readObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : undefined;
+}
+
+function readPageObservation(response) {
+  const snapshot = readObject(response?.snapshot);
+  if (snapshot) {
+    return snapshot;
+  }
+  return readObject(response?.pageObservation);
+}
+
+async function sendWakePageObservation(targetTabId) {
+  const observeRequestId = `page-control-observe-popup_wake-${Date.now()}`;
+  const nativeRequestId = `page-control-observe-native-popup_wake-${Date.now()}`;
+  const observeResponse = await routePageMessage({
+    type: MESSAGE_TYPES.PAGE_OBSERVE,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId: observeRequestId,
+    tabId: targetTabId,
+    payload: {
+      mode: "current_page",
+      include: ["title", "url", "visible_text", "forms", "interactive_elements"],
+      source: "popup_wake"
+    }
+  });
+  const pageObservation = readPageObservation(observeResponse);
+
+  return sendNativeMessage({
+    type: MESSAGE_TYPES.PAGE_OBSERVE,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId: nativeRequestId,
+    payload: {
+      mode: "current_page",
+      include: ["title", "url", "visible_text", "forms", "interactive_elements"],
+      source: "popup_wake",
+      targetTabId,
+      ...(pageObservation ? { pageObservation } : {})
+    }
+  }, {
+    syncHostPolicy: false
+  });
+}
+
 async function readNativeHeartbeatTabDirective(tabId) {
   if (!Number.isInteger(tabId)) {
     return {
@@ -1292,7 +1350,8 @@ async function readNativeHeartbeatTabDirective(tabId) {
 
     return {
       skip: true,
-      targetTabId: readWakeTargetTabId(url)
+      targetTabId: readWakeTargetTabId(url),
+      wakeAction: readWakeAction(url)
     };
   } catch {
     return {
@@ -1340,8 +1399,13 @@ function registerTabHeartbeatListeners() {
   chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo, tab) => {
     if (changeInfo?.status === "complete" || typeof changeInfo?.url === "string") {
       const wakeTargetTabId = readWakeTargetTabId(changeInfo?.url) ?? readWakeTargetTabId(tab?.url);
+      const wakeAction = readWakeAction(changeInfo?.url) || readWakeAction(tab?.url);
       if (Number.isInteger(wakeTargetTabId)) {
         setTimeout(() => {
+          if (wakeAction === "observe") {
+            void sendWakePageObservation(wakeTargetTabId);
+            return;
+          }
           void pingNativeHeartbeat("popup_wake", wakeTargetTabId);
         }, 150);
         return;

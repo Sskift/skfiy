@@ -9,6 +9,7 @@ const HOST_POLICY_SYNC_REFRESH = "skfiy.host_policy.sync_refresh";
 const NATIVE_HEARTBEAT = "skfiy.native.heartbeat";
 const DEV_RELOAD_REQUEST = "skfiy.dev.reload";
 const PAGE_CONTROL_HEALTH = "skfiy.page_control.health";
+const PAGE_OBSERVE = "skfiy.page.observe";
 
 function createEvent() {
   const listeners = [];
@@ -84,6 +85,7 @@ function createChromeMock(nativeResponses = [], options = {}) {
   const grantedOrigins = new Set(options.grantedOrigins ?? []);
   const activeTab = options.activeTab;
   const contentScriptSession = options.contentScriptSession;
+  const pageObserveSnapshot = options.pageObserveSnapshot;
   const contentScriptSessions = Array.isArray(options.contentScriptSessions)
     ? [...options.contentScriptSessions]
     : undefined;
@@ -183,6 +185,14 @@ function createChromeMock(nativeResponses = [], options = {}) {
               schemaVersion: 1,
               requestId: message.requestId,
               session: contentScriptSession
+            };
+          }
+          if (message?.type === PAGE_OBSERVE && pageObserveSnapshot) {
+            return {
+              type: "skfiy.page.observe_result",
+              schemaVersion: 1,
+              requestId: message.requestId,
+              snapshot: pageObserveSnapshot
             };
           }
           return undefined;
@@ -1086,6 +1096,68 @@ describe("Chrome extension background policy sync", () => {
         })
       })
     });
+  });
+
+  it("routes observe wake URLs through page observation native heartbeat", async () => {
+    const pageObserveSnapshot = {
+      schemaVersion: 1,
+      title: "skfiy observe smoke",
+      url: "http://127.0.0.1:63852/",
+      visibleText: "skfiy observe live smoke 2026-06-21 compiled binary path"
+    };
+    const mock = createChromeMock([
+      createPageObserveResponse()
+    ], {
+      grantedOrigins: ["http://127.0.0.1/*"],
+      pageObserveSnapshot
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["127.0.0.1:63852"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
+      if (tabId === 99) {
+        return {
+          id: 99,
+          windowId: 7,
+          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe"
+        };
+      }
+      if (tabId === 42) {
+        return {
+          id: 42,
+          windowId: 7,
+          url: "http://127.0.0.1:63852/"
+        };
+      }
+      return undefined;
+    });
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    mock.chrome.tabs.onUpdated.listeners[0](99, {
+      status: "complete"
+    }, {
+      id: 99,
+      windowId: 7,
+      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe"
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(mock.postedMessages).toEqual([
+      expect.objectContaining({
+        schemaVersion: 1,
+        type: PAGE_OBSERVE,
+        payload: expect.objectContaining({
+          source: "popup_wake",
+          targetTabId: 42,
+          pageObservation: pageObserveSnapshot
+        })
+      })
+    ]);
   });
 
   it("lets the popup trigger a manual native host policy refresh", async () => {

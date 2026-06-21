@@ -15,8 +15,19 @@
 - Manually installed Chrome extension id: `plcpkkhlcacihjfohlojdknnkademlno`.
 - Proven path: `./dist/skfiy chrome reload-extension --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json` can verify `pageControl.state: "ready"` on an authorized localhost HTTP page when `SKFIY_CHROME_TARGET_TAB_ID` is set from tab discovery.
 - Proven readiness capabilities: diagnostics, observe, DOM actions, click, fill, submit, scroll, screenshot, and downloads.
-- Not yet product-complete: packaged `chrome observe/screenshot/click/fill/submit/scroll` commands are not all implemented, replay evidence is not yet written for each extension action, and dashboard launchers are not yet user-grade.
-- Development update boundary: Codex may click the Chrome extension card reload button while iterating, but skfiy product behavior must rely on packaged CLI freshness checks and target-tab verification. Local unpacked reloads and packaged extension uploads remain explicit browser/distribution operations.
+- 2026-06-21 implementation update: `chrome observe` has been added to the packaged CLI command surface, the popup wake URL can request `skfiyWakeAction=observe`, the Native Messaging heartbeat can persist `pageObservation`, and the related Vitest suite plus `npm run build` have passed locally.
+- Current product answer to "can skfiy control Chrome?": **not yet as a release promise**. The extension readiness path is real, and `chrome observe` is now implemented behind the compiled CLI, but a live installed-Chrome observe run against the current extension id still needs to be rerun after extension reload before the capability can be called verified. Click/fill/submit/scroll/screenshot commands are still planned work.
+- Development update boundary: Codex may reload the skfiy extension card while iterating because the user granted Chrome extension developer-mode permissions, but skfiy product behavior must rely on packaged CLI freshness checks and target-tab verification. Local unpacked reloads and packaged extension uploads remain explicit browser/distribution operations.
+- Target-tab discovery gap: `skfiy chrome tabs` is not implemented yet. Until Task 3 lands, real tests may use a manually discovered numeric Chrome tab id or a development-only Chrome control helper solely to identify the current ordinary HTTP(S) tab.
+
+## Immediate P0 Loop
+
+1. Build `dist/skfiy`.
+2. Reload the manually installed extension id `plcpkkhlcacihjfohlojdknnkademlno`.
+3. Open or reuse an authorized ordinary HTTP(S) page.
+4. Run `./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json`.
+5. Require `result: "verified"`, `extensionConnection.messageType: "skfiy.page.observe"`, and `extensionConnection.pageObservation.visibleText` containing the test page text.
+6. Only after that evidence exists, promote observe into dashboard user controls and continue to screenshot/click/fill/submit/scroll.
 
 ## File Structure
 
@@ -35,9 +46,13 @@
 
 - `npx vitest run src/main/cli-command-surface.test.ts -t "runs chrome observe"`
 - `npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-native-host.test.ts`
+- `npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-native-host.test.ts src/main/chrome-extension-popup.test.js`
+- `npx tsc --noEmit`
 - `npm run build`
 - `export SKFIY_CHROME_EXTENSION_ID=plcpkkhlcacihjfohlojdknnkademlno`
-- `export SKFIY_CHROME_TARGET_TAB_ID=$(./dist/skfiy chrome tabs --extension-id "$SKFIY_CHROME_EXTENSION_ID" --json | node -e 'let data=""; process.stdin.on("data", c => data += c); process.stdin.on("end", () => { const json = JSON.parse(data); const tab = json.tabs.find((entry) => entry.eligible === true || entry.state === "eligible"); if (!tab) process.exit(2); console.log(tab.id); });')`
+- Open the authorized ordinary HTTP(S) test page in the front Chrome tab, then run `export SKFIY_CHROME_TARGET_TAB_ID=$(osascript -e 'tell application "Google Chrome" to id of active tab of front window')`
+- Future replacement after Task 3: `export SKFIY_CHROME_TARGET_TAB_ID=$(./dist/skfiy chrome tabs --extension-id "$SKFIY_CHROME_EXTENSION_ID" --json | node -e 'let data=""; process.stdin.on("data", c => data += c); process.stdin.on("end", () => { const json = JSON.parse(data); const tab = json.tabs.find((entry) => entry.eligible === true || entry.state === "eligible"); if (!tab) process.exit(2); console.log(tab.id); });')`
+- `./dist/skfiy chrome reload-extension --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json`
 - `./dist/skfiy chrome observe --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json`
 - `./dist/skfiy chrome screenshot --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json`
 - `./dist/skfiy chrome click --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --selector "#submit" --json`
@@ -58,7 +73,7 @@
 - Test: `src/main/cli-command-surface.test.ts`
 - Test: `src/main/chrome-native-host.test.ts`
 
-- [ ] **Step 1: Keep the current failing CLI test**
+- [x] **Step 1: Keep the current failing CLI test**
 
 Run:
 
@@ -66,9 +81,9 @@ Run:
 npx vitest run src/main/cli-command-surface.test.ts -t "runs chrome observe"
 ```
 
-Expected: FAIL with exit code assertion `expected 0, received 2`, proving `chrome observe` is not wired yet.
+Observed: FAIL with exit code assertion `expected 0, received 2`, proving `chrome observe` was not wired yet.
 
-- [ ] **Step 2: Add the page-control invoker**
+- [x] **Step 2: Add the page-control invoker**
 
 Create `src/main/chrome-extension-page-control.ts` with an exported `invokeChromeExtensionPageControl(input)` that:
 
@@ -86,28 +101,31 @@ export interface ChromeExtensionPageControlInput {
 }
 ```
 
-It opens the extension wake URL, polls `chrome-extension-connection.json`, returns `result: "verified"` only when the heartbeat is fresh for the requested action and target tab, and returns `result: "blocked"` with a `reason`/`nextAction` otherwise.
+Implemented for `observe`: it opens the extension wake URL, polls `chrome-extension-connection.json`, returns `result: "verified"` only when the heartbeat is fresh for the requested action and target tab, and returns `result: "blocked"` with a `reason`/`nextAction` otherwise.
 
-- [ ] **Step 3: Wire `chrome observe` into the CLI**
+- [x] **Step 3: Wire `chrome observe` into the CLI**
 
 In `src/main/cli-command-surface.ts`, add `observe` to `ChromeSubcommand`, command metadata, command normalization, and execution through the invoker. JSON output must include `command: "chrome observe"`, `executesSystemMutation: true`, `action: "observe"`, `extensionId`, `wakeUrl`, and `extensionConnection`.
 
-- [ ] **Step 4: Relay observe results through Native Messaging**
+- [x] **Step 4: Relay observe results through Native Messaging**
 
 In `chrome-extension/popup.js`, parse `skfiyWakeAction=observe`, send a bounded `skfiy.page.observe` request to the requested `skfiyTargetTabId`, and forward the resulting page snapshot to the native host as `pageObservation`. In `src/main/chrome-native-host.ts`, persist `pageObservation` beside `pageControl` in the connection heartbeat.
 
-- [ ] **Step 5: Verify green tests**
+- [x] **Step 5: Verify green tests**
 
 Run:
 
 ```bash
 npx vitest run src/main/cli-command-surface.test.ts -t "runs chrome observe"
 npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-native-host.test.ts
+npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-native-host.test.ts src/main/chrome-extension-popup.test.js
+npx tsc --noEmit
+npm run build
 ```
 
-Expected: PASS for the new observe path and unchanged existing CLI/native-host tests.
+Observed: PASS for the new observe path, unchanged existing CLI/native-host tests, popup wake observe test, TypeScript, and the packaged build.
 
-- [ ] **Step 6: Real observe test**
+- [x] **Step 6: Real observe test**
 
 Run against an authorized local HTTP tab:
 
@@ -118,12 +136,12 @@ Run against an authorized local HTTP tab:
   --json
 ```
 
-Expected: `result: "verified"` and `extensionConnection.pageObservation.visibleText` contains the test page text.
+Observed on 2026-06-21 against Chrome tab `1782096038` on `http://127.0.0.1:63852/`: `result: "verified"` and `extensionConnection.pageObservation.visibleText` contained `skfiy observe live smoke 2026-06-21 compiled binary path`. Local evidence was persisted to `.skfiy-smoke/chrome-observe-live.json`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/main/cli-command-surface.ts src/main/chrome-extension-page-control.ts src/main/chrome-extension-reloader.ts src/main/chrome-native-host.ts chrome-extension/popup.js src/main/cli-command-surface.test.ts src/main/chrome-native-host.test.ts
+git add src/main/cli-command-surface.ts src/main/chrome-extension-page-control.ts src/main/chrome-extension-reloader.ts src/main/chrome-native-host.ts chrome-extension/popup.js src/main/cli-command-surface.test.ts src/main/chrome-native-host.test.ts src/main/chrome-extension-popup.test.js
 git commit -m "feat: add Chrome observe page-control command"
 ```
 

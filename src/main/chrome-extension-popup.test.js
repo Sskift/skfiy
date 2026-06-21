@@ -8,6 +8,8 @@ const HOST_POLICY_SYNC_STATUS = "skfiy.host_policy.sync_status";
 const HOST_POLICY_SYNC_REFRESH = "skfiy.host_policy.sync_refresh";
 const NATIVE_HEARTBEAT = "skfiy.native.heartbeat";
 const DEV_RELOAD_REQUEST = "skfiy.dev.reload";
+const PAGE_OBSERVE = "skfiy.page.observe";
+const NATIVE_MESSAGE = "skfiy.native.message";
 
 function readExtensionFile(relativePath) {
   return readFileSync(path.join(extensionRoot, relativePath), "utf8");
@@ -1028,6 +1030,96 @@ describe("Chrome extension popup policy sync status", () => {
         expect.objectContaining({
           type: NATIVE_HEARTBEAT,
           tabId: 42
+        })
+      ]));
+    });
+  });
+
+  it("runs page observe from wake URLs when skfiyWakeAction is observe", async () => {
+    installPopupDocument();
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe");
+    const policy = createPolicy();
+    const sentMessages = [];
+    const mock = createPopupChromeMock({
+      policy,
+      onSendMessage: (message) => {
+        sentMessages.push(message);
+        if (message.type === PAGE_OBSERVE) {
+          return {
+            type: "skfiy.page.observe_result",
+            schemaVersion: 1,
+            requestId: message.requestId,
+            snapshot: {
+              title: "skfiy page control live test",
+              url: "http://127.0.0.1:63852/",
+              visibleText: "skfiy chrome smoke ready"
+            }
+          };
+        }
+        if (message.type === NATIVE_MESSAGE) {
+          return {
+            type: "skfiy.native.response",
+            schemaVersion: 1,
+            requestId: message.payload.requestId,
+            result: "accepted"
+          };
+        }
+        return {
+          type: "skfiy.host_policy.response",
+          schemaVersion: 1,
+          requestId: message.requestId,
+          policy,
+          syncStatus: {
+            schemaVersion: 1,
+            state: "synced",
+            source: "native_host",
+            entryCount: 0
+          },
+          diagnostics: {
+            nativeHost: {
+              name: "com.sskift.skfiy",
+              connectionState: "connected"
+            },
+            currentTab: {
+              chromeHostPermission: {
+                state: "not_applicable",
+                origins: []
+              }
+            },
+            session: {
+              pageControl: {
+                state: "ready",
+                capabilities: {
+                  observe: true
+                }
+              }
+            }
+          }
+        };
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(sentMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: PAGE_OBSERVE,
+          tabId: 42
+        }),
+        expect.objectContaining({
+          type: NATIVE_MESSAGE,
+          payload: expect.objectContaining({
+            type: PAGE_OBSERVE,
+            payload: expect.objectContaining({
+              source: "popup_observe",
+              pageObservation: expect.objectContaining({
+                title: "skfiy page control live test",
+                visibleText: "skfiy chrome smoke ready"
+              })
+            })
+          })
         })
       ]));
     });

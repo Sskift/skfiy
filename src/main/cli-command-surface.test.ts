@@ -65,6 +65,7 @@ describe("CLI command surface", () => {
       "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
       "chrome status",
       "chrome extension-info",
+      "chrome observe",
       "chrome reload-extension",
       "chrome policy show",
       "chrome policy set",
@@ -139,6 +140,13 @@ describe("CLI command surface", () => {
         plannedMutation: false,
         executesSystemMutation: false,
         outputShape: "chrome-extension-info",
+        capabilities: ["chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "chrome observe",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "chrome-page-observe",
         capabilities: ["chrome-extension-page-control"]
       }),
       expect.objectContaining({
@@ -3752,6 +3760,74 @@ describe("CLI command surface", () => {
       wakeUrl: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42"
     });
     expect(chromeExtensionReloader).toHaveBeenCalledTimes(1);
+    expect(stderr).toEqual([]);
+  });
+
+  it("runs chrome observe through the extension page-control invoker", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const chromeExtensionPageControlInvoker = vi.fn(async (input) => {
+      expect(input).toMatchObject({
+        action: "observe",
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        homeDir: "/Users/tester",
+        targetTabId: 42
+      });
+
+      return {
+        schemaVersion: 1 as const,
+        result: "verified" as const,
+        action: "observe" as const,
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        wakeUrl: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe",
+        extensionConnection: {
+          state: "connected" as const,
+          liveConnection: "connected" as const,
+          path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+          ageSeconds: 0,
+          observedAt: "2026-06-20T00:00:00.000Z",
+          messageType: "skfiy.page.observe",
+          requestId: "popup-observe-native-1",
+          pageObservation: {
+            title: "skfiy page control live test",
+            url: "http://127.0.0.1:63852/",
+            visibleText: "skfiy chrome smoke ready"
+          }
+        }
+      };
+    });
+
+    await expect(runSkfiyCli({
+      argv: [
+        "chrome",
+        "observe",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop",
+        "--target-tab-id",
+        "42"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      chromeExtensionPageControlInvoker,
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      command: "chrome observe",
+      result: "verified",
+      executesSystemMutation: true,
+      action: "observe",
+      extensionConnection: {
+        messageType: "skfiy.page.observe",
+        pageObservation: {
+          title: "skfiy page control live test",
+          visibleText: "skfiy chrome smoke ready"
+        }
+      }
+    });
+    expect(chromeExtensionPageControlInvoker).toHaveBeenCalledTimes(1);
     expect(stderr).toEqual([]);
   });
 

@@ -142,6 +142,7 @@ export interface ChromeExtensionConnectionHeartbeatInput {
   requestId: string;
   result?: ChromeNativeBridgeResponse["result"];
   pageControl?: Record<string, unknown>;
+  pageObservation?: Record<string, unknown>;
 }
 
 export interface ChromeExtensionConnectionStatus {
@@ -155,6 +156,7 @@ export interface ChromeExtensionConnectionStatus {
   messageType?: string;
   requestId?: string;
   pageControl?: Record<string, unknown>;
+  pageObservation?: Record<string, unknown>;
 }
 
 export interface ChromeNativeMessagingHostIo {
@@ -173,6 +175,7 @@ export interface ChromeNativeMessagingHostIo {
   >> & {
     result: ChromeNativeBridgeResponse["result"];
     pageControl?: Record<string, unknown>;
+    pageObservation?: Record<string, unknown>;
   }) => Promise<void>;
 }
 
@@ -350,6 +353,7 @@ export async function writeChromeExtensionConnectionHeartbeat({
   messageType,
   requestId,
   pageControl,
+  pageObservation,
   io = createDefaultChromeNativeHostIo()
 }: ChromeExtensionConnectionHeartbeatInput & {
   homeDir: string;
@@ -363,7 +367,8 @@ export async function writeChromeExtensionConnectionHeartbeat({
     ...(launchOrigin ? { launchOrigin } : {}),
     messageType,
     requestId,
-    ...(pageControl ? { pageControl } : {})
+    ...(pageControl ? { pageControl } : {}),
+    ...(pageObservation ? { pageObservation } : {})
   };
 
   await io.mkdir(path.dirname(statePath));
@@ -457,7 +462,8 @@ export async function readChromeExtensionConnectionStatus({
     ...(typeof heartbeat.launchOrigin === "string" ? { launchOrigin: heartbeat.launchOrigin } : {}),
     ...(typeof heartbeat.messageType === "string" ? { messageType: heartbeat.messageType } : {}),
     ...(typeof heartbeat.requestId === "string" ? { requestId: heartbeat.requestId } : {}),
-    ...(readRecord(heartbeat.pageControl) ? { pageControl: readRecord(heartbeat.pageControl) } : {})
+    ...(readRecord(heartbeat.pageControl) ? { pageControl: readRecord(heartbeat.pageControl) } : {}),
+    ...(readRecord(heartbeat.pageObservation) ? { pageObservation: readRecord(heartbeat.pageObservation) } : {})
   };
 }
 
@@ -615,6 +621,7 @@ async function recordConnectionHeartbeat({
   }
   const payload = readRecord(record.payload);
   const pageControl = readRecord(payload?.pageControl);
+  const pageObservation = readRecord(payload?.pageObservation);
 
   try {
     await connectionHeartbeat({
@@ -622,7 +629,8 @@ async function recordConnectionHeartbeat({
       messageType: record.type,
       requestId: record.requestId,
       result: response.result,
-      ...(pageControl ? { pageControl } : {})
+      ...(pageControl ? { pageControl } : {}),
+      ...(pageObservation ? { pageObservation } : {})
     });
   } catch (error) {
     stderr.write(`Chrome extension heartbeat failed: ${readErrorMessage(error)}\n`);

@@ -46,6 +46,12 @@ import {
   type ChromeExtensionReloadResult
 } from "./chrome-extension-reloader.js";
 import {
+  invokeChromeExtensionPageControl,
+  type ChromeExtensionPageControlInput,
+  type ChromeExtensionPageControlInvoker,
+  type ChromeExtensionPageControlResult
+} from "./chrome-extension-page-control.js";
+import {
   createRuntimeSnapshotStatePath,
   createRuntimeTurnMarkerStatePath,
   RUNTIME_TURN_MARKER_SCHEMA_VERSION
@@ -93,6 +99,7 @@ export type DashboardProbeSubcommand = "status" | "snapshot";
 export type ChromeSubcommand =
   | "status"
   | "extension-info"
+  | "observe"
   | "reload-extension"
   | "install-host"
   | "uninstall-host";
@@ -101,6 +108,11 @@ export type McpTransport = "stdio";
 export type ChromeExtensionReloader = (
   input: ChromeExtensionReloadInput
 ) => Promise<ChromeExtensionReloadResult>;
+export type {
+  ChromeExtensionPageControlInput,
+  ChromeExtensionPageControlInvoker,
+  ChromeExtensionPageControlResult
+};
 
 const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
   ui: "scripts/smoke-ui-product.mjs",
@@ -377,6 +389,7 @@ export interface RunSkfiyCliInput {
   statusReader?: StatusReader;
   signatureReader?: SignatureReader;
   chromeExtensionReloader?: ChromeExtensionReloader;
+  chromeExtensionPageControlInvoker?: ChromeExtensionPageControlInvoker;
   smokeRunner?: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
   mcpStdin?: AsyncIterable<Buffer | Uint8Array | string> | Iterable<Buffer | Uint8Array | string>;
   mcpServerStarter?: SkfiyMcpServerStarter;
@@ -490,6 +503,15 @@ const COMMANDS: CliCommandDefinition[] = [
     plannedMutation: false,
     executesSystemMutation: false,
     outputShape: "chrome-extension-info",
+    capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
+  },
+  {
+    path: "chrome observe",
+    summary: "Observe the requested Chrome tab through the installed skfiy extension page-control bridge.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-page-observe",
     capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
   },
   {
@@ -1055,6 +1077,26 @@ export function createCliOutput(
       };
     }
 
+    if (invocation.subcommand === "observe") {
+      return {
+        schemaVersion: 1,
+        command: invocation.path,
+        generatedAt,
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "not-run",
+        action: "observe",
+        extensionId: invocation.options.extensionIds[0],
+        targetTabId: invocation.options.targetTabId,
+        actionPlan: [
+          "open the skfiy extension wake page with skfiyWakeAction=observe",
+          "route page observe to the requested target tab",
+          "record the page observation through Chrome Native Messaging",
+          "poll the Native Messaging heartbeat for pageObservation"
+        ]
+      };
+    }
+
     return {
       schemaVersion: 1,
       command: invocation.path,
@@ -1476,6 +1518,7 @@ export async function runSkfiyCli({
   statusReader = readCliStatus,
   signatureReader = readCodeSignatureStatus,
   chromeExtensionReloader = reloadChromeExtensionWithDesktopControl,
+  chromeExtensionPageControlInvoker = invokeChromeExtensionPageControl,
   smokeRunner = runSmokeScript,
   mcpStdin = process.stdin,
   mcpServerStarter = startSkfiyMcpServer,
@@ -1551,6 +1594,7 @@ export async function runSkfiyCli({
       homeDir: effectiveHomeDir,
       io: chromeNativeHostIo,
       chromeExtensionReloader,
+      chromeExtensionPageControlInvoker,
       stdout,
       stderr
     });
@@ -5639,6 +5683,7 @@ async function runChromeNativeHostCli({
   homeDir,
   io,
   chromeExtensionReloader,
+  chromeExtensionPageControlInvoker,
   stdout,
   stderr
 }: {
@@ -5648,6 +5693,7 @@ async function runChromeNativeHostCli({
   homeDir: string;
   io?: ChromeNativeHostIo;
   chromeExtensionReloader: ChromeExtensionReloader;
+  chromeExtensionPageControlInvoker: ChromeExtensionPageControlInvoker;
   stdout: SkfiyCliIo;
   stderr: SkfiyCliIo;
 }): Promise<number> {
@@ -5753,6 +5799,40 @@ async function runChromeNativeHostCli({
         reason: "reload-command-error",
         error: readErrorMessage(error),
         nextAction: "Check that Chrome is installed, Screen Recording and Accessibility are granted for skfiy, then retry."
+      }, null, 2)}\n`);
+      return 1;
+    }
+  }
+
+  if (invocation.subcommand === "observe") {
+    try {
+      const pageControlResult = await chromeExtensionPageControlInvoker({
+        action: "observe",
+        extensionId: invocation.options.extensionIds[0],
+        targetTabId: invocation.options.targetTabId,
+        homeDir,
+        generatedAt,
+        io
+      });
+      stdout.write(`${JSON.stringify({
+        command: invocation.path,
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        executesSystemMutation: true,
+        ...pageControlResult
+      }, null, 2)}\n`);
+      return pageControlResult.result === "blocked" ? 1 : 0;
+    } catch (error) {
+      stdout.write(`${JSON.stringify({
+        schemaVersion: 1,
+        command: invocation.path,
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        executesSystemMutation: true,
+        result: "blocked",
+        action: "observe",
+        extensionId: invocation.options.extensionIds[0],
+        reason: "page-control-command-error",
+        error: readErrorMessage(error),
+        nextAction: "Check that the skfiy Chrome extension is installed, connected to the native host, and allowed on the target page, then retry."
       }, null, 2)}\n`);
       return 1;
     }
@@ -5899,6 +5979,7 @@ function error(code: string, message: string): NormalizeCliCommandResult {
 function isChromeSubcommand(value: string | undefined): value is ChromeSubcommand {
   return value === "status"
     || value === "extension-info"
+    || value === "observe"
     || value === "reload-extension"
     || value === "install-host"
     || value === "uninstall-host";

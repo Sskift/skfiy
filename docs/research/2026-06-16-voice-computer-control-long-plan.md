@@ -143,6 +143,7 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
     - A fresh Native Messaging heartbeat file at `~/Library/Application Support/skfiy/chrome-extension-connection.json` whenever the packaged host handles an extension frame, so CLI, dashboard, and future Codex plugin consumers can distinguish an installed host from a live or stale extension session.
     - 2026-06-21 partial: the MV3 content script/background/popup now expose `pageControl` readiness evidence for active tab availability, host policy, Chrome host permission, content-script session, screenshot capability, DOM action capability, click/fill/submit/scroll availability, page safety, and sensitive pause; `status`, `doctor`, `chrome status`, dashboard snapshots/smoke evidence, Codex plugin MCP status, and Chrome smoke artifacts now ingest that readiness as one extension-side Computer Use evidence object.
     - 2026-06-21 live P0: manually installed extension id `plcpkkhlcacihjfohlojdknnkademlno` reached `pageControl.state: "ready"` on an authorized localhost HTTP page after skfiy host policy and Chrome optional host permission were granted. The verified capability set includes diagnostics, observe, DOM actions, click, fill, submit, scroll, screenshot, and downloads. The implementation now auto-injects `content-script.js` on `content_script_not_loaded`, routes wake popup heartbeats with `skfiyTargetTabId` back to the requested target tab, and avoids false-positive reloads when desktop observation is black or OCR-empty. This does not yet cover `chrome://`, `chrome-extension://`, unapproved hosts, missing Chrome site access, or side-effectful logged-in workflows.
+    - 2026-06-21 implementation update: `skfiy chrome observe` is now implemented as the first packaged extension-backed page-control command. It wakes the installed extension with `skfiyWakeAction=observe`, targets the requested Chrome tab id, waits for Native Messaging heartbeat evidence, and records bounded `pageObservation` for dashboard/replay consumers. Focused tests, the packaged build, and a real compiled-binary observe run against the manually installed extension passed; evidence was saved to `.skfiy-smoke/chrome-observe-live.json`. Screenshot/click/fill/submit/scroll remain planned follow-up commands and must not be implied as complete.
   - Fall back to screenshot Computer Use.
 - Finder/Lark third:
   - Finder for file organization.
@@ -196,7 +197,8 @@ The durable wedge is not the pet itself, nor dictation alone. The wedge is: voic
   - `skfiy doctor`: actionable permission and packaging diagnostics.
   - `skfiy permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>`.
   - `skfiy dashboard [--no-open] [--port <port>]`.
-  - `skfiy chrome extension-info`, `skfiy chrome status`, `skfiy chrome install-host`, `skfiy chrome uninstall-host`.
+  - `skfiy chrome extension-info`, `skfiy chrome status`, `skfiy chrome reload-extension`, `skfiy chrome observe`, `skfiy chrome install-host`, `skfiy chrome uninstall-host`.
+  - planned Chrome page-control commands: `skfiy chrome tabs`, `skfiy chrome screenshot`, `skfiy chrome click`, `skfiy chrome fill`, `skfiy chrome submit`, and `skfiy chrome scroll`.
   - `skfiy mcp serve --stdio`: Codex plugin-facing MCP entry point for read-only status/doctor tools.
   - `skfiy smoke <ui|desktop-session|ghostty|chrome|dashboard|codex-plugin|finder|voice|money-run> --output <path>`.
   - `skfiy release check --json-output <path>` and `skfiy alpha artifact`.

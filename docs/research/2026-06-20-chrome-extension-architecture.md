@@ -220,6 +220,16 @@ runtime behavior.
   an authorized localhost HTTP tab. The next architecture gap is turning that
   readiness into packaged CLI/dashboard page actions and a repeatable
   installed-extension smoke, not just popup diagnostics.
+- 2026-06-21 implementation update: `skfiy chrome observe` is now the first
+  packaged CLI page-control action in the source tree. The CLI opens an
+  extension wake URL with `skfiyWakeAction=observe`, the popup relays a bounded
+  `skfiy.page.observe` result for the requested tab, and the Native Messaging
+  host persists `pageObservation` in `chrome-extension-connection.json`.
+  Architecture-wise this validates the chosen wake-url/native-heartbeat path.
+  Product-wise the real installed-extension observe smoke passed on 2026-06-21
+  through compiled `./dist/skfiy` against an authorized localhost HTTP page, with
+  evidence in `.skfiy-smoke/chrome-observe-live.json`. Screenshot, click, fill,
+  submit, and scroll are the next actions to add after observe.
 - A focused Vitest test validates the manifest and skeleton strings without
   launching Chrome.
 

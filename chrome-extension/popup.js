@@ -14,7 +14,9 @@ const MESSAGE_TYPES = Object.freeze({
   HOST_POLICY_SYNC_STATUS: "skfiy.host_policy.sync_status",
   HOST_POLICY_SYNC_REFRESH: "skfiy.host_policy.sync_refresh",
   NATIVE_HEARTBEAT: "skfiy.native.heartbeat",
-  DEV_RELOAD_REQUEST: "skfiy.dev.reload"
+  DEV_RELOAD_REQUEST: "skfiy.dev.reload",
+  PAGE_OBSERVE: "skfiy.page.observe",
+  NATIVE_MESSAGE: "skfiy.native.message"
 });
 
 let pendingHostPermissionOrigins = [];
@@ -643,6 +645,14 @@ function readTargetTabId() {
   }
 }
 
+function readWakeAction() {
+  try {
+    return new URL(globalThis.location?.href ?? "").searchParams.get("skfiyWakeAction") ?? "";
+  } catch {
+    return "";
+  }
+}
+
 async function refreshHostPolicy() {
   const button = document.getElementById("sync-policy-button");
   button.disabled = true;
@@ -698,6 +708,65 @@ async function checkHeartbeat() {
     }, undefined);
   } finally {
     button.disabled = false;
+  }
+}
+
+async function observeCurrentPageFromWake() {
+  const targetTabId = readTargetTabId();
+  const observeRequestId = `popup-observe-${Date.now()}`;
+  const nativeRequestId = `popup-observe-native-${Date.now()}`;
+
+  try {
+    const observeResponse = await chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.PAGE_OBSERVE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: observeRequestId,
+      payload: {
+        mode: "current_page",
+        include: ["title", "url", "visible_text", "forms", "interactive_elements"],
+        source: "popup_observe"
+      },
+      ...(Number.isInteger(targetTabId) ? { tabId: targetTabId } : {})
+    });
+    const pageObservation = observeResponse?.snapshot && typeof observeResponse.snapshot === "object"
+      ? observeResponse.snapshot
+      : observeResponse?.pageObservation;
+    const snapshot = await chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.NATIVE_MESSAGE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: nativeRequestId,
+      payload: {
+        type: MESSAGE_TYPES.PAGE_OBSERVE,
+        schemaVersion: MESSAGE_SCHEMA_VERSION,
+        requestId: nativeRequestId,
+        payload: {
+          mode: "current_page",
+          include: ["title", "url", "visible_text", "forms", "interactive_elements"],
+          source: "popup_observe",
+          ...(Number.isInteger(targetTabId) ? { targetTabId } : {}),
+          ...(pageObservation ? { pageObservation } : {})
+        }
+      }
+    });
+    applySyncStatus({
+      state: snapshot?.result === "accepted" ? "synced" : "error",
+      source: "native_host",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      nativeBridgeState: snapshot?.result === "accepted" ? "connected" : "unavailable",
+      nativeMessageType: MESSAGE_TYPES.PAGE_OBSERVE,
+      lastError: snapshot?.reason ?? snapshot?.error ?? null,
+      error: snapshot?.reason ?? snapshot?.error ?? null
+    }, undefined);
+  } catch (error) {
+    applySyncStatus({
+      state: "error",
+      source: "native_host",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      lastError: error instanceof Error ? error.message : "Unable to observe page",
+      error: error instanceof Error ? error.message : "Unable to observe page"
+    }, undefined);
   }
 }
 
@@ -772,7 +841,11 @@ document.getElementById("dev-reload-button").addEventListener("click", () => {
 void renderPopup()
   .then(() => {
     if (shouldAutoCheckHeartbeat()) {
-      void checkHeartbeat();
+      if (readWakeAction() === "observe") {
+        void observeCurrentPageFromWake();
+      } else {
+        void checkHeartbeat();
+      }
     }
   })
   .catch((error) => {

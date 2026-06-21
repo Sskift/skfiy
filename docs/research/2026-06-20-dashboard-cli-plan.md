@@ -124,6 +124,8 @@ Commands represented:
 - `skfiy chrome policy show`
 - `skfiy chrome policy set --host <host> --action <always-allow|allow-current-turn|block|ask>`
 - `skfiy chrome policy reset`
+- `skfiy chrome reload-extension --extension-id <id> --target-tab-id <tab-id> --json`
+- `skfiy chrome observe --extension-id <id> --target-tab-id <tab-id> --json`
 - `skfiy chrome install-host`
 - `skfiy chrome uninstall-host`
 - `skfiy mcp serve --stdio`
@@ -131,7 +133,18 @@ Commands represented:
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
 
-Mutating-looking commands are explicit subcommands. `skfiy permissions open <target>` now reports `executesSystemMutation: true`, opens only fixed `x-apple.systempreferences:` Privacy & Security URLs, and returns the same concrete System Settings/action-plan JSON whether the opener succeeds or fails. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy chrome policy set` and `skfiy chrome policy reset` are the user-level Chrome host policy mutations; `skfiy chrome policy show` is read-only. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
+Mutating-looking commands are explicit subcommands. `skfiy permissions open <target>` now reports `executesSystemMutation: true`, opens only fixed `x-apple.systempreferences:` Privacy & Security URLs, and returns the same concrete System Settings/action-plan JSON whether the opener succeeds or fails. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy chrome policy set` and `skfiy chrome policy reset` are the user-level Chrome host policy mutations; `skfiy chrome policy show` is read-only. `skfiy chrome reload-extension` and `skfiy chrome observe` are also mutation-capable because they open extension UI or wake the installed extension and write fresh Native Messaging heartbeat evidence. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
+
+2026-06-21 update: `chrome observe` is the first extension-backed page-control
+command in the packaged CLI. It wakes the installed extension with
+`skfiyWakeAction=observe`, targets the requested Chrome tab id, waits for the
+Native Messaging heartbeat, and returns dashboard-safe JSON with `action`,
+`wakeUrl`, `extensionConnection`, and bounded `pageObservation` when verified.
+It is not enough to call Chrome control complete: `chrome tabs`,
+`chrome screenshot`, `chrome click`, `chrome fill`, `chrome submit`, and
+`chrome scroll` are still planned command work, and the dashboard should surface
+observe as "ready after latest live smoke" until a compiled-binary real-tab run
+has been recorded.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`. `money-run` is the one script-level exception: the CLI accepts the same user-facing `--output` flag but forwards it as `--json-output` to `scripts/smoke-money-run-supervision.mjs`.
 
@@ -231,6 +244,22 @@ But the product is not complete until packaged `dist/skfiy` commands can
 observe, screenshot, click, fill, submit, and scroll the requested target tab,
 record replay evidence, and return stable dashboard-safe blockers without
 falling back to hidden Browser Use or a tmux process.
+
+2026-06-21 implementation update: the first slice of that gap is implemented.
+`src/main/chrome-extension-page-control.ts` now backs `skfiy chrome observe`,
+`chrome-extension/popup.js` handles `skfiyWakeAction=observe`, and
+`src/main/chrome-native-host.ts` records `pageObservation` in the same local
+heartbeat file consumed by status and dashboard paths. Focused red/green tests,
+the combined CLI/native-host/popup suite, TypeScript, and `npm run build` have
+passed locally. A real installed-extension observe run through compiled
+`./dist/skfiy` also passed on 2026-06-21 against
+`http://127.0.0.1:63852/`: the command returned `result: "verified"` and
+`pageObservation.visibleText` contained
+`skfiy observe live smoke 2026-06-21 compiled binary path`. Local evidence was
+persisted to `.skfiy-smoke/chrome-observe-live.json`. This proves read-only
+observe for authorized ordinary HTTP(S) pages; screenshot/click/fill/submit and
+scroll still need their own packaged commands and real smoke evidence before
+browser control can be called complete.
 
 ## User Dashboard Roadmap
 

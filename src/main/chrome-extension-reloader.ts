@@ -174,7 +174,7 @@ export function createChromeExtensionManagerUrl(extensionId: string): string {
 
 export function createChromeExtensionWakeUrl(
   extensionId: string,
-  options: { targetTabId?: number } = {}
+  options: { targetTabId?: number; wakeAction?: string } = {}
 ): string {
   const params = new URLSearchParams({
     skfiyWake: String(Date.now())
@@ -182,6 +182,9 @@ export function createChromeExtensionWakeUrl(
 
   if (Number.isInteger(options.targetTabId)) {
     params.set("skfiyTargetTabId", String(options.targetTabId));
+  }
+  if (options.wakeAction) {
+    params.set("skfiyWakeAction", options.wakeAction);
   }
 
   return `chrome-extension://${requireChromeExtensionId(extensionId)}/popup.html?${params.toString()}`;

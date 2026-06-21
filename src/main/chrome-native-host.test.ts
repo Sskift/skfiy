@@ -678,6 +678,11 @@ describe("Chrome Native Messaging bridge runtime", () => {
           capabilities: {
             screenshot: true
           }
+        },
+        pageObservation: {
+          title: "skfiy page control live test",
+          url: "http://127.0.0.1:63852/",
+          visibleText: "skfiy chrome smoke ready"
         }
       }
     });
@@ -722,6 +727,11 @@ describe("Chrome Native Messaging bridge runtime", () => {
         capabilities: {
           screenshot: true
         }
+      },
+      pageObservation: {
+        title: "skfiy page control live test",
+        url: "http://127.0.0.1:63852/",
+        visibleText: "skfiy chrome smoke ready"
       }
     })]);
   });
