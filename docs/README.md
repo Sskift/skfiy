@@ -25,6 +25,9 @@ research notes as dated context unless they contain a still-open product gap.
   These are archival, not active task lists. If a research plan lands, move the
   durable instructions into the canonical docs and keep only background context
   here.
+- `superpowers/plans/`: executable implementation plans for agentic workers.
+  These plans can reference research notes, but should contain concrete files,
+  steps, commands, and expected evidence.
 
 ## Local Artifact Hygiene
 

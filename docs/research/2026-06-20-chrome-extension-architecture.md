@@ -213,9 +213,13 @@ runtime behavior.
   tab host-policy decision/reason, optional Chrome host-permission state, and
   content-script page-session state. Missing HTTP/HTTPS optional host permission
   is reported as a read-only blocked diagnostic with the origin pattern that
-  must be granted before page diagnostics or actions can run. Live
-  installed-extension product smoke remains blocked by branded Chrome's
-  unpacked-extension change.
+  must be granted before page diagnostics or actions can run. Automated
+  unpacked-extension loading remains blocked by branded Chrome's
+  `--load-extension` removal, but a manually installed branded-Chrome extension
+  id `plcpkkhlcacihjfohlojdknnkademlno` has now proven `pageControl.ready` on
+  an authorized localhost HTTP tab. The next architecture gap is turning that
+  readiness into packaged CLI/dashboard page actions and a repeatable
+  installed-extension smoke, not just popup diagnostics.
 - A focused Vitest test validates the manifest and skeleton strings without
   launching Chrome.
 

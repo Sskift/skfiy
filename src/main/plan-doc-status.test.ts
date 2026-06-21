@@ -28,13 +28,15 @@ function readLatestAlphaEvidence(): LatestAlphaEvidence {
 }
 
 describe("implementation plan status docs", () => {
-  it("does not keep completed implementation plan files as active repo docs", () => {
+  it("keeps only the current active implementation plan as an executable repo doc", () => {
     const planDir = path.join(process.cwd(), "docs", "superpowers", "plans");
     const activePlanFiles = existsSync(planDir)
       ? readdirSync(planDir).filter((entry) => entry.endsWith(".md"))
       : [];
 
-    expect(activePlanFiles).toEqual([]);
+    expect(activePlanFiles).toEqual([
+      "2026-06-21-browser-control-dashboard-iteration.md"
+    ]);
   });
 
   it("documents the current local packaged-app evidence in README instead of plan archives", () => {
@@ -172,9 +174,10 @@ describe("implementation plan status docs", () => {
     const recommendedNextMove = longPlan.slice(longPlan.indexOf("## Recommended Next Move"));
     const recommendedNextMoveText = recommendedNextMove.toLowerCase();
 
-    expect(recommendedNextMoveText).toContain("write the chrome extension architecture note first");
+    expect(recommendedNextMoveText).toContain("finish the chrome extension action bridge");
+    expect(recommendedNextMoveText).toContain("skfiy chrome observe/screenshot/click/fill/submit/scroll");
     expect(recommendedNextMoveText).toContain("field-prove the packaged cli, dashboard, and codex plugin install path");
-    expect(recommendedNextMoveText).toContain("keep expanding the dashboard/control ui as a local audit surface");
+    expect(recommendedNextMoveText).toContain("reframe the dashboard as a user control plane");
     expect(recommendedNextMoveText).toContain("product-path native speech turn after speech recognition permission is granted");
     expect(recommendedNextMoveText).toContain("rerun ghostty, finder, chrome extension, dashboard, codex plugin, and voice product smokes with `--require-passed` after `smoke:desktop-session` passes");
     expect(recommendedNextMoveText).toContain("collect 3-5 accepted real tester reports");

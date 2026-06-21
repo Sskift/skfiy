@@ -223,6 +223,15 @@ must stay blocked or require explicit approval. The next product gap is exposing
 the ready extension capabilities as user-facing CLI/dashboard actions rather
 than only readiness evidence.
 
+2026-06-21 P0 clarification: the answer to "can skfiy control Chrome now?" is
+"not yet as a product promise." The installed extension can prove a target page
+is ready for structured control, and Codex can temporarily reload the extension
+card during development now that Chrome developer-mode permissions are granted.
+But the product is not complete until packaged `dist/skfiy` commands can
+observe, screenshot, click, fill, submit, and scroll the requested target tab,
+record replay evidence, and return stable dashboard-safe blockers without
+falling back to hidden Browser Use or a tmux process.
+
 ## User Dashboard Roadmap
 
 2026-06-21 update: the dashboard target is a user-facing control plane, not a
@@ -336,6 +345,9 @@ Week B should make the dashboard product-grade and prepare the HeroUI migration:
 This plan turns the P0 ready-state proof into usable browser control without
 overstating scope.
 
+Detailed task handoff:
+`docs/superpowers/plans/2026-06-21-browser-control-dashboard-iteration.md`.
+
 ### Week A: Make Readiness Actionable
 
 1. Add a target-tab discovery command. `skfiy chrome tabs --json` should report
@@ -359,12 +371,17 @@ overstating scope.
    heartbeat from a popup/internal tab. A `verified` reload result should require
    `pageControl.activeTab.tabId === targetTabId` and, for action readiness,
    `pageControl.state === "ready"`.
-5. Add dashboard display for the new commands. The user dashboard should show
+5. Define the extension update boundary. In development, Codex may click the
+   Chrome extension card reload button after source changes; in product, `skfiy`
+   owns only freshness checks and target-tab verification for the installed
+   extension. Local unpacked extension reload, packaged extension upload, and
+   Chrome Web Store update remain explicit browser/distribution operations.
+6. Add dashboard display for the new commands. The user dashboard should show
    copyable commands and one-click local actions only for eligible HTTP(S) pages;
    otherwise it should show the concrete next action: allow host, grant Chrome
    site access, reload extension, open a normal web page, or switch to screenshot
    fallback.
-6. Add product tests. Unit tests should cover every blocker state. A real
+7. Add product tests. Unit tests should cover every blocker state. A real
    installed-extension smoke should use the manually installed id when provided
    and should record `ready` evidence on an authorized localhost page.
 
