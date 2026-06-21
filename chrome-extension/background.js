@@ -305,7 +305,21 @@ async function readDevReloadStatus(syncStatusOverride) {
   };
 }
 
-async function readActiveTabDiagnosticsTarget() {
+async function readActiveTabDiagnosticsTarget(tabId) {
+  if (Number.isInteger(tabId)) {
+    try {
+      return {
+        tab: await chrome.tabs.get(tabId),
+        lastError: null
+      };
+    } catch (error) {
+      return {
+        tab: undefined,
+        lastError: readErrorMessage(error)
+      };
+    }
+  }
+
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     return {
@@ -427,8 +441,8 @@ async function readContentScriptSession(tab, policyDecision, hostPermission) {
   }
 }
 
-async function readCurrentTabDiagnostics(policy) {
-  const { tab, lastError } = await readActiveTabDiagnosticsTarget();
+async function readCurrentTabDiagnostics(policy, tabId) {
+  const { tab, lastError } = await readActiveTabDiagnosticsTarget(tabId);
   if (!tab) {
     return {
       state: "unavailable",
@@ -468,10 +482,10 @@ async function readCurrentTabDiagnostics(policy) {
   };
 }
 
-async function readHostPolicySnapshot() {
+async function readHostPolicySnapshot(tabId) {
   const policy = await readHostPolicy();
   const syncStatus = await readHostPolicySyncStatus(policy);
-  const currentTab = await readCurrentTabDiagnostics(policy);
+  const currentTab = await readCurrentTabDiagnostics(policy, tabId);
   const devReload = await readDevReloadStatus(syncStatus);
   return {
     policy,
@@ -480,8 +494,8 @@ async function readHostPolicySnapshot() {
   };
 }
 
-async function readPageControlHealth(requestId = "page-control-health") {
-  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+async function readPageControlHealth(requestId = "page-control-health", tabId) {
+  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(tabId);
   const pageControl = diagnostics.session.pageControl;
 
   return {
@@ -947,7 +961,8 @@ async function readDownloadsStatus(message) {
 }
 
 function unwrapNativeMessage(message) {
-  const payload = message?.payload && typeof message.payload === "object" && !Array.isArray(message.payload)
+  const shouldUnwrap = message?.type === MESSAGE_TYPES.NATIVE_MESSAGE;
+  const payload = shouldUnwrap && message?.payload && typeof message.payload === "object" && !Array.isArray(message.payload)
     ? message.payload
     : message;
 
@@ -1060,20 +1075,64 @@ export async function syncHostPolicy(trigger = "manual") {
   }
 }
 
-export async function pingNativeHeartbeat(trigger = "manual") {
+export async function pingNativeHeartbeat(trigger = "manual", tabId) {
   await syncHostPolicy(trigger);
-  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+  const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(tabId);
+  const pageControlHeartbeat = await sendPageControlNativeHeartbeat(
+    trigger,
+    diagnostics.session.pageControl
+  );
 
   return {
     type: MESSAGE_TYPES.NATIVE_HEARTBEAT_RESULT,
     schemaVersion: MESSAGE_SCHEMA_VERSION,
-    requestId: syncStatus.requestId ?? `${HOST_POLICY_SYNC_REQUEST_PREFIX}-${normalizeSyncTrigger(trigger)}`,
+    requestId: pageControlHeartbeat.requestId
+      ?? syncStatus.requestId
+      ?? `${HOST_POLICY_SYNC_REQUEST_PREFIX}-${normalizeSyncTrigger(trigger)}`,
     policy,
     syncStatus,
     heartbeat: summarizeHeartbeatFromSyncStatus(syncStatus),
+    pageControlHeartbeat,
     pageControl: diagnostics.session.pageControl,
     diagnostics
   };
+}
+
+async function sendPageControlNativeHeartbeat(trigger, pageControl) {
+  const normalizedTrigger = normalizeSyncTrigger(trigger);
+  const requestId = `page-control-health-${normalizedTrigger}-${Date.now()}`;
+
+  try {
+    const response = await sendNativeMessage({
+      type: MESSAGE_TYPES.PAGE_OBSERVE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId,
+      payload: {
+        mode: "current_page",
+        include: ["title", "url", "visible_text", "forms", "interactive_elements"],
+        source: "page_control_health",
+        pageControl
+      }
+    }, {
+      syncHostPolicy: false
+    });
+
+    return {
+      state: response?.result === "accepted" ? "recorded" : "error",
+      requestId,
+      result: response?.result ?? "unknown",
+      responseType: response?.type ?? null,
+      reason: response?.reason ?? response?.error ?? null
+    };
+  } catch (error) {
+    return {
+      state: "error",
+      requestId,
+      result: "error",
+      responseType: null,
+      reason: readErrorMessage(error)
+    };
+  }
 }
 
 export async function requestDevReload(requestId = `dev-reload-${Date.now()}`) {
@@ -1147,6 +1206,7 @@ export async function requestDevReload(requestId = `dev-reload-${Date.now()}`) {
     policy,
     syncStatus,
     heartbeat,
+    pageControlHeartbeat: heartbeatSnapshot.pageControlHeartbeat,
     devReload,
     pageControl: diagnostics.session.pageControl,
     diagnostics
@@ -1162,7 +1222,11 @@ function scheduleHostPolicySync(trigger) {
   return hostPolicySyncPromise;
 }
 
-function scheduleNativeHeartbeat(trigger) {
+function scheduleNativeHeartbeat(trigger, tabId) {
+  if (Number.isInteger(tabId)) {
+    return pingNativeHeartbeat(trigger, tabId);
+  }
+
   if (!nativeHeartbeatPromise) {
     nativeHeartbeatPromise = pingNativeHeartbeat(trigger).finally(() => {
       nativeHeartbeatPromise = null;
@@ -1179,6 +1243,17 @@ function scheduleExtensionLoadedHeartbeat() {
   setTimeout(() => {
     void scheduleNativeHeartbeat("service_worker_loaded");
   }, 0);
+}
+
+function registerTabHeartbeatListeners() {
+  chrome.tabs?.onActivated?.addListener?.((activeInfo) => {
+    void scheduleNativeHeartbeat("tab_activated", activeInfo?.tabId);
+  });
+  chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
+    if (changeInfo?.status === "complete" || typeof changeInfo?.url === "string") {
+      void scheduleNativeHeartbeat("tab_updated", tabId);
+    }
+  });
 }
 
 function sendNativeMessage(message, options = {}) {
@@ -1240,7 +1315,7 @@ async function handleRuntimeMessage(message) {
   }
 
   if (message?.type === MESSAGE_TYPES.PAGE_CONTROL_HEALTH) {
-    return readPageControlHealth(message.requestId);
+    return readPageControlHealth(message.requestId, message.tabId);
   }
 
   if (message?.type === MESSAGE_TYPES.DOWNLOADS_STATUS) {
@@ -1288,7 +1363,7 @@ async function handleRuntimeMessage(message) {
   }
 
   if (message?.type === MESSAGE_TYPES.NATIVE_HEARTBEAT) {
-    const result = await pingNativeHeartbeat("popup_heartbeat");
+    const result = await pingNativeHeartbeat("popup_heartbeat", message.tabId);
     return {
       ...result,
       requestId: message.requestId
@@ -1385,4 +1460,5 @@ chrome.runtime.onStartup.addListener(() => {
   void scheduleNativeHeartbeat("runtime_startup");
 });
 
+registerTabHeartbeatListeners();
 scheduleExtensionLoadedHeartbeat();

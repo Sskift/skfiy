@@ -281,6 +281,14 @@ describe("Chrome Native Messaging host plan", () => {
       launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
       messageType: "skfiy.page.observe",
       requestId: "request-heartbeat",
+      pageControl: {
+        state: "ready",
+        capabilities: {
+          screenshot: true,
+          domActions: true
+        },
+        source: "extension.diagnostics.currentTab.pageControl"
+      },
       io
     });
 
@@ -290,7 +298,15 @@ describe("Chrome Native Messaging host plan", () => {
       observedAt: "2026-06-19T23:59:00.000Z",
       launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
       messageType: "skfiy.page.observe",
-      requestId: "request-heartbeat"
+      requestId: "request-heartbeat",
+      pageControl: {
+        state: "ready",
+        capabilities: {
+          screenshot: true,
+          domActions: true
+        },
+        source: "extension.diagnostics.currentTab.pageControl"
+      }
     });
     await expect(readChromeExtensionConnectionStatus({
       homeDir: "/Users/tester",
@@ -304,7 +320,15 @@ describe("Chrome Native Messaging host plan", () => {
       observedAt: "2026-06-19T23:59:00.000Z",
       launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
       messageType: "skfiy.page.observe",
-      requestId: "request-heartbeat"
+      requestId: "request-heartbeat",
+      pageControl: {
+        state: "ready",
+        capabilities: {
+          screenshot: true,
+          domActions: true
+        },
+        source: "extension.diagnostics.currentTab.pageControl"
+      }
     });
     await expect(readChromeExtensionConnectionStatus({
       homeDir: "/Users/tester",
@@ -647,7 +671,15 @@ describe("Chrome Native Messaging bridge runtime", () => {
       schemaVersion: 1,
       type: "skfiy.page.observe",
       requestId: "request-framed",
-      payload: { currentTab: true }
+      payload: {
+        currentTab: true,
+        pageControl: {
+          state: "ready",
+          capabilities: {
+            screenshot: true
+          }
+        }
+      }
     });
     const stdout: Buffer[] = [];
     const stderr: string[] = [];
@@ -684,7 +716,13 @@ describe("Chrome Native Messaging bridge runtime", () => {
     expect(heartbeats).toEqual([expect.objectContaining({
       messageType: "skfiy.page.observe",
       requestId: "request-framed",
-      result: "accepted"
+      result: "accepted",
+      pageControl: {
+        state: "ready",
+        capabilities: {
+          screenshot: true
+        }
+      }
     })]);
   });
 });

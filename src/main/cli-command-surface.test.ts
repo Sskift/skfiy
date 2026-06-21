@@ -3689,6 +3689,72 @@ describe("CLI command surface", () => {
     expect(stderr).toEqual([]);
   });
 
+  it("passes a target Chrome tab id into the extension reload wake URL", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const chromeExtensionReloader = vi.fn(async (input: ChromeExtensionReloadInput) => {
+      expect(input).toMatchObject({
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        homeDir: "/Users/tester",
+        targetTabId: 42
+      });
+
+      return {
+        schemaVersion: 1 as const,
+        result: "verified" as const,
+        productPath: "cli -> helper activate_app -> helper observe_app -> helper ocr_image -> helper click -> extension wake page -> native-host heartbeat" as const,
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        managerUrl: "chrome://extensions/",
+        wakeUrl: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42",
+        screenshotPath: "/tmp/skfiy-chrome-extension-reload.png",
+        ocrLabelCount: 8,
+        observedWindowTitle: "扩展程序",
+        target: {
+          strategy: "extension-card-layout" as const,
+          label: "skfiy Chrome Adapter",
+          x: 1012,
+          y: 794,
+          confidence: 0.82
+        },
+        click: { ok: true },
+        extensionConnection: {
+          state: "connected" as const,
+          liveConnection: "connected" as const,
+          path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+          ageSeconds: 0,
+          observedAt: "2026-06-20T00:00:00.000Z",
+          messageType: "skfiy.page.observe",
+          requestId: "page-control-health-popup_heartbeat-1"
+        },
+        candidates: []
+      };
+    });
+
+    await expect(runSkfiyCli({
+      argv: [
+        "chrome",
+        "reload-extension",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop",
+        "--target-tab-id",
+        "42"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      chromeExtensionReloader,
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      command: "chrome reload-extension",
+      wakeUrl: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42"
+    });
+    expect(chromeExtensionReloader).toHaveBeenCalledTimes(1);
+    expect(stderr).toEqual([]);
+  });
+
   it("runs chrome host policy show, set, and reset through injected filesystem", async () => {
     const files: Record<string, string> = {};
     const io = {
@@ -4054,7 +4120,26 @@ describe("CLI command surface", () => {
         observedAt: "2026-06-19T23:59:00.000Z",
         launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
         messageType: "skfiy.page.observe",
-        requestId: "request-heartbeat"
+        requestId: "request-heartbeat",
+        pageControl: {
+          state: "ready",
+          reason: "Current page is ready for Computer Use controls.",
+          capabilities: {
+            diagnostics: true,
+            observe: true,
+            domActions: true,
+            click: true,
+            fill: true,
+            submit: true,
+            scroll: true,
+            screenshot: true
+          },
+          source: "extension.diagnostics.currentTab.pageControl",
+          counts: {
+            interactiveElements: 3,
+            forms: 1
+          }
+        }
       })
     };
     const stdout: string[] = [];
@@ -4109,7 +4194,24 @@ describe("CLI command surface", () => {
           requestId: "request-heartbeat"
         },
         capabilities: {
-          pageSafety: true
+          pageSafety: true,
+          pageControl: true
+        },
+        pageControl: {
+          schemaVersion: 1,
+          capability: "chrome-extension-page-control",
+          state: "ready",
+          source: "extension.diagnostics.currentTab.pageControl",
+          capabilities: {
+            domActions: true,
+            click: true,
+            fill: true,
+            screenshot: true
+          },
+          counts: {
+            interactiveElements: 3,
+            forms: 1
+          }
         },
         pageSafety: {
           schemaVersion: 1,

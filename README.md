@@ -253,6 +253,12 @@ current-tab readiness, and blocker triage, see
 path, manifest summary, Chrome Extension Manager handoff steps, and copyable
 `chrome install-host` / `chrome status` commands for the extension id Chrome
 shows after loading.
+`./dist/skfiy chrome reload-extension --extension-id <id> --target-tab-id <tab>`
+clicks the unpacked-extension reload control through desktop Computer Use, then
+opens the extension wake page with `skfiyTargetTabId` so the popup heartbeat
+observes that real Chrome tab instead of the popup itself. If Chrome reports
+`chrome_host_permission_missing`, the extension popup shows **Grant site access**;
+that Chrome permission prompt still requires an explicit user approval.
 
 ```bash
 ./dist/skfiy status --json

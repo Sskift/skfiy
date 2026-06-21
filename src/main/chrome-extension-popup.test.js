@@ -57,11 +57,15 @@ function createPopupChromeMock(options = {}) {
     }
     return options.snapshot;
   });
+  const requestPermission = vi.fn(async () => options.permissionGranted ?? true);
 
   return {
     chrome: {
       runtime: {
         sendMessage
+      },
+      permissions: {
+        request: requestPermission
       },
       storage: {
         local: {
@@ -73,7 +77,8 @@ function createPopupChromeMock(options = {}) {
       }
     },
     storage,
-    sendMessage
+    sendMessage,
+    requestPermission
   };
 }
 
@@ -236,6 +241,13 @@ describe("Chrome extension popup policy sync status", () => {
 
     await waitForAssertion(() => {
       expect(document.getElementById("connection-status").textContent).toBe("Synced with skfiy app");
+      expect(document.getElementById("interaction-summary").textContent)
+        .toBe("Ready to control this page.");
+      expect(document.getElementById("connection-chip").textContent).toBe("Connected");
+      expect(document.getElementById("page-control-chip").textContent).toBe("Ready");
+      expect(document.getElementById("page-action-summary").textContent)
+        .toBe("example.com can be observed and controlled through skfiy.");
+      expect(document.getElementById("heartbeat-button").textContent).toBe("Observe current page");
       expect(document.getElementById("native-host").textContent).toBe("com.sskift.skfiy");
       expect(document.getElementById("native-bridge-state").textContent).toBe("Connected");
       expect(document.getElementById("native-launch-origin").textContent)
@@ -375,6 +387,12 @@ describe("Chrome extension popup policy sync status", () => {
 
     await waitForAssertion(() => {
       expect(document.getElementById("connection-status").textContent).toBe("skfiy app unavailable");
+      expect(document.getElementById("interaction-summary").textContent)
+        .toBe("Grant site access to control this page.");
+      expect(document.getElementById("connection-chip").textContent).toBe("Disconnected");
+      expect(document.getElementById("page-control-chip").textContent).toBe("Needs access");
+      expect(document.getElementById("page-action-summary").textContent)
+        .toBe("Chrome needs permission for https://example.com/* before skfiy can observe or act.");
       expect(document.getElementById("native-bridge-state").textContent).toBe("Unavailable");
       expect(document.getElementById("native-launch-origin").textContent).toBe("Not observed");
       expect(document.getElementById("extension-manifest-version").textContent).toBe("MV3");
@@ -389,6 +407,20 @@ describe("Chrome extension popup policy sync status", () => {
       expect(document.getElementById("policy-sync-error").hidden).toBe(false);
       expect(document.getElementById("policy-sync-error").textContent)
         .toBe("Specified native messaging host not found.");
+      expect(document.getElementById("grant-site-access-button").hidden).toBe(false);
+      expect(document.getElementById("grant-site-access-button").textContent)
+        .toBe("Grant https://example.com/*");
+    });
+
+    document.getElementById("grant-site-access-button").click();
+
+    await waitForAssertion(() => {
+      expect(mock.requestPermission).toHaveBeenCalledWith({
+        origins: ["https://example.com/*"]
+      });
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: HOST_POLICY_SYNC_REFRESH
+      }));
     });
   });
 
@@ -941,6 +973,63 @@ describe("Chrome extension popup policy sync status", () => {
       expect(document.getElementById("dev-reload-status").textContent)
         .toContain("Reload scheduled");
       expect(document.getElementById("native-heartbeat").textContent).toContain("Connected");
+    });
+  });
+
+  it("passes skfiyTargetTabId from wake URLs into automatic heartbeat checks", async () => {
+    installPopupDocument();
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42");
+    const policy = createPolicy();
+    const sentMessages = [];
+    const mock = createPopupChromeMock({
+      policy,
+      onSendMessage: (message) => {
+        sentMessages.push(message);
+        return {
+          type: message.type === NATIVE_HEARTBEAT
+            ? "skfiy.native.heartbeat_result"
+            : "skfiy.host_policy.response",
+          schemaVersion: 1,
+          requestId: message.requestId,
+          policy,
+          syncStatus: {
+            schemaVersion: 1,
+            state: "synced",
+            source: "native_host",
+            entryCount: 0
+          },
+          diagnostics: {
+            nativeHost: {
+              name: "com.sskift.skfiy",
+              connectionState: "connected"
+            },
+            currentTab: {
+              chromeHostPermission: {
+                state: "not_applicable",
+                origins: []
+              }
+            },
+            session: {
+              pageControl: {
+                state: "unavailable",
+                capabilities: {}
+              }
+            }
+          }
+        };
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(sentMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: NATIVE_HEARTBEAT,
+          tabId: 42
+        })
+      ]));
     });
   });
 });

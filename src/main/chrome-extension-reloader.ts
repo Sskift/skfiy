@@ -29,6 +29,7 @@ const DEFAULT_POLL_TIMEOUT_MS = 5_000;
 export interface ChromeExtensionReloadInput {
   extensionId: string;
   homeDir: string;
+  targetTabId?: number;
   generatedAt?: string;
   helper?: ChromeExtensionReloadHelper;
   opener?: ChromeExtensionPageOpener;
@@ -77,6 +78,7 @@ export interface ChromeExtensionReloadResult {
 export async function reloadChromeExtensionWithDesktopControl({
   extensionId,
   homeDir,
+  targetTabId,
   generatedAt,
   helper = new DesktopHelperClient(),
   opener = openChromeExtensionManagerPage,
@@ -88,7 +90,7 @@ export async function reloadChromeExtensionWithDesktopControl({
 }: ChromeExtensionReloadInput): Promise<ChromeExtensionReloadResult> {
   const checkedExtensionId = requireChromeExtensionId(extensionId);
   const managerUrl = createChromeExtensionManagerUrl(checkedExtensionId);
-  const wakeUrl = createChromeExtensionWakeUrl(checkedExtensionId);
+  const wakeUrl = createChromeExtensionWakeUrl(checkedExtensionId, { targetTabId });
 
   await opener(managerUrl);
   await wait(DEFAULT_OPEN_SETTLE_MS);
@@ -167,8 +169,19 @@ export function createChromeExtensionManagerUrl(extensionId: string): string {
   return "chrome://extensions/";
 }
 
-export function createChromeExtensionWakeUrl(extensionId: string): string {
-  return `chrome-extension://${requireChromeExtensionId(extensionId)}/popup.html?skfiyWake=${Date.now()}`;
+export function createChromeExtensionWakeUrl(
+  extensionId: string,
+  options: { targetTabId?: number } = {}
+): string {
+  const params = new URLSearchParams({
+    skfiyWake: String(Date.now())
+  });
+
+  if (Number.isInteger(options.targetTabId)) {
+    params.set("skfiyTargetTabId", String(options.targetTabId));
+  }
+
+  return `chrome-extension://${requireChromeExtensionId(extensionId)}/popup.html?${params.toString()}`;
 }
 
 export function findChromeExtensionReloadTarget(

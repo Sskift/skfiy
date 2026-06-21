@@ -152,6 +152,21 @@ diagnostic visible and still schedules the browser reload when
 manifest-adjacent edits even while `extension.liveConnection` is `unknown`; use
 the `Heartbeat` and `Last error` rows to diagnose the bridge separately.
 
+For development loops that need to prove page control against a real tab, pass
+the Chrome tab id into the desktop reload command:
+
+```bash
+./dist/skfiy chrome reload-extension \
+  --extension-id <id> \
+  --target-tab-id <chrome-tab-id>
+```
+
+The command still clicks the reload control on `chrome://extensions`, but the
+wake URL includes `skfiyTargetTabId`. The popup's automatic heartbeat then asks
+the background worker to observe that page tab instead of observing the popup
+tab. A resulting `chrome_host_permission_missing` state is expected until the
+user grants the extension optional site access for that origin.
+
 Chrome does not let an unpacked MV3 extension watch arbitrary local source files
 or silently reload itself from outside the extension context. If
 `Dev reload` says the reload API is unavailable, use the normal

@@ -17,6 +17,8 @@ const MESSAGE_TYPES = Object.freeze({
   DEV_RELOAD_REQUEST: "skfiy.dev.reload"
 });
 
+let pendingHostPermissionOrigins = [];
+
 function hostFromUrl(url) {
   try {
     return new URL(url).host;
@@ -393,6 +395,118 @@ function formatPageControlReadiness(pageControl) {
   }
 }
 
+function setChip(id, label, state) {
+  const element = document.getElementById(id);
+  element.textContent = label;
+  element.dataset.state = state;
+}
+
+function readConnectionChip(syncStatus, nativeHost = {}) {
+  const state = nativeHost.connectionState ?? syncStatus?.state;
+
+  if (state === "connected" || state === "synced") {
+    return {
+      label: "Connected",
+      state: "connected"
+    };
+  }
+
+  if (state === "connecting" || state === "syncing") {
+    return {
+      label: "Connecting",
+      state: "unknown"
+    };
+  }
+
+  if (state === "unavailable" || state === "error") {
+    return {
+      label: "Disconnected",
+      state: "disconnected"
+    };
+  }
+
+  return {
+    label: "Waiting",
+    state: "unknown"
+  };
+}
+
+function readPermissionOrigin(permission = {}) {
+  if (Array.isArray(permission.origins) && permission.origins.length > 0) {
+    return permission.origins[0];
+  }
+  if (permission.origin) {
+    return `${permission.origin}/*`;
+  }
+  return "this site";
+}
+
+function applyInteractionSummary(syncStatus, diagnostics) {
+  const nativeHost = diagnostics?.nativeHost ?? {};
+  const currentTab = diagnostics?.currentTab ?? {};
+  const pageControl = readPageControlDiagnostics(diagnostics);
+  const connectionChip = readConnectionChip(syncStatus, nativeHost);
+  const host = currentTab.host || document.getElementById("current-host").textContent || "This page";
+  const permission = currentTab.chromeHostPermission ?? {};
+  const pageControlState = pageControl?.state;
+  let summary = "Checking this page.";
+  let actionSummary = "skfiy is reading the current Chrome tab state.";
+  let pageChip = {
+    label: "Checking page",
+    state: "unknown"
+  };
+
+  if (permission.state === "missing" || pageControlState === "blocked_by_chrome_host_permission") {
+    const origin = readPermissionOrigin(permission);
+    summary = "Grant site access to control this page.";
+    actionSummary = `Chrome needs permission for ${origin} before skfiy can observe or act.`;
+    pageChip = {
+      label: "Needs access",
+      state: "blocked"
+    };
+  } else if (pageControlState === "ready") {
+    summary = "Ready to control this page.";
+    actionSummary = `${host} can be observed and controlled through skfiy.`;
+    pageChip = {
+      label: "Ready",
+      state: "ready"
+    };
+  } else if (pageControlState === "partial") {
+    summary = "Page control is partially available.";
+    actionSummary = pageControl.reason || `${host} can be observed, but some actions are not available.`;
+    pageChip = {
+      label: "Partial",
+      state: "unknown"
+    };
+  } else if (pageControlState === "blocked_by_host_policy") {
+    summary = "Allow this host in skfiy first.";
+    actionSummary = pageControl.reason || `${host} is blocked by the current skfiy host policy.`;
+    pageChip = {
+      label: "Policy blocked",
+      state: "blocked"
+    };
+  } else if (pageControlState === "sensitive-paused") {
+    summary = "Sensitive content pause is active.";
+    actionSummary = pageControl.reason || "Review the page before allowing skfiy to act here.";
+    pageChip = {
+      label: "Paused",
+      state: "blocked"
+    };
+  } else if (connectionChip.state === "disconnected") {
+    summary = "Connect the skfiy app to control this page.";
+    actionSummary = "The Chrome adapter is loaded, but the native skfiy app is not connected.";
+    pageChip = {
+      label: "No app",
+      state: "blocked"
+    };
+  }
+
+  document.getElementById("interaction-summary").textContent = summary;
+  document.getElementById("page-action-summary").textContent = actionSummary;
+  setChip("connection-chip", connectionChip.label, connectionChip.state);
+  setChip("page-control-chip", pageChip.label, pageChip.state);
+}
+
 function applyPageDiagnostics(diagnostics, storedSensitivePause, host) {
   const session = readPageSessionDiagnostics(diagnostics);
   const pauseState = readSensitivePauseState(session, storedSensitivePause, host ?? diagnostics?.currentTab?.host);
@@ -440,10 +554,12 @@ function applySyncStatus(syncStatus, diagnostics) {
   document.getElementById("host-policy-reason").textContent = formatPolicyReason(currentTab.hostPolicy);
   document.getElementById("chrome-host-permission").textContent =
     formatHostPermission(currentTab.chromeHostPermission);
+  applyGrantSiteAccessState(currentTab.chromeHostPermission);
   document.getElementById("content-script-session").textContent =
     formatContentScriptSession(readPageSessionDiagnostics(diagnostics));
   document.getElementById("page-control-readiness").textContent =
     formatPageControlReadiness(readPageControlDiagnostics(diagnostics));
+  applyInteractionSummary(syncStatus, diagnostics);
   applyPageDiagnostics(diagnostics, undefined, currentTab.host);
   document.getElementById("native-host-policy-state").textContent = formatPolicyState(
     nativeHost.policyState ?? syncStatus?.nativeHostPolicyState ?? syncStatus?.hostPolicyState
@@ -466,6 +582,21 @@ function applySyncStatus(syncStatus, diagnostics) {
     errorLabel.hidden = true;
     errorElement.hidden = true;
     errorElement.textContent = "None";
+  }
+}
+
+function applyGrantSiteAccessState(chromeHostPermission) {
+  const button = document.getElementById("grant-site-access-button");
+  const origins = Array.isArray(chromeHostPermission?.origins)
+    ? chromeHostPermission.origins.filter((origin) => typeof origin === "string" && origin.length > 0)
+    : [];
+  pendingHostPermissionOrigins = chromeHostPermission?.state === "missing" ? origins : [];
+  button.hidden = pendingHostPermissionOrigins.length === 0;
+  button.disabled = false;
+  if (pendingHostPermissionOrigins.length > 0) {
+    button.textContent = `Grant ${pendingHostPermissionOrigins[0]}`;
+  } else {
+    button.textContent = "Grant site access";
   }
 }
 
@@ -499,6 +630,16 @@ function shouldAutoCheckHeartbeat() {
     return new URL(globalThis.location?.href ?? "").searchParams.has("skfiyWake");
   } catch {
     return false;
+  }
+}
+
+function readTargetTabId() {
+  try {
+    const value = new URL(globalThis.location?.href ?? "").searchParams.get("skfiyTargetTabId");
+    const parsed = value ? Number.parseInt(value, 10) : NaN;
+    return Number.isInteger(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -538,7 +679,13 @@ async function checkHeartbeat() {
   document.getElementById("native-heartbeat").textContent = "Checking";
 
   try {
-    const snapshot = await requestPolicySnapshot(MESSAGE_TYPES.NATIVE_HEARTBEAT);
+    const targetTabId = readTargetTabId();
+    const snapshot = await chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.NATIVE_HEARTBEAT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: `popup-${Date.now()}`,
+      ...(Number.isInteger(targetTabId) ? { tabId: targetTabId } : {})
+    });
     applySyncStatus(snapshot?.syncStatus, snapshot?.diagnostics);
   } catch (error) {
     applySyncStatus({
@@ -580,8 +727,38 @@ async function reloadExtension() {
   }
 }
 
+async function grantSiteAccess() {
+  const button = document.getElementById("grant-site-access-button");
+  const origins = [...pendingHostPermissionOrigins];
+  if (origins.length === 0) {
+    button.hidden = true;
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Requesting access";
+
+  try {
+    const granted = await chrome.permissions.request({ origins });
+    if (!granted) {
+      button.textContent = "Access not granted";
+      return;
+    }
+    button.textContent = "Access granted";
+    await refreshHostPolicy();
+  } catch (error) {
+    button.textContent = error instanceof Error ? error.message : "Unable to request access";
+  } finally {
+    button.disabled = false;
+  }
+}
+
 document.getElementById("sync-policy-button").addEventListener("click", () => {
   void refreshHostPolicy();
+});
+
+document.getElementById("grant-site-access-button").addEventListener("click", () => {
+  void grantSiteAccess();
 });
 
 document.getElementById("heartbeat-button").addEventListener("click", () => {

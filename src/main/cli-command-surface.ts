@@ -248,6 +248,7 @@ export type CliCommandInvocation =
       options: {
         extensionIds: string[];
         cliShimPath: string;
+        targetTabId?: number;
       };
     }
   | {
@@ -773,7 +774,8 @@ export function normalizeCliCommand(
       json: argv.includes("--json"),
       options: {
         extensionIds: readRepeatedOptionValues(argv, "--extension-id"),
-        cliShimPath: resolveOptionPath(argv, "--cli", rootDir, path.join(rootDir, "dist", "skfiy"))
+        cliShimPath: resolveOptionPath(argv, "--cli", rootDir, path.join(rootDir, "dist", "skfiy")),
+        targetTabId: readOptionalNumberOption(argv, "--target-tab-id")
       }
     });
   }
@@ -1038,13 +1040,16 @@ export function createCliOutput(
         executesSystemMutation: true,
         result: "not-run",
         extensionId: invocation.options.extensionIds[0],
+        targetTabId: invocation.options.targetTabId,
         productPath: CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
         actionPlan: [
           "open chrome://extensions/",
           "activate Google Chrome",
           "observe the extension list or detail page and OCR labels",
           "click the extension reload control",
-          "open the extension wake page",
+          invocation.options.targetTabId
+            ? "open the extension wake page with skfiyTargetTabId"
+            : "open the extension wake page",
           "poll the Native Messaging heartbeat"
         ]
       };
@@ -4066,7 +4071,7 @@ function normalizeChromePageControlCapability({
     cliShimPath?: string;
   };
 }): Record<string, unknown> {
-  const existing = readChromePageControlEvidence(extension);
+  const existing = readChromePageControlEvidence(extension, readRecord(connection));
   if (existing) {
     return createChromePageControlCapability({
       reported: existing.record,
@@ -4101,11 +4106,20 @@ function normalizeChromePageControlCapability({
 }
 
 function readChromePageControlEvidence(
-  extension: Record<string, unknown>
+  extension: Record<string, unknown>,
+  connection?: Record<string, unknown>
 ): { record: Record<string, unknown>; source: string } | undefined {
   const direct = readRecord(extension.pageControl);
   if (direct) {
     return { record: direct, source: readString(direct.source) ?? "extension.pageControl" };
+  }
+
+  const connectionPageControl = readRecord(connection?.pageControl);
+  if (connectionPageControl) {
+    return {
+      record: connectionPageControl,
+      source: readString(connectionPageControl.source) ?? "extension.connection.pageControl"
+    };
   }
 
   const diagnostics = readRecord(extension.diagnostics);
@@ -5715,6 +5729,7 @@ async function runChromeNativeHostCli({
     try {
       const reloadResult = await chromeExtensionReloader({
         extensionId: invocation.options.extensionIds[0],
+        targetTabId: invocation.options.targetTabId,
         homeDir,
         generatedAt,
         io
@@ -5996,6 +6011,16 @@ function readNumberOption(argv: string[], name: string, fallback: number): numbe
   }
 
   return parsed;
+}
+
+function readOptionalNumberOption(argv: string[], name: string): number | undefined {
+  const value = readOptionValue(argv, name);
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return readNumberOption(argv, name, 0);
 }
 
 function resolveOptionPath(
