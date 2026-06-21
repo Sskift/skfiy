@@ -3,6 +3,7 @@ import {
   invokeChromeExtensionPageControl,
   invokeChromeExtensionTabDiscovery
 } from "./chrome-extension-page-control";
+import type { ChromeAppleEventsTab } from "./chrome-extension-page-control";
 import type { ChromeNativeHostIo } from "./chrome-native-host";
 
 const EXTENSION_ID = "plcpkkhlcacihjfohlojdknnkademlno";
@@ -166,6 +167,111 @@ describe("Chrome extension page control invoker", () => {
           pageScreenshot: {
             hasDataUrl: true
           }
+        }
+      }
+    });
+  });
+
+  it("requires preserved command evidence to match the current request id", async () => {
+    const openedUrls: string[] = [];
+    const opener = vi.fn(async (url: string) => {
+      openedUrls.push(url);
+    });
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-tab_activated-1",
+        pageControl: {
+          state: "ready"
+        },
+        latestCommand: {
+          observedAt: "2026-06-21T10:10:00.100Z",
+          messageType: "skfiy.page.action",
+          requestId: "page-control-fill-cli-previous",
+          pageActionResult: {
+            result: "passed",
+            action: "fill",
+            targetTabId: 42,
+            selector: "#name"
+          }
+        }
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+
+    const result = await invokeChromeExtensionPageControl({
+      action: "fill",
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      targetTabId: 42,
+      selector: "#name",
+      text: "skfiy",
+      requestId: "page-control-fill-cli-current",
+      generatedAt: GENERATED_AT,
+      opener,
+      io,
+      wait: async () => undefined,
+      pollTimeoutMs: 1
+    });
+    const openedUrl = new URL(openedUrls[0] ?? "");
+
+    expect(openedUrl.searchParams.get("skfiyRequestId")).toBe("page-control-fill-cli-current");
+    expect(result).toMatchObject({
+      result: "blocked",
+      action: "fill",
+      reason: "page-control-fill-not-verified"
+    });
+  });
+
+  it("verifies preserved command evidence for the current request id", async () => {
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-tab_activated-1",
+        pageControl: {
+          state: "ready"
+        },
+        latestCommand: {
+          observedAt: "2026-06-21T10:10:00.100Z",
+          messageType: "skfiy.page.action",
+          requestId: "page-control-fill-cli-current",
+          pageActionResult: {
+            result: "passed",
+            action: "fill",
+            targetTabId: 42,
+            selector: "#name"
+          }
+        }
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+
+    const result = await invokeChromeExtensionPageControl({
+      action: "fill",
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      targetTabId: 42,
+      selector: "#name",
+      text: "skfiy",
+      requestId: "page-control-fill-cli-current",
+      generatedAt: GENERATED_AT,
+      opener: vi.fn(async () => undefined),
+      io,
+      wait: async () => undefined
+    });
+
+    expect(result).toMatchObject({
+      result: "verified",
+      action: "fill",
+      extensionConnection: {
+        latestCommand: {
+          requestId: "page-control-fill-cli-current"
         }
       }
     });
@@ -465,6 +571,52 @@ describe("Chrome extension page control invoker", () => {
           state: "blocked",
           eligible: false,
           blocker: "internal_chrome_page"
+        }
+      ]
+    });
+  });
+
+  it("normalizes Apple Events tab ids when osascript returns numeric strings", async () => {
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-popup_wake-1"
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+    const fallbackTabs = [
+      {
+        id: "1782096419",
+        windowId: "1782095132",
+        active: true,
+        title: "skfiy action smoke",
+        url: "http://127.0.0.1:53757/?skfiy_action_live=smoke"
+      }
+    ] as unknown as ChromeAppleEventsTab[];
+
+    const result = await invokeChromeExtensionTabDiscovery({
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      generatedAt: GENERATED_AT,
+      opener: vi.fn(async () => undefined),
+      io,
+      wait: async () => undefined,
+      pollTimeoutMs: 1,
+      fallbackTabLister: vi.fn(async () => fallbackTabs)
+    });
+
+    expect(result).toMatchObject({
+      result: "verified",
+      discoveryMode: "chrome-apple-events",
+      tabs: [
+        {
+          id: 1782096419,
+          windowId: 1782095132,
+          state: "eligible",
+          eligible: true
         }
       ]
     });

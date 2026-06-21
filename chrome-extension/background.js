@@ -47,7 +47,7 @@ const NATIVE_MESSAGE_TIMEOUT_MS = 3_000;
 const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
   manifest_version: 3,
   name: "skfiy Chrome Adapter",
-  version: "0.0.7",
+  version: "0.0.8",
   minimum_chrome_version: "116",
   permissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
   optional_host_permissions: ["http://*/*", "https://*/*"]
@@ -1570,6 +1570,7 @@ function readWakeDirective(url) {
   const dy = dyValue ? Number.parseInt(dyValue, 10) : NaN;
   return {
     wakeId: params.get("skfiyWake") ?? "",
+    requestId: params.get("skfiyRequestId") ?? "",
     targetTabId: readWakeTargetTabIdFromParams(params),
     wakeAction: params.get("skfiyWakeAction") ?? "",
     selector: params.get("skfiySelector") ?? "",
@@ -1588,6 +1589,7 @@ function mergeWakeDirectives(primary, fallback) {
 
   return {
     wakeId: primary.wakeId || fallback.wakeId,
+    requestId: primary.requestId || fallback.requestId,
     targetTabId: Number.isInteger(primary.targetTabId) ? primary.targetTabId : fallback.targetTabId,
     wakeAction: primary.wakeAction || fallback.wakeAction,
     selector: primary.selector || fallback.selector,
@@ -1606,6 +1608,7 @@ function createWakeDirectiveKey(directive) {
 
   return [
     directive.wakeId || "no-wake-id",
+    directive.requestId || "no-request-id",
     directive.targetTabId,
     directive.wakeAction || "heartbeat",
     directive.selector || "",
@@ -1650,7 +1653,7 @@ function scheduleWakeDirective(directive) {
   }
   setTimeout(() => {
     if (wakeAction === "observe") {
-      void sendWakePageObservation(wakeTargetTabId);
+      void sendWakePageObservation(directive);
       return;
     }
     if (["screenshot", "click", "fill", "submit", "scroll"].includes(wakeAction)) {
@@ -1685,7 +1688,7 @@ function readNumber(value) {
 }
 
 function createWakePageControlRequest(directive) {
-  const requestId = `page-control-${directive.wakeAction}-popup_wake-${Date.now()}`;
+  const requestId = directive.requestId || `page-control-${directive.wakeAction}-popup_wake-${Date.now()}`;
   if (directive.wakeAction === "screenshot") {
     return {
       type: MESSAGE_TYPES.PAGE_SCREENSHOT,
@@ -1766,9 +1769,10 @@ function summarizeWakePageScreenshot(response, targetTabId) {
   };
 }
 
-async function sendWakePageObservation(targetTabId) {
-  const observeRequestId = `page-control-observe-popup_wake-${Date.now()}`;
-  const nativeRequestId = `page-control-observe-native-popup_wake-${Date.now()}`;
+async function sendWakePageObservation(directive) {
+  const targetTabId = directive.targetTabId;
+  const observeRequestId = directive.requestId || `page-control-observe-popup_wake-${Date.now()}`;
+  const nativeRequestId = directive.requestId || `page-control-observe-native-popup_wake-${Date.now()}`;
   const observeResponse = await routePageMessage({
     type: MESSAGE_TYPES.PAGE_OBSERVE,
     schemaVersion: MESSAGE_SCHEMA_VERSION,
@@ -1807,7 +1811,7 @@ async function sendWakePageControlAction(directive) {
   const response = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
     ? await routePageScreenshot(request)
     : await routePageMessage(request);
-  const nativeRequestId = `page-control-${directive.wakeAction}-native-popup_wake-${Date.now()}`;
+  const nativeRequestId = directive.requestId || `page-control-${directive.wakeAction}-native-popup_wake-${Date.now()}`;
   const payload = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
     ? {
         source: "popup_wake",

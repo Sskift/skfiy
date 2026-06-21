@@ -85,12 +85,15 @@ describe("Chrome product smoke script", () => {
       [
         "--extension-chrome-app",
         "Google Chrome for Testing",
+        "--extension-id",
+        "plcpkkhlcacihjfohlojdknnkademlno",
         "--output",
         ".skfiy-smoke/chrome-cft.json"
       ],
       createDefaultChromeSmokeOptions("/repo")
     )).toMatchObject({
       extensionChromeAppName: "Google Chrome for Testing",
+      extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
       outputPath: path.resolve(".skfiy-smoke/chrome-cft.json")
     });
     expect(selectInstalledExtensionChromeApp({
@@ -122,6 +125,9 @@ describe("Chrome product smoke script", () => {
     );
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
       "--extension-chrome-app"
+    );
+    expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
+      "--extension-id"
     );
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
       "docs/chrome-extension-setup.md"
@@ -361,6 +367,86 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("heartbeatReadError");
     expect(source).toContain("readinessSnapshot");
     expect(source).toContain("remediation");
+  });
+
+  it("records an installed Chrome extension action smoke in the product smoke source", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
+      "utf8"
+    );
+
+    expect(source).toContain("installedExtensionActionRun");
+    expect(source).toContain("runInstalledChromeExtensionActionSmoke");
+    expect(source).toContain("createInstalledExtensionActionFixture");
+    expect(source).toContain("runChromeCliJson");
+    expect(source).toContain("selectInstalledExtensionActionTargetTab");
+    expect(source).toContain("classifyInstalledExtensionActionSmokeEvidence");
+    expect(source).toContain("new URL(fixture.url).host");
+    expect(source).not.toContain("new URL(fixture.url).hostname");
+    expect(source).toContain("chrome-extension-actions.json");
+    expect(source).toContain("chrome tabs");
+    expect(source).toContain("chrome reload-extension");
+    expect(source).toContain("chrome observe");
+    expect(source).toContain("chrome screenshot");
+    expect(source).toContain("chrome fill");
+    expect(source).toContain("chrome click");
+    expect(source).toContain("chrome submit");
+    expect(source).toContain("chrome scroll");
+    expect(source).toContain("chrome-capture-permission-missing");
+  });
+
+  it("classifies installed Chrome extension action smoke and screenshot blocker lanes", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-chrome-plan.mjs");
+    const {
+      INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
+      classifyInstalledExtensionActionSmokeEvidence,
+      selectInstalledExtensionActionTargetTab
+    } = await import(pathToFileURL(modulePath).href) as {
+      INSTALLED_EXTENSION_ACTION_PRODUCT_PATH: string;
+      classifyInstalledExtensionActionSmokeEvidence: (input: Record<string, unknown>) => string;
+      selectInstalledExtensionActionTargetTab: (tabs: Record<string, unknown>[], fixtureUrl: string) => Record<string, unknown> | undefined;
+    };
+    const fixtureUrl = "http://127.0.0.1:63852/?skfiy_action_live=20260621";
+
+    expect(INSTALLED_EXTENSION_ACTION_PRODUCT_PATH).toBe(
+      "dist/skfiy -> chrome tabs/reload-extension/observe/screenshot/fill/click/submit/scroll -> installed Chrome extension"
+    );
+    expect(selectInstalledExtensionActionTargetTab([
+      { id: 1, url: "chrome://extensions", eligible: false, blocker: "internal_chrome_page" },
+      { id: 2, url: "file:///tmp/form.html", eligible: false, blocker: "unsupported_scheme" },
+      { id: 3, url: fixtureUrl, eligible: true, state: "eligible" }
+    ], fixtureUrl)).toMatchObject({
+      id: 3,
+      url: fixtureUrl
+    });
+    expect(classifyInstalledExtensionActionSmokeEvidence(
+      createPassingInstalledExtensionActionRun(INSTALLED_EXTENSION_ACTION_PRODUCT_PATH, fixtureUrl)
+    )).toBe("passed");
+    expect(classifyInstalledExtensionActionSmokeEvidence(
+      createPassingInstalledExtensionActionRun(INSTALLED_EXTENSION_ACTION_PRODUCT_PATH, fixtureUrl, {
+        screenshotRun: {
+          result: "blocked",
+          reason: "chrome-capture-permission-missing",
+          extensionConnection: {
+            latestCommand: {
+              pageScreenshot: {
+                result: "blocked",
+                reason: "Either the '<all_urls>' or 'activeTab' permission is required.",
+                hasDataUrl: false
+              }
+            }
+          }
+        }
+      })
+    )).toBe("screenshot-blocked");
+    expect(classifyInstalledExtensionActionSmokeEvidence(
+      createPassingInstalledExtensionActionRun(INSTALLED_EXTENSION_ACTION_PRODUCT_PATH, fixtureUrl, {
+        clickRun: {
+          result: "blocked",
+          reason: "selector-not-found"
+        }
+      })
+    )).toBe("failed");
   });
 
   it("derives installed-extension readiness snapshots and blocker remediation", async () => {
@@ -917,6 +1003,98 @@ function createPassingInstalledExtensionRun(productPath: string) {
       requestId: "chrome-smoke-installed-extension"
     },
     heartbeatPath: "/tmp/skfiy-extension-home/Library/Application Support/skfiy/chrome-extension-connection.json"
+  };
+}
+
+function createPassingInstalledExtensionActionRun(
+  productPath: string,
+  fixtureUrl: string,
+  overrides: Record<string, unknown> = {}
+) {
+  const selectedTargetTab = {
+    id: 3,
+    windowId: 9,
+    url: fixtureUrl,
+    host: "127.0.0.1",
+    eligible: true,
+    state: "eligible"
+  };
+  const verifiedAction = (action: string) => ({
+    result: "verified",
+    action,
+    extensionConnection: {
+      latestCommand: {
+        pageActionResult: {
+          action,
+          result: "verified"
+        }
+      }
+    }
+  });
+
+  return {
+    result: "passed",
+    productPath,
+    runnerHasTmux: false,
+    extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+    fixtureUrl,
+    selectedTargetTab,
+    tabsRun: {
+      result: "verified",
+      discoveryMode: "chrome-apple-events",
+      tabs: [
+        { id: 1, url: "chrome://extensions", eligible: false, blocker: "internal_chrome_page" },
+        selectedTargetTab
+      ]
+    },
+    reloadRun: {
+      result: "verified",
+      reloadStrategy: "extension-context-wake",
+      extensionConnection: {
+        pageControl: {
+          activeTab: {
+            tabId: 3
+          },
+          capabilities: {
+            domActions: true
+          }
+        }
+      }
+    },
+    observeRun: {
+      result: "verified",
+      extensionConnection: {
+        pageObservation: {
+          visibleText: "skfiy action smoke ready"
+        }
+      }
+    },
+    screenshotRun: {
+      result: "verified",
+      extensionConnection: {
+        latestCommand: {
+          pageScreenshot: {
+            result: "verified",
+            hasDataUrl: true,
+            dataUrlBytes: 1024
+          }
+        }
+      }
+    },
+    fillRun: verifiedAction("fill"),
+    clickRun: verifiedAction("click"),
+    submitRun: verifiedAction("submit"),
+    scrollRun: verifiedAction("scroll"),
+    finalObserveRun: {
+      result: "verified",
+      extensionConnection: {
+        pageObservation: {
+          visibleText: "clicked 1 submitted skfiy #2"
+        }
+      }
+    },
+    finalVisibleText: "clicked 1 submitted skfiy #2",
+    ...overrides
   };
 }
 

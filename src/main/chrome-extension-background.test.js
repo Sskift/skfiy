@@ -1725,11 +1725,11 @@ describe("Chrome extension background policy sync", () => {
     await importBackground();
 
     const wakeUrls = [
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot",
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=click&skfiySelector=%23submit",
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=skfiy",
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=submit&skfiySelector=form",
-      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=scroll&skfiyDy=600"
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot&skfiyRequestId=cli-screenshot-current",
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=click&skfiySelector=%23submit&skfiyRequestId=cli-click-current",
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=skfiy&skfiyRequestId=cli-fill-current",
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=submit&skfiySelector=form&skfiyRequestId=cli-submit-current",
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=scroll&skfiyDy=600&skfiyRequestId=cli-scroll-current"
     ];
 
     for (const [index, url] of wakeUrls.entries()) {
@@ -1798,12 +1798,14 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.postedMessages[0]).toMatchObject({
       schemaVersion: 1,
       type: PAGE_SCREENSHOT,
+      requestId: "cli-screenshot-current",
       payload: {
         source: "popup_wake",
         targetTabId: 42,
         format: "png",
         pageScreenshot: {
           type: "skfiy.page.screenshot_result",
+          requestId: "cli-screenshot-current",
           tabId: 42,
           targetTabId: 42,
           host: "127.0.0.1:63852",
@@ -1815,26 +1817,36 @@ describe("Chrome extension background policy sync", () => {
     });
     expect(mock.postedMessages[0].payload.pageScreenshot.dataUrl).toBeUndefined();
 
+    expect(mock.postedMessages.slice(1).map((message) => message.requestId)).toEqual([
+      "cli-click-current",
+      "cli-fill-current",
+      "cli-submit-current",
+      "cli-scroll-current"
+    ]);
     expect(mock.postedMessages.slice(1).map((message) => message.payload.pageActionResult)).toEqual([
       expect.objectContaining({
+        requestId: "cli-click-current",
         result: "passed",
         action: "click",
         targetTabId: 42,
         selector: "#submit"
       }),
       expect.objectContaining({
+        requestId: "cli-fill-current",
         result: "passed",
         action: "fill",
         targetTabId: 42,
         selector: "#name"
       }),
       expect.objectContaining({
+        requestId: "cli-submit-current",
         result: "passed",
         action: "submit",
         targetTabId: 42,
         selector: "form"
       }),
       expect.objectContaining({
+        requestId: "cli-scroll-current",
         result: "passed",
         action: "scroll",
         targetTabId: 42,

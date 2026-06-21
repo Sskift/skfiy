@@ -242,6 +242,7 @@ export function createChromeExtensionWakeUrl(
   options: {
     targetTabId?: number;
     wakeAction?: string;
+    requestId?: string;
     selector?: string;
     text?: string;
     dy?: number;
@@ -256,6 +257,9 @@ export function createChromeExtensionWakeUrl(
   }
   if (options.wakeAction) {
     params.set("skfiyWakeAction", options.wakeAction);
+  }
+  if (options.requestId) {
+    params.set("skfiyRequestId", options.requestId);
   }
   if (options.selector) {
     params.set("skfiySelector", options.selector);

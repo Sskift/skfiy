@@ -2,6 +2,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { execFile, spawn } from "node:child_process";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -15,6 +16,7 @@ import {
   classifyChromeFallbackSwitchEvidence,
   classifyChromeFallbackSmokeEvidence,
   classifyChromeSmokeEvidence,
+  classifyInstalledExtensionActionSmokeEvidence,
   createDefaultChromeSmokeOptions,
   createInstalledExtensionBlockerRemediation,
   createInstalledExtensionBlockers,
@@ -23,10 +25,12 @@ import {
   EXPECTED_TEXT,
   FORM_EXPECTED_TEXT,
   hasChromePageControlEvidence,
+  INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
   INSTALLED_EXTENSION_PRODUCT_PATH,
   NATIVE_HOST_BRIDGE_PRODUCT_PATH,
   parseChromeSmokeArgs,
   PRODUCT_PATH,
+  selectInstalledExtensionActionTargetTab,
   selectInstalledExtensionChromeApp
 } from "./smoke-chrome-plan.mjs";
 import { writeSmokeEvidence } from "./smoke-ghostty-plan.mjs";
@@ -47,6 +51,11 @@ const SENSITIVE_FORM_FIELDS = [
   { selector: "#password", value: "skfiy-test-secret" }
 ];
 const EXPECTED_CURRENT_PAGE_COMMAND = "观察 Chrome 当前页面并提取正文";
+const INSTALLED_EXTENSION_ACTION_SMOKE_ARTIFACT = ".skfiy-smoke/chrome-extension-actions.json";
+const INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS = [
+  "chrome-capture-permission-missing",
+  "chrome-capture-blocked"
+];
 
 async function main() {
   const defaults = createDefaultChromeSmokeOptions(ROOT_DIR);
@@ -95,6 +104,7 @@ async function main() {
     sensitiveFormRun: undefined,
     nativeHostBridgeRun: undefined,
     installedExtensionRun: undefined,
+    installedExtensionActionRun: undefined,
     pageControl: undefined,
     readinessDiagnostics: undefined,
     fallbackRun: undefined,
@@ -116,6 +126,7 @@ async function main() {
     evidence.readinessDiagnostics = await runChromeReadinessDiagnostics(options);
     evidence.nativeHostBridgeRun = await runChromeNativeHostBridgeSmoke(options);
     evidence.installedExtensionRun = await runInstalledChromeExtensionSmoke(options);
+    evidence.installedExtensionActionRun = await runInstalledChromeExtensionActionSmoke(options);
     evidence.pageControl = createChromeSmokePageControlEvidence(evidence);
 
     if (options.currentPageEndpoint) {
@@ -153,6 +164,7 @@ async function main() {
           && (
             evidence.nativeHostBridgeRun.result !== "passed"
             || !isInstalledExtensionSmokeAcceptable(evidence.installedExtensionRun)
+            || !isInstalledExtensionActionSmokeAcceptable(evidence.installedExtensionActionRun)
             || !hasChromePageControlEvidence(evidence.pageControl, evidence.installedExtensionRun)
           )
         ) {
@@ -258,9 +270,9 @@ async function main() {
         })
       };
 
-      if (evidence.result === "passed" && evidence.currentPageRun.result !== "passed") {
-        evidence.result = "failed";
-      }
+       if (evidence.result === "passed" && evidence.currentPageRun.result !== "passed") {
+         evidence.result = "failed";
+       }
 
       const sensitiveEvents = await runChromeProductCommand(
         cdp,
@@ -375,11 +387,18 @@ async function main() {
         })
       };
 
+       if (
+         evidence.result === "passed"
+         && !["fallback-switched-observed", "fallback-switched-blocked"].includes(
+           evidence.fallbackSwitchRun.result
+         )
+       ) {
+         evidence.result = "failed";
+       }
+
       if (
         evidence.result === "passed"
-        && !["fallback-switched-observed", "fallback-switched-blocked"].includes(
-          evidence.fallbackSwitchRun.result
-        )
+        && !isInstalledExtensionActionSmokeAcceptable(evidence.installedExtensionActionRun)
       ) {
         evidence.result = "failed";
       }
@@ -744,6 +763,367 @@ async function runInstalledChromeExtensionSmoke(options) {
   }
 }
 
+async function runInstalledChromeExtensionActionSmoke(options) {
+  if (!options.extensionId) {
+    return {
+      result: "skipped",
+      productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
+      reason: "extension-id-not-supplied",
+      screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
+      nextAction: `Pass --extension-id <id> to run the installed-extension action smoke. Default artifact: ${INSTALLED_EXTENSION_ACTION_SMOKE_ARTIFACT}`
+    };
+  }
+
+  const extensionId = options.extensionId;
+  const fixture = await createInstalledExtensionActionFixture();
+  let tabsRun;
+  let selectedTargetTab;
+  let reloadRun;
+  let observeRun;
+  let screenshotRun;
+  let fillRun;
+  let clickRun;
+  let submitRun;
+  let scrollRun;
+  let finalObserveRun;
+  let policyRun;
+  let openRun;
+
+  try {
+    const host = new URL(fixture.url).host;
+    policyRun = await runChromeCliJson(options, "chrome policy set", [
+      "chrome",
+      "policy",
+      "set",
+      "--host",
+      host,
+      "--action",
+      "always-allow",
+      "--json"
+    ]);
+    openRun = await openInstalledExtensionActionFixture(options, fixture.url);
+    await sleep(Math.max(options.settleMs, 1_000));
+    tabsRun = await runChromeCliJson(options, "chrome tabs", [
+      "chrome",
+      "tabs",
+      "--extension-id",
+      extensionId,
+      "--json"
+    ]);
+    selectedTargetTab = selectInstalledExtensionActionTargetTab(tabsRun.tabs, fixture.url);
+
+    if (!selectedTargetTab?.id) {
+      const blockedRun = {
+        result: "blocked",
+        productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
+        runnerHasTmux: Boolean(process.env.TMUX),
+        extensionId,
+        fixtureUrl: fixture.url,
+        policyRun,
+        openRun,
+        tabsRun,
+        selectedTargetTab,
+        screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
+        reason: "no-eligible-target-tab",
+        nextAction: "Open the local HTTP fixture in a normal Chrome tab, grant skfiy host policy and Chrome site access, then rerun smoke:chrome."
+      };
+
+      return {
+        ...blockedRun,
+        classification: classifyInstalledExtensionActionSmokeEvidence(blockedRun)
+      };
+    }
+
+    const targetTabId = String(selectedTargetTab.id);
+    reloadRun = await runChromeCliJson(options, "chrome reload-extension", [
+      "chrome",
+      "reload-extension",
+      "--extension-id",
+      extensionId,
+      "--target-tab-id",
+      targetTabId,
+      "--json"
+    ]);
+    observeRun = await runChromeCliJson(options, "chrome observe", [
+      "chrome",
+      "observe",
+      "--extension-id",
+      extensionId,
+      "--target-tab-id",
+      targetTabId,
+      "--json"
+    ]);
+    screenshotRun = await runChromeCliJson(options, "chrome screenshot", [
+      "chrome",
+      "screenshot",
+      "--extension-id",
+      extensionId,
+      "--target-tab-id",
+      targetTabId,
+      "--json"
+    ]);
+    fillRun = await runChromeCliJson(options, "chrome fill", [
+      "chrome",
+      "fill",
+      "--extension-id",
+      extensionId,
+      "--target-tab-id",
+      targetTabId,
+      "--selector",
+      "#name",
+      "--text",
+      "skfiy",
+      "--json"
+    ]);
+    clickRun = await runChromeCliJson(options, "chrome click", [
+      "chrome",
+      "click",
+      "--extension-id",
+      extensionId,
+      "--target-tab-id",
+      targetTabId,
+      "--selector",
+      "#submit",
+      "--json"
+    ]);
+    submitRun = await runChromeCliJson(options, "chrome submit", [
+      "chrome",
+      "submit",
+      "--extension-id",
+      extensionId,
+      "--target-tab-id",
+      targetTabId,
+      "--selector",
+      "form",
+      "--json"
+    ]);
+    scrollRun = await runChromeCliJson(options, "chrome scroll", [
+      "chrome",
+      "scroll",
+      "--extension-id",
+      extensionId,
+      "--target-tab-id",
+      targetTabId,
+      "--dy",
+      "600",
+      "--json"
+    ]);
+    finalObserveRun = await runChromeCliJson(options, "chrome observe", [
+      "chrome",
+      "observe",
+      "--extension-id",
+      extensionId,
+      "--target-tab-id",
+      targetTabId,
+      "--json"
+    ]);
+    const finalVisibleText = readVisibleTextFromChromeCliRun(finalObserveRun);
+    const actionRun = {
+      result: "not-classified",
+      productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
+      runnerHasTmux: Boolean(process.env.TMUX),
+      extensionId,
+      fixtureUrl: fixture.url,
+      policyRun,
+      openRun,
+      tabsRun,
+      selectedTargetTab,
+      screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
+      reloadRun,
+      observeRun,
+      screenshotRun,
+      fillRun,
+      clickRun,
+      submitRun,
+      scrollRun,
+      finalObserveRun,
+      finalVisibleText
+    };
+    const classification = classifyInstalledExtensionActionSmokeEvidence(actionRun);
+
+    return {
+      ...actionRun,
+      result: classification,
+      classification
+    };
+  } catch (error) {
+    return {
+      result: "error",
+      productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
+      runnerHasTmux: Boolean(process.env.TMUX),
+      extensionId,
+      fixtureUrl: fixture.url,
+      policyRun,
+      openRun,
+      tabsRun,
+      selectedTargetTab,
+      screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
+      reloadRun,
+      observeRun,
+      screenshotRun,
+      fillRun,
+      clickRun,
+      submitRun,
+      scrollRun,
+      finalObserveRun,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    await fixture.close();
+  }
+}
+
+async function createInstalledExtensionActionFixture() {
+  const server = createServer((request, response) => {
+    if (request.url === "/favicon.ico") {
+      response.writeHead(404);
+      response.end();
+      return;
+    }
+
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store"
+    });
+    response.end(`<!doctype html>
+<html>
+  <head>
+    <title>skfiy installed-extension action smoke</title>
+    <style>
+      body { font-family: system-ui, sans-serif; min-height: 1800px; }
+      main { max-width: 640px; margin: 40px auto; }
+      label { display: block; margin: 12px 0; }
+      #scroll-target { margin-top: 1200px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>skfiy action smoke ready</h1>
+      <form id="profile">
+        <label>Name <input id="name" name="name" autocomplete="off" /></label>
+        <button id="submit" type="submit">Submit</button>
+      </form>
+      <p id="result">clicked 0 submitted none #0</p>
+      <p id="scroll-target">scroll target ready</p>
+    </main>
+    <script>
+      const state = { clicked: 0, submitted: 0, name: "none" };
+      const render = () => {
+        document.querySelector("#result").textContent =
+          "clicked " + state.clicked + " submitted " + state.name + " #" + state.submitted;
+      };
+      document.querySelector("#submit").addEventListener("click", () => {
+        state.clicked += 1;
+        state.name = document.querySelector("#name").value || "none";
+        render();
+      });
+      document.querySelector("#profile").addEventListener("submit", (event) => {
+        event.preventDefault();
+        state.submitted += 1;
+        state.name = document.querySelector("#name").value || "none";
+        render();
+      });
+      render();
+    </script>
+  </body>
+</html>
+`);
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Installed-extension action fixture did not bind a TCP port.");
+  }
+
+  return {
+    url: `http://127.0.0.1:${address.port}/?skfiy_action_live=smoke`,
+    async close() {
+      await new Promise((resolve) => {
+        server.close(() => resolve());
+      });
+    }
+  };
+}
+
+async function openInstalledExtensionActionFixture(options, url) {
+  const command = ["open", "-a", options.chromeAppName, url];
+
+  try {
+    const { stdout, stderr } = await execFileAsync(command[0], command.slice(1));
+    return {
+      command,
+      result: "launched",
+      stdout: stdout.trim(),
+      stderr: stderr.trim()
+    };
+  } catch (error) {
+    return {
+      command,
+      result: "error",
+      exitCode: typeof error.code === "number" ? error.code : 1,
+      stdout: typeof error.stdout === "string" ? error.stdout.trim() : "",
+      stderr: typeof error.stderr === "string" ? error.stderr.trim() : "",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+async function runChromeCliJson(options, commandName, args) {
+  const command = [options.cliPath, ...args];
+  let stdout = "";
+  let stderr = "";
+  let exitCode = 0;
+  let stdoutJson;
+
+  try {
+    const result = await execFileAsync(command[0], command.slice(1), {
+      cwd: ROOT_DIR,
+      maxBuffer: 4 * 1024 * 1024
+    });
+    stdout = result.stdout;
+    stderr = result.stderr;
+  } catch (error) {
+    exitCode = typeof error.code === "number" ? error.code : 1;
+    stdout = typeof error.stdout === "string" ? error.stdout : "";
+    stderr = typeof error.stderr === "string" ? error.stderr : "";
+  }
+
+  try {
+    stdoutJson = stdout.trim() ? JSON.parse(stdout) : undefined;
+  } catch (error) {
+    stdoutJson = {
+      result: "error",
+      reason: "invalid-json",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+
+  return {
+    commandName,
+    command,
+    exitCode,
+    stderr: stderr.trim(),
+    ...(stdoutJson && typeof stdoutJson === "object" ? stdoutJson : { stdout: stdout.trim() })
+  };
+}
+
+function readVisibleTextFromChromeCliRun(run) {
+  const extensionConnection = readRecord(run?.extensionConnection);
+  const latestCommand = readRecord(extensionConnection?.latestCommand);
+  const pageObservation = readRecord(extensionConnection?.pageObservation)
+    ?? readRecord(latestCommand?.pageObservation);
+
+  return typeof pageObservation?.visibleText === "string" ? pageObservation.visibleText : "";
+}
+
 async function launchChromeWithExtension({
   chromeAppName,
   chromeUserDataDir,
@@ -917,6 +1297,13 @@ function isInstalledExtensionSmokeAcceptable(run) {
       run?.result === "blocked"
       && run?.blockedReason === "branded_chrome_load_extension_removed"
     );
+}
+
+function isInstalledExtensionActionSmokeAcceptable(run) {
+  return !run
+    || run.result === "skipped"
+    || run.result === "passed"
+    || run.result === "screenshot-blocked";
 }
 
 function createChromeSmokePageControlEvidence(evidence) {

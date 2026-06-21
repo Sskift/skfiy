@@ -29,6 +29,7 @@ export interface ChromeExtensionPageControlInput {
   selector?: string;
   text?: string;
   dy?: number;
+  requestId?: string;
   generatedAt?: string;
   opener?: ChromeExtensionPageOpener;
   io?: ChromeNativeHostIo;
@@ -114,6 +115,7 @@ export async function invokeChromeExtensionPageControl({
   selector,
   text,
   dy,
+  requestId,
   generatedAt,
   opener = openChromeExtensionManagerPage,
   io,
@@ -125,6 +127,7 @@ export async function invokeChromeExtensionPageControl({
   const wakeUrl = createChromeExtensionWakeUrl(extensionId, {
     targetTabId,
     wakeAction: action,
+    requestId,
     selector,
     text,
     dy
@@ -133,6 +136,7 @@ export async function invokeChromeExtensionPageControl({
   await opener(wakeUrl);
   const extensionConnection = await pollPageControlConnection({
     action,
+    requestId,
     homeDir,
     generatedAt: requestGeneratedAt,
     io,
@@ -140,7 +144,7 @@ export async function invokeChromeExtensionPageControl({
     intervalMs: pollIntervalMs,
     timeoutMs: pollTimeoutMs
   });
-  const verified = isExpectedConnection(extensionConnection, action, requestGeneratedAt);
+  const verified = isExpectedConnection(extensionConnection, action, requestGeneratedAt, requestId);
   const blocker = verified ? undefined : createPageControlBlocker(action, extensionConnection);
 
   return {
@@ -218,6 +222,7 @@ export async function invokeChromeExtensionTabDiscovery({
 
 async function pollPageControlConnection({
   action,
+  requestId,
   homeDir,
   generatedAt = new Date().toISOString(),
   io,
@@ -226,6 +231,7 @@ async function pollPageControlConnection({
   timeoutMs
 }: {
   action: ChromeExtensionPageControlAction;
+  requestId?: string;
   homeDir: string;
   generatedAt?: string;
   io?: ChromeNativeHostIo;
@@ -241,7 +247,7 @@ async function pollPageControlConnection({
   });
 
   while (Date.now() <= deadline) {
-    if (isExpectedConnection(latest, action, generatedAt)) {
+    if (isExpectedConnection(latest, action, generatedAt, requestId)) {
       return latest;
     }
     await wait(intervalMs);
@@ -295,7 +301,8 @@ async function pollTabDiscoveryConnection({
 function isExpectedConnection(
   connection: ChromeExtensionConnectionStatus,
   action: ChromeExtensionPageControlAction,
-  generatedAt: string
+  generatedAt: string,
+  requestId?: string
 ): boolean {
   const pageControlConnection = connection as ChromeExtensionConnectionStatus & {
     pageActionResult?: unknown;
@@ -303,6 +310,7 @@ function isExpectedConnection(
     latestCommand?: {
       observedAt?: unknown;
       messageType?: unknown;
+      requestId?: unknown;
       pageActionResult?: unknown;
       pageScreenshot?: unknown;
       pageObservation?: unknown;
@@ -312,19 +320,22 @@ function isExpectedConnection(
   if (connection.state !== "connected") {
     return false;
   }
-  if (isExpectedCommandEvidence(pageControlConnection.latestCommand, action, generatedAt)) {
+  if (isExpectedCommandEvidence(pageControlConnection.latestCommand, action, generatedAt, requestId)) {
     return true;
   }
   if (action === "observe") {
     return connection.messageType === "skfiy.page.observe"
+      && hasExpectedRequestId(connection.requestId, requestId)
       && Boolean(connection.pageObservation);
   }
   if (action === "screenshot") {
     return connection.messageType === "skfiy.page.screenshot"
+      && hasExpectedRequestId(connection.requestId, requestId)
       && hasScreenshotData(pageControlConnection.pageScreenshot);
   }
   if (action === "click" || action === "fill" || action === "submit" || action === "scroll") {
     return connection.messageType === "skfiy.page.action"
+      && hasExpectedRequestId(connection.requestId, requestId)
       && hasExpectedActionResult(pageControlConnection.pageActionResult, action);
   }
   return false;
@@ -334,14 +345,19 @@ function isExpectedCommandEvidence(
   command: {
     observedAt?: unknown;
     messageType?: unknown;
+    requestId?: unknown;
     pageActionResult?: unknown;
     pageScreenshot?: unknown;
     pageObservation?: unknown;
   } | undefined,
   action: ChromeExtensionPageControlAction,
-  generatedAt: string
+  generatedAt: string,
+  requestId?: string
 ): boolean {
   if (!command || typeof command.messageType !== "string" || !isFreshCommand(command.observedAt, generatedAt)) {
+    return false;
+  }
+  if (!hasExpectedRequestId(command.requestId, requestId)) {
     return false;
   }
   if (action === "observe") {
@@ -357,6 +373,10 @@ function isExpectedCommandEvidence(
       && hasExpectedActionResult(command.pageActionResult, action);
   }
   return false;
+}
+
+function hasExpectedRequestId(actual: unknown, expected: string | undefined): boolean {
+  return expected === undefined || actual === expected;
 }
 
 function isFreshCommand(observedAt: unknown, generatedAt: string): boolean {
@@ -591,7 +611,16 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 function readNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isSafeInteger(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
 }
 
 function hasScreenshotData(value: unknown): boolean {

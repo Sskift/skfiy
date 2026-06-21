@@ -13,6 +13,8 @@ export const NATIVE_HOST_BRIDGE_PRODUCT_PATH =
   "dist/skfiy -> Chrome Native Messaging heartbeat";
 export const INSTALLED_EXTENSION_PRODUCT_PATH =
   "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat";
+export const INSTALLED_EXTENSION_ACTION_PRODUCT_PATH =
+  "dist/skfiy -> chrome tabs/reload-extension/observe/screenshot/fill/click/submit/scroll -> installed Chrome extension";
 export const CHROME_EXTENSION_SETUP_GUIDE_PATH = "docs/chrome-extension-setup.md";
 export const CHROME_EXTENSION_SETUP_GUIDE_REQUIRED_TERMS = [
   "chrome-extension/manifest.json",
@@ -45,6 +47,7 @@ export function createDefaultChromeSmokeOptions(rootDir) {
     cliPath: path.join(rootDir, "dist", "skfiy"),
     chromeAppName: "Google Chrome",
     extensionChromeAppName: undefined,
+    extensionId: undefined,
     port: DEFAULT_PORT,
     chromePort: DEFAULT_CHROME_PORT,
     timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -79,6 +82,10 @@ export function parseChromeSmokeArgs(argv, defaults) {
         break;
       case "--extension-chrome-app":
         options.extensionChromeAppName = readValue(argv, index, arg);
+        index += 1;
+        break;
+      case "--extension-id":
+        options.extensionId = readChromeExtensionId(readValue(argv, index, arg), arg);
         index += 1;
         break;
       case "--port":
@@ -138,6 +145,7 @@ Options:
   --chrome-app <name>   macOS Chrome app name. Default: ${defaults.chromeAppName}
   --extension-chrome-app <name>
                         Browser app for installed-extension smoke. Auto-prefers Chrome for Testing/Chromium when available.
+  --extension-id <id>   Manually installed skfiy Chrome extension id for action smoke.
   --port <number>       Electron remote debugging port. Default: ${defaults.port}
   --chrome-port <num>   Chrome DevTools Protocol port. Default: ${defaults.chromePort}
   --timeout-ms <number> Renderer and Chrome wait timeout. Default: ${defaults.timeoutMs}
@@ -347,6 +355,112 @@ export function hasChromePageControlEvidence(pageControl, installedExtensionRun)
       "not-probed",
       "needs-action"
     ].includes(pageControl.state);
+}
+
+export function selectInstalledExtensionActionTargetTab(tabs = [], fixtureUrl = "") {
+  const fixture = parseUrl(fixtureUrl);
+
+  if (!fixture) {
+    return undefined;
+  }
+
+  return tabs.find((tab) => {
+    const record = readRecord(tab);
+    const url = parseUrl(record?.url);
+
+    return record
+      && url
+      && (record.eligible === true || record.state === "eligible")
+      && ["http:", "https:"].includes(url.protocol)
+      && url.origin === fixture.origin
+      && url.pathname === fixture.pathname
+      && url.search === fixture.search;
+  });
+}
+
+export function classifyInstalledExtensionActionSmokeEvidence(run = {}) {
+  const record = readRecord(run);
+
+  if (!record) {
+    return "not-run";
+  }
+
+  if (
+    record.runnerHasTmux === true
+    || record.productPath !== INSTALLED_EXTENSION_ACTION_PRODUCT_PATH
+  ) {
+    return "failed";
+  }
+
+  if (
+    typeof record.extensionId !== "string"
+    || record.extensionId.length !== 32
+  ) {
+    return "blocked";
+  }
+
+  const tabsRun = readRecord(record.tabsRun);
+  const tabs = Array.isArray(tabsRun?.tabs) ? tabsRun.tabs : [];
+  const selectedTargetTab = readRecord(record.selectedTargetTab)
+    ?? selectInstalledExtensionActionTargetTab(tabs, String(record.fixtureUrl ?? ""));
+
+  if (
+    tabsRun?.result !== "verified"
+    || !selectedTargetTab
+  ) {
+    return "blocked";
+  }
+
+  const blockedStep = [
+    record.reloadRun,
+    record.observeRun,
+    record.fillRun,
+    record.clickRun,
+    record.submitRun,
+    record.scrollRun
+  ].map(readRecord).find((step) => step?.result === "blocked");
+
+  if (blockedStep) {
+    return isKnownInstalledExtensionActionBlocker(blockedStep.reason) ? "blocked" : "failed";
+  }
+
+  if (
+    ![
+      record.reloadRun,
+      record.observeRun,
+      record.fillRun,
+      record.clickRun,
+      record.submitRun,
+      record.scrollRun
+    ].every(isVerifiedChromeCliRun)
+  ) {
+    return "failed";
+  }
+
+  const finalText = String(
+    record.finalVisibleText
+      ?? readRecord(readRecord(record.finalObserveRun)?.extensionConnection)?.pageObservation?.visibleText
+      ?? ""
+  );
+
+  if (
+    !finalText.includes("clicked")
+    || !finalText.includes("submitted skfiy")
+  ) {
+    return "failed";
+  }
+
+  const screenshotRun = readRecord(record.screenshotRun);
+
+  if (hasVerifiedChromeScreenshotRun(screenshotRun)) {
+    return "passed";
+  }
+
+  if (isKnownScreenshotBlockedRun(screenshotRun)) {
+    return "screenshot-blocked";
+  }
+
+  return "failed";
 }
 
 export function createInstalledExtensionBlockerRemediation({
@@ -1001,6 +1115,16 @@ function readPositiveInteger(value, name) {
   return parsed;
 }
 
+function readChromeExtensionId(value, name) {
+  const normalized = String(value ?? "").trim();
+
+  if (!/^[a-z]{32}$/i.test(normalized)) {
+    throw new Error(`${name} must be a 32-character Chrome extension id.`);
+  }
+
+  return normalized.toLowerCase();
+}
+
 function normalizeEndpoint(value, name) {
   try {
     const parsed = new URL(value);
@@ -1021,4 +1145,61 @@ function readValue(argv, index, name) {
   }
 
   return value;
+}
+
+function parseUrl(value) {
+  try {
+    return new URL(String(value ?? ""));
+  } catch {
+    return undefined;
+  }
+}
+
+function isVerifiedChromeCliRun(run) {
+  return readRecord(run)?.result === "verified";
+}
+
+function hasVerifiedChromeScreenshotRun(run) {
+  const record = readRecord(run);
+  const extensionConnection = readRecord(record?.extensionConnection);
+  const latestCommand = readRecord(extensionConnection?.latestCommand);
+  const pageScreenshot = readRecord(latestCommand?.pageScreenshot)
+    ?? readRecord(extensionConnection?.pageScreenshot)
+    ?? readRecord(record?.pageScreenshot);
+
+  return record?.result === "verified"
+    && pageScreenshot?.hasDataUrl === true;
+}
+
+function isKnownScreenshotBlockedRun(run) {
+  const record = readRecord(run);
+  const extensionConnection = readRecord(record?.extensionConnection);
+  const latestCommand = readRecord(extensionConnection?.latestCommand);
+  const pageScreenshot = readRecord(latestCommand?.pageScreenshot)
+    ?? readRecord(extensionConnection?.pageScreenshot)
+    ?? readRecord(record?.pageScreenshot);
+  const reason = String(record?.reason ?? pageScreenshot?.reason ?? "");
+
+  return record?.result === "blocked"
+    && (
+      reason === "chrome-capture-permission-missing"
+      || reason === "chrome-capture-blocked"
+      || reason.includes("<all_urls>")
+      || reason.includes("activeTab")
+    );
+}
+
+function isKnownInstalledExtensionActionBlocker(reason) {
+  return [
+    "extension-registration-stale",
+    "extension-card-reload-required",
+    "desktop-session-locked",
+    "chrome_host_permission_missing",
+    "chrome-host-permission-missing",
+    "skfiy_host_policy_missing",
+    "skfiy-host-policy-missing",
+    "blocked_by_host_policy",
+    "blocked_by_chrome_host_permission",
+    "sensitive-paused"
+  ].includes(String(reason ?? ""));
 }

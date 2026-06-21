@@ -729,8 +729,9 @@ async function checkHeartbeat() {
 
 async function observeCurrentPageFromWake() {
   const targetTabId = readTargetTabId();
-  const observeRequestId = `popup-observe-${Date.now()}`;
-  const nativeRequestId = `popup-observe-native-${Date.now()}`;
+  const wakeRequestId = readWakeParam("skfiyRequestId");
+  const observeRequestId = wakeRequestId || `popup-observe-${Date.now()}`;
+  const nativeRequestId = wakeRequestId || `popup-observe-native-${Date.now()}`;
 
   try {
     const observeResponse = await chrome.runtime.sendMessage({
@@ -789,7 +790,7 @@ async function observeCurrentPageFromWake() {
 function createPageControlRequestFromWake() {
   const targetTabId = readTargetTabId();
   const wakeAction = readWakeAction();
-  const requestId = `popup-${wakeAction}-${Date.now()}`;
+  const requestId = readWakeParam("skfiyRequestId") || `popup-${wakeAction}-${Date.now()}`;
 
   if (wakeAction === "screenshot") {
     return {
@@ -942,7 +943,7 @@ async function runPageControlFromWake() {
     const response = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
       ? await captureScreenshotFromWake(targetTabId, request.payload.format, request.requestId)
       : await chrome.runtime.sendMessage(request);
-    const nativeRequestId = `popup-${readWakeAction()}-native-${Date.now()}`;
+    const nativeRequestId = readWakeParam("skfiyRequestId") || `popup-${readWakeAction()}-native-${Date.now()}`;
     const payload = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
       ? {
           source: "popup_wake",
@@ -991,10 +992,11 @@ async function runPageControlFromWake() {
 
 async function runTabDiscoveryFromWake() {
   try {
+    const wakeRequestId = readWakeParam("skfiyRequestId");
     const snapshot = await chrome.runtime.sendMessage({
       type: MESSAGE_TYPES.TABS_DISCOVER,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
-      requestId: `popup-tabs-${Date.now()}`
+      requestId: wakeRequestId || `popup-tabs-${Date.now()}`
     });
     applySyncStatus({
       state: snapshot?.nativeHeartbeat?.result === "accepted" ? "synced" : "error",

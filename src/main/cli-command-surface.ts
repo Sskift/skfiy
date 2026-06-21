@@ -6158,6 +6158,7 @@ async function runChromeNativeHostCli({
 
   if (isChromePageControlSubcommand(invocation.subcommand)) {
     try {
+      const requestId = createChromePageControlRequestId(invocation.subcommand, generatedAt);
       const pageControlResult = await chromeExtensionPageControlInvoker({
         action: invocation.subcommand,
         extensionId: invocation.options.extensionIds[0],
@@ -6165,6 +6166,7 @@ async function runChromeNativeHostCli({
         selector: invocation.options.selector,
         text: invocation.options.text,
         dy: invocation.options.dy,
+        requestId,
         homeDir,
         generatedAt,
         io
@@ -6224,6 +6226,17 @@ async function runChromeNativeHostCli({
     ...uninstallResult
   }, null, 2)}\n`);
   return 0;
+}
+
+function createChromePageControlRequestId(
+  action: string,
+  generatedAt: string | undefined
+): string {
+  const generatedAtMs = generatedAt ? Date.parse(generatedAt) : NaN;
+  const suffix = Number.isFinite(generatedAtMs)
+    ? Math.trunc(generatedAtMs)
+    : Date.now();
+  return `page-control-${action}-cli-${suffix}`;
 }
 
 async function runChromeHostPolicyCli({
