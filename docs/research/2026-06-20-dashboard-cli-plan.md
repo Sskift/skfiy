@@ -187,6 +187,42 @@ activation, non-browser UI observation, global screenshots, and pointer/keyboard
 execution, while the extension specializes in current-tab DOM control, Chrome
 host policy, downloads, and visible-tab evidence.
 
+2026-06-21 live installed-extension update: the manually installed branded
+Chrome extension id `plcpkkhlcacihjfohlojdknnkademlno` reached a real
+page-control `ready` state against `http://127.0.0.1:63852/` after the host was
+allowed in skfiy policy and Chrome optional host permission was granted. The
+verified path was:
+
+```bash
+./dist/skfiy chrome reload-extension \
+  --extension-id plcpkkhlcacihjfohlojdknnkademlno \
+  --target-tab-id 1782095899 \
+  --json
+
+./dist/skfiy chrome status \
+  --extension-id plcpkkhlcacihjfohlojdknnkademlno \
+  --json
+```
+
+The resulting `pageControl` object reported `state: "ready"`,
+`capable: true`, `activeTab.host: "127.0.0.1:63852"`, content script
+`state: "loaded"`, and `diagnostics`, `observe`, `domActions`, `click`, `fill`,
+`submit`, `scroll`, `screenshot`, and `downloads` all available. The extension
+background now auto-injects `content-script.js` when diagnostics first return
+`content_script_not_loaded`, wake popup URLs with `skfiyTargetTabId` route
+heartbeats back to the requested tab instead of the popup itself, and the CLI
+desktop reload path clicks the skfiy extension card's reload icon instead of a
+window-relative fallback. If desktop observation is black or OCR returns no
+labels, reload now reports `screen-observation-empty` and does not click.
+
+This is P0 browser-control readiness, not full Codex Chrome parity. Current
+scope is authorized ordinary HTTP(S) pages only. `chrome://` internal pages,
+`chrome-extension://` pages, pages without skfiy host-policy approval, pages
+without Chrome optional host permission, and side-effectful form/account flows
+must stay blocked or require explicit approval. The next product gap is exposing
+the ready extension capabilities as user-facing CLI/dashboard actions rather
+than only readiness evidence.
+
 ## User Dashboard Roadmap
 
 2026-06-21 update: the dashboard target is a user-facing control plane, not a
@@ -217,7 +253,10 @@ subordinate to the pet and voice bot:
    first screen.
 4. **Apps and sites:** app allow/ask/deny, Chrome host policy, extension live
    connection, current-tab readiness, host permission state, and
-   extension/CDP/screenshot fallback mode.
+   extension/CDP/screenshot fallback mode. For Chrome, the primary user state
+   should distinguish "Can control this page", "Needs skfiy host approval",
+   "Needs Chrome site access", "Extension needs refresh", "Internal Chrome page
+   cannot be controlled", and "Falling back to screenshot".
 5. **Permissions:** Screen Recording, Accessibility, Microphone, Speech
    Recognition, Finder Automation, Chrome extension, and setup actions.
 6. **Agents:** long-horizon targets such as `money-run`, active sub-agent/task
@@ -259,6 +298,11 @@ for a full React migration:
 6. Keep the desktop pet as the voice/control entry. Dashboard actions can
    inspect, open settings, copy commands, set app/host policy, request approval,
    or stop a turn, but stop/approval visibility must also stay in the pet.
+7. Add a Chrome page-control summary card sourced from `extension.pageControl`.
+   It must show the current tab host, readiness state, host-policy decision,
+   Chrome optional host permission state, content-script state, and available
+   actions. The card must not imply Chrome can control `chrome://` or
+   `chrome-extension://` pages.
 
 Week B should make the dashboard product-grade and prepare the HeroUI migration:
 
@@ -281,6 +325,72 @@ Week B should make the dashboard product-grade and prepare the HeroUI migration:
    tokens, sidebar/app shell, compact item cards, chips, status icons, list
    views, action bars, command/search entry, and an explicit Advanced route. Do
    not put raw developer panels on Home.
+6. Add browser-control task launchers only after Week A exposes honest readiness
+   states. Initial launchers should be local-page safe tasks: observe current
+   page, screenshot current page, click a confirmed selector, fill approved
+   fields, submit an approved test form, and scroll. Each launcher must record
+   before/after page state and a verification result.
+
+## Two-Week Browser Extension Execution Plan
+
+This plan turns the P0 ready-state proof into usable browser control without
+overstating scope.
+
+### Week A: Make Readiness Actionable
+
+1. Add a target-tab discovery command. `skfiy chrome tabs --json` should report
+   extension-visible tabs with id, window id, URL, title, host, and whether the
+   tab is eligible for page control. It should mark `chrome://`,
+   `chrome-extension://`, `file://`, missing host, blocked host, and missing
+   Chrome optional host permission as distinct states.
+2. Add explicit page-control probes. `skfiy chrome observe --target-tab-id <id>
+   --json` and `skfiy chrome screenshot --target-tab-id <id> --json` should use
+   the MV3 extension path when ready and return the same structured blocker
+   objects as `chrome status` when not ready.
+3. Add selector action commands behind explicit approval-shaped names:
+   `skfiy chrome click --target-tab-id <id> --selector <css> --json`,
+   `skfiy chrome fill --target-tab-id <id> --selector <css> --text <text>
+   --json`, `skfiy chrome submit --target-tab-id <id> --selector <css> --json`,
+   and `skfiy chrome scroll --target-tab-id <id> --dy <pixels> --json`.
+   These commands should refuse to run if page-control state is not `ready` or
+   if page-safety reports sensitive fields.
+4. Promote reload verification. `skfiy chrome reload-extension` should poll for
+   the requested `targetTabId` when supplied instead of returning the first fresh
+   heartbeat from a popup/internal tab. A `verified` reload result should require
+   `pageControl.activeTab.tabId === targetTabId` and, for action readiness,
+   `pageControl.state === "ready"`.
+5. Add dashboard display for the new commands. The user dashboard should show
+   copyable commands and one-click local actions only for eligible HTTP(S) pages;
+   otherwise it should show the concrete next action: allow host, grant Chrome
+   site access, reload extension, open a normal web page, or switch to screenshot
+   fallback.
+6. Add product tests. Unit tests should cover every blocker state. A real
+   installed-extension smoke should use the manually installed id when provided
+   and should record `ready` evidence on an authorized localhost page.
+
+### Week B: Move From Demo Page To Repeated Use
+
+1. Add task-level verification. Every extension action should write before/after
+   page snapshots, the selector used, action result, and verification summary
+   into the runtime replay stream.
+2. Add current-page browser tasks to the voice/computer-use planner:
+   "observe current Chrome page", "summarize visible page", "fill this test
+   form", "click the confirmed button", and "take a page screenshot". The
+   planner must choose extension control first, CDP second, and screenshot/OCR
+   fallback third, with the fallback reason recorded.
+3. Add sensitive-flow gates before fill/click/submit. Password, payment, auth,
+   account deletion, sharing/permission, purchase, and external-send surfaces
+   require explicit user approval, even when the extension is otherwise ready.
+4. Add dashboard history for browser actions. The Activity view should show the
+   action, target page, verification, screenshot/page evidence, and any fallback
+   reason in user language.
+5. Add Codex-plugin status parity. `skfiy.status` MCP output should expose the
+   same browser-control readiness and blockers as CLI/dashboard without starting
+   desktop control.
+6. Define Chrome parity gaps explicitly. Remaining Codex Chrome parity items are
+   browser-native navigation, robust ARIA/role targeting, iframe handling,
+   downloads/uploads, multi-tab workflows, logged-in site safety, permission
+   prompts, and failure recovery.
 
 ## Dashboard Descriptor
 
