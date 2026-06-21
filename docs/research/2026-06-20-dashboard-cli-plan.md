@@ -126,7 +126,12 @@ Commands represented:
 - `skfiy chrome policy reset`
 - `skfiy chrome reload-extension --extension-id <id> --target-tab-id <tab-id> --json`
 - `skfiy chrome observe --extension-id <id> --target-tab-id <tab-id> --json`
-- Planned next Chrome page-control commands: `skfiy chrome screenshot`, `skfiy chrome click`, `skfiy chrome fill`, `skfiy chrome submit`, `skfiy chrome scroll`, and `skfiy chrome tabs`.
+- `skfiy chrome screenshot --extension-id <id> --target-tab-id <tab-id> --json`
+- `skfiy chrome click --extension-id <id> --target-tab-id <tab-id> --selector <css> --json`
+- `skfiy chrome fill --extension-id <id> --target-tab-id <tab-id> --selector <css> --text <text> --json`
+- `skfiy chrome submit --extension-id <id> --target-tab-id <tab-id> --selector <css> --json`
+- `skfiy chrome scroll --extension-id <id> --target-tab-id <tab-id> --dy <pixels> --json`
+- Planned next Chrome page-control command: `skfiy chrome tabs`.
 - `skfiy chrome install-host`
 - `skfiy chrome uninstall-host`
 - `skfiy mcp serve --stdio`
@@ -134,18 +139,19 @@ Commands represented:
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
 
-Mutating-looking commands are explicit subcommands. `skfiy permissions open <target>` now reports `executesSystemMutation: true`, opens only fixed `x-apple.systempreferences:` Privacy & Security URLs, and returns the same concrete System Settings/action-plan JSON whether the opener succeeds or fails. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy chrome policy set` and `skfiy chrome policy reset` are the user-level Chrome host policy mutations; `skfiy chrome policy show` is read-only. `skfiy chrome reload-extension` and `skfiy chrome observe` are also mutation-capable because they open extension UI or wake the installed extension and write fresh Native Messaging heartbeat evidence. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
+Mutating-looking commands are explicit subcommands. `skfiy permissions open <target>` now reports `executesSystemMutation: true`, opens only fixed `x-apple.systempreferences:` Privacy & Security URLs, and returns the same concrete System Settings/action-plan JSON whether the opener succeeds or fails. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy chrome policy set` and `skfiy chrome policy reset` are the user-level Chrome host policy mutations; `skfiy chrome policy show` is read-only. `skfiy chrome reload-extension`, `skfiy chrome observe`, `skfiy chrome screenshot`, `skfiy chrome click`, `skfiy chrome fill`, `skfiy chrome submit`, and `skfiy chrome scroll` are also mutation-capable because they open extension UI or wake the installed extension, may act inside the requested browser tab, and write fresh Native Messaging heartbeat evidence. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
 
-2026-06-21 update: `chrome observe` is the first extension-backed page-control
-command in the packaged CLI. It wakes the installed extension with
-`skfiyWakeAction=observe`, targets the requested Chrome tab id, waits for the
-Native Messaging heartbeat, and returns dashboard-safe JSON with `action`,
-`wakeUrl`, `extensionConnection`, and bounded `pageObservation` when verified.
-It is not enough to call Chrome control complete: `chrome tabs`,
-`chrome screenshot`, `chrome click`, `chrome fill`, `chrome submit`, and
-`chrome scroll` are still planned command work, and the dashboard should surface
-observe as "read-only observe verified" until action commands have their own
-compiled-binary real-tab smoke evidence.
+2026-06-21 update: `chrome observe`, `chrome screenshot`, `chrome click`,
+`chrome fill`, `chrome submit`, and `chrome scroll` are now extension-backed
+page-control commands in the packaged CLI. They wake the installed extension,
+target the requested Chrome tab id, wait for Native Messaging heartbeat
+evidence, and return dashboard-safe JSON with `action`, `wakeUrl`,
+`extensionConnection`, and bounded `pageObservation`, `pageActionResult`, or
+`pageScreenshot` fields when verified. It is not enough to call Chrome control
+complete: `chrome tabs`, extension-context self reload, user dashboard controls,
+and real installed-extension action smoke are still open. The dashboard should
+surface this as "action commands built; real action smoke pending" instead of
+implying full Codex Chrome parity.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`. `money-run` is the one script-level exception: the CLI accepts the same user-facing `--output` flag but forwards it as `--json-output` to `scripts/smoke-money-run-supervision.mjs`.
 
@@ -392,31 +398,32 @@ Detailed task handoff:
 
 ### Week A: Make Readiness Actionable
 
-1. Add a target-tab discovery command. `skfiy chrome tabs --json` should report
+1. Close the extension self-iteration loop. `skfiy chrome reload-extension`
+   should first open an extension popup wake URL with
+   `skfiyWakeAction=dev-reload`, let the extension call `chrome.runtime.reload()`
+   from its own context, then open the normal target-tab wake URL and verify the
+   requested tab. If the current loaded extension is too old or unavailable, it
+   should fall back to the existing desktop `chrome://extensions` reload path.
+   If the macOS session is locked or asleep, it must report a typed blocker such
+   as `desktop-session-locked` without clicking.
+2. Add a target-tab discovery command. `skfiy chrome tabs --json` should report
    extension-visible tabs with id, window id, URL, title, host, and whether the
    tab is eligible for page control. It should mark `chrome://`,
    `chrome-extension://`, `file://`, missing host, blocked host, and missing
    Chrome optional host permission as distinct states.
-2. Add explicit page-control probes. `skfiy chrome observe --target-tab-id <id>
-   --json` and `skfiy chrome screenshot --target-tab-id <id> --json` should use
-   the MV3 extension path when ready and return the same structured blocker
-   objects as `chrome status` when not ready.
-3. Add selector action commands behind explicit approval-shaped names:
-   `skfiy chrome click --target-tab-id <id> --selector <css> --json`,
-   `skfiy chrome fill --target-tab-id <id> --selector <css> --text <text>
-   --json`, `skfiy chrome submit --target-tab-id <id> --selector <css> --json`,
-   and `skfiy chrome scroll --target-tab-id <id> --dy <pixels> --json`.
-   These commands should refuse to run if page-control state is not `ready` or
-   if page-safety reports sensitive fields.
-4. Promote reload verification. `skfiy chrome reload-extension` should poll for
-   the requested `targetTabId` when supplied instead of returning the first fresh
-   heartbeat from a popup/internal tab. A `verified` reload result should require
+3. Convert action commands from unit-green to field-green. `skfiy chrome
+   observe`, `screenshot`, `click`, `fill`, `submit`, and `scroll` now exist in
+   the packaged CLI; the remaining Week A work is to prove them on an authorized
+   localhost tab with before/after page evidence, screenshot metadata, target
+   tab verification, and sensitive-field refusal.
+4. Promote reload verification. A `verified` reload result should require
    `pageControl.activeTab.tabId === targetTabId` and, for action readiness,
-   `pageControl.state === "ready"`.
+   `pageControl.state === "ready"`. A stale popup/internal-tab heartbeat should
+   be `blocked`, not `verified`.
 5. Define the extension update boundary. In development, Codex may click the
-   Chrome extension card reload button after source changes; in product, `skfiy`
-   owns only freshness checks and target-tab verification for the installed
-   extension. Local unpacked extension reload, packaged extension upload, and
+   Chrome extension card reload button after source changes while skfiy is still
+   gaining self-reload ability; in product, skfiy owns extension-context reload,
+   freshness checks, and target-tab verification. Packaged extension uploads and
    Chrome Web Store update remain explicit browser/distribution operations.
 6. Add dashboard display for the new commands. The user dashboard should show
    copyable commands and one-click local actions only for eligible HTTP(S) pages;
