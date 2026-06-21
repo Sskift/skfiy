@@ -101,6 +101,28 @@ export async function reloadChromeExtensionWithDesktopControl({
     CHROME_EXTENSION_MANAGER_BUNDLE_ID,
     screenshotPath
   );
+  if (isDesktopSessionLocked(state)) {
+    const extensionConnection = await readChromeExtensionConnectionStatus({
+      homeDir,
+      generatedAt,
+      io
+    });
+    return {
+      schemaVersion: 1,
+      result: "blocked",
+      productPath: CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
+      extensionId: checkedExtensionId,
+      managerUrl,
+      wakeUrl,
+      screenshotPath: state.screenshotPath,
+      ocrLabelCount: 0,
+      observedWindowTitle: readPrimaryWindowTitle(state),
+      extensionConnection,
+      reason: "desktop-session-locked",
+      candidates: [],
+      nextAction: "Unlock the desktop, keep the display awake, then retry `skfiy chrome reload-extension`."
+    };
+  }
   const ocr = await helper.ocrImage(state.screenshotPath);
   const observedState = { ...state, ocrLabels: ocr.labels };
   const elements = extractObservedElementsFromAppState(observedState);
@@ -203,6 +225,10 @@ export function createChromeExtensionWakeUrl(
   }
 
   return `chrome-extension://${requireChromeExtensionId(extensionId)}/popup.html?${params.toString()}`;
+}
+
+function isDesktopSessionLocked(state: DesktopAppState): boolean {
+  return state.frontmostBundleId === "com.apple.loginwindow";
 }
 
 export function findChromeExtensionReloadTarget(

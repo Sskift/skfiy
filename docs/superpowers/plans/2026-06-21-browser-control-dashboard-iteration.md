@@ -281,6 +281,14 @@ Run each command against a local test page with a safe form and button. Expected
 
 Observed partial real test on 2026-06-21: the safe local page at `http://127.0.0.1:63852/` opened in Chrome tab `1782096085`, host policy was set to `always_allow`, and `./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 1782096085 --json` returned `result: "verified"` with the action smoke page text. `./dist/skfiy chrome screenshot ...` still returned `page-control-screenshot-not-verified` because the desktop session was locked (`cgSessionScreenIsLocked=true`, `frontmostBundleId=com.apple.loginwindow`), so the product reload command could not click the extension reload control and Chrome was still running the previously loaded background worker. Re-run Step 6 after unlocking the desktop and refreshing the unpacked extension.
 
+Follow-up hardening: `chrome reload-extension` now fails closed with
+`reason: "desktop-session-locked"` before OCR/click when the helper observes
+`frontmostBundleId=com.apple.loginwindow`. A real locked-desktop run of
+`./dist/skfiy chrome reload-extension --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 1782096085 --json`
+returned that explicit blocker and `nextAction: "Unlock the desktop, keep the
+display awake..."`, so the dashboard/CLI no longer mistakes lock-screen OCR
+noise for an extension-card lookup failure.
+
 - [ ] **Step 7: Commit**
 
 ```bash

@@ -244,4 +244,48 @@ describe("Chrome extension reloader", () => {
 
     expect(helper.click).not.toHaveBeenCalled();
   });
+
+  it("blocks reload before OCR when the desktop session is locked", async () => {
+    const lockedState = {
+      ...createAppState("/tmp/locked.png"),
+      isActive: false,
+      frontmostBundleId: "com.apple.loginwindow",
+      windows: [
+        {
+          title: "skfiy Chrome Adapter",
+          layer: 0,
+          bounds: {
+            x: 5,
+            y: 30,
+            width: 1298,
+            height: 848
+          }
+        }
+      ]
+    };
+    const helper = {
+      activateApp: vi.fn(async () => ({ ok: true })),
+      getAppState: vi.fn(async () => lockedState),
+      ocrImage: vi.fn(async () => ({ labels: [] })),
+      click: vi.fn(async () => ({ ok: true }))
+    };
+
+    await expect(reloadChromeExtensionWithDesktopControl({
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      generatedAt: GENERATED_AT,
+      helper,
+      opener: vi.fn(async () => undefined),
+      io: createMemoryIo({}),
+      wait: async () => undefined
+    })).resolves.toMatchObject({
+      result: "blocked",
+      reason: "desktop-session-locked",
+      observedWindowTitle: "skfiy Chrome Adapter",
+      nextAction: expect.stringContaining("Unlock the desktop")
+    });
+
+    expect(helper.ocrImage).not.toHaveBeenCalled();
+    expect(helper.click).not.toHaveBeenCalled();
+  });
 });
