@@ -18,6 +18,7 @@ const MESSAGE_TYPES = Object.freeze({
   PAGE_OBSERVE: "skfiy.page.observe",
   PAGE_ACTION: "skfiy.page.action",
   PAGE_SCREENSHOT: "skfiy.page.screenshot",
+  TABS_DISCOVER: "skfiy.tabs.discover",
   NATIVE_MESSAGE: "skfiy.native.message"
 });
 
@@ -988,6 +989,35 @@ async function runPageControlFromWake() {
   }
 }
 
+async function runTabDiscoveryFromWake() {
+  try {
+    const snapshot = await chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.TABS_DISCOVER,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: `popup-tabs-${Date.now()}`
+    });
+    applySyncStatus({
+      state: snapshot?.nativeHeartbeat?.result === "accepted" ? "synced" : "error",
+      source: "native_host",
+      entryCount: Array.isArray(snapshot?.tabs) ? snapshot.tabs.length : 0,
+      updatedAt: new Date().toISOString(),
+      nativeBridgeState: snapshot?.nativeHeartbeat?.result === "accepted" ? "connected" : "unavailable",
+      nativeMessageType: MESSAGE_TYPES.TABS_DISCOVER,
+      lastError: snapshot?.nativeHeartbeat?.reason ?? snapshot?.nativeHeartbeat?.error ?? null,
+      error: snapshot?.nativeHeartbeat?.reason ?? snapshot?.nativeHeartbeat?.error ?? null
+    }, undefined);
+  } catch (error) {
+    applySyncStatus({
+      state: "error",
+      source: "native_host",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      lastError: error instanceof Error ? error.message : "Unable to discover tabs",
+      error: error instanceof Error ? error.message : "Unable to discover tabs"
+    }, undefined);
+  }
+}
+
 async function reloadExtension() {
   const button = document.getElementById("dev-reload-button");
   button.disabled = true;
@@ -1061,6 +1091,8 @@ void renderPopup()
     if (shouldAutoCheckHeartbeat()) {
       if (readWakeAction() === "observe") {
         void observeCurrentPageFromWake();
+      } else if (readWakeAction() === "tabs") {
+        void runTabDiscoveryFromWake();
       } else if (readWakeAction() === "dev-reload") {
         void reloadExtension();
       } else if (["screenshot", "click", "fill", "submit", "scroll"].includes(readWakeAction())) {

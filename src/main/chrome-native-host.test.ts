@@ -408,6 +408,104 @@ describe("Chrome Native Messaging host plan", () => {
     });
   });
 
+  it("preserves latest tab discovery evidence when readiness health follows it", async () => {
+    const io = createMemoryChromeHostIo();
+    const statePath = createChromeExtensionConnectionStatePath("/Users/tester");
+
+    await writeChromeExtensionConnectionHeartbeat({
+      homeDir: "/Users/tester",
+      observedAt: "2026-06-21T12:00:00.000Z",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.tabs.discover",
+      requestId: "tabs-discover-native-1",
+      pageTabs: {
+        result: "passed",
+        tabs: [
+          {
+            id: 42,
+            windowId: 7,
+            title: "Allowed app",
+            url: "https://allowed.example/dashboard",
+            host: "allowed.example",
+            state: "eligible",
+            eligible: true
+          },
+          {
+            id: 43,
+            windowId: 7,
+            title: "Extensions",
+            url: "chrome://extensions/",
+            host: "",
+            state: "blocked",
+            eligible: false,
+            blocker: "internal_chrome_page",
+            nextAction: "Open a normal HTTP(S) page before asking skfiy to control Chrome."
+          }
+        ],
+        visibleText: "must be dropped",
+        cookies: "must be dropped"
+      },
+      io
+    });
+
+    await writeChromeExtensionConnectionHeartbeat({
+      homeDir: "/Users/tester",
+      observedAt: "2026-06-21T12:00:01.000Z",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.page.observe",
+      requestId: "page-control-health-tab_activated-1",
+      pageControl: {
+        state: "ready"
+      },
+      io
+    });
+
+    expect(JSON.parse(io.files[statePath])).toMatchObject({
+      messageType: "skfiy.page.observe",
+      requestId: "page-control-health-tab_activated-1",
+      latestCommand: {
+        observedAt: "2026-06-21T12:00:00.000Z",
+        messageType: "skfiy.tabs.discover",
+        requestId: "tabs-discover-native-1",
+        pageTabs: {
+          result: "passed",
+          tabs: [
+            {
+              id: 42,
+              state: "eligible",
+              eligible: true
+            },
+            {
+              id: 43,
+              state: "blocked",
+              eligible: false,
+              blocker: "internal_chrome_page"
+            }
+          ]
+        }
+      }
+    });
+    expect(io.files[statePath]).not.toContain("must be dropped");
+
+    await expect(readChromeExtensionConnectionStatus({
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-21T12:00:02.000Z",
+      io
+    })).resolves.toMatchObject({
+      messageType: "skfiy.page.observe",
+      latestCommand: {
+        messageType: "skfiy.tabs.discover",
+        requestId: "tabs-discover-native-1",
+        pageTabs: {
+          tabs: [
+            { id: 42, state: "eligible" },
+            { id: 43, blocker: "internal_chrome_page" }
+          ]
+        }
+      }
+    });
+  });
+
   it("writes Chrome extension heartbeat evidence through an atomic temp-file rename when available", async () => {
     const io = createMemoryChromeHostIo();
     const renames: Array<{ sourcePath: string; targetPath: string }> = [];

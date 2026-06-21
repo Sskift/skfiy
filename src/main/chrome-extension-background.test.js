@@ -12,6 +12,7 @@ const PAGE_CONTROL_HEALTH = "skfiy.page_control.health";
 const PAGE_OBSERVE = "skfiy.page.observe";
 const PAGE_ACTION = "skfiy.page.action";
 const PAGE_SCREENSHOT = "skfiy.page.screenshot";
+const TABS_DISCOVER = "skfiy.tabs.discover";
 
 function createEvent() {
   const listeners = [];
@@ -94,6 +95,7 @@ function createChromeMock(nativeResponses = [], options = {}) {
   const contentScriptSessions = Array.isArray(options.contentScriptSessions)
     ? [...options.contentScriptSessions]
     : undefined;
+  const allTabs = Array.isArray(options.allTabs) ? options.allTabs : undefined;
   const runtime = {
     id: "abcdefghijklmnopabcdefghijklmnop",
     lastError: undefined,
@@ -165,7 +167,19 @@ function createChromeMock(nativeResponses = [], options = {}) {
       tabs: {
         onActivated: createEvent(),
         onUpdated: createEvent(),
-        query: vi.fn(async () => activeTab ? [activeTab] : []),
+        query: vi.fn(async (queryInfo = {}) => {
+          if (allTabs) {
+            if (queryInfo.active === true && queryInfo.currentWindow === true) {
+              const active = allTabs.find((tab) => tab.active) ?? activeTab;
+              return active ? [active] : [];
+            }
+            if (Number.isInteger(queryInfo.windowId)) {
+              return allTabs.filter((tab) => tab.windowId === queryInfo.windowId);
+            }
+            return allTabs;
+          }
+          return activeTab ? [activeTab] : [];
+        }),
         get: vi.fn(async (tabId) => (
           activeTab && (activeTab.id === tabId || typeof tabId === "undefined")
             ? activeTab
@@ -317,6 +331,186 @@ describe("Chrome extension background page routing", () => {
     expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
     expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
     expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("returns bounded Chrome tab discovery blockers without page content", async () => {
+    const mock = createChromeMock([
+      createPolicyResponse({
+        allowedHosts: ["allowed.example", "missing-permission.example", "content-missing.example"],
+        currentTurnAllowedHosts: [],
+        blockedHosts: ["blocked.example"]
+      }),
+      createPageObserveResponse()
+    ], {
+      grantedOrigins: [
+        "https://allowed.example/*",
+        "https://content-missing.example/*"
+      ],
+      allTabs: [
+        {
+          id: 41,
+          windowId: 7,
+          active: true,
+          title: "Allowed app",
+          url: "https://allowed.example/dashboard?token=secret#section"
+        },
+        {
+          id: 42,
+          windowId: 7,
+          title: "Extensions",
+          url: "chrome://extensions/"
+        },
+        {
+          id: 43,
+          windowId: 7,
+          title: "skfiy popup",
+          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1"
+        },
+        {
+          id: 44,
+          windowId: 7,
+          title: "Local file",
+          url: "file:///Users/tester/private/report.html"
+        },
+        {
+          id: 45,
+          windowId: 7,
+          title: "Ask host",
+          url: "https://ask.example/dashboard"
+        },
+        {
+          id: 46,
+          windowId: 7,
+          title: "Missing permission",
+          url: "https://missing-permission.example/dashboard"
+        },
+        {
+          id: 47,
+          windowId: 7,
+          title: "Blocked host",
+          url: "https://blocked.example/dashboard"
+        },
+        {
+          id: 48,
+          windowId: 7,
+          title: "Content missing",
+          url: "https://content-missing.example/dashboard"
+        }
+      ],
+      contentScriptSessions: [
+        {
+          state: "loaded",
+          url: "https://allowed.example/dashboard",
+          pageControl: {
+            state: "ready",
+            capable: true
+          },
+          visibleText: "must not be exported"
+        }
+      ]
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["allowed.example", "missing-permission.example", "content-missing.example"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: ["blocked.example"]
+    };
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+      type: TABS_DISCOVER,
+      requestId: "tabs-discover-test"
+    }, {}, sendResponse);
+
+    expect(keepChannelOpen).toBe(true);
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        type: "skfiy.tabs.discover_result",
+        schemaVersion: 1,
+        requestId: "tabs-discover-test",
+        result: "passed",
+        tabs: [
+          expect.objectContaining({
+            id: 41,
+            windowId: 7,
+            title: "Allowed app",
+            url: "https://allowed.example/dashboard?token=<redacted>",
+            host: "allowed.example",
+            scheme: "https:",
+            state: "eligible",
+            eligible: true
+          }),
+          expect.objectContaining({
+            id: 42,
+            state: "blocked",
+            eligible: false,
+            blocker: "internal_chrome_page"
+          }),
+          expect.objectContaining({
+            id: 43,
+            state: "blocked",
+            eligible: false,
+            blocker: "chrome_extension_page"
+          }),
+          expect.objectContaining({
+            id: 44,
+            url: "file://<redacted>",
+            state: "blocked",
+            eligible: false,
+            blocker: "file_url_not_supported"
+          }),
+          expect.objectContaining({
+            id: 45,
+            state: "blocked",
+            eligible: false,
+            blocker: "blocked_by_host_policy"
+          }),
+          expect.objectContaining({
+            id: 46,
+            state: "blocked",
+            eligible: false,
+            blocker: "blocked_by_chrome_host_permission"
+          }),
+          expect.objectContaining({
+            id: 47,
+            state: "blocked",
+            eligible: false,
+            blocker: "blocked_by_host_policy"
+          }),
+          expect.objectContaining({
+            id: 48,
+            state: "blocked",
+            eligible: false,
+            blocker: "content_script_not_loaded"
+          })
+        ]
+      }));
+    });
+    const responseJson = JSON.stringify(sendResponse.mock.calls[0][0]);
+    expect(responseJson).not.toContain("must not be exported");
+    expect(responseJson).not.toContain("/Users/tester/private");
+    expect(mock.chrome.permissions.request).not.toHaveBeenCalled();
+    expect(mock.chrome.scripting.executeScript).not.toHaveBeenCalled();
+
+    await waitForAssertion(() => {
+      expect(mock.postedMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: "skfiy.tabs.discover",
+          requestId: expect.stringContaining("tabs-discover-native"),
+          payload: {
+            pageTabs: expect.objectContaining({
+              tabs: expect.arrayContaining([
+                expect.objectContaining({ id: 41, state: "eligible" }),
+                expect.objectContaining({ id: 44, url: "file://<redacted>" })
+              ])
+            })
+          }
+        })
+      ]));
+    });
+    expect(JSON.stringify(mock.postedMessages)).not.toContain("must not be exported");
   });
 });
 
@@ -993,6 +1187,64 @@ describe("Chrome extension background policy sync", () => {
       })
     });
     expect(mock.storage[HOST_POLICY_STORAGE_KEY].allowedHosts).toEqual(["loaded.example"]);
+  });
+
+  it("runs tab discovery when the service worker starts after a tabs wake page already loaded", async () => {
+    const mock = createChromeMock([
+      {
+        schemaVersion: 1,
+        type: "skfiy.native.response",
+        requestId: "tabs-discover-response",
+        result: "accepted",
+        bridgeState: "connected",
+        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+        messageType: TABS_DISCOVER
+      },
+      createPolicyResponse({ allowedHosts: ["loaded.example"] }),
+      createPageObserveResponse()
+    ], {
+      allTabs: [
+        {
+          id: 99,
+          windowId: 7,
+          active: true,
+          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=late-tabs&skfiyWakeAction=tabs"
+        },
+        {
+          id: 41,
+          windowId: 7,
+          title: "Loaded app",
+          url: "https://loaded.example/dashboard"
+        }
+      ]
+    });
+    globalThis.chrome = mock.chrome;
+    await importBackground({ autoHeartbeat: true });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    await waitForAssertion(() => {
+      expect(mock.postedMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          schemaVersion: 1,
+          type: TABS_DISCOVER,
+          payload: expect.objectContaining({
+            pageTabs: expect.objectContaining({
+              result: "passed",
+              tabs: expect.arrayContaining([
+                expect.objectContaining({
+                  id: 99,
+                  blocker: "chrome_extension_page"
+                }),
+                expect.objectContaining({
+                  id: 41,
+                  host: "loaded.example"
+                })
+              ])
+            })
+          })
+        })
+      ]));
+    });
   });
 
   it("refreshes page-control heartbeat when the active tab finishes loading", async () => {

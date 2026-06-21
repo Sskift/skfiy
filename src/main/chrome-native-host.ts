@@ -145,6 +145,7 @@ export interface ChromeExtensionConnectionHeartbeatInput {
   pageObservation?: Record<string, unknown>;
   pageActionResult?: Record<string, unknown>;
   pageScreenshot?: Record<string, unknown>;
+  pageTabs?: Record<string, unknown>;
 }
 
 export interface ChromeExtensionCommandEvidence {
@@ -155,6 +156,7 @@ export interface ChromeExtensionCommandEvidence {
   pageObservation?: Record<string, unknown>;
   pageActionResult?: Record<string, unknown>;
   pageScreenshot?: Record<string, unknown>;
+  pageTabs?: Record<string, unknown>;
 }
 
 export interface ChromeExtensionConnectionStatus {
@@ -171,6 +173,7 @@ export interface ChromeExtensionConnectionStatus {
   pageObservation?: Record<string, unknown>;
   pageActionResult?: Record<string, unknown>;
   pageScreenshot?: Record<string, unknown>;
+  pageTabs?: Record<string, unknown>;
   latestCommand?: ChromeExtensionCommandEvidence;
 }
 
@@ -193,6 +196,7 @@ export interface ChromeNativeMessagingHostIo {
     pageObservation?: Record<string, unknown>;
     pageActionResult?: Record<string, unknown>;
     pageScreenshot?: Record<string, unknown>;
+    pageTabs?: Record<string, unknown>;
   }) => Promise<void>;
 }
 
@@ -373,6 +377,7 @@ export async function writeChromeExtensionConnectionHeartbeat({
   pageObservation,
   pageActionResult,
   pageScreenshot,
+  pageTabs,
   io = createDefaultChromeNativeHostIo()
 }: ChromeExtensionConnectionHeartbeatInput & {
   homeDir: string;
@@ -381,6 +386,7 @@ export async function writeChromeExtensionConnectionHeartbeat({
   const statePath = createChromeExtensionConnectionStatePath(homeDir);
   const boundedPageActionResult = summarizePageActionResultForHeartbeat(pageActionResult);
   const boundedPageScreenshot = summarizePageScreenshotForHeartbeat(pageScreenshot);
+  const boundedPageTabs = summarizePageTabsForHeartbeat(pageTabs);
   const latestCommand = await createLatestCommandEvidence({
     io,
     statePath,
@@ -390,7 +396,8 @@ export async function writeChromeExtensionConnectionHeartbeat({
     requestId,
     pageObservation,
     pageActionResult: boundedPageActionResult,
-    pageScreenshot: boundedPageScreenshot
+    pageScreenshot: boundedPageScreenshot,
+    pageTabs: boundedPageTabs
   });
   const heartbeat = {
     schemaVersion: 1,
@@ -403,6 +410,7 @@ export async function writeChromeExtensionConnectionHeartbeat({
     ...(pageObservation ? { pageObservation } : {}),
     ...(boundedPageActionResult ? { pageActionResult: boundedPageActionResult } : {}),
     ...(boundedPageScreenshot ? { pageScreenshot: boundedPageScreenshot } : {}),
+    ...(boundedPageTabs ? { pageTabs: boundedPageTabs } : {}),
     ...(latestCommand ? { latestCommand } : {})
   };
 
@@ -425,7 +433,8 @@ async function createLatestCommandEvidence({
   requestId,
   pageObservation,
   pageActionResult,
-  pageScreenshot
+  pageScreenshot,
+  pageTabs
 }: {
   io: ChromeNativeHostIo;
   statePath: string;
@@ -436,8 +445,9 @@ async function createLatestCommandEvidence({
   pageObservation?: Record<string, unknown>;
   pageActionResult?: Record<string, unknown>;
   pageScreenshot?: Record<string, unknown>;
+  pageTabs?: Record<string, unknown>;
 }): Promise<ChromeExtensionCommandEvidence | undefined> {
-  if (pageObservation || pageActionResult || pageScreenshot) {
+  if (pageObservation || pageActionResult || pageScreenshot || pageTabs) {
     return {
       observedAt,
       ...(launchOrigin ? { launchOrigin } : {}),
@@ -445,7 +455,8 @@ async function createLatestCommandEvidence({
       requestId,
       ...(pageObservation ? { pageObservation } : {}),
       ...(pageActionResult ? { pageActionResult } : {}),
-      ...(pageScreenshot ? { pageScreenshot } : {})
+      ...(pageScreenshot ? { pageScreenshot } : {}),
+      ...(pageTabs ? { pageTabs } : {})
     };
   }
 
@@ -548,6 +559,9 @@ export async function readChromeExtensionConnectionStatus({
       : {}),
     ...(summarizePageScreenshotForHeartbeat(heartbeat.pageScreenshot)
       ? { pageScreenshot: summarizePageScreenshotForHeartbeat(heartbeat.pageScreenshot) }
+      : {}),
+    ...(summarizePageTabsForHeartbeat(heartbeat.pageTabs)
+      ? { pageTabs: summarizePageTabsForHeartbeat(heartbeat.pageTabs) }
       : {}),
     ...(summarizeLatestCommandEvidence(heartbeat.latestCommand)
       ? { latestCommand: summarizeLatestCommandEvidence(heartbeat.latestCommand) }
@@ -712,6 +726,7 @@ async function recordConnectionHeartbeat({
   const pageObservation = readRecord(payload?.pageObservation);
   const pageActionResult = summarizePageActionResultForHeartbeat(payload?.pageActionResult);
   const pageScreenshot = summarizePageScreenshotForHeartbeat(payload?.pageScreenshot);
+  const pageTabs = summarizePageTabsForHeartbeat(payload?.pageTabs);
 
   try {
     await connectionHeartbeat({
@@ -722,7 +737,8 @@ async function recordConnectionHeartbeat({
       ...(pageControl ? { pageControl } : {}),
       ...(pageObservation ? { pageObservation } : {}),
       ...(pageActionResult ? { pageActionResult } : {}),
-      ...(pageScreenshot ? { pageScreenshot } : {})
+      ...(pageScreenshot ? { pageScreenshot } : {}),
+      ...(pageTabs ? { pageTabs } : {})
     });
   } catch (error) {
     stderr.write(`Chrome extension heartbeat failed: ${readErrorMessage(error)}\n`);
@@ -1041,6 +1057,46 @@ function summarizePageScreenshotForHeartbeat(value: unknown): Record<string, unk
   return Object.keys(summary).length > 0 ? summary : undefined;
 }
 
+function summarizePageTabsForHeartbeat(value: unknown): Record<string, unknown> | undefined {
+  const record = readRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  const rawTabs = Array.isArray(record.tabs) ? record.tabs : [];
+  const tabs = rawTabs
+    .map((entry) => {
+      const tab = readRecord(entry);
+      if (!tab) {
+        return undefined;
+      }
+      const summary: Record<string, unknown> = {
+        ...(readFiniteNumber(tab.id) !== undefined ? { id: readFiniteNumber(tab.id) } : {}),
+        ...(readFiniteNumber(tab.windowId) !== undefined ? { windowId: readFiniteNumber(tab.windowId) } : {}),
+        ...(readBoolean(tab.active) !== undefined ? { active: readBoolean(tab.active) } : {}),
+        ...(readBoundedString(tab.title) ? { title: readBoundedString(tab.title) } : {}),
+        ...(readBoundedString(tab.url) ? { url: readBoundedString(tab.url) } : {}),
+        ...(readBoundedString(tab.host) ? { host: readBoundedString(tab.host) } : {}),
+        ...(readBoundedString(tab.scheme) ? { scheme: readBoundedString(tab.scheme) } : {}),
+        ...(readBoundedString(tab.state) ? { state: readBoundedString(tab.state) } : {}),
+        ...(readBoolean(tab.eligible) !== undefined ? { eligible: readBoolean(tab.eligible) } : {}),
+        ...(readBoundedString(tab.blocker) ? { blocker: readBoundedString(tab.blocker) } : {}),
+        ...(readBoundedString(tab.nextAction) ? { nextAction: readBoundedString(tab.nextAction) } : {})
+      };
+      return Object.keys(summary).length > 0 ? summary : undefined;
+    })
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry));
+
+  const summary: Record<string, unknown> = {
+    ...(readBoundedString(record.result) ? { result: readBoundedString(record.result) } : {}),
+    tabs
+  };
+
+  return tabs.length > 0 || summary.result
+    ? summary
+    : undefined;
+}
+
 function summarizeLatestCommandEvidence(value: unknown): ChromeExtensionCommandEvidence | undefined {
   const record = readRecord(value);
   if (!record) {
@@ -1050,6 +1106,7 @@ function summarizeLatestCommandEvidence(value: unknown): ChromeExtensionCommandE
   const pageObservation = readRecord(record.pageObservation);
   const pageActionResult = summarizePageActionResultForHeartbeat(record.pageActionResult);
   const pageScreenshot = summarizePageScreenshotForHeartbeat(record.pageScreenshot);
+  const pageTabs = summarizePageTabsForHeartbeat(record.pageTabs);
   const summary: ChromeExtensionCommandEvidence = {
     ...(readBoundedString(record.observedAt) ? { observedAt: readBoundedString(record.observedAt) } : {}),
     ...(readBoundedString(record.launchOrigin) ? { launchOrigin: readBoundedString(record.launchOrigin) } : {}),
@@ -1057,7 +1114,8 @@ function summarizeLatestCommandEvidence(value: unknown): ChromeExtensionCommandE
     ...(readBoundedString(record.requestId) ? { requestId: readBoundedString(record.requestId) } : {}),
     ...(pageObservation ? { pageObservation } : {}),
     ...(pageActionResult ? { pageActionResult } : {}),
-    ...(pageScreenshot ? { pageScreenshot } : {})
+    ...(pageScreenshot ? { pageScreenshot } : {}),
+    ...(pageTabs ? { pageTabs } : {})
   };
 
   return summary.messageType && summary.requestId

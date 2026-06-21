@@ -161,11 +161,29 @@ the Chrome tab id into the desktop reload command:
   --target-tab-id <chrome-tab-id>
 ```
 
-The command still clicks the reload control on `chrome://extensions`, but the
-wake URL includes `skfiyTargetTabId`. The popup's automatic heartbeat then asks
-the background worker to observe that page tab instead of observing the popup
-tab. A resulting `chrome_host_permission_missing` state is expected until the
-user grants the extension optional site access for that origin.
+The command first opens an extension-context wake URL with
+`skfiyWakeAction=dev-reload`, then reopens a page-control wake URL that includes
+`skfiyTargetTabId`. The popup/background path asks Chrome to reload the
+extension from inside the extension context and then verifies the requested tab.
+Only if that path cannot verify does skfiy fall back to the
+`chrome://extensions` card reload path, which requires an unlocked desktop for
+OCR/click control. A resulting `chrome_host_permission_missing` state is
+expected until the user grants the extension optional site access for that
+origin.
+
+Some MV3 edits require Chrome to re-register the background service worker. If
+the local `chrome-extension/manifest.json` version is newer than Chrome's stored
+`service_worker_registration_info.version`, `chrome.runtime.reload()` may still
+leave the old worker active. In that case, use the extension card's reload
+button in `chrome://extensions`, then rerun:
+
+```bash
+./dist/skfiy chrome tabs --extension-id <id> --json
+```
+
+The product should report this as `extension-registration-stale` with the local
+manifest version, registered service-worker version, extension path, and next
+action instead of a generic tab-discovery failure.
 
 Chrome does not let an unpacked MV3 extension watch arbitrary local source files
 or silently reload itself from outside the extension context. If
@@ -256,6 +274,10 @@ contract for dashboards or handoff reports.
 - Source edit not visible in Chrome: open the popup and click
   **Reload extension**. If `Dev reload` reports the runtime reload API is
   unavailable, reload from `chrome://extensions`.
+- Stale service-worker registration: when `chrome tabs --json` reports
+  `extension-registration-stale`, reload the skfiy extension card in
+  `chrome://extensions` so Chrome re-registers the MV3 service worker, then run
+  `chrome tabs --json` again.
 - Host policy blocked: approve the host for the current turn or set/reset the
   local Chrome host policy.
 - Missing Chrome host permission: grant site access for the current site in the

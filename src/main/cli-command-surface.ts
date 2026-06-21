@@ -46,10 +46,14 @@ import {
   type ChromeExtensionReloadResult
 } from "./chrome-extension-reloader.js";
 import {
+  invokeChromeExtensionTabDiscovery,
   invokeChromeExtensionPageControl,
   type ChromeExtensionPageControlInput,
   type ChromeExtensionPageControlInvoker,
-  type ChromeExtensionPageControlResult
+  type ChromeExtensionPageControlResult,
+  type ChromeExtensionTabDiscoveryInput,
+  type ChromeExtensionTabDiscoveryInvoker,
+  type ChromeExtensionTabDiscoveryResult
 } from "./chrome-extension-page-control.js";
 import {
   createRuntimeSnapshotStatePath,
@@ -99,6 +103,7 @@ export type DashboardProbeSubcommand = "status" | "snapshot";
 export type ChromeSubcommand =
   | "status"
   | "extension-info"
+  | "tabs"
   | "observe"
   | "screenshot"
   | "click"
@@ -117,7 +122,10 @@ export type ChromeExtensionReloader = (
 export type {
   ChromeExtensionPageControlInput,
   ChromeExtensionPageControlInvoker,
-  ChromeExtensionPageControlResult
+  ChromeExtensionPageControlResult,
+  ChromeExtensionTabDiscoveryInput,
+  ChromeExtensionTabDiscoveryInvoker,
+  ChromeExtensionTabDiscoveryResult
 };
 
 const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
@@ -144,6 +152,18 @@ const TMUX_PANE_FORMAT = "#{session_name}\t#{window_id}\t#{window_index}\t#{wind
 const CHROME_EXTENSION_PAGE_SAFETY_CAPABILITY = "chrome-extension-page-safety";
 const CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY = "chrome-extension-page-control";
 const CHROME_PAGE_OBSERVE_MESSAGE_TYPE = "skfiy.page.observe";
+const CHROME_EXTENSION_REGISTRATION_STALE_NEXT_ACTION =
+  "Reload the skfiy extension card in Chrome Extension Manager so Chrome re-registers the MV3 service worker, then retry `skfiy chrome tabs`.";
+
+type ChromeExtensionRegistrationStatus = {
+  state: "fresh" | "stale" | "missing" | "unknown" | "invalid";
+  localManifestVersion?: string;
+  registeredVersion?: string;
+  extensionPath?: string;
+  manifestPath?: string;
+  preferencesPath?: string;
+  reason?: string;
+};
 
 const PERMISSION_SETTINGS_TARGET_DETAILS: Record<PermissionSettingsTarget, {
   label: string;
@@ -399,6 +419,7 @@ export interface RunSkfiyCliInput {
   signatureReader?: SignatureReader;
   chromeExtensionReloader?: ChromeExtensionReloader;
   chromeExtensionPageControlInvoker?: ChromeExtensionPageControlInvoker;
+  chromeExtensionTabDiscoveryInvoker?: ChromeExtensionTabDiscoveryInvoker;
   smokeRunner?: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
   mcpStdin?: AsyncIterable<Buffer | Uint8Array | string> | Iterable<Buffer | Uint8Array | string>;
   mcpServerStarter?: SkfiyMcpServerStarter;
@@ -512,6 +533,15 @@ const COMMANDS: CliCommandDefinition[] = [
     plannedMutation: false,
     executesSystemMutation: false,
     outputShape: "chrome-extension-info",
+    capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
+  },
+  {
+    path: "chrome tabs",
+    summary: "List Chrome tabs visible to the skfiy extension with page-control eligibility blockers.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-tabs",
     capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
   },
   {
@@ -1144,6 +1174,24 @@ export function createCliOutput(
       };
     }
 
+    if (invocation.subcommand === "tabs") {
+      return {
+        schemaVersion: 1,
+        command: "chrome tabs",
+        generatedAt,
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "not-run",
+        extensionId: invocation.options.extensionIds[0],
+        actionPlan: [
+          "open the skfiy extension wake page with skfiyWakeAction=tabs",
+          "ask the extension background worker for bounded tab metadata",
+          "record the bounded tab discovery result through Chrome Native Messaging",
+          "poll the Native Messaging heartbeat for fresh tab discovery evidence"
+        ]
+      };
+    }
+
     if (invocation.subcommand === "reload-extension") {
       return {
         schemaVersion: 1,
@@ -1613,6 +1661,7 @@ export async function runSkfiyCli({
   signatureReader = readCodeSignatureStatus,
   chromeExtensionReloader = reloadChromeExtensionWithDesktopControl,
   chromeExtensionPageControlInvoker = invokeChromeExtensionPageControl,
+  chromeExtensionTabDiscoveryInvoker = invokeChromeExtensionTabDiscovery,
   smokeRunner = runSmokeScript,
   mcpStdin = process.stdin,
   mcpServerStarter = startSkfiyMcpServer,
@@ -1689,6 +1738,7 @@ export async function runSkfiyCli({
       io: chromeNativeHostIo,
       chromeExtensionReloader,
       chromeExtensionPageControlInvoker,
+      chromeExtensionTabDiscoveryInvoker,
       stdout,
       stderr
     });
@@ -5770,6 +5820,141 @@ function readChromeExtensionManifest(manifestPath: string): Record<string, unkno
   }
 }
 
+async function readChromeExtensionRegistrationStatus({
+  rootDir,
+  homeDir,
+  extensionId,
+  io
+}: {
+  rootDir: string;
+  homeDir: string;
+  extensionId: string;
+  io?: ChromeNativeHostIo;
+}): Promise<ChromeExtensionRegistrationStatus> {
+  const extensionPath = path.join(rootDir, "chrome-extension");
+  const manifestPath = path.join(extensionPath, "manifest.json");
+  const localManifest = await readJsonFileForChromeRegistration(manifestPath, io);
+  if (localManifest.state === "invalid") {
+    return {
+      state: "invalid",
+      manifestPath,
+      reason: localManifest.reason
+    };
+  }
+
+  const localManifestVersion = readString(readRecord(localManifest.value)?.version);
+  const preferencesPaths = [
+    path.join(homeDir, "Library/Application Support/Google/Chrome/Default/Secure Preferences"),
+    path.join(homeDir, "Library/Application Support/Google/Chrome/Default/Preferences")
+  ];
+
+  let lastMissingPath = preferencesPaths[0];
+  for (const preferencesPath of preferencesPaths) {
+    const preferences = await readJsonFileForChromeRegistration(preferencesPath, io);
+    if (preferences.state === "missing") {
+      lastMissingPath = preferencesPath;
+      continue;
+    }
+    if (preferences.state === "invalid") {
+      return {
+        state: "invalid",
+        localManifestVersion,
+        manifestPath,
+        preferencesPath,
+        reason: preferences.reason
+      };
+    }
+
+    const settings = readRecord(readRecord(readRecord(preferences.value)?.extensions)?.settings);
+    const extensionEntry = readRecord(settings?.[extensionId]);
+    if (!extensionEntry) {
+      return {
+        state: "missing",
+        localManifestVersion,
+        manifestPath,
+        preferencesPath,
+        reason: `Chrome profile does not contain extension ${extensionId}.`
+      };
+    }
+
+    const registeredVersion = readString(readRecord(extensionEntry.service_worker_registration_info)?.version)
+      ?? readString(readRecord(extensionEntry.manifest)?.version);
+    const registeredExtensionPath = readString(extensionEntry.path);
+    if (localManifestVersion && registeredVersion && localManifestVersion !== registeredVersion) {
+      return compactRecord({
+        state: "stale",
+        localManifestVersion,
+        registeredVersion,
+        extensionPath: registeredExtensionPath,
+        manifestPath,
+        preferencesPath
+      }) as ChromeExtensionRegistrationStatus;
+    }
+    if (localManifestVersion && registeredVersion && localManifestVersion === registeredVersion) {
+      return compactRecord({
+        state: "fresh",
+        localManifestVersion,
+        registeredVersion,
+        extensionPath: registeredExtensionPath,
+        manifestPath,
+        preferencesPath
+      }) as ChromeExtensionRegistrationStatus;
+    }
+
+    return compactRecord({
+      state: "unknown",
+      localManifestVersion,
+      registeredVersion,
+      extensionPath: registeredExtensionPath,
+      manifestPath,
+      preferencesPath,
+      reason: "Chrome extension registration did not expose both local and registered versions."
+    }) as ChromeExtensionRegistrationStatus;
+  }
+
+  return {
+    state: "missing",
+    localManifestVersion,
+    manifestPath,
+    preferencesPath: lastMissingPath,
+    reason: "Chrome profile preferences are missing."
+  };
+}
+
+async function readJsonFileForChromeRegistration(
+  targetPath: string,
+  io?: ChromeNativeHostIo
+): Promise<{
+  state: "available" | "missing" | "invalid";
+  value?: unknown;
+  reason?: string;
+}> {
+  try {
+    let content: string;
+    if (io) {
+      if (!(await io.exists(targetPath))) {
+        return { state: "missing" };
+      }
+      content = await io.readFile(targetPath);
+    } else {
+      if (!existsSync(targetPath)) {
+        return { state: "missing" };
+      }
+      content = readFileSync(targetPath, "utf8");
+    }
+
+    return {
+      state: "available",
+      value: JSON.parse(content) as unknown
+    };
+  } catch (error) {
+    return {
+      state: "invalid",
+      reason: readErrorMessage(error)
+    };
+  }
+}
+
 async function runChromeNativeHostCli({
   invocation,
   generatedAt,
@@ -5778,6 +5963,7 @@ async function runChromeNativeHostCli({
   io,
   chromeExtensionReloader,
   chromeExtensionPageControlInvoker,
+  chromeExtensionTabDiscoveryInvoker,
   stdout,
   stderr
 }: {
@@ -5788,6 +5974,7 @@ async function runChromeNativeHostCli({
   io?: ChromeNativeHostIo;
   chromeExtensionReloader: ChromeExtensionReloader;
   chromeExtensionPageControlInvoker: ChromeExtensionPageControlInvoker;
+  chromeExtensionTabDiscoveryInvoker: ChromeExtensionTabDiscoveryInvoker;
   stdout: SkfiyCliIo;
   stderr: SkfiyCliIo;
 }): Promise<number> {
@@ -5863,6 +6050,53 @@ async function runChromeNativeHostCli({
       setupGuide: setupGuideFields.setupGuide
     }, null, 2)}\n`);
     return 0;
+  }
+
+  if (invocation.subcommand === "tabs") {
+    try {
+      const tabDiscoveryResult = await chromeExtensionTabDiscoveryInvoker({
+        extensionId: invocation.options.extensionIds[0],
+        homeDir,
+        generatedAt,
+        io
+      });
+      const extensionRegistration = tabDiscoveryResult.result === "blocked"
+        ? await readChromeExtensionRegistrationStatus({
+          rootDir,
+          homeDir,
+          extensionId: invocation.options.extensionIds[0],
+          io
+        })
+        : undefined;
+      const tabDiscoveryOutput = extensionRegistration?.state === "stale"
+        ? {
+          ...tabDiscoveryResult,
+          reason: "extension-registration-stale",
+          extensionRegistration,
+          nextAction: CHROME_EXTENSION_REGISTRATION_STALE_NEXT_ACTION
+        }
+        : tabDiscoveryResult;
+      stdout.write(`${JSON.stringify({
+        command: invocation.path,
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        executesSystemMutation: true,
+        ...tabDiscoveryOutput
+      }, null, 2)}\n`);
+      return tabDiscoveryResult.result === "blocked" ? 1 : 0;
+    } catch (error) {
+      stdout.write(`${JSON.stringify({
+        schemaVersion: 1,
+        command: invocation.path,
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        executesSystemMutation: true,
+        result: "blocked",
+        extensionId: invocation.options.extensionIds[0],
+        reason: "chrome-tabs-command-error",
+        error: readErrorMessage(error),
+        nextAction: "Check that the skfiy Chrome extension is installed, connected to the native host, then retry `skfiy chrome tabs`."
+      }, null, 2)}\n`);
+      return 1;
+    }
   }
 
   if (invocation.subcommand === "reload-extension") {
@@ -6076,6 +6310,7 @@ function error(code: string, message: string): NormalizeCliCommandResult {
 function isChromeSubcommand(value: string | undefined): value is ChromeSubcommand {
   return value === "status"
     || value === "extension-info"
+    || value === "tabs"
     || value === "observe"
     || value === "screenshot"
     || value === "click"

@@ -18,6 +18,8 @@ export const MESSAGE_TYPES = Object.freeze({
   PAGE_ACTION_RESULT: "skfiy.page.action_result",
   PAGE_SCREENSHOT: "skfiy.page.screenshot",
   PAGE_SCREENSHOT_RESULT: "skfiy.page.screenshot_result",
+  TABS_DISCOVER: "skfiy.tabs.discover",
+  TABS_DISCOVER_RESULT: "skfiy.tabs.discover_result",
   PAGE_CONTROL_HEALTH: "skfiy.page_control.health",
   PAGE_CONTROL_HEALTH_RESULT: "skfiy.page_control.health_result",
   DOWNLOADS_STATUS: "skfiy.downloads.status",
@@ -45,7 +47,7 @@ const NATIVE_MESSAGE_TIMEOUT_MS = 3_000;
 const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
   manifest_version: 3,
   name: "skfiy Chrome Adapter",
-  version: "0.0.1",
+  version: "0.0.3",
   minimum_chrome_version: "116",
   permissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
   optional_host_permissions: ["http://*/*", "https://*/*"]
@@ -119,6 +121,7 @@ function readPageControlProtocol() {
       observe: MESSAGE_TYPES.PAGE_OBSERVE,
       action: MESSAGE_TYPES.PAGE_ACTION,
       screenshot: MESSAGE_TYPES.PAGE_SCREENSHOT,
+      tabs: MESSAGE_TYPES.TABS_DISCOVER,
       downloads: MESSAGE_TYPES.DOWNLOADS_STATUS,
       hostPolicy: MESSAGE_TYPES.HOST_POLICY_REQUEST
     },
@@ -521,6 +524,167 @@ async function readHostPolicySnapshot(tabId, options = {}) {
     policy,
     syncStatus,
     diagnostics: createDiagnostics(policy, syncStatus, currentTab, devReload)
+  };
+}
+
+function createTabNextAction(blocker) {
+  switch (blocker) {
+    case "internal_chrome_page":
+    case "chrome_extension_page":
+    case "file_url_not_supported":
+    case "unsupported_url_scheme":
+      return "Open a normal HTTP(S) page before asking skfiy to control Chrome.";
+    case "blocked_by_host_policy":
+      return "Allow this host in skfiy Chrome policy, then retry tab discovery.";
+    case "blocked_by_chrome_host_permission":
+      return "Grant Chrome site access for this host, then retry tab discovery.";
+    case "content_script_not_loaded":
+      return "Reload the page or extension so the skfiy content script can load.";
+    default:
+      return "Inspect Chrome extension status before controlling this tab.";
+  }
+}
+
+function redactTabUrl(url) {
+  if (typeof url !== "string" || url.length === 0) {
+    return "";
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol === "file:") {
+      return "file://<redacted>";
+    }
+    if (parsedUrl.protocol === "chrome-extension:") {
+      return `${parsedUrl.protocol}//${parsedUrl.host}/<redacted>`;
+    }
+    parsedUrl.hash = "";
+    for (const key of Array.from(parsedUrl.searchParams.keys())) {
+      parsedUrl.searchParams.set(key, "<redacted>");
+    }
+    return parsedUrl.toString().replaceAll("%3Credacted%3E", "<redacted>");
+  } catch {
+    return "";
+  }
+}
+
+async function summarizeDiscoverableTab(tab, policy) {
+  const safeUrl = redactTabUrl(tab?.url ?? "");
+  const title = typeof tab?.title === "string" ? tab.title.slice(0, 160) : "";
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(tab?.url ?? "");
+  } catch {
+    parsedUrl = undefined;
+  }
+  const scheme = parsedUrl?.protocol ?? "";
+  const host = parsedUrl?.host ?? "";
+  const base = {
+    ...(Number.isInteger(tab?.id) ? { id: tab.id } : {}),
+    ...(Number.isInteger(tab?.windowId) ? { windowId: tab.windowId } : {}),
+    ...(typeof tab?.active === "boolean" ? { active: tab.active } : {}),
+    ...(title ? { title } : {}),
+    url: safeUrl,
+    host,
+    scheme
+  };
+  const blocked = (blocker, details = {}) => ({
+    ...base,
+    state: "blocked",
+    eligible: false,
+    blocker,
+    nextAction: createTabNextAction(blocker),
+    ...details
+  });
+
+  if (!parsedUrl) {
+    return blocked("unsupported_url_scheme");
+  }
+  if (scheme === "chrome:") {
+    return blocked("internal_chrome_page");
+  }
+  if (scheme === "chrome-extension:") {
+    return blocked("chrome_extension_page");
+  }
+  if (scheme === "file:") {
+    return blocked("file_url_not_supported");
+  }
+  if (scheme !== "http:" && scheme !== "https:") {
+    return blocked("unsupported_url_scheme");
+  }
+
+  const permissionDetails = getHostPermissionDetails(tab?.url ?? "");
+  const policyDecision = decideHostPolicy(policy, host);
+  if (policyDecision.decision !== "allowed") {
+    return blocked("blocked_by_host_policy", {
+      hostPolicy: policyDecision
+    });
+  }
+
+  const chromeHostPermission = await readChromeHostPermissionStatus(permissionDetails);
+  if (chromeHostPermission.state !== "granted") {
+    return blocked("blocked_by_chrome_host_permission", {
+      chromeHostPermission
+    });
+  }
+
+  const contentScript = await readContentScriptSession(tab, policyDecision, chromeHostPermission, {
+    injectContentScript: false
+  });
+  if (contentScript.state !== "loaded") {
+    return blocked(contentScript.reason ?? "content_script_not_loaded", {
+      contentScript: {
+        state: contentScript.state,
+        reason: contentScript.reason ?? null,
+        lastError: contentScript.lastError ?? null
+      }
+    });
+  }
+
+  return {
+    ...base,
+    state: "eligible",
+    eligible: true
+  };
+}
+
+async function discoverChromeTabs(requestId = `tabs-discover-${Date.now()}`) {
+  const policy = await readHostPolicy();
+  const tabs = await chrome.tabs.query({});
+  const summaries = [];
+  for (const tab of Array.isArray(tabs) ? tabs : []) {
+    summaries.push(await summarizeDiscoverableTab(tab, policy));
+  }
+  const pageTabs = {
+    result: "passed",
+    tabs: summaries
+  };
+  let nativeHeartbeat;
+  try {
+    nativeHeartbeat = await sendNativeMessage({
+      type: MESSAGE_TYPES.TABS_DISCOVER,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: `tabs-discover-native-${Date.now()}`,
+      payload: {
+        pageTabs
+      }
+    }, {
+      syncHostPolicy: false
+    });
+  } catch (error) {
+    nativeHeartbeat = {
+      result: "error",
+      reason: readErrorMessage(error)
+    };
+  }
+
+  return {
+    type: MESSAGE_TYPES.TABS_DISCOVER_RESULT,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId,
+    result: "passed",
+    tabs: summaries,
+    nativeHeartbeat
   };
 }
 
@@ -1343,7 +1507,10 @@ function mergeWakeDirectives(primary, fallback) {
 }
 
 function createWakeDirectiveKey(directive) {
-  if (!directive || !Number.isInteger(directive.targetTabId)) {
+  if (!directive) {
+    return undefined;
+  }
+  if (!Number.isInteger(directive.targetTabId) && directive.wakeAction !== "tabs") {
     return undefined;
   }
 
@@ -1370,6 +1537,38 @@ function claimWakeDirective(directive) {
     processedWakeDirectiveKeys.clear();
     processedWakeDirectiveKeys.add(key);
   }
+  return true;
+}
+
+function scheduleWakeDirective(directive) {
+  const wakeTargetTabId = directive?.targetTabId;
+  const wakeAction = directive?.wakeAction ?? "";
+  if (wakeAction === "tabs") {
+    if (!claimWakeDirective(directive)) {
+      return true;
+    }
+    setTimeout(() => {
+      void discoverChromeTabs("tabs-discover-wake");
+    }, 150);
+    return true;
+  }
+  if (!Number.isInteger(wakeTargetTabId)) {
+    return false;
+  }
+  if (!claimWakeDirective(directive)) {
+    return true;
+  }
+  setTimeout(() => {
+    if (wakeAction === "observe") {
+      void sendWakePageObservation(wakeTargetTabId);
+      return;
+    }
+    if (["screenshot", "click", "fill", "submit", "scroll"].includes(wakeAction)) {
+      void sendWakePageControlAction(directive);
+      return;
+    }
+    void pingNativeHeartbeat("popup_wake", wakeTargetTabId);
+  }, 150);
   return true;
 }
 
@@ -1601,8 +1800,20 @@ function scheduleExtensionLoadedHeartbeat() {
   }
 
   setTimeout(() => {
+    void scheduleExistingWakeTabs();
     void scheduleNativeHeartbeat("service_worker_loaded");
   }, 0);
+}
+
+async function scheduleExistingWakeTabs() {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of Array.isArray(tabs) ? tabs : []) {
+      scheduleWakeDirective(readWakeDirective(tab?.pendingUrl ?? tab?.url));
+    }
+  } catch {
+    // Best-effort startup recovery; normal tab update listeners still handle later wake URLs.
+  }
 }
 
 function registerTabHeartbeatListeners() {
@@ -1617,23 +1828,7 @@ function registerTabHeartbeatListeners() {
         readWakeDirective(changeInfo?.url),
         readWakeDirective(tab?.url)
       );
-      const wakeTargetTabId = wakeDirective?.targetTabId;
-      const wakeAction = wakeDirective?.wakeAction ?? "";
-      if (Number.isInteger(wakeTargetTabId)) {
-        if (!claimWakeDirective(wakeDirective)) {
-          return;
-        }
-        setTimeout(() => {
-          if (wakeAction === "observe") {
-            void sendWakePageObservation(wakeTargetTabId);
-            return;
-          }
-          if (["screenshot", "click", "fill", "submit", "scroll"].includes(wakeAction)) {
-            void sendWakePageControlAction(wakeDirective);
-            return;
-          }
-          void pingNativeHeartbeat("popup_wake", wakeTargetTabId);
-        }, 150);
+      if (scheduleWakeDirective(wakeDirective)) {
         return;
       }
       if (isOwnExtensionUrl(changeInfo?.url) || isOwnExtensionUrl(tab?.url)) {
@@ -1702,6 +1897,10 @@ async function handleRuntimeMessage(message) {
 
   if (message?.type === MESSAGE_TYPES.PAGE_SCREENSHOT) {
     return routePageScreenshot(message);
+  }
+
+  if (message?.type === MESSAGE_TYPES.TABS_DISCOVER) {
+    return discoverChromeTabs(message.requestId);
   }
 
   if (message?.type === MESSAGE_TYPES.PAGE_CONTROL_HEALTH) {

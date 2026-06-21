@@ -28,7 +28,10 @@ import {
   createDashboardServerStatePath
 } from "./dashboard-server-state";
 import type { ChromeExtensionReloadInput } from "./chrome-extension-reloader";
-import type { ChromeExtensionPageControlInput } from "./chrome-extension-page-control";
+import type {
+  ChromeExtensionPageControlInput,
+  ChromeExtensionTabDiscoveryInput
+} from "./chrome-extension-page-control";
 
 function expectJsonSafe(value: unknown): void {
   expect(JSON.parse(JSON.stringify(value))).toEqual(value);
@@ -49,6 +52,22 @@ function createTempRoot(): string {
   return mkdtempSync(path.join(tmpdir(), "skfiy-cli-"));
 }
 
+function createMemoryChromeIo(files: Record<string, string>) {
+  return {
+    exists: async (targetPath: string) => Object.hasOwn(files, targetPath),
+    mkdir: async (targetPath: string) => {
+      files[targetPath] = files[targetPath] ?? "__dir__";
+    },
+    readFile: async (targetPath: string) => files[targetPath],
+    writeFile: async (targetPath: string, content: string) => {
+      files[targetPath] = content;
+    },
+    rm: async (targetPath: string) => {
+      delete files[targetPath];
+    }
+  };
+}
+
 describe("CLI command surface", () => {
   it("defines operator commands and marks mutation-capable commands explicitly", () => {
     const surface = createCliCommandSurface();
@@ -66,6 +85,7 @@ describe("CLI command surface", () => {
       "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
       "chrome status",
       "chrome extension-info",
+      "chrome tabs",
       "chrome observe",
       "chrome screenshot",
       "chrome click",
@@ -146,6 +166,13 @@ describe("CLI command surface", () => {
         plannedMutation: false,
         executesSystemMutation: false,
         outputShape: "chrome-extension-info",
+        capabilities: ["chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "chrome tabs",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "chrome-tabs",
         capabilities: ["chrome-extension-page-control"]
       }),
       expect.objectContaining({
@@ -3869,6 +3896,179 @@ describe("CLI command surface", () => {
       }
     });
     expect(chromeExtensionPageControlInvoker).toHaveBeenCalledTimes(1);
+    expect(stderr).toEqual([]);
+  });
+
+  it("runs chrome tabs through the extension tab-discovery invoker", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const chromeExtensionTabDiscoveryInvoker = vi.fn(async (input: ChromeExtensionTabDiscoveryInput) => {
+      expect(input).toMatchObject({
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        homeDir: "/Users/tester"
+      });
+
+      return {
+        schemaVersion: 1 as const,
+        result: "verified" as const,
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        wakeUrl: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyWakeAction=tabs",
+        tabs: [
+          {
+            id: 42,
+            windowId: 7,
+            title: "Allowed app",
+            url: "https://allowed.example/dashboard",
+            host: "allowed.example",
+            state: "eligible" as const,
+            eligible: true
+          },
+          {
+            id: 43,
+            windowId: 7,
+            title: "Extensions",
+            url: "chrome://extensions/",
+            host: "",
+            state: "blocked" as const,
+            eligible: false,
+            blocker: "internal_chrome_page" as const,
+            nextAction: "Open a normal HTTP(S) page before asking skfiy to control Chrome."
+          }
+        ],
+        extensionConnection: {
+          state: "connected" as const,
+          liveConnection: "connected" as const,
+          path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+          ageSeconds: 0,
+          observedAt: "2026-06-21T12:00:00.000Z",
+          messageType: "skfiy.tabs.discover",
+          requestId: "tabs-discover-native-1",
+          pageTabs: {
+            tabs: [
+              { id: 42, state: "eligible" },
+              { id: 43, state: "blocked", blocker: "internal_chrome_page" }
+            ]
+          }
+        }
+      };
+    });
+
+    await expect(runSkfiyCli({
+      argv: [
+        "chrome",
+        "tabs",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-21T12:00:00.000Z",
+      chromeExtensionTabDiscoveryInvoker,
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      command: "chrome tabs",
+      result: "verified",
+      executesSystemMutation: true,
+      tabs: [
+        {
+          id: 42,
+          windowId: 7,
+          title: "Allowed app",
+          url: "https://allowed.example/dashboard",
+          host: "allowed.example",
+          state: "eligible",
+          eligible: true
+        },
+        {
+          id: 43,
+          state: "blocked",
+          eligible: false,
+          blocker: "internal_chrome_page"
+        }
+      ],
+      extensionConnection: {
+        messageType: "skfiy.tabs.discover"
+      }
+    });
+    expect(JSON.parse(stdout.join(""))).not.toHaveProperty("cookies");
+    expect(JSON.stringify(JSON.parse(stdout.join("")))).not.toContain("visibleText");
+    expect(chromeExtensionTabDiscoveryInvoker).toHaveBeenCalledTimes(1);
+    expect(stderr).toEqual([]);
+  });
+
+  it("reports stale Chrome extension registration when chrome tabs cannot verify fresh discovery", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const files: Record<string, string> = {
+      "/repo/chrome-extension/manifest.json": JSON.stringify({
+        manifest_version: 3,
+        name: "skfiy Chrome Adapter",
+        version: "0.0.2"
+      }),
+      "/Users/tester/Library/Application Support/Google/Chrome/Default/Secure Preferences": JSON.stringify({
+        extensions: {
+          settings: {
+            abcdefghijklmnopabcdefghijklmnop: {
+              path: "/repo/chrome-extension",
+              service_worker_registration_info: {
+                version: "0.0.1"
+              }
+            }
+          }
+        }
+      })
+    };
+    const chromeExtensionTabDiscoveryInvoker = vi.fn(async () => ({
+      schemaVersion: 1 as const,
+      result: "blocked" as const,
+      extensionId: "abcdefghijklmnopabcdefghijklmnop",
+      wakeUrl: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyWakeAction=tabs",
+      tabs: [],
+      extensionConnection: {
+        state: "connected" as const,
+        liveConnection: "connected" as const,
+        path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+        ageSeconds: 0,
+        observedAt: "2026-06-21T12:00:00.000Z",
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-popup_wake-1"
+      },
+      reason: "chrome-tabs-not-verified",
+      nextAction: "Reload the skfiy Chrome extension, ensure Native Messaging is connected, then retry `skfiy chrome tabs`."
+    }));
+
+    await expect(runSkfiyCli({
+      argv: [
+        "chrome",
+        "tabs",
+        "--extension-id",
+        "abcdefghijklmnopabcdefghijklmnop"
+      ],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-21T12:00:00.000Z",
+      chromeNativeHostIo: createMemoryChromeIo(files),
+      chromeExtensionTabDiscoveryInvoker,
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(1);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      command: "chrome tabs",
+      result: "blocked",
+      reason: "extension-registration-stale",
+      extensionRegistration: {
+        state: "stale",
+        localManifestVersion: "0.0.2",
+        registeredVersion: "0.0.1",
+        extensionPath: "/repo/chrome-extension"
+      },
+      nextAction: "Reload the skfiy extension card in Chrome Extension Manager so Chrome re-registers the MV3 service worker, then retry `skfiy chrome tabs`."
+    });
+    expect(chromeExtensionTabDiscoveryInvoker).toHaveBeenCalledTimes(1);
     expect(stderr).toEqual([]);
   });
 

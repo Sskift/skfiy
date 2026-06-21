@@ -131,7 +131,7 @@ Commands represented:
 - `skfiy chrome fill --extension-id <id> --target-tab-id <tab-id> --selector <css> --text <text> --json`
 - `skfiy chrome submit --extension-id <id> --target-tab-id <tab-id> --selector <css> --json`
 - `skfiy chrome scroll --extension-id <id> --target-tab-id <tab-id> --dy <pixels> --json`
-- Planned next Chrome page-control command: `skfiy chrome tabs`.
+- `skfiy chrome tabs --extension-id <id> --json`
 - `skfiy chrome install-host`
 - `skfiy chrome uninstall-host`
 - `skfiy mcp serve --stdio`
@@ -139,7 +139,7 @@ Commands represented:
 - `skfiy release check --json-output <path>`
 - `skfiy alpha artifact`
 
-Mutating-looking commands are explicit subcommands. `skfiy permissions open <target>` now reports `executesSystemMutation: true`, opens only fixed `x-apple.systempreferences:` Privacy & Security URLs, and returns the same concrete System Settings/action-plan JSON whether the opener succeeds or fails. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy chrome policy set` and `skfiy chrome policy reset` are the user-level Chrome host policy mutations; `skfiy chrome policy show` is read-only. `skfiy chrome reload-extension`, `skfiy chrome observe`, `skfiy chrome screenshot`, `skfiy chrome click`, `skfiy chrome fill`, `skfiy chrome submit`, and `skfiy chrome scroll` are also mutation-capable because they open extension UI or wake the installed extension, may act inside the requested browser tab, and write fresh Native Messaging heartbeat evidence. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
+Mutating-looking commands are explicit subcommands. `skfiy permissions open <target>` now reports `executesSystemMutation: true`, opens only fixed `x-apple.systempreferences:` Privacy & Security URLs, and returns the same concrete System Settings/action-plan JSON whether the opener succeeds or fails. `skfiy chrome install-host` and `skfiy chrome uninstall-host` now report `executesSystemMutation: true`. `skfiy chrome policy set` and `skfiy chrome policy reset` are the user-level Chrome host policy mutations; `skfiy chrome policy show` is read-only. `skfiy chrome reload-extension`, `skfiy chrome observe`, `skfiy chrome screenshot`, `skfiy chrome click`, `skfiy chrome fill`, `skfiy chrome submit`, `skfiy chrome scroll`, and `skfiy chrome tabs` are also mutation-capable because they open extension UI or wake the installed extension, may act inside or inspect the requested browser session, and write fresh Native Messaging heartbeat evidence. `skfiy smoke <target>` now also reports `executesSystemMutation: true` because it launches product smoke scripts and may open apps, inspect the desktop, or create isolated test fixtures. Release and alpha artifact commands still return plan/skeleton output.
 
 2026-06-21 update: `chrome observe`, `chrome screenshot`, `chrome click`,
 `chrome fill`, `chrome submit`, and `chrome scroll` are now extension-backed
@@ -149,11 +149,14 @@ evidence, and return dashboard-safe JSON with `action`, `wakeUrl`,
 `extensionConnection`, and bounded `pageObservation`, `pageActionResult`, or
 `pageScreenshot` fields when verified. It is not enough to call Chrome control
 complete: extension-context reload plus observe/fill/click/submit/scroll have
-real installed-extension proof, but `chrome tabs`, screenshot capture/fallback,
-user dashboard controls, and automated installed-extension action smoke are
-still open. The dashboard should surface this as "Chrome observe and DOM actions
-verified; screenshot capture blocked by Chrome permission or desktop fallback"
-instead of implying full Codex Chrome parity.
+real installed-extension proof, and `chrome tabs` now has code-side tests/build
+evidence, but live installed-extension tab discovery still needs the manually
+installed extension to reload its new background code. Screenshot
+capture/fallback, user dashboard controls, and automated installed-extension
+action smoke are still open. The dashboard should surface this as "Chrome
+observe and DOM actions verified; tab discovery implemented but waiting for
+installed-extension reload; screenshot capture blocked by Chrome permission or
+desktop fallback" instead of implying full Codex Chrome parity.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`. `money-run` is the one script-level exception: the CLI accepts the same user-facing `--output` flag but forwards it as `--json-output` to `scripts/smoke-money-run-supervision.mjs`.
 
@@ -263,7 +266,7 @@ action parameters, `chrome-extension/background.js` owns action and screenshot
 wake execution, `chrome-extension/popup.js` only runs `dev-reload` wake requests,
 and `src/main/chrome-native-host.ts` preserves `latestCommand` so later health
 heartbeats cannot hide action evidence. The focused Chrome slice, TypeScript,
-and `npm run build` passed locally: 6 Vitest files / 126 tests, `npx tsc
+and `npm run build` passed locally: 6 Vitest files / 129 tests, `npx tsc
 --noEmit`, and a packaged `dist/skfiy.app`, `dist/skfiy-helper`, and
 `dist/skfiy` rebuild. Real compiled-binary runs against
 `http://127.0.0.1:63852/?skfiy_action_live=20260621&clean=3` verified
@@ -273,6 +276,17 @@ fails ambiguously: the latest real run records `reason:
 "chrome-capture-permission-missing"` with Chrome's `Either the '<all_urls>' or
 'activeTab' permission is required.` message, while desktop screenshot fallback
 is separately blocked when macOS reports a locked/asleep loginwindow session.
+The follow-up tab-discovery implementation adds `skfiy chrome tabs`,
+`skfiy.tabs.discover`, bounded `pageTabs` Native Messaging evidence, startup
+scanning for wake tabs that loaded before the service worker woke, and a typed
+registration-drift diagnostic. Its real installed-extension proof is currently
+blocked by Chrome service-worker registration drift: the local unpacked manifest
+is `0.0.3`, Chrome still records
+`service_worker_registration_info.version: "0.0.2"` for extension id
+`plcpkkhlcacihjfohlojdknnkademlno`, and the stored extension path is still the
+expected repository `chrome-extension/` directory. The packaged command now
+reports this as `extension-registration-stale` instead of a generic tab
+verification failure.
 
 ## User Dashboard Roadmap
 
@@ -400,11 +414,23 @@ Detailed task handoff:
    should fall back to the existing desktop `chrome://extensions` reload path.
    If the macOS session is locked or asleep, it must report a typed blocker such
    as `desktop-session-locked` without clicking.
-2. Add a target-tab discovery command. `skfiy chrome tabs --json` should report
-   extension-visible tabs with id, window id, URL, title, host, and whether the
-   tab is eligible for page control. It should mark `chrome://`,
-   `chrome-extension://`, `file://`, missing host, blocked host, and missing
-   Chrome optional host permission as distinct states.
+2. Finish the target-tab discovery command. `skfiy chrome tabs --json` now has
+   CLI/background/native-host implementation and tests for extension-visible
+   tabs with id, window id, URL, title, host, eligibility state, blocker code,
+   and next action. It marks `chrome://`, `chrome-extension://`, `file://`,
+   unsupported schemes, missing skfiy host policy, blocked hosts, missing Chrome
+   optional host permission, and stale content scripts as distinct states. The
+   remaining Week A proof is live and split into two gates: first, when Chrome's
+   registered service-worker version differs from the local manifest version,
+   `skfiy chrome tabs` now returns `extension-registration-stale` with the
+   local version, registered version, extension path, and reload next action;
+   second, after the manually installed extension id
+   `plcpkkhlcacihjfohlojdknnkademlno` is reloaded from the extension card on an
+   unlocked desktop, the packaged command must require fresh
+   `skfiy.tabs.discover` evidence before it replaces AppleScript or manual tab
+   ids in real smokes. Codex Chrome control can list but cannot claim
+   `chrome://extensions/`, so this reload remains a browser/desktop action until
+   a Chrome-supported re-registration path exists.
 3. Convert the manual action proof into automated product smoke. `skfiy chrome
    reload-extension`, `observe`, `fill`, `click`, `submit`, and `scroll` now
    have real compiled-binary evidence on an authorized localhost tab; the
@@ -418,13 +444,16 @@ Detailed task handoff:
 5. Define the extension update boundary. In development, Codex may click the
    Chrome extension card reload button after source changes while skfiy is still
    gaining self-reload ability; in product, skfiy owns extension-context reload,
-   freshness checks, and target-tab verification. Packaged extension uploads and
-   Chrome Web Store update remain explicit browser/distribution operations.
+   freshness checks, Chrome registration drift diagnostics, and target-tab
+   verification. Extension-context `chrome.runtime.reload()` is enough for some
+   JavaScript refreshes, but service-worker re-registration can still require
+   Chrome's extension-card reload; packaged extension uploads and Chrome Web
+   Store updates remain explicit browser/distribution operations.
 6. Add dashboard display for the new commands. The user dashboard should show
    copyable commands and one-click local actions only for eligible HTTP(S) pages;
    otherwise it should show the concrete next action: allow host, grant Chrome
-   site access, reload extension, open a normal web page, or switch to screenshot
-   fallback.
+   site access, reload extension, reload stale extension registration, open a
+   normal web page, or switch to screenshot fallback.
 7. Add product tests. Unit tests should cover every blocker state. A real
    installed-extension smoke should use the manually installed id when provided
    and should record `ready` evidence on an authorized localhost page.

@@ -11,6 +11,7 @@ const DEV_RELOAD_REQUEST = "skfiy.dev.reload";
 const PAGE_OBSERVE = "skfiy.page.observe";
 const PAGE_ACTION = "skfiy.page.action";
 const PAGE_SCREENSHOT = "skfiy.page.screenshot";
+const TABS_DISCOVER = "skfiy.tabs.discover";
 const NATIVE_MESSAGE = "skfiy.native.message";
 
 function readExtensionFile(relativePath) {
@@ -1245,6 +1246,67 @@ describe("Chrome extension popup policy sync status", () => {
         })
       ]));
     });
+  });
+
+  it("runs tab discovery from wake URLs when skfiyWakeAction is tabs", async () => {
+    installPopupDocument();
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyWakeAction=tabs");
+    const mock = createPopupChromeMock({
+      onSendMessage: async (message) => {
+        if (message.type === HOST_POLICY_SYNC_STATUS) {
+          return {
+            type: "skfiy.host_policy.response",
+            schemaVersion: 1,
+            requestId: "popup-status",
+            policy: createPolicy(),
+            syncStatus: {
+              state: "synced",
+              source: "native_host"
+            },
+            diagnostics: {}
+          };
+        }
+        if (message.type === TABS_DISCOVER) {
+          return {
+            type: "skfiy.tabs.discover_result",
+            schemaVersion: 1,
+            requestId: message.requestId,
+            result: "passed",
+            tabs: [
+              {
+                id: 42,
+                windowId: 7,
+                state: "eligible",
+                eligible: true,
+                title: "skfiy action smoke",
+                url: "http://127.0.0.1:63852/"
+              }
+            ],
+            nativeHeartbeat: {
+              result: "accepted"
+            }
+          };
+        }
+        return {
+          type: "skfiy.native.heartbeat_result",
+          result: "accepted"
+        };
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: TABS_DISCOVER,
+        schemaVersion: 1,
+        requestId: expect.stringContaining("popup-tabs-")
+      }));
+    });
+    expect(mock.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: NATIVE_HEARTBEAT
+    }));
   });
 
   it("does not capture page screenshots from wake URLs inside the popup", async () => {

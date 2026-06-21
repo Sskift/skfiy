@@ -21,6 +21,7 @@ describe("Chrome extension adapter skeleton", () => {
       manifest_version?: number;
       background?: { service_worker?: string; type?: string };
       action?: { default_popup?: string };
+      version?: string;
       permissions?: string[];
       host_permissions?: string[];
       optional_host_permissions?: string[];
@@ -32,6 +33,7 @@ describe("Chrome extension adapter skeleton", () => {
       type: "module"
     });
     expect(manifest.action).toMatchObject({ default_popup: "popup.html" });
+    expect(manifest.version).toBe("0.0.3");
     expect(manifest.permissions).toEqual(
       expect.arrayContaining(["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"])
     );
@@ -110,8 +112,8 @@ describe("Chrome extension adapter skeleton", () => {
     expect(popupHtml).toContain("Page control");
     expect(popupHtml).toContain("Heartbeat");
     expect(popupHtml).toContain("Dev reload");
-    expect(popupHtml).toContain("Refresh host policy");
-    expect(popupHtml).toContain("Check heartbeat");
+    expect(popupHtml).toContain("Refresh policy");
+    expect(popupHtml).toContain("Observe current page");
     expect(popupHtml).toContain("Reload extension");
     expect(popupScript).toContain("Ask by default");
     expect(popupScript).toContain("formatBridgeState");
@@ -123,5 +125,6 @@ describe("Chrome extension adapter skeleton", () => {
     expect(popupScript).toContain("HOST_POLICY_SYNC_REFRESH");
     expect(popupScript).toContain("NATIVE_HEARTBEAT");
     expect(popupScript).toContain("DEV_RELOAD_REQUEST");
+    expect(popupScript).toContain("TABS_DISCOVER");
   });
 });
