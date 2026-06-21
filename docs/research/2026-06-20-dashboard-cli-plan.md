@@ -149,14 +149,14 @@ evidence, and return dashboard-safe JSON with `action`, `wakeUrl`,
 `extensionConnection`, and bounded `pageObservation`, `pageActionResult`, or
 `pageScreenshot` fields when verified. It is not enough to call Chrome control
 complete: extension-context reload plus observe/fill/click/submit/scroll have
-real installed-extension proof, and `chrome tabs` now has code-side tests/build
-evidence, but live installed-extension tab discovery still needs the manually
-installed extension to reload its new background code. Screenshot
-capture/fallback, user dashboard controls, and automated installed-extension
-action smoke are still open. The dashboard should surface this as "Chrome
-observe and DOM actions verified; tab discovery implemented but waiting for
-installed-extension reload; screenshot capture blocked by Chrome permission or
-desktop fallback" instead of implying full Codex Chrome parity.
+real installed-extension proof, and `chrome tabs` now has compiled-binary target
+discovery through `discoveryMode: "chrome-apple-events"`. Screenshot
+capture/fallback, fresh MV3 `skfiy.tabs.discover` evidence, user dashboard
+controls, and automated installed-extension action smoke are still open. The
+dashboard should surface this as "Chrome observe and DOM actions verified; tab
+discovery is using packaged fallback while MV3 evidence is pending; screenshot
+capture blocked by Chrome permission or desktop fallback" instead of implying
+full Codex Chrome parity.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`. `money-run` is the one script-level exception: the CLI accepts the same user-facing `--output` flag but forwards it as `--json-output` to `scripts/smoke-money-run-supervision.mjs`.
 
@@ -250,14 +250,16 @@ capabilities as repeatable CLI smoke and user-facing dashboard actions rather
 than only readiness evidence or manual command runs.
 
 2026-06-21 P0 clarification: the answer to "can skfiy control Chrome now?" is
-"not yet as a product promise." The installed extension can prove a target page
-is ready for structured control, and Codex can temporarily reload the extension
-card during development now that Chrome developer-mode permissions are granted.
-But the product is not complete until packaged `dist/skfiy` commands can also
-discover target tabs, produce screenshot evidence or a proven fallback, record
-repeatable replay evidence, surface user-facing dashboard controls, and return
-stable dashboard-safe blockers without falling back to hidden Browser Use or a
-tmux process.
+"partially, but not yet as a complete product promise." The installed extension
+can prove a target page is ready for structured control, and the packaged
+`dist/skfiy` CLI can now discover target tabs through a bounded Chrome Apple
+Events fallback. Codex may still reload the extension card during development
+now that Chrome developer-mode permissions are granted, but the product is not
+complete until screenshot evidence or a proven fallback is closed, fresh MV3
+`skfiy.tabs.discover` evidence is produced or the fallback is explicitly
+accepted in product UX, repeatable replay evidence is recorded, user-facing
+dashboard controls are visible, and stable dashboard-safe blockers are returned
+without falling back to hidden Browser Use or a tmux process.
 
 2026-06-21 implementation update: the first action bridge is now field-proven
 for authorized ordinary HTTP(S) pages. `src/main/chrome-extension-page-control.ts`
@@ -285,21 +287,16 @@ The follow-up tab-discovery implementation adds `skfiy chrome tabs`,
 `skfiy.tabs.discover`, bounded `pageTabs` Native Messaging evidence, startup
 scanning for wake tabs that loaded before the service worker woke, wake handling
 for newly created extension tabs, bounded `chrome.tabs.query` failure evidence,
-per-tab summary blockers, and a typed registration-drift diagnostic. The local
-unpacked manifest is now `0.0.7`; Chrome currently reports the installed
-extension service worker at `0.0.6` until the extension card or an equivalent
-Chrome-supported reload re-registers the updated background worker.
-The current live blocker is therefore stale Chrome service-worker registration,
-not an ambiguous tabs protocol failure. `skfiy chrome tabs` reports that as
-`extension-registration-stale`; `skfiy chrome reload-extension` now reports the
-same product condition as `extension-card-reload-required` with version/path
-evidence and preserves any locked/asleep desktop fallback under
-`desktopFallback`. When the extension wake is fresh but still fails to write
-`skfiy.tabs.discover` / `pageTabs`, `skfiy chrome tabs` now falls back to Chrome
-Apple Events inside the packaged CLI and returns `discoveryMode:
-"chrome-apple-events"` with bounded tab metadata. The remaining proof for full
-extension parity is fresh `skfiy.tabs.discover` / `pageTabs` evidence from the
-compiled command.
+per-tab summary blockers, typed registration-drift diagnostics, and a packaged
+Chrome Apple Events fallback. The local unpacked manifest and Chrome registered
+service worker are now both `0.0.7` after the extension card was refreshed.
+`skfiy chrome tabs` currently returns `result: "verified"` through
+`discoveryMode: "chrome-apple-events"` with bounded tab metadata, including
+eligible HTTP(S) pages plus blocked `chrome://` and `chrome-extension://` pages.
+The remaining proof for full extension parity is fresh `skfiy.tabs.discover` /
+`pageTabs` evidence from the real MV3 worker; until then the product UX must
+label the fallback path instead of pretending extension-native tab discovery is
+complete.
 
 ## User Dashboard Roadmap
 
@@ -428,8 +425,9 @@ Detailed task handoff:
    should fall back to the existing desktop `chrome://extensions` reload path.
    If the macOS session is locked or asleep, it must report a typed blocker such
    as `desktop-session-locked` without clicking.
-2. Finish the target-tab discovery command. `skfiy chrome tabs --json` now has
-   CLI/background/native-host implementation and tests for extension-visible
+2. Finish the extension-native target-tab discovery command.
+   `skfiy chrome tabs --json` now has CLI/background/native-host implementation
+   and tests for extension-visible
    tabs with id, window id, URL, title, host, eligibility state, blocker code,
    and next action. It marks `chrome://`, `chrome-extension://`, `file://`,
    unsupported schemes, missing skfiy host policy, blocked hosts, missing Chrome
@@ -439,15 +437,13 @@ Detailed task handoff:
    existing wake tabs when Chrome reports an extension page update without the
    original query string, so a wake URL opened while the service worker is asleep
    or partially reported by `tabs.onUpdated` should no longer disappear. The
-   remaining Week A proof is live and split into two gates: first, move the
-   installed extension registration from Chrome's current `0.0.6` to local
-   `0.0.7`; second, keep the packaged CLI Apple Events fallback as a product
-   target-discovery bridge while requiring fresh `skfiy.tabs.discover` evidence
-   before calling the extension path complete. Codex Chrome control can list but
-   cannot claim `chrome://extensions/`, so product code must keep returning a
-   typed `extension-registration-stale`, `extension-card-reload-required`, or
-   `desktop-session-locked` blocker until a Chrome-supported re-registration path
-   exists.
+   current product bridge is the packaged CLI Apple Events fallback, which
+   returns `discoveryMode: "chrome-apple-events"` and bounded tab summaries. The
+   remaining Week A proof is fresh `skfiy.tabs.discover` evidence from the real
+   MV3 worker. Product code must continue to report typed blockers such as
+   `extension-registration-stale`, `extension-card-reload-required`,
+   `desktop-session-locked`, or `mv3-tab-discovery-missing` instead of collapsing
+   them into a generic browser-control failure.
 3. Fix screenshot readiness before screenshot capture. Health/status/dashboard
    must report DOM actions and screenshot separately: a page with skfiy host
    approval, Chrome site access, and loaded content script can be actionable for
