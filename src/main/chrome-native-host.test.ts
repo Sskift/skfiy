@@ -735,4 +735,111 @@ describe("Chrome Native Messaging bridge runtime", () => {
       }
     })]);
   });
+
+  it("persists page action results and bounded screenshots from native message payloads", async () => {
+    const screenshotDataUrl = `data:image/png;base64,${"a".repeat(4096)}`;
+    const actionFrame = encodeChromeNativeMessageFrame({
+      schemaVersion: 1,
+      type: "skfiy.page.action",
+      requestId: "request-action",
+      payload: {
+        action: {
+          kind: "fill",
+          selector: "#name",
+          value: "skfiy visible"
+        },
+        pageActionResult: {
+          type: "skfiy.page.action_result",
+          requestId: "action-result",
+          result: "passed",
+          action: "fill",
+          targetTabId: 42,
+          selector: "#name",
+          value: "do-not-store-this-value"
+        }
+      }
+    });
+    const screenshotFrame = encodeChromeNativeMessageFrame({
+      schemaVersion: 1,
+      type: "skfiy.page.screenshot",
+      requestId: "request-screenshot",
+      payload: {
+        format: "png",
+        pageScreenshot: {
+          type: "skfiy.page.screenshot_result",
+          requestId: "screenshot-result",
+          result: "captured",
+          tabId: 42,
+          targetTabId: 42,
+          host: "127.0.0.1:63852",
+          format: "png",
+          dataUrl: screenshotDataUrl
+        }
+      }
+    });
+    const stdout: Buffer[] = [];
+    const stderr: string[] = [];
+    const heartbeats: unknown[] = [];
+
+    async function* stdin() {
+      yield Buffer.concat([actionFrame, screenshotFrame]);
+    }
+
+    await expect(runChromeNativeMessagingHost({
+      stdin: stdin(),
+      stdout: { write: (chunk: Buffer) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) },
+      policy: { state: "allowed" },
+      connectionHeartbeat: async (heartbeat) => {
+        heartbeats.push(heartbeat);
+      },
+      dispatch: async () => ({
+        result: "accepted"
+      })
+    })).resolves.toBe(0);
+
+    expect(stderr).toEqual([]);
+    expect(stdout).toHaveLength(2);
+    expect(decodeChromeNativeMessageFrame(stdout[0])).toMatchObject({
+      requestId: "request-action",
+      result: "accepted"
+    });
+    expect(decodeChromeNativeMessageFrame(stdout[1])).toMatchObject({
+      requestId: "request-screenshot",
+      result: "accepted"
+    });
+    expect(heartbeats).toEqual([
+      expect.objectContaining({
+        messageType: "skfiy.page.action",
+        requestId: "request-action",
+        result: "accepted",
+        pageActionResult: {
+          type: "skfiy.page.action_result",
+          requestId: "action-result",
+          result: "passed",
+          action: "fill",
+          targetTabId: 42,
+          selector: "#name"
+        }
+      }),
+      expect.objectContaining({
+        messageType: "skfiy.page.screenshot",
+        requestId: "request-screenshot",
+        result: "accepted",
+        pageScreenshot: {
+          type: "skfiy.page.screenshot_result",
+          requestId: "screenshot-result",
+          result: "captured",
+          tabId: 42,
+          targetTabId: 42,
+          host: "127.0.0.1:63852",
+          format: "png",
+          hasDataUrl: true,
+          dataUrlBytes: screenshotDataUrl.length
+        }
+      })
+    ]);
+    expect(JSON.stringify(heartbeats)).not.toContain("do-not-store-this-value");
+    expect(JSON.stringify(heartbeats)).not.toContain(screenshotDataUrl);
+  });
 });

@@ -177,11 +177,11 @@ npx vitest run src/main/cli-command-surface.test.ts -t "chrome .*page-control"
 
 Observed: FAIL for the five new subcommands with exit code `2`, proving the CLI does not yet recognize or dispatch `screenshot`, `click`, `fill`, `submit`, and `scroll`.
 
-- [ ] **Step 3: Implement normalization and argument validation**
+- [x] **Step 3: Implement normalization and argument validation**
 
 Add selectors/text/dy parsing to `src/main/cli-command-surface.ts`. Missing selector for click/fill/submit, missing text for fill, and missing dy for scroll must return structured CLI errors with exit code `2`.
 
-- [ ] **Step 3a: Extend page-control action type and wake parameters**
+- [x] **Step 3a: Extend page-control action type and wake parameters**
 
 In `src/main/chrome-extension-page-control.ts`, expand the action type and invoker input:
 
@@ -207,7 +207,7 @@ export interface ChromeExtensionPageControlInput {
 
 In `src/main/chrome-extension-reloader.ts`, let `createChromeExtensionWakeUrl()` include `skfiySelector`, `skfiyText`, and `skfiyDy` when present. Do not log arbitrary user text as a product default; test text such as `skfiy` is acceptable in local smoke artifacts.
 
-- [ ] **Step 3b: Add CLI subcommands**
+- [x] **Step 3b: Add CLI subcommands**
 
 In `src/main/cli-command-surface.ts`, add command metadata and dispatch for:
 
@@ -229,7 +229,7 @@ The CLI invoker input must match the red test shapes:
 { action: "scroll", targetTabId: 42, dy: 600 }
 ```
 
-- [ ] **Step 4: Implement action dispatch**
+- [x] **Step 4: Implement action dispatch**
 
 Use the existing extension-layer contracts:
 
@@ -259,17 +259,27 @@ pageScreenshot?: Record<string, unknown>;
 
 Refuse sensitive fields before fill/click/submit and return `sensitive-paused` instead of executing.
 
-- [ ] **Step 5: Run unit tests**
+- [x] **Step 5: Run unit tests**
 
 ```bash
 npx vitest run src/main/cli-command-surface.test.ts
 ```
 
-Expected: PASS.
+Observed: focused CLI action tests pass. The broader Chrome action slice also passes:
+
+```bash
+npx vitest run src/main/cli-command-surface.test.ts src/main/chrome-extension-page-control.test.ts src/main/chrome-native-host.test.ts src/main/chrome-extension-background.test.js src/main/chrome-extension-popup.test.js
+npx tsc --noEmit
+npm run build
+```
+
+Latest observed status: 5 test files / 106 tests passed, TypeScript passed, and `npm run build` produced `dist/skfiy.app`.
 
 - [ ] **Step 6: Real local form test**
 
 Run each command against a local test page with a safe form and button. Expected: fill/click/submit/scroll produce before/after page evidence and verified action summaries.
+
+Observed partial real test on 2026-06-21: the safe local page at `http://127.0.0.1:63852/` opened in Chrome tab `1782096085`, host policy was set to `always_allow`, and `./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 1782096085 --json` returned `result: "verified"` with the action smoke page text. `./dist/skfiy chrome screenshot ...` still returned `page-control-screenshot-not-verified` because the desktop session was locked (`cgSessionScreenIsLocked=true`, `frontmostBundleId=com.apple.loginwindow`), so the product reload command could not click the extension reload control and Chrome was still running the previously loaded background worker. Re-run Step 6 after unlocking the desktop and refreshing the unpacked extension.
 
 - [ ] **Step 7: Commit**
 

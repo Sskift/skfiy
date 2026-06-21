@@ -100,9 +100,15 @@ export type ChromeSubcommand =
   | "status"
   | "extension-info"
   | "observe"
+  | "screenshot"
+  | "click"
+  | "fill"
+  | "submit"
+  | "scroll"
   | "reload-extension"
   | "install-host"
   | "uninstall-host";
+type ChromePageControlSubcommand = ChromeExtensionPageControlInput["action"];
 export type ChromePolicySubcommand = "show" | "set" | "reset";
 export type McpTransport = "stdio";
 export type ChromeExtensionReloader = (
@@ -261,6 +267,9 @@ export type CliCommandInvocation =
         extensionIds: string[];
         cliShimPath: string;
         targetTabId?: number;
+        selector?: string;
+        text?: string;
+        dy?: number;
       };
     }
   | {
@@ -512,6 +521,51 @@ const COMMANDS: CliCommandDefinition[] = [
     plannedMutation: true,
     executesSystemMutation: true,
     outputShape: "chrome-page-observe",
+    capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
+  },
+  {
+    path: "chrome screenshot",
+    summary: "Capture the requested Chrome tab through the installed skfiy extension page-control bridge.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-page-screenshot",
+    capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
+  },
+  {
+    path: "chrome click",
+    summary: "Click a CSS selector in the requested Chrome tab through the installed skfiy extension page-control bridge.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-page-action",
+    capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
+  },
+  {
+    path: "chrome fill",
+    summary: "Fill a CSS selector in the requested Chrome tab through the installed skfiy extension page-control bridge.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-page-action",
+    capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
+  },
+  {
+    path: "chrome submit",
+    summary: "Submit a CSS selector in the requested Chrome tab through the installed skfiy extension page-control bridge.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-page-action",
+    capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
+  },
+  {
+    path: "chrome scroll",
+    summary: "Scroll the requested Chrome tab through the installed skfiy extension page-control bridge.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-page-action",
     capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
   },
   {
@@ -789,6 +843,40 @@ export function normalizeCliCommand(
       );
     }
 
+    const selector = readOptionValue(argv, "--selector");
+    const text = readOptionValue(argv, "--text");
+    const dyValue = readOptionValue(argv, "--dy");
+    let dy: number | undefined;
+
+    if ((subcommand === "click" || subcommand === "fill" || subcommand === "submit")
+      && (!selector || selector.startsWith("--"))) {
+      return error(
+        "missing-chrome-action-selector",
+        `Chrome ${subcommand} requires --selector <css>.`
+      );
+    }
+    if (subcommand === "fill" && (text === undefined || text.startsWith("--"))) {
+      return error(
+        "missing-chrome-action-text",
+        "Chrome fill requires --text <text>."
+      );
+    }
+    if (subcommand === "scroll") {
+      if (dyValue === undefined || dyValue.startsWith("--")) {
+        return error(
+          "missing-chrome-action-dy",
+          "Chrome scroll requires --dy <pixels>."
+        );
+      }
+      dy = Number(dyValue);
+      if (!Number.isFinite(dy)) {
+        return error(
+          "invalid-chrome-action-dy",
+          `Chrome scroll --dy must be a number: ${dyValue}`
+        );
+      }
+    }
+
     return ok({
       kind: "chrome",
       path: `chrome ${subcommand}`,
@@ -797,7 +885,10 @@ export function normalizeCliCommand(
       options: {
         extensionIds: readRepeatedOptionValues(argv, "--extension-id"),
         cliShimPath: resolveOptionPath(argv, "--cli", rootDir, path.join(rootDir, "dist", "skfiy")),
-        targetTabId: readOptionalNumberOption(argv, "--target-tab-id")
+        targetTabId: readOptionalNumberOption(argv, "--target-tab-id"),
+        ...(selector !== undefined ? { selector } : {}),
+        ...(text !== undefined ? { text } : {}),
+        ...(dy !== undefined ? { dy } : {})
       }
     });
   }
@@ -1077,7 +1168,7 @@ export function createCliOutput(
       };
     }
 
-    if (invocation.subcommand === "observe") {
+    if (isChromePageControlSubcommand(invocation.subcommand)) {
       return {
         schemaVersion: 1,
         command: invocation.path,
@@ -1085,14 +1176,17 @@ export function createCliOutput(
         plannedMutation: true,
         executesSystemMutation: true,
         result: "not-run",
-        action: "observe",
+        action: invocation.subcommand,
         extensionId: invocation.options.extensionIds[0],
         targetTabId: invocation.options.targetTabId,
+        ...(invocation.options.selector ? { selector: invocation.options.selector } : {}),
+        ...(invocation.options.text !== undefined ? { text: invocation.options.text } : {}),
+        ...(invocation.options.dy !== undefined ? { dy: invocation.options.dy } : {}),
         actionPlan: [
-          "open the skfiy extension wake page with skfiyWakeAction=observe",
-          "route page observe to the requested target tab",
-          "record the page observation through Chrome Native Messaging",
-          "poll the Native Messaging heartbeat for pageObservation"
+          `open the skfiy extension wake page with skfiyWakeAction=${invocation.subcommand}`,
+          "route the page-control request to the requested target tab",
+          "record the bounded page-control result through Chrome Native Messaging",
+          "poll the Native Messaging heartbeat for matching page-control evidence"
         ]
       };
     }
@@ -5804,12 +5898,15 @@ async function runChromeNativeHostCli({
     }
   }
 
-  if (invocation.subcommand === "observe") {
+  if (isChromePageControlSubcommand(invocation.subcommand)) {
     try {
       const pageControlResult = await chromeExtensionPageControlInvoker({
-        action: "observe",
+        action: invocation.subcommand,
         extensionId: invocation.options.extensionIds[0],
         targetTabId: invocation.options.targetTabId,
+        selector: invocation.options.selector,
+        text: invocation.options.text,
+        dy: invocation.options.dy,
         homeDir,
         generatedAt,
         io
@@ -5828,7 +5925,7 @@ async function runChromeNativeHostCli({
         generatedAt: generatedAt ?? new Date().toISOString(),
         executesSystemMutation: true,
         result: "blocked",
-        action: "observe",
+        action: invocation.subcommand,
         extensionId: invocation.options.extensionIds[0],
         reason: "page-control-command-error",
         error: readErrorMessage(error),
@@ -5980,9 +6077,23 @@ function isChromeSubcommand(value: string | undefined): value is ChromeSubcomman
   return value === "status"
     || value === "extension-info"
     || value === "observe"
+    || value === "screenshot"
+    || value === "click"
+    || value === "fill"
+    || value === "submit"
+    || value === "scroll"
     || value === "reload-extension"
     || value === "install-host"
     || value === "uninstall-host";
+}
+
+function isChromePageControlSubcommand(value: ChromeSubcommand): value is ChromePageControlSubcommand {
+  return value === "observe"
+    || value === "screenshot"
+    || value === "click"
+    || value === "fill"
+    || value === "submit"
+    || value === "scroll";
 }
 
 function isDashboardProbeSubcommand(value: string | undefined): value is DashboardProbeSubcommand {

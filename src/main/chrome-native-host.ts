@@ -143,6 +143,8 @@ export interface ChromeExtensionConnectionHeartbeatInput {
   result?: ChromeNativeBridgeResponse["result"];
   pageControl?: Record<string, unknown>;
   pageObservation?: Record<string, unknown>;
+  pageActionResult?: Record<string, unknown>;
+  pageScreenshot?: Record<string, unknown>;
 }
 
 export interface ChromeExtensionConnectionStatus {
@@ -157,6 +159,8 @@ export interface ChromeExtensionConnectionStatus {
   requestId?: string;
   pageControl?: Record<string, unknown>;
   pageObservation?: Record<string, unknown>;
+  pageActionResult?: Record<string, unknown>;
+  pageScreenshot?: Record<string, unknown>;
 }
 
 export interface ChromeNativeMessagingHostIo {
@@ -176,6 +180,8 @@ export interface ChromeNativeMessagingHostIo {
     result: ChromeNativeBridgeResponse["result"];
     pageControl?: Record<string, unknown>;
     pageObservation?: Record<string, unknown>;
+    pageActionResult?: Record<string, unknown>;
+    pageScreenshot?: Record<string, unknown>;
   }) => Promise<void>;
 }
 
@@ -354,12 +360,16 @@ export async function writeChromeExtensionConnectionHeartbeat({
   requestId,
   pageControl,
   pageObservation,
+  pageActionResult,
+  pageScreenshot,
   io = createDefaultChromeNativeHostIo()
 }: ChromeExtensionConnectionHeartbeatInput & {
   homeDir: string;
   io?: ChromeNativeHostIo;
 }): Promise<Record<string, unknown>> {
   const statePath = createChromeExtensionConnectionStatePath(homeDir);
+  const boundedPageActionResult = summarizePageActionResultForHeartbeat(pageActionResult);
+  const boundedPageScreenshot = summarizePageScreenshotForHeartbeat(pageScreenshot);
   const heartbeat = {
     schemaVersion: 1,
     hostName: CHROME_NATIVE_HOST_NAME,
@@ -368,7 +378,9 @@ export async function writeChromeExtensionConnectionHeartbeat({
     messageType,
     requestId,
     ...(pageControl ? { pageControl } : {}),
-    ...(pageObservation ? { pageObservation } : {})
+    ...(pageObservation ? { pageObservation } : {}),
+    ...(boundedPageActionResult ? { pageActionResult: boundedPageActionResult } : {}),
+    ...(boundedPageScreenshot ? { pageScreenshot: boundedPageScreenshot } : {})
   };
 
   await io.mkdir(path.dirname(statePath));
@@ -463,7 +475,13 @@ export async function readChromeExtensionConnectionStatus({
     ...(typeof heartbeat.messageType === "string" ? { messageType: heartbeat.messageType } : {}),
     ...(typeof heartbeat.requestId === "string" ? { requestId: heartbeat.requestId } : {}),
     ...(readRecord(heartbeat.pageControl) ? { pageControl: readRecord(heartbeat.pageControl) } : {}),
-    ...(readRecord(heartbeat.pageObservation) ? { pageObservation: readRecord(heartbeat.pageObservation) } : {})
+    ...(readRecord(heartbeat.pageObservation) ? { pageObservation: readRecord(heartbeat.pageObservation) } : {}),
+    ...(summarizePageActionResultForHeartbeat(heartbeat.pageActionResult)
+      ? { pageActionResult: summarizePageActionResultForHeartbeat(heartbeat.pageActionResult) }
+      : {}),
+    ...(summarizePageScreenshotForHeartbeat(heartbeat.pageScreenshot)
+      ? { pageScreenshot: summarizePageScreenshotForHeartbeat(heartbeat.pageScreenshot) }
+      : {})
   };
 }
 
@@ -622,6 +640,8 @@ async function recordConnectionHeartbeat({
   const payload = readRecord(record.payload);
   const pageControl = readRecord(payload?.pageControl);
   const pageObservation = readRecord(payload?.pageObservation);
+  const pageActionResult = summarizePageActionResultForHeartbeat(payload?.pageActionResult);
+  const pageScreenshot = summarizePageScreenshotForHeartbeat(payload?.pageScreenshot);
 
   try {
     await connectionHeartbeat({
@@ -630,7 +650,9 @@ async function recordConnectionHeartbeat({
       requestId: record.requestId,
       result: response.result,
       ...(pageControl ? { pageControl } : {}),
-      ...(pageObservation ? { pageObservation } : {})
+      ...(pageObservation ? { pageObservation } : {}),
+      ...(pageActionResult ? { pageActionResult } : {}),
+      ...(pageScreenshot ? { pageScreenshot } : {})
     });
   } catch (error) {
     stderr.write(`Chrome extension heartbeat failed: ${readErrorMessage(error)}\n`);
@@ -872,6 +894,81 @@ function toBuffer(chunk: Buffer | Uint8Array | string): Buffer {
 
 function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function readBoundedString(value: unknown, maxLength = 500): string | undefined {
+  if (typeof value !== "string" || value.length === 0) {
+    return undefined;
+  }
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
+}
+
+function readFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function summarizePageActionResultForHeartbeat(value: unknown): Record<string, unknown> | undefined {
+  const record = readRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  const actionRecord = readRecord(record.action);
+  const action = readBoundedString(record.action)
+    ?? readBoundedString(record.kind)
+    ?? readBoundedString(actionRecord?.kind);
+  const selector = readBoundedString(record.selector)
+    ?? readBoundedString(actionRecord?.selector);
+  const deltaY = readFiniteNumber(record.deltaY)
+    ?? readFiniteNumber(actionRecord?.deltaY);
+  const deltaX = readFiniteNumber(record.deltaX)
+    ?? readFiniteNumber(actionRecord?.deltaX);
+  const summary: Record<string, unknown> = {
+    ...(readBoundedString(record.type) ? { type: readBoundedString(record.type) } : {}),
+    ...(readBoundedString(record.requestId) ? { requestId: readBoundedString(record.requestId) } : {}),
+    ...(readBoundedString(record.result) ? { result: readBoundedString(record.result) } : {}),
+    ...(action ? { action } : {}),
+    ...(readBoundedString(record.reason) ? { reason: readBoundedString(record.reason) } : {}),
+    ...(readFiniteNumber(record.targetTabId) !== undefined ? { targetTabId: readFiniteNumber(record.targetTabId) } : {}),
+    ...(readFiniteNumber(record.tabId) !== undefined ? { tabId: readFiniteNumber(record.tabId) } : {}),
+    ...(selector ? { selector } : {}),
+    ...(deltaY !== undefined ? { deltaY } : {}),
+    ...(deltaX !== undefined ? { deltaX } : {}),
+    ...(readBoolean(record.confirmed) !== undefined ? { confirmed: readBoolean(record.confirmed) } : {})
+  };
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
+}
+
+function summarizePageScreenshotForHeartbeat(value: unknown): Record<string, unknown> | undefined {
+  const record = readRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  const dataUrl = typeof record.dataUrl === "string" ? record.dataUrl : undefined;
+  const dataUrlBytes = readFiniteNumber(record.dataUrlBytes)
+    ?? (dataUrl ? Buffer.byteLength(dataUrl, "utf8") : undefined);
+  const hasDataUrl = readBoolean(record.hasDataUrl) ?? Boolean(dataUrl);
+  const summary: Record<string, unknown> = {
+    ...(readBoundedString(record.type) ? { type: readBoundedString(record.type) } : {}),
+    ...(readBoundedString(record.messageType) ? { messageType: readBoundedString(record.messageType) } : {}),
+    ...(readBoundedString(record.requestId) ? { requestId: readBoundedString(record.requestId) } : {}),
+    ...(readBoundedString(record.result) ? { result: readBoundedString(record.result) } : {}),
+    ...(readBoundedString(record.reason) ? { reason: readBoundedString(record.reason) } : {}),
+    ...(readFiniteNumber(record.tabId) !== undefined ? { tabId: readFiniteNumber(record.tabId) } : {}),
+    ...(readFiniteNumber(record.targetTabId) !== undefined ? { targetTabId: readFiniteNumber(record.targetTabId) } : {}),
+    ...(readBoundedString(record.host) ? { host: readBoundedString(record.host) } : {}),
+    ...(readBoundedString(record.format) ? { format: readBoundedString(record.format) } : {}),
+    hasDataUrl,
+    ...(dataUrlBytes !== undefined ? { dataUrlBytes } : {})
+  };
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {

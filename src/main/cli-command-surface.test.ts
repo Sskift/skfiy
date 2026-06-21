@@ -28,6 +28,7 @@ import {
   createDashboardServerStatePath
 } from "./dashboard-server-state";
 import type { ChromeExtensionReloadInput } from "./chrome-extension-reloader";
+import type { ChromeExtensionPageControlInput } from "./chrome-extension-page-control";
 
 function expectJsonSafe(value: unknown): void {
   expect(JSON.parse(JSON.stringify(value))).toEqual(value);
@@ -66,6 +67,11 @@ describe("CLI command surface", () => {
       "chrome status",
       "chrome extension-info",
       "chrome observe",
+      "chrome screenshot",
+      "chrome click",
+      "chrome fill",
+      "chrome submit",
+      "chrome scroll",
       "chrome reload-extension",
       "chrome policy show",
       "chrome policy set",
@@ -147,6 +153,41 @@ describe("CLI command surface", () => {
         plannedMutation: true,
         executesSystemMutation: true,
         outputShape: "chrome-page-observe",
+        capabilities: ["chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "chrome screenshot",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "chrome-page-screenshot",
+        capabilities: ["chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "chrome click",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "chrome-page-action",
+        capabilities: ["chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "chrome fill",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "chrome-page-action",
+        capabilities: ["chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "chrome submit",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "chrome-page-action",
+        capabilities: ["chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "chrome scroll",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "chrome-page-action",
         capabilities: ["chrome-extension-page-control"]
       }),
       expect.objectContaining({
@@ -3826,6 +3867,94 @@ describe("CLI command surface", () => {
           visibleText: "skfiy chrome smoke ready"
         }
       }
+    });
+    expect(chromeExtensionPageControlInvoker).toHaveBeenCalledTimes(1);
+    expect(stderr).toEqual([]);
+  });
+
+  it.each([
+    {
+      subcommand: "screenshot",
+      argv: ["chrome", "screenshot", "--extension-id", "abcdefghijklmnopabcdefghijklmnop", "--target-tab-id", "42"],
+      expectedInput: { action: "screenshot", targetTabId: 42 },
+      expectedOutputShape: { action: "screenshot" }
+    },
+    {
+      subcommand: "click",
+      argv: ["chrome", "click", "--extension-id", "abcdefghijklmnopabcdefghijklmnop", "--target-tab-id", "42", "--selector", "#submit"],
+      expectedInput: { action: "click", targetTabId: 42, selector: "#submit" },
+      expectedOutputShape: { action: "click" }
+    },
+    {
+      subcommand: "fill",
+      argv: ["chrome", "fill", "--extension-id", "abcdefghijklmnopabcdefghijklmnop", "--target-tab-id", "42", "--selector", "#name", "--text", "skfiy"],
+      expectedInput: { action: "fill", targetTabId: 42, selector: "#name", text: "skfiy" },
+      expectedOutputShape: { action: "fill" }
+    },
+    {
+      subcommand: "submit",
+      argv: ["chrome", "submit", "--extension-id", "abcdefghijklmnopabcdefghijklmnop", "--target-tab-id", "42", "--selector", "form"],
+      expectedInput: { action: "submit", targetTabId: 42, selector: "form" },
+      expectedOutputShape: { action: "submit" }
+    },
+    {
+      subcommand: "scroll",
+      argv: ["chrome", "scroll", "--extension-id", "abcdefghijklmnopabcdefghijklmnop", "--target-tab-id", "42", "--dy", "600"],
+      expectedInput: { action: "scroll", targetTabId: 42, dy: 600 },
+      expectedOutputShape: { action: "scroll" }
+    }
+  ] satisfies Array<{
+    subcommand: string;
+    argv: string[];
+    expectedInput: Partial<ChromeExtensionPageControlInput> & { action: ChromeExtensionPageControlInput["action"] };
+    expectedOutputShape: { action: ChromeExtensionPageControlInput["action"] };
+  }>)("runs chrome $subcommand through the extension page-control invoker", async ({
+    argv,
+    expectedInput,
+    expectedOutputShape
+  }) => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const chromeExtensionPageControlInvoker = vi.fn(async (input) => {
+      expect(input).toMatchObject({
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        homeDir: "/Users/tester",
+        ...expectedInput
+      });
+
+      return {
+        schemaVersion: 1 as const,
+        result: "verified" as const,
+        action: expectedInput.action,
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        wakeUrl: `chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyWakeAction=${expectedInput.action}`,
+        extensionConnection: {
+          state: "connected" as const,
+          liveConnection: "connected" as const,
+          path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+          ageSeconds: 0,
+          observedAt: "2026-06-20T00:00:00.000Z",
+          messageType: "skfiy.page.observe",
+          requestId: `page-control-${expectedInput.action}-1`
+        }
+      };
+    });
+
+    await expect(runSkfiyCli({
+      argv,
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      chromeExtensionPageControlInvoker,
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      command: `chrome ${expectedInput.action}`,
+      result: "verified",
+      executesSystemMutation: true,
+      ...expectedOutputShape
     });
     expect(chromeExtensionPageControlInvoker).toHaveBeenCalledTimes(1);
     expect(stderr).toEqual([]);

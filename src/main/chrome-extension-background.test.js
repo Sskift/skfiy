@@ -10,6 +10,8 @@ const NATIVE_HEARTBEAT = "skfiy.native.heartbeat";
 const DEV_RELOAD_REQUEST = "skfiy.dev.reload";
 const PAGE_CONTROL_HEALTH = "skfiy.page_control.health";
 const PAGE_OBSERVE = "skfiy.page.observe";
+const PAGE_ACTION = "skfiy.page.action";
+const PAGE_SCREENSHOT = "skfiy.page.screenshot";
 
 function createEvent() {
   const listeners = [];
@@ -86,6 +88,9 @@ function createChromeMock(nativeResponses = [], options = {}) {
   const activeTab = options.activeTab;
   const contentScriptSession = options.contentScriptSession;
   const pageObserveSnapshot = options.pageObserveSnapshot;
+  const pageActionResults = Array.isArray(options.pageActionResults)
+    ? [...options.pageActionResults]
+    : undefined;
   const contentScriptSessions = Array.isArray(options.contentScriptSessions)
     ? [...options.contentScriptSessions]
     : undefined;
@@ -195,9 +200,20 @@ function createChromeMock(nativeResponses = [], options = {}) {
               snapshot: pageObserveSnapshot
             };
           }
+          if (message?.type === PAGE_ACTION && pageActionResults) {
+            return {
+              type: "skfiy.page.action_result",
+              schemaVersion: 1,
+              requestId: message.requestId,
+              ...(pageActionResults.shift() ?? {
+                result: "passed",
+                action: message.payload?.action?.kind
+              })
+            };
+          }
           return undefined;
         }),
-        captureVisibleTab: vi.fn()
+        captureVisibleTab: vi.fn(async () => options.captureVisibleTabDataUrl)
       },
       scripting: {
         executeScript: vi.fn()
@@ -1158,6 +1174,161 @@ describe("Chrome extension background policy sync", () => {
         })
       })
     ]);
+  });
+
+  it("routes screenshot and action wake URLs through bounded native heartbeats", async () => {
+    const screenshotDataUrl = `data:image/png;base64,${"a".repeat(2048)}`;
+    const mock = createChromeMock([
+      createPageObserveResponse(),
+      createPageObserveResponse(),
+      createPageObserveResponse(),
+      createPageObserveResponse(),
+      createPageObserveResponse()
+    ], {
+      grantedOrigins: ["http://127.0.0.1/*"],
+      captureVisibleTabDataUrl: screenshotDataUrl,
+      pageActionResults: [
+        { result: "passed", action: "click" },
+        { result: "passed", action: "fill" },
+        { result: "passed", action: "submit" },
+        { result: "passed", action: "scroll" }
+      ]
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["127.0.0.1:63852"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
+      if (tabId === 42) {
+        return {
+          id: 42,
+          windowId: 7,
+          url: "http://127.0.0.1:63852/"
+        };
+      }
+      return undefined;
+    });
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const wakeUrls = [
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot",
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=click&skfiySelector=%23submit",
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=skfiy",
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=submit&skfiySelector=form",
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=scroll&skfiyDy=600"
+    ];
+
+    for (const [index, url] of wakeUrls.entries()) {
+      mock.chrome.tabs.onUpdated.listeners[0](99, {
+        status: "complete"
+      }, {
+        id: 99,
+        windowId: 7,
+        url
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitForAssertion(() => {
+        expect(mock.postedMessages).toHaveLength(index + 1);
+      });
+    }
+
+    expect(mock.chrome.tabs.captureVisibleTab).toHaveBeenCalledWith(7, {
+      format: "png"
+    });
+    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(1, 42, expect.objectContaining({
+      type: PAGE_ACTION,
+      tabId: 42,
+      payload: {
+        action: {
+          kind: "click",
+          selector: "#submit"
+        }
+      }
+    }));
+    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(2, 42, expect.objectContaining({
+      type: PAGE_ACTION,
+      tabId: 42,
+      payload: {
+        action: {
+          kind: "fill",
+          selector: "#name",
+          value: "skfiy"
+        }
+      }
+    }));
+    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(3, 42, expect.objectContaining({
+      type: PAGE_ACTION,
+      tabId: 42,
+      payload: {
+        action: {
+          kind: "submit",
+          selector: "form",
+          confirmed: true
+        }
+      }
+    }));
+    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(4, 42, expect.objectContaining({
+      type: PAGE_ACTION,
+      tabId: 42,
+      payload: {
+        action: {
+          kind: "scroll",
+          deltaY: 600
+        }
+      }
+    }));
+
+    expect(mock.postedMessages[0]).toMatchObject({
+      schemaVersion: 1,
+      type: PAGE_SCREENSHOT,
+      payload: {
+        source: "popup_wake",
+        targetTabId: 42,
+        format: "png",
+        pageScreenshot: {
+          type: "skfiy.page.screenshot_result",
+          tabId: 42,
+          targetTabId: 42,
+          host: "127.0.0.1:63852",
+          format: "png",
+          hasDataUrl: true,
+          dataUrlBytes: screenshotDataUrl.length
+        }
+      }
+    });
+    expect(mock.postedMessages[0].payload.pageScreenshot.dataUrl).toBeUndefined();
+
+    expect(mock.postedMessages.slice(1).map((message) => message.payload.pageActionResult)).toEqual([
+      expect.objectContaining({
+        result: "passed",
+        action: "click",
+        targetTabId: 42,
+        selector: "#submit"
+      }),
+      expect.objectContaining({
+        result: "passed",
+        action: "fill",
+        targetTabId: 42,
+        selector: "#name"
+      }),
+      expect.objectContaining({
+        result: "passed",
+        action: "submit",
+        targetTabId: 42,
+        selector: "form"
+      }),
+      expect.objectContaining({
+        result: "passed",
+        action: "scroll",
+        targetTabId: 42,
+        deltaY: 600
+      })
+    ]);
+    expect(mock.postedMessages[2].payload.pageActionResult.value).toBeUndefined();
+    expect(mock.postedMessages[2].payload.pageActionResult.text).toBeUndefined();
   });
 
   it("lets the popup trigger a manual native host policy refresh", async () => {

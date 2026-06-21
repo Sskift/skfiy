@@ -12,13 +12,22 @@ import {
 const DEFAULT_POLL_INTERVAL_MS = 50;
 const DEFAULT_POLL_TIMEOUT_MS = 5_000;
 
-export type ChromeExtensionPageControlAction = "observe";
+export type ChromeExtensionPageControlAction =
+  | "observe"
+  | "screenshot"
+  | "click"
+  | "fill"
+  | "submit"
+  | "scroll";
 
 export interface ChromeExtensionPageControlInput {
   action: ChromeExtensionPageControlAction;
   extensionId: string;
   homeDir: string;
   targetTabId?: number;
+  selector?: string;
+  text?: string;
+  dy?: number;
   generatedAt?: string;
   opener?: ChromeExtensionPageOpener;
   io?: ChromeNativeHostIo;
@@ -47,6 +56,9 @@ export async function invokeChromeExtensionPageControl({
   extensionId,
   homeDir,
   targetTabId,
+  selector,
+  text,
+  dy,
   generatedAt,
   opener = openChromeExtensionManagerPage,
   io,
@@ -56,7 +68,10 @@ export async function invokeChromeExtensionPageControl({
 }: ChromeExtensionPageControlInput): Promise<ChromeExtensionPageControlResult> {
   const wakeUrl = createChromeExtensionWakeUrl(extensionId, {
     targetTabId,
-    wakeAction: action
+    wakeAction: action,
+    selector,
+    text,
+    dy
   });
 
   await opener(wakeUrl);
@@ -79,8 +94,8 @@ export async function invokeChromeExtensionPageControl({
     wakeUrl,
     extensionConnection,
     ...(verified ? {} : {
-      reason: "page-control-observe-not-verified",
-      nextAction: "Reload the skfiy Chrome extension, verify the target tab is an allowed HTTP(S) page with Chrome site access, then retry `skfiy chrome observe`."
+      reason: `page-control-${action}-not-verified`,
+      nextAction: `Reload the skfiy Chrome extension, verify the target tab is an allowed HTTP(S) page with Chrome site access, then retry \`skfiy chrome ${action}\`.`
     })
   };
 }
@@ -116,7 +131,7 @@ async function pollPageControlConnection({
     await wait(intervalMs);
     latest = await readChromeExtensionConnectionStatus({
       homeDir,
-      generatedAt: new Date().toISOString(),
+      generatedAt: generatedAt ?? new Date().toISOString(),
       io
     });
   }
@@ -128,12 +143,25 @@ function isExpectedConnection(
   connection: ChromeExtensionConnectionStatus,
   action: ChromeExtensionPageControlAction
 ): boolean {
+  const pageControlConnection = connection as ChromeExtensionConnectionStatus & {
+    pageActionResult?: unknown;
+    pageScreenshot?: unknown;
+  };
+
   if (connection.state !== "connected") {
     return false;
   }
   if (action === "observe") {
     return connection.messageType === "skfiy.page.observe"
       && Boolean(connection.pageObservation);
+  }
+  if (action === "screenshot") {
+    return connection.messageType === "skfiy.page.screenshot"
+      && Boolean(pageControlConnection.pageScreenshot);
+  }
+  if (action === "click" || action === "fill" || action === "submit" || action === "scroll") {
+    return connection.messageType === "skfiy.page.action"
+      && Boolean(pageControlConnection.pageActionResult);
   }
   return false;
 }

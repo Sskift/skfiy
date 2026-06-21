@@ -1260,30 +1260,64 @@ function isOwnExtensionUrl(url) {
     && url.startsWith(`chrome-extension://${chrome.runtime.id}/`);
 }
 
-function readWakeTargetTabId(url) {
+function readWakeSearchParams(url) {
   if (!isOwnExtensionUrl(url)) {
     return undefined;
   }
 
   try {
-    const value = new URL(url).searchParams.get("skfiyTargetTabId");
-    const parsed = value ? Number.parseInt(value, 10) : NaN;
-    return Number.isInteger(parsed) ? parsed : undefined;
+    return new URL(url).searchParams;
   } catch {
     return undefined;
   }
 }
 
+function readWakeTargetTabIdFromParams(params) {
+  const value = params?.get("skfiyTargetTabId");
+  const parsed = value ? Number.parseInt(value, 10) : NaN;
+  return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+function readWakeTargetTabId(url) {
+  return readWakeTargetTabIdFromParams(readWakeSearchParams(url));
+}
+
 function readWakeAction(url) {
-  if (!isOwnExtensionUrl(url)) {
-    return "";
+  return readWakeSearchParams(url)?.get("skfiyWakeAction") ?? "";
+}
+
+function readWakeDirective(url) {
+  const params = readWakeSearchParams(url);
+  if (!params) {
+    return undefined;
   }
 
-  try {
-    return new URL(url).searchParams.get("skfiyWakeAction") ?? "";
-  } catch {
-    return "";
+  const dyValue = params.get("skfiyDy");
+  const dy = dyValue ? Number.parseInt(dyValue, 10) : NaN;
+  return {
+    targetTabId: readWakeTargetTabIdFromParams(params),
+    wakeAction: params.get("skfiyWakeAction") ?? "",
+    selector: params.get("skfiySelector") ?? "",
+    text: params.get("skfiyText") ?? "",
+    dy: Number.isFinite(dy) ? dy : 0
+  };
+}
+
+function mergeWakeDirectives(primary, fallback) {
+  if (!primary) {
+    return fallback;
   }
+  if (!fallback) {
+    return primary;
+  }
+
+  return {
+    targetTabId: Number.isInteger(primary.targetTabId) ? primary.targetTabId : fallback.targetTabId,
+    wakeAction: primary.wakeAction || fallback.wakeAction,
+    selector: primary.selector || fallback.selector,
+    text: primary.text || fallback.text,
+    dy: Number.isFinite(primary.dy) ? primary.dy : fallback.dy
+  };
 }
 
 function readObject(value) {
@@ -1298,6 +1332,96 @@ function readPageObservation(response) {
     return snapshot;
   }
   return readObject(response?.pageObservation);
+}
+
+function readString(value) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function createWakePageControlRequest(directive) {
+  const requestId = `page-control-${directive.wakeAction}-popup_wake-${Date.now()}`;
+  if (directive.wakeAction === "screenshot") {
+    return {
+      type: MESSAGE_TYPES.PAGE_SCREENSHOT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId,
+      tabId: directive.targetTabId,
+      payload: {
+        format: "png"
+      }
+    };
+  }
+
+  const action = (() => {
+    if (directive.wakeAction === "click") {
+      return { kind: "click", selector: directive.selector };
+    }
+    if (directive.wakeAction === "fill") {
+      return { kind: "fill", selector: directive.selector, value: directive.text };
+    }
+    if (directive.wakeAction === "submit") {
+      return { kind: "submit", selector: directive.selector, confirmed: true };
+    }
+    if (directive.wakeAction === "scroll") {
+      return { kind: "scroll", deltaY: directive.dy };
+    }
+    return undefined;
+  })();
+
+  if (!action) {
+    return undefined;
+  }
+
+  return {
+    type: MESSAGE_TYPES.PAGE_ACTION,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId,
+    tabId: directive.targetTabId,
+    payload: {
+      action
+    }
+  };
+}
+
+function summarizeWakePageActionResult(response, targetTabId, action) {
+  const record = readObject(response) ?? {};
+  const actionName = readString(record.action) ?? readString(action?.kind);
+  const selector = readString(record.selector) ?? readString(action?.selector);
+  const deltaY = readNumber(record.deltaY) ?? readNumber(action?.deltaY);
+
+  return {
+    type: readString(record.type) ?? MESSAGE_TYPES.PAGE_ACTION_RESULT,
+    ...(readString(record.requestId) ? { requestId: record.requestId } : {}),
+    ...(readString(record.result) ? { result: record.result } : {}),
+    ...(actionName ? { action: actionName } : {}),
+    ...(readString(record.reason) ? { reason: record.reason } : {}),
+    targetTabId,
+    ...(selector ? { selector } : {}),
+    ...(typeof deltaY === "number" ? { deltaY } : {})
+  };
+}
+
+function summarizeWakePageScreenshot(response, targetTabId) {
+  const record = readObject(response) ?? {};
+  const dataUrl = readString(record.dataUrl);
+  const hasDataUrl = Boolean(dataUrl);
+
+  return {
+    type: readString(record.type) ?? MESSAGE_TYPES.PAGE_SCREENSHOT_RESULT,
+    ...(readString(record.requestId) ? { requestId: record.requestId } : {}),
+    ...(readString(record.result) ? { result: record.result } : {}),
+    ...(readNumber(record.tabId) ? { tabId: record.tabId } : {}),
+    targetTabId,
+    ...(readString(record.host) ? { host: record.host } : {}),
+    ...(readString(record.format) ? { format: record.format } : {}),
+    hasDataUrl,
+    ...(hasDataUrl ? { dataUrlBytes: dataUrl.length } : {}),
+    ...(readString(record.reason) ? { reason: record.reason } : {})
+  };
 }
 
 async function sendWakePageObservation(targetTabId) {
@@ -1327,6 +1451,44 @@ async function sendWakePageObservation(targetTabId) {
       targetTabId,
       ...(pageObservation ? { pageObservation } : {})
     }
+  }, {
+    syncHostPolicy: false
+  });
+}
+
+async function sendWakePageControlAction(directive) {
+  const request = createWakePageControlRequest(directive);
+  if (!request) {
+    return pingNativeHeartbeat("popup_wake", directive.targetTabId);
+  }
+
+  const response = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
+    ? await routePageScreenshot(request)
+    : await routePageMessage(request);
+  const nativeRequestId = `page-control-${directive.wakeAction}-native-popup_wake-${Date.now()}`;
+  const payload = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
+    ? {
+        source: "popup_wake",
+        targetTabId: directive.targetTabId,
+        format: request.payload.format,
+        pageScreenshot: summarizeWakePageScreenshot(response, directive.targetTabId)
+      }
+    : {
+        source: "popup_wake",
+        targetTabId: directive.targetTabId,
+        action: request.payload.action,
+        pageActionResult: summarizeWakePageActionResult(
+          response,
+          directive.targetTabId,
+          request.payload.action
+        )
+      };
+
+  return sendNativeMessage({
+    type: request.type,
+    schemaVersion: MESSAGE_SCHEMA_VERSION,
+    requestId: nativeRequestId,
+    payload
   }, {
     syncHostPolicy: false
   });
@@ -1398,12 +1560,20 @@ function registerTabHeartbeatListeners() {
   });
   chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo, tab) => {
     if (changeInfo?.status === "complete" || typeof changeInfo?.url === "string") {
-      const wakeTargetTabId = readWakeTargetTabId(changeInfo?.url) ?? readWakeTargetTabId(tab?.url);
-      const wakeAction = readWakeAction(changeInfo?.url) || readWakeAction(tab?.url);
+      const wakeDirective = mergeWakeDirectives(
+        readWakeDirective(changeInfo?.url),
+        readWakeDirective(tab?.url)
+      );
+      const wakeTargetTabId = wakeDirective?.targetTabId;
+      const wakeAction = wakeDirective?.wakeAction ?? "";
       if (Number.isInteger(wakeTargetTabId)) {
         setTimeout(() => {
           if (wakeAction === "observe") {
             void sendWakePageObservation(wakeTargetTabId);
+            return;
+          }
+          if (["screenshot", "click", "fill", "submit", "scroll"].includes(wakeAction)) {
+            void sendWakePageControlAction(wakeDirective);
             return;
           }
           void pingNativeHeartbeat("popup_wake", wakeTargetTabId);
