@@ -161,6 +161,55 @@ async function renderDashboardHtmlWithSnapshot(
   };
 }
 
+function createChromeControlDashboardSnapshot({
+  extension = {},
+  nativeHost = { state: "installed" },
+  pageControl,
+  chromeArtifact
+}: {
+  extension?: Record<string, unknown>;
+  nativeHost?: Record<string, unknown>;
+  pageControl?: Record<string, unknown>;
+  chromeArtifact?: Record<string, unknown>;
+}): Record<string, unknown> {
+  const descriptor = createDashboardDescriptor({ port: 8787 });
+  return {
+    schemaVersion: 1,
+    generatedAt: "2026-06-21T10:00:00.000Z",
+    descriptor,
+    runtimeHealth: {
+      dashboard: { state: "running", url: descriptor.url },
+      nativeHost,
+      extension: {
+        state: "connected",
+        connection: { state: "connected" },
+        hostPolicy: { state: "loaded" },
+        ...extension,
+        ...(pageControl ? { pageControl } : {})
+      }
+    },
+    operatorReadiness: { state: "ready" },
+    permissions: {},
+    currentTurn: { state: "idle" },
+    replay: { state: "empty" },
+    smokeEvidence: {
+      artifacts: chromeArtifact ? [{ target: "chrome", result: "passed", ...chromeArtifact }] : []
+    },
+    dogfoodRelease: { state: "unknown" },
+    longHorizon: { state: "unknown" },
+    alerts: []
+  };
+}
+
+async function readAppsSitesPanelText(snapshot: Record<string, unknown>): Promise<string> {
+  const cleanup = await renderDashboardHtmlWithSnapshot(snapshot);
+  try {
+    return document.querySelector('[data-user-panel="apps-sites"]')?.textContent ?? "";
+  } finally {
+    cleanup();
+  }
+}
+
 describe("dashboard loopback HTTP response helper", () => {
   it("serves the descriptor JSON without echoing requested host or tokens", () => {
     const response = createDashboardHttpResponse(
@@ -283,6 +332,141 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain('row("latest verify", formatRuntimeVerification(turn.latestVerification))');
     expect(response.body).toContain('row("timeline tail", formatRuntimeTimelineTail(replay.timelineTail))');
     expect(response.body).not.toContain("token=");
+  });
+
+  it("renders user-facing Chrome control states in Apps and Sites", async () => {
+    const readyControl = {
+      state: "ready",
+      capable: true,
+      reason: "Ready for page control.",
+      activeTab: { state: "available", tabId: 7, host: "example.test" },
+      contentScript: { state: "loaded" },
+      capabilities: {
+        domActions: true,
+        screenshot: true,
+        click: true,
+        fill: true,
+        submit: true,
+        scroll: true
+      },
+      nextAction: "Ready for pageControl actions."
+    };
+    const cases = [
+      {
+        label: "ready page",
+        expected: "Ready to control this page",
+        snapshot: createChromeControlDashboardSnapshot({
+          extension: {
+            extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"]
+          },
+          pageControl: readyControl
+        })
+      },
+      {
+        label: "DOM actions without screenshot permission",
+        expected: "DOM actions ready, screenshot needs permission",
+        snapshot: createChromeControlDashboardSnapshot({
+          pageControl: {
+            ...readyControl,
+            state: "partial",
+            capable: true,
+            capabilities: {
+              ...readyControl.capabilities,
+              screenshot: false
+            },
+            chromeCapturePermission: { state: "missing" },
+            reason: "Chrome capture permission is missing."
+          }
+        })
+      },
+      {
+        label: "skfiy host policy blocked",
+        expected: "Needs skfiy host approval",
+        snapshot: createChromeControlDashboardSnapshot({
+          pageControl: {
+            state: "blocked_by_host_policy",
+            capable: false,
+            activeTab: { state: "available", host: "blocked.test" },
+            capabilities: { domActions: false, screenshot: false },
+            blockers: [{ code: "blocked_by_host_policy" }]
+          }
+        })
+      },
+      {
+        label: "Chrome site access blocked",
+        expected: "Needs Chrome site access",
+        snapshot: createChromeControlDashboardSnapshot({
+          pageControl: {
+            state: "blocked_by_chrome_host_permission",
+            capable: false,
+            activeTab: { state: "available", host: "needs-access.test" },
+            capabilities: { domActions: false, screenshot: false },
+            blockers: [{ code: "blocked_by_chrome_host_permission" }]
+          }
+        })
+      },
+      {
+        label: "extension refresh required",
+        expected: "Extension needs refresh",
+        snapshot: createChromeControlDashboardSnapshot({
+          extension: {
+            state: "stale",
+            connection: { state: "stale" }
+          },
+          pageControl: readyControl
+        })
+      },
+      {
+        label: "internal Chrome page",
+        expected: "Internal Chrome page cannot be controlled",
+        snapshot: createChromeControlDashboardSnapshot({
+          pageControl: {
+            state: "unavailable",
+            capable: false,
+            activeTab: { state: "blocked", host: "chrome://extensions", scheme: "chrome" },
+            capabilities: { domActions: false, screenshot: false },
+            blockers: [{ code: "internal_chrome_page" }]
+          }
+        })
+      },
+      {
+        label: "tab fallback",
+        expected: "Using Chrome tab fallback",
+        snapshot: createChromeControlDashboardSnapshot({
+          extension: {
+            tabDiscovery: {
+              result: "verified",
+              discoveryMode: "chrome-apple-events",
+              tabs: [{ id: 7, host: "example.test", eligible: true }]
+            }
+          },
+          pageControl: readyControl
+        })
+      },
+      {
+        label: "screenshot fallback",
+        expected: "Falling back to screenshot",
+        snapshot: createChromeControlDashboardSnapshot({
+          pageControl: {
+            state: "content_script_not_loaded",
+            capable: false,
+            activeTab: { state: "available", host: "fallback.test" },
+            contentScript: { state: "not_loaded" },
+            capabilities: { domActions: false, screenshot: false },
+            blockers: [{ code: "content_script_not_loaded" }]
+          }
+        })
+      }
+    ];
+
+    for (const testCase of cases) {
+      const text = await readAppsSitesPanelText(testCase.snapshot);
+      expect(text, testCase.label).toContain(testCase.expected);
+    }
+
+    const readyText = await readAppsSitesPanelText(cases[0].snapshot);
+    expect(readyText).toContain("Observe current page: ./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 7 --json");
+    expect(readyText).toContain("Screenshot current page: ./dist/skfiy chrome screenshot --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 7 --json");
   });
 
   it("renders live runtime snapshot freshness and latest turn summaries in the dashboard shell", async () => {
