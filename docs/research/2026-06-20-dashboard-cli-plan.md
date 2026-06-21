@@ -126,6 +126,7 @@ Commands represented:
 - `skfiy chrome policy reset`
 - `skfiy chrome reload-extension --extension-id <id> --target-tab-id <tab-id> --json`
 - `skfiy chrome observe --extension-id <id> --target-tab-id <tab-id> --json`
+- Planned next Chrome page-control commands: `skfiy chrome screenshot`, `skfiy chrome click`, `skfiy chrome fill`, `skfiy chrome submit`, `skfiy chrome scroll`, and `skfiy chrome tabs`.
 - `skfiy chrome install-host`
 - `skfiy chrome uninstall-host`
 - `skfiy mcp serve --stdio`
@@ -143,8 +144,8 @@ Native Messaging heartbeat, and returns dashboard-safe JSON with `action`,
 It is not enough to call Chrome control complete: `chrome tabs`,
 `chrome screenshot`, `chrome click`, `chrome fill`, `chrome submit`, and
 `chrome scroll` are still planned command work, and the dashboard should surface
-observe as "ready after latest live smoke" until a compiled-binary real-tab run
-has been recorded.
+observe as "read-only observe verified" until action commands have their own
+compiled-binary real-tab smoke evidence.
 
 `skfiy smoke <target> --output <path> [--require-passed]` runs the repo-local smoke script directly with the current Node runtime rather than shelling through npm. The wrapper normalizes `--output` to an absolute artifact path, forwards other smoke-specific flags, captures the smoke JSON, and returns a stable dashboard-friendly JSON summary with `result`, `exitCode`, `scriptPath`, and `scriptArgs`. `money-run` is the one script-level exception: the CLI accepts the same user-facing `--output` flag but forwards it as `--json-output` to `scripts/smoke-money-run-supervision.mjs`.
 
@@ -260,6 +261,18 @@ persisted to `.skfiy-smoke/chrome-observe-live.json`. This proves read-only
 observe for authorized ordinary HTTP(S) pages; screenshot/click/fill/submit and
 scroll still need their own packaged commands and real smoke evidence before
 browser control can be called complete.
+
+2026-06-21 action-bridge planning update: a subagent inspection found that the
+extension layer already has the core primitives for the next slice. Background
+can route `skfiy.page.screenshot` through `chrome.tabs.captureVisibleTab`, and
+content script can execute `skfiy.page.action` for `click`, `fill`, confirmed
+`submit`, and `scroll`. The missing product work is therefore not a new
+extension architecture; it is wiring packaged CLI subcommands, adding wake URL
+parameters for selector/text/delta, persisting bounded `pageActionResult` and
+`pageScreenshot` fields in the Native Messaging heartbeat, and recording
+before/after dashboard-safe evidence in real local page smokes. A red CLI test
+already exists for those five commands, and currently fails with exit code `2`
+because the subcommands are not wired yet.
 
 ## User Dashboard Roadmap
 

@@ -16,18 +16,19 @@
 - Proven path: `./dist/skfiy chrome reload-extension --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json` can verify `pageControl.state: "ready"` on an authorized localhost HTTP page when `SKFIY_CHROME_TARGET_TAB_ID` is set from tab discovery.
 - Proven readiness capabilities: diagnostics, observe, DOM actions, click, fill, submit, scroll, screenshot, and downloads.
 - 2026-06-21 implementation update: `chrome observe` has been added to the packaged CLI command surface, the popup wake URL can request `skfiyWakeAction=observe`, the Native Messaging heartbeat can persist `pageObservation`, and the related Vitest suite plus `npm run build` have passed locally.
-- Current product answer to "can skfiy control Chrome?": **not yet as a release promise**. The extension readiness path is real, and `chrome observe` is now implemented behind the compiled CLI, but a live installed-Chrome observe run against the current extension id still needs to be rerun after extension reload before the capability can be called verified. Click/fill/submit/scroll/screenshot commands are still planned work.
+- 2026-06-21 live proof: a compiled `./dist/skfiy chrome observe` run passed against Chrome tab `1782096038` on `http://127.0.0.1:63852/`; `pageObservation.visibleText` contained `skfiy observe live smoke 2026-06-21 compiled binary path`, and local evidence was saved to `.skfiy-smoke/chrome-observe-live.json`. Commit `3dbed8b` (`feat: add Chrome observe page-control command`) was pushed to `main`.
+- Current product answer to "can skfiy control Chrome?": **partially**. skfiy can now perform read-only observe on an authorized ordinary HTTP(S) tab through the installed extension and packaged CLI. It cannot yet be called a complete browser controller because screenshot/click/fill/submit/scroll are not wired through `dist/skfiy`, not persisted as action/screenshot heartbeats, and not covered by real smoke evidence.
+- Subagent contract check: extension runtime support already exists for `skfiy.page.screenshot` in `chrome-extension/background.js` and `skfiy.page.action` in `chrome-extension/content-script.js`. The product gaps are CLI subcommands, wake URL parameters, Native Messaging persistence for `pageActionResult` / `pageScreenshot`, and dashboard/replay evidence.
 - Development update boundary: Codex may reload the skfiy extension card while iterating because the user granted Chrome extension developer-mode permissions, but skfiy product behavior must rely on packaged CLI freshness checks and target-tab verification. Local unpacked reloads and packaged extension uploads remain explicit browser/distribution operations.
 - Target-tab discovery gap: `skfiy chrome tabs` is not implemented yet. Until Task 3 lands, real tests may use a manually discovered numeric Chrome tab id or a development-only Chrome control helper solely to identify the current ordinary HTTP(S) tab.
 
 ## Immediate P0 Loop
 
-1. Build `dist/skfiy`.
-2. Reload the manually installed extension id `plcpkkhlcacihjfohlojdknnkademlno`.
-3. Open or reuse an authorized ordinary HTTP(S) page.
-4. Run `./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json`.
-5. Require `result: "verified"`, `extensionConnection.messageType: "skfiy.page.observe"`, and `extensionConnection.pageObservation.visibleText` containing the test page text.
-6. Only after that evidence exists, promote observe into dashboard user controls and continue to screenshot/click/fill/submit/scroll.
+1. Keep the compiled-binary observe proof fresh: after extension source changes, reload `plcpkkhlcacihjfohlojdknnkademlno`, rerun `./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json`, and require `result: "verified"`.
+2. Finish Task 2 before claiming browser control: wire `chrome screenshot`, `chrome click`, `chrome fill`, `chrome submit`, and `chrome scroll` through `dist/skfiy`.
+3. For each action command, require a typed Native Messaging heartbeat (`pageScreenshot` or `pageActionResult`), selector/action metadata, target tab id, and a stable blocked result when the extension cannot safely act.
+4. Add the local safe-form real smoke only after unit tests pass. The smoke must prove before/after page state for fill/click/submit/scroll and screenshot metadata for screenshot.
+5. Promote browser controls into the user dashboard only after the action smoke exists; until then the dashboard should say "Chrome observe verified; actions pending."
 
 ## File Structure
 
@@ -138,12 +139,14 @@ Run against an authorized local HTTP tab:
 
 Observed on 2026-06-21 against Chrome tab `1782096038` on `http://127.0.0.1:63852/`: `result: "verified"` and `extensionConnection.pageObservation.visibleText` contained `skfiy observe live smoke 2026-06-21 compiled binary path`. Local evidence was persisted to `.skfiy-smoke/chrome-observe-live.json`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main/cli-command-surface.ts src/main/chrome-extension-page-control.ts src/main/chrome-extension-reloader.ts src/main/chrome-native-host.ts chrome-extension/popup.js src/main/cli-command-surface.test.ts src/main/chrome-native-host.test.ts src/main/chrome-extension-popup.test.js
 git commit -m "feat: add Chrome observe page-control command"
 ```
+
+Observed: committed and pushed as `3dbed8b feat: add Chrome observe page-control command`.
 
 ## Task 2: Chrome Action Commands
 
@@ -154,7 +157,7 @@ git commit -m "feat: add Chrome observe page-control command"
 - Modify: `chrome-extension/content-script.js`
 - Test: `src/main/cli-command-surface.test.ts`
 
-- [ ] **Step 1: Add failing tests for action commands**
+- [x] **Step 1: Add failing tests for action commands**
 
 Add tests for:
 
@@ -166,21 +169,95 @@ Add tests for:
 
 Each test should inject `chromeExtensionPageControlInvoker`, assert the exact action input, and require `executesSystemMutation: true`.
 
-- [ ] **Step 2: Run tests red**
+- [x] **Step 2: Run tests red**
 
 ```bash
 npx vitest run src/main/cli-command-surface.test.ts -t "chrome .*page-control"
 ```
 
-Expected: FAIL for unknown subcommands or missing arguments.
+Observed: FAIL for the five new subcommands with exit code `2`, proving the CLI does not yet recognize or dispatch `screenshot`, `click`, `fill`, `submit`, and `scroll`.
 
 - [ ] **Step 3: Implement normalization and argument validation**
 
 Add selectors/text/dy parsing to `src/main/cli-command-surface.ts`. Missing selector for click/fill/submit, missing text for fill, and missing dy for scroll must return structured CLI errors with exit code `2`.
 
+- [ ] **Step 3a: Extend page-control action type and wake parameters**
+
+In `src/main/chrome-extension-page-control.ts`, expand the action type and invoker input:
+
+```ts
+export type ChromeExtensionPageControlAction =
+  | "observe"
+  | "screenshot"
+  | "click"
+  | "fill"
+  | "submit"
+  | "scroll";
+
+export interface ChromeExtensionPageControlInput {
+  action: ChromeExtensionPageControlAction;
+  extensionId: string;
+  homeDir: string;
+  targetTabId?: number;
+  selector?: string;
+  text?: string;
+  dy?: number;
+}
+```
+
+In `src/main/chrome-extension-reloader.ts`, let `createChromeExtensionWakeUrl()` include `skfiySelector`, `skfiyText`, and `skfiyDy` when present. Do not log arbitrary user text as a product default; test text such as `skfiy` is acceptable in local smoke artifacts.
+
+- [ ] **Step 3b: Add CLI subcommands**
+
+In `src/main/cli-command-surface.ts`, add command metadata and dispatch for:
+
+```text
+skfiy chrome screenshot --extension-id <id> --target-tab-id <tab-id> --json
+skfiy chrome click --extension-id <id> --target-tab-id <tab-id> --selector <css> --json
+skfiy chrome fill --extension-id <id> --target-tab-id <tab-id> --selector <css> --text <text> --json
+skfiy chrome submit --extension-id <id> --target-tab-id <tab-id> --selector <css> --json
+skfiy chrome scroll --extension-id <id> --target-tab-id <tab-id> --dy <pixels> --json
+```
+
+The CLI invoker input must match the red test shapes:
+
+```ts
+{ action: "screenshot", targetTabId: 42 }
+{ action: "click", targetTabId: 42, selector: "#submit" }
+{ action: "fill", targetTabId: 42, selector: "#name", text: "skfiy" }
+{ action: "submit", targetTabId: 42, selector: "form" }
+{ action: "scroll", targetTabId: 42, dy: 600 }
+```
+
 - [ ] **Step 4: Implement action dispatch**
 
-Use `chrome-extension/background.js` and `chrome-extension/content-script.js` existing page action routes. Refuse sensitive fields before fill/click/submit and return `sensitive-paused` instead of executing.
+Use the existing extension-layer contracts:
+
+```js
+// screenshot
+{ type: "skfiy.page.screenshot", tabId, payload: { format: "png" } }
+
+// click
+{ type: "skfiy.page.action", tabId, payload: { action: { kind: "click", selector } } }
+
+// fill
+{ type: "skfiy.page.action", tabId, payload: { action: { kind: "fill", selector, value: text } } }
+
+// submit
+{ type: "skfiy.page.action", tabId, payload: { action: { kind: "submit", selector, confirmed: true } } }
+
+// scroll
+{ type: "skfiy.page.action", tabId, payload: { action: { kind: "scroll", deltaY: dy } } }
+```
+
+Persist bounded results in `src/main/chrome-native-host.ts`:
+
+```ts
+pageActionResult?: Record<string, unknown>;
+pageScreenshot?: Record<string, unknown>;
+```
+
+Refuse sensitive fields before fill/click/submit and return `sensitive-paused` instead of executing.
 
 - [ ] **Step 5: Run unit tests**
 
