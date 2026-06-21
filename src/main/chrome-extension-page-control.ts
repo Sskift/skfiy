@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import {
   createChromeExtensionWakeUrl,
   openChromeExtensionManagerPage,
@@ -72,6 +73,7 @@ export interface ChromeExtensionTabDiscoveryInput {
   homeDir: string;
   generatedAt?: string;
   opener?: ChromeExtensionPageOpener;
+  fallbackTabLister?: ChromeTabLister;
   io?: ChromeNativeHostIo;
   wait?: (ms: number) => Promise<void>;
   pollIntervalMs?: number;
@@ -83,11 +85,22 @@ export interface ChromeExtensionTabDiscoveryResult {
   result: "verified" | "blocked";
   extensionId: string;
   wakeUrl: string;
+  discoveryMode?: "extension" | "chrome-apple-events";
   tabs: ChromeExtensionTabSummary[];
   extensionConnection: ChromeExtensionConnectionStatus;
   reason?: string;
   nextAction?: string;
 }
+
+export type ChromeAppleEventsTab = {
+  id?: number;
+  windowId?: number;
+  active?: boolean;
+  title?: string;
+  url?: string;
+};
+
+export type ChromeTabLister = () => Promise<ChromeAppleEventsTab[]>;
 
 export type ChromeExtensionTabDiscoveryInvoker = (
   input: ChromeExtensionTabDiscoveryInput
@@ -150,6 +163,7 @@ export async function invokeChromeExtensionTabDiscovery({
   homeDir,
   generatedAt,
   opener = openChromeExtensionManagerPage,
+  fallbackTabLister = listChromeTabsWithAppleEvents,
   io,
   wait = sleep,
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
@@ -172,12 +186,27 @@ export async function invokeChromeExtensionTabDiscovery({
   const pageTabs = readTabDiscoveryEvidence(extensionConnection, requestGeneratedAt);
   const tabs = readTabSummaries(pageTabs);
   const verified = extensionConnection.state === "connected" && tabs.length > 0;
+  if (!verified) {
+    const fallbackTabs = await readFallbackTabs(fallbackTabLister);
+    if (fallbackTabs.length > 0) {
+      return {
+        schemaVersion: 1,
+        result: "verified",
+        extensionId,
+        wakeUrl,
+        discoveryMode: "chrome-apple-events",
+        tabs: fallbackTabs,
+        extensionConnection
+      };
+    }
+  }
 
   return {
     schemaVersion: 1,
     result: verified ? "verified" : "blocked",
     extensionId,
     wakeUrl,
+    ...(verified ? { discoveryMode: "extension" as const } : {}),
     tabs,
     extensionConnection,
     ...(verified ? {} : {
@@ -386,6 +415,132 @@ function readTabSummaries(pageTabs: Record<string, unknown> | undefined): Chrome
       ...(typeof tab.nextAction === "string" ? { nextAction: tab.nextAction } : {})
     }];
   });
+}
+
+async function readFallbackTabs(tabLister: ChromeTabLister): Promise<ChromeExtensionTabSummary[]> {
+  try {
+    const tabs = await tabLister();
+    return tabs.map(summarizeAppleEventsTab).filter((tab) => Boolean(tab.url || tab.title || tab.id));
+  } catch {
+    return [];
+  }
+}
+
+async function listChromeTabsWithAppleEvents(): Promise<ChromeAppleEventsTab[]> {
+  const script = `
+const chrome = Application("Google Chrome");
+const rows = [];
+for (const window of chrome.windows()) {
+  const windowId = window.id();
+  const activeIndex = Number(window.activeTabIndex?.() ?? -1);
+  const tabs = window.tabs();
+  for (let index = 0; index < tabs.length; index += 1) {
+    const tab = tabs[index];
+    rows.push({
+      id: tab.id(),
+      windowId,
+      active: activeIndex === index + 1,
+      title: tab.name(),
+      url: tab.url()
+    });
+  }
+}
+JSON.stringify(rows);
+`;
+  const stdout = await new Promise<string>((resolve, reject) => {
+    execFile("osascript", ["-l", "JavaScript", "-e", script], (error, output) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(output);
+    });
+  });
+  const parsed = JSON.parse(stdout);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+  return parsed.flatMap((entry) => {
+    const tab = readRecord(entry);
+    if (!tab) {
+      return [];
+    }
+    return [{
+      ...(readNumber(tab.id) !== undefined ? { id: readNumber(tab.id) } : {}),
+      ...(readNumber(tab.windowId) !== undefined ? { windowId: readNumber(tab.windowId) } : {}),
+      ...(typeof tab.active === "boolean" ? { active: tab.active } : {}),
+      ...(typeof tab.title === "string" ? { title: tab.title } : {}),
+      ...(typeof tab.url === "string" ? { url: tab.url } : {})
+    }];
+  });
+}
+
+function summarizeAppleEventsTab(tab: ChromeAppleEventsTab): ChromeExtensionTabSummary {
+  const url = typeof tab.url === "string" ? tab.url : "";
+  const parsed = parseTabUrl(url);
+  const base = {
+    ...(readNumber(tab.id) !== undefined ? { id: readNumber(tab.id) } : {}),
+    ...(readNumber(tab.windowId) !== undefined ? { windowId: readNumber(tab.windowId) } : {}),
+    ...(typeof tab.active === "boolean" ? { active: tab.active } : {}),
+    ...(typeof tab.title === "string" ? { title: tab.title } : {}),
+    ...(url ? { url } : {}),
+    ...(parsed.host ? { host: parsed.host } : {}),
+    ...(parsed.scheme ? { scheme: parsed.scheme } : {})
+  };
+
+  if (parsed.scheme === "http" || parsed.scheme === "https") {
+    return {
+      ...base,
+      state: "eligible",
+      eligible: true
+    };
+  }
+  if (parsed.scheme === "chrome") {
+    return {
+      ...base,
+      state: "blocked",
+      eligible: false,
+      blocker: "internal_chrome_page",
+      nextAction: "Open a normal HTTP(S) page before asking skfiy to control Chrome."
+    };
+  }
+  if (parsed.scheme === "chrome-extension") {
+    return {
+      ...base,
+      state: "blocked",
+      eligible: false,
+      blocker: "chrome_extension_page",
+      nextAction: "Switch to a normal HTTP(S) tab before asking skfiy to control Chrome."
+    };
+  }
+  if (parsed.scheme === "file") {
+    return {
+      ...base,
+      state: "blocked",
+      eligible: false,
+      blocker: "file_url",
+      nextAction: "Open a normal HTTP(S) page before asking skfiy to control Chrome."
+    };
+  }
+  return {
+    ...base,
+    state: "blocked",
+    eligible: false,
+    blocker: parsed.scheme ? "unsupported_scheme" : "missing_url",
+    nextAction: "Open a normal HTTP(S) page before asking skfiy to control Chrome."
+  };
+}
+
+function parseTabUrl(url: string): { scheme?: string; host?: string } {
+  try {
+    const parsed = new URL(url);
+    return {
+      scheme: parsed.protocol.replace(/:$/, ""),
+      host: parsed.host
+    };
+  } catch {
+    return {};
+  }
 }
 
 function createPageControlBlocker(

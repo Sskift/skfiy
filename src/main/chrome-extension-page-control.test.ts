@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { invokeChromeExtensionPageControl } from "./chrome-extension-page-control";
+import {
+  invokeChromeExtensionPageControl,
+  invokeChromeExtensionTabDiscovery
+} from "./chrome-extension-page-control";
 import type { ChromeNativeHostIo } from "./chrome-native-host";
 
 const EXTENSION_ID = "plcpkkhlcacihjfohlojdknnkademlno";
@@ -392,6 +395,78 @@ describe("Chrome extension page control invoker", () => {
           action: "submit"
         }
       }
+    });
+  });
+
+  it("falls back to Chrome Apple Events when extension tab discovery wake does not return pageTabs", async () => {
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-popup_wake-1",
+        latestCommand: {
+          observedAt: "2026-06-21T10:09:59.000Z",
+          messageType: "skfiy.page.screenshot"
+        }
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+
+    const result = await invokeChromeExtensionTabDiscovery({
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      generatedAt: GENERATED_AT,
+      opener: vi.fn(async () => undefined),
+      io,
+      wait: async () => undefined,
+      pollTimeoutMs: 1,
+      fallbackTabLister: vi.fn(async () => [
+        {
+          id: 42,
+          windowId: 7,
+          active: true,
+          title: "Allowed app",
+          url: "https://allowed.example/dashboard"
+        },
+        {
+          id: 43,
+          windowId: 7,
+          active: false,
+          title: "Extensions",
+          url: "chrome://extensions/"
+        }
+      ])
+    });
+
+    expect(result).toMatchObject({
+      result: "verified",
+      discoveryMode: "chrome-apple-events",
+      tabs: [
+        {
+          id: 42,
+          windowId: 7,
+          active: true,
+          title: "Allowed app",
+          url: "https://allowed.example/dashboard",
+          host: "allowed.example",
+          scheme: "https",
+          state: "eligible",
+          eligible: true
+        },
+        {
+          id: 43,
+          windowId: 7,
+          active: false,
+          title: "Extensions",
+          url: "chrome://extensions/",
+          scheme: "chrome",
+          state: "blocked",
+          eligible: false,
+          blocker: "internal_chrome_page"
+        }
+      ]
     });
   });
 });

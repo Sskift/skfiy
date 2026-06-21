@@ -294,8 +294,12 @@ not an ambiguous tabs protocol failure. `skfiy chrome tabs` reports that as
 `extension-registration-stale`; `skfiy chrome reload-extension` now reports the
 same product condition as `extension-card-reload-required` with version/path
 evidence and preserves any locked/asleep desktop fallback under
-`desktopFallback`. Once Chrome is registration-fresh, the next proof is fresh
-`skfiy.tabs.discover` / `pageTabs` evidence from the compiled command.
+`desktopFallback`. When the extension wake is fresh but still fails to write
+`skfiy.tabs.discover` / `pageTabs`, `skfiy chrome tabs` now falls back to Chrome
+Apple Events inside the packaged CLI and returns `discoveryMode:
+"chrome-apple-events"` with bounded tab metadata. The remaining proof for full
+extension parity is fresh `skfiy.tabs.discover` / `pageTabs` evidence from the
+compiled command.
 
 ## User Dashboard Roadmap
 
@@ -437,12 +441,13 @@ Detailed task handoff:
    or partially reported by `tabs.onUpdated` should no longer disappear. The
    remaining Week A proof is live and split into two gates: first, move the
    installed extension registration from Chrome's current `0.0.6` to local
-   `0.0.7`; second, require fresh `skfiy.tabs.discover` evidence from the
-   packaged command before it replaces AppleScript or manual tab ids in real
-   smokes. Codex Chrome control can list but cannot claim `chrome://extensions/`,
-   so product code must keep returning a typed `extension-registration-stale`,
-   `extension-card-reload-required`, or `desktop-session-locked` blocker until a
-   Chrome-supported re-registration path exists.
+   `0.0.7`; second, keep the packaged CLI Apple Events fallback as a product
+   target-discovery bridge while requiring fresh `skfiy.tabs.discover` evidence
+   before calling the extension path complete. Codex Chrome control can list but
+   cannot claim `chrome://extensions/`, so product code must keep returning a
+   typed `extension-registration-stale`, `extension-card-reload-required`, or
+   `desktop-session-locked` blocker until a Chrome-supported re-registration path
+   exists.
 3. Fix screenshot readiness before screenshot capture. Health/status/dashboard
    must report DOM actions and screenshot separately: a page with skfiy host
    approval, Chrome site access, and loaded content script can be actionable for
