@@ -169,7 +169,8 @@ function createChromeMock(nativeResponses = [], options = {}) {
   };
 }
 
-async function importBackground() {
+async function importBackground({ autoHeartbeat = false } = {}) {
+  globalThis.__SKFIY_DISABLE_AUTO_HEARTBEAT = !autoHeartbeat;
   const backgroundUrl = pathToFileURL(path.join(process.cwd(), "chrome-extension", "background.js"));
   backgroundUrl.search = `?test=${Date.now()}-${Math.random()}`;
   return import(backgroundUrl.href);
@@ -193,6 +194,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   delete globalThis.chrome;
   delete globalThis.skfiyChromeAdapterDiagnostics;
+  delete globalThis.__SKFIY_DISABLE_AUTO_HEARTBEAT;
 });
 
 describe("Chrome extension background page routing", () => {
@@ -876,6 +878,27 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-runtime_installed-/);
     expect(mock.postedMessages[1].requestId).toMatch(/^host-policy-sync-runtime_startup-/);
     expect(mock.storage[HOST_POLICY_STORAGE_KEY].allowedHosts).toEqual(["startup.example"]);
+  });
+
+  it("records a native heartbeat when the service worker loads after extension reload", async () => {
+    const mock = createChromeMock([
+      createPolicyResponse({ allowedHosts: ["loaded.example"] })
+    ]);
+    globalThis.chrome = mock.chrome;
+    await importBackground({ autoHeartbeat: true });
+
+    await waitForAssertion(() => {
+      expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
+        state: "synced",
+        trigger: "service_worker_loaded"
+      });
+    });
+
+    expect(mock.postedMessages.map((message) => message.type)).toEqual([
+      "skfiy.host_policy.request"
+    ]);
+    expect(mock.postedMessages[0].requestId).toMatch(/^host-policy-sync-service_worker_loaded-/);
+    expect(mock.storage[HOST_POLICY_STORAGE_KEY].allowedHosts).toEqual(["loaded.example"]);
   });
 
   it("lets the popup trigger a manual native host policy refresh", async () => {

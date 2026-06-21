@@ -11,7 +11,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   SMOKE_TARGETS,
   createCliCommandSurface,
@@ -27,6 +27,7 @@ import {
   createDashboardServerState,
   createDashboardServerStatePath
 } from "./dashboard-server-state";
+import type { ChromeExtensionReloadInput } from "./chrome-extension-reloader";
 
 function expectJsonSafe(value: unknown): void {
   expect(JSON.parse(JSON.stringify(value))).toEqual(value);
@@ -64,6 +65,7 @@ describe("CLI command surface", () => {
       "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
       "chrome status",
       "chrome extension-info",
+      "chrome reload-extension",
       "chrome policy show",
       "chrome policy set",
       "chrome policy reset",
@@ -137,6 +139,13 @@ describe("CLI command surface", () => {
         plannedMutation: false,
         executesSystemMutation: false,
         outputShape: "chrome-extension-info",
+        capabilities: ["chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "chrome reload-extension",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "chrome-extension-reload",
         capabilities: ["chrome-extension-page-control"]
       }),
       expect.objectContaining({
@@ -623,6 +632,46 @@ describe("CLI command surface", () => {
       });
       expectJsonSafe(output);
     }
+  });
+
+  it("normalizes the Chrome extension reload command as a desktop Computer Use operation", () => {
+    const invocation = expectInvocation([
+      "chrome",
+      "reload-extension",
+      "--extension-id",
+      "abcdefghijklmnopabcdefghijklmnop"
+    ]);
+    const output = createCliOutput(invocation, {
+      generatedAt: "2026-06-20T00:00:00.000Z"
+    });
+
+    expect(invocation).toMatchObject({
+      kind: "chrome",
+      path: "chrome reload-extension",
+      subcommand: "reload-extension",
+      options: {
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"],
+        cliShimPath: "/repo/dist/skfiy"
+      }
+    });
+    expect(output).toMatchObject({
+      schemaVersion: 1,
+      command: "chrome reload-extension",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: "not-run",
+      extensionId: "abcdefghijklmnopabcdefghijklmnop",
+      productPath: "cli -> helper activate_app -> helper observe_app -> helper ocr_image -> helper click -> extension wake page -> native-host heartbeat",
+      actionPlan: [
+        "open chrome://extensions/",
+        "activate Google Chrome",
+        "observe the extension list or detail page and OCR labels",
+        "click the extension reload control",
+        "open the extension wake page",
+        "poll the Native Messaging heartbeat"
+      ]
+    });
+    expectJsonSafe(output);
   });
 
   it("normalizes Chrome host policy commands as explicit user-level state operations", () => {
@@ -3567,6 +3616,76 @@ describe("CLI command surface", () => {
       executesSystemMutation: true
     });
     expect(files[manifestPath]).toBeUndefined();
+    expect(stderr).toEqual([]);
+  });
+
+  it("runs chrome extension reload through the injected desktop reloader", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const chromeExtensionReloader = vi.fn(async (input: ChromeExtensionReloadInput) => {
+      expect(input).toMatchObject({
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        homeDir: "/Users/tester",
+        generatedAt: "2026-06-20T00:00:00.000Z"
+      });
+
+      return {
+        schemaVersion: 1 as const,
+        result: "verified" as const,
+        productPath: "cli -> helper activate_app -> helper observe_app -> helper ocr_image -> helper click -> extension wake page -> native-host heartbeat" as const,
+        extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        managerUrl: "chrome://extensions/",
+        wakeUrl: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1",
+        screenshotPath: "/tmp/skfiy-chrome-extension-reload.png",
+        ocrLabelCount: 8,
+        observedWindowTitle: "扩展程序",
+        target: {
+          strategy: "extension-card-layout" as const,
+          label: "skfiy Chrome Adapter",
+          x: 1012,
+          y: 794,
+          confidence: 0.82
+        },
+        click: { ok: true },
+        extensionConnection: {
+          state: "connected" as const,
+          liveConnection: "connected" as const,
+          path: "/Users/tester/Library/Application Support/skfiy/chrome-extension-connection.json",
+          ageSeconds: 0,
+          observedAt: "2026-06-20T00:00:00.000Z",
+          messageType: "skfiy.host_policy.request",
+          requestId: "host-policy-sync-service_worker_loaded-1"
+        },
+        candidates: []
+      };
+    });
+
+    await expect(runSkfiyCli({
+      argv: ["chrome", "reload-extension", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      chromeExtensionReloader,
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      schemaVersion: 1,
+      command: "chrome reload-extension",
+      result: "verified",
+      executesSystemMutation: true,
+      target: {
+        strategy: "extension-card-layout",
+        x: 1012,
+        y: 794
+      },
+      extensionConnection: {
+        state: "connected",
+        liveConnection: "connected"
+      }
+    });
+    expect(chromeExtensionReloader).toHaveBeenCalledTimes(1);
     expect(stderr).toEqual([]);
   });
 

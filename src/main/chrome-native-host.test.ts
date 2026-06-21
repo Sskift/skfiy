@@ -316,6 +316,38 @@ describe("Chrome Native Messaging host plan", () => {
       ageSeconds: 661
     });
   });
+
+  it("writes Chrome extension heartbeat evidence through an atomic temp-file rename when available", async () => {
+    const io = createMemoryChromeHostIo();
+    const renames: Array<{ sourcePath: string; targetPath: string }> = [];
+    const atomicIo = {
+      ...io,
+      rename: async (sourcePath: string, targetPath: string) => {
+        renames.push({ sourcePath, targetPath });
+        io.files[targetPath] = io.files[sourcePath];
+        delete io.files[sourcePath];
+      }
+    };
+    const statePath = createChromeExtensionConnectionStatePath("/Users/tester");
+
+    await writeChromeExtensionConnectionHeartbeat({
+      homeDir: "/Users/tester",
+      observedAt: "2026-06-19T23:59:00.000Z",
+      launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+      messageType: "skfiy.host_policy.request",
+      requestId: "request-heartbeat",
+      io: atomicIo
+    });
+
+    expect(renames).toHaveLength(1);
+    expect(renames[0].sourcePath).toContain(`${statePath}.`);
+    expect(renames[0].sourcePath).toMatch(/\.tmp$/);
+    expect(renames[0].targetPath).toBe(statePath);
+    expect(JSON.parse(io.files[statePath])).toMatchObject({
+      messageType: "skfiy.host_policy.request",
+      requestId: "request-heartbeat"
+    });
+  });
 });
 
 describe("Chrome Native Messaging bridge runtime", () => {

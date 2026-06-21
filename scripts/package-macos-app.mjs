@@ -82,8 +82,12 @@ export async function packageMacosApp({
   );
   await fs.copyFile(plan.sourceHelperPath, plan.bundledHelperPath);
   await fs.chmod(plan.bundledHelperPath, 0o755);
-  await fs.copyFile(plan.sourceCliShimPath, plan.cliShimPath);
+  await fs.writeFile(
+    plan.cliShimPath,
+    createNativeMessagingSafeCliShim(readTextSync(plan.sourceCliShimPath))
+  );
   await fs.chmod(plan.cliShimPath, 0o755);
+  await clearMacosExtendedAttributes(plan.appBundlePath);
   await signNestedCode(plan.nestedCodePaths);
   await execFileAsync(plan.adhocSignCommand.command, plan.adhocSignCommand.args);
   await execFileAsync(plan.verifyCodeSignCommand.command, plan.verifyCodeSignCommand.args);
@@ -208,6 +212,24 @@ export function setInfoPlistString(plist, key, value) {
 function assertPathExists(targetPath, label) {
   if (!existsSync(targetPath)) {
     throw new Error(`${label} is missing at ${targetPath}. Run npm run build first.`);
+  }
+}
+
+export function createNativeMessagingSafeCliShim(source, nodePath = process.execPath) {
+  const checkedNodePath = String(nodePath || "").trim();
+  if (!path.isAbsolute(checkedNodePath)) {
+    throw new Error("Packaged skfiy CLI shim requires an absolute Node.js path.");
+  }
+
+  return source.replace(/^#![^\n]*(\n|$)/, `#!${checkedNodePath}\n`);
+}
+
+async function clearMacosExtendedAttributes(targetPath) {
+  try {
+    await execFileAsync("xattr", ["-cr", targetPath]);
+  } catch {
+    // xattr is macOS-specific cleanup. Packaging can continue on filesystems
+    // where extended attributes are unavailable.
   }
 }
 

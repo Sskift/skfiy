@@ -494,6 +494,14 @@ async function renderPopup() {
   applyPageDiagnostics(snapshot?.diagnostics, sensitivePause, host);
 }
 
+function shouldAutoCheckHeartbeat() {
+  try {
+    return new URL(globalThis.location?.href ?? "").searchParams.has("skfiyWake");
+  } catch {
+    return false;
+  }
+}
+
 async function refreshHostPolicy() {
   const button = document.getElementById("sync-policy-button");
   button.disabled = true;
@@ -584,15 +592,21 @@ document.getElementById("dev-reload-button").addEventListener("click", () => {
   void reloadExtension();
 });
 
-void renderPopup().catch((error) => {
-  document.getElementById("connection-status").textContent =
-    error instanceof Error ? error.message : "Unable to read status";
-  applySyncStatus({
-    state: "error",
-    source: "local_storage",
-    entryCount: 0,
-    updatedAt: new Date().toISOString(),
-    lastError: error instanceof Error ? error.message : "Unable to read status",
-    error: error instanceof Error ? error.message : "Unable to read status"
-  }, undefined);
-});
+void renderPopup()
+  .then(() => {
+    if (shouldAutoCheckHeartbeat()) {
+      void checkHeartbeat();
+    }
+  })
+  .catch((error) => {
+    document.getElementById("connection-status").textContent =
+      error instanceof Error ? error.message : "Unable to read status";
+    applySyncStatus({
+      state: "error",
+      source: "local_storage",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      lastError: error instanceof Error ? error.message : "Unable to read status",
+      error: error instanceof Error ? error.message : "Unable to read status"
+    }, undefined);
+  });

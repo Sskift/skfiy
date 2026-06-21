@@ -1,6 +1,6 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { normalizeChromeBrowserMessage } from "./chrome-browser-action-schema.js";
 import {
   readChromeHostPolicyState,
@@ -50,6 +50,7 @@ export interface ChromeNativeHostIo {
   mkdir: (targetPath: string) => Promise<void>;
   readFile: (targetPath: string) => Promise<string>;
   writeFile: (targetPath: string, content: string) => Promise<void>;
+  rename?: (sourcePath: string, targetPath: string) => Promise<void>;
   rm: (targetPath: string) => Promise<void>;
 }
 
@@ -361,9 +362,28 @@ export async function writeChromeExtensionConnectionHeartbeat({
   };
 
   await io.mkdir(path.dirname(statePath));
-  await io.writeFile(statePath, `${JSON.stringify(heartbeat, null, 2)}\n`);
+  await writeChromeExtensionConnectionHeartbeatFile(
+    io,
+    statePath,
+    `${JSON.stringify(heartbeat, null, 2)}\n`
+  );
 
   return heartbeat;
+}
+
+async function writeChromeExtensionConnectionHeartbeatFile(
+  io: ChromeNativeHostIo,
+  statePath: string,
+  content: string
+): Promise<void> {
+  if (io.rename) {
+    const tempPath = `${statePath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+    await io.writeFile(tempPath, content);
+    await io.rename(tempPath, statePath);
+    return;
+  }
+
+  await io.writeFile(statePath, content);
 }
 
 export async function readChromeExtensionConnectionStatus({
@@ -851,6 +871,7 @@ function createDefaultChromeNativeHostIo(): ChromeNativeHostIo {
     },
     readFile: async (targetPath) => readFile(targetPath, "utf8"),
     writeFile,
+    rename,
     rm: async (targetPath) => {
       await rm(targetPath, { force: true });
     }

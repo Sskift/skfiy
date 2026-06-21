@@ -101,6 +101,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   delete globalThis.chrome;
   document.body.innerHTML = "";
+  window.history.replaceState({}, "", "/");
 });
 
 describe("Chrome extension popup policy sync status", () => {
@@ -730,6 +731,98 @@ describe("Chrome extension popup policy sync status", () => {
       expect(document.getElementById("native-bridge-state").textContent).toBe("Connected");
       expect(document.getElementById("native-launch-origin").textContent)
         .toBe("chrome-extension://abcdefghijklmnopabcdefghijklmnop/");
+    });
+  });
+
+  it("auto-checks native heartbeat on the reload wake page", async () => {
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1");
+    installPopupDocument();
+    const policy = createPolicy();
+    const mock = createPopupChromeMock({
+      policy,
+      onSendMessage: (message) => {
+        if (message.type === NATIVE_HEARTBEAT) {
+          return {
+            type: "skfiy.native.heartbeat_result",
+            schemaVersion: 1,
+            requestId: "popup-wake-heartbeat",
+            policy,
+            syncStatus: {
+              schemaVersion: 1,
+              state: "synced",
+              source: "native_host",
+              updatedAt: "2026-06-21T08:00:00.000Z",
+              completedAt: "2026-06-21T08:00:00.000Z",
+              entryCount: 0,
+              nativeBridgeState: "connected",
+              nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+              nativeMessageType: "skfiy.host_policy.request",
+              nativeResponseType: "skfiy.native.response",
+              nativeResponseResult: "accepted"
+            },
+            diagnostics: {
+              schemaVersion: 1,
+              capabilities: { nativeMessaging: true },
+              nativeHost: {
+                name: "com.sskift.skfiy",
+                connectionState: "connected",
+                bridgeState: "connected",
+                launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+              },
+              devReload: {
+                state: "idle",
+                reloadAvailable: true,
+                heartbeat: {
+                  state: "connected",
+                  completedAt: "2026-06-21T08:00:00.000Z",
+                  launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+                  messageType: "skfiy.host_policy.request",
+                  responseResult: "accepted"
+                }
+              }
+            }
+          };
+        }
+
+        return {
+          type: "skfiy.host_policy.response",
+          schemaVersion: 1,
+          requestId: "popup-status",
+          policy,
+          syncStatus: {
+            schemaVersion: 1,
+            state: "unknown",
+            source: "local_storage",
+            entryCount: 0
+          },
+          diagnostics: {
+            schemaVersion: 1,
+            capabilities: { nativeMessaging: true },
+            nativeHost: {
+              name: "com.sskift.skfiy",
+              bridgeState: "unknown",
+              syncState: "unknown"
+            },
+            devReload: {
+              state: "idle",
+              reloadAvailable: true,
+              heartbeat: { state: "unknown" }
+            }
+          }
+        };
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: NATIVE_HEARTBEAT,
+        schemaVersion: 1
+      }));
+      expect(document.getElementById("native-heartbeat").textContent).toContain("Connected");
+      expect(document.getElementById("native-bridge-state").textContent).toBe("Connected");
     });
   });
 

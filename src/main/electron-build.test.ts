@@ -49,6 +49,7 @@ describe("Electron build wiring", () => {
         command: string;
         args: string[];
       };
+      createNativeMessagingSafeCliShim: (source: string, nodePath?: string) => string;
       setInfoPlistString: (plist: string, key: string, value: string) => string;
     };
     const packagePlan = packaging.createPackagePlan({
@@ -106,6 +107,10 @@ describe("Electron build wiring", () => {
     expect(packaging.createAdhocCodeSignCommand("/repo/dist/skfiy.app")).toEqual(
       packagePlan.adhocSignCommand
     );
+    expect(packaging.createNativeMessagingSafeCliShim(
+      "#!/usr/bin/env node\nconsole.log('ok');\n",
+      "/opt/homebrew/bin/node"
+    )).toBe("#!/opt/homebrew/bin/node\nconsole.log('ok');\n");
   });
 
   it("keeps the packaged app identity lowercase across bundle metadata and executable name", () => {
@@ -125,8 +130,10 @@ describe("Electron build wiring", () => {
     expect(packagingScript).toContain('name: "skfiy"');
     expect(packagingScript).toContain('path.join(plan.appBundlePath, "Contents", "MacOS", "Electron")');
     expect(packagingScript).toContain("await fs.rename(electronExecutablePath, plan.bundledExecutablePath)");
-    expect(packagingScript).toContain("await fs.copyFile(plan.sourceCliShimPath, plan.cliShimPath)");
+    expect(packagingScript).toContain("createNativeMessagingSafeCliShim(readTextSync(plan.sourceCliShimPath))");
     expect(packagingScript).toContain("await fs.chmod(plan.cliShimPath, 0o755)");
+    expect(packagingScript).toContain("await clearMacosExtendedAttributes(plan.appBundlePath)");
+    expect(packagingScript).toContain('await execFileAsync("xattr", ["-cr", targetPath])');
     expect(packagingScript).toContain("await execFileAsync(plan.adhocSignCommand.command, plan.adhocSignCommand.args)");
   });
 

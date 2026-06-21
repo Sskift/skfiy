@@ -41,6 +41,7 @@ const DEV_RELOAD_STORAGE_KEY = "skfiyDevReload";
 const LAST_SENSITIVE_PAUSE_KEY = "lastSensitivePause";
 const HOST_POLICY_SYNC_REQUEST_PREFIX = "host-policy-sync";
 const DEV_RELOAD_DELAY_MS = 250;
+const NATIVE_MESSAGE_TIMEOUT_MS = 3_000;
 const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
   manifest_version: 3,
   name: "skfiy Chrome Adapter",
@@ -51,6 +52,7 @@ const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
 });
 
 let hostPolicySyncPromise = null;
+let nativeHeartbeatPromise = null;
 
 function readExtensionManifest() {
   if (typeof chrome.runtime.getManifest === "function") {
@@ -1160,6 +1162,25 @@ function scheduleHostPolicySync(trigger) {
   return hostPolicySyncPromise;
 }
 
+function scheduleNativeHeartbeat(trigger) {
+  if (!nativeHeartbeatPromise) {
+    nativeHeartbeatPromise = pingNativeHeartbeat(trigger).finally(() => {
+      nativeHeartbeatPromise = null;
+    });
+  }
+  return nativeHeartbeatPromise;
+}
+
+function scheduleExtensionLoadedHeartbeat() {
+  if (globalThis.__SKFIY_DISABLE_AUTO_HEARTBEAT === true) {
+    return;
+  }
+
+  setTimeout(() => {
+    void scheduleNativeHeartbeat("service_worker_loaded");
+  }, 0);
+}
+
 function sendNativeMessage(message, options = {}) {
   return new Promise((resolve) => {
     const nativeMessage = unwrapNativeMessage(message);
@@ -1174,6 +1195,7 @@ function sendNativeMessage(message, options = {}) {
         return;
       }
       settled = true;
+      clearTimeout(timeout);
       try {
         port.disconnect();
       } catch {
@@ -1181,6 +1203,16 @@ function sendNativeMessage(message, options = {}) {
       }
       resolve(response);
     };
+    const timeout = setTimeout(() => {
+      finish({
+        type: MESSAGE_TYPES.NATIVE_MESSAGE,
+        schemaVersion: MESSAGE_SCHEMA_VERSION,
+        requestId: nativeMessage.requestId ?? "unknown",
+        ok: false,
+        error: "native_host_timeout",
+        reason: `Native Messaging host did not respond within ${NATIVE_MESSAGE_TIMEOUT_MS}ms.`
+      });
+    }, NATIVE_MESSAGE_TIMEOUT_MS);
 
     port.onMessage.addListener((response) => {
       void persistHostPolicyResponse(response).finally(() => finish(response));
@@ -1346,9 +1378,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  void scheduleHostPolicySync("runtime_installed");
+  void scheduleNativeHeartbeat("runtime_installed");
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  void scheduleHostPolicySync("runtime_startup");
+  void scheduleNativeHeartbeat("runtime_startup");
 });
+
+scheduleExtensionLoadedHeartbeat();

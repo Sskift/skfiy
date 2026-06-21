@@ -40,6 +40,12 @@ import {
   createChromeReadinessSetupGuide
 } from "./chrome-readiness.js";
 import {
+  CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
+  reloadChromeExtensionWithDesktopControl,
+  type ChromeExtensionReloadInput,
+  type ChromeExtensionReloadResult
+} from "./chrome-extension-reloader.js";
+import {
   createRuntimeSnapshotStatePath,
   createRuntimeTurnMarkerStatePath,
   RUNTIME_TURN_MARKER_SCHEMA_VERSION
@@ -84,9 +90,17 @@ export const PERMISSION_SETTINGS_TARGETS = [
 export type SmokeTarget = typeof SMOKE_TARGETS[number];
 export type PermissionSettingsTarget = typeof PERMISSION_SETTINGS_TARGETS[number];
 export type DashboardProbeSubcommand = "status" | "snapshot";
-export type ChromeSubcommand = "status" | "extension-info" | "install-host" | "uninstall-host";
+export type ChromeSubcommand =
+  | "status"
+  | "extension-info"
+  | "reload-extension"
+  | "install-host"
+  | "uninstall-host";
 export type ChromePolicySubcommand = "show" | "set" | "reset";
 export type McpTransport = "stdio";
+export type ChromeExtensionReloader = (
+  input: ChromeExtensionReloadInput
+) => Promise<ChromeExtensionReloadResult>;
 
 const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
   ui: "scripts/smoke-ui-product.mjs",
@@ -361,6 +375,7 @@ export interface RunSkfiyCliInput {
   chromeNativeHostIo?: ChromeNativeHostIo;
   statusReader?: StatusReader;
   signatureReader?: SignatureReader;
+  chromeExtensionReloader?: ChromeExtensionReloader;
   smokeRunner?: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
   mcpStdin?: AsyncIterable<Buffer | Uint8Array | string> | Iterable<Buffer | Uint8Array | string>;
   mcpServerStarter?: SkfiyMcpServerStarter;
@@ -474,6 +489,15 @@ const COMMANDS: CliCommandDefinition[] = [
     plannedMutation: false,
     executesSystemMutation: false,
     outputShape: "chrome-extension-info",
+    capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
+  },
+  {
+    path: "chrome reload-extension",
+    summary: "Open chrome://extensions and click the unpacked extension reload control through desktop Computer Use.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "chrome-extension-reload",
     capabilities: [CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY]
   },
   {
@@ -1005,6 +1029,27 @@ export function createCliOutput(
       };
     }
 
+    if (invocation.subcommand === "reload-extension") {
+      return {
+        schemaVersion: 1,
+        command: invocation.path,
+        generatedAt,
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "not-run",
+        extensionId: invocation.options.extensionIds[0],
+        productPath: CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
+        actionPlan: [
+          "open chrome://extensions/",
+          "activate Google Chrome",
+          "observe the extension list or detail page and OCR labels",
+          "click the extension reload control",
+          "open the extension wake page",
+          "poll the Native Messaging heartbeat"
+        ]
+      };
+    }
+
     return {
       schemaVersion: 1,
       command: invocation.path,
@@ -1425,6 +1470,7 @@ export async function runSkfiyCli({
   chromeNativeHostIo,
   statusReader = readCliStatus,
   signatureReader = readCodeSignatureStatus,
+  chromeExtensionReloader = reloadChromeExtensionWithDesktopControl,
   smokeRunner = runSmokeScript,
   mcpStdin = process.stdin,
   mcpServerStarter = startSkfiyMcpServer,
@@ -1499,6 +1545,7 @@ export async function runSkfiyCli({
       rootDir: normalizedRootDir,
       homeDir: effectiveHomeDir,
       io: chromeNativeHostIo,
+      chromeExtensionReloader,
       stdout,
       stderr
     });
@@ -5577,6 +5624,7 @@ async function runChromeNativeHostCli({
   rootDir,
   homeDir,
   io,
+  chromeExtensionReloader,
   stdout,
   stderr
 }: {
@@ -5585,6 +5633,7 @@ async function runChromeNativeHostCli({
   rootDir: string;
   homeDir: string;
   io?: ChromeNativeHostIo;
+  chromeExtensionReloader: ChromeExtensionReloader;
   stdout: SkfiyCliIo;
   stderr: SkfiyCliIo;
 }): Promise<number> {
@@ -5660,6 +5709,38 @@ async function runChromeNativeHostCli({
       setupGuide: setupGuideFields.setupGuide
     }, null, 2)}\n`);
     return 0;
+  }
+
+  if (invocation.subcommand === "reload-extension") {
+    try {
+      const reloadResult = await chromeExtensionReloader({
+        extensionId: invocation.options.extensionIds[0],
+        homeDir,
+        generatedAt,
+        io
+      });
+      stdout.write(`${JSON.stringify({
+        command: invocation.path,
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        executesSystemMutation: true,
+        ...reloadResult
+      }, null, 2)}\n`);
+      return reloadResult.result === "blocked" ? 1 : 0;
+    } catch (error) {
+      stdout.write(`${JSON.stringify({
+        schemaVersion: 1,
+        command: invocation.path,
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        executesSystemMutation: true,
+        result: "blocked",
+        extensionId: invocation.options.extensionIds[0],
+        productPath: CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
+        reason: "reload-command-error",
+        error: readErrorMessage(error),
+        nextAction: "Check that Chrome is installed, Screen Recording and Accessibility are granted for skfiy, then retry."
+      }, null, 2)}\n`);
+      return 1;
+    }
   }
 
   if (invocation.subcommand === "install-host") {
@@ -5803,6 +5884,7 @@ function error(code: string, message: string): NormalizeCliCommandResult {
 function isChromeSubcommand(value: string | undefined): value is ChromeSubcommand {
   return value === "status"
     || value === "extension-info"
+    || value === "reload-extension"
     || value === "install-host"
     || value === "uninstall-host";
 }
