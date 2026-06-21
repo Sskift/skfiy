@@ -472,16 +472,17 @@ Detailed task handoff:
    safe loopback HTTP page, sets skfiy host policy for the page `host:port`,
    discovers the fixture tab through packaged `skfiy chrome tabs`, and runs
    packaged `reload-extension`, `observe`, `screenshot`, `fill`, `click`,
-   `submit`, and `scroll` sequentially. The latest real artifact selected the
-   fixture tab and final page text proved `clicked 1 submitted skfiy #2`, but
-   the lane still classifies as `blocked` because the local extension source is
-   now `0.0.8` while Chrome still has the registered `0.0.7` worker, reload hits
-   `extension-card-reload-required` plus `desktop-session-locked`, screenshot has
-   no image data, and action evidence cannot be trusted until the installed
-   extension is refreshed to the request-id aware build. The remaining Week A
-   work is to prove the new request-id/per-command evidence correlation in the
-   real installed extension, then choose a reload/screenshot policy that can pass
-   without pretending locked-desktop fallback succeeded.
+   `submit`, and `scroll` sequentially. The latest real artifact selected tab
+   `1782096556` on `http://127.0.0.1:56437/?skfiy_action_live=smoke`; observe,
+   fill, click, and final observe verified against current `skfiyRequestId`
+   values, so the old "Chrome is still running 0.0.7" diagnosis is no longer the
+   whole story. The lane still classifies as `blocked` because reload falls into
+   `desktop-session-locked`, screenshot did not write current request evidence,
+   and submit/scroll left `latestCommand` on the previous click request. The
+   remaining Week A work is to separate click-only and submit-only fixture
+   controls, prove submit/scroll request-scoped `pageActionResult` evidence in
+   the real installed extension, then choose a reload/screenshot policy that can
+   pass without pretending locked-desktop fallback succeeded.
 5. Promote reload verification. A `verified` reload result should require
    `pageControl.activeTab.tabId === targetTabId` and, for action readiness,
    DOM action readiness for the requested page. A stale popup/internal-tab
@@ -509,10 +510,12 @@ Detailed task handoff:
    an authorized localhost page.
 
 2026-06-22 status: the product tests and classifier for the installed-extension
-action lane have been added locally, including the screenshot-blocked lane,
-numeric Apple Events tab-id fallback, and CLI-to-extension `skfiyRequestId`
-correlation for page-control commands. The gate is still not green; do not start
-long-horizon field supervision or claim full Chrome control until
+action lane have landed in commit `973cf5d`, including the screenshot-blocked
+lane, numeric Apple Events tab-id fallback, and CLI-to-extension
+`skfiyRequestId` correlation for page-control commands. The real browser now
+proves current request ids for observe/fill/click, but not yet for screenshot,
+submit, or scroll. The gate is still not green; do not start long-horizon field
+supervision or claim full Chrome control until
 `npm run smoke:chrome -- --extension-id plcpkkhlcacihjfohlojdknnkademlno
 --output .skfiy-smoke/chrome-extension-actions.json --require-passed` passes
 from the compiled `dist/skfiy` path.

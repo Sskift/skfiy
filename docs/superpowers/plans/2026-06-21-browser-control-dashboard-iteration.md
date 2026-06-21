@@ -28,16 +28,16 @@
 - 2026-06-21 installed-extension freshness diagnosis: the local unpacked extension manifest is now `0.0.7`; Chrome currently reports the installed extension service worker at `0.0.7` after the latest refresh. `skfiy chrome tabs` now verifies target-tab discovery through packaged CLI fallback with `discoveryMode: "chrome-apple-events"` and non-empty bounded `tabs[]`; the remaining extension-parity gap is that the MV3 wake path still does not write fresh `skfiy.tabs.discover` / `pageTabs` command evidence. `skfiy chrome reload-extension` reports stale registration as `extension-card-reload-required` with version/path evidence and preserves locked/asleep desktop fallback evidence under `desktopFallback`.
 - 2026-06-21 screenshot-readiness correction: earlier `pageControl.state: "ready"` evidence over-reported the screenshot path because a current-site optional host grant is enough for DOM actions but not enough for background `chrome.tabs.captureVisibleTab`. Commit `216aad0` now reports `pageControl.state: "partial"` in that shape, with `capabilities.domActions: true`, `capabilities.screenshot: false`, and `chromeCapturePermission.state: "missing"`. Real `./dist/skfiy chrome screenshot ... --json` returns `reason: "chrome-capture-permission-missing"` with Chrome's `Either the '<all_urls>' or 'activeTab' permission is required.` message. The dashboard must show screenshot as a separate permission/fallback lane.
 - 2026-06-21 dashboard update: commit `e7005fc` adds the Apps and Sites Chrome control card to the user dashboard. It shows honest states for ready DOM control, screenshot permission gaps, skfiy host approval, Chrome site access, extension refresh, internal pages, Chrome tab fallback, and screenshot fallback. It also exposes copyable packaged `./dist/skfiy chrome ... --json` commands for eligible pages. The remaining dashboard work is local one-click launchers, Activity entries for launched/copied actions, and a passing `smoke:dashboard --require-passed` after desktop/session blockers are cleared.
-- 2026-06-22 action-smoke update: local WIP adds `installedExtensionActionRun` to `smoke:chrome`, a local HTTP action fixture, packaged CLI calls for `chrome tabs`, `chrome reload-extension`, `chrome observe`, `chrome screenshot`, `chrome fill`, `chrome click`, `chrome submit`, and `chrome scroll`, plus classifier helpers in `scripts/smoke-chrome-plan.mjs`. It also fixes Apple Events fallback tab ids that arrived as numeric strings, so `./dist/skfiy chrome tabs --extension-id plcpkkhlcacihjfohlojdknnkademlno --json` can return eligible tabs with numeric `id` values through `discoveryMode: "chrome-apple-events"`. The local unpacked extension manifest is now `0.0.8` after adding CLI-to-extension `skfiyRequestId` correlation for page-control wake evidence.
-- Latest real action-smoke evidence on 2026-06-22: `.skfiy-smoke/chrome-extension-actions.json` selected the fixture tab `1782096512` at `http://127.0.0.1:54884/?skfiy_action_live=smoke`, set skfiy host policy for `127.0.0.1:54884`, and final observe text contained `clicked 1 submitted skfiy #2`. The top-level result is still `failed`, `installedExtensionActionRun.classification` is `blocked`, reload is blocked by `extension-card-reload-required` / `desktop-session-locked`, screenshot is correctly blocked by `chrome-capture-permission-missing` with `latestCommand.requestId: "page-control-screenshot-cli-..."`, and action commands still do not write their own current request ids because Chrome is running the registered `0.0.7` service worker while local source is `0.0.8`. This is useful real control evidence, but not a passing product smoke.
+- 2026-06-22 action-smoke update: commit `973cf5d` adds `installedExtensionActionRun` to `smoke:chrome`, a local HTTP action fixture, packaged CLI calls for `chrome tabs`, `chrome reload-extension`, `chrome observe`, `chrome screenshot`, `chrome fill`, `chrome click`, `chrome submit`, and `chrome scroll`, plus classifier helpers in `scripts/smoke-chrome-plan.mjs`. It also fixes Apple Events fallback tab ids that arrived as numeric strings, so `./dist/skfiy chrome tabs --extension-id plcpkkhlcacihjfohlojdknnkademlno --json` can return eligible tabs with numeric `id` values through `discoveryMode: "chrome-apple-events"`. The local unpacked extension manifest is `0.0.8`, and CLI-to-extension wake URLs now carry `skfiyRequestId` so page-control evidence can be tied to the current command instead of stale heartbeats.
+- Latest real action-smoke evidence on 2026-06-22: `.skfiy-smoke/chrome-extension-actions.json` selected fixture tab `1782096556` at `http://127.0.0.1:56437/?skfiy_action_live=smoke`, set skfiy host policy for `127.0.0.1:56437`, and final observe text contained `clicked 1 submitted skfiy #2`. The top-level result is still `failed` and `installedExtensionActionRun.classification` is `blocked`. Current-request evidence now verifies for `observe`, `fill`, `click`, and final `observe`; this supersedes the earlier "everything is stale because Chrome is still at 0.0.7" diagnosis. The remaining blockers are narrower: `reload-extension` falls back to `desktop-session-locked`, `screenshot` did not write current request screenshot evidence in the latest run, and `submit` / `scroll` still leave `latestCommand` on the previous click request. This is useful real control evidence, but not a passing product smoke.
 - Current real-environment blocker: the local macOS desktop session can be locked/asleep during agent work. When `skfiy-helper desktop-session-status` reports `cgSessionScreenIsLocked: true`, `ioConsoleLocked: true`, `frontmostBundleId: "com.apple.loginwindow"`, or `mainDisplayAsleep: true`, desktop/Ghostty/Finder/dashboard require-passed gates must report typed blockers. This does not block code, unit tests, compiled CLI smoke work, or Chrome extension URL/Native Messaging work that can run without desktop clicking.
 
 ## Immediate P0 Loop
 
-1. Keep the installed-extension self-refresh loop explicit. `skfiy chrome reload-extension` now returns `extension-card-reload-required` with `extensionRegistration` and `desktopFallback` evidence when extension-context reload cannot advance the registered worker. The remaining product win is making this advance the registered service worker without desktop clicking, or teaching the dashboard to surface the exact user action.
+1. Keep the installed-extension self-refresh loop explicit. `skfiy chrome reload-extension` can return `extension-card-reload-required` with `extensionRegistration` and `desktopFallback` evidence when extension-context reload cannot advance the registered worker. The latest run instead reached the request-id-aware extension path but still ended at `desktop-session-locked` when the fallback tried to use desktop Computer Use on a locked/asleep macOS session. The remaining product win is making extension-context reload verify without desktop clicking, or surfacing a precise "unlock and reload extension card" user action.
 2. Finish extension-native live tab discovery. `skfiy chrome tabs --json` now returns verified tab discovery through packaged Chrome Apple Events fallback, including eligible HTTP(S) tabs and blocked internal/extension pages. The 0.0.7 background code handles startup wake tabs, newly created wake tabs, query failures, per-tab summary failures, and extension updates that omit the original wake query string; the remaining extension-parity proof is fresh `skfiy.tabs.discover` / `pageTabs` evidence from the MV3 worker, not fallback.
-3. Close screenshot capture evidence after readiness is honest: `./dist/skfiy chrome screenshot --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json` currently returns `reason: "chrome-capture-permission-missing"` with latest bounded evidence (`Either the '<all_urls>' or 'activeTab' permission is required.`). Next implementation choice: add an explicit user-granted Chrome capture permission path or unlock desktop and use the existing screenshot fallback.
-4. Keep click/fill/submit/scroll sequential, not parallel, until the smoke harness writes one artifact per request. The first automated action smoke can drive the fixture far enough for the final page to show `clicked 1 submitted skfiy #2`, but the product classifier must remain blocked until reload, observe, fill, submit, and scroll each verify against their own fresh command evidence instead of stale screenshot/click evidence.
+3. Close screenshot capture evidence after readiness is honest: `./dist/skfiy chrome screenshot --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json` has previously returned `reason: "chrome-capture-permission-missing"` with bounded evidence (`Either the '<all_urls>' or 'activeTab' permission is required.`), but the latest action smoke did not even receive current request screenshot evidence. Next implementation choice: first make the screenshot command always write a current request blocker, then add an explicit user-granted Chrome capture permission path or unlock desktop and use the existing screenshot fallback.
+4. Keep click/fill/submit/scroll sequential, not parallel, until the smoke harness writes one artifact per request. The latest automated action smoke verifies current request ids for observe/fill/click, but `submit` and `scroll` still do not write current `pageActionResult` evidence. The product classifier must remain blocked until reload, observe, fill, click, submit, and scroll each verify against their own fresh command evidence.
 5. Keep the new user dashboard Chrome card honest and finish the next layer. The card now surfaces Chrome observe/click/fill/submit/scroll readiness, packaged Apple Events fallback tab discovery, screenshot permission/fallback blockers, and copyable packaged commands. The next P0 dashboard work is one-click local action launchers plus Activity evidence, without implying that `chrome://`, `chrome-extension://`, `file://`, or unsupported pages are controllable.
 6. Keep desktop Computer Use separate from Chrome extension control: locked/asleep desktop blockers should be explicit for Ghostty/Finder/general app tests, while Chrome extension tests should continue through URL wake and Native Messaging when possible.
 
@@ -74,7 +74,7 @@
 - `./dist/skfiy chrome reload-extension --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json`
 - `./dist/skfiy chrome observe --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json`
 - `./dist/skfiy chrome screenshot --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --json`
-- `./dist/skfiy chrome click --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --selector "#submit" --json`
+- `./dist/skfiy chrome click --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --selector "#click-only" --json`
 - `./dist/skfiy chrome fill --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --selector "#name" --text skfiy --json`
 - `./dist/skfiy chrome submit --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --selector "form" --json`
 - `./dist/skfiy chrome scroll --extension-id "$SKFIY_CHROME_EXTENSION_ID" --target-tab-id "$SKFIY_CHROME_TARGET_TAB_ID" --dy 600 --json`
@@ -92,8 +92,8 @@ This roadmap is the product-order view of the tasks below. All user-facing accep
 1. Keep the extension-context self-reload path as the default: `chrome reload-extension` opens `skfiyWakeAction=dev-reload`, verifies the requested tab, and returns `desktop-session-locked` only when it has to fall back to desktop clicking while macOS is locked/asleep.
 2. Close screenshot readiness and evidence in two layers. First, page-control health must report `state: "partial"` when DOM actions are ready but screenshot capture is blocked by missing `<all_urls>`/activeTab gesture permission. Second, either request/grant the required Chrome capture permission for the installed extension or prove the packaged desktop screenshot fallback after `smoke:desktop-session` passes. A screenshot cannot be verified unless the latest command evidence has `pageScreenshot.hasDataUrl: true`.
 3. Finish `skfiy chrome tabs --json` extension-native live proof so target selection can prefer MV3 command evidence over fallback. Code and tests now cover bounded tab metadata plus blockers for internal Chrome pages, extension pages, file URLs, unsupported schemes, missing skfiy host policy, missing Chrome site access, stale content scripts, tab-query failures, wake tabs created after the service worker starts, wake tabs whose update event lost the query string, Apple Events fallback, and per-tab summary failures. The current compiled command can discover tabs through `discoveryMode: "chrome-apple-events"`; the remaining step is to prove fresh `skfiy.tabs.discover` evidence from the real browser and record which path was used in dashboard Activity.
-4. Finish the automated action smoke so `npm run smoke:chrome -- --extension-id plcpkkhlcacihjfohlojdknnkademlno --output .skfiy-smoke/chrome-extension-actions.json --require-passed` can pass. The first implementation already serves a local safe page, sets isolated host policy using the fixture `host:port`, selects the tab through packaged `chrome tabs`, runs reload/observe/screenshot/fill/click/submit/scroll sequentially, and records final visible text. The remaining work is fresh per-command request/evidence correlation, a reload path that is not blocked by locked desktop state when extension-context reload is sufficient, and a screenshot lane that is either verified or explicitly accepted as screenshot-only blocked while DOM actions pass.
-5. Keep all action smokes sequential until each command writes independent request ids and artifact files. The current duplicate wake bug is fixed by background-only execution plus wake dedupe, but the smoke harness still needs per-command artifacts before parallel runs are safe.
+4. Finish the automated action smoke so `npm run smoke:chrome -- --extension-id plcpkkhlcacihjfohlojdknnkademlno --output .skfiy-smoke/chrome-extension-actions.json --require-passed` can pass. The first implementation already serves a local safe page, sets isolated host policy using the fixture `host:port`, selects the tab through packaged `chrome tabs`, runs reload/observe/screenshot/fill/click/submit/scroll sequentially, and records final visible text. The remaining work is to separate click-only and submit-only fixture controls, make `submit` and `scroll` write current `pageActionResult` evidence, make screenshot write current blocker or image evidence every time, and keep reload from requiring locked desktop fallback when extension-context reload is sufficient.
+5. Keep all action smokes sequential until each command writes independent request ids and artifact files. Current request ids are proven for observe/fill/click; submit, scroll, screenshot, and reload remain the request-scoped evidence stabilization work before parallel runs are safe.
 
 ### Week 2: User Control Plane And Field Gate
 
@@ -1119,7 +1119,7 @@ Expected extension-native pass for this step: fresh
 evidence, at least one eligible ordinary HTTP(S) tab, typed blockers for
 internal/non-controllable tabs, and no need to use the Apple Events fallback.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add chrome-extension/background.js chrome-extension/manifest.json src/main/chrome-extension-background.test.js src/main/chrome-extension-manifest.test.ts docs/research/2026-06-20-dashboard-cli-plan.md docs/superpowers/plans/2026-06-21-browser-control-dashboard-iteration.md
@@ -1588,23 +1588,27 @@ id is present.
 Latest real run:
 
 ```text
-fixture: http://127.0.0.1:54884/?skfiy_action_live=smoke
-selected tab: 1782096512
-policy: configured for 127.0.0.1:54884
+fixture: http://127.0.0.1:56437/?skfiy_action_live=smoke
+selected tab: 1782096556
+policy: configured for 127.0.0.1:56437
 final text: clicked 1 submitted skfiy #2
 classification: blocked
 top-level smoke result: failed
-screenshot evidence: current request id, blocked by chrome-capture-permission-missing
-extension registration: local 0.0.8, Chrome registered 0.0.7
+verified current request ids: observe, fill, click, final observe
+reload blocker: desktop-session-locked
+screenshot blocker: page-control-screenshot-not-verified; latest command stayed on previous observe
+submit blocker: page-control-submit-not-verified; latest command stayed on click
+scroll blocker: page-control-scroll-not-verified; latest command stayed on click
 ```
 
 The smoke is not allowed to pass yet because `reload-extension` reports
-`desktop-session-locked`, screenshot lacks image data, and the installed Chrome
-extension must be refreshed to local manifest `0.0.8` before the new
-`skfiyRequestId` correlation can be proven in the real browser. The next
-implementation step is to reload the installed extension card, rebuild, and
-rerun the real smoke so the classifier can distinguish real action success from
-stale heartbeat state.
+`desktop-session-locked`, screenshot lacks current request evidence/image data,
+and `submit` / `scroll` do not write current `pageActionResult` evidence. The
+old "installed extension still on 0.0.7" explanation is no longer sufficient:
+the real browser now proves the 0.0.8 `skfiyRequestId` path for observe, fill,
+and click. The next implementation step is to fix request-scoped submit,
+scroll, and screenshot evidence, then rerun the real smoke with the desktop
+unlocked or with reload classified as an explicit extension-context-only pass.
 
 - [ ] **Step 4: Prove unsupported pages fail closed**
 
@@ -1627,7 +1631,7 @@ should still run as far as URL wake, Native Messaging, host policy, and
 packaged CLI evidence allow, and it must write the blocker instead of hanging or
 silently falling back to a tmux/backend runtime.
 
-Observed on 2026-06-22:
+Observed on 2026-06-22 before commit `973cf5d`:
 
 ```bash
 npx vitest run src/main/chrome-smoke-script.test.ts --testNamePattern "installed Chrome extension action|Chrome product path"
@@ -1637,18 +1641,184 @@ npm run build
 npm run smoke:chrome -- --extension-id plcpkkhlcacihjfohlojdknnkademlno --output .skfiy-smoke/chrome-extension-actions.json --timeout-ms 6000 --settle-ms 300
 ```
 
-Focused tests, TypeScript, and build passed before this document update. The
-real smoke wrote the expected artifact but remained blocked/failed for the
-reasons above. Before marking this step complete, rerun the focused tests after
-the next code change, rerun `npm run build`, and rerun
+Focused tests, TypeScript, and build passed before commit `973cf5d`; the
+commit was pushed to `main`. A later real smoke with `--timeout-ms 8000
+--settle-ms 300` selected tab `1782096556` on
+`http://127.0.0.1:56437/?skfiy_action_live=smoke` and proved current request id
+verification for observe/fill/click/final-observe. It still remained
+blocked/failed because reload reported `desktop-session-locked`, screenshot did
+not write current request evidence, and submit/scroll stayed on the previous
+click command evidence. Before marking the next stabilization task complete,
+rerun the focused tests after code changes, rerun `npm run build`, and rerun
 `npm run smoke:chrome ... --require-passed` on an unlocked machine or with the
 reload/screenshot blockers explicitly handled.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/smoke-chrome-product.mjs scripts/smoke-chrome-plan.mjs src/main/chrome-smoke-script.test.ts docs/chrome-extension-setup.md docs/development-workflow.md
 git commit -m "test: add installed Chrome extension action smoke"
+```
+
+Observed: implemented and pushed as `973cf5d test: add installed Chrome action smoke`.
+
+## Task 6.5: Request-Scoped Action Smoke Stabilization
+
+**Files:**
+- Modify: `scripts/smoke-chrome-product.mjs`
+- Modify: `scripts/smoke-chrome-plan.mjs`
+- Modify: `chrome-extension/background.js`
+- Modify: `chrome-extension/content-script.js`
+- Test: `src/main/chrome-smoke-script.test.ts`
+- Test: `src/main/chrome-extension-background.test.js`
+- Test: `src/main/chrome-extension-content-script.test.js`
+
+- [ ] **Step 1: Add a fixture contract test that separates click and submit**
+
+Update `src/main/chrome-smoke-script.test.ts` so the source-contract test
+requires the fixture HTML to include a click-only button and a separate submit
+control. The expected command sequence should use:
+
+```text
+chrome fill --selector #name --text skfiy
+chrome click --selector #click-only
+chrome submit --selector form
+chrome scroll --dy 600
+```
+
+Expected final fixture state after a true pass:
+
+```text
+clicked 1 submitted skfiy #1
+```
+
+This prevents a click on a submit button from making the smoke look healthier
+than it is.
+
+- [ ] **Step 2: Add red tests for submit and scroll current request evidence**
+
+In `src/main/chrome-extension-background.test.js`, add wake URL tests for:
+
+```text
+/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=submit&skfiyRequestId=page-control-submit-cli-1&skfiySelector=form
+/popup.html?skfiyWake=2&skfiyTargetTabId=42&skfiyWakeAction=scroll&skfiyRequestId=page-control-scroll-cli-2&skfiyDy=600
+```
+
+Each test must assert that the Native Messaging payload preserves the current
+request id and action:
+
+```js
+expect(nativeMessages.at(-1)).toMatchObject({
+  type: "skfiy.page.action_result",
+  requestId: "page-control-submit-cli-1",
+  pageActionResult: { action: "submit", result: "passed" }
+});
+
+expect(nativeMessages.at(-1)).toMatchObject({
+  type: "skfiy.page.action_result",
+  requestId: "page-control-scroll-cli-2",
+  pageActionResult: { action: "scroll", result: "passed" }
+});
+```
+
+- [ ] **Step 3: Add a content-script regression for scroll without selector**
+
+In `src/main/chrome-extension-content-script.test.js`, call the content-script
+message handler with:
+
+```js
+{
+  type: "skfiy.page.action",
+  payload: { action: { kind: "scroll", deltaY: 600 } }
+}
+```
+
+Expected result:
+
+```js
+expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+  type: "skfiy.page.action_result",
+  result: "passed",
+  action: "scroll"
+}));
+```
+
+This proves scroll does not require a selector lookup before it can execute.
+
+- [ ] **Step 4: Run the focused tests red**
+
+Run:
+
+```bash
+npx vitest run src/main/chrome-smoke-script.test.ts --testNamePattern "installed Chrome extension action"
+npx vitest run src/main/chrome-extension-background.test.js --testNamePattern "submit|scroll|wake"
+npx vitest run src/main/chrome-extension-content-script.test.js --testNamePattern "scroll"
+```
+
+Expected before implementation: at least one assertion fails because the fixture
+still clicks `#submit` and the real smoke shows submit/scroll evidence staying
+on the previous click request.
+
+- [ ] **Step 5: Implement the minimal fixes**
+
+In `scripts/smoke-chrome-product.mjs`, change the fixture and command selector
+so click and submit are independent:
+
+```html
+<button id="click-only" type="button">Click</button>
+<button id="submit" type="submit">Submit</button>
+```
+
+The click handler must only increment `clicked`, and the form submit handler
+must only increment `submitted`. The smoke must run click against
+`#click-only`, not `#submit`.
+
+In `chrome-extension/background.js`, ensure `createWakePageControlRequest()`
+and the Native Messaging summary copy the incoming `requestId` into the final
+`pageActionResult` message for submit and scroll. In
+`chrome-extension/content-script.js`, run the scroll branch before any selector
+requirement so selectorless scroll can pass.
+
+- [ ] **Step 6: Verify code and build**
+
+Run:
+
+```bash
+npx vitest run src/main/chrome-smoke-script.test.ts --testNamePattern "installed Chrome extension action|Chrome product path"
+npx vitest run src/main/chrome-extension-background.test.js src/main/chrome-extension-content-script.test.js --testNamePattern "submit|scroll|wake"
+npx vitest run src/main/chrome-extension-page-control.test.ts src/main/chrome-extension-background.test.js src/main/chrome-extension-content-script.test.js src/main/chrome-smoke-script.test.ts
+npx tsc --noEmit
+npm run build
+```
+
+Expected: all focused tests pass, TypeScript passes, and `dist/skfiy` is rebuilt
+from the same commit.
+
+- [ ] **Step 7: Run the real action smoke again**
+
+Run:
+
+```bash
+npm run smoke:chrome -- \
+  --extension-id plcpkkhlcacihjfohlojdknnkademlno \
+  --output .skfiy-smoke/chrome-extension-actions.json \
+  --timeout-ms 8000 \
+  --settle-ms 300
+```
+
+Expected next non-green shape if the desktop remains locked: observe, fill,
+click, submit, scroll, and final observe all verify against their own
+`page-control-*-cli-*` request ids; screenshot is either a current request
+`chrome-capture-permission-missing` blocker or has image data; reload reports
+`desktop-session-locked` only under `desktopFallback` or as an explicit
+extension-context reload blocker. The smoke must not pass until these facts are
+true from the compiled `dist/skfiy` path.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add scripts/smoke-chrome-product.mjs scripts/smoke-chrome-plan.mjs chrome-extension/background.js chrome-extension/content-script.js src/main/chrome-smoke-script.test.ts src/main/chrome-extension-background.test.js src/main/chrome-extension-content-script.test.js
+git commit -m "fix: stabilize Chrome action smoke evidence"
 ```
 
 ## Task 7: Long-Horizon Readiness Gate
