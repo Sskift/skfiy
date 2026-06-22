@@ -23,9 +23,12 @@ import {
   readInitialAppPolicySettings
 } from "./app-policy-settings.js";
 import {
+  AssistantAgentTurnRuntimeError,
   readInitialAssistantAgentSettings,
-  runAssistantAgentTurn
+  runAssistantAgentTurn,
+  type AssistantAgentTurnResult
 } from "./assistant-agent.js";
+import { summarizeAssistantToolPlan } from "./assistant-tools.js";
 import { applyApprovedChromeTaskHostPolicy } from "./chrome-approval-policy.js";
 import { createChromeCdpClient } from "./chrome-cdp-client.js";
 import { readChromeCdpEndpoint } from "./chrome-cdp-settings.js";
@@ -432,16 +435,43 @@ function readFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-async function createAssistantAgentTaskMessage(input: string): Promise<string> {
+async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
   try {
-    const result = await runAssistantAgentTurn(input, {
+    return await runAssistantAgentTurn(input, {
       settings: assistantAgentSettings
     });
-
-    return `${result.providerLabel}: ${result.message}`;
   } catch (error) {
-    return `Assistant agent failed: ${error instanceof Error ? error.message : "unknown error"}`;
+    if (error instanceof AssistantAgentTurnRuntimeError) {
+      return error.turn;
+    }
+
+    throw error;
   }
+}
+
+function createAssistantAgentTaskMessage(turn: AssistantAgentTurnResult): string {
+  if (turn.status === "completed") {
+    return `${turn.providerLabel}: ${turn.message}`;
+  }
+
+  return `Assistant agent failed: ${turn.error?.message ?? "unknown error"}`;
+}
+
+function emitAssistantToolPlanTaskEvent(
+  window: BrowserWindow | null,
+  turn: AssistantAgentTurnResult,
+  command: string
+): void {
+  const summary = summarizeAssistantToolPlan(turn);
+  if (!summary) {
+    return;
+  }
+
+  emitTurnReplayTaskEvent(window, {
+    status: "observing",
+    message: summary.message,
+    command
+  });
 }
 
 async function runCommandTask(
@@ -456,6 +486,7 @@ async function runCommandTask(
   }
 
   const route = selectCommandRoute(command);
+  const assistantTurn = await createAssistantAgentTaskTurn(command);
 
   if (route.kind === "chat") {
     pendingApproval = null;
@@ -464,7 +495,20 @@ async function runCommandTask(
     currentTaskId += 1;
     emitTurnReplayTaskEvent(window, {
       status: "completed",
-      message: await createAssistantAgentTaskMessage(command)
+      message: createAssistantAgentTaskMessage(assistantTurn)
+    });
+    return;
+  }
+
+  if (assistantTurn.status !== "completed") {
+    pendingApproval = null;
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    emitTurnReplayTaskEvent(window, {
+      status: "failed",
+      message: createAssistantAgentTaskMessage(assistantTurn),
+      command
     });
     return;
   }
@@ -480,6 +524,8 @@ async function runCommandTask(
     });
     return;
   }
+
+  emitAssistantToolPlanTaskEvent(window, assistantTurn, command);
 
   if (route.kind === "tmux_supervision") {
     const taskId = currentTaskId + 1;

@@ -1,5 +1,7 @@
 import type {
   DashboardChromeControlActionRequest,
+  DashboardPlannerProviderSettingsUpdate,
+  DashboardProviderSettingsResponse,
   DashboardSnapshot
 } from "./contracts";
 
@@ -32,6 +34,38 @@ export async function postChromeControlAction(
   }
 
   return payload;
+}
+
+export async function fetchProviderSettings(): Promise<DashboardProviderSettingsResponse> {
+  const response = await fetch("/api/provider-settings", {
+    cache: "no-store"
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Provider settings request failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardProviderSettingsResponse;
+}
+
+export async function postPlannerProviderSettings(
+  planner: DashboardPlannerProviderSettingsUpdate
+): Promise<DashboardProviderSettingsResponse> {
+  const response = await fetch("/api/provider-settings", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ planner })
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Provider settings update failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardProviderSettingsResponse;
 }
 
 function readDashboardApiError(payload: Record<string, unknown>): string | undefined {

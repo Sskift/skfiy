@@ -20,6 +20,8 @@ export interface DashboardProviderSummary {
   binaryPath?: string;
   endpoint?: string;
   endpointConfigured?: boolean;
+  externalProviderLabel?: string;
+  externalEndpoint?: string;
   externalApiKeyConfigured?: boolean;
   timeoutMs?: number;
   lastError?: string;
@@ -54,4 +56,41 @@ export interface DashboardChromeControlActionRequest {
   selector?: string;
   text?: string;
   dy?: number;
+}
+
+export type DashboardPlannerProviderMode =
+  | "local-deterministic"
+  | "external-cua"
+  | "disabled";
+
+export interface DashboardProviderSettingsPlanner {
+  provider?: "planner" | string;
+  mode: DashboardPlannerProviderMode;
+  label: string;
+  health: "available" | "unavailable" | "unknown" | string;
+  endpoint?: string;
+  externalProviderLabel: string;
+  externalEndpoint?: string;
+  externalApiKeyConfigured: boolean;
+}
+
+export interface DashboardProviderSettingsResponse {
+  schemaVersion: number;
+  command: string;
+  generatedAt: string;
+  source: string;
+  plannedMutation: boolean;
+  executesSystemMutation: boolean;
+  result: string;
+  providers: {
+    assistant?: Record<string, unknown>;
+    planner: DashboardProviderSettingsPlanner;
+  };
+}
+
+export interface DashboardPlannerProviderSettingsUpdate {
+  mode?: DashboardPlannerProviderMode;
+  externalProviderLabel?: string;
+  externalEndpoint?: string;
+  externalApiKey?: string;
 }

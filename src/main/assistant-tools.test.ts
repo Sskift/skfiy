@@ -1,0 +1,67 @@
+import { describe, expect, it } from "vitest";
+import { summarizeAssistantToolPlan } from "./assistant-tools";
+import type { AssistantAgentTurnResult } from "./assistant-agent";
+
+describe("assistant tool bridge", () => {
+  it("summarizes planned Computer Use tool calls without executing them", () => {
+    const turn: AssistantAgentTurnResult = {
+      id: "turn-1",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      status: "completed",
+      providerLabel: "Local",
+      message: "Planning Chrome control.",
+      route: {
+        kind: "chrome",
+        bundleId: "com.google.Chrome"
+      },
+      toolCalls: [
+        {
+          id: "turn-1-tool-1",
+          type: "computer-use",
+          name: "desktop-control",
+          status: "planned",
+          createdAt: "2026-06-22T10:00:00.000Z",
+          input: {
+            command: "打开 Chrome 测试页面",
+            route: {
+              kind: "chrome",
+              bundleId: "com.google.Chrome"
+            }
+          }
+        }
+      ],
+      cancellation: {
+        requested: false
+      }
+    };
+
+    expect(summarizeAssistantToolPlan(turn)).toEqual({
+      providerLabel: "Local",
+      turnId: "turn-1",
+      route: {
+        kind: "chrome",
+        bundleId: "com.google.Chrome"
+      },
+      plannedToolCount: 1,
+      message: "Local planned 1 Computer Use tool call for Chrome."
+    });
+  });
+
+  it("does not create tool evidence for chat turns", () => {
+    expect(summarizeAssistantToolPlan({
+      id: "turn-chat",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      status: "completed",
+      providerLabel: "Local",
+      message: "你好",
+      route: {
+        kind: "chat",
+        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+      },
+      toolCalls: [],
+      cancellation: {
+        requested: false
+      }
+    })).toBeUndefined();
+  });
+});

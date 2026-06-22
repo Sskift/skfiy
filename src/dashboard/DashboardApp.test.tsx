@@ -1,5 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DashboardApp } from "./DashboardApp";
 import type { DashboardSnapshot } from "./contracts";
 
@@ -96,6 +96,10 @@ const snapshot: DashboardSnapshot = {
 };
 
 describe("DashboardApp", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders a user-control dashboard from the skfiy snapshot contract", async () => {
     render(<DashboardApp loadSnapshot={vi.fn(async () => snapshot)} />);
 
@@ -137,4 +141,156 @@ describe("DashboardApp", () => {
 
     expect(screen.getByLabelText("Dashboard connection: connected")).toBeInTheDocument();
   });
+
+  it("loads redacted planner settings from the provider settings endpoint", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/snapshot.json") {
+        return createJsonResponse(snapshot);
+      }
+      if (url === "/api/provider-settings") {
+        expect(init?.method).toBeUndefined();
+        return createJsonResponse(createProviderSettingsPayload({
+          mode: "external-cua",
+          externalProviderLabel: "OpenAI CUA",
+          externalEndpoint: "https://cua.example.test/plan",
+          externalApiKeyConfigured: false
+        }));
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    render(<DashboardApp />);
+
+    const form = await screen.findByRole("form", { name: "Planner provider settings" });
+    await waitFor(() => {
+      expect(within(form).getByLabelText("Mode")).toHaveValue("external-cua");
+      expect(within(form).getByLabelText("External provider label")).toHaveValue("OpenAI CUA");
+      expect(within(form).getByLabelText("Endpoint")).toHaveValue("https://cua.example.test/plan");
+    });
+    expect(within(form).getByText("api key missing")).toBeInTheDocument();
+    expect(within(form).getByLabelText("API key")).toHaveValue("");
+    expect(screen.queryByDisplayValue("sk-secret")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/provider-settings", { cache: "no-store" });
+  });
+
+  it("submits planner settings, refreshes status, and never echoes the API key", async () => {
+    const submittedBodies: unknown[] = [];
+    let currentProviderSettings = createProviderSettingsPayload({
+      mode: "local-deterministic",
+      externalProviderLabel: "External CUA",
+      externalEndpoint: undefined,
+      externalApiKeyConfigured: false
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/snapshot.json") {
+        return createJsonResponse(snapshot);
+      }
+      if (url === "/api/provider-settings" && init?.method === "POST") {
+        submittedBodies.push(JSON.parse(String(init.body)));
+        currentProviderSettings = createProviderSettingsPayload({
+          mode: "external-cua",
+          externalProviderLabel: "OpenAI CUA",
+          externalEndpoint: "https://cua.example.test/plan",
+          externalApiKeyConfigured: true
+        });
+        return createJsonResponse({
+          ...currentProviderSettings,
+          result: "configured"
+        });
+      }
+      if (url === "/api/provider-settings") {
+        return createJsonResponse(currentProviderSettings);
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    render(<DashboardApp />);
+
+    const form = await screen.findByRole("form", { name: "Planner provider settings" });
+    fireEvent.change(within(form).getByLabelText("Mode"), {
+      target: { value: "external-cua" }
+    });
+    fireEvent.change(within(form).getByLabelText("External provider label"), {
+      target: { value: "OpenAI CUA" }
+    });
+    fireEvent.change(within(form).getByLabelText("Endpoint"), {
+      target: { value: "https://cua.example.test/plan" }
+    });
+    fireEvent.change(within(form).getByLabelText("API key"), {
+      target: { value: "sk-secret" }
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Save planner settings" }));
+
+    await waitFor(() => {
+      expect(submittedBodies).toEqual([
+        {
+          planner: {
+            mode: "external-cua",
+            externalProviderLabel: "OpenAI CUA",
+            externalEndpoint: "https://cua.example.test/plan",
+            externalApiKey: "sk-secret"
+          }
+        }
+      ]);
+    });
+
+    await waitFor(() => {
+      expect(within(form).getByText("api key configured")).toBeInTheDocument();
+    });
+    expect(within(form).getByLabelText("API key")).toHaveValue("");
+    expect(screen.getByText("Planner settings saved")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("sk-secret")).not.toBeInTheDocument();
+    expect(screen.queryByText("sk-secret")).not.toBeInTheDocument();
+
+    const providerSettingsReads = fetchMock.mock.calls.filter(([input, init]) => (
+      String(input) === "/api/provider-settings" && init?.method !== "POST"
+    ));
+    expect(providerSettingsReads).toHaveLength(2);
+  });
 });
+
+function createProviderSettingsPayload(planner: {
+  mode: "local-deterministic" | "external-cua" | "disabled";
+  externalProviderLabel: string;
+  externalEndpoint?: string;
+  externalApiKeyConfigured: boolean;
+}) {
+  return {
+    schemaVersion: 1,
+    command: "dashboard provider settings",
+    generatedAt: "2026-06-22T08:00:01.000Z",
+    source: "dashboard",
+    plannedMutation: false,
+    executesSystemMutation: false,
+    result: "ok",
+    providers: {
+      assistant: {
+        provider: "assistant",
+        mode: "codex",
+        label: "Codex",
+        health: "available"
+      },
+      planner: {
+        provider: "planner",
+        mode: planner.mode,
+        label: planner.externalProviderLabel,
+        health: planner.mode === "disabled" ? "unavailable" : "available",
+        endpoint: planner.externalEndpoint,
+        externalProviderLabel: planner.externalProviderLabel,
+        externalEndpoint: planner.externalEndpoint,
+        externalApiKeyConfigured: planner.externalApiKeyConfigured
+      }
+    }
+  };
+}
+
+function createJsonResponse(payload: unknown): Response {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: {
+      "content-type": "application/json; charset=utf-8"
+    }
+  });
+}

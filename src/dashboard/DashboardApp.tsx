@@ -10,14 +10,26 @@ import {
   MonitorCog,
   MousePointer2,
   RefreshCw,
+  Save,
   ShieldCheck,
   TriangleAlert
 } from "lucide-react";
-import type { ReactNode } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, Skeleton } from "@heroui/react";
-import { fetchDashboardSnapshot } from "./api";
-import type { DashboardProviderSummary, DashboardSnapshot } from "./contracts";
+import {
+  fetchDashboardSnapshot,
+  fetchProviderSettings,
+  postPlannerProviderSettings
+} from "./api";
+import type {
+  DashboardPlannerProviderMode,
+  DashboardPlannerProviderSettingsUpdate,
+  DashboardProviderSettingsPlanner,
+  DashboardProviderSettingsResponse,
+  DashboardProviderSummary,
+  DashboardSnapshot
+} from "./contracts";
 import {
   readAlertMessages,
   readChromeControlState,
@@ -32,6 +44,10 @@ import {
 
 export interface DashboardAppProps {
   loadSnapshot?: () => Promise<DashboardSnapshot>;
+  loadProviderSettings?: () => Promise<DashboardProviderSettingsResponse>;
+  savePlannerProviderSettings?: (
+    update: DashboardPlannerProviderSettingsUpdate
+  ) => Promise<DashboardProviderSettingsResponse>;
 }
 
 const NAV_ITEMS = [
@@ -43,23 +59,59 @@ const NAV_ITEMS = [
 ] as const;
 
 export function DashboardApp({
-  loadSnapshot = fetchDashboardSnapshot
+  loadSnapshot = fetchDashboardSnapshot,
+  loadProviderSettings = fetchProviderSettings,
+  savePlannerProviderSettings = postPlannerProviderSettings
 }: DashboardAppProps) {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [providerSettings, setProviderSettings] = useState<DashboardProviderSettingsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [providerSettingsError, setProviderSettingsError] = useState<string | null>(null);
+  const [providerSettingsNotice, setProviderSettingsNotice] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSavingProviderSettings, setIsSavingProviderSettings] = useState(false);
 
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
-    try {
-      setSnapshot(await loadSnapshot());
+    const [snapshotResult, providerSettingsResult] = await Promise.allSettled([
+      loadSnapshot(),
+      loadProviderSettings()
+    ]);
+
+    if (snapshotResult.status === "fulfilled") {
+      setSnapshot(snapshotResult.value);
       setError(null);
-    } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : String(refreshError));
-    } finally {
-      setIsRefreshing(false);
+    } else {
+      setError(readErrorMessage(snapshotResult.reason));
     }
-  }, [loadSnapshot]);
+
+    if (providerSettingsResult.status === "fulfilled") {
+      setProviderSettings(providerSettingsResult.value);
+      setProviderSettingsError(null);
+    } else {
+      setProviderSettingsError(readErrorMessage(providerSettingsResult.reason));
+    }
+
+    setProviderSettingsNotice(null);
+    setIsRefreshing(false);
+  }, [loadProviderSettings, loadSnapshot]);
+
+  const submitPlannerProviderSettings = useCallback(async (
+    update: DashboardPlannerProviderSettingsUpdate
+  ) => {
+    setIsSavingProviderSettings(true);
+    setProviderSettingsError(null);
+    setProviderSettingsNotice(null);
+    try {
+      await savePlannerProviderSettings(update);
+      setProviderSettings(await loadProviderSettings());
+      setProviderSettingsNotice("Planner settings saved");
+    } catch (submitError) {
+      setProviderSettingsError(readErrorMessage(submitError));
+    } finally {
+      setIsSavingProviderSettings(false);
+    }
+  }, [loadProviderSettings, savePlannerProviderSettings]);
 
   useEffect(() => {
     void refresh();
@@ -121,7 +173,15 @@ export function DashboardApp({
           </section>
         ) : null}
         {snapshot ? (
-          <DashboardContent snapshot={snapshot} />
+          <DashboardContent
+            snapshot={snapshot}
+            providerSettings={providerSettings}
+            providerSettingsError={providerSettingsError}
+            providerSettingsNotice={providerSettingsNotice}
+            isProviderSettingsLoading={isRefreshing && !providerSettings}
+            isProviderSettingsSaving={isSavingProviderSettings}
+            onSubmitPlannerProviderSettings={submitPlannerProviderSettings}
+          />
         ) : (
           <DashboardLoading />
         )}
@@ -130,7 +190,25 @@ export function DashboardApp({
   );
 }
 
-function DashboardContent({ snapshot }: { snapshot: DashboardSnapshot }) {
+function DashboardContent({
+  snapshot,
+  providerSettings,
+  providerSettingsError,
+  providerSettingsNotice,
+  isProviderSettingsLoading,
+  isProviderSettingsSaving,
+  onSubmitPlannerProviderSettings
+}: {
+  snapshot: DashboardSnapshot;
+  providerSettings: DashboardProviderSettingsResponse | null;
+  providerSettingsError: string | null;
+  providerSettingsNotice: string | null;
+  isProviderSettingsLoading: boolean;
+  isProviderSettingsSaving: boolean;
+  onSubmitPlannerProviderSettings: (
+    update: DashboardPlannerProviderSettingsUpdate
+  ) => Promise<void>;
+}) {
   const stateItems = useMemo(() => readSnapshotState(snapshot), [snapshot]);
   const readiness = useMemo(() => readReadinessSummary(snapshot), [snapshot]);
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
@@ -195,6 +273,14 @@ function DashboardContent({ snapshot }: { snapshot: DashboardSnapshot }) {
           {providers.map((provider) => (
             <ProviderCard key={`${provider.mode}-${provider.label}`} provider={provider} />
           ))}
+          <PlannerProviderSettingsForm
+            settings={providerSettings}
+            error={providerSettingsError}
+            notice={providerSettingsNotice}
+            isLoading={isProviderSettingsLoading}
+            isSaving={isProviderSettingsSaving}
+            onSubmit={onSubmitPlannerProviderSettings}
+          />
         </div>
       </section>
 
@@ -343,6 +429,153 @@ function DashboardContent({ snapshot }: { snapshot: DashboardSnapshot }) {
         </Card.Root>
       </section>
     </div>
+  );
+}
+
+function PlannerProviderSettingsForm({
+  error,
+  isLoading,
+  isSaving,
+  notice,
+  onSubmit,
+  settings
+}: {
+  error: string | null;
+  isLoading: boolean;
+  isSaving: boolean;
+  notice: string | null;
+  onSubmit: (update: DashboardPlannerProviderSettingsUpdate) => Promise<void>;
+  settings: DashboardProviderSettingsResponse | null;
+}) {
+  const planner = settings?.providers.planner;
+  const [mode, setMode] = useState<DashboardPlannerProviderMode>("local-deterministic");
+  const [externalProviderLabel, setExternalProviderLabel] = useState("External CUA");
+  const [externalEndpoint, setExternalEndpoint] = useState("");
+  const [externalApiKey, setExternalApiKey] = useState("");
+
+  useEffect(() => {
+    if (!planner) {
+      return;
+    }
+
+    setMode(readPlannerProviderMode(planner.mode));
+    setExternalProviderLabel(planner.externalProviderLabel || planner.label || "External CUA");
+    setExternalEndpoint(readPlannerProviderEndpoint(planner));
+    setExternalApiKey("");
+  }, [planner]);
+
+  const controlsDisabled = isLoading || isSaving || !planner;
+  const apiKeyConfigured = planner?.externalApiKeyConfigured;
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const apiKey = externalApiKey.trim();
+    setExternalApiKey("");
+
+    void onSubmit({
+      mode,
+      externalProviderLabel: externalProviderLabel.trim(),
+      externalEndpoint: externalEndpoint.trim(),
+      ...(apiKey.length > 0 ? { externalApiKey: apiKey } : {})
+    });
+  };
+
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-provider-settings-card" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>Planner settings</Card.Description>
+          <Card.Title>Provider settings</Card.Title>
+        </div>
+        <Bot size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <form
+          aria-label="Planner provider settings"
+          className="skfiy-dashboard-provider-form"
+          onSubmit={handleSubmit}
+        >
+          <div className="skfiy-dashboard-inline-list" aria-label="Planner provider settings status">
+            <StatusChip tone={readHealthTone(planner?.health ?? "unknown")}>
+              {planner?.health ?? (isLoading ? "loading settings" : "unknown")}
+            </StatusChip>
+            <StatusChip tone={apiKeyConfigured ? "success" : apiKeyConfigured === false ? "warning" : "neutral"}>
+              {apiKeyConfigured ? "api key configured" : apiKeyConfigured === false ? "api key missing" : "api key unknown"}
+            </StatusChip>
+          </div>
+          <div className="skfiy-dashboard-provider-form-grid">
+            <div className="skfiy-dashboard-field">
+              <label htmlFor="planner-provider-mode">Mode</label>
+              <select
+                id="planner-provider-mode"
+                disabled={controlsDisabled}
+                onChange={(event) => setMode(readPlannerProviderMode(event.target.value))}
+                value={mode}
+              >
+                <option value="local-deterministic">local-deterministic</option>
+                <option value="external-cua">external-cua</option>
+                <option value="disabled">disabled</option>
+              </select>
+            </div>
+            <div className="skfiy-dashboard-field">
+              <label htmlFor="planner-provider-label">External provider label</label>
+              <input
+                id="planner-provider-label"
+                disabled={controlsDisabled}
+                onChange={(event) => setExternalProviderLabel(event.target.value)}
+                required
+                type="text"
+                value={externalProviderLabel}
+              />
+            </div>
+            <div className="skfiy-dashboard-field skfiy-dashboard-field--wide">
+              <label htmlFor="planner-provider-endpoint">Endpoint</label>
+              <input
+                id="planner-provider-endpoint"
+                disabled={controlsDisabled}
+                onChange={(event) => setExternalEndpoint(event.target.value)}
+                placeholder="https://"
+                type="url"
+                value={externalEndpoint}
+              />
+            </div>
+            <div className="skfiy-dashboard-field skfiy-dashboard-field--wide">
+              <label htmlFor="planner-provider-api-key">API key</label>
+              <input
+                id="planner-provider-api-key"
+                autoComplete="off"
+                disabled={controlsDisabled}
+                onChange={(event) => setExternalApiKey(event.target.value)}
+                placeholder={apiKeyConfigured ? "Configured" : "Missing"}
+                type="password"
+                value={externalApiKey}
+              />
+            </div>
+          </div>
+          {error ? (
+            <div className="skfiy-dashboard-error skfiy-dashboard-provider-form-message" role="alert">
+              <TriangleAlert size={16} aria-hidden="true" />
+              {error}
+            </div>
+          ) : null}
+          {notice ? (
+            <div className="skfiy-dashboard-empty skfiy-dashboard-provider-form-message" aria-live="polite">
+              {notice}
+            </div>
+          ) : null}
+          <div className="skfiy-dashboard-provider-form-actions">
+            <button
+              className="skfiy-dashboard-button button"
+              disabled={controlsDisabled}
+              type="submit"
+            >
+              <Save size={15} aria-hidden="true" />
+              {isSaving ? "Saving planner settings" : "Save planner settings"}
+            </button>
+          </div>
+        </form>
+      </Card.Content>
+    </Card.Root>
   );
 }
 
@@ -520,6 +753,20 @@ function readHealthTone(health: string): Tone {
   }
 
   return "warning";
+}
+
+function readPlannerProviderMode(value: unknown): DashboardPlannerProviderMode {
+  return value === "external-cua" || value === "disabled"
+    ? value
+    : "local-deterministic";
+}
+
+function readPlannerProviderEndpoint(planner: DashboardProviderSettingsPlanner): string {
+  return planner.externalEndpoint ?? planner.endpoint ?? "";
+}
+
+function readErrorMessage(value: unknown): string {
+  return value instanceof Error ? value.message : String(value);
 }
 
 function formatGeneratedAt(value: string): string {
