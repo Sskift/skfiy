@@ -16,18 +16,20 @@ research notes as dated context unless they contain a still-open product gap.
   Messaging host install/status checks, and troubleshooting.
 - `release-evidence/latest-alpha.json`: latest published alpha pointer used by
   dashboard and dogfood readiness checks.
+- `research/2026-06-22-agent-computer-use-long-plan.md`: the single active
+  long-range implementation plan for dashboard, Agent provider, Computer Use,
+  Chromium extension, binary/CLI, release, and money-run dogfood work.
 
 ## Reference Docs
 
 - `decisions/`: durable decision records that should stay stable unless the
   decision changes.
 - `research/`: dated research, architecture notes, and implementation logs.
-  These are archival, not active task lists. If a research plan lands, move the
-  durable instructions into the canonical docs and keep only background context
-  here.
-- `superpowers/plans/`: executable implementation plans for agentic workers.
-  These plans can reference research notes, but should contain concrete files,
-  steps, commands, and expected evidence.
+  Most files are archival, not active task lists. The dated long plan above is
+  the one exception while these workstreams are still open.
+- `superpowers/plans/`: optional executable implementation plans for active
+  agentic work. Delete or fold them back into the canonical long plan once that
+  slice lands, so stale task handoffs do not compete with current direction.
 
 ## Local Artifact Hygiene
 

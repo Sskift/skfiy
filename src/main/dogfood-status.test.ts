@@ -268,9 +268,7 @@ describe("dogfood status reporter", () => {
       localSmoke: {
         permissionBlockers: [
           { permission: "screenRecording", state: "denied" },
-          { permission: "accessibility", state: "denied" },
-          { permission: "microphone", state: "not-determined" },
-          { permission: "speechRecognition", state: "not-determined" }
+          { permission: "accessibility", state: "denied" }
         ]
       },
       nextActions: expect.arrayContaining([
@@ -346,20 +344,15 @@ describe("dogfood status reporter", () => {
           ui: "passed",
           ghostty: "blocked",
           chrome: "passed",
-          finder: "blocked",
-          voice: "blocked"
+          finder: "blocked"
         },
         permissionStates: {
           screenRecording: { state: "denied" },
-          accessibility: { state: "denied" },
-          microphone: { state: "not-determined" },
-          speechRecognition: { state: "not-determined" }
+          accessibility: { state: "denied" }
         },
         permissionBlockers: [
           { permission: "screenRecording", state: "denied" },
-          { permission: "accessibility", state: "denied" },
-          { permission: "microphone", state: "not-determined" },
-          { permission: "speechRecognition", state: "not-determined" }
+          { permission: "accessibility", state: "denied" }
         ]
       },
       readiness: {
@@ -442,13 +435,12 @@ describe("dogfood status reporter", () => {
         }
       },
       nextActions: expect.arrayContaining([
-        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.",
+        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder Computer Use evidence.",
         "After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.",
         "Run npm run dogfood:status -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --desktop-session-artifact .skfiy-smoke/desktop-session-current.json --summary .skfiy-dogfood/status-current.md --json-output .skfiy-dogfood/status-current.json after smoke:desktop-session rerun to refresh desktop readiness.",
-        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.",
+        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty and Finder.",
         "Run npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output .skfiy-smoke/ghostty-current.json after desktop preflight passes.",
-        "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes.",
-        "Run npm run smoke:voice -- --app dist/skfiy.app --provider doubao --require-passed --output .skfiy-smoke/voice-current.json after desktop preflight passes."
+        "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
@@ -457,7 +449,7 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("npm run dogfood:status -- --manifest /repo/.skfiy-alpha/skfiy-0.1.0-abc123-macos-unsigned.json --tracking-issue-url https://github.com/Sskift/skfiy/issues/1 --desktop-session-artifact .skfiy-smoke/desktop-session-current.json");
   });
 
-  it("asks for product-path native speech proof after speech permissions are granted", async () => {
+  it("does not request skfiy-owned speech evidence for agent Computer Use turns", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
         input: Record<string, unknown>,
@@ -468,23 +460,15 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
-    const nativeVoiceAction = "Run npm run smoke:voice -- --app dist/skfiy.app --provider native-macos --require-passed --output .skfiy-smoke/voice-native-current.json after desktop preflight passes to prove the product-path native speech turn after Speech Recognition permission is granted.";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
-        finderSmokePath,
-        voiceSmokePath
+        finderSmokePath
       }),
       [uiSmokePath]: {
-        ...createSmokeArtifact(uiSmokePath, "no-onboarding", {
-          screenRecording: "authorized",
-          accessibility: "authorized",
-          microphone: "authorized",
-          speechRecognition: "authorized"
-        }),
+        ...createSmokeArtifact(uiSmokePath, "no-onboarding"),
         desktopSessionDiagnostics: {
           state: "blocked",
           status: {
@@ -496,85 +480,7 @@ describe("dogfood status reporter", () => {
         }
       },
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
-      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: {
-        ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "doubao"
-      }
-    }, {
-      [trackingIssueUrl]: {
-        body: createTrackingIssueBody([]),
-        labels: ["skfiy", "dogfood"]
-      }
-    });
-
-    const status = await createDogfoodStatus({
-      manifestPath,
-      trackingIssueUrl,
-      summaryPath,
-      now: () => "2026-06-16T12:00:00.000Z"
-    }, io) as {
-      localSmoke: {
-        permissionBlockers: Array<{ permission: string; state: string }>;
-      };
-      nextActions: string[];
-    };
-
-    expect(status.localSmoke.permissionBlockers).toEqual([]);
-    expect(status.nextActions).toContain(nativeVoiceAction);
-    expect(io.textFiles[summaryPath]).toContain(nativeVoiceAction);
-  });
-
-  it("does not ask for native speech proof once native macOS voice smoke has passed", async () => {
-    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
-      createDogfoodStatus: (
-        input: Record<string, unknown>,
-        io?: Record<string, unknown>
-      ) => Promise<Record<string, unknown>>;
-    };
-    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
-    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
-    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
-    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
-    const nativeVoiceAction = "Run npm run smoke:voice -- --app dist/skfiy.app --provider native-macos --require-passed --output .skfiy-smoke/voice-native-current.json after desktop preflight passes to prove the product-path native speech turn after Speech Recognition permission is granted.";
-    const io = createMemoryIo({
-      [manifestPath]: createManifest({
-        uiSmokePath,
-        ghosttySmokePath,
-        chromeSmokePath,
-        finderSmokePath,
-        voiceSmokePath
-      }),
-      [uiSmokePath]: {
-        ...createSmokeArtifact(uiSmokePath, "no-onboarding", {
-          screenRecording: "authorized",
-          accessibility: "authorized",
-          microphone: "authorized",
-          speechRecognition: "authorized"
-        }),
-        desktopSessionDiagnostics: {
-          state: "blocked",
-          status: {
-            controllable: false,
-            frontmostBundleId: "com.apple.loginwindow",
-            frontmostProcessIdentifier: 591
-          },
-          reason: "Desktop session is locked by loginwindow (pid 591). Unlock the Mac and keep the display awake, then retry."
-        }
-      },
-      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
-      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: {
-        ...createSmokeArtifact(voiceSmokePath, "passed"),
-        provider: "native-macos",
-        speechStatus: {
-          speechRecognition: { state: "authorized" },
-          microphone: { state: "authorized" }
-        }
-      }
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -591,8 +497,8 @@ describe("dogfood status reporter", () => {
       nextActions: string[];
     };
 
-    expect(status.nextActions).not.toContain(nativeVoiceAction);
-    expect(io.textFiles[summaryPath]).not.toContain(nativeVoiceAction);
+    expect(status.nextActions.join("\n")).not.toMatch(/smoke:voice|Speech|Microphone|speech/i);
+    expect(io.textFiles[summaryPath]).not.toMatch(/smoke:voice|Speech|Microphone|speech/i);
   });
 
   it("uses an explicit passed desktop-session artifact to clear stale loginwindow blockers", async () => {
@@ -675,7 +581,7 @@ describe("dogfood status reporter", () => {
     expect(status.localSmoke.artifactResults.desktopSession).toBe("passed");
     expect(status.localSmoke.desktopSessionBlocker).toBeNull();
     expect(status.nextActions).not.toContain(
-      "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence."
+      "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder Computer Use evidence."
     );
     expect(io.textFiles[summaryPath]).toContain("- desktopSession: passed");
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session\n\n- none");
@@ -771,337 +677,7 @@ describe("dogfood status reporter", () => {
     );
   });
 
-  it("surfaces app-scoped permission evidence separately from direct-helper speech diagnostics", async () => {
-    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
-      createDogfoodStatus: (
-        input: Record<string, unknown>,
-        io?: Record<string, unknown>
-      ) => Promise<Record<string, unknown>>;
-    };
-    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
-    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
-    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
-    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
-    const desktopSessionArtifactPath = "/repo/.skfiy-smoke/desktop-session-current.json";
-    const io = createMemoryIo({
-      [manifestPath]: createManifest({
-        uiSmokePath,
-        ghosttySmokePath,
-        chromeSmokePath,
-        finderSmokePath,
-        voiceSmokePath
-      }),
-      [uiSmokePath]: {
-        ...createSmokeArtifact(uiSmokePath, "no-onboarding", {
-          screenRecording: "authorized",
-          accessibility: "authorized",
-          microphone: "authorized",
-          speechRecognition: "unknown"
-        }),
-        permissionDiagnostics: {
-          active: {
-            screenRecording: { state: "granted" },
-            accessibility: { state: "granted" },
-            microphone: { state: "granted" },
-            speechRecognition: { state: "granted" }
-          }
-        }
-      },
-      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
-      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked"),
-      [desktopSessionArtifactPath]: {
-        artifactPath: desktopSessionArtifactPath,
-        result: "blocked",
-        permissionProbe: {
-          scope: "direct-helper",
-          speechRecognitionStatusSource: "direct-helper",
-          appScopedSpeechRecognitionStatusSource: "smoke:ui permissionDiagnostics.active",
-          nonAuthoritativeForAppScopedPermissionChecks: ["speechRecognition"]
-        },
-        permissions: {
-          screenRecording: { status: "authorized", granted: true },
-          accessibility: { status: "authorized", granted: true },
-          microphone: { status: "authorized", granted: true },
-          speechRecognition: { status: "notDetermined", granted: false }
-        },
-        permissionInterpretation: {
-          nonAuthoritative: [
-            {
-              permission: "speechRecognition",
-              status: "notDetermined",
-              reason: "Direct helper Speech Recognition status can differ from app-scoped status; use smoke:ui permissionDiagnostics.active for app-scoped speech evidence."
-            }
-          ]
-        },
-        desktopSessionStatus: {
-          controllable: false,
-          frontmostBundleId: "com.apple.loginwindow",
-          frontmostProcessIdentifier: 591,
-          mainDisplayAsleep: true,
-          ioConsoleLocked: true,
-          cgSessionScreenIsLocked: true
-        },
-        consoleLock: {
-          ioConsoleLocked: true,
-          cgSessionScreenIsLocked: true
-        },
-        display: {
-          mainDisplayAsleep: true
-        },
-        screenshot: {
-          png: {
-            isLikelyBlack: true
-          }
-        }
-      }
-    }, {
-      [trackingIssueUrl]: {
-        body: createTrackingIssueBody([]),
-        labels: ["skfiy", "dogfood"]
-      }
-    });
-
-    const status = await createDogfoodStatus({
-      manifestPath,
-      trackingIssueUrl,
-      desktopSessionArtifactPath,
-      summaryPath,
-      now: () => "2026-06-19T12:00:00.000Z"
-    }, io) as {
-      localSmoke: {
-        permissionStates: Record<string, { state: string }>;
-        permissionEvidence: Record<string, unknown>;
-      };
-    };
-
-    expect(status.localSmoke.permissionStates.speechRecognition).toEqual({ state: "granted" });
-    expect(status.localSmoke.permissionEvidence).toMatchObject({
-      speechRecognition: {
-        state: "granted",
-        source: "ui.permissionDiagnostics.active",
-        artifact: "ui",
-        artifactPath: uiSmokePath,
-        appScoped: true,
-        directHelper: {
-          artifact: "desktopSession",
-          artifactPath: desktopSessionArtifactPath,
-          state: "notDetermined",
-          authoritativeForAppScopedPermission: false
-        }
-      }
-    });
-    expect(io.textFiles[summaryPath]).toContain("## Permission Evidence");
-    expect(io.textFiles[summaryPath]).toContain("- speechRecognition: granted via ui.permissionDiagnostics.active (app-scoped)");
-    expect(io.textFiles[summaryPath]).toContain("direct-helper desktopSession reports notDetermined, not authoritative for app-scoped permission");
-  });
-
-  it("uses authoritative desktop-session helper status fields as permission evidence", async () => {
-    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
-      createDogfoodStatus: (
-        input: Record<string, unknown>,
-        io?: Record<string, unknown>
-      ) => Promise<Record<string, unknown>>;
-    };
-    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
-    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
-    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
-    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
-    const desktopSessionArtifactPath = "/repo/.skfiy-smoke/desktop-session-current.json";
-    const io = createMemoryIo({
-      [manifestPath]: createManifest({
-        uiSmokePath,
-        ghosttySmokePath,
-        chromeSmokePath,
-        finderSmokePath,
-        voiceSmokePath
-      }),
-      [uiSmokePath]: { artifactPath: uiSmokePath, result: "missing" },
-      [ghosttySmokePath]: { artifactPath: ghosttySmokePath, result: "missing" },
-      [chromeSmokePath]: { artifactPath: chromeSmokePath, result: "missing" },
-      [finderSmokePath]: { artifactPath: finderSmokePath, result: "missing" },
-      [voiceSmokePath]: { artifactPath: voiceSmokePath, result: "missing" },
-      [desktopSessionArtifactPath]: {
-        artifactPath: desktopSessionArtifactPath,
-        result: "blocked",
-        permissionProbe: {
-          scope: "direct-helper",
-          nonAuthoritativeForAppScopedPermissionChecks: ["speechRecognition"]
-        },
-        permissions: {
-          screenRecording: { status: "authorized", granted: true },
-          accessibility: { status: "authorized", granted: true },
-          microphone: { status: "authorized", granted: true },
-          speechRecognition: { status: "notDetermined", granted: false }
-        },
-        desktopSessionStatus: {
-          frontmostBundleId: "com.apple.loginwindow",
-          frontmostProcessIdentifier: 591,
-          ioConsoleLocked: true,
-          cgSessionScreenIsLocked: true
-        },
-        consoleLock: {
-          ioConsoleLocked: true,
-          cgSessionScreenIsLocked: true
-        },
-        screenshot: {
-          png: {
-            isLikelyBlack: true
-          }
-        }
-      }
-    }, {
-      [trackingIssueUrl]: {
-        body: createTrackingIssueBody([]),
-        labels: ["skfiy", "dogfood"]
-      }
-    });
-
-    const status = await createDogfoodStatus({
-      manifestPath,
-      trackingIssueUrl,
-      desktopSessionArtifactPath,
-      summaryPath,
-      now: () => "2026-06-19T12:00:00.000Z"
-    }, io) as {
-      localSmoke: {
-        permissionStates: Record<string, { state: string }>;
-        permissionEvidence: Record<string, unknown>;
-      };
-    };
-
-    expect(status.localSmoke.permissionStates).toMatchObject({
-      screenRecording: { state: "authorized" },
-      accessibility: { state: "authorized" },
-      microphone: { state: "authorized" },
-      speechRecognition: { state: "unknown" }
-    });
-    expect(status.localSmoke.permissionEvidence).toMatchObject({
-      screenRecording: {
-        state: "authorized",
-        source: "desktopSession.permissions",
-        artifact: "desktopSession",
-        artifactPath: desktopSessionArtifactPath,
-        appScoped: false,
-        directHelper: {
-          artifact: "desktopSession",
-          state: "authorized",
-          authoritativeForAppScopedPermission: true
-        }
-      },
-      speechRecognition: {
-        state: "unknown",
-        source: "none",
-        directHelper: {
-          artifact: "desktopSession",
-          state: "notDetermined",
-          authoritativeForAppScopedPermission: false
-        }
-      }
-    });
-    expect(io.textFiles[summaryPath]).toContain("- screenRecording: authorized via desktopSession.permissions");
-    expect(io.textFiles[summaryPath]).toContain("- speechRecognition: unknown via none; direct-helper desktopSession reports notDetermined, not authoritative for app-scoped permission");
-  });
-
-  it("does not trigger native speech proof from direct-helper-only speech permission evidence", async () => {
-    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
-      createDogfoodStatus: (
-        input: Record<string, unknown>,
-        io?: Record<string, unknown>
-      ) => Promise<Record<string, unknown>>;
-    };
-    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
-    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
-    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
-    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
-    const desktopSessionArtifactPath = "/repo/.skfiy-smoke/desktop-session-current.json";
-    const nativeVoiceAction = "Run npm run smoke:voice -- --app dist/skfiy.app --provider native-macos --require-passed --output .skfiy-smoke/voice-native-current.json after desktop preflight passes to prove the product-path native speech turn after Speech Recognition permission is granted.";
-    const appScopedPermissionAction = "Collect app-scoped Microphone and Speech Recognition evidence from smoke:ui permissionDiagnostics.active or the native voice smoke before requiring passed native speech evidence.";
-    const io = createMemoryIo({
-      [manifestPath]: createManifest({
-        uiSmokePath,
-        ghosttySmokePath,
-        chromeSmokePath,
-        finderSmokePath,
-        voiceSmokePath
-      }),
-      [uiSmokePath]: { artifactPath: uiSmokePath, result: "no-onboarding" },
-      [ghosttySmokePath]: { artifactPath: ghosttySmokePath, result: "blocked" },
-      [chromeSmokePath]: { artifactPath: chromeSmokePath, result: "passed" },
-      [finderSmokePath]: { artifactPath: finderSmokePath, result: "blocked" },
-      [voiceSmokePath]: {
-        artifactPath: voiceSmokePath,
-        result: "blocked",
-        provider: "doubao"
-      },
-      [desktopSessionArtifactPath]: {
-        artifactPath: desktopSessionArtifactPath,
-        result: "blocked",
-        permissionProbe: {
-          scope: "direct-helper",
-          nonAuthoritativeForAppScopedPermissionChecks: ["speechRecognition"]
-        },
-        permissions: {
-          screenRecording: { state: "granted" },
-          accessibility: { state: "granted" },
-          microphone: { state: "granted" },
-          speechRecognition: { state: "granted" }
-        },
-        desktopSessionStatus: {
-          frontmostBundleId: "com.apple.loginwindow",
-          frontmostProcessIdentifier: 591,
-          ioConsoleLocked: true,
-          cgSessionScreenIsLocked: true
-        },
-        consoleLock: {
-          ioConsoleLocked: true,
-          cgSessionScreenIsLocked: true
-        },
-        screenshot: {
-          png: {
-            isLikelyBlack: true
-          }
-        }
-      }
-    }, {
-      [trackingIssueUrl]: {
-        body: createTrackingIssueBody([]),
-        labels: ["skfiy", "dogfood"]
-      }
-    });
-
-    const status = await createDogfoodStatus({
-      manifestPath,
-      trackingIssueUrl,
-      desktopSessionArtifactPath,
-      summaryPath,
-      now: () => "2026-06-19T12:00:00.000Z"
-    }, io) as {
-      localSmoke: {
-        permissionEvidence: Record<string, unknown>;
-      };
-      nextActions: string[];
-    };
-
-    expect(status.localSmoke.permissionEvidence).toMatchObject({
-      speechRecognition: {
-        source: "desktopSession.permissions",
-        appScoped: false,
-        directHelper: {
-          authoritativeForAppScopedPermission: false
-        }
-      }
-    });
-    expect(status.nextActions).not.toContain(nativeVoiceAction);
-    expect(status.nextActions).toContain(appScopedPermissionAction);
-    expect(io.textFiles[summaryPath]).toContain(appScopedPermissionAction);
-  });
-
-  it("reports desktop session blockers from Ghostty/Finder/voice smoke preflight artifacts", async () => {
+  it("reports desktop session blockers from Ghostty/Finder smoke preflight artifacts", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
         input: Record<string, unknown>,
@@ -1172,12 +748,11 @@ describe("dogfood status reporter", () => {
         }
       },
       nextActions: expect.arrayContaining([
-        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.",
+        "Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder Computer Use evidence.",
         "After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.",
-        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.",
+        "When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty and Finder.",
         "Run npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output .skfiy-smoke/ghostty-current.json after desktop preflight passes.",
-        "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes.",
-        "Run npm run smoke:voice -- --app dist/skfiy.app --provider doubao --require-passed --output .skfiy-smoke/voice-current.json after desktop preflight passes."
+        "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes."
       ])
     });
     expect(io.textFiles[summaryPath]).toContain("## Desktop Session");
@@ -1207,8 +782,7 @@ describe("dogfood status reporter", () => {
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
-      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked")
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -1228,11 +802,11 @@ describe("dogfood status reporter", () => {
       nextActions: string[];
     };
 
-    expect(status.localSmoke.artifactResults.voice).toBe("missing");
+    expect(status.localSmoke.artifactResults.finder).toBe("missing");
     expect(status.nextActions).toContain(
-      "Regenerate or attach missing smoke artifacts before relying on local readiness: voice (/repo/.skfiy-smoke/voice.json)."
+      "Regenerate or attach missing smoke artifacts before relying on local readiness: finder (/repo/.skfiy-smoke/finder.json)."
     );
-    expect(io.textFiles[summaryPath]).toContain("- voice: missing");
+    expect(io.textFiles[summaryPath]).toContain("- finder: missing");
   });
 
   it("warns when the selected alpha manifest is older than the current HEAD", async () => {
@@ -1335,7 +909,7 @@ describe("dogfood status reporter", () => {
         return base === "abc123" && head === "docshead"
           ? [
             "docs/release-evidence/latest-alpha.json",
-            "docs/superpowers/plans/2026-06-15-skfiy-mvp.md",
+            "docs/research/2026-06-22-agent-computer-use-long-plan.md",
             ".skfiy-dogfood/status-abc123.md",
             "scripts/dogfood-status.mjs",
             "src/main/dogfood-status.test.ts"
@@ -1361,7 +935,7 @@ describe("dogfood status reporter", () => {
             appCodeOk: true,
             changedFiles: [
               "docs/release-evidence/latest-alpha.json",
-              "docs/superpowers/plans/2026-06-15-skfiy-mvp.md",
+              "docs/research/2026-06-22-agent-computer-use-long-plan.md",
               ".skfiy-dogfood/status-abc123.md",
               "scripts/dogfood-status.mjs",
               "src/main/dogfood-status.test.ts"
@@ -1934,7 +1508,7 @@ describe("dogfood status reporter", () => {
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
       [voiceSmokePath]: {
         ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "doubao"
+        provider: "browser"
       },
       [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
     }, {
@@ -2025,7 +1599,7 @@ describe("dogfood status reporter", () => {
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
       [voiceSmokePath]: {
         ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "doubao"
+        provider: "browser"
       },
       [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
     }, {
@@ -2118,7 +1692,7 @@ describe("dogfood status reporter", () => {
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
       [voiceSmokePath]: {
         ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "doubao"
+        provider: "browser"
       },
       [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
     }, {
@@ -3687,7 +3261,6 @@ function createManifest({
   ghosttySmokePath,
   chromeSmokePath,
   finderSmokePath,
-  voiceSmokePath,
   moneyRunSmokePath,
   includePanicStopProductPathEvidence = true
 }: {
@@ -3695,7 +3268,7 @@ function createManifest({
   ghosttySmokePath: string;
   chromeSmokePath: string;
   finderSmokePath: string;
-  voiceSmokePath: string;
+  voiceSmokePath?: string;
   moneyRunSmokePath?: string;
   includePanicStopProductPathEvidence?: boolean;
 }) {
@@ -3722,7 +3295,6 @@ function createManifest({
     smokeArtifactPath: ghosttySmokePath,
     chromeSmokeArtifactPath: chromeSmokePath,
     finderSmokeArtifactPath: finderSmokePath,
-    voiceSmokeArtifactPath: voiceSmokePath,
     moneyRunSmokeArtifactPath: moneyRunSmokePath,
     requiredDogfoodEvidence: requiredEvidence
   };
@@ -3731,11 +3303,9 @@ function createManifest({
 function createSmokeArtifact(
   artifactPath: string,
   result: string,
-  permissions = {
+  permissions: Record<string, string> = {
     screenRecording: "authorized",
-    accessibility: "authorized",
-    microphone: "authorized",
-    speechRecognition: "authorized"
+    accessibility: "authorized"
   }
 ) {
   return {
@@ -3800,7 +3370,7 @@ function createTrackingIssueBody(
       "",
       "## Desktop Session Preflight",
       "Run `npm run smoke:desktop-session` before using `--require-passed`.",
-      "In strict mode, `dogfood:tester` uses a strict desktop-session preflight before Ghostty/Chrome/Finder/voice."
+      "In strict mode, `dogfood:tester` uses a strict desktop-session preflight before Ghostty/Chrome/Finder/money-run."
     ];
 
   return [
