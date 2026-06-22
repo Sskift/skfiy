@@ -1,12 +1,15 @@
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import { createAssistantChatReply } from "./assistant-chat.js";
+import { selectCommandRoute, type CommandRoute } from "./task-routing.js";
 
 export type AssistantAgentMode = "local" | "codex" | "claude-code";
 export type AssistantAgentProviderId = AssistantAgentMode;
 export type AssistantAgentCliBinarySource = "default" | "env";
 export type AssistantAgentExecutableSource = AssistantAgentCliBinarySource | "built-in";
 export type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
+export type AssistantAgentTurnStatus = "completed" | "failed" | "cancelled";
 
 export interface AssistantAgentSettings {
   mode: AssistantAgentMode;
@@ -45,7 +48,7 @@ export interface AssistantAgentProviderState {
 export type AssistantAgentProcessRunner = (
   command: string,
   args: string[],
-  options: { cwd: string; timeoutMs: number }
+  options: { cwd: string; timeoutMs: number; signal?: AbortSignal | undefined }
 ) => Promise<AssistantAgentProcessResult>;
 
 export type AssistantAgentExecutableResolver = (command: string) => Promise<string>;
@@ -53,11 +56,52 @@ export type AssistantAgentExecutableResolver = (command: string) => Promise<stri
 export interface RunAssistantAgentTurnInput {
   settings: AssistantAgentSettings;
   runProcess?: AssistantAgentProcessRunner;
+  now?: () => Date;
+  createTurnId?: () => string;
+  signal?: AbortSignal;
+}
+
+export interface AssistantAgentTurnCancellation {
+  requested: boolean;
+  reason?: string;
+}
+
+export interface AssistantAgentTurnError {
+  message: string;
+}
+
+export interface AssistantAgentPlannedToolCall {
+  id: string;
+  type: "computer-use";
+  name: "desktop-control";
+  status: "planned";
+  createdAt: string;
+  input: {
+    command: string;
+    route: CommandRoute;
+  };
 }
 
 export interface AssistantAgentTurnResult {
+  id: string;
+  createdAt: string;
+  status: AssistantAgentTurnStatus;
   providerLabel: "Local" | "Codex" | "Claude Code";
   message: string;
+  error?: AssistantAgentTurnError | undefined;
+  route: CommandRoute;
+  toolCalls: AssistantAgentPlannedToolCall[];
+  cancellation: AssistantAgentTurnCancellation;
+}
+
+export class AssistantAgentTurnRuntimeError extends Error {
+  readonly turn: AssistantAgentTurnResult;
+
+  constructor(turn: AssistantAgentTurnResult) {
+    super(turn.error?.message ?? "Assistant agent turn failed.");
+    this.name = "AssistantAgentTurnRuntimeError";
+    this.turn = turn;
+  }
 }
 
 const DEFAULT_ASSISTANT_AGENT_TIMEOUT_MS = 45_000;
@@ -186,41 +230,125 @@ export function buildAssistantAgentInvocation(
 
 export async function runAssistantAgentTurn(
   userInput: string,
-  { settings, runProcess = runAssistantAgentProcess }: RunAssistantAgentTurnInput
+  {
+    settings,
+    runProcess = runAssistantAgentProcess,
+    now = () => new Date(),
+    createTurnId = createAssistantAgentTurnId,
+    signal
+  }: RunAssistantAgentTurnInput
 ): Promise<AssistantAgentTurnResult> {
+  const id = createTurnId();
+  const createdAt = now().toISOString();
+  const route = selectCommandRoute(userInput);
   const invocation = buildAssistantAgentInvocation(settings, userInput);
+  const providerLabel = invocation?.label ?? "Local";
+  const toolCalls = createAssistantAgentPlannedToolCalls({
+    turnId: id,
+    createdAt,
+    command: userInput,
+    route
+  });
+
+  if (signal?.aborted) {
+    throw new AssistantAgentTurnRuntimeError({
+      id,
+      createdAt,
+      status: "cancelled",
+      providerLabel,
+      message: "",
+      error: { message: "Assistant agent turn was cancelled." },
+      route,
+      toolCalls,
+      cancellation: readAssistantAgentCancellation(signal)
+    });
+  }
 
   if (!invocation) {
     return {
+      id,
+      createdAt,
+      status: "completed",
       providerLabel: "Local",
-      message: createAssistantChatReply(userInput)
+      message: createAssistantChatReply(userInput),
+      route,
+      toolCalls,
+      cancellation: { requested: false }
     };
   }
 
-  const result = await runProcess(invocation.command, invocation.args, {
-    cwd: settings.cwd,
-    timeoutMs: settings.timeoutMs
-  });
+  let result: AssistantAgentProcessResult;
+  try {
+    result = await runProcess(invocation.command, invocation.args, {
+      cwd: settings.cwd,
+      timeoutMs: settings.timeoutMs,
+      signal
+    });
+  } catch (error) {
+    throw new AssistantAgentTurnRuntimeError({
+      id,
+      createdAt,
+      status: signal?.aborted ? "cancelled" : "failed",
+      providerLabel,
+      message: "",
+      error: { message: readErrorMessage(error) },
+      route,
+      toolCalls,
+      cancellation: readAssistantAgentCancellation(signal)
+    });
+  }
+
+  if (signal?.aborted) {
+    throw new AssistantAgentTurnRuntimeError({
+      id,
+      createdAt,
+      status: "cancelled",
+      providerLabel,
+      message: "",
+      error: { message: "Assistant agent turn was cancelled." },
+      route,
+      toolCalls,
+      cancellation: readAssistantAgentCancellation(signal)
+    });
+  }
+
   const message = result.stdout.trim();
 
   if (!message) {
-    throw new Error(`${invocation.label} returned an empty assistant response.`);
+    throw new AssistantAgentTurnRuntimeError({
+      id,
+      createdAt,
+      status: "failed",
+      providerLabel,
+      message: "",
+      error: { message: `${invocation.label} returned an empty assistant response.` },
+      route,
+      toolCalls,
+      cancellation: { requested: false }
+    });
   }
 
   return {
-    providerLabel: invocation.label,
-    message
+    id,
+    createdAt,
+    status: "completed",
+    providerLabel,
+    message,
+    route,
+    toolCalls,
+    cancellation: { requested: false }
   };
 }
 
 async function runAssistantAgentProcess(
   command: string,
   args: string[],
-  options: { cwd: string; timeoutMs: number }
+  options: { cwd: string; timeoutMs: number; signal?: AbortSignal | undefined }
 ): Promise<AssistantAgentProcessResult> {
   const result = await execFileAsync(command, args, {
     cwd: options.cwd,
     timeout: options.timeoutMs,
+    signal: options.signal,
     maxBuffer: 1024 * 1024,
     encoding: "utf8"
   });
@@ -229,6 +357,59 @@ async function runAssistantAgentProcess(
     stdout: result.stdout,
     stderr: result.stderr
   };
+}
+
+function createAssistantAgentTurnId(): string {
+  return `assistant-turn-${randomUUID()}`;
+}
+
+function createAssistantAgentPlannedToolCalls({
+  turnId,
+  createdAt,
+  command,
+  route
+}: {
+  turnId: string;
+  createdAt: string;
+  command: string;
+  route: CommandRoute;
+}): AssistantAgentPlannedToolCall[] {
+  if (route.kind === "chat" || route.kind === "needs_clarification") {
+    return [];
+  }
+
+  return [
+    {
+      id: `${turnId}-tool-1`,
+      type: "computer-use",
+      name: "desktop-control",
+      status: "planned",
+      createdAt,
+      input: {
+        command,
+        route
+      }
+    }
+  ];
+}
+
+function readAssistantAgentCancellation(
+  signal: AbortSignal | undefined
+): AssistantAgentTurnCancellation {
+  if (!signal?.aborted) {
+    return { requested: false };
+  }
+
+  return {
+    requested: true,
+    reason: signal.reason instanceof Error
+      ? signal.reason.message
+      : typeof signal.reason === "string" ? signal.reason : undefined
+  };
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function readCliAssistantAgentProviderState({

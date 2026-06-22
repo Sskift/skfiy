@@ -165,14 +165,18 @@ export function readComputerUseReadiness(snapshot: DashboardSnapshot): Dashboard
 export function readProviderSummaries(snapshot: DashboardSnapshot): DashboardProviderSummary[] {
   return [
     snapshot.providers?.assistant ?? {
+      provider: "assistant",
       mode: "local",
       label: "Local",
-      health: "unknown"
+      health: "unknown",
+      detail: "Provider settings are not present in this snapshot."
     },
     snapshot.providers?.planner ?? {
+      provider: "planner",
       mode: "local-deterministic",
       label: "Local deterministic",
-      health: "unknown"
+      health: "unknown",
+      detail: "Provider settings are not present in this snapshot."
     }
   ];
 }

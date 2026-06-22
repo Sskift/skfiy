@@ -77,16 +77,20 @@ const snapshot: DashboardSnapshot = {
   ],
   providers: {
     assistant: {
+      provider: "assistant",
       mode: "codex",
       label: "Codex",
       health: "available",
-      binaryPath: "codex",
-      timeoutMs: 45000
+      detail: "Codex assistant is selected."
     },
     planner: {
-      mode: "local-deterministic",
-      label: "Local deterministic",
-      health: "available"
+      provider: "planner",
+      mode: "external-cua",
+      label: "OpenAI CUA",
+      health: "available",
+      detail: "External CUA endpoint and API key are configured.",
+      endpointConfigured: true,
+      externalApiKeyConfigured: true
     }
   }
 };
@@ -121,7 +125,11 @@ describe("DashboardApp", () => {
 
     const connections = screen.getByRole("region", { name: "Agent connection" });
     expect(within(connections).getByText("Codex")).toBeInTheDocument();
-    expect(within(connections).getByText("Local deterministic")).toBeInTheDocument();
+    expect(within(connections).getByText("assistant · codex")).toBeInTheDocument();
+    expect(within(connections).getByText("OpenAI CUA")).toBeInTheDocument();
+    expect(within(connections).getByText("planner · external-cua")).toBeInTheDocument();
+    expect(within(connections).getByText("External CUA endpoint and API key are configured.")).toBeInTheDocument();
+    expect(within(connections).getByText("api key configured")).toBeInTheDocument();
 
     const nextAction = screen.getByRole("region", { name: "Next action" });
     expect(within(nextAction).getByRole("heading", { name: "Grant Screen Recording" })).toBeInTheDocument();

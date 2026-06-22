@@ -28,6 +28,16 @@ import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
   RUNTIME_TURN_MARKER_SCHEMA_VERSION
 } from "./runtime-snapshot.js";
+import {
+  readInitialAssistantAgentSettings,
+  type AssistantAgentSettings
+} from "./assistant-agent.js";
+import { decidePlannerProviderRuntime } from "./planner-provider-runtime.js";
+import {
+  readInitialPlannerProviderSettings,
+  summarizePlannerProviderSettings,
+  type PlannerProviderSettings
+} from "./planner-provider-settings.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
 const RECENT_RUNTIME_TURN_MARKER_SECONDS = 300;
@@ -80,6 +90,23 @@ export interface DashboardSnapshotInput {
   };
   dogfoodRelease?: Record<string, unknown>;
   longHorizon?: Record<string, unknown>;
+  providerSettings?: DashboardProviderSettingsInput;
+}
+
+export interface DashboardProviderSettingsInput {
+  assistant?: AssistantAgentSettings;
+  planner?: PlannerProviderSettings;
+}
+
+export interface DashboardProviderEnv {
+  SKFIY_ASSISTANT_AGENT?: string;
+  SKFIY_CODEX_BIN?: string;
+  SKFIY_CLAUDE_CODE_BIN?: string;
+  SKFIY_ASSISTANT_AGENT_CWD?: string;
+  SKFIY_ASSISTANT_AGENT_TIMEOUT_MS?: string;
+  SKFIY_PLANNER_MODE?: string;
+  SKFIY_EXTERNAL_CUA_ENDPOINT?: string;
+  SKFIY_EXTERNAL_CUA_API_KEY?: string;
 }
 
 export interface DashboardWorkspaceIo {
@@ -112,6 +139,8 @@ export interface DashboardWorkspaceSnapshotInput {
   descriptor: DashboardDescriptor;
   generatedAt?: string;
   io?: DashboardWorkspaceIo;
+  env?: DashboardProviderEnv;
+  providerSettings?: DashboardProviderSettingsInput;
 }
 
 export interface DashboardSnapshot {
@@ -129,6 +158,10 @@ export interface DashboardSnapshot {
   dogfoodRelease: Record<string, unknown>;
   longHorizon: Record<string, unknown>;
   alerts: Array<Record<string, unknown>>;
+  providers?: {
+    assistant?: Record<string, unknown>;
+    planner?: Record<string, unknown>;
+  };
 }
 
 export function createDashboardSnapshot({
@@ -139,7 +172,8 @@ export function createDashboardSnapshot({
   replay = { state: "empty" },
   smokeEvidence = { artifacts: [] },
   dogfoodRelease = { state: "unknown" },
-  longHorizon = { state: "unknown", session: "money-run" }
+  longHorizon = { state: "unknown", session: "money-run" },
+  providerSettings
 }: DashboardSnapshotInput): DashboardSnapshot {
   const permissions = readRecord(status.permissions) ?? createUnknownPermissions();
   const runtimeSnapshot = readRecord(status.runtimeSnapshot);
@@ -190,6 +224,7 @@ export function createDashboardSnapshot({
     },
     dogfoodRelease: cloneRecord(dogfoodRelease),
     longHorizon: cloneRecord(longHorizon),
+    ...(providerSettings ? { providers: createDashboardProviderSummaries(providerSettings) } : {}),
     alerts: createDashboardAlerts({
       permissions,
       runtimeHealth,
@@ -203,7 +238,9 @@ export function createDashboardWorkspaceSnapshot({
   rootDir,
   descriptor,
   generatedAt,
-  io = createDefaultDashboardWorkspaceIo()
+  io = createDefaultDashboardWorkspaceIo(),
+  env = process.env,
+  providerSettings
 }: DashboardWorkspaceSnapshotInput): DashboardSnapshot {
   const snapshotGeneratedAt = generatedAt ?? new Date().toISOString();
   const packageInfo = readPackageInfo(rootDir, io);
@@ -262,10 +299,112 @@ export function createDashboardWorkspaceSnapshot({
       artifacts: readLatestSmokeArtifacts(rootDir, snapshotGeneratedAt, io)
     },
     dogfoodRelease: readWorkspaceDogfoodRelease(rootDir, io),
-    longHorizon: readWorkspaceLongHorizon(io)
+    longHorizon: readWorkspaceLongHorizon(io),
+    providerSettings: providerSettings ?? readWorkspaceProviderSettings(env, rootDir)
   });
 
   return snapshot;
+}
+
+function readWorkspaceProviderSettings(
+  env: DashboardProviderEnv,
+  rootDir: string
+): DashboardProviderSettingsInput {
+  return {
+    assistant: readInitialAssistantAgentSettings(env, { cwd: rootDir }),
+    planner: readInitialPlannerProviderSettings(env)
+  };
+}
+
+function createDashboardProviderSummaries(
+  providerSettings: DashboardProviderSettingsInput
+): {
+  assistant?: Record<string, unknown>;
+  planner?: Record<string, unknown>;
+} {
+  return {
+    ...(providerSettings.assistant
+      ? { assistant: summarizeDashboardAssistantProvider(providerSettings.assistant) }
+      : {}),
+    ...(providerSettings.planner
+      ? { planner: summarizeDashboardPlannerProvider(providerSettings.planner) }
+      : {})
+  };
+}
+
+function summarizeDashboardAssistantProvider(
+  settings: AssistantAgentSettings
+): Record<string, unknown> {
+  const label = readAssistantProviderLabel(settings.mode);
+  const configured = settings.mode === "local"
+    || (settings.mode === "codex" && settings.codexBinary.trim().length > 0)
+    || (settings.mode === "claude-code" && settings.claudeCodeBinary.trim().length > 0);
+
+  return {
+    provider: "assistant",
+    mode: settings.mode,
+    label,
+    health: configured ? "available" : "unavailable",
+    detail: configured
+      ? `${label} assistant is selected.`
+      : `${label} assistant executable is not configured.`
+  };
+}
+
+function readAssistantProviderLabel(mode: AssistantAgentSettings["mode"]): string {
+  if (mode === "codex") {
+    return "Codex";
+  }
+  if (mode === "claude-code") {
+    return "Claude Code";
+  }
+
+  return "Local";
+}
+
+function summarizeDashboardPlannerProvider(
+  settings: PlannerProviderSettings
+): Record<string, unknown> {
+  const summary = summarizePlannerProviderSettings(settings);
+  const runtime = decidePlannerProviderRuntime(settings);
+  const available = runtime.decision !== "unavailable";
+
+  return {
+    provider: "planner",
+    mode: summary.mode,
+    label: readPlannerProviderLabel(summary.mode, summary.externalProviderLabel),
+    health: available ? "available" : "unavailable",
+    detail: readPlannerProviderDetail(runtime),
+    endpointConfigured: Boolean(summary.externalEndpoint),
+    externalApiKeyConfigured: summary.externalApiKeyConfigured
+  };
+}
+
+function readPlannerProviderLabel(
+  mode: PlannerProviderSettings["mode"],
+  externalProviderLabel: string
+): string {
+  if (mode === "local-deterministic") {
+    return "Local deterministic";
+  }
+  if (mode === "disabled") {
+    return "Disabled";
+  }
+
+  return externalProviderLabel;
+}
+
+function readPlannerProviderDetail(
+  runtime: ReturnType<typeof decidePlannerProviderRuntime>
+): string {
+  if (runtime.decision === "run-local-deterministic") {
+    return "Local deterministic planner is selected.";
+  }
+  if (runtime.decision === "run-external-cua") {
+    return "External CUA endpoint and API key are configured.";
+  }
+
+  return runtime.message;
 }
 
 function createOperatorReadiness({

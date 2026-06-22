@@ -879,21 +879,34 @@ function createSnapshotFromOptions(
   descriptor: DashboardDescriptor
 ): DashboardSnapshot {
   const { createSnapshot, rootDir, workspaceIo } = options;
+  const providerSettings = createDashboardSnapshotProviderSettings(options);
   let snapshot: DashboardSnapshot;
 
   if (createSnapshot) {
-    snapshot = createSnapshot({ descriptor });
+    snapshot = createSnapshot({ descriptor, providerSettings });
   } else if (rootDir) {
     snapshot = createDashboardWorkspaceSnapshot({
       rootDir,
       descriptor,
-      io: workspaceIo
+      io: workspaceIo,
+      providerSettings
     });
   } else {
-    snapshot = createDashboardSnapshot({ descriptor });
+    snapshot = createDashboardSnapshot({ descriptor, providerSettings });
   }
 
   return attachDashboardChromeControlActivity(snapshot, options.chromeControlActivityStore);
+}
+
+function createDashboardSnapshotProviderSettings(
+  options: DashboardHttpResponseOptions
+): DashboardSnapshotInput["providerSettings"] {
+  return {
+    assistant: options.assistantAgentSettings
+      ?? readInitialAssistantAgentSettings(process.env, { cwd: options.rootDir }),
+    planner: options.plannerProviderSettingsStore?.get()
+      ?? readInitialPlannerProviderSettings(process.env)
+  };
 }
 
 function parseDashboardRequestUrl(url: string | URL): URL {

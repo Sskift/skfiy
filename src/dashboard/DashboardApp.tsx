@@ -17,7 +17,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, Skeleton } from "@heroui/react";
 import { fetchDashboardSnapshot } from "./api";
-import type { DashboardSnapshot } from "./contracts";
+import type { DashboardProviderSummary, DashboardSnapshot } from "./contracts";
 import {
   readAlertMessages,
   readChromeControlState,
@@ -349,15 +349,18 @@ function DashboardContent({ snapshot }: { snapshot: DashboardSnapshot }) {
 function ProviderCard({
   provider
 }: {
-  provider: { label: string; mode: string; health: string; endpoint?: string; binaryPath?: string };
+  provider: DashboardProviderSummary;
 }) {
-  const detail = provider.endpoint ?? provider.binaryPath ?? provider.mode;
+  const description = provider.provider
+    ? `${provider.provider} · ${provider.mode}`
+    : provider.mode;
+  const detail = readProviderDetail(provider);
 
   return (
     <Card.Root className="skfiy-dashboard-card skfiy-dashboard-provider-card" variant="secondary">
       <Card.Header className="skfiy-dashboard-card-header">
         <div>
-          <Card.Description>{provider.mode}</Card.Description>
+          <Card.Description>{description}</Card.Description>
           <Card.Title>{provider.label}</Card.Title>
         </div>
         <Bot size={18} aria-hidden="true" />
@@ -367,9 +370,32 @@ function ProviderCard({
           <span>{detail}</span>
           <StatusChip tone={readHealthTone(provider.health)}>{provider.health}</StatusChip>
         </div>
+        {typeof provider.externalApiKeyConfigured === "boolean" ? (
+          <div className="skfiy-dashboard-inline-list">
+            <StatusChip tone={provider.externalApiKeyConfigured ? "success" : "warning"}>
+              {provider.externalApiKeyConfigured ? "api key configured" : "api key missing"}
+            </StatusChip>
+            {typeof provider.endpointConfigured === "boolean" ? (
+              <StatusChip tone={provider.endpointConfigured ? "success" : "warning"}>
+                {provider.endpointConfigured ? "endpoint configured" : "endpoint missing"}
+              </StatusChip>
+            ) : null}
+          </div>
+        ) : null}
       </Card.Content>
     </Card.Root>
   );
+}
+
+function readProviderDetail(provider: DashboardProviderSummary): string {
+  if (provider.detail) {
+    return provider.detail;
+  }
+  if (typeof provider.endpointConfigured === "boolean") {
+    return provider.endpointConfigured ? "endpoint configured" : "endpoint missing";
+  }
+
+  return provider.endpoint ?? provider.binaryPath ?? provider.mode;
 }
 
 function StatusRow({

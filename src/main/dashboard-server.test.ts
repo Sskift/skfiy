@@ -430,6 +430,19 @@ describe("dashboard loopback HTTP response helper", () => {
         externalApiKeyConfigured: true
       });
 
+      const configuredSnapshot = await readUrl(`${server.url}snapshot.json`);
+      expect(configuredSnapshot.status).toBe(200);
+      expect(configuredSnapshot.body).not.toContain("sk-secret");
+      const configuredSnapshotPayload = JSON.parse(configuredSnapshot.body);
+      expect(configuredSnapshotPayload.providers.planner).toMatchObject({
+        provider: "planner",
+        mode: "external-cua",
+        label: "OpenAI CUA",
+        health: "available",
+        endpointConfigured: true,
+        externalApiKeyConfigured: true
+      });
+
       const afterInvalidEndpoint = await requestUrl(`${server.url}api/provider-settings`, {
         method: "POST",
         body: JSON.stringify({

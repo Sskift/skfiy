@@ -12,11 +12,15 @@ export interface DashboardDescriptor {
 }
 
 export interface DashboardProviderSummary {
+  provider?: "assistant" | "planner" | string;
   mode: string;
   label: string;
   health: "available" | "unavailable" | "unknown" | string;
+  detail?: string;
   binaryPath?: string;
   endpoint?: string;
+  endpointConfigured?: boolean;
+  externalApiKeyConfigured?: boolean;
   timeoutMs?: number;
   lastError?: string;
 }

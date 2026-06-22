@@ -56,6 +56,104 @@ function createPageControlStatus({
 }
 
 describe("dashboard snapshot data", () => {
+  it("adds redacted provider readiness summaries to snapshot data", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      providerSettings: {
+        assistant: {
+          mode: "codex",
+          codexBinary: "/private/bin/codex-secret",
+          codexBinarySource: "env",
+          claudeCodeBinary: "claude",
+          claudeCodeBinarySource: "default",
+          cwd: "/repo?token=assistant-secret",
+          timeoutMs: 45_000
+        },
+        planner: {
+          mode: "external-cua",
+          externalProviderLabel: "OpenAI CUA",
+          externalEndpoint: "https://cua.example.test/plan?token=planner-secret",
+          externalApiKeyConfigured: true
+        }
+      }
+    });
+
+    expect(snapshot.providers).toEqual({
+      assistant: {
+        provider: "assistant",
+        mode: "codex",
+        label: "Codex",
+        health: "available",
+        detail: "Codex assistant is selected."
+      },
+      planner: {
+        provider: "planner",
+        mode: "external-cua",
+        label: "OpenAI CUA",
+        health: "available",
+        detail: "External CUA endpoint and API key are configured.",
+        endpointConfigured: true,
+        externalApiKeyConfigured: true
+      }
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("codex-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("assistant-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("planner-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("token=");
+  });
+
+  it("reads workspace provider settings from env without exposing raw env values", () => {
+    const snapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      env: {
+        SKFIY_ASSISTANT_AGENT: "claude",
+        SKFIY_CLAUDE_CODE_BIN: "/private/bin/claude-secret",
+        SKFIY_ASSISTANT_AGENT_CWD: "/repo?token=assistant-secret",
+        SKFIY_PLANNER_MODE: "external-cua",
+        SKFIY_EXTERNAL_CUA_ENDPOINT: "https://cua.example.test/plan?token=planner-secret",
+        SKFIY_EXTERNAL_CUA_API_KEY: "sk-secret"
+      },
+      io: {
+        exists: (targetPath) => targetPath === "/repo/package.json",
+        readFile: () => JSON.stringify({
+          name: "skfiy",
+          version: "0.1.0",
+          description: "Desktop Computer Use prototype"
+        }),
+        readdir: () => [],
+        stat: () => ({ mtimeMs: 0 }),
+        homeDir: () => undefined
+      }
+    });
+
+    expect(snapshot.providers).toEqual({
+      assistant: {
+        provider: "assistant",
+        mode: "claude-code",
+        label: "Claude Code",
+        health: "available",
+        detail: "Claude Code assistant is selected."
+      },
+      planner: {
+        provider: "planner",
+        mode: "external-cua",
+        label: "External CUA",
+        health: "available",
+        detail: "External CUA endpoint and API key are configured.",
+        endpointConfigured: true,
+        externalApiKeyConfigured: true
+      }
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("claude-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("assistant-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("planner-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("sk-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("token=");
+  });
+
   it("composes runtime, permission, replay, smoke, and long-horizon panels from read-only inputs", () => {
     const snapshot = createDashboardSnapshot({
       generatedAt: "2026-06-20T00:00:00.000Z",

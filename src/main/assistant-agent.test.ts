@@ -7,6 +7,17 @@ import {
 } from "./assistant-agent";
 
 describe("assistant agent provider", () => {
+  const baseSettings = {
+    mode: "local" as const,
+    codexBinary: "codex",
+    codexBinarySource: "default" as const,
+    claudeCodeBinary: "claude",
+    claudeCodeBinarySource: "default" as const,
+    cwd: "/tmp/skfiy",
+    timeoutMs: 45_000
+  };
+  const fixedNow = () => new Date("2026-06-22T10:00:00.000Z");
+
   it("defaults the pet background agent to the local fallback", () => {
     expect(readInitialAssistantAgentSettings({})).toEqual({
       mode: "local",
@@ -184,14 +195,125 @@ describe("assistant agent provider", () => {
         cwd: "/tmp/skfiy",
         timeoutMs: 45_000
       },
-      runProcess
-    })).resolves.toEqual({
+      runProcess,
+      now: fixedNow,
+      createTurnId: () => "turn-provider"
+    })).resolves.toMatchObject({
+      id: "turn-provider",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      status: "completed",
       providerLabel: "Codex",
-      message: "agent reply"
+      message: "agent reply",
+      route: {
+        kind: "chat",
+        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+      },
+      toolCalls: [],
+      cancellation: {
+        requested: false
+      }
     });
     expect(runProcess).toHaveBeenCalledWith("codex", expect.any(Array), {
       cwd: "/tmp/skfiy",
-      timeoutMs: 45_000
+      timeoutMs: 45_000,
+      signal: undefined
+    });
+  });
+
+  it("returns a structured local chat turn while preserving legacy message fields", async () => {
+    await expect(runAssistantAgentTurn("hello", {
+      settings: baseSettings,
+      now: fixedNow,
+      createTurnId: () => "turn-chat"
+    })).resolves.toEqual({
+      id: "turn-chat",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      status: "completed",
+      providerLabel: "Local",
+      message: "你好，我在。你可以直接说要我观察或操作哪个应用。",
+      route: {
+        kind: "chat",
+        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+      },
+      toolCalls: [],
+      cancellation: {
+        requested: false
+      }
+    });
+  });
+
+  it("records planned Computer Use evidence for desktop-control requests without running tools", async () => {
+    const command = "打开 Chrome 测试页面 file:///tmp/skfiy-chrome.html 并提取正文";
+
+    await expect(runAssistantAgentTurn(command, {
+      settings: baseSettings,
+      now: fixedNow,
+      createTurnId: () => "turn-desktop"
+    })).resolves.toMatchObject({
+      id: "turn-desktop",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      status: "completed",
+      providerLabel: "Local",
+      route: {
+        kind: "chrome",
+        bundleId: "com.google.Chrome"
+      },
+      toolCalls: [
+        {
+          id: "turn-desktop-tool-1",
+          type: "computer-use",
+          name: "desktop-control",
+          status: "planned",
+          createdAt: "2026-06-22T10:00:00.000Z",
+          input: {
+            command,
+            route: {
+              kind: "chrome",
+              bundleId: "com.google.Chrome"
+            }
+          }
+        }
+      ],
+      cancellation: {
+        requested: false
+      }
+    });
+  });
+
+  it("attaches structured failed turn details to provider failures", async () => {
+    const providerError = new Error("provider offline");
+    const runProcess = vi.fn(async () => {
+      throw providerError;
+    });
+
+    await expect(runAssistantAgentTurn("hello", {
+      settings: {
+        ...baseSettings,
+        mode: "codex"
+      },
+      runProcess,
+      now: fixedNow,
+      createTurnId: () => "turn-failed"
+    })).rejects.toMatchObject({
+      message: "provider offline",
+      turn: {
+        id: "turn-failed",
+        createdAt: "2026-06-22T10:00:00.000Z",
+        status: "failed",
+        providerLabel: "Codex",
+        message: "",
+        error: {
+          message: "provider offline"
+        },
+        route: {
+          kind: "chat",
+          reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+        },
+        toolCalls: [],
+        cancellation: {
+          requested: false
+        }
+      }
     });
   });
 });
