@@ -1,7 +1,7 @@
 # skfiy Product Readiness Matrix
 
 Updated: 2026-06-22
-Cleanup baseline commit: `d9b6c71`
+Cleanup baseline commit: `d97f542`
 
 This document is the supervisor-facing convergence checklist for the active
 agent and Computer Use work. It does not replace
@@ -106,18 +106,49 @@ local evidence, but it is not a published dogfood release yet.
 - money-run product-path smoke is not valid evidence yet. It timed out waiting
   for `approval_required` under the locked desktop session; keep it out of the
   alpha manifest until the product path passes.
-- After this cleanup commit, regenerate the alpha artifact from the final HEAD
-  before publishing or updating `docs/release-evidence/latest-alpha.json`.
+- Current local alpha evidence exists for `d97f542` and passes
+  `dogfood:verify --require-current-head`; do not publish or update
+  `docs/release-evidence/latest-alpha.json` until release ownership accepts the
+  blocker artifacts.
+
+## Subagent Convergence
+
+Four long-horizon subagent audits converged on the same boundary: the cleanup
+baseline is usable as a development starting point, but the product is not
+release-ready. The remaining blockers are split between manual desktop session
+authorization and product design gaps.
+
+- Agent and tool ownership: provider/tool planning is visible, but tool
+  execution still lives in `main.ts`. A real provider contract and
+  agent-owned executor must correlate `turnId`, `toolCallId`, approval,
+  cancellation, replay, and final tool result.
+- Dashboard parity: the React dashboard is the packaged product surface, but
+  fallback inline HTML still owns richer dogfood, release, replay, readiness,
+  Chrome policy, and action controls. React smoke must prove product content,
+  not just shell assets.
+- Release SRE: `d97f542` local alpha evidence is verifier-checkable, but
+  `latest-alpha.json` remains the old published `2e292e9`. Dashboard smoke is
+  not a first-class alpha manifest input yet, and `dogfood:status` cannot
+  produce a useful non-mutating status without a tracking issue/file.
+- Real Computer Use: pet drag/click/stop and Chrome CDP/native-host paths have
+  real evidence. Ghostty and Finder are blocked by locked/asleep desktop state,
+  and generic visible-app fallback remains product-design incomplete.
 
 | Priority | Workstream | Finding | First implementation package | Focused acceptance |
 | --- | --- | --- | --- | --- |
-| P0 | Agent and routing | Agent turns now emit provider/tool-plan evidence, but `main.ts` still ultimately owns direct Ghostty/Chrome/Finder execution. | Continue from the `assistant-tools` bridge into an agent-owned executor contract with cancellation, confirmation, and tool-result state. | Focused agent + orchestrator tests, then UI/Ghostty/Chrome/Finder packaged smokes when auth allows. |
-| P0 | Dashboard and settings | Packaged dashboard serves the React dashboard first, but the richer controls still live mostly in the fallback inline dashboard. | Move provider/settings/readiness/dogfood controls into `src/dashboard/*` and keep fallback only as degraded mode. | `npx vitest run src/dashboard/DashboardApp.test.tsx src/main/dashboard-server.test.ts --reporter=dot` |
+| P0 | Agent and routing | There is no real provider lifecycle contract yet: `configure`, `healthCheck`, `startTurn`, `cancelTurn`, and `toolCall` are not first-class. | Introduce an agent-owned Computer Use turn executor that starts replay before provider work, owns one abort signal, stores pending approval continuations by `{turnId, toolCallId}`, and writes tool results into replay/dashboard. | `npx vitest run src/main/assistant-agent.test.ts src/main/assistant-tools.test.ts src/main/task-routing.test.ts src/main/runtime-snapshot.test.ts src/main/computer-use/turn-replay-store.test.ts src/main/computer-use/turn-transcript.test.ts src/main/orchestrator/ghostty-task.test.ts src/main/orchestrator/chrome-task.test.ts src/main/orchestrator/finder-task.test.ts --reporter=dot` |
+| P0 | Agent and routing | Approval resume currently re-enters the command path, and default approval bypass can drop replay evidence. | Preserve a single turn/tool continuation through approval, denial, cancellation, bypass, and completion instead of re-running the command route. | Stop/approval focused tests plus UI smoke stop evidence. |
+| P0 | Dashboard and settings | Packaged dashboard serves React first, but richer controls still live mostly in fallback inline HTML; React lacks dogfood/release, detailed replay, and first-class Finder/Ghostty readiness lanes. | Move provider/settings/readiness/dogfood/replay/Chrome policy controls into `src/dashboard/*`; keep fallback only as degraded mode. | `npx vitest run src/dashboard/DashboardApp.test.tsx src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/main/dashboard-status.test.ts src/main/dashboard-evidence-summary.test.ts --reporter=dot` and `npm run smoke:dashboard -- --cli dist/skfiy --require-passed --output .skfiy-smoke/dashboard-<commit>.json` |
 | P0 | Dashboard and settings | Real provider settings are exposed via `/api/provider-settings` but not folded into `/snapshot.json` or the React dashboard state model. | Add provider settings summary to dashboard snapshot and render selectable provider/readiness details in React dashboard. | `npx vitest run src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot` |
 | P0 | Release and dogfood SRE | `docs/release-evidence/latest-alpha.json` still points to old published commit `2e292e9`; local alpha evidence can be regenerated for current HEAD, but is not published. | After the cleanup commit, regenerate current-head alpha evidence, run `dogfood:verify --require-current-head`, then publish/update latest-alpha only if release ownership accepts blocker artifacts. | `npm run dogfood:verify -- --manifest <current-alpha-manifest> --require-current-head` |
 | P0 | Release and dogfood SRE | Current machine evidence proves Chrome and UI, but Ghostty/Finder are blocked by locked/asleep desktop and money-run product path is not valid. | Record blocker artifacts first, then rerun strict smokes after the Mac is unlocked/awake and money-run product-path approval reaches the renderer. | `npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session-<commit>.json` plus strict smoke reruns |
+| P0 | Release and dogfood SRE | Dashboard smoke is not yet a first-class alpha manifest/verifier/status input, and `dogfood:status` fails fast without a tracking issue/file. | Add `dashboardSmokeArtifactPath` to alpha artifact, verifier, prepare, publish, and dogfood status flows; make missing tracking issue/file produce a clear non-mutating status artifact. | `npx vitest run src/main/alpha-artifact.test.ts src/main/alpha-github-release.test.ts src/main/dogfood-*.test.ts --reporter=dot` |
+| P0 | Computer Use adapters | Generic visible-app fallback is not a product route; unknown app requests clarify instead of using shared Computer Use primitives. | Route explicit generic visible-app requests through the shared executor, with screenshot/action/replay evidence and a new generic-app smoke. | `npx vitest run src/main/task-routing.test.ts src/main/computer-use/action-runner.test.ts src/main/computer-use/app-capabilities.test.ts --reporter=dot` |
+| P0 | Computer Use adapters | Safety/status states are not canonical: app-policy denial, user denial, blocked, confirmation, and failure collapse into mixed UI states. | Extend shared status contracts so confirmation, denied, blocked, failed, cancelled, and completed are distinct across adapter events, replay, dashboard, and pet UI. | `npx vitest run src/main/task-routing.test.ts src/shared/risk-policy.test.ts src/renderer/App.test.tsx --reporter=dot` |
 | P1 | Dashboard and settings | Chrome readiness is relatively complete, while Finder/Ghostty readiness are not first-class dashboard lanes. | Add readiness lane data and UI for Finder, Ghostty, and Chrome using existing smoke/runtime evidence. | `npx vitest run src/main/dashboard-data.test.ts src/main/dashboard-status.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot` |
+| P1 | Browser bridge | Chrome CDP/native-host evidence passes, but installed-extension action smoke is skipped without an extension id and screenshot fallback is not a complete action path. | Make extension action proof and screenshot fallback completion part of the Chrome smoke/readiness contract. | `npm run smoke:chrome -- --app dist/skfiy.app --extension-chrome-app "Chromium" --extension-id <id> --require-passed --output .skfiy-smoke/chrome-<commit>.json` |
 | P1 | Agent and routing | Route states lack first-class `confirmation` and `denial`; app-policy denial is surfaced as generic failure. | Extend route/status contracts so clarification, confirmation, denial, blocked, and failure are distinct. | `npx vitest run src/main/task-routing.test.ts src/main/app-policy-settings.test.ts --reporter=dot` |
+| P1 | Computer Use adapters | Workstream D calls for menu actions, but the current shared action schema has no menu primitive. | Add a menu action primitive only after the generic executor and safety/status model are in place. | Computer Use action schema tests plus a visible-app smoke case. |
 | P1 | Product boundary | “app-agnostic observe any visible app” can read as a full universal-app promise, while current real regression fixtures are Ghostty, Chromium/Chrome, and Finder. | Tighten docs so generic app support is described as capability direction/frontmost fallback, not a fully proven adapter set. | `npx vitest run src/main/plan-doc-status.test.ts --reporter=dot` plus boundary `rg` |
 | P1 | Product boundary | `transcript` can mean turn replay or obsolete audio transcription. | Use “turn replay transcript” for replay evidence in product-facing docs and keep “audio transcription” out of product claims. Existing code identifiers may remain `transcript` when the surrounding type/module is explicitly turn replay. | Boundary `rg -n "audio|dictation|input-method|transcript-entry|smoke:voice|transcription|transcript" README.md docs src` |
 
