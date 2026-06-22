@@ -89,6 +89,19 @@ describe("implementation plan status docs", () => {
     expect(combined).toContain("dist/skfiy");
   });
 
+  it("documents generic visible-app control as an unsupported product route", () => {
+    const readiness = readFileSync(
+      path.join(process.cwd(), "docs", "product-readiness-matrix.md"),
+      "utf8"
+    );
+
+    expect(readiness).toContain("Generic visible-app fallback is not a product route");
+    expect(readiness).toContain("Shared action-runner and app-capabilities are internal building blocks");
+    expect(readiness).not.toContain("generic visible apps");
+    expect(readiness).not.toContain("Route explicit generic visible-app requests through");
+    expect(readiness).not.toContain("app-agnostic observe any visible app");
+  });
+
   it("keeps the long plan focused on agent providers, dashboard, extension, CLI, and long-horizon testing", () => {
     const longPlan = readFileSync(longPlanPath, "utf8");
 

@@ -94,12 +94,17 @@ import { readDefaultApprovalBypass } from "./approval-bypass.js";
 type ManualMode = "active" | "quiet";
 type TaskStatus =
   | "idle"
+  | "planned"
   | "observing"
   | "executing"
+  | "running"
   | "approval_required"
   | "needs_confirmation"
   | "completed"
-  | "failed";
+  | "denied"
+  | "blocked"
+  | "failed"
+  | "cancelled";
 type PetWindowMode = "compact" | "expanded";
 type ComputerUseTaskEvent =
   | GhosttyTaskEvent
@@ -688,7 +693,7 @@ async function continueComputerUseTask({
     currentTaskId += 1;
     completeComputerUseToolCall(toolIdentity, createToolResult("blocked", appPolicy.reason));
     emitTaskEvent(window, {
-      status: "failed",
+      status: "blocked",
       message: appPolicy.reason,
       command
     });
@@ -731,7 +736,7 @@ async function continueComputerUseTask({
         createToolResult("blocked", `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`)
       );
       emitTaskEvent(window, {
-        status: "failed",
+        status: "blocked",
         message: `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`,
         command
       });
@@ -1260,7 +1265,7 @@ ipcMain.handle("skfiy:deny-task", async (event) => {
   currentTaskId += 1;
 
   emitTaskEvent(window, {
-    status: "idle",
+    status: approval ? "denied" : "idle",
     message: approval ? "Task denied." : "No task is waiting for approval.",
     ...(approval ? { command: approval.command } : {})
   });
@@ -1299,7 +1304,7 @@ ipcMain.handle("skfiy:stop-task", async (event) => {
   currentTaskId += 1;
 
   emitTaskEvent(window, {
-    status: "idle",
+    status: "cancelled",
     message: "Task stopped."
   });
 });

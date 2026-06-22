@@ -4,12 +4,17 @@ import type { CSSProperties } from "react";
 
 export type TaskStatusName =
   | "idle"
+  | "planned"
   | "observing"
   | "executing"
+  | "running"
   | "approval_required"
   | "needs_confirmation"
   | "completed"
-  | "failed";
+  | "denied"
+  | "blocked"
+  | "failed"
+  | "cancelled";
 
 export type PetAtlasState =
   | "idle"
@@ -100,12 +105,17 @@ export const PET_ATLAS = BUILT_IN_PET_SKINS[DEFAULT_PET_SKIN_ID];
 
 export const TASK_STATUS_TO_PET_STATE: Record<TaskStatusName, PetAtlasState> = {
   idle: "idle",
+  planned: "review",
   observing: "review",
   executing: "running",
+  running: "running",
   approval_required: "waiting",
   needs_confirmation: "waiting",
   completed: "waving",
-  failed: "failed"
+  denied: "review",
+  blocked: "waiting",
+  failed: "failed",
+  cancelled: "waving"
 };
 
 export function getPetStateForTask(status: TaskStatusName): PetAtlasState {

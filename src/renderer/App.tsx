@@ -35,12 +35,17 @@ import {
 
 export type TaskStatus =
   | "idle"
+  | "planned"
   | "observing"
   | "executing"
+  | "running"
   | "approval_required"
   | "needs_confirmation"
   | "completed"
-  | "failed";
+  | "denied"
+  | "blocked"
+  | "failed"
+  | "cancelled";
 
 export type ManualMode = "active" | "quiet";
 export type PetWindowMode = "compact" | "expanded";
@@ -57,6 +62,9 @@ export type TurnTranscriptOutcome =
   | "completed"
   | "approval_required"
   | "verification_failed"
+  | "denied"
+  | "blocked"
+  | "cancelled"
   | "failed"
   | "running";
 
@@ -314,6 +322,11 @@ const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: s
     message: "待命中.",
     pulse: "Tucked"
   },
+  planned: {
+    label: "Planned",
+    message: "已规划，等待执行.",
+    pulse: "Review"
+  },
   observing: {
     label: "Observing",
     message: "正在看桌面.",
@@ -322,6 +335,11 @@ const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: s
   executing: {
     label: "Executing",
     message: "正在执行.",
+    pulse: "Running"
+  },
+  running: {
+    label: "Running",
+    message: "正在运行.",
     pulse: "Running"
   },
   approval_required: {
@@ -339,10 +357,25 @@ const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: s
     message: "完成了.",
     pulse: "Waving"
   },
+  denied: {
+    label: "Denied",
+    message: "请求已拒绝，未执行动作.",
+    pulse: "Review"
+  },
+  blocked: {
+    label: "Blocked",
+    message: "环境阻塞，无法继续执行.",
+    pulse: "Blocked"
+  },
   failed: {
     label: "Failed",
     message: "执行失败.",
     pulse: "Fault"
+  },
+  cancelled: {
+    label: "Cancelled",
+    message: "任务已停止.",
+    pulse: "Stopped"
   }
 };
 
@@ -696,7 +729,9 @@ function readDesktopSessionPermissionState(
 
 function canStopTurn(status: TaskStatus): boolean {
   return (
-    status === "observing"
+    status === "planned"
+    || status === "running"
+    || status === "observing"
     || status === "executing"
     || status === "approval_required"
     || status === "needs_confirmation"
@@ -709,9 +744,12 @@ function getDashboardStatusCopy(task: TaskView): {
   tone: "success" | "warning" | "danger" | "neutral";
 } {
   switch (task.status) {
+    case "planned":
+      return { label: "任务已规划", detail: task.message, tone: "warning" };
     case "observing":
       return { label: "正在观察桌面", detail: task.message, tone: "warning" };
     case "executing":
+    case "running":
       return { label: "正在执行任务", detail: task.message, tone: "warning" };
     case "approval_required":
       return { label: "等待审批", detail: task.message, tone: "warning" };
@@ -719,8 +757,14 @@ function getDashboardStatusCopy(task: TaskView): {
       return { label: "需要人工确认", detail: task.message, tone: "warning" };
     case "completed":
       return { label: "任务已完成", detail: task.message, tone: "success" };
+    case "denied":
+      return { label: "请求已拒绝", detail: task.message, tone: "neutral" };
+    case "blocked":
+      return { label: "环境阻塞", detail: task.message, tone: "danger" };
     case "failed":
       return { label: "任务失败", detail: task.message, tone: "danger" };
+    case "cancelled":
+      return { label: "任务已停止", detail: task.message, tone: "neutral" };
     case "idle":
     default:
       return { label: "待命中", detail: task.message, tone: "neutral" };
@@ -828,15 +872,22 @@ function getRecentExecutionCopy(replay: TurnReplay | null): {
     completed: "已完成",
     approval_required: "等待审批",
     verification_failed: "需要确认",
+    denied: "已拒绝",
+    blocked: "环境阻塞",
+    cancelled: "已停止",
     failed: "失败",
     running: "进行中"
   };
   const tone =
     transcript.outcome === "completed"
       ? "success"
-      : transcript.outcome === "failed" || transcript.outcome === "verification_failed"
+      : transcript.outcome === "failed"
+        || transcript.outcome === "verification_failed"
+        || transcript.outcome === "blocked"
         ? "danger"
-        : "warning";
+        : transcript.outcome === "denied" || transcript.outcome === "cancelled"
+          ? "neutral"
+          : "warning";
 
   return {
     label: outcomeCopy[transcript.outcome],
@@ -1169,17 +1220,12 @@ export default function App() {
   }, [detailsOpen, refreshPermissions, refreshTurnReplay]);
 
   const stopCurrentTurn = useCallback(async () => {
-    if (
-      task.status === "observing"
-      || task.status === "executing"
-      || task.status === "approval_required"
-      || task.status === "needs_confirmation"
-    ) {
+    if (canStopTurn(task.status)) {
       setDetailsOpen(false);
       setAssistantPanelOpen(false);
       setTask({
-        status: "idle",
-        message: STATUS_COPY.idle.message
+        status: "cancelled",
+        message: STATUS_COPY.cancelled.message
       });
 
       try {

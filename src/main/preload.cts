@@ -4,12 +4,17 @@ type ManualMode = "active" | "quiet";
 type PetWindowMode = "compact" | "expanded";
 type TaskStatus =
   | "idle"
+  | "planned"
   | "observing"
   | "executing"
+  | "running"
   | "approval_required"
   | "needs_confirmation"
   | "completed"
-  | "failed";
+  | "denied"
+  | "blocked"
+  | "failed"
+  | "cancelled";
 type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 type DesktopSessionDiagnosticState = "controllable" | "blocked" | "unknown";
 type PermissionSettingsTarget =
@@ -23,6 +28,9 @@ type TurnTranscriptOutcome =
   | "completed"
   | "approval_required"
   | "verification_failed"
+  | "denied"
+  | "blocked"
+  | "cancelled"
   | "failed"
   | "running";
 
@@ -282,12 +290,17 @@ interface DesktopApi {
 
 const taskStatuses = new Set<TaskStatus>([
   "idle",
+  "planned",
   "observing",
   "executing",
+  "running",
   "approval_required",
   "needs_confirmation",
   "completed",
-  "failed"
+  "denied",
+  "blocked",
+  "failed",
+  "cancelled"
 ]);
 
 function isTaskEvent(value: unknown): value is TaskEvent {
@@ -656,6 +669,9 @@ function isTurnTranscriptOutcome(value: unknown): value is TurnTranscriptOutcome
     value === "completed"
     || value === "approval_required"
     || value === "verification_failed"
+    || value === "denied"
+    || value === "blocked"
+    || value === "cancelled"
     || value === "failed"
     || value === "running"
   );

@@ -2,11 +2,13 @@
 
 skfiy is an agent-first macOS Computer Use runtime with a pixel desktop pet,
 packaged CLI, local dashboard, and app adapters for local experiments. It is
-designed as an app-agnostic desktop control runtime: observe any visible macOS
-app, decide the next action, execute clicks/typing/dragging/hotkeys, then verify
-the result from screenshots, OCR, accessibility metadata, and replay events.
-Ghostty, Chromium/Chrome, Finder, screenshots, and tmux supervision are the
-first real regression fixtures, not the product boundary.
+designed around explicit, evidence-backed desktop routes: observe supported
+macOS app fixtures, decide the next action, execute clicks, typing, dragging,
+and hotkeys, then verify the result from screenshots, OCR, accessibility
+metadata, and replay events. Ghostty, Chromium/Chrome, Finder, screenshots, and
+tmux supervision are the current product routes; generic visible-app control
+remains a design direction until it has an adapter contract and real smoke
+evidence.
 
 The first version keeps the public surface narrow while the control loop is
 hardened: the desktop pet opens the background agent, app policy gates any

@@ -67,6 +67,21 @@ describe("selectCommandRoute", () => {
     });
   });
 
+  it("asks for clarification instead of routing unsupported visible-app requests", () => {
+    for (const command of [
+      "用 TextEdit 输入 hello",
+      "在 Safari 点击登录按钮",
+      "在 Slack 点击发送按钮",
+      "点当前屏幕可见按钮",
+      "观察当前可见 app"
+    ]) {
+      expect(selectCommandRoute(command)).toEqual({
+        kind: "needs_clarification",
+        reason: "Generic visible-app control is not a supported product route yet. Name Ghostty, Chrome/Chromium, Finder, or money-run supervision."
+      });
+    }
+  });
+
   it("keeps terminal commands on the Ghostty route", () => {
     expect(selectCommandRoute("打开 Ghostty 执行 pwd 并截图")).toEqual({
       kind: "ghostty",

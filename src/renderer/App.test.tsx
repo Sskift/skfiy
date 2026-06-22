@@ -606,6 +606,49 @@ describe("App", () => {
     }
   });
 
+  it("renders denied as a cancel-safe terminal state without approval controls", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({ status: "denied" }));
+
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Denied");
+    expect(screen.getByText("请求已拒绝，未执行动作.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "拒绝" })).not.toBeInTheDocument();
+  });
+
+  it("renders blocked as an environment blocker instead of a generic failure", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({ status: "blocked" }));
+
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Blocked");
+    expect(screen.getByText("环境阻塞，无法继续执行.")).toBeInTheDocument();
+  });
+
+  it("renders cancelled as a stopped task instead of idle or failed", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({ status: "cancelled" }));
+
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Cancelled");
+    expect(screen.getByText("任务已停止.")).toBeInTheDocument();
+  });
+
+  it("maps planned and running canonical statuses to non-idle pet animation", () => {
+    render(<App />);
+
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+
+    act(() => emitTaskEvent({ status: "planned" }));
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Planned");
+    expect(pet).not.toHaveAttribute("data-atlas-state", "idle");
+
+    act(() => emitTaskEvent({ status: "running" }));
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Running");
+    expect(pet).not.toHaveAttribute("data-atlas-state", "idle");
+  });
+
   it("does not show a focusable box around the pet", () => {
     render(<App />);
 
@@ -662,6 +705,8 @@ describe("App", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect((window.skfiy as DesktopApi).stopTask).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Cancelled");
+    expect(screen.getByText("任务已停止.")).toBeInTheDocument();
   });
 
   it("exposes approval controls when a command is waiting for approval", () => {

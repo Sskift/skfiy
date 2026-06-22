@@ -5,6 +5,8 @@ import { parseTerminalIntent } from "../shared/terminal-intent.js";
 export const GHOSTTY_BUNDLE_ID = "com.mitchellh.ghostty";
 export const CHROME_BUNDLE_ID = "com.google.Chrome";
 export const FINDER_BUNDLE_ID = "com.apple.finder";
+const GENERIC_VISIBLE_APP_CLARIFICATION_REASON =
+  "Generic visible-app control is not a supported product route yet. Name Ghostty, Chrome/Chromium, Finder, or money-run supervision.";
 
 export type CommandRoute =
   | { kind: "ghostty"; bundleId: typeof GHOSTTY_BUNDLE_ID }
@@ -36,6 +38,13 @@ export function selectCommandRoute(command: string): CommandRoute {
     return {
       kind: "finder",
       bundleId: FINDER_BUNDLE_ID
+    };
+  }
+
+  if (isUnsupportedVisibleAppControlRequest(command)) {
+    return {
+      kind: "needs_clarification",
+      reason: GENERIC_VISIBLE_APP_CLARIFICATION_REASON
     };
   }
 
@@ -121,4 +130,24 @@ function isMoneyRunSupervisionRequest(command: string): boolean {
   ].some((phrase) => normalized.includes(phrase));
 
   return mentionsTmuxContext && asksForSupervision;
+}
+
+function isUnsupportedVisibleAppControlRequest(command: string): boolean {
+  const normalized = command.trim().toLowerCase();
+  const asksForDesktopControl = /输入|点击|点|观察|查看|读取|截图|按|拖|滚动|\b(type|click|observe|watch|read|inspect|capture|press|drag|scroll)\b/u
+    .test(normalized);
+
+  if (!asksForDesktopControl) {
+    return false;
+  }
+
+  const namesSupportedApp = /\b(ghostty|chrome|chromium|finder)\b/u.test(normalized);
+  const namesUnsupportedApp = !namesSupportedApp
+    && /(?:用|在)\s+[a-z][a-z0-9 ._-]*\s*(?:输入|点击|点|观察|查看|读取|截图|按|拖|滚动)/u
+      .test(normalized);
+  const namesGenericVisibleTarget =
+    /\b(any|current|frontmost)\s+visible\s+(app|application|window|button)\b|\bvisible\s+(app|application)\b|当前屏幕可见|屏幕可见|当前可见\s*(app|应用|程序|窗口|按钮)?|可见\s*(app|应用|程序|窗口|按钮)|任意.*(app|应用|程序)/u
+      .test(normalized);
+
+  return namesUnsupportedApp || namesGenericVisibleTarget;
 }
