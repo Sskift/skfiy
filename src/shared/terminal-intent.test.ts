@@ -7,11 +7,11 @@ describe("parseTerminalIntent", () => {
     ["打开终端运行 date", "date"],
     ["在 ghostty 里执行 `ls -la`", "ls -la"],
     ["执行命令 whoami", "whoami"]
-  ])("extracts a terminal command from voice intent %j", (input, command) => {
+  ])("extracts a terminal command from an agent intent %j", (input, command) => {
     expect(parseTerminalIntent(input)).toEqual({
       ok: true,
       command,
-      source: "voice-intent"
+      source: "agent-intent"
     });
   });
 
@@ -26,18 +26,18 @@ describe("parseTerminalIntent", () => {
     }
   );
 
-  it("translates a narrow folder creation voice intent into mkdir", () => {
+  it("translates a narrow folder creation agent intent into mkdir", () => {
     expect(parseTerminalIntent("创建 skfiy-demo 文件夹")).toEqual({
       ok: true,
       command: "mkdir skfiy-demo",
-      source: "voice-intent"
+      source: "agent-intent"
     });
   });
 
   it("blocks unrecognized natural language instead of typing it into Ghostty", () => {
     expect(parseTerminalIntent("帮我整理一下桌面")).toEqual({
       ok: false,
-      reason: "Could not identify a terminal command in the voice request."
+      reason: "Could not identify a terminal command in the agent request."
     });
   });
 });

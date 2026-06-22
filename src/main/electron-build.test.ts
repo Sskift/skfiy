@@ -123,10 +123,10 @@ describe("Electron build wiring", () => {
     );
 
     expect(packageJson.name).toBe("skfiy");
-    expect(packagingScript).toContain('setInfoPlistString(current, "CFBundleExecutable", "skfiy")');
+    expect(packagingScript).toContain('setInfoPlistString(withoutObsoleteAudioPermissions, "CFBundleExecutable", "skfiy")');
     expect(packagingScript).toContain('setInfoPlistString(withExecutable, "CFBundleIdentifier", BUNDLE_IDENTIFIER)');
-    expect(packagingScript).toContain('"CFBundleName",\n          "skfiy"');
-    expect(packagingScript).toContain('"CFBundleDisplayName",\n        "skfiy"');
+    expect(packagingScript).toContain('"CFBundleName",\n      "skfiy"');
+    expect(packagingScript).toContain('"CFBundleDisplayName",\n    "skfiy"');
     expect(packagingScript).toContain('name: "skfiy"');
     expect(packagingScript).toContain('path.join(plan.appBundlePath, "Contents", "MacOS", "Electron")');
     expect(packagingScript).toContain("await fs.rename(electronExecutablePath, plan.bundledExecutablePath)");
@@ -143,17 +143,18 @@ describe("Electron build wiring", () => {
     expect(mainSource).toContain('app.setName("skfiy")');
   });
 
-  it("adds microphone and speech usage descriptions to the packaged app identity", () => {
+  it("removes obsolete voice permission usage descriptions from the packaged app identity", () => {
     const packagingScript = readFileSync(
       path.join(process.cwd(), "scripts/package-macos-app.mjs"),
       "utf8"
     );
 
-    expect(packagingScript).toContain("NSMicrophoneUsageDescription");
-    expect(packagingScript).toContain("NSSpeechRecognitionUsageDescription");
+    expect(packagingScript).toContain('removeInfoPlistString(current, "NSMicrophoneUsageDescription")');
+    expect(packagingScript).toContain('removeInfoPlistString(');
+    expect(packagingScript).toContain('"NSSpeechRecognitionUsageDescription"');
   });
 
-  it("embeds microphone and speech usage descriptions into the Swift helper identity", () => {
+  it("keeps the Swift helper identity free of voice permission usage descriptions", () => {
     const packageManifest = readFileSync(
       path.join(process.cwd(), "macos-helper/Package.swift"),
       "utf8"
@@ -165,10 +166,11 @@ describe("Electron build wiring", () => {
 
     expect(packageManifest).toContain("__info_plist");
     expect(packageManifest).toContain("Sources/skfiy-helper/Info.plist");
+    expect(packageManifest).not.toContain('linkedFramework("Speech")');
     expect(helperInfoPlist).toContain("<key>CFBundleIdentifier</key>");
     expect(helperInfoPlist).toContain("<string>com.sskift.skfiy</string>");
-    expect(helperInfoPlist).toContain("<key>NSMicrophoneUsageDescription</key>");
-    expect(helperInfoPlist).toContain("<key>NSSpeechRecognitionUsageDescription</key>");
+    expect(helperInfoPlist).not.toContain("<key>NSMicrophoneUsageDescription</key>");
+    expect(helperInfoPlist).not.toContain("<key>NSSpeechRecognitionUsageDescription</key>");
   });
 
   it("inserts new Info.plist strings at the root dictionary instead of nested dictionaries", async () => {
@@ -192,12 +194,12 @@ describe("Electron build wiring", () => {
 
     const next = packaging.setInfoPlistString(
       plist,
-      "NSSpeechRecognitionUsageDescription",
-      "speech"
+      "LSMinimumSystemVersion",
+      "13.0"
     );
 
     expect(next).toContain(
-      "<key>hash</key>\n\t\t<string>abc</string>\n\t</dict>\n\t<key>NSSpeechRecognitionUsageDescription</key>"
+      "<key>hash</key>\n\t\t<string>abc</string>\n\t</dict>\n\t<key>LSMinimumSystemVersion</key>"
     );
   });
 });

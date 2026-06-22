@@ -33,6 +33,37 @@ const CUSTOM_MANIFEST: PetAtlasManifest = {
   }
 };
 
+const ANIMATED_RASTER_MANIFEST: PetAtlasManifest = {
+  ...CUSTOM_MANIFEST,
+  slug: "animated-local-cat",
+  asset: "file:///Users/example/Library/Application%20Support/skfiy/skins/cat/origin.webp",
+  frameWidth: 144,
+  frameHeight: 128,
+  columns: 1,
+  rows: 1,
+  rendering: {
+    mode: "animated-raster",
+    ambientMotion: false,
+    failureShake: false
+  },
+  layout: {
+    hitboxWidth: 144,
+    hitboxHeight: 128,
+    visualScale: 1
+  },
+  states: {
+    idle: { row: 0, frames: 1, frameMs: 100 },
+    "running-right": { row: 0, frames: 1, frameMs: 100 },
+    "running-left": { row: 0, frames: 1, frameMs: 100 },
+    waving: { row: 0, frames: 1, frameMs: 100 },
+    jumping: { row: 0, frames: 1, frameMs: 100 },
+    failed: { row: 0, frames: 1, frameMs: 100 },
+    waiting: { row: 0, frames: 1, frameMs: 100 },
+    running: { row: 0, frames: 1, frameMs: 100 },
+    review: { row: 0, frames: 1, frameMs: 100 }
+  }
+};
+
 function createMemoryStorage(): Storage {
   const values = new Map<string, string>();
 
@@ -76,6 +107,29 @@ describe("pet atlas", () => {
     expect(style["--pet-atlas-url"]).toContain(CUSTOM_MANIFEST.asset);
     expect(style["--pet-y"]).toBe("100%");
     expect(style["--pet-steps"]).toBe("5");
+  });
+
+  it("lets animated raster skins keep native image animation instead of sprite stepping", () => {
+    const atlas = resolvePetAtlas({
+      selectedSkinId: ANIMATED_RASTER_MANIFEST.slug,
+      customManifest: ANIMATED_RASTER_MANIFEST
+    });
+    const style = getPetSpriteStyle("idle", atlas);
+
+    expect(isPetAtlasManifest(ANIMATED_RASTER_MANIFEST)).toBe(true);
+    expect(atlas.rendering).toEqual({
+      mode: "animated-raster",
+      ambientMotion: false,
+      failureShake: false
+    });
+    expect(style["--pet-atlas-animation-name"]).toBe("none");
+    expect(style["--pet-motion-animation-name"]).toBe("none");
+    expect(style["--pet-failed-animation-name"]).toBe("none");
+    expect(style["--pet-hitbox-width"]).toBe("144px");
+    expect(style["--pet-hitbox-height"]).toBe("128px");
+    expect(style["--pet-visual-scale"]).toBe("1");
+    expect(style["--pet-bg-width"]).toBe("100%");
+    expect(style["--pet-bg-height"]).toBe("100%");
   });
 
   it("reads a user-selected custom skin from storage when the manifest is complete", () => {

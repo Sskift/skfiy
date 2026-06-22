@@ -749,15 +749,12 @@ describe("dogfood cohort verifier", () => {
       permissionStates: {
         screenRecording: { state: result === "passed" ? "granted" : "denied" },
         accessibility: { state: result === "passed" ? "granted" : "denied" },
-        microphone: { state: result === "passed" ? "granted" : "not-determined" },
-        speechRecognition: { state: result === "passed" ? "granted" : "not-determined" }
       },
       artifacts: {
         uiSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-ui.json`,
         ghosttySmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-ghostty.json`,
         chromeSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-chrome.json`,
         finderSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-finder.json`,
-        voiceSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-voice.json`
       },
       uiPetDragEvidence: {
         result: "passed",

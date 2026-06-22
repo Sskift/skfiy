@@ -20,7 +20,6 @@ let package = Package(
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("CoreGraphics"),
                 .linkedFramework("IOKit"),
-                .linkedFramework("Speech"),
                 .linkedFramework("Vision"),
                 .unsafeFlags([
                     "-Xlinker", "-sectcreate",

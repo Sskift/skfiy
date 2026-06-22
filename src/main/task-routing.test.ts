@@ -74,17 +74,26 @@ describe("selectCommandRoute", () => {
     });
   });
 
-  it("keeps direct shell commands on the Ghostty route", () => {
-    expect(selectCommandRoute("pbpaste")).toEqual({
+  it("does not treat bare shell text from the pet as a Ghostty task", () => {
+    for (const command of ["pbpaste", "pwd", "执行 pwd"]) {
+      expect(selectCommandRoute(command)).toEqual({
+        kind: "needs_clarification",
+        reason: "No supported desktop control route matched this request."
+      });
+    }
+  });
+
+  it("still routes terminal work to Ghostty when the target app is explicit", () => {
+    expect(selectCommandRoute("在 Ghostty 执行 pwd")).toEqual({
       kind: "ghostty",
       bundleId: "com.mitchellh.ghostty"
     });
   });
 
-  it("keeps narrow file-creation voice commands on the Ghostty route", () => {
+  it("does not create files through shell when no target app is named", () => {
     expect(selectCommandRoute("创建 skfiy-demo 文件夹")).toEqual({
-      kind: "ghostty",
-      bundleId: "com.mitchellh.ghostty"
+      kind: "needs_clarification",
+      reason: "No supported desktop control route matched this request."
     });
   });
 
@@ -93,6 +102,15 @@ describe("selectCommandRoute", () => {
       kind: "chat",
       reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
     });
+  });
+
+  it("routes short greetings away from the direct terminal command path", () => {
+    for (const greeting of ["hello", "hi", "你好", "哈喽"]) {
+      expect(selectCommandRoute(greeting)).toEqual({
+        kind: "chat",
+        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+      });
+    }
   });
 
   it("asks for clarification when the requested app or action is not supported yet", () => {

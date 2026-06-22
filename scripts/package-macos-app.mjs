@@ -173,23 +173,19 @@ function createRuntimePackageJson(rootDir) {
 
 async function rewriteInfoPlist(infoPlistPath) {
   const current = await fs.readFile(infoPlistPath, "utf8");
-  const withExecutable = setInfoPlistString(current, "CFBundleExecutable", "skfiy");
+  const withoutObsoleteAudioPermissions = removeInfoPlistString(
+    removeInfoPlistString(current, "NSMicrophoneUsageDescription"),
+    "NSSpeechRecognitionUsageDescription"
+  );
+  const withExecutable = setInfoPlistString(withoutObsoleteAudioPermissions, "CFBundleExecutable", "skfiy");
   const next = setInfoPlistString(
     setInfoPlistString(
-      setInfoPlistString(
-        setInfoPlistString(
-          setInfoPlistString(withExecutable, "CFBundleIdentifier", BUNDLE_IDENTIFIER),
-          "CFBundleName",
-          "skfiy"
-        ),
-        "CFBundleDisplayName",
-        "skfiy"
-      ),
-      "NSMicrophoneUsageDescription",
-      "skfiy needs microphone access for local voice command recognition."
+      setInfoPlistString(withExecutable, "CFBundleIdentifier", BUNDLE_IDENTIFIER),
+      "CFBundleName",
+      "skfiy"
     ),
-    "NSSpeechRecognitionUsageDescription",
-    "skfiy needs speech recognition access to transcribe local voice commands."
+    "CFBundleDisplayName",
+    "skfiy"
   );
 
   await fs.writeFile(infoPlistPath, next);
@@ -207,6 +203,12 @@ export function setInfoPlistString(plist, key, value) {
     /<\/dict>\s*<\/plist>\s*$/,
     `\t<key>${key}</key>\n\t<string>${escapeXml(value)}</string>\n</dict>\n</plist>\n`
   );
+}
+
+export function removeInfoPlistString(plist, key) {
+  const escapedKey = escapeRegExp(key);
+  const pattern = new RegExp(`\\s*<key>${escapedKey}</key>\\s*<string>[^<]*</string>`, "g");
+  return plist.replace(pattern, "");
 }
 
 function assertPathExists(targetPath, label) {

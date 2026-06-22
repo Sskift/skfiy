@@ -20,8 +20,7 @@ const DOGFOOD_SMOKE_ARTIFACT_SECTIONS = [
   ["uiSmokeArtifactPath", "UI smoke artifact"],
   ["ghosttySmokeArtifactPath", "smoke artifact"],
   ["chromeSmokeArtifactPath", "Chrome smoke artifact"],
-  ["finderSmokeArtifactPath", "Finder smoke artifact"],
-  ["voiceSmokeArtifactPath", "voice smoke artifact"]
+  ["finderSmokeArtifactPath", "Finder smoke artifact"]
 ];
 
 export function createDefaultDogfoodReportOptions(rootDir = DEFAULT_ROOT_DIR) {
@@ -178,8 +177,7 @@ export async function createDogfoodReportFromManifest(options, io = createDefaul
     ui: await io.readJson(smokePaths.uiSmokeArtifactPath),
     ghostty: await io.readJson(smokePaths.ghosttySmokeArtifactPath),
     chrome: await io.readJson(smokePaths.chromeSmokeArtifactPath),
-    finder: await io.readJson(smokePaths.finderSmokeArtifactPath),
-    voice: await io.readJson(smokePaths.voiceSmokeArtifactPath)
+    finder: await io.readJson(smokePaths.finderSmokeArtifactPath)
   };
   validateSmokeArtifactPaths(smokeArtifacts, smokePaths);
   validateNoLockedDesktopPreflight(smokeArtifacts);
@@ -225,7 +223,7 @@ export function createDogfoodReportHelpText() {
     "Use --issue-url to link the generated report to the accepted GitHub dogfood issue.",
     "dogfood:report requires a readable accepted issue body from gh issue view.",
     "testerId, workflows, smoke artifact paths, alpha identity, and labels are read from GitHub by default.",
-    "The issue body must include all five issue smoke artifact paths.",
+    "The issue body must include the required issue smoke artifact paths.",
     "The issue body must include app bundle preflight evidence matching the UI smoke artifact appPath, launch, appLaunchViaOpen, runnerHasTmux, and productPath.",
     "The issue body must include UI pet drag evidence matching the UI smoke artifact petDrag window-bounds proof.",
     "The issue body must include panic stop evidence matching runtimeStatus.stopTurnHotkey from the smoke artifacts.",
@@ -266,7 +264,6 @@ function validateSmokeArtifactPaths(smokeArtifacts, smokePaths) {
   validateSmokeArtifactPath("Ghostty smoke artifact", smokeArtifacts.ghostty, smokePaths.ghosttySmokeArtifactPath);
   validateSmokeArtifactPath("Chrome smoke artifact", smokeArtifacts.chrome, smokePaths.chromeSmokeArtifactPath);
   validateSmokeArtifactPath("Finder smoke artifact", smokeArtifacts.finder, smokePaths.finderSmokeArtifactPath);
-  validateSmokeArtifactPath("voice smoke artifact", smokeArtifacts.voice, smokePaths.voiceSmokeArtifactPath);
 }
 
 function validateSmokeArtifactPath(label, artifact, expectedPath) {
@@ -645,9 +642,6 @@ function chooseReportResult(results) {
   if (results.includes("needs-user-confirmation")) {
     return "needs-user-confirmation";
   }
-  if (results.includes("no-transcript")) {
-    return "no-transcript";
-  }
   if (results.includes("sensitive-paused")) {
     return "sensitive-paused";
   }
@@ -665,23 +659,15 @@ function readPermissionStates(smokeArtifacts) {
 
   return {
     screenRecording: { state: "unknown" },
-    accessibility: { state: "unknown" },
-    microphone: readSpeechPermission(smokeArtifacts.voice?.speechStatus?.microphone),
-    speechRecognition: readSpeechPermission(smokeArtifacts.voice?.speechStatus?.speechRecognition)
+    accessibility: { state: "unknown" }
   };
-}
-
-function readSpeechPermission(status) {
-  return typeof status?.state === "string" ? { state: status.state } : { state: "unknown" };
 }
 
 function hasPermissionStateObject(value) {
   return Boolean(value)
     && typeof value === "object"
     && typeof value.screenRecording?.state === "string"
-    && typeof value.accessibility?.state === "string"
-    && typeof value.microphone?.state === "string"
-    && typeof value.speechRecognition?.state === "string";
+    && typeof value.accessibility?.state === "string";
 }
 
 function createCollectionSummary(reports) {
@@ -755,7 +741,7 @@ function hasRequiredPermissionStates(value) {
     return false;
   }
 
-  return ["screenRecording", "accessibility", "microphone", "speechRecognition"].every((key) =>
+  return ["screenRecording", "accessibility"].every((key) =>
     typeof value[key]?.state === "string" && value[key].state.length > 0
   );
 }

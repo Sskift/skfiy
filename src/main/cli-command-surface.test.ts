@@ -82,7 +82,7 @@ describe("CLI command surface", () => {
       "dashboard",
       "dashboard status",
       "dashboard snapshot",
-      "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
+      "permissions open <screen-recording|accessibility|automation-finder>",
       "chrome status",
       "chrome extension-info",
       "chrome tabs",
@@ -107,7 +107,6 @@ describe("CLI command surface", () => {
       "smoke dashboard",
       "smoke codex-plugin",
       "smoke finder",
-      "smoke voice",
       "smoke money-run",
       "release check",
       "alpha artifact"
@@ -269,7 +268,7 @@ describe("CLI command surface", () => {
         outputShape: "dashboard-snapshot"
       }),
       expect.objectContaining({
-        path: "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
+        path: "permissions open <screen-recording|accessibility|automation-finder>",
         summary: "Open the matching macOS Privacy & Security permission settings panel.",
         plannedMutation: true,
         executesSystemMutation: true,
@@ -284,7 +283,6 @@ describe("CLI command surface", () => {
       "dashboard",
       "codex-plugin",
       "finder",
-      "voice",
       "money-run"
     ]);
   });
@@ -407,8 +405,6 @@ describe("CLI command surface", () => {
       permissions: {
         screenRecording: "unknown",
         accessibility: "unknown",
-        microphone: "unknown",
-        speechRecognition: "unknown",
         finderAutomation: "unknown"
       },
       desktopSession: { state: "unknown" },
@@ -837,18 +833,6 @@ describe("CLI command surface", () => {
         guidance: "Grant skfiy Accessibility access."
       },
       {
-        target: "microphone",
-        label: "Microphone",
-        anchor: "Privacy_Microphone",
-        guidance: "Grant skfiy Microphone access."
-      },
-      {
-        target: "speech-recognition",
-        label: "Speech Recognition",
-        anchor: "Privacy_SpeechRecognition",
-        guidance: "Grant skfiy Speech Recognition access."
-      },
-      {
         target: "automation-finder",
         label: "Automation",
         anchor: "Privacy_Automation",
@@ -1008,6 +992,50 @@ describe("CLI command surface", () => {
       states: {
         idle: { row: 0, frames: 1, frameMs: 170 },
         review: { row: 0, frames: 1, frameMs: 135 }
+      }
+    });
+  });
+
+  it("marks imported animated raster skins so Chromium keeps the source animation", async () => {
+    const homeDir = createTempRoot();
+    const rootDir = createTempRoot();
+    const sourcePath = path.join(rootDir, "luoxiaohei-local.webp");
+    writeFileSync(sourcePath, "fake animated webp");
+    const stdout = { write: vi.fn() };
+    const stderr = { write: vi.fn() };
+
+    const exitCode = await runSkfiyCli({
+      argv: [
+        "skin",
+        "import",
+        "--source",
+        sourcePath,
+        "--slug",
+        "luoxiaohei-local",
+        "--json"
+      ],
+      rootDir,
+      homeDir,
+      stdout,
+      stderr
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr.write).not.toHaveBeenCalled();
+    const output = JSON.parse(String(stdout.write.mock.calls[0][0]));
+    const manifest = JSON.parse(readFileSync(output.manifestPath, "utf8"));
+    expect(manifest).toMatchObject({
+      asset: expect.stringMatching(/origin\.webp$/),
+      rendering: {
+        mode: "animated-raster",
+        ambientMotion: false,
+        failureShake: false
+      },
+      columns: 1,
+      rows: 1,
+      states: {
+        idle: { frames: 1 },
+        review: { frames: 1 }
       }
     });
   });
@@ -1334,8 +1362,6 @@ describe("CLI command surface", () => {
           permissions: {
             screenRecording: "granted",
             accessibility: "granted",
-            microphone: "unknown",
-            speechRecognition: "unknown",
             finderAutomation: "unknown"
           },
           desktopSession: { state: "controllable" },
@@ -1465,8 +1491,6 @@ describe("CLI command surface", () => {
         permissions: {
           screenRecording: "unknown",
           accessibility: "unknown",
-          microphone: "unknown",
-          speechRecognition: "unknown",
           finderAutomation: "unknown"
         },
         desktopSession: { state: "unknown" },
@@ -1510,8 +1534,6 @@ describe("CLI command surface", () => {
       permissions: {
         screenRecording: "granted",
         accessibility: "granted",
-        microphone: "granted",
-        speechRecognition: "granted",
         finderAutomation: "granted"
       },
       desktopSession: { state: "controllable", controllable: true },
@@ -1614,8 +1636,6 @@ describe("CLI command surface", () => {
       permissions: {
         screenRecording: "granted",
         accessibility: "granted",
-        microphone: "granted",
-        speechRecognition: "granted",
         finderAutomation: "granted"
       },
       desktopSession: { state: "controllable", controllable: true },
@@ -1746,8 +1766,6 @@ describe("CLI command surface", () => {
       permissions: {
         screenRecording: "granted",
         accessibility: "granted",
-        microphone: "granted",
-        speechRecognition: "granted",
         finderAutomation: "granted"
       },
       desktopSession: { state: "controllable", controllable: true },
@@ -1858,8 +1876,6 @@ describe("CLI command surface", () => {
           permissions: {
             screenRecording: "granted",
             accessibility: "granted",
-            microphone: "denied",
-            speechRecognition: "not-determined",
             finderAutomation: "unknown"
           },
           desktopSession: {
@@ -1938,8 +1954,6 @@ describe("CLI command surface", () => {
       permissions: {
         screenRecording: "granted",
         accessibility: "granted",
-        microphone: "denied",
-        speechRecognition: "not-determined",
         finderAutomation: "unknown"
       },
       desktopSession: {
@@ -2015,8 +2029,6 @@ describe("CLI command surface", () => {
       permissions: {
         screenRecording: "granted",
         accessibility: "granted",
-        microphone: "granted",
-        speechRecognition: "granted",
         finderAutomation: "granted"
       },
       desktopSession: {
@@ -2258,8 +2270,6 @@ describe("CLI command surface", () => {
       permissions: {
         screenRecording: "granted",
         accessibility: "granted",
-        microphone: "granted",
-        speechRecognition: "granted",
         finderAutomation: "granted"
       },
       desktopSession: {
@@ -2468,8 +2478,6 @@ describe("CLI command surface", () => {
       permissions: {
         screenRecording: "granted",
         accessibility: "granted",
-        microphone: "granted",
-        speechRecognition: "granted",
         finderAutomation: "granted"
       },
       desktopSession: {
@@ -2652,8 +2660,6 @@ describe("CLI command surface", () => {
           permissions: {
             screenRecording: "granted",
             accessibility: "granted",
-            microphone: "granted",
-            speechRecognition: "granted",
             finderAutomation: "granted"
           },
           desktopSession: {
@@ -2825,8 +2831,6 @@ describe("CLI command surface", () => {
         permissions: {
           screenRecording: "unknown",
           accessibility: "unknown",
-          microphone: "unknown",
-          speechRecognition: "unknown",
           finderAutomation: "unknown"
         },
         desktopSession: { state: "unknown" },
@@ -2880,8 +2884,6 @@ describe("CLI command surface", () => {
         permissions: {
           screenRecording: "granted",
           accessibility: "granted",
-          microphone: "unknown",
-          speechRecognition: "unknown",
           finderAutomation: "unknown"
         },
         desktopSession: { state: "controllable", controllable: true },
@@ -2948,8 +2950,6 @@ describe("CLI command surface", () => {
           permissions: {
             screenRecording: "denied",
             accessibility: "not-determined",
-            microphone: "granted",
-            speechRecognition: "not-determined",
             finderAutomation: "unknown"
           },
           desktopSession: {
@@ -3154,8 +3154,6 @@ describe("CLI command surface", () => {
         permissions: {
           screenRecording: "granted",
           accessibility: "granted",
-          microphone: "granted",
-          speechRecognition: "granted",
           finderAutomation: "unknown"
         },
         desktopSession: {
@@ -3337,8 +3335,6 @@ describe("CLI command surface", () => {
           permissions: {
             screenRecording: "granted",
             accessibility: "granted",
-            microphone: "granted",
-            speechRecognition: "granted",
             finderAutomation: "unknown"
           },
           desktopSession: {

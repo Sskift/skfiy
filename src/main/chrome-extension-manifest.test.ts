@@ -33,12 +33,12 @@ describe("Chrome extension adapter skeleton", () => {
       type: "module"
     });
     expect(manifest.action).toMatchObject({ default_popup: "popup.html" });
-    expect(manifest.version).toBe("0.0.8");
+    expect(manifest.version).toBe("0.0.16");
     expect(manifest.permissions).toEqual(
       expect.arrayContaining(["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"])
     );
     expect(manifest.host_permissions ?? []).toEqual([]);
-    expect(manifest.optional_host_permissions).toEqual(expect.arrayContaining(["http://*/*", "https://*/*"]));
+    expect(manifest.optional_host_permissions).toEqual(expect.arrayContaining(["http://*/*", "https://*/*", "<all_urls>"]));
 
     const background = readExtensionFile("background.js");
     const contentScript = readExtensionFile("content-script.js");

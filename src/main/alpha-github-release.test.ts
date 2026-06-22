@@ -198,7 +198,6 @@ describe("GitHub alpha release publisher", () => {
         ghostty: ".skfiy-smoke/ghostty-abcdef1.json",
         chrome: ".skfiy-smoke/chrome-abcdef1.json",
         finder: ".skfiy-smoke/finder-abcdef1.json",
-        voice: ".skfiy-smoke/voice-abcdef1.json",
         moneyRun: ".skfiy-smoke/money-run-abcdef1.json"
       },
       dogfoodStatus: "waiting-for-dogfood",
@@ -380,7 +379,6 @@ function createManifest() {
     smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abcdef1.json",
     chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abcdef1.json",
     finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
-    voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-abcdef1.json",
     moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-abcdef1.json",
     requiredDogfoodEvidence: [
       "Panic stop product-path behavior evidence",

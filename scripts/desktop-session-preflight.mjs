@@ -11,9 +11,7 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 const LOGINWINDOW_BUNDLE_ID = "com.apple.loginwindow";
 const BLACK_PIXEL_THRESHOLD = 8;
 const NON_BLACK_RATIO_THRESHOLD = 0.002;
-const DEFAULT_EXTERNAL_DOUBAO_REQUIRED_PERMISSIONS = ["screenRecording", "accessibility"];
-const NON_AUTHORITATIVE_APP_SCOPED_PERMISSION_CHECKS = ["speechRecognition"];
-const APP_SCOPED_SPEECH_RECOGNITION_SOURCE = "smoke:ui permissionDiagnostics.active";
+const COMPUTER_USE_REQUIRED_PERMISSIONS = ["screenRecording", "accessibility"];
 
 export function createDefaultDesktopSessionPreflightOptions(rootDir) {
   const appPath = path.join(rootDir, "dist", "skfiy.app");
@@ -99,11 +97,8 @@ export async function runDesktopSessionPreflight(options, io = defaultIo) {
     productPath: "packaged helper -> permissions-status/desktop-session-status/screenshot",
     permissionProbe: {
       scope: "direct-helper",
-      speechRecognitionStatusSource: "direct-helper",
-      appScopedSpeechRecognitionStatusSource: APP_SCOPED_SPEECH_RECOGNITION_SOURCE,
-      defaultExternalDoubaoRequiredPermissions: DEFAULT_EXTERNAL_DOUBAO_REQUIRED_PERMISSIONS,
-      nonAuthoritativeForAppScopedPermissionChecks: NON_AUTHORITATIVE_APP_SCOPED_PERMISSION_CHECKS,
-      note: "This preflight executes skfiy-helper directly for session diagnostics. Speech Recognition can be scoped differently when the helper is launched from skfiy.app; use smoke:ui permissionDiagnostics.active for app-scoped speech status."
+      computerUseRequiredPermissions: COMPUTER_USE_REQUIRED_PERMISSIONS,
+      note: "This preflight executes skfiy-helper directly for session diagnostics before Computer Use smokes."
     },
     artifactPath: options.outputPath,
     screenshotOutputPath: options.screenshotOutputPath,
@@ -147,7 +142,7 @@ export async function runDesktopSessionPreflight(options, io = defaultIo) {
 }
 
 export function interpretPermissionEvidence(permissions) {
-  const blockers = DEFAULT_EXTERNAL_DOUBAO_REQUIRED_PERMISSIONS.flatMap((permission) => {
+  const blockers = COMPUTER_USE_REQUIRED_PERMISSIONS.flatMap((permission) => {
     const status = readPermissionStatus(permissions?.[permission]);
 
     if (isGrantedPermissionStatus(permissions?.[permission], status)) {
@@ -161,13 +156,8 @@ export function interpretPermissionEvidence(permissions) {
   });
 
   return {
-    defaultExternalDoubaoReady: blockers.length === 0,
-    blockers,
-    nonAuthoritative: NON_AUTHORITATIVE_APP_SCOPED_PERMISSION_CHECKS.map((permission) => ({
-      permission,
-      status: readPermissionStatus(permissions?.[permission]),
-      reason: "Direct helper Speech Recognition status can differ from app-scoped status; use smoke:ui permissionDiagnostics.active for app-scoped speech evidence."
-    }))
+    computerUseReady: blockers.length === 0,
+    blockers
   };
 }
 

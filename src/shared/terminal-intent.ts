@@ -1,4 +1,4 @@
-export type TerminalIntentSource = "direct-command" | "voice-intent";
+export type TerminalIntentSource = "direct-command" | "agent-intent";
 
 export type TerminalIntentResult =
   | {
@@ -12,7 +12,7 @@ export type TerminalIntentResult =
     };
 
 const DIRECT_COMMAND_PATTERN = /^[a-z][a-z0-9_-]*(\s+.+)?$/i;
-const VOICE_COMMAND_PATTERNS: RegExp[] = [
+const AGENT_COMMAND_PATTERNS: RegExp[] = [
   /(?:执行|运行|输入)(?:一下)?(?:命令)?\s*([^\n\r]+)/i,
   /(?:run|execute)\s+([^\n\r]+)/i
 ];
@@ -24,7 +24,7 @@ export function parseTerminalIntent(input: string): TerminalIntentResult {
   if (!text) {
     return {
       ok: false,
-      reason: "Could not identify a terminal command in the voice request."
+      reason: "Could not identify a terminal command in the agent request."
     };
   }
 
@@ -36,12 +36,12 @@ export function parseTerminalIntent(input: string): TerminalIntentResult {
     };
   }
 
-  const extracted = extractVoiceCommand(text);
+  const extracted = extractAgentCommand(text);
   if (extracted) {
     return {
       ok: true,
       command: extracted,
-      source: "voice-intent"
+      source: "agent-intent"
     };
   }
 
@@ -50,13 +50,13 @@ export function parseTerminalIntent(input: string): TerminalIntentResult {
     return {
       ok: true,
       command: mkdirCommand,
-      source: "voice-intent"
+      source: "agent-intent"
     };
   }
 
   return {
     ok: false,
-    reason: "Could not identify a terminal command in the voice request."
+    reason: "Could not identify a terminal command in the agent request."
   };
 }
 
@@ -64,10 +64,10 @@ function isDirectTerminalCommand(text: string): boolean {
   return DIRECT_COMMAND_PATTERN.test(text) && !containsCjk(text);
 }
 
-function extractVoiceCommand(text: string): string | undefined {
-  for (const pattern of VOICE_COMMAND_PATTERNS) {
+function extractAgentCommand(text: string): string | undefined {
+  for (const pattern of AGENT_COMMAND_PATTERNS) {
     const match = text.match(pattern);
-    const command = cleanVoiceCommandCandidate(match?.[1]);
+    const command = cleanAgentCommandCandidate(match?.[1]);
 
     if (command && isDirectTerminalCommand(command)) {
       return command;
@@ -77,7 +77,7 @@ function extractVoiceCommand(text: string): string | undefined {
   return undefined;
 }
 
-function cleanVoiceCommandCandidate(candidate: string | undefined): string | undefined {
+function cleanAgentCommandCandidate(candidate: string | undefined): string | undefined {
   const cleaned = candidate
     ?.trim()
     .replace(/^[`"“”']+|[`"“”']+$/g, "")

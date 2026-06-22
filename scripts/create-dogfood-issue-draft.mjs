@@ -15,8 +15,7 @@ const SMOKE_ARTIFACT_OPTIONS = [
   ["uiSmokeArtifactPath", "uiSmokeArtifactPath", "UI smoke artifact", "--ui-smoke-artifact"],
   ["smokeArtifactPath", "smokeArtifactPath", "smoke artifact", "--smoke-artifact"],
   ["chromeSmokeArtifactPath", "chromeSmokeArtifactPath", "Chrome smoke artifact", "--chrome-smoke-artifact"],
-  ["finderSmokeArtifactPath", "finderSmokeArtifactPath", "Finder smoke artifact", "--finder-smoke-artifact"],
-  ["voiceSmokeArtifactPath", "voiceSmokeArtifactPath", "voice smoke artifact", "--voice-smoke-artifact"]
+  ["finderSmokeArtifactPath", "finderSmokeArtifactPath", "Finder smoke artifact", "--finder-smoke-artifact"]
 ];
 
 export function createDefaultDogfoodIssueDraftOptions(rootDir = DEFAULT_ROOT_DIR) {
@@ -29,7 +28,6 @@ export function createDefaultDogfoodIssueDraftOptions(rootDir = DEFAULT_ROOT_DIR
     smokeArtifactPath: undefined,
     chromeSmokeArtifactPath: undefined,
     finderSmokeArtifactPath: undefined,
-    voiceSmokeArtifactPath: undefined,
     outputPath: undefined,
     checkReport: false,
     help: false
@@ -71,10 +69,6 @@ export function parseDogfoodIssueDraftArgs(argv, defaults) {
         options.finderSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
-      case "--voice-smoke-artifact":
-        options.voiceSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
-        index += 1;
-        break;
       case "--output":
         options.outputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
@@ -103,8 +97,7 @@ export async function createDogfoodIssueDraft(options, io = createDefaultIo()) {
     ui: await io.readJson(smokePaths.uiSmokeArtifactPath),
     ghostty: await io.readJson(smokePaths.smokeArtifactPath),
     chrome: await io.readJson(smokePaths.chromeSmokeArtifactPath),
-    finder: await io.readJson(smokePaths.finderSmokeArtifactPath),
-    voice: await io.readJson(smokePaths.voiceSmokeArtifactPath)
+    finder: await io.readJson(smokePaths.finderSmokeArtifactPath)
   };
   validateSmokeArtifactPaths(smokeArtifacts, smokePaths);
 
@@ -145,7 +138,7 @@ export function createDogfoodIssueDraftHelpText() {
     "Usage: npm run dogfood:issue -- --manifest <alpha-manifest> --tester-id <id> --workflows <ids> [--output <issue-body.md>]",
     "",
     "Creates a GitHub dogfood issue body draft from one real tester machine.",
-    "The draft copies alpha identity, all five smoke artifact paths, app bundle preflight,",
+    "The draft copies alpha identity, smoke artifact paths, app bundle preflight,",
     "UI pet drag evidence, panic stop evidence, permission states, and core evidence",
     "from the manifest and smoke JSON files so maintainers can file an accepted GitHub dogfood issue",
     "without manually retyping fields that dogfood:report later verifies.",
@@ -261,7 +254,6 @@ function validateSmokeArtifactPaths(smokeArtifacts, smokePaths) {
   validateSmokeArtifactPath("smoke artifact", smokeArtifacts.ghostty, smokePaths.smokeArtifactPath);
   validateSmokeArtifactPath("Chrome smoke artifact", smokeArtifacts.chrome, smokePaths.chromeSmokeArtifactPath);
   validateSmokeArtifactPath("Finder smoke artifact", smokeArtifacts.finder, smokePaths.finderSmokeArtifactPath);
-  validateSmokeArtifactPath("voice smoke artifact", smokeArtifacts.voice, smokePaths.voiceSmokeArtifactPath);
 }
 
 function validateSmokeArtifactPath(label, artifact, expectedPath) {
@@ -293,7 +285,6 @@ function createDogfoodIssueBody({
   const permissionStates = readPermissionStates(smokeArtifacts);
   const alphaZipPath = typeof manifest?.zip?.path === "string" ? manifest.zip.path : "";
   const commitSha = typeof manifest?.commitSha === "string" ? manifest.commitSha : "";
-  const asrProvider = readFirstString([smokeArtifacts.voice?.provider], "not tested");
 
   return [
     "### alpha manifest",
@@ -334,10 +325,6 @@ function createDogfoodIssueBody({
     "",
     smokePaths.finderSmokeArtifactPath,
     "",
-    "### voice smoke artifact",
-    "",
-    smokePaths.voiceSmokeArtifactPath,
-    "",
     "### runnerHasTmux",
     "",
     String(summary.runnerHasTmux),
@@ -358,18 +345,6 @@ function createDogfoodIssueBody({
     "",
     permissionStates.accessibility,
     "",
-    "### Microphone",
-    "",
-    permissionStates.microphone,
-    "",
-    "### Speech Recognition",
-    "",
-    permissionStates.speechRecognition,
-    "",
-    "### ASR provider",
-    "",
-    asrProvider,
-    "",
     "### Computer Use result",
     "",
     summary.computerUseResult,
@@ -382,7 +357,7 @@ function createDogfoodIssueBody({
     "",
     createActionVerificationEvidence(smokeArtifacts),
     "",
-    "### non-terminal voice route guards",
+    "### non-Computer-Use route guards",
     "",
     createNonComputerUseRouteGuardEvidence(smokeArtifacts.ghostty),
     "",
@@ -418,14 +393,6 @@ function createDogfoodIssueBody({
     "",
     createFinderTreeEvidence(smokeArtifacts.finder),
     "",
-    "### External Doubao voice transcript-to-task evidence",
-    "",
-    createVoiceTranscriptTaskEvidence(smokeArtifacts.voice),
-    "",
-    "### External Doubao voice no-transcript/cancellation evidence",
-    "",
-    createVoiceNoTranscriptEvidence(smokeArtifacts.voice),
-    "",
     "### panic stop",
     "",
     createStopTurnEvidence(smokeArtifacts)
@@ -437,17 +404,14 @@ function readPermissionStates(smokeArtifacts) {
 
   return {
     screenRecording: readPermissionState(artifactValues, "screenRecording"),
-    accessibility: readPermissionState(artifactValues, "accessibility"),
-    microphone: readPermissionState(artifactValues, "microphone"),
-    speechRecognition: readPermissionState(artifactValues, "speechRecognition")
+    accessibility: readPermissionState(artifactValues, "accessibility")
   };
 }
 
 function readPermissionState(artifacts, key) {
   for (const artifact of artifacts) {
     const state = artifact?.permissionStates?.[key]?.state
-      ?? artifact?.permissions?.[key]?.state
-      ?? artifact?.speechStatus?.[key]?.state;
+      ?? artifact?.permissions?.[key]?.state;
     if (typeof state === "string" && state.trim().length > 0 && state !== "unknown") {
       return state;
     }
@@ -465,9 +429,6 @@ function chooseComputerUseResult(results) {
   }
   if (results.includes("sensitive-paused")) {
     return "sensitive-paused";
-  }
-  if (results.includes("no-transcript")) {
-    return "no-transcript";
   }
   if (results.includes("failed")) {
     return "failed";
@@ -571,7 +532,7 @@ function createAppPolicyEvidence(smokeArtifacts) {
 
 function createAppBundlePreflightEvidence(smokeArtifacts) {
   const appArtifact = smokeArtifacts.ui ?? smokeArtifacts.ghostty ?? smokeArtifacts.chrome
-    ?? smokeArtifacts.finder ?? smokeArtifacts.voice;
+    ?? smokeArtifacts.finder;
 
   return [
     `appPath: ${readFirstString([appArtifact?.appPath], "not available")}`,
@@ -684,40 +645,6 @@ function createFinderPlanPreviewEvidence(planPreview) {
   lines.push(`raw: ${createJsonEvidence(planPreview)}`);
 
   return lines.join("\n");
-}
-
-function createVoiceTranscriptTaskEvidence(voiceArtifact) {
-  const transcriptEvents = Array.isArray(voiceArtifact?.transcriptEvents)
-    ? voiceArtifact.transcriptEvents
-    : [];
-  const taskEvents = Array.isArray(voiceArtifact?.taskEvents) ? voiceArtifact.taskEvents : [];
-  const finalTranscripts = transcriptEvents.filter((event) =>
-    (event?.final === true || event?.isFinal === true)
-      && typeof event?.text === "string"
-      && event.text.trim().length > 0
-  );
-  const turnReplay = voiceArtifact?.turnReplay;
-
-  if (finalTranscripts.length === 0 || taskEvents.length === 0) {
-    return "not available";
-  }
-
-  return [
-    `transcriptEvents: ${createJsonEvidence(finalTranscripts)}`,
-    `taskEvents: ${createJsonEvidence(taskEvents)}`,
-    `turnReplay: ${createJsonEvidence(turnReplay)}`
-  ].join("\n");
-}
-
-function createVoiceNoTranscriptEvidence(voiceArtifact) {
-  const transcriptEvents = Array.isArray(voiceArtifact?.transcriptEvents)
-    ? voiceArtifact.transcriptEvents
-    : [];
-  const noTranscriptEvents = transcriptEvents.filter((event) =>
-    event?.type === "no_transcript" || event?.type === "cancelled"
-  );
-
-  return noTranscriptEvents.length > 0 ? createJsonEvidence(noTranscriptEvents) : "not available";
 }
 
 function createJsonEvidence(value) {

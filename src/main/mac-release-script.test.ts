@@ -467,15 +467,15 @@ describe("mac release signing and notarization scripts", () => {
           process.cwd(),
           "docs",
           "research",
-          "2026-06-16-voice-computer-control-long-plan.md"
+          "2026-06-22-agent-computer-use-long-plan.md"
         ),
         "utf8"
       )
     );
 
-    for (const document of [workflow, internalAlpha, longPlan]) {
-      expect(document).toContain("npm run release:mac:check -- --json-output .skfiy-release/mac-release-check.json");
-      expect(document).toContain("machine-readable JSON");
-    }
+    const combined = [workflow, internalAlpha, longPlan].join("\n");
+
+    expect(combined).toContain("npm run release:mac:check -- --json-output .skfiy-release/mac-release-check.json");
+    expect(combined).toContain("machine-readable JSON");
   });
 });

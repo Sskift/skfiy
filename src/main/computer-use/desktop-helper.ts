@@ -15,8 +15,6 @@ import type {
   DesktopWindowInfo,
   FinderItemLayoutItem,
   FinderItemLayoutResult,
-  NativeSpeechTranscriptionOptions,
-  NativeSpeechTranscriptionResult,
   OpenGhosttySessionResult,
   OcrImageResult,
   OcrLabelObservation,
@@ -25,8 +23,7 @@ import type {
   PermissionSummary,
   ProcessRunner,
   ProcessRunnerOptions,
-  ScreenshotResult,
-  SpeechStatusResult
+  ScreenshotResult
 } from "./types.js";
 
 const DEFAULT_HELPER_PATH = "dist/skfiy-helper";
@@ -275,41 +272,6 @@ export class DesktopHelperClient {
 
   async getPermissions(): Promise<PermissionSummary> {
     return this.runJson("permissions-status", ["permissions-status"], readPermissionSummary);
-  }
-
-  async getSpeechStatus(locale: string): Promise<SpeechStatusResult> {
-    const checkedLocale = requireNonEmptyString(locale, "locale");
-    return this.runJson(
-      "speech-status",
-      ["speech-status", "--locale", checkedLocale],
-      readSpeechStatusResult
-    );
-  }
-
-  async transcribeSpeech(
-    options: NativeSpeechTranscriptionOptions
-  ): Promise<NativeSpeechTranscriptionResult> {
-    const locale = requireNonEmptyString(options.locale, "locale");
-    const maxDurationMs = requirePositiveInteger(options.maxDurationMs, "maxDurationMs");
-    const silenceTimeoutMs = requirePositiveInteger(
-      options.silenceTimeoutMs,
-      "silenceTimeoutMs"
-    );
-
-    return this.runJson(
-      "transcribe-speech",
-      [
-        "transcribe-speech",
-        "--locale",
-        locale,
-        "--max-duration-ms",
-        String(maxDurationMs),
-        "--silence-timeout-ms",
-        String(silenceTimeoutMs)
-      ],
-      readNativeSpeechTranscriptionResult,
-      { signal: options.signal }
-    );
   }
 
   async openPermissionSettings(
@@ -711,41 +673,8 @@ function readPermissionSummary(payload: unknown, commandName: string): Permissio
 
   return {
     screenRecording: readPermissionStatus(record.screenRecording, commandName),
-    accessibility: readPermissionStatus(record.accessibility, commandName),
-    microphone: readPermissionStatus(record.microphone, commandName),
-    speechRecognition: readPermissionStatus(record.speechRecognition, commandName)
+    accessibility: readPermissionStatus(record.accessibility, commandName)
   };
-}
-
-function readSpeechStatusResult(payload: unknown, commandName: string): SpeechStatusResult {
-  const record = readRecord(payload, commandName);
-
-  return {
-    locale: readString(record, "locale", commandName),
-    recognizerAvailable: readBoolean(record, "recognizerAvailable", commandName),
-    speechRecognition: readPermissionStatus(record.speechRecognition, commandName),
-    microphone: readPermissionStatus(record.microphone, commandName)
-  };
-}
-
-function readNativeSpeechTranscriptionResult(
-  payload: unknown,
-  commandName: string
-): NativeSpeechTranscriptionResult {
-  const record = readRecord(payload, commandName);
-  const result: NativeSpeechTranscriptionResult = {
-    text: readString(record, "text", commandName),
-    isFinal: readBoolean(record, "isFinal", commandName),
-    durationMs: readNumber(record, "durationMs", commandName),
-    silenceTimedOut: readBoolean(record, "silenceTimedOut", commandName)
-  };
-  const confidence = readOptionalNumber(record, "confidence", commandName);
-
-  if (confidence !== undefined) {
-    result.confidence = confidence;
-  }
-
-  return result;
 }
 
 function readFinderSelectionResult(
@@ -982,14 +911,12 @@ function requirePermissionSettingsTarget(value: unknown): PermissionSettingsTarg
   if (
     value === "screen-recording"
     || value === "accessibility"
-    || value === "microphone"
-    || value === "speech-recognition"
   ) {
     return value;
   }
 
   throw new Error(
-    "permission must be screen-recording, accessibility, microphone, or speech-recognition."
+    "permission must be screen-recording or accessibility."
   );
 }
 

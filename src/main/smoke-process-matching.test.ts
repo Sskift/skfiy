@@ -48,8 +48,7 @@ describe("smoke process matching", () => {
 
   it("terminates skfiy-owned Ghostty sessions during product smoke cleanup", () => {
     const sources = [
-      "smoke-ghostty-product.mjs",
-      "smoke-voice-product.mjs"
+      "smoke-ghostty-product.mjs"
     ].map((scriptName) =>
       readFileSync(path.join(process.cwd(), "scripts", scriptName), "utf8")
     );
@@ -67,8 +66,7 @@ describe("smoke process matching", () => {
       "smoke-ui-product.mjs",
       "smoke-ghostty-product.mjs",
       "smoke-chrome-product.mjs",
-      "smoke-finder-product.mjs",
-      "smoke-voice-product.mjs"
+      "smoke-finder-product.mjs"
     ];
 
     for (const scriptName of productScripts) {

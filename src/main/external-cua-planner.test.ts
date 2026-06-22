@@ -11,7 +11,7 @@ function createResponse(body: unknown, ok = true, status = 200): Response {
 }
 
 describe("external CUA terminal planner", () => {
-  it("posts the voice task to the configured endpoint and returns a terminal command", async () => {
+  it("posts the desktop task to the configured endpoint and returns a terminal command", async () => {
     const fetchImpl = vi.fn(async () => createResponse({
       command: "pwd",
       rationale: "Read the current working directory."

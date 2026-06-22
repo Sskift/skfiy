@@ -16,25 +16,13 @@ const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DEFAULT_DOGFOOD_REPOSITORY = "Sskift/skfiy";
-const DEFAULT_LISTEN_MS = 9_000;
 const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
-const DEFAULT_VOICE_PROVIDER = "doubao";
-const STRICT_PERMISSION_KEYS_BY_VOICE_PROVIDER = {
-  doubao: ["screenRecording", "accessibility"],
-  "native-macos": [
-    "screenRecording",
-    "accessibility",
-    "microphone",
-    "speechRecognition"
-  ]
-};
 const COMPUTER_USE_PERMISSION_FAILURE_KEYS = ["screenRecording", "accessibility"];
 const PRODUCT_SMOKE_COMMAND_IDS = new Set([
   "smoke:ui",
   "smoke:ghostty",
   "smoke:chrome",
-  "smoke:finder",
-  "smoke:voice"
+  "smoke:finder"
 ]);
 const EXPECTED_APP_BUNDLE_BASENAME = "skfiy.app";
 const EXPECTED_APP_BUNDLE_IDENTITY = {
@@ -54,8 +42,6 @@ export function createDefaultDogfoodTesterOptions(rootDir = DEFAULT_ROOT_DIR) {
     artifactsDir: undefined,
     issueOutputPath: undefined,
     summaryPath: undefined,
-    listenMs: DEFAULT_LISTEN_MS,
-    voiceProvider: DEFAULT_VOICE_PROVIDER,
     appPath: undefined,
     finderTargetDir: undefined,
     chromeCurrentPageEndpoint: undefined,
@@ -96,14 +82,6 @@ export function parseDogfoodTesterArgs(argv, defaults) {
         break;
       case "--summary":
         options.summaryPath = resolvePath(readValue(argv, index, arg));
-        index += 1;
-        break;
-      case "--listen-ms":
-        options.listenMs = readPositiveInteger(readValue(argv, index, arg), arg);
-        index += 1;
-        break;
-      case "--voice-provider":
-        options.voiceProvider = readVoiceProvider(readValue(argv, index, arg), arg);
         index += 1;
         break;
       case "--app":
@@ -160,13 +138,11 @@ export function createDogfoodTesterPlan(options) {
   const appPath = typeof options.appPath === "string" && options.appPath.trim().length > 0
     ? options.appPath
     : path.join(rootDir, "dist", "skfiy.app");
-  const voiceProvider = readVoiceProvider(options.voiceProvider ?? DEFAULT_VOICE_PROVIDER);
   const artifacts = {
     ui: path.join(artifactsDir, `${testerId}-ui.json`),
     ghostty: path.join(artifactsDir, `${testerId}-ghostty.json`),
     chrome: path.join(artifactsDir, `${testerId}-chrome.json`),
-    finder: path.join(artifactsDir, `${testerId}-finder.json`),
-    voice: path.join(artifactsDir, `${testerId}-voice.json`)
+    finder: path.join(artifactsDir, `${testerId}-finder.json`)
   };
   const appArgs = ["--app", appPath];
   const commands = [
@@ -197,16 +173,6 @@ export function createDogfoodTesterPlan(options) {
       ...readOptionalPair("--target-dir", options.finderTargetDir),
       ...readRequirePassedArgs("smoke:finder", options)
     ]),
-    createNpmCommand("smoke:voice", [
-      ...appArgs,
-      "--output",
-      artifacts.voice,
-      "--provider",
-      voiceProvider,
-      "--listen-ms",
-      String(options.listenMs ?? DEFAULT_LISTEN_MS),
-      ...readRequirePassedArgs("smoke:voice", options)
-    ]),
     createNpmCommand("dogfood:issue", [
       "--manifest",
       options.manifestPath,
@@ -223,8 +189,6 @@ export function createDogfoodTesterPlan(options) {
       artifacts.chrome,
       "--finder-smoke-artifact",
       artifacts.finder,
-      "--voice-smoke-artifact",
-      artifacts.voice,
       "--output",
       issueOutputPath
     ])
@@ -237,7 +201,6 @@ export function createDogfoodTesterPlan(options) {
     workflows: [...options.workflows],
     trackingIssueUrl: options.trackingIssueUrl,
     appPath,
-    voiceProvider,
     artifactsDir,
     artifacts,
     issueOutputPath,
@@ -429,11 +392,9 @@ export function createDogfoodTesterHelpText() {
     `  Reserved tester id prefixes are rejected because they cannot count as real dogfood users: ${formatReservedDogfoodTesterIdPrefixes()}.`,
     "",
     "Options:",
-    "  --artifacts-dir <path>         Directory for the five smoke JSON files.",
+    "  --artifacts-dir <path>         Directory for the smoke JSON files.",
     "  --issue-output <path>          Markdown issue body path.",
     "  --summary <path>               Local run summary path.",
-    `  --listen-ms <number>           Voice listen window. Default: ${DEFAULT_LISTEN_MS}.`,
-    `  --voice-provider <id>          Voice provider: doubao or native-macos. Default: ${DEFAULT_VOICE_PROVIDER}.`,
     "  --app <path>                   App bundle to test. Defaults to dist/skfiy.app.",
     "                                Use the alpha zip's skfiy.app when dogfooding a release.",
     "                                Runs an app bundle identity preflight before any product smoke.",
@@ -443,8 +404,8 @@ export function createDogfoodTesterHelpText() {
     "  --tracking-issue-url <url>    Include the cohort tracking issue in the maintainer review command after --file-issue.",
     "  --file-issue                  After generating and checking the issue body, create the GitHub report issue.",
     "                                This creates only the report issue; it never adds accepted/workflow labels or edits the tracking issue.",
-    "  --require-passed               Require Ghostty, Chrome, Finder, and voice smokes to pass.",
-    "                                Runs a strict provider-aware permission preflight after UI smoke and stops early when required permissions are missing.",
+    "  --require-passed               Require Ghostty, Chrome, and Finder smokes to pass.",
+    "                                Runs a strict Computer Use permission preflight after UI smoke and stops early when required permissions are missing.",
     "  --allow-synthetic-tester-id    Maintainer-only escape hatch for local/preflight evidence that will not count as a real tester.",
     "  -h, --help                     Show this help.",
     "",
@@ -466,7 +427,6 @@ function validateDogfoodTesterOptions(options) {
   if (!Array.isArray(options.workflows) || options.workflows.length === 0) {
     throw new Error("Missing --workflows <workflow[,workflow]>.");
   }
-  readVoiceProvider(options.voiceProvider ?? DEFAULT_VOICE_PROVIDER);
   const unknownWorkflow = options.workflows.find((workflow) =>
     !REQUIRED_DOGFOOD_WORKFLOWS.includes(workflow)
   );
@@ -534,7 +494,6 @@ function createDogfoodTesterSummary({
     `- Ghostty: ${plan.artifacts.ghostty}`,
     `- Chrome: ${plan.artifacts.chrome}`,
     `- Finder: ${plan.artifacts.finder}`,
-    `- Voice: ${plan.artifacts.voice}`,
     ""
   ];
 
@@ -840,29 +799,13 @@ function hasPermissionFailure(run) {
 }
 
 function readComputerUsePermissionFailureKeys(run) {
-  if (isNativeMacosVoiceRun(run)) {
-    return STRICT_PERMISSION_KEYS_BY_VOICE_PROVIDER["native-macos"];
-  }
   return COMPUTER_USE_PERMISSION_FAILURE_KEYS;
-}
-
-function isNativeMacosVoiceRun(run) {
-  const productPath = typeof run.productPath === "string" ? run.productPath.toLowerCase() : "";
-  return run.provider === "native-macos"
-    || productPath.includes("native speech")
-    || productPath.includes("native macos speech");
 }
 
 function hasRelevantPermissionFailureEvent(event, relevantPermissions) {
   const message = typeof event?.message === "string" ? event.message.toLowerCase() : "";
   if (event?.status !== "failed" || !message.includes("permission")) {
     return false;
-  }
-  if (message.includes("speech recognition")) {
-    return relevantPermissions.includes("speechRecognition");
-  }
-  if (message.includes("microphone")) {
-    return relevantPermissions.includes("microphone");
   }
   if (message.includes("screen recording")) {
     return relevantPermissions.includes("screenRecording");
@@ -1137,15 +1080,7 @@ function readOptionalBoolean(value) {
 }
 
 function readStrictPermissionKeys(options) {
-  const provider = readVoiceProvider(options.voiceProvider ?? DEFAULT_VOICE_PROVIDER);
-  return STRICT_PERMISSION_KEYS_BY_VOICE_PROVIDER[provider];
-}
-
-function readVoiceProvider(value, flag = "--voice-provider") {
-  if (value === "doubao" || value === "native-macos") {
-    return value;
-  }
-  throw new Error(`${flag} must be doubao or native-macos.`);
+  return COMPUTER_USE_PERMISSION_FAILURE_KEYS;
 }
 
 function readPermissionState(permissions, permission) {

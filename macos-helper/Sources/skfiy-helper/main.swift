@@ -1,12 +1,10 @@
 import AppKit
 import ApplicationServices
-import AVFoundation
 import Carbon
 import CoreGraphics
 import Dispatch
 import Foundation
 import IOKit
-import Speech
 import Vision
 
 /*
@@ -134,26 +132,9 @@ import Vision
  - permissions-status:
    data = {
      screenRecording: { status: String, granted: Boolean },
-     accessibility: { status: String, granted: Boolean },
-     microphone: { status: String, granted: Boolean },
-     speechRecognition: { status: String, granted: Boolean }
+     accessibility: { status: String, granted: Boolean }
    }
- - speech-status --locale <identifier>:
-   data = {
-     locale: String,
-     recognizerAvailable: Boolean,
-     speechRecognition: { status: String, granted: Boolean },
-     microphone: { status: String, granted: Boolean }
-   }
- - transcribe-speech --locale <identifier> --max-duration-ms <n> --silence-timeout-ms <n>:
-   data = {
-     text: String,
-     isFinal: Boolean,
-     confidence: Number | null,
-     durationMs: Number,
-     silenceTimedOut: Boolean
-   }
- - open-permission-settings --permission screen-recording|accessibility|microphone|speech-recognition:
+ - open-permission-settings --permission screen-recording|accessibility:
    data = { permission: String, url: String, opened: Boolean }
 
  Security contract:
@@ -184,8 +165,6 @@ let supportedCommands = [
     "double-tap-fn",
     "get-app-state",
     "permissions-status",
-    "speech-status",
-    "transcribe-speech",
     "open-permission-settings"
 ]
 
@@ -399,23 +378,6 @@ struct PermissionStatusInfo: Encodable {
 struct PermissionsStatusPayload: Encodable {
     let screenRecording: PermissionStatusInfo
     let accessibility: PermissionStatusInfo
-    let microphone: PermissionStatusInfo
-    let speechRecognition: PermissionStatusInfo
-}
-
-struct SpeechStatusPayload: Encodable {
-    let locale: String
-    let recognizerAvailable: Bool
-    let speechRecognition: PermissionStatusInfo
-    let microphone: PermissionStatusInfo
-}
-
-struct SpeechTranscriptionPayload: Encodable {
-    let text: String
-    let isFinal: Bool
-    let confidence: Double?
-    let durationMs: Int
-    let silenceTimedOut: Bool
 }
 
 struct OpenPermissionSettingsPayload: Encodable {
@@ -1492,8 +1454,6 @@ func windowInfos(for app: NSRunningApplication) -> [WindowInfo] {
 enum PermissionKind: String, CaseIterable {
     case screenRecording = "screen-recording"
     case accessibility
-    case microphone
-    case speechRecognition = "speech-recognition"
 
     var settingsURL: URL {
         let rawURL: String
@@ -1503,10 +1463,6 @@ enum PermissionKind: String, CaseIterable {
             rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
         case .accessibility:
             rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-        case .microphone:
-            rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
-        case .speechRecognition:
-            rawURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
         }
 
         return URL(string: rawURL)!
@@ -1530,278 +1486,6 @@ func permissionKind(for rawValue: String) throws -> PermissionKind {
 
 func booleanPermissionStatus(granted: Bool) -> PermissionStatusInfo {
     PermissionStatusInfo(status: granted ? "authorized" : "notAuthorized", granted: granted)
-}
-
-func microphonePermissionStatus() -> PermissionStatusInfo {
-    let status = AVCaptureDevice.authorizationStatus(for: .audio)
-
-    switch status {
-    case .authorized:
-        return PermissionStatusInfo(status: "authorized", granted: true)
-    case .denied:
-        return PermissionStatusInfo(status: "denied", granted: false)
-    case .notDetermined:
-        return PermissionStatusInfo(status: "notDetermined", granted: false)
-    case .restricted:
-        return PermissionStatusInfo(status: "restricted", granted: false)
-    @unknown default:
-        return PermissionStatusInfo(status: "unknown", granted: false)
-    }
-}
-
-func speechRecognitionPermissionStatus() -> PermissionStatusInfo {
-    switch SFSpeechRecognizer.authorizationStatus() {
-    case .authorized:
-        return PermissionStatusInfo(status: "authorized", granted: true)
-    case .denied:
-        return PermissionStatusInfo(status: "denied", granted: false)
-    case .notDetermined:
-        return PermissionStatusInfo(status: "notDetermined", granted: false)
-    case .restricted:
-        return PermissionStatusInfo(status: "restricted", granted: false)
-    @unknown default:
-        return PermissionStatusInfo(status: "unknown", granted: false)
-    }
-}
-
-func requestSpeechRecognitionPermission() -> PermissionStatusInfo {
-    if SFSpeechRecognizer.authorizationStatus() != .notDetermined {
-        return speechRecognitionPermissionStatus()
-    }
-
-    let semaphore = DispatchSemaphore(value: 0)
-    var nextStatus = SFSpeechRecognizer.authorizationStatus()
-
-    SFSpeechRecognizer.requestAuthorization { status in
-        nextStatus = status
-        semaphore.signal()
-    }
-
-    _ = semaphore.wait(timeout: .now() + 30)
-
-    switch nextStatus {
-    case .authorized:
-        return PermissionStatusInfo(status: "authorized", granted: true)
-    case .denied:
-        return PermissionStatusInfo(status: "denied", granted: false)
-    case .notDetermined:
-        return PermissionStatusInfo(status: "notDetermined", granted: false)
-    case .restricted:
-        return PermissionStatusInfo(status: "restricted", granted: false)
-    @unknown default:
-        return PermissionStatusInfo(status: "unknown", granted: false)
-    }
-}
-
-func requestMicrophonePermission() -> PermissionStatusInfo {
-    let currentStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-
-    if currentStatus != .notDetermined {
-        return microphonePermissionStatus()
-    }
-
-    let semaphore = DispatchSemaphore(value: 0)
-    var granted = false
-
-    AVCaptureDevice.requestAccess(for: .audio) { allowed in
-        granted = allowed
-        semaphore.signal()
-    }
-
-    _ = semaphore.wait(timeout: .now() + 30)
-    return PermissionStatusInfo(status: granted ? "authorized" : "denied", granted: granted)
-}
-
-func recognizerForLocale(_ localeIdentifier: String) throws -> SFSpeechRecognizer {
-    guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier)) else {
-        throw HelperFailure(
-            "speech_recognizer_unavailable",
-            "No speech recognizer is available for the requested locale.",
-            details: ["locale": .string(localeIdentifier)]
-        )
-    }
-
-    return recognizer
-}
-
-func averageConfidence(from result: SFSpeechRecognitionResult?) -> Double? {
-    guard let segments = result?.bestTranscription.segments, !segments.isEmpty else {
-        return nil
-    }
-
-    let total = segments.reduce(0.0) { partial, segment in
-        partial + Double(segment.confidence)
-    }
-
-    return total / Double(segments.count)
-}
-
-func audioLevel(for buffer: AVAudioPCMBuffer) -> Float {
-    guard let channelData = buffer.floatChannelData, buffer.frameLength > 0 else {
-        return 0
-    }
-
-    let channel = channelData[0]
-    let frameCount = Int(buffer.frameLength)
-    var sum: Float = 0
-
-    for index in 0..<frameCount {
-        let sample = channel[index]
-        sum += sample * sample
-    }
-
-    return sqrt(sum / Float(frameCount))
-}
-
-func transcribeSpeech(
-    localeIdentifier: String,
-    maxDurationMilliseconds: Int,
-    silenceTimeoutMilliseconds: Int
-) throws -> SpeechTranscriptionPayload {
-    let speechStatus = requestSpeechRecognitionPermission()
-    guard speechStatus.granted else {
-        throw HelperFailure(
-            "speech_permission_required",
-            "Speech Recognition permission is required for native macOS dictation.",
-            details: ["status": .string(speechStatus.status)]
-        )
-    }
-
-    let microphoneStatus = requestMicrophonePermission()
-    guard microphoneStatus.granted else {
-        throw HelperFailure(
-            "microphone_permission_required",
-            "Microphone permission is required for native macOS dictation.",
-            details: ["status": .string(microphoneStatus.status)]
-        )
-    }
-
-    let recognizer = try recognizerForLocale(localeIdentifier)
-    guard recognizer.isAvailable else {
-        throw HelperFailure(
-            "speech_recognizer_unavailable",
-            "Speech recognizer is currently unavailable.",
-            details: ["locale": .string(localeIdentifier)]
-        )
-    }
-
-    let request = SFSpeechAudioBufferRecognitionRequest()
-    request.shouldReportPartialResults = true
-
-    let audioEngine = AVAudioEngine()
-    let inputNode = audioEngine.inputNode
-    let format = inputNode.outputFormat(forBus: 0)
-
-    guard format.channelCount > 0 else {
-        throw HelperFailure("microphone_format_invalid", "Microphone input format has no channels.")
-    }
-
-    let startedAt = Date()
-    let completion = DispatchSemaphore(value: 0)
-    let lock = NSLock()
-    var bestText = ""
-    var confidence: Double?
-    var finalResultObserved = false
-    var completed = false
-    var silenceTimedOut = false
-    var speechStarted = false
-    var lastSpeechAt = startedAt
-    var recognitionError: Error?
-    let speechThreshold: Float = 0.012
-
-    let recognitionTask = recognizer.recognitionTask(with: request) { result, error in
-        lock.lock()
-        if let result {
-            bestText = result.bestTranscription.formattedString.trimmingCharacters(in: .whitespacesAndNewlines)
-            confidence = averageConfidence(from: result)
-            finalResultObserved = result.isFinal
-
-            if result.isFinal && !completed {
-                completed = true
-                completion.signal()
-            }
-        }
-
-        if let error, !completed {
-            recognitionError = error
-            completed = true
-            completion.signal()
-        }
-        lock.unlock()
-    }
-
-    inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-        request.append(buffer)
-
-        let level = audioLevel(for: buffer)
-        let now = Date()
-
-        lock.lock()
-        if level >= speechThreshold {
-            speechStarted = true
-            lastSpeechAt = now
-        }
-
-        let silenceElapsed = now.timeIntervalSince(lastSpeechAt) * 1000
-        if speechStarted && silenceElapsed >= Double(silenceTimeoutMilliseconds) && !completed {
-            silenceTimedOut = true
-            completed = true
-            completion.signal()
-        }
-        lock.unlock()
-    }
-
-    do {
-        audioEngine.prepare()
-        try audioEngine.start()
-    } catch {
-        inputNode.removeTap(onBus: 0)
-        recognitionTask.cancel()
-        throw HelperFailure(
-            "microphone_capture_failed",
-            "Failed to start microphone capture for native macOS dictation.",
-            details: ["underlyingError": .string(String(describing: error))]
-        )
-    }
-
-    DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(maxDurationMilliseconds)) {
-        lock.lock()
-        if !completed {
-            completed = true
-            completion.signal()
-        }
-        lock.unlock()
-    }
-
-    _ = completion.wait(timeout: .now() + .milliseconds(maxDurationMilliseconds + 1_000))
-
-    audioEngine.stop()
-    inputNode.removeTap(onBus: 0)
-    request.endAudio()
-
-    if !finalResultObserved {
-        _ = completion.wait(timeout: .now() + .milliseconds(700))
-    }
-
-    recognitionTask.cancel()
-
-    if let recognitionError {
-        throw HelperFailure(
-            "speech_recognition_failed",
-            "Speech recognition failed.",
-            details: ["underlyingError": .string(String(describing: recognitionError))]
-        )
-    }
-
-    let durationMs = max(0, Int(Date().timeIntervalSince(startedAt) * 1000))
-
-    return SpeechTranscriptionPayload(
-        text: bestText,
-        isFinal: finalResultObserved || silenceTimedOut || durationMs >= maxDurationMilliseconds,
-        confidence: confidence,
-        durationMs: durationMs,
-        silenceTimedOut: silenceTimedOut
-    )
 }
 
 func handleListApps(_ arguments: ArraySlice<String>) throws -> ListAppsPayload {
@@ -2092,39 +1776,7 @@ func handlePermissionsStatus(_ arguments: ArraySlice<String>) throws -> Permissi
 
     return PermissionsStatusPayload(
         screenRecording: booleanPermissionStatus(granted: CGPreflightScreenCaptureAccess()),
-        accessibility: booleanPermissionStatus(granted: AXIsProcessTrusted()),
-        microphone: microphonePermissionStatus(),
-        speechRecognition: speechRecognitionPermissionStatus()
-    )
-}
-
-func handleSpeechStatus(_ arguments: ArraySlice<String>) throws -> SpeechStatusPayload {
-    let options = try parseOptions(arguments, allowed: ["--locale"])
-    let locale = try requiredOption("--locale", in: options)
-    let recognizer = try? recognizerForLocale(locale)
-
-    return SpeechStatusPayload(
-        locale: locale,
-        recognizerAvailable: recognizer?.isAvailable ?? false,
-        speechRecognition: speechRecognitionPermissionStatus(),
-        microphone: microphonePermissionStatus()
-    )
-}
-
-func handleTranscribeSpeech(_ arguments: ArraySlice<String>) throws -> SpeechTranscriptionPayload {
-    let options = try parseOptions(arguments, allowed: [
-        "--locale",
-        "--max-duration-ms",
-        "--silence-timeout-ms"
-    ])
-    let locale = try requiredOption("--locale", in: options)
-    let maxDurationMs = try optionalPositiveIntOption("--max-duration-ms", in: options) ?? 7_000
-    let silenceTimeoutMs = try optionalPositiveIntOption("--silence-timeout-ms", in: options) ?? 900
-
-    return try transcribeSpeech(
-        localeIdentifier: locale,
-        maxDurationMilliseconds: maxDurationMs,
-        silenceTimeoutMilliseconds: silenceTimeoutMs
+        accessibility: booleanPermissionStatus(granted: AXIsProcessTrusted())
     )
 }
 
@@ -2195,10 +1847,6 @@ do {
         succeed(command: commandName, data: try handleGetAppState(arguments))
     case "permissions-status":
         succeed(command: commandName, data: try handlePermissionsStatus(arguments))
-    case "speech-status":
-        succeed(command: commandName, data: try handleSpeechStatus(arguments))
-    case "transcribe-speech":
-        succeed(command: commandName, data: try handleTranscribeSpeech(arguments))
     case "open-permission-settings":
         succeed(command: commandName, data: try handleOpenPermissionSettings(arguments))
     default:

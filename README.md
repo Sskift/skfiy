@@ -1,6 +1,6 @@
 # skfiy
 
-skfiy is a voice-first macOS Computer Use runtime with a pixel desktop pet,
+skfiy is an agent-first macOS Computer Use runtime with a pixel desktop pet,
 packaged CLI, local dashboard, and app adapters for local experiments. It is
 designed as an app-agnostic desktop control runtime: observe any visible macOS
 app, decide the next action, execute clicks/typing/dragging/hotkeys, then verify
@@ -9,12 +9,13 @@ Ghostty, Chromium/Chrome, Finder, screenshots, and tmux supervision are the
 first real regression fixtures, not the product boundary.
 
 The first version keeps the public surface narrow while the control loop is
-hardened: voice enters through the desktop pet, app policy gates the target,
-Computer Use performs observe-plan-act-verify, and task state remains visible in
-the floating companion. The pet art is now manifest-driven and separate from
-the backend: skfiy first looks for a local `luoxiaohei-local` skin pack under
-the user's Application Support directory, then falls back to bundled original
-skins when no local origin art has been imported.
+hardened: the desktop pet opens the background agent, app policy gates any
+desktop-control intent, Computer Use is a tool the agent can invoke, and task
+state remains visible in the floating companion. The pet art is now
+manifest-driven and separate from the backend: skfiy first looks for a local
+`luoxiaohei-local` skin pack under the user's Application Support directory,
+then falls back to bundled original skins when no local origin art has been
+imported.
 
 ## Current Local Evidence
 
@@ -36,8 +37,6 @@ compiled `skfiy.app` Automation path.
   `.skfiy-smoke/dashboard-<commit>.json`.
 - Codex plugin MCP smoke: packaged CLI product gate,
   `.skfiy-smoke/codex-plugin-<commit>.json`.
-- Doubao text-bridge voice smoke: passed,
-  `.skfiy-smoke/voice-<commit>.json`.
 - Long-horizon `money-run` tmux supervision smoke: passed,
   `.skfiy-smoke/money-run-<commit>.json`.
 - Finder item drag/drop smoke: blocked by desktop preflight on the latest run,
@@ -122,9 +121,9 @@ This copies the image into:
 ```
 
 and writes `skin.pet.json` with `redistribution: "local-only"` metadata. The
-importer supports PNG, GIF, WebP, SVG, and JPEG. A single image becomes a
-one-frame skin immediately; a later importer pass should pack multiple official
-sticker/GIF frames into an 8-by-9 atlas.
+importer supports PNG, GIF, WebP, SVG, and JPEG. GIF/WebP sources can stay as
+native animated raster skins; sprite atlases remain available for frame-mapped
+skins.
 
 A skin is a `.pet.json` manifest plus an atlas image:
 
@@ -137,6 +136,16 @@ A skin is a `.pet.json` manifest plus an atlas image:
   "frameHeight": 208,
   "columns": 8,
   "rows": 9,
+  "rendering": {
+    "mode": "sprite-atlas",
+    "ambientMotion": true,
+    "failureShake": true
+  },
+  "layout": {
+    "hitboxWidth": 166,
+    "hitboxHeight": 184,
+    "visualScale": 0.82
+  },
   "states": {
     "idle": { "row": 0, "frames": 6, "frameMs": 170 }
   }
@@ -145,7 +154,12 @@ A skin is a `.pet.json` manifest plus an atlas image:
 
 Every skin must define all renderer states: `idle`, `running-right`,
 `running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and
-`review`. During local prototype work, a custom manifest can also be stored in
+`review`. `rendering.ambientMotion` and `rendering.failureShake` control the
+extra CSS bob/shake layer; animated source art can disable both so only the
+image's own frames move. `layout.hitboxWidth` and `layout.hitboxHeight` should
+match the visible cropped bounds, not the original transparent square canvas,
+so click and drag feel attached to the pet. During local prototype work, a
+custom manifest can also be stored in
 `localStorage` under `skfiy.petSkin.customManifest`, with
 `skfiy.petSkin.selectedId` set to the same slug. The packaged-product path is
 the `skin import` command above, because it keeps user-provided art outside git
@@ -157,9 +171,11 @@ or include them in release artifacts without permission. The best crop target is
 the cat-form, avatar/sticker-like pose: full ears visible, tail included when it
 does not make the figure too wide, alpha/flat background preferred, bottom
 center aligned, and padded by roughly 12-16% after trimming transparent or flat
-background bounds. Export a consistent 8-by-9 atlas at 192x208 per frame so the
-existing animation mapping can drive idle, run, wave, jump, failed, waiting,
-running, and review states.
+background bounds. For animated raster skins, crop the exported GIF/WebP to the
+union of visible alpha across all frames and set the manifest hitbox to that
+cropped size. For atlas skins, export a consistent 8-by-9 atlas at 192x208 per
+frame so the existing animation mapping can drive idle, run, wave, jump,
+failed, waiting, running, and review states.
 
 ## macOS Permissions
 
@@ -169,57 +185,40 @@ The app needs two system permissions before it can execute Computer Use actions:
 - **Accessibility**: allows synthetic clicks, typing, key presses, and window
   focus changes.
 
-Voice input is provider-specific. The default path uses Doubao Input Method as
-an external text bridge, so skfiy does not embed Doubao and does not need
-macOS Speech Recognition permission for that default path. **Microphone** is
-needed only for browser or local native speech providers. **Speech Recognition**
-is needed only when intentionally selecting the optional `native-macos`
-provider.
-
 Open **System Settings > Privacy & Security** and grant these permissions to the
 compiled `skfiy.app` bundle used for local validation.
 
-Right-click the pet to view the current Screen Recording, Accessibility,
-Microphone, and Speech Recognition status, or to jump to the matching System
-Settings pane. The permission onboarding blocks only the permissions required by
-the selected voice provider.
-
-## Doubao Dictation
-
-Left-click the desktop pet to enter skfiy's dictation flow. Right-click the pet
-for settings details and ASR provider switching. By default skfiy selects Doubao
-Input Method as the text bridge and sends a skfiy-owned voice shortcut:
-`Control+Option+Command+Shift+Space`. Configure Doubao Input Method's voice
-shortcut to the same chord if you want Doubao's native speech recognition to
-write into skfiy's transcript area.
-
-Choose the browser provider in settings to skip Doubao triggering and use
-Chromium Web Speech fallback for the next voice turn. Choose the macOS provider
-to use skfiy's local one-shot Speech framework prototype; it listens until a
-short silence timeout or a maximum duration, then streams the final transcript
-back into the same Computer Use path.
-
-Before a voice transcript can enter Computer Use, skfiy now applies a
-main-process admission gate: streaming ASR providers must produce a final
-transcript, submitted text must match that final candidate, low-confidence
-candidates ask for clarification, and chat/unsupported requests are routed away
-from desktop control. Doubao remains supported as a text bridge when it cannot
-provide per-candidate confidence.
-
-For native macOS speech dogfood, tune the bounded listening turn with
-`SKFIY_NATIVE_SPEECH_LOCALE`, `SKFIY_NATIVE_SPEECH_MAX_DURATION_MS`, and
-`SKFIY_NATIVE_SPEECH_SILENCE_TIMEOUT_MS`. The defaults are `zh-CN`, `7000`,
-and `900`.
+Right-click the pet to view Screen Recording and Accessibility status, or to
+jump to the matching System Settings pane. skfiy only handles agent requests and
+authorized desktop actions; OS-level input methods remain outside the app and
+are not skfiy providers or product integrations.
 
 Press `Escape` while the pet has focus, or `Control+Option+Shift+Escape`
-globally, to stop the current voice or task turn.
+globally, to stop the current task turn.
 
-Set `SKFIY_DOUBAO_VOICE_TRIGGER=none` to disable native shortcut triggering and
-fall back to Chromium Web Speech. That browser engine can fail with a `network`
-error in restricted environments even when microphone permission is already
-granted. For local compatibility experiments only, launch with
-`SKFIY_DOUBAO_VOICE_TRIGGER=fn-double-tap` to restore the legacy Fn double-tap
-trigger.
+## Background Agent
+
+The pet opens the background agent. The agent can answer, clarify, refuse, or
+ask skfiy to run a desktop-control intent. Computer Use is not a competing
+mode; it is the permissioned tool layer the agent calls for app control.
+
+By default the background agent uses a small local fallback so the pet can reply
+without requiring any external CLI session. For real agent-backed dogfood, set:
+
+- `SKFIY_ASSISTANT_AGENT=codex` to route pet chat through `codex exec`.
+- `SKFIY_ASSISTANT_AGENT=claude-code` to route pet chat through `claude --print`.
+- `SKFIY_CODEX_BIN=/path/to/codex` or `SKFIY_CLAUDE_CODE_BIN=/path/to/claude`
+  when the binaries are not on the app's launch `PATH`.
+- `SKFIY_ASSISTANT_AGENT_CWD=/some/workdir` to choose the agent working
+  directory.
+- `SKFIY_ASSISTANT_AGENT_TIMEOUT_MS=45000` to tune the bounded response wait.
+
+Both CLI providers are invoked as bounded, non-interactive background answerers:
+Codex runs with a read-only sandbox and no approval prompts; Claude Code runs in
+print mode with tools disabled. They must not directly execute desktop actions
+from the pet chat path. Explicit app-control intents are still admitted by
+skfiy, checked against app policy, and executed by skfiy's Computer Use
+orchestrators.
 
 ## Safety Model
 
@@ -227,13 +226,19 @@ skfiy treats each Computer Use turn as permissioned app control, with
 target-specific risk on top. Terminal control is currently the strictest adapter
 because shell commands can mutate the whole machine.
 
+For local pet and Computer Use dogfood, skfiy defaults to bypassing the per-turn
+app policy and risk approval pause so testers do not need to approve every action.
+Set `SKFIY_BYPASS_APPROVAL=0`, `false`, `strict`, or `ask` before launching the
+packaged app to restore explicit approval prompts for safety validation. This
+does not bypass macOS Screen Recording or Accessibility.
+
 - Read-only commands such as `pwd`, `ls`, `date`, and `whoami` can run without
   an extra approval pause.
-- Local state changes such as `mkdir demo` pause for approval and require the
-  Approve button before execution.
+- With strict approval enabled, local state changes such as `mkdir demo` pause
+  for approval and require the Approve button before execution.
 - Destructive, privileged, piped installer, or automation commands such as
   `rm -rf`, `sudo`, `curl ... | sh`, and `osascript` require explicit approval
-  and should be denied by default in the MVP.
+  in safety validation and should be denied by default in the MVP.
 
 ## Operator CLI and Dashboard
 
@@ -255,7 +260,7 @@ same Chrome host policy used by the CLI and MV3 native-host bridge.
 runtime snapshot before dashboard evidence can pass. Runtime snapshots include
 bounded approval/stop state, latest action, latest verification, latest
 screenshot, timeline tail, and replay summaries so the dashboard can inspect the
-current Computer Use turn without reading full raw transcripts.
+current Computer Use turn without reading raw task internals.
 
 `skfiy status --json` includes a top-level `readiness` summary for runtime,
 dashboard, extension, and `money-run`. It also performs a read-only tmux probe of
@@ -411,14 +416,12 @@ npm run smoke:cli -- --output .skfiy-smoke/cli-command-matrix.json
 npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json
 npm run smoke:codex-plugin -- --output .skfiy-smoke/codex-plugin.json
 npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-item-drag-drop.json
-npm run smoke:voice -- --output .skfiy-smoke/voice-doubao.json
 npm run smoke:money-run -- --json-output .skfiy-smoke/money-run-supervision.json
 npm run alpha:artifact -- \
   --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json \
   --smoke-artifact .skfiy-smoke/ghostty-matrix.json \
   --chrome-smoke-artifact .skfiy-smoke/chrome-page.json \
   --finder-smoke-artifact .skfiy-smoke/finder-item-drag-drop.json \
-  --voice-smoke-artifact .skfiy-smoke/voice-doubao.json \
   --money-run-smoke-artifact .skfiy-smoke/money-run-supervision.json
 npm run alpha:github-release -- \
   --manifest .skfiy-alpha/skfiy-0.1.0-<commit>-macos-unsigned.json \
@@ -493,10 +496,9 @@ has just been unlocked or permission state looks inconsistent. It records the
 packaged helper's display sleep state, active app, and a screenshot black-screen
 analysis; `blocked` with `mainDisplayAsleep=true`, `com.apple.loginwindow`, or
 `isLikelyBlack=true` is an environment blocker, not a missing TCC grant.
-For the default external Doubao path, read
-`permissionInterpretation.defaultExternalDoubaoReady` from that artifact; its
-direct-helper `permissions.speechRecognition` value is diagnostic only and can
-differ from app-scoped `smoke:ui` speech evidence.
+Screen Recording and Accessibility are the product blockers for Computer Use;
+other helper permission fields are diagnostic unless a future feature explicitly
+uses them.
 
 `dogfood:status` is non-mutating. Its summary includes a
 `Recommended Tester Assignments` section with copyable prepare, tester, and
@@ -543,12 +545,9 @@ permission rows are checked against the same app identity that will run. The
 desktop section surfaces locked console, `com.apple.loginwindow`, and
 display-sleep blockers from the current smoke evidence; testers should not use
 `--require-passed` until `smoke:desktop-session` passes on their machine. The
-permission section lists Screen Recording, Accessibility, Microphone, and Speech
-Recognition states and tells testers to use `--require-passed` only after the
-provider-relevant permissions are granted to the extracted `skfiy.app` and the
-desktop session preflight is clear. For the default external Doubao path, that
-means Screen Recording and Accessibility; Microphone and Speech Recognition are
-only required for browser or `native-macos` provider tests.
+permission section lists Screen Recording and Accessibility states and tells
+testers to use `--require-passed` only after those permissions are granted to
+the extracted `skfiy.app` and the desktop session preflight is clear.
 It also includes an `Evidence Preview Gate` section that tells testers to confirm
 `reportPreviewEligibility.eligible=true` before filing and to preserve the
 blocking checks when it is false. That gate calls out UI pet drag evidence
@@ -608,7 +607,7 @@ acceptance still requires
 the report validates.
 `dogfood:tester` summaries include a `Smoke Results` table with each packaged
 smoke's result, product path, and permission states parsed from the smoke JSON
-stdout, so testers and maintainers can audit passed/blocked/no-transcript runs
+stdout, so testers and maintainers can audit passed/blocked runs
 without opening every artifact by hand. When smoke artifacts include Computer
 Use event logs, the same summary now adds a `Computer Use Scorecard` with total
 runs, task success rate, manual interventions, average steps, unsafe-action
@@ -620,7 +619,7 @@ runs.
 `dogfood:tester --require-passed` also runs a strict desktop-session preflight
 from the first UI smoke. If that smoke reports locked console,
 `com.apple.loginwindow`, display sleep, or black-screen evidence, the runner
-stops before Ghostty/Chrome/Finder/voice and writes a failed `Desktop Session
+stops before Ghostty/Chrome/Finder and writes a failed `Desktop Session
 Preflight` section in the summary instead of collecting misleading product smoke
 failures.
 Workflow and passed workflow coverage in `dogfood:status` and

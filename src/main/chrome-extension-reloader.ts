@@ -377,8 +377,10 @@ function findExtensionCardReloadTarget(
 }
 
 export async function openChromeExtensionManagerPage(url: string): Promise<void> {
+  const chromeAppName = readChromeExtensionOpenerAppName();
+
   await new Promise<void>((resolve, reject) => {
-    execFile("open", ["-a", "Google Chrome", url], (error) => {
+    execFile("open", ["-a", chromeAppName, url], (error) => {
       if (error) {
         reject(error);
         return;
@@ -386,6 +388,11 @@ export async function openChromeExtensionManagerPage(url: string): Promise<void>
       resolve();
     });
   });
+}
+
+export function readChromeExtensionOpenerAppName(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.SKFIY_CHROME_APP_NAME?.trim();
+  return configured && !configured.startsWith("-") ? configured : "Google Chrome";
 }
 
 async function tryChromeExtensionContextReload({

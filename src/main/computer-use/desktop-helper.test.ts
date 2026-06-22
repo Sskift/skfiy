@@ -39,11 +39,10 @@ describe("DesktopHelperClient", () => {
       ok,
       {
         stdout:
-          "{\"screenRecording\":{\"state\":\"granted\"},\"accessibility\":{\"state\":\"denied\"},\"microphone\":{\"state\":\"unknown\"},\"speechRecognition\":{\"state\":\"unknown\"}}",
+          "{\"screenRecording\":{\"state\":\"granted\"},\"accessibility\":{\"state\":\"denied\"}}",
         stderr: "",
         exitCode: 0
       },
-      ok,
       ok,
       ok
     ]);
@@ -54,12 +53,11 @@ describe("DesktopHelperClient", () => {
     await client.typeText("echo hello; rm -rf /");
     await client.pressKey("enter");
     await client.click(12, 34);
-    await client.selectInputSource("com.bytedance.inputmethod.doubaoime.pinyin");
+    await client.selectInputSource("com.example.inputmethod.pinyin");
     await client.doubleTapFunctionKey();
     await client.pressShortcut("space", ["control", "option", "command", "shift"]);
     await client.getPermissions();
     await client.openPermissionSettings("screen-recording");
-    await client.openPermissionSettings("speech-recognition");
 
     expect(calls).toEqual([
       { command: "/tmp/skfiy-helper", args: ["list-apps"] },
@@ -73,7 +71,7 @@ describe("DesktopHelperClient", () => {
         args: [
           "select-input-source",
           "--source-id",
-          "com.bytedance.inputmethod.doubaoime.pinyin"
+          "com.example.inputmethod.pinyin"
         ]
       },
       {
@@ -94,10 +92,6 @@ describe("DesktopHelperClient", () => {
       {
         command: "/tmp/skfiy-helper",
         args: ["open-permission-settings", "--permission", "screen-recording"]
-      },
-      {
-        command: "/tmp/skfiy-helper",
-        args: ["open-permission-settings", "--permission", "speech-recognition"]
       }
     ]);
   });
@@ -277,9 +271,7 @@ describe("DesktopHelperClient", () => {
           command: "permissions-status",
           data: {
             screenRecording: { status: "authorized", granted: true },
-            accessibility: { status: "notAuthorized", granted: false },
-            microphone: { status: "notDetermined", granted: false },
-            speechRecognition: { status: "authorized", granted: true }
+            accessibility: { status: "notAuthorized", granted: false }
           }
         }),
         stderr: "",
@@ -289,9 +281,7 @@ describe("DesktopHelperClient", () => {
 
     await expect(client.getPermissions()).resolves.toEqual({
       screenRecording: { state: "granted" },
-      accessibility: { state: "denied" },
-      microphone: { state: "not-determined" },
-      speechRecognition: { state: "granted" }
+      accessibility: { state: "denied" }
     });
   });
 
@@ -325,129 +315,6 @@ describe("DesktopHelperClient", () => {
       {
         command: "/tmp/skfiy-helper",
         args: ["desktop-session-status"]
-      }
-    ]);
-  });
-
-  it("reads native macOS speech recognition readiness from the helper", async () => {
-    const { calls, client } = createClientWithResponses([
-      {
-        stdout: JSON.stringify({
-          ok: true,
-          command: "speech-status",
-          data: {
-            locale: "zh-CN",
-            recognizerAvailable: true,
-            speechRecognition: { status: "authorized", granted: true },
-            microphone: { status: "authorized", granted: true }
-          }
-        }),
-        stderr: "",
-        exitCode: 0
-      }
-    ]);
-
-    await expect(client.getSpeechStatus("zh-CN")).resolves.toEqual({
-      locale: "zh-CN",
-      recognizerAvailable: true,
-      speechRecognition: { state: "granted" },
-      microphone: { state: "granted" }
-    });
-    expect(calls).toEqual([
-      {
-        command: "/tmp/skfiy-helper",
-        args: ["speech-status", "--locale", "zh-CN"]
-      }
-    ]);
-  });
-
-  it("runs one-shot native macOS speech transcription through the helper", async () => {
-    const { calls, client } = createClientWithResponses([
-      {
-        stdout: JSON.stringify({
-          ok: true,
-          command: "transcribe-speech",
-          data: {
-            text: "打开 Ghostty 执行 pwd",
-            isFinal: true,
-            confidence: 0.82,
-            durationMs: 1850,
-            silenceTimedOut: true
-          }
-        }),
-        stderr: "",
-        exitCode: 0
-      }
-    ]);
-
-    await expect(
-      client.transcribeSpeech({
-        locale: "zh-CN",
-        maxDurationMs: 6000,
-        silenceTimeoutMs: 900
-      })
-    ).resolves.toEqual({
-      text: "打开 Ghostty 执行 pwd",
-      isFinal: true,
-      confidence: 0.82,
-      durationMs: 1850,
-      silenceTimedOut: true
-    });
-    expect(calls).toEqual([
-      {
-        command: "/tmp/skfiy-helper",
-        args: [
-          "transcribe-speech",
-          "--locale",
-          "zh-CN",
-          "--max-duration-ms",
-          "6000",
-          "--silence-timeout-ms",
-          "900"
-        ]
-      }
-    ]);
-  });
-
-  it("passes an abort signal to the native speech helper process", async () => {
-    const controller = new AbortController();
-    const { calls, client } = createClientWithResponses([
-      {
-        stdout: JSON.stringify({
-          ok: true,
-          command: "transcribe-speech",
-          data: {
-            text: "",
-            isFinal: true,
-            durationMs: 120,
-            silenceTimedOut: false
-          }
-        }),
-        stderr: "",
-        exitCode: 0
-      }
-    ]);
-
-    await client.transcribeSpeech({
-      locale: "zh-CN",
-      maxDurationMs: 6000,
-      silenceTimeoutMs: 900,
-      signal: controller.signal
-    });
-
-    expect(calls).toEqual([
-      {
-        command: "/tmp/skfiy-helper",
-        args: [
-          "transcribe-speech",
-          "--locale",
-          "zh-CN",
-          "--max-duration-ms",
-          "6000",
-          "--silence-timeout-ms",
-          "900"
-        ],
-        signal: controller.signal
       }
     ]);
   });

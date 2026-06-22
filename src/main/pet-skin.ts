@@ -31,6 +31,16 @@ export interface PetSkinManifest {
   columns: number;
   rows: number;
   source: "custom-user";
+  rendering?: {
+    mode: "sprite-atlas" | "animated-raster";
+    ambientMotion?: boolean;
+    failureShake?: boolean;
+  };
+  layout?: {
+    hitboxWidth: number;
+    hitboxHeight: number;
+    visualScale?: number;
+  };
   states: Record<PetAtlasState, PetAnimationState>;
   origin?: {
     sourcePath: string;
@@ -84,6 +94,11 @@ const SUPPORTED_ORIGIN_ASSET_EXTENSIONS = new Set([
   ".webp"
 ]);
 
+const ANIMATED_RASTER_EXTENSIONS = new Set([
+  ".gif",
+  ".webp"
+]);
+
 export function createPetSkinsRootPath(homeDir: string): string {
   return path.join(homeDir, "Library", "Application Support", "skfiy", "skins");
 }
@@ -132,6 +147,15 @@ export async function importPetSkin(input: ImportPetSkinInput): Promise<ImportPe
     columns: 1,
     rows: 1,
     source: "custom-user",
+    ...(ANIMATED_RASTER_EXTENSIONS.has(extension)
+      ? {
+          rendering: {
+            mode: "animated-raster" as const,
+            ambientMotion: false,
+            failureShake: false
+          }
+        }
+      : {}),
     origin: {
       sourcePath,
       licenseSource,
@@ -200,6 +224,10 @@ function isPositiveInteger(value: unknown): value is number {
   return Number.isInteger(value) && Number(value) > 0;
 }
 
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 function isNonNegativeInteger(value: unknown): value is number {
   return Number.isInteger(value) && Number(value) >= 0;
 }
@@ -219,6 +247,8 @@ function isPetSkinManifest(value: unknown): value is PetSkinManifest {
   }
 
   const states = isRecord(value.states) ? value.states : {};
+  const rendering = isRecord(value.rendering) ? value.rendering : undefined;
+  const layout = isRecord(value.layout) ? value.layout : undefined;
   return (
     typeof value.displayName === "string"
     && typeof value.slug === "string"
@@ -228,6 +258,27 @@ function isPetSkinManifest(value: unknown): value is PetSkinManifest {
     && isPositiveInteger(value.columns)
     && isPositiveInteger(value.rows)
     && value.source === "custom-user"
+    && (
+      rendering === undefined
+      || rendering.mode === "sprite-atlas"
+      || rendering.mode === "animated-raster"
+    )
+    && (
+      rendering === undefined
+      || (rendering.ambientMotion === undefined || typeof rendering.ambientMotion === "boolean")
+    )
+    && (
+      rendering === undefined
+      || (rendering.failureShake === undefined || typeof rendering.failureShake === "boolean")
+    )
+    && (
+      layout === undefined
+      || (
+        isPositiveInteger(layout.hitboxWidth)
+        && isPositiveInteger(layout.hitboxHeight)
+        && (layout.visualScale === undefined || isPositiveNumber(layout.visualScale))
+      )
+    )
     && Object.keys(SINGLE_FRAME_STATES).every((state) => isPetAnimationState(states[state]))
   );
 }

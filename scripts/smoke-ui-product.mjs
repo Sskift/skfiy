@@ -332,9 +332,7 @@ async function readProcessLines(pattern) {
 async function inspectPermissionOnboardingExpression(settleMs) {
   const permissionTargets = {
     "屏幕录制": "screen-recording",
-    "辅助功能": "accessibility",
-    "麦克风": "microphone",
-    "语音识别": "speech-recognition"
+    "辅助功能": "accessibility"
   };
   const pet = Array.from(document.querySelectorAll("[aria-label]")).find((element) =>
     /skfiy codex-style pet/i.test(element.getAttribute("aria-label") ?? "")

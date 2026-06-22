@@ -19,12 +19,12 @@ describe("product smoke lock", () => {
       const first = await acquireSmokeLock({ rootDir, scriptName: "ghostty" });
 
       await expect(
-        acquireSmokeLock({ rootDir, scriptName: "voice" })
+        acquireSmokeLock({ rootDir, scriptName: "finder" })
       ).rejects.toThrow(/Another packaged-app smoke run is already active/);
 
       await first.release();
       await expect(
-        acquireSmokeLock({ rootDir, scriptName: "voice" })
+        acquireSmokeLock({ rootDir, scriptName: "finder" })
       ).resolves.toMatchObject({
         lockPath: path.join(rootDir, ".skfiy-smoke", "product-smoke.lock")
       });

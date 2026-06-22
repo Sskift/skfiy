@@ -6,13 +6,13 @@ Date: 2026-06-16
 
 Decision: Option A now, Option B later.
 
-skfiy should continue as a standalone experimental shell until it proves native desktop Computer Use through packaged-app dogfood evidence. The intended later integration path is Option B: skfiy as AIME native Computer Use plugin, if AIME or AIOS exposes a stable plugin/runtime contract that can preserve skfiy's permission model, replay evidence, and voice-first pet control surface.
+skfiy should continue as a standalone experimental shell until it proves native desktop Computer Use through packaged-app dogfood evidence. The intended later integration path is Option B: skfiy as AIME native Computer Use plugin, if AIME or AIOS exposes a stable plugin/runtime contract that can preserve skfiy's permission model, replay evidence, and agent-first pet control surface.
 
 ## Options
 
 Option A: skfiy as standalone experimental shell.
 
-This keeps the product surface, permissions, dogfood gates, and native macOS Computer Use loop under one repo while the risk is still high. It is the right current choice because the missing evidence is still skfiy-owned: `dogfood:verify`, `dogfood:cohort`, Ghostty `require-passed`, default external Doubao voice `require-passed`, optional `native-macos` provider evidence, and 3-5 user dogfood runs.
+This keeps the product surface, permissions, dogfood gates, and native macOS Computer Use loop under one repo while the risk is still high. It is the right current choice because the missing evidence is still skfiy-owned: `dogfood:verify`, `dogfood:cohort`, Ghostty/Chrome/Finder `require-passed`, and 3-5 user dogfood runs.
 
 Option B: skfiy as AIME native Computer Use plugin.
 
@@ -20,7 +20,7 @@ This is the preferred integration direction after skfiy has passing product-path
 
 Option C: skfiy only provides helper/runtime, AIME owns UX.
 
-This is not the current choice. Removing the skfiy pet UX too early would weaken the voice-first control loop, visible status, permission onboarding, panic stop, and local replay affordances that the current plan is trying to validate.
+This is not the current choice. Removing the skfiy pet UX too early would weaken the agent-first control loop, visible status, permission onboarding, panic stop, and local replay affordances that the current plan is trying to validate.
 
 ## Evidence
 
@@ -55,5 +55,5 @@ Revisit this decision when any of these become true:
 - Continue building and validating skfiy as a packaged binary app, not a tmux/backend-only demo.
 - Keep AIME integration boundaries explicit: planner/provider config, app adapter contracts, replay artifacts, and dogfood verifier outputs.
 - Do not block native Computer Use dogfood on AIME integration.
-- Do not position skfiy as competing with AIME's browser assistant or Lark/workflow automation. The wedge is native desktop control with voice-first, permissioned execution.
+- Do not position skfiy as competing with AIME's browser assistant or Lark/workflow automation. The wedge is native desktop control with agent-first, permissioned execution.
 - Prepare for Option B by keeping the runtime separable: helper commands, product-path smoke scripts, manifest artifacts, single-user verifier reports, and cohort verifier reports should be usable as plugin acceptance evidence.

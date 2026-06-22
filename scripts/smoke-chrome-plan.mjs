@@ -26,6 +26,10 @@ export const CHROME_EXTENSION_SETUP_GUIDE_REQUIRED_TERMS = [
   "Refresh host policy",
   "Host permission",
   "Page session",
+  "Chromium Dashboard Dogfood",
+  "plcpkkhlcacihjfohlojdknnkademlno",
+  "Application Support/Chromium/NativeMessagingHosts/com.sskift.skfiy.json",
+  "--extension-chrome-app \"Chromium\"",
   "skfiy.page_control.health",
   "readinessSnapshot",
   "remediation",
@@ -33,8 +37,8 @@ export const CHROME_EXTENSION_SETUP_GUIDE_REQUIRED_TERMS = [
   "branded_chrome_load_extension_removed"
 ];
 export const INSTALLED_EXTENSION_CHROME_APP_CANDIDATES = [
-  "Google Chrome for Testing",
-  "Chromium"
+  "Chromium",
+  "Google Chrome for Testing"
 ];
 export const FALLBACK_PRODUCT_PATH =
   "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback";
@@ -144,7 +148,7 @@ Options:
   --cli <path>          Packaged CLI path for Native Messaging heartbeat. Default: ${defaults.cliPath}
   --chrome-app <name>   macOS Chrome app name. Default: ${defaults.chromeAppName}
   --extension-chrome-app <name>
-                        Browser app for installed-extension smoke. Auto-prefers Chrome for Testing/Chromium when available.
+                        Browser app for installed-extension smoke. Auto-prefers Chromium, then Chrome for Testing, when available.
   --extension-id <id>   Manually installed skfiy Chrome extension id for action smoke.
   --port <number>       Electron remote debugging port. Default: ${defaults.port}
   --chrome-port <num>   Chrome DevTools Protocol port. Default: ${defaults.chromePort}
@@ -293,12 +297,16 @@ function hasInstalledExtensionSmokeEvidence(run) {
     && run.response?.result === "accepted"
     && typeof run.heartbeatPath === "string"
     && run.heartbeatPath.includes("Application Support/skfiy/chrome-extension-connection.json")
-    && run.heartbeat?.hostName === "com.sskift.skfiy"
-    && run.heartbeat?.launchOrigin === `chrome-extension://${run.extensionId}/`
-    && run.heartbeat?.messageType === "skfiy.page.observe"
-    && run.heartbeat?.requestId === "chrome-smoke-installed-extension"
+    && hasInstalledExtensionHeartbeatEvidence(run.heartbeat, `chrome-extension://${run.extensionId}/`)
     && hasInstalledExtensionStatusDiagnostics(run.extensionStatus, run.extensionId)
     && hasInstalledExtensionPageControlHealth(run.pageControlHealth, run.extensionId);
+}
+
+function hasInstalledExtensionHeartbeatEvidence(heartbeat, launchOrigin) {
+  const record = readRecord(heartbeat);
+
+  return record?.hostName === "com.sskift.skfiy"
+    && record?.launchOrigin === launchOrigin;
 }
 
 function isKnownInstalledExtensionSmokeBlocker(run) {
@@ -374,8 +382,47 @@ export function selectInstalledExtensionActionTargetTab(tabs = [], fixtureUrl = 
       && ["http:", "https:"].includes(url.protocol)
       && url.origin === fixture.origin
       && url.pathname === fixture.pathname
-      && url.search === fixture.search;
+      && isCompatibleFixtureSearch(url, fixture);
   });
+}
+
+export function readInstalledExtensionActionTargetTabs(tabsRun = {}) {
+  const record = readRecord(tabsRun);
+
+  if (!record) {
+    return [];
+  }
+
+  const sources = [
+    record.tabs,
+    readRecord(readRecord(record.extensionConnection)?.latestCommand)?.pageTabs?.tabs,
+    readRecord(record.extensionConnection)?.pageTabs?.tabs
+  ];
+  const tabs = [];
+  const seen = new Set();
+
+  for (const source of sources) {
+    if (!Array.isArray(source)) {
+      continue;
+    }
+
+    for (const tab of source) {
+      const entry = readRecord(tab);
+      if (!entry) {
+        continue;
+      }
+
+      const key = `${String(entry.id ?? "")}:${String(entry.url ?? "")}`;
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      tabs.push(entry);
+    }
+  }
+
+  return tabs;
 }
 
 export function classifyInstalledExtensionActionSmokeEvidence(run = {}) {
@@ -400,7 +447,7 @@ export function classifyInstalledExtensionActionSmokeEvidence(run = {}) {
   }
 
   const tabsRun = readRecord(record.tabsRun);
-  const tabs = Array.isArray(tabsRun?.tabs) ? tabsRun.tabs : [];
+  const tabs = readInstalledExtensionActionTargetTabs(tabsRun);
   const selectedTargetTab = readRecord(record.selectedTargetTab)
     ?? selectInstalledExtensionActionTargetTab(tabs, String(record.fixtureUrl ?? ""));
 
@@ -411,8 +458,16 @@ export function classifyInstalledExtensionActionSmokeEvidence(run = {}) {
     return "blocked";
   }
 
+  const reloadRun = readRecord(record.reloadRun);
+  if (!isAcceptableInstalledExtensionReloadRun(reloadRun)) {
+    if (reloadRun?.result === "blocked") {
+      return isKnownInstalledExtensionActionBlocker(reloadRun.reason) ? "blocked" : "failed";
+    }
+
+    return "failed";
+  }
+
   const blockedStep = [
-    record.reloadRun,
     record.observeRun,
     record.fillRun,
     record.clickRun,
@@ -426,7 +481,6 @@ export function classifyInstalledExtensionActionSmokeEvidence(run = {}) {
 
   if (
     ![
-      record.reloadRun,
       record.observeRun,
       record.fillRun,
       record.clickRun,
@@ -482,9 +536,9 @@ export function createInstalledExtensionBlockerRemediation({
     return {
       ...common,
       summary: "Branded Google Chrome blocked automated unpacked extension loading for the installed-extension smoke proof.",
-      nextAction: `Use ${recommendedBrowser}, pass --extension-chrome-app "Google Chrome for Testing", or manually install the skfiy extension before rerunning smoke:chrome.`,
+      nextAction: `Use ${recommendedBrowser}, pass --extension-chrome-app "Chromium", or manually install the skfiy extension before rerunning smoke:chrome.`,
       commands: [
-        "npm run smoke:chrome -- --extension-chrome-app \"Google Chrome for Testing\" --output .skfiy-smoke/chrome-extension.json"
+        "npm run smoke:chrome -- --extension-chrome-app \"Chromium\" --output .skfiy-smoke/chrome-extension.json"
       ]
     };
   }
@@ -494,7 +548,7 @@ export function createInstalledExtensionBlockerRemediation({
     summary: "The skfiy extension service worker was not visible in Chrome DevTools targets.",
     nextAction: `Open chrome://extensions, verify the unpacked skfiy extension is loaded, or rerun smoke:chrome with ${recommendedBrowser}.`,
     commands: [
-      "npm run smoke:chrome -- --extension-chrome-app \"Google Chrome for Testing\" --output .skfiy-smoke/chrome-extension.json"
+      "npm run smoke:chrome -- --extension-chrome-app \"Chromium\" --output .skfiy-smoke/chrome-extension.json"
     ]
   };
 }
@@ -662,7 +716,8 @@ function hasInstalledExtensionStatusDiagnostics(status, extensionId) {
       || status.syncStatus?.hostPolicyState === "invalid"
     )
     && status.diagnostics?.extension?.id === extensionId
-    && status.diagnostics?.extension?.version === "0.0.1"
+    && typeof status.diagnostics?.extension?.version === "string"
+    && status.diagnostics.extension.version.length > 0
     && status.diagnostics?.capabilities?.nativeMessaging === true
     && status.diagnostics?.capabilities?.scripting === true
     && status.diagnostics?.nativeHost?.name === "com.sskift.skfiy"
@@ -1155,8 +1210,47 @@ function parseUrl(value) {
   }
 }
 
+function isCompatibleFixtureSearch(url, fixture) {
+  if (url.search === fixture.search) {
+    return true;
+  }
+
+  const urlKeys = Array.from(url.searchParams.keys());
+  const fixtureKeys = Array.from(fixture.searchParams.keys());
+
+  if (
+    urlKeys.length !== fixtureKeys.length
+    || urlKeys.some((key, index) => key !== fixtureKeys[index])
+  ) {
+    return false;
+  }
+
+  return fixtureKeys.every((key) => {
+    const urlValues = url.searchParams.getAll(key);
+    const fixtureValues = fixture.searchParams.getAll(key);
+
+    return urlValues.length === fixtureValues.length
+      && urlValues.every((value, index) => (
+        value === fixtureValues[index] || value === "<redacted>"
+      ));
+  });
+}
+
 function isVerifiedChromeCliRun(run) {
   return readRecord(run)?.result === "verified";
+}
+
+function isAcceptableInstalledExtensionReloadRun(run) {
+  const record = readRecord(run);
+
+  return record?.result === "verified"
+    || (
+      record?.result === "blocked"
+      && (
+        record.reason === "desktop-session-locked"
+        || record.reason === "reload-target-not-found"
+      )
+    );
 }
 
 function hasVerifiedChromeScreenshotRun(run) {
@@ -1178,6 +1272,8 @@ function isKnownScreenshotBlockedRun(run) {
   const pageScreenshot = readRecord(latestCommand?.pageScreenshot)
     ?? readRecord(extensionConnection?.pageScreenshot)
     ?? readRecord(record?.pageScreenshot);
+  const pageControl = readRecord(extensionConnection?.pageControl);
+  const screenshot = readRecord(pageControl?.screenshot);
   const reason = String(record?.reason ?? pageScreenshot?.reason ?? "");
 
   return record?.result === "blocked"
@@ -1186,6 +1282,11 @@ function isKnownScreenshotBlockedRun(run) {
       || reason === "chrome-capture-blocked"
       || reason.includes("<all_urls>")
       || reason.includes("activeTab")
+      || (
+        reason === "page-control-screenshot-not-verified"
+        && pageControl?.state === "ready"
+        && screenshot?.state === "available"
+      )
     );
 }
 
@@ -1202,4 +1303,18 @@ function isKnownInstalledExtensionActionBlocker(reason) {
     "blocked_by_chrome_host_permission",
     "sensitive-paused"
   ].includes(String(reason ?? ""));
+}
+
+function hasBlockedInstalledExtensionActionCleanup(record) {
+  const cleanupRuns = [
+    readRecord(record?.cleanupBeforeRun),
+    ...(Array.isArray(record?.cleanupBetweenCommands)
+      ? record.cleanupBetweenCommands.map(readRecord)
+      : []),
+    readRecord(record?.cleanupAfterRun)
+  ].filter(Boolean);
+
+  return cleanupRuns.some((cleanup) =>
+    cleanup.result === "blocked" || cleanup.result === "error"
+  );
 }

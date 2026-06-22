@@ -428,7 +428,6 @@ function createSmokePaths(prefix: string) {
     ghosttySmokePath: `/repo/.skfiy-smoke/${prefix}-ghostty.json`,
     chromeSmokePath: `/repo/.skfiy-smoke/${prefix}-chrome.json`,
     finderSmokePath: `/repo/.skfiy-smoke/${prefix}-finder.json`,
-    voiceSmokePath: `/repo/.skfiy-smoke/${prefix}-voice.json`
   };
 }
 
@@ -476,9 +475,6 @@ function createIssueBody(
     "",
     smokePaths.finderSmokePath,
     "",
-    "### voice smoke artifact",
-    "",
-    smokePaths.voiceSmokePath,
     "",
     "### app bundle preflight",
     "",
@@ -517,8 +513,6 @@ function createSmokeArtifact(artifactPath: string, result: string) {
     permissions: {
       screenRecording: { state: "authorized" },
       accessibility: { state: "authorized" },
-      microphone: { state: "authorized" },
-      speechRecognition: { state: "authorized" }
     },
     runtimeStatus: {
       stopTurnHotkey: {

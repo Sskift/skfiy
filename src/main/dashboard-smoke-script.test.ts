@@ -38,6 +38,16 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("missingAfterTurnRuntimeSnapshot");
     expect(source).toContain("runtime-turn-marker.json");
     expect(source).toContain("operatorReadiness");
+    expect(source).toContain("exerciseChromeControlActionApi");
+    expect(source).toContain("dashboardChromeControlActionApi");
+    expect(source).toContain("collectRealHomeChromeControlActionEvidence");
+    expect(source).toContain("realUserHomeDir");
+    expect(source).toContain("extensionStatusBeforeActions");
+    expect(source).toContain("collectChromeExtensionStatusBeforeDashboardActions");
+    expect(source).toContain("DASHBOARD_CHROME_CONTROL_SMOKE_ACTIONS");
+    expect(source).toContain("actionRuns");
+    expect(source).toContain("runDashboardChromeControlActionWithRetry");
+    expect(source).toContain("page-control-observe-not-verified");
   });
 
   it("parses dashboard smoke options for a repeatable loopback product run", async () => {
@@ -73,16 +83,24 @@ describe("dashboard product smoke script", () => {
       "dist/skfiy",
       "--output",
       ".skfiy-smoke/dashboard.json",
+      "--extension-id",
+      "plcpkkhlcacihjfohlojdknnkademlno",
+      "--extension-chrome-app",
+      "Chromium",
       "--timeout-ms",
       "1200",
       "--require-passed"
     ], defaults)).toMatchObject({
       cliPath: path.resolve("dist/skfiy"),
       outputPath: path.resolve(".skfiy-smoke/dashboard.json"),
+      extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+      extensionChromeAppName: "Chromium",
       timeoutMs: 1200,
       requirePassed: true
     });
     expect(createDashboardHelpText(defaults)).toContain("smoke:dashboard");
+    expect(createDashboardHelpText(defaults)).toContain('--extension-chrome-app <name>');
+    expect(createDashboardHelpText(defaults)).toContain('Use "Chromium" for dogfood.');
     expect(createDashboardHelpText(defaults)).toContain("--require-passed");
   });
 
@@ -503,8 +521,6 @@ describe("dashboard product smoke script", () => {
           permissions: {
             screenRecording: "granted",
             accessibility: "granted",
-            microphone: "granted",
-            speechRecognition: "not-determined",
             finderAutomation: "unknown"
           },
           currentTurn: runtimeSnapshotFixture.snapshot.currentTurn,
@@ -776,7 +792,167 @@ describe("dashboard product smoke script", () => {
       tokenLeakDetected: false
     });
 
+    const createChromeControlActivity = (action: string) => ({
+      kind: "chrome-control-action",
+      title: `Chrome ${action}`,
+      target: {
+        app: "Google Chrome",
+        host: "127.0.0.1:60329",
+        tabId: 1782097079
+      },
+      result: "verified",
+      blockerReason: null,
+      command: `/repo/dist/skfiy chrome ${action} --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 1782097079 --json`,
+      timestamp: "2026-06-22T00:00:00.000Z"
+    });
+    const createDashboardChromeControlActionRun = (action: string, extraRequest: Record<string, unknown> = {}) => {
+      const chromeControlActivity = createChromeControlActivity(action);
+
+      return {
+        action,
+        apiUrl: "http://127.0.0.1:51234/api/chrome-control-action",
+        request: {
+          action,
+          extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+          targetTabId: 1782097079,
+          ...extraRequest
+        },
+        response: {
+          status: 200,
+          body: {
+            schemaVersion: 1,
+            command: "dashboard chrome control action",
+            source: "dashboard",
+            plannedMutation: true,
+            executesSystemMutation: true,
+            result: "verified",
+            action,
+            targetTabId: 1782097079,
+            activityEntry: chromeControlActivity
+          }
+        },
+        snapshotAfterResponse: {
+          status: 200,
+          body: {
+            currentTurn: {
+              chromeControlActivity
+            },
+            replay: {
+              chromeControlActions: [chromeControlActivity]
+            }
+          }
+        },
+        tokenLeakDetected: false,
+        result: "passed"
+      };
+    };
+    const actionRuns = [
+      createDashboardChromeControlActionRun("observe"),
+      createDashboardChromeControlActionRun("fill", { selector: "#name", text: "skfiy-dashboard" }),
+      createDashboardChromeControlActionRun("click", { selector: "#click-only" }),
+      createDashboardChromeControlActionRun("submit", { selector: "form" }),
+      createDashboardChromeControlActionRun("scroll", { dy: 600 })
+    ];
+    const dashboardChromeControlActionApi = {
+      productPath: "dist/skfiy dashboard -> /api/chrome-control-action -> dist/skfiy chrome actions -> installed Chrome extension",
+      homeMode: "real-user-home",
+      realUserHomeDir: "/Users/tester",
+      dashboard: {
+        cliOutput: {
+          command: "dashboard",
+          result: "running",
+          url: "http://127.0.0.1:51234/",
+          statePath: "/Users/tester/Library/Application Support/skfiy/dashboard-server.json"
+        },
+        cleanup: {
+          signal: "SIGTERM",
+          exited: true
+        }
+      },
+      apiUrl: "http://127.0.0.1:51234/api/chrome-control-action",
+      actionRuns,
+      tokenLeakDetected: false,
+      result: "passed"
+    };
+
     expect(classifyDashboardSmokeEvidence(passedEvidence)).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      shellResponse: {
+        status: 200,
+        body: '<!doctype html><html lang="en"><head><title>skfiy dashboard</title><script type="module" crossorigin src="./assets/dashboard-test.js"></script></head><body><div id="dashboard-root"></div></body></html>'
+      }
+    })).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      dashboardChromeControlActionApi
+    })).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      dashboardChromeControlActionApi: {
+        ...dashboardChromeControlActionApi,
+        actionRuns: actionRuns.filter((run) => run.action !== "scroll")
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      dashboardChromeControlActionApi: {
+        ...dashboardChromeControlActionApi,
+        homeMode: "isolated-home"
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      dashboardChromeControlActionApi: {
+        ...dashboardChromeControlActionApi,
+        actionRuns: actionRuns.map((run) => run.action === "click"
+          ? { ...run, response: { status: 200, body: { ...run.response.body, result: "failed" } } }
+          : run)
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          operatorReadiness: {
+            ...passedEvidence.snapshotResponse.body.operatorReadiness,
+            state: "blocked",
+            extensionReadiness: {
+              state: "blocked",
+              bridge: "native-messaging",
+              liveConnection: "unknown",
+              nativeHostState: "missing",
+              reason: "Chrome extension native messaging path is not ready."
+            },
+            recentSmokeEvidence: {
+              state: "needs-evidence",
+              requiredTargets: ["chrome", "cli"],
+              recentPassedTargets: ["cli"],
+              missingTargets: ["chrome"]
+            }
+          },
+          smokeEvidence: {
+            artifacts: [
+              {
+                target: "chrome",
+                result: "blocked",
+                path: "/repo/.skfiy-smoke/chrome-reload.json",
+                productPath: "cli -> helper activate_app -> helper observe_app -> helper ocr_image -> helper click -> extension wake page -> native-host heartbeat",
+                command: "chrome reload-extension"
+              },
+              {
+                target: "cli",
+                result: "passed",
+                path: "/repo/.skfiy-smoke/cli-basic.json",
+                productPath: "dist/skfiy -> skfiy CLI command matrix"
+              }
+            ]
+          }
+        }
+      }
+    })).toBe("blocked");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       freshInstallRuntimeSnapshot: undefined
@@ -1160,8 +1336,6 @@ describe("dashboard product smoke script", () => {
           permissions: {
             screenRecording: "unknown",
             accessibility: "unknown",
-            microphone: "unknown",
-            speechRecognition: "unknown",
             finderAutomation: "unknown"
           }
         }

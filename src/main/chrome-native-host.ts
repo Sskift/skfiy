@@ -17,6 +17,7 @@ const CHROME_NATIVE_BRIDGE_MESSAGE_TYPES = new Set([
   "skfiy.page.observe",
   "skfiy.page.action",
   "skfiy.page.screenshot",
+  "skfiy.tabs.discover",
   "skfiy.downloads.status",
   "skfiy.host_policy.request",
   "skfiy.host_policy.response"
@@ -1013,18 +1014,36 @@ function summarizePageActionResultForHeartbeat(value: unknown): Record<string, u
     ?? readFiniteNumber(actionRecord?.deltaY);
   const deltaX = readFiniteNumber(record.deltaX)
     ?? readFiniteNumber(actionRecord?.deltaX);
+  const chromeHostPermissionRecord = readRecord(record.chromeHostPermission);
+  const chromeHostPermissionOrigins = Array.isArray(chromeHostPermissionRecord?.origins)
+    ? chromeHostPermissionRecord.origins
+      .map((origin) => readBoundedString(origin))
+      .filter((origin): origin is string => Boolean(origin))
+    : [];
+  const chromeHostPermission = chromeHostPermissionRecord
+    ? {
+        ...(readBoundedString(chromeHostPermissionRecord.state) ? { state: readBoundedString(chromeHostPermissionRecord.state) } : {}),
+        ...(chromeHostPermissionOrigins.length > 0 ? { origins: chromeHostPermissionOrigins } : {}),
+        ...(readBoundedString(chromeHostPermissionRecord.reason) ? { reason: readBoundedString(chromeHostPermissionRecord.reason) } : {}),
+        ...(readBoundedString(chromeHostPermissionRecord.code) ? { code: readBoundedString(chromeHostPermissionRecord.code) } : {}),
+        ...(readBoundedString(chromeHostPermissionRecord.message) ? { message: readBoundedString(chromeHostPermissionRecord.message) } : {})
+      }
+    : undefined;
   const summary: Record<string, unknown> = {
     ...(readBoundedString(record.type) ? { type: readBoundedString(record.type) } : {}),
     ...(readBoundedString(record.requestId) ? { requestId: readBoundedString(record.requestId) } : {}),
     ...(readBoundedString(record.result) ? { result: readBoundedString(record.result) } : {}),
     ...(action ? { action } : {}),
     ...(readBoundedString(record.reason) ? { reason: readBoundedString(record.reason) } : {}),
+    ...(readBoundedString(record.code) ? { code: readBoundedString(record.code) } : {}),
+    ...(readBoundedString(record.message) ? { message: readBoundedString(record.message) } : {}),
     ...(readFiniteNumber(record.targetTabId) !== undefined ? { targetTabId: readFiniteNumber(record.targetTabId) } : {}),
     ...(readFiniteNumber(record.tabId) !== undefined ? { tabId: readFiniteNumber(record.tabId) } : {}),
     ...(selector ? { selector } : {}),
     ...(deltaY !== undefined ? { deltaY } : {}),
     ...(deltaX !== undefined ? { deltaX } : {}),
-    ...(readBoolean(record.confirmed) !== undefined ? { confirmed: readBoolean(record.confirmed) } : {})
+    ...(readBoolean(record.confirmed) !== undefined ? { confirmed: readBoolean(record.confirmed) } : {}),
+    ...(chromeHostPermission && Object.keys(chromeHostPermission).length > 0 ? { chromeHostPermission } : {})
   };
 
   return Object.keys(summary).length > 0 ? summary : undefined;

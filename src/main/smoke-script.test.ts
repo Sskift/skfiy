@@ -365,7 +365,7 @@ describe("Ghostty product smoke script", () => {
       events: [
         {
           status: "completed",
-          message: "我是 skfiy，可以帮你把明确的语音意图转成受控的桌面操作。"
+          message: "我是 skfiy，可以把明确的桌面意图转成受控的 Computer Use 操作。"
         }
       ]
     })).toBe("answered-without-computer-use");

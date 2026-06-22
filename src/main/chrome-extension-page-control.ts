@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import {
   createChromeExtensionWakeUrl,
   openChromeExtensionManagerPage,
+  readChromeExtensionOpenerAppName,
   type ChromeExtensionPageOpener
 } from "./chrome-extension-reloader.js";
 import {
@@ -11,7 +12,7 @@ import {
 } from "./chrome-native-host.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 50;
-const DEFAULT_POLL_TIMEOUT_MS = 5_000;
+const DEFAULT_POLL_TIMEOUT_MS = 10_000;
 
 export type ChromeExtensionPageControlAction =
   | "observe"
@@ -72,6 +73,8 @@ export interface ChromeExtensionTabSummary {
 export interface ChromeExtensionTabDiscoveryInput {
   extensionId: string;
   homeDir: string;
+  chromeAppName?: string;
+  requestId?: string;
   generatedAt?: string;
   opener?: ChromeExtensionPageOpener;
   fallbackTabLister?: ChromeTabLister;
@@ -165,21 +168,26 @@ export async function invokeChromeExtensionPageControl({
 export async function invokeChromeExtensionTabDiscovery({
   extensionId,
   homeDir,
+  chromeAppName = readChromeExtensionOpenerAppName(),
+  requestId,
   generatedAt,
   opener = openChromeExtensionManagerPage,
-  fallbackTabLister = listChromeTabsWithAppleEvents,
+  fallbackTabLister,
   io,
   wait = sleep,
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
   pollTimeoutMs = DEFAULT_POLL_TIMEOUT_MS
 }: ChromeExtensionTabDiscoveryInput): Promise<ChromeExtensionTabDiscoveryResult> {
   const requestGeneratedAt = generatedAt ?? new Date().toISOString();
+  const discoveryRequestId = requestId ?? `tabs-discover-cli-${Date.now()}`;
   const wakeUrl = createChromeExtensionWakeUrl(extensionId, {
-    wakeAction: "tabs"
+    wakeAction: "tabs",
+    requestId: discoveryRequestId
   });
 
   await opener(wakeUrl);
   const extensionConnection = await pollTabDiscoveryConnection({
+    requestId: discoveryRequestId,
     homeDir,
     generatedAt: requestGeneratedAt,
     io,
@@ -187,11 +195,13 @@ export async function invokeChromeExtensionTabDiscovery({
     intervalMs: pollIntervalMs,
     timeoutMs: pollTimeoutMs
   });
-  const pageTabs = readTabDiscoveryEvidence(extensionConnection, requestGeneratedAt);
+  const pageTabs = readTabDiscoveryEvidence(extensionConnection, requestGeneratedAt, discoveryRequestId);
   const tabs = readTabSummaries(pageTabs);
   const verified = extensionConnection.state === "connected" && tabs.length > 0;
   if (!verified) {
-    const fallbackTabs = await readFallbackTabs(fallbackTabLister);
+    const fallbackTabs = await readFallbackTabs(
+      fallbackTabLister ?? (() => listChromeTabsWithAppleEvents(chromeAppName))
+    );
     if (fallbackTabs.length > 0) {
       return {
         schemaVersion: 1,
@@ -262,6 +272,7 @@ async function pollPageControlConnection({
 }
 
 async function pollTabDiscoveryConnection({
+  requestId,
   homeDir,
   generatedAt = new Date().toISOString(),
   io,
@@ -269,6 +280,7 @@ async function pollTabDiscoveryConnection({
   intervalMs,
   timeoutMs
 }: {
+  requestId?: string;
   homeDir: string;
   generatedAt?: string;
   io?: ChromeNativeHostIo;
@@ -284,7 +296,7 @@ async function pollTabDiscoveryConnection({
   });
 
   while (Date.now() <= deadline) {
-    if (readTabSummaries(readTabDiscoveryEvidence(latest, generatedAt)).length > 0) {
+    if (readTabSummaries(readTabDiscoveryEvidence(latest, generatedAt, requestId)).length > 0) {
       return latest;
     }
     await wait(intervalMs);
@@ -392,22 +404,26 @@ function isFreshCommand(observedAt: unknown, generatedAt: string): boolean {
 
 function readTabDiscoveryEvidence(
   connection: ChromeExtensionConnectionStatus,
-  generatedAt: string
+  generatedAt: string,
+  requestId?: string
 ): Record<string, unknown> | undefined {
   const connectionWithTabs = connection as ChromeExtensionConnectionStatus & {
     pageTabs?: unknown;
     latestCommand?: {
       observedAt?: unknown;
       messageType?: unknown;
+      requestId?: unknown;
       pageTabs?: unknown;
     };
   };
   const latestCommand = connectionWithTabs.latestCommand;
   if (latestCommand?.messageType === "skfiy.tabs.discover"
-    && isFreshCommand(latestCommand.observedAt, generatedAt)) {
+    && isFreshCommand(latestCommand.observedAt, generatedAt)
+    && hasExpectedRequestId(latestCommand.requestId, requestId)) {
     return readRecord(latestCommand.pageTabs);
   }
-  if (connection.messageType === "skfiy.tabs.discover") {
+  if (connection.messageType === "skfiy.tabs.discover"
+    && hasExpectedRequestId(connection.requestId, requestId)) {
     return readRecord(connectionWithTabs.pageTabs);
   }
   return undefined;
@@ -446,9 +462,9 @@ async function readFallbackTabs(tabLister: ChromeTabLister): Promise<ChromeExten
   }
 }
 
-async function listChromeTabsWithAppleEvents(): Promise<ChromeAppleEventsTab[]> {
+async function listChromeTabsWithAppleEvents(chromeAppName: string): Promise<ChromeAppleEventsTab[]> {
   const script = `
-const chrome = Application("Google Chrome");
+const chrome = Application(${JSON.stringify(chromeAppName)});
 const rows = [];
 for (const window of chrome.windows()) {
   const windowId = window.id();
@@ -567,6 +583,16 @@ function createPageControlBlocker(
   action: ChromeExtensionPageControlAction,
   connection: ChromeExtensionConnectionStatus
 ): { reason: string; nextAction: string } | undefined {
+  const actionResultBlocker = readPageActionResultBlocker(action, connection);
+  if (actionResultBlocker) {
+    return actionResultBlocker;
+  }
+
+  const readinessBlocker = readPageControlReadinessBlocker(action, connection);
+  if (readinessBlocker) {
+    return readinessBlocker;
+  }
+
   if (action !== "screenshot") {
     return undefined;
   }
@@ -596,6 +622,144 @@ function createPageControlBlocker(
   };
 }
 
+function readPageActionResultBlocker(
+  action: ChromeExtensionPageControlAction,
+  connection: ChromeExtensionConnectionStatus
+): { reason: string; nextAction: string } | undefined {
+  const connectionWithAction = connection as ChromeExtensionConnectionStatus & {
+    pageActionResult?: unknown;
+    latestCommand?: {
+      pageActionResult?: unknown;
+    };
+  };
+  const actionResults = [
+    readRecord(connectionWithAction.pageActionResult),
+    readRecord(connectionWithAction.latestCommand?.pageActionResult)
+  ].filter(Boolean) as Array<Record<string, unknown>>;
+  const blocked = actionResults.find((result) =>
+    readString(result.action) === action
+    && readString(result.result) === "blocked"
+  );
+  if (!blocked) {
+    return undefined;
+  }
+
+  const code = readString(blocked.code) ?? readString(blocked.reason);
+  if (code === "blocked_by_chrome_host_permission" || code === "chrome_host_permission_missing") {
+    const permission = readRecord(blocked.chromeHostPermission);
+    const origins = Array.isArray(permission?.origins) ? permission.origins : [];
+    const origin = origins.find((entry) => typeof entry === "string" && entry.length > 0)
+      ?? readChromeSiteAccessOrigin(blocked, undefined);
+    return {
+      reason: "chrome-site-access-missing",
+      nextAction: origin
+        ? `Grant Chrome site access for ${origin}, then retry \`skfiy chrome ${action}\`.`
+        : `Grant Chrome site access for the target page, then retry \`skfiy chrome ${action}\`.`
+    };
+  }
+
+  return {
+    reason: readString(blocked.reason) ?? "chrome-page-action-blocked",
+    nextAction: `Resolve the Chrome page action blocker, then retry \`skfiy chrome ${action}\`.`
+  };
+}
+
+function readPageControlReadinessBlocker(
+  action: ChromeExtensionPageControlAction,
+  connection: ChromeExtensionConnectionStatus
+): { reason: string; nextAction: string } | undefined {
+  const pageControl = readRecord((connection as { pageControl?: unknown }).pageControl);
+  if (!pageControl) {
+    return undefined;
+  }
+
+  const blocker = readFirstPageControlBlocker(pageControl);
+  const state = readString(pageControl.state);
+  const code = readString(blocker?.code) ?? state;
+  const message = readString(blocker?.message) ?? readString(pageControl.reason);
+  if (!code) {
+    return undefined;
+  }
+
+  if (code === "blocked_by_chrome_host_permission" || code === "chrome_host_permission_missing") {
+    const origin = readChromeSiteAccessOrigin(pageControl, blocker);
+    return {
+      reason: "chrome-site-access-missing",
+      nextAction: origin
+        ? `Grant Chrome site access for ${origin}, then retry \`skfiy chrome ${action}\`.`
+        : `Grant Chrome site access for the target page, then retry \`skfiy chrome ${action}\`.`
+    };
+  }
+
+  if (code === "blocked_by_host_policy") {
+    const host = readPageControlHost(pageControl);
+    return {
+      reason: "chrome-host-policy-blocked",
+      nextAction: host
+        ? `Allow ${host} in skfiy Chrome host policy, then retry \`skfiy chrome ${action}\`.`
+        : `Allow this host in skfiy Chrome host policy, then retry \`skfiy chrome ${action}\`.`
+    };
+  }
+
+  if (["content_script_not_loaded", "not_loaded", "content_script_diagnostics_timeout", "content_script_unavailable"].includes(code)) {
+    return {
+      reason: "chrome-content-script-not-loaded",
+      nextAction: message
+        ? `Reload the target page or the skfiy Chrome extension, then retry \`skfiy chrome ${action}\`. Last error: ${message}`
+        : `Reload the target page or the skfiy Chrome extension, then retry \`skfiy chrome ${action}\`.`
+    };
+  }
+
+  if (code === "active_tab_unavailable" || code === "unavailable") {
+    return {
+      reason: "chrome-active-tab-unavailable",
+      nextAction: `Select a normal HTTP(S) Chrome tab, then retry \`skfiy chrome ${action}\`.`
+    };
+  }
+
+  if (action === "screenshot" && code === "chrome_capture_permission_missing") {
+    return {
+      reason: "chrome-capture-permission-missing",
+      nextAction: "Grant <all_urls> capture permission or use an activeTab user gesture, then retry `skfiy chrome screenshot`."
+    };
+  }
+
+  return undefined;
+}
+
+function readFirstPageControlBlocker(pageControl: Record<string, unknown>): Record<string, unknown> | undefined {
+  const blockers = Array.isArray(pageControl.blockers) ? pageControl.blockers : [];
+  return blockers.map(readRecord).find((blocker) => Boolean(blocker));
+}
+
+function readChromeSiteAccessOrigin(
+  pageControl: Record<string, unknown>,
+  blocker: Record<string, unknown> | undefined
+): string | undefined {
+  const permission = readRecord(pageControl.chromeHostPermission)
+    ?? readRecord(blocker?.chromeHostPermission);
+  const origins = Array.isArray(permission?.origins) ? permission.origins : [];
+  const origin = origins.find((entry) => typeof entry === "string" && entry.length > 0);
+  if (typeof origin === "string") {
+    return origin;
+  }
+
+  const permissionOrigin = readString(permission?.origin);
+  if (permissionOrigin) {
+    return `${permissionOrigin}/*`;
+  }
+
+  return undefined;
+}
+
+function readPageControlHost(pageControl: Record<string, unknown>): string | undefined {
+  const activeTab = readRecord(pageControl.activeTab);
+  const hostPolicy = readRecord(pageControl.hostPolicy);
+  return readString(activeTab?.host)
+    ?? readString(hostPolicy?.host)
+    ?? readString(pageControl.host);
+}
+
 function readScreenshotBlockerReason(connection: ChromeExtensionConnectionStatus): string | undefined {
   const directScreenshot = readRecord((connection as { pageScreenshot?: unknown }).pageScreenshot);
   const latestCommand = readRecord((connection as { latestCommand?: unknown }).latestCommand);
@@ -608,6 +772,10 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : undefined;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function readNumber(value: unknown): number | undefined {
@@ -636,12 +804,9 @@ function hasExpectedActionResult(
   value: unknown,
   action: ChromeExtensionPageControlAction
 ): boolean {
-  return Boolean(
-    value
-    && typeof value === "object"
-    && !Array.isArray(value)
-    && (value as { action?: unknown }).action === action
-  );
+  const record = readRecord(value);
+  return readString(record?.action) === action
+    && readString(record?.result) === "passed";
 }
 
 function sleep(ms: number): Promise<void> {

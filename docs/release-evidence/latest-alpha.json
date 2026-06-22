@@ -13,7 +13,6 @@
     "ghostty": ".skfiy-smoke/ghostty-2e292e9.json",
     "chrome": ".skfiy-smoke/chrome-2e292e9.json",
     "finder": ".skfiy-smoke/finder-2e292e9.json",
-    "voice": ".skfiy-smoke/voice-2e292e9.json",
     "moneyRun": ".skfiy-smoke/money-run-2e292e9.json"
   },
   "dogfoodStatus": "waiting-for-dogfood",

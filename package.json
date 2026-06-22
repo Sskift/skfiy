@@ -2,12 +2,12 @@
   "name": "skfiy",
   "version": "0.1.0",
   "private": true,
-  "description": "Voice-first macOS Computer Use runtime with a pixel desktop pet, Chromium adapter, packaged CLI, and local dashboard.",
+  "description": "Agent-first macOS Computer Use runtime with a pixel desktop pet, Chromium adapter, packaged CLI, and local dashboard.",
   "keywords": [
     "computer-use",
     "macos",
     "desktop-automation",
-    "voice-control",
+    "agent-assistant",
     "electron",
     "chrome-extension"
   ],
@@ -50,7 +50,6 @@
     "smoke:ui": "node scripts/smoke-ui-product.mjs",
     "smoke:desktop-session": "node scripts/smoke-desktop-session.mjs",
     "smoke:money-run": "node scripts/smoke-money-run-supervision.mjs",
-    "smoke:voice": "node scripts/smoke-voice-product.mjs",
     "dogfood:verify": "node scripts/verify-dogfood-artifacts.mjs",
     "dogfood:issue": "node scripts/create-dogfood-issue-draft.mjs",
     "dogfood:report": "node scripts/update-dogfood-cohort.mjs",
@@ -65,6 +64,8 @@
     "dogfood:cohort": "node scripts/verify-dogfood-cohort.mjs"
   },
   "dependencies": {
+    "@heroui/react": "^3.0.4",
+    "@heroui/styles": "^3.0.4",
     "@vitejs/plugin-react": "^5.1.2",
     "electron": "^39.2.7",
     "lucide-react": "^0.562.0",

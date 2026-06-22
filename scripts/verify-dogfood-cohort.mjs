@@ -19,22 +19,18 @@ const REQUIRED_ARTIFACT_FIELDS = [
   "uiSmokeArtifactPath",
   "ghosttySmokeArtifactPath",
   "chromeSmokeArtifactPath",
-  "finderSmokeArtifactPath",
-  "voiceSmokeArtifactPath"
+  "finderSmokeArtifactPath"
 ];
 
 const REQUIRED_PERMISSION_KEYS = [
   "screenRecording",
-  "accessibility",
-  "microphone",
-  "speechRecognition"
+  "accessibility"
 ];
 
 const ACCEPTED_REPORT_RESULTS = new Set([
   "passed",
   "blocked",
   "needs-user-confirmation",
-  "no-transcript",
   "sensitive-paused"
 ]);
 
@@ -205,8 +201,8 @@ export function createDogfoodCohortHelpText() {
     ...REQUIRED_DOGFOOD_WORKFLOWS.map((workflow) => `  - ${workflow}`),
     "",
     "Each report must include testerId, manifestPath, appLaunchViaOpen=true, runnerHasTmux=false,",
-    "permissionStates for Screen Recording, Accessibility, Microphone, and Speech Recognition,",
-    "UI/Ghostty/Chrome/Finder/voice smoke artifact paths from the packaged app,",
+    "permissionStates for Screen Recording and Accessibility,",
+    "UI/Ghostty/Chrome/Finder smoke artifact paths from the packaged app,",
     "uiPetDragEvidence verified by dogfood:report,",
     "stopTurnEvidence verified by dogfood:report from runtimeStatus.stopTurnHotkey,",
     "source.issueUrl/source.collectedAt linking back to an accepted GitHub dogfood issue,",
@@ -313,7 +309,7 @@ function verifyReport(report, index, cohortManifestPath, checks) {
     checks,
     `${checkId}.result`,
     ACCEPTED_REPORT_RESULTS.has(report?.result),
-    "report result must be passed, blocked, needs-user-confirmation, no-transcript, or sensitive-paused"
+    "report result must be passed, blocked, needs-user-confirmation, or sensitive-paused"
   );
   check(
     checks,
@@ -348,13 +344,13 @@ function verifyReport(report, index, cohortManifestPath, checks) {
     checks,
     `${checkId}.artifacts`,
     hasRequiredArtifactPaths(report?.artifacts),
-    "report artifacts must include absolute UI, Ghostty, Chrome, Finder, and voice smoke artifact paths"
+    "report artifacts must include absolute UI, Ghostty, Chrome, and Finder smoke artifact paths"
   );
   check(
     checks,
     `${checkId}.permissionStates`,
     hasRequiredPermissionStates(report?.permissionStates),
-    "report permissionStates must include Screen Recording, Accessibility, Microphone, and Speech Recognition states"
+    "report permissionStates must include Screen Recording and Accessibility states"
   );
   check(
     checks,

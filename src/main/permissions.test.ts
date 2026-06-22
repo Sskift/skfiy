@@ -18,29 +18,23 @@ describe("readPermissionsForRenderer", () => {
     ).resolves.toEqual({
       screenRecording: { state: "unknown" },
       accessibility: { state: "unknown" },
-      microphone: { state: "unknown" },
-      speechRecognition: { state: "unknown" }
     });
     expect(onErrorMessages).toEqual(["helper missing"]);
   });
 
-  it("passes Speech Recognition permission through to the renderer summary", async () => {
+  it("passes Computer Use permissions through to the renderer summary", async () => {
     await expect(
       readPermissionsForRenderer({
         helper: {
           getPermissions: async (): Promise<PermissionSummary> => ({
             screenRecording: { state: "granted" },
             accessibility: { state: "granted" },
-            microphone: { state: "granted" },
-            speechRecognition: { state: "not-determined" }
           })
         }
       })
     ).resolves.toEqual({
       screenRecording: { state: "granted" },
       accessibility: { state: "granted" },
-      microphone: { state: "granted" },
-      speechRecognition: { state: "not-determined" }
     });
   });
 
@@ -50,21 +44,15 @@ describe("readPermissionsForRenderer", () => {
         active: {
           screenRecording: { state: "denied" },
           accessibility: { state: "denied" },
-          microphone: { state: "not-determined" },
-          speechRecognition: { state: "not-determined" }
         },
         appProcess: {
           screenRecording: { state: "granted" },
           accessibility: { state: "granted" },
-          microphone: { state: "not-determined" },
-          speechRecognition: { state: "unknown" }
         },
         helper: {
           getPermissions: async (): Promise<PermissionSummary> => ({
             screenRecording: { state: "denied" },
             accessibility: { state: "denied" },
-            microphone: { state: "not-determined" },
-            speechRecognition: { state: "not-determined" }
           })
         },
         identity: {
@@ -79,20 +67,14 @@ describe("readPermissionsForRenderer", () => {
       active: {
         screenRecording: { state: "denied" },
         accessibility: { state: "denied" },
-        microphone: { state: "not-determined" },
-        speechRecognition: { state: "not-determined" }
       },
       appProcess: {
         screenRecording: { state: "granted" },
         accessibility: { state: "granted" },
-        microphone: { state: "not-determined" },
-        speechRecognition: { state: "unknown" }
       },
       helperProcess: {
         screenRecording: { state: "denied" },
         accessibility: { state: "denied" },
-        microphone: { state: "not-determined" },
-        speechRecognition: { state: "not-determined" }
       },
       mismatches: [
         { permission: "screenRecording", appProcess: "granted", helperProcess: "denied" },
@@ -114,21 +96,15 @@ describe("readPermissionsForRenderer", () => {
         active: {
           screenRecording: { state: "granted" },
           accessibility: { state: "granted" },
-          microphone: { state: "granted" },
-          speechRecognition: { state: "granted" }
         },
         appProcess: {
           screenRecording: { state: "granted" },
           accessibility: { state: "granted" },
-          microphone: { state: "granted" },
-          speechRecognition: { state: "unknown" }
         },
         helper: {
           getPermissions: async (): Promise<PermissionSummary> => ({
             screenRecording: { state: "granted" },
             accessibility: { state: "granted" },
-            microphone: { state: "granted" },
-            speechRecognition: { state: "granted" }
           })
         },
         identity: {

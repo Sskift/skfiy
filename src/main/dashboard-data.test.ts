@@ -20,8 +20,6 @@ function createPageControlStatus({
     permissions: {
       screenRecording: "granted",
       accessibility: "granted",
-      microphone: "granted",
-      speechRecognition: "granted",
       finderAutomation: "granted"
     },
     desktopSession: {
@@ -71,8 +69,6 @@ describe("dashboard snapshot data", () => {
         permissions: {
           screenRecording: "granted",
           accessibility: "granted",
-          microphone: "granted",
-          speechRecognition: "not-determined",
           finderAutomation: "unknown"
         },
         desktopSession: {
@@ -98,7 +94,7 @@ describe("dashboard snapshot data", () => {
         command: "整理 Finder 当前文件夹",
         targetApp: "Finder",
         risk: "medium",
-        voiceProvider: "doubao"
+        agentProvider: "Codex"
       },
       replay: {
         state: "available",
@@ -191,8 +187,6 @@ describe("dashboard snapshot data", () => {
       permissions: {
         screenRecording: "granted",
         accessibility: "granted",
-        microphone: "granted",
-        speechRecognition: "not-determined",
         finderAutomation: "unknown"
       },
       currentTurn: {
@@ -200,7 +194,7 @@ describe("dashboard snapshot data", () => {
         command: "整理 Finder 当前文件夹",
         targetApp: "Finder",
         risk: "medium",
-        voiceProvider: "doubao"
+        agentProvider: "Codex"
       },
       replay: {
         state: "available",
@@ -226,11 +220,6 @@ describe("dashboard snapshot data", () => {
         session: "money-run"
       },
       alerts: [
-        {
-          code: "speech-recognition-missing",
-          severity: "warning",
-          message: "Speech Recognition is not granted."
-        },
         {
           code: "desktop-session-blocked",
           severity: "error",
@@ -272,8 +261,6 @@ describe("dashboard snapshot data", () => {
         permissions: {
           screenRecording: "granted",
           accessibility: "granted",
-          microphone: "denied",
-          speechRecognition: "not-determined",
           finderAutomation: "granted"
         },
         desktopSession: {
@@ -306,16 +293,6 @@ describe("dashboard snapshot data", () => {
     });
 
     expect(snapshot.alerts).toContainEqual({
-      code: "microphone-missing",
-      severity: "warning",
-      message: "Microphone is not granted."
-    });
-    expect(snapshot.alerts).toContainEqual({
-      code: "speech-recognition-missing",
-      severity: "warning",
-      message: "Speech Recognition is not granted."
-    });
-    expect(snapshot.alerts).toContainEqual({
       code: "chrome-extension-heartbeat-stale",
       severity: "warning",
       message: "Chrome extension native-message heartbeat is stale.",
@@ -347,7 +324,8 @@ describe("dashboard snapshot data", () => {
               state: "available",
               tabId: 7,
               windowId: 1,
-              host: "example.test"
+              host: "example.test",
+              scheme: "https"
             },
             contentScript: {
               state: "loaded"
@@ -378,7 +356,8 @@ describe("dashboard snapshot data", () => {
           state: "available",
           tabId: 7,
           windowId: 1,
-          host: "example.test"
+          host: "example.test",
+          scheme: "https"
         },
         contentScript: {
           state: "loaded"
@@ -740,7 +719,6 @@ describe("dashboard snapshot data", () => {
           ghostty: ".skfiy-smoke/ghostty-def4567.json",
           chrome: ".skfiy-smoke/chrome-def4567.json",
           finder: ".skfiy-smoke/finder-def4567.json",
-          voice: ".skfiy-smoke/voice-def4567.json",
           moneyRun: ".skfiy-smoke/money-run-def4567.json"
         },
         dogfoodStatus: "waiting-for-dogfood",
@@ -921,9 +899,7 @@ describe("dashboard snapshot data", () => {
         }),
         permissions: () => ({
           screenRecording: { granted: true, status: "authorized" },
-          accessibility: { granted: true, status: "authorized" },
-          microphone: { granted: true, status: "authorized" },
-          speechRecognition: { granted: false, status: "notDetermined" }
+          accessibility: { granted: true, status: "authorized" }
         }),
         gitHead: () => ({
           state: "present",
@@ -1163,8 +1139,6 @@ describe("dashboard snapshot data", () => {
     expect(snapshot.permissions).toEqual({
       screenRecording: "granted",
       accessibility: "granted",
-      microphone: "granted",
-      speechRecognition: "not-determined",
       finderAutomation: "unknown"
     });
     expect(snapshot.currentTurn).toMatchObject({
@@ -1449,6 +1423,108 @@ describe("dashboard snapshot data", () => {
         }
       })
     ]);
+  });
+
+  it("uses installed-extension action pageControl evidence for dashboard launchers", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const files: Record<string, string> = {
+      "/repo/package.json": JSON.stringify({
+        name: "skfiy",
+        version: "0.1.0"
+      }),
+      "/repo/.skfiy-smoke/chrome-current.json": JSON.stringify({
+        result: "passed",
+        productPath: "dist/skfiy -> chrome tabs/reload-extension/observe/screenshot/fill/click/submit/scroll -> installed Chrome extension",
+        pageControl: {
+          state: "unavailable",
+          capable: false,
+          reason: "Branded Chrome blocked automated extension loading."
+        },
+        installedExtensionActionRun: {
+          classification: "screenshot-blocked",
+          selectedTargetTab: {
+            id: 123,
+            windowId: 7,
+            host: "127.0.0.1:60329",
+            scheme: "http",
+            state: "eligible",
+            eligible: true
+          },
+          finalObserveRun: {
+            result: "verified",
+            extensionConnection: {
+              pageObservation: {
+                pageControl: {
+                  schemaVersion: 1,
+                  capable: true,
+                  state: "ready",
+                  reason: "Content script loaded and DOM controls are available.",
+                  nextAction: "send_page_action",
+                  contentScript: {
+                    state: "loaded"
+                  },
+                  capabilities: {
+                    diagnostics: true,
+                    observe: true,
+                    domActions: true,
+                    click: true,
+                    fill: true,
+                    submit: true,
+                    scroll: true,
+                    screenshot: "background_required"
+                  }
+                }
+              }
+            }
+          }
+        }
+      })
+    };
+    const directories: Record<string, string[]> = {
+      "/repo/.skfiy-smoke": ["chrome-current.json"]
+    };
+
+    const snapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      io: {
+        exists: (targetPath) =>
+          Object.hasOwn(files, targetPath) || Object.hasOwn(directories, targetPath),
+        readFile: (targetPath) => files[targetPath],
+        readdir: (targetPath) => directories[targetPath] ?? [],
+        stat: () => ({ mtimeMs: Date.parse("2026-06-22T00:00:00.000Z") })
+      }
+    });
+
+    expect(snapshot.smokeEvidence.artifacts[0].pageControl).toMatchObject({
+      source: "chrome-smoke-action",
+      state: "ready",
+      capable: true,
+      activeTab: {
+        state: "eligible",
+        tabId: 123,
+        windowId: 7,
+        host: "127.0.0.1:60329",
+        scheme: "http"
+      },
+      capabilities: {
+        domActions: true,
+        click: true,
+        fill: true,
+        submit: true,
+        scroll: true,
+        screenshot: "background_required"
+      }
+    });
+    const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+    expect(extension.pageControl).toMatchObject({
+      source: "chrome-smoke-action",
+      activeTab: {
+        tabId: 123,
+        host: "127.0.0.1:60329"
+      }
+    });
   });
 
   it("marks a missing runtime snapshot as an explicit fresh-install empty state", () => {

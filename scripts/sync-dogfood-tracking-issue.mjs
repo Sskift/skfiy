@@ -16,9 +16,7 @@ const GITHUB_ISSUE_URL_PATTERN = /https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za
 const PREPARED_ALPHA_MANIFEST_PLACEHOLDER = "<path-to-downloaded-alpha-manifest.json>";
 const PERMISSION_LABELS = {
   screenRecording: "Screen Recording",
-  accessibility: "Accessibility",
-  microphone: "Microphone",
-  speechRecognition: "Speech Recognition"
+  accessibility: "Accessibility"
 };
 
 export function createDefaultDogfoodTrackingIssueOptions(rootDir = DEFAULT_ROOT_DIR) {
@@ -247,14 +245,14 @@ export function createDogfoodTrackingIssueBody({
     `- Strict permission preflight summary: \`${preflightSummaryPath}\``,
     `- UI artifact: \`${relativeUiSmokePath}\``,
     `- Observed current permission blockers: ${permissionLine}`,
-    "- The preflight launched `dist/skfiy.app` via LaunchServices and stopped after `smoke:ui`, before Ghostty/Chrome/Finder/voice strict smokes.",
+    "- The preflight launched `dist/skfiy.app` via LaunchServices and stopped after `smoke:ui`, before Ghostty/Chrome/Finder strict smokes.",
     "- This preflight proves the tester runner fail-fast behavior; it is not a filed accepted dogfood report and does not count toward the 3 real tester minimum.",
     "- Local and preflight evidence is not linked as current-alpha real tester evidence.",
     "",
     "## Desktop Session Preflight",
     "Run `npm run smoke:desktop-session` before using `--require-passed` or asking a tester to collect passed product-path evidence.",
     "Permission grants are not enough: locked console, `com.apple.loginwindow`, display sleep, or black-screen evidence must be treated as a desktop-session blocker.",
-    "In strict mode, `dogfood:tester` treats the first UI smoke as both a permission preflight and a strict desktop-session preflight, then stops before Ghostty/Chrome/Finder/voice when the desktop session is blocked.",
+    "In strict mode, `dogfood:tester` treats the first UI smoke as both a permission preflight and a strict desktop-session preflight, then stops before Ghostty/Chrome/Finder when the desktop session is blocked.",
     "",
     "## Status Command",
     "```bash",
@@ -297,7 +295,7 @@ export function createDogfoodTrackingIssueBody({
     ]),
     "```",
     "",
-    "Use `--require-passed` only after the tester grants the provider-relevant permissions to `skfiy.app` and `smoke:desktop-session` passes: Screen Recording and Accessibility for default external Doubao + Computer Use evidence, plus Microphone and Speech Recognition only for optional native/browser speech provider tests. In strict mode, `dogfood:tester` treats the UI smoke as a permission preflight plus a strict desktop-session preflight and stops before the longer Computer Use smokes when those permissions are missing or the desktop session is blocked.",
+    "Use `--require-passed` only after the tester grants Screen Recording and Accessibility to `skfiy.app` and `smoke:desktop-session` passes. In strict mode, `dogfood:tester` treats the UI smoke as a permission preflight plus a strict desktop-session preflight and stops before the longer Computer Use smokes when those permissions are missing or the desktop session is blocked.",
     "",
     "## Review Command",
     "```bash",
@@ -333,7 +331,7 @@ export function createDogfoodTrackingIssueBody({
     "",
     "## Current Known Gaps",
     ...currentKnownGapLines,
-    "- Passed default voice, Finder, Ghostty, screenshot, and browser product-path evidence still depends on testers granting macOS Screen Recording and Accessibility to the alpha `skfiy.app` bundle; Microphone and Speech Recognition are required only for optional native/browser speech provider tests.",
+    "- Passed Finder, Ghostty, screenshot, and browser product-path evidence still depends on testers granting macOS Screen Recording and Accessibility to the alpha `skfiy.app` bundle.",
     "- Signing and notarization still require configured Apple Developer ID/notary credentials before broader distribution.",
     ""
   ].join("\n");
@@ -622,7 +620,6 @@ function readPermissionStates(artifact) {
       key,
       artifact?.permissionStates?.[key]?.state
         ?? artifact?.permissions?.[key]?.state
-        ?? artifact?.speechStatus?.[key]?.state
         ?? "unknown"
     ])
   );

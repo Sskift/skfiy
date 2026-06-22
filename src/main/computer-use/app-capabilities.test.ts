@@ -12,8 +12,6 @@ describe("createDesktopAppCapabilityModel", () => {
       permissions: {
         screenRecording: { state: "granted" },
         accessibility: { state: "granted" },
-        microphone: { state: "denied" },
-        speechRecognition: { state: "denied" }
       },
       desktopSession: {
         controllable: true,
@@ -43,8 +41,6 @@ describe("createDesktopAppCapabilityModel", () => {
       permissions: {
         screenRecording: { state: "granted" },
         accessibility: { state: "denied" },
-        microphone: { state: "not-determined" },
-        speechRecognition: { state: "not-determined" }
       },
       desktopSession: {
         controllable: true
@@ -68,8 +64,6 @@ describe("createDesktopAppCapabilityModel", () => {
       permissions: {
         screenRecording: { state: "granted" },
         accessibility: { state: "granted" },
-        microphone: { state: "granted" },
-        speechRecognition: { state: "granted" }
       },
       desktopSession: {
         controllable: false,

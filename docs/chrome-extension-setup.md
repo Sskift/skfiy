@@ -10,8 +10,10 @@ tab is ready for skfiy browser control.
 - Extension manifest: `chrome-extension/manifest.json`
 - Native host name: `com.sskift.skfiy`
 - Packaged native host executable: `dist/skfiy`
-- Chrome Native Messaging manifest:
+- Chrome Native Messaging manifest for Google Chrome:
   `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.sskift.skfiy.json`
+- Chrome Native Messaging manifest for Chromium dogfood:
+  `~/Library/Application Support/Chromium/NativeMessagingHosts/com.sskift.skfiy.json`
 - Extension heartbeat:
   `~/Library/Application Support/skfiy/chrome-extension-connection.json`
 - Host policy:
@@ -44,7 +46,9 @@ npm run build
 ./dist/skfiy chrome extension-info --json
 ```
 
-3. Open Chrome, Chrome for Testing, or Chromium.
+3. Open Chromium for dogfood, or Chrome for Testing for automated unpacked
+   smoke. Use branded Chrome only when explicitly testing a manually installed
+   extension in that browser.
 
 4. Go to `chrome://extensions`, enable Developer mode, choose **Load unpacked**,
    and select the repository's `chrome-extension/` folder.
@@ -53,8 +57,8 @@ npm run build
    in all native-host commands. If you reload the unpacked extension from a
    different path and Chrome assigns a new id, reinstall the native host.
 
-Automated smoke loading with `--load-extension` should use Chrome for Testing or
-Chromium. Branded Google Chrome 137+ can block that flag, and
+Automated smoke loading with `--load-extension` should use Chromium first, then
+Chrome for Testing. Branded Google Chrome 137+ can block that flag, and
 `smoke:chrome` reports this as `branded_chrome_load_extension_removed` with the
 recommended browser.
 
@@ -275,7 +279,7 @@ installed and the extension heartbeat is connected.
 For product evidence, run:
 
 ```bash
-npm run smoke:chrome -- --extension-chrome-app "Google Chrome for Testing" --output .skfiy-smoke/chrome-extension.json
+npm run smoke:chrome -- --extension-chrome-app "Chromium" --output .skfiy-smoke/chrome-extension.json
 ```
 
 The smoke records `readinessDiagnostics`, `nativeHostBridgeRun`, and
@@ -288,11 +292,54 @@ summarizes manifest id/version, Native Messaging handshake state, health
 protocol state, content-script state, and pageControl state in one small
 contract for dashboards or handoff reports.
 
+## Chromium Dashboard Dogfood
+
+Use Chromium for dashboard web-control dogfood. Do not run this path against the
+user's primary branded Chrome profile unless the test is explicitly scoped to
+that browser.
+
+The current manually installed Chromium extension id used for dogfood is:
+
+```text
+plcpkkhlcacihjfohlojdknnkademlno
+```
+
+Before launching dashboard actions, verify Chromium has a Native Messaging
+manifest for that id. This check is read-only:
+
+```bash
+CHROMIUM_HOST="$HOME/Library/Application Support/Chromium/NativeMessagingHosts/com.sskift.skfiy.json" node -e 'const fs=require("fs"); const id="plcpkkhlcacihjfohlojdknnkademlno"; const p=process.env.CHROMIUM_HOST; const m=JSON.parse(fs.readFileSync(p,"utf8")); if (m.name!=="com.sskift.skfiy" || m.type!=="stdio" || !String(m.path||"").endsWith("/dist/skfiy") || !Array.isArray(m.allowed_origins) || !m.allowed_origins.includes(`chrome-extension://${id}/`)) { throw new Error(`Chromium native host manifest does not match ${id}: ${p}`); } console.log(`Chromium native host manifest ok: ${p}`);'
+```
+
+Open a disposable `http://127.0.0.1` or `https://` test page in Chromium, grant
+the skfiy extension site access for that host, approve the skfiy host policy for
+the current turn, and click **Refresh host policy** or **Check heartbeat** in
+the extension popup. Then run the dashboard smoke with Chromium selected:
+
+```bash
+npm run smoke:dashboard -- \
+  --extension-id plcpkkhlcacihjfohlojdknnkademlno \
+  --extension-chrome-app "Chromium" \
+  --output .skfiy-smoke/dashboard-chromium-web-control.json
+```
+
+Add `--require-passed` only after the active Chromium tab is a disposable page
+that can safely receive observe, fill, click, submit, and scroll actions. The
+smoke starts `dist/skfiy dashboard` with `SKFIY_CHROME_APP_NAME=Chromium`, then
+exercises `/api/chrome-control-action` through the installed extension id. The
+artifact should include `extensionChromeAppName: "Chromium"` and
+`dashboardChromeControlActionApi.result: "passed"` for a completed dashboard
+dogfood loop.
+
 ## Common Blockers
 
 - Extension id not provided: pass `--extension-id <id>` to `chrome status`,
   `doctor`, and plugin smoke commands.
 - Native host missing: run `./dist/skfiy chrome install-host --extension-id <id>`.
+- Chromium native host missing: verify
+  `~/Library/Application Support/Chromium/NativeMessagingHosts/com.sskift.skfiy.json`
+  separately before dashboard dogfood, because the Chromium path must allow the
+  Chromium extension id.
 - Native host mismatched: rebuild and reinstall after the extension id or CLI
   path changes.
 - No live heartbeat: open the popup and click **Check heartbeat** or
@@ -320,8 +367,8 @@ contract for dashboards or handoff reports.
 - Screen Recording or Accessibility denied: grant the compiled `dist/skfiy.app`
   when CDP is unavailable and the Chrome path falls back to screenshot or
   pointer control.
-- Branded Chrome blocks automated unpacked loading: use Chrome for Testing or
-  Chromium for `smoke:chrome --extension-chrome-app`. The smoke also writes
+- Branded Chrome blocks automated unpacked loading: use Chromium or Chrome for
+  Testing for `smoke:chrome --extension-chrome-app`. The smoke also writes
   `installedExtensionRun.remediation` and typed blockers so the next command and
   docs path are visible without reading raw CDP targets.
 

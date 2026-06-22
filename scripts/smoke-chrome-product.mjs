@@ -30,6 +30,7 @@ import {
   NATIVE_HOST_BRIDGE_PRODUCT_PATH,
   parseChromeSmokeArgs,
   PRODUCT_PATH,
+  readInstalledExtensionActionTargetTabs,
   selectInstalledExtensionActionTargetTab,
   selectInstalledExtensionChromeApp
 } from "./smoke-chrome-plan.mjs";
@@ -552,11 +553,12 @@ async function runChromeNativeHostBridgeSmoke(options) {
 async function runChromeReadinessDiagnostics(options) {
   const modulePath = path.join(ROOT_DIR, "dist", "main", "chrome-readiness.js");
   const { createChromeReadinessDiagnostics } = await import(pathToFileURL(modulePath).href);
+  const extensionId = options.extensionId || FIXTURE_EXTENSION_ID;
 
   return createChromeReadinessDiagnostics({
     homeDir: os.homedir(),
     cliShimPath: options.cliPath,
-    extensionIds: [FIXTURE_EXTENSION_ID],
+    extensionIds: [extensionId],
     extensionPath: path.join(ROOT_DIR, "chrome-extension"),
     approvalProbeCommand: `打开 Chrome 测试页面 https://example.com/skfiy-readiness 并提取正文`
   });
@@ -585,6 +587,7 @@ async function runInstalledChromeExtensionSmoke(options) {
     "chrome-extension-connection.json"
   );
   let manifestPath;
+  let profileManifestPath;
   let manifestBackup;
   let heartbeatBackup;
   let extensionId;
@@ -628,6 +631,11 @@ async function runInstalledChromeExtensionSmoke(options) {
       cliPath: options.cliPath,
       extensionId,
       chromeAppName: extensionChromeAppName
+    });
+    profileManifestPath = await writeNativeMessagingHostProfileManifest({
+      chromeUserDataDir,
+      cliPath: options.cliPath,
+      extensionId
     });
 
     await launchChromeWithExtension({
@@ -690,10 +698,7 @@ async function runInstalledChromeExtensionSmoke(options) {
     const passed = response?.type === "skfiy.native.response"
       && response?.requestId === requestId
       && response?.result === "accepted"
-      && heartbeat?.hostName === "com.sskift.skfiy"
-      && heartbeat?.launchOrigin === launchOrigin
-      && heartbeat?.messageType === "skfiy.page.observe"
-      && heartbeat?.requestId === requestId
+      && hasInstalledExtensionHeartbeatEvidence(heartbeat, launchOrigin)
       && hasInstalledExtensionStatusDiagnostics(extensionStatus, extensionId)
       && hasInstalledExtensionPageControlHealth(pageControlHealth, extensionId);
     const readinessSnapshot = createInstalledExtensionReadinessSnapshot({
@@ -731,6 +736,7 @@ async function runInstalledChromeExtensionSmoke(options) {
       ...(heartbeat ? { heartbeat } : {}),
       ...(heartbeatReadError ? { heartbeatReadError } : {}),
       manifestPath,
+      profileManifestPath,
       processesAfterLaunch: await readChromeSmokeProcesses(chromeUserDataDir)
     };
   } catch (error) {
@@ -747,6 +753,7 @@ async function runInstalledChromeExtensionSmoke(options) {
       ...(extensionStatus ? { extensionStatus } : {}),
       ...(pageControlHealth ? { pageControlHealth } : {}),
       ...(manifestPath ? { manifestPath } : {}),
+      ...(profileManifestPath ? { profileManifestPath } : {}),
       heartbeatPath,
       error: error instanceof Error ? error.message : String(error)
     };
@@ -775,7 +782,20 @@ async function runInstalledChromeExtensionActionSmoke(options) {
   }
 
   const extensionId = options.extensionId;
+  const browserSelection = selectInstalledExtensionChromeApp({
+    chromeAppName: options.chromeAppName,
+    extensionChromeAppName: options.extensionChromeAppName,
+    availableAppNames: discoverInstalledExtensionChromeAppNames()
+  });
+  const actionOptions = {
+    ...options,
+    chromeAppName: browserSelection.chromeAppName,
+    extensionChromeAppName: browserSelection.chromeAppName
+  };
   const fixture = await createInstalledExtensionActionFixture();
+  let cleanupBeforeRun;
+  const cleanupBetweenCommands = [];
+  let cleanupAfterRun;
   let tabsRun;
   let selectedTargetTab;
   let reloadRun;
@@ -788,10 +808,27 @@ async function runInstalledChromeExtensionActionSmoke(options) {
   let finalObserveRun;
   let policyRun;
   let openRun;
+  let actionRun;
+  const wakeIsolationStrategy = "request-id-during-run";
+
+  const recordRequestIdIsolation = (commandName) => {
+    cleanupBetweenCommands.push({
+      commandName,
+      phase: "between-command",
+      result: "skipped",
+      reason: "request-id-isolation-during-run"
+    });
+  };
+
+  const runChromeCliJsonWithWakeIsolation = async (commandName, args) => {
+    recordRequestIdIsolation(commandName);
+    return runChromeCliJson(actionOptions, commandName, args);
+  };
 
   try {
+    cleanupBeforeRun = await closeInstalledExtensionWakeTabs(actionOptions, extensionId);
     const host = new URL(fixture.url).host;
-    policyRun = await runChromeCliJson(options, "chrome policy set", [
+    policyRun = await runChromeCliJson(actionOptions, "chrome policy set", [
       "chrome",
       "policy",
       "set",
@@ -801,23 +838,27 @@ async function runInstalledChromeExtensionActionSmoke(options) {
       "always-allow",
       "--json"
     ]);
-    openRun = await openInstalledExtensionActionFixture(options, fixture.url);
+    openRun = await openInstalledExtensionActionFixture(actionOptions, fixture.url);
     await sleep(Math.max(options.settleMs, 1_000));
-    tabsRun = await runChromeCliJson(options, "chrome tabs", [
+    tabsRun = await runChromeCliJson(actionOptions, "chrome tabs", [
       "chrome",
       "tabs",
       "--extension-id",
       extensionId,
       "--json"
     ]);
-    selectedTargetTab = selectInstalledExtensionActionTargetTab(tabsRun.tabs, fixture.url);
+    selectedTargetTab = selectInstalledExtensionActionTargetTab(
+      readInstalledExtensionActionTargetTabs(tabsRun),
+      fixture.url
+    ) ?? readInstalledExtensionActionOpenedTab(openRun, fixture.url);
 
     if (!selectedTargetTab?.id) {
-      const blockedRun = {
+      actionRun = {
         result: "blocked",
         productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
         runnerHasTmux: Boolean(process.env.TMUX),
         extensionId,
+        browserSelection,
         fixtureUrl: fixture.url,
         policyRun,
         openRun,
@@ -827,131 +868,121 @@ async function runInstalledChromeExtensionActionSmoke(options) {
         reason: "no-eligible-target-tab",
         nextAction: "Open the local HTTP fixture in a normal Chrome tab, grant skfiy host policy and Chrome site access, then rerun smoke:chrome."
       };
-
-      return {
-        ...blockedRun,
-        classification: classifyInstalledExtensionActionSmokeEvidence(blockedRun)
+    } else {
+      const targetTabId = String(selectedTargetTab.id);
+      reloadRun = await runChromeCliJsonWithWakeIsolation("chrome reload-extension", [
+        "chrome",
+        "reload-extension",
+        "--extension-id",
+        extensionId,
+        "--target-tab-id",
+        targetTabId,
+        "--json"
+      ]);
+      observeRun = await runChromeCliJsonWithWakeIsolation("chrome observe", [
+        "chrome",
+        "observe",
+        "--extension-id",
+        extensionId,
+        "--target-tab-id",
+        targetTabId,
+        "--json"
+      ]);
+      screenshotRun = await runChromeCliJsonWithWakeIsolation("chrome screenshot", [
+        "chrome",
+        "screenshot",
+        "--extension-id",
+        extensionId,
+        "--target-tab-id",
+        targetTabId,
+        "--json"
+      ]);
+      fillRun = await runChromeCliJsonWithWakeIsolation("chrome fill", [
+        "chrome",
+        "fill",
+        "--extension-id",
+        extensionId,
+        "--target-tab-id",
+        targetTabId,
+        "--selector",
+        "#name",
+        "--text",
+        "skfiy",
+        "--json"
+      ]);
+      clickRun = await runChromeCliJsonWithWakeIsolation("chrome click", [
+        "chrome",
+        "click",
+        "--extension-id",
+        extensionId,
+        "--target-tab-id",
+        targetTabId,
+        "--selector",
+        "#click-only",
+        "--json"
+      ]);
+      submitRun = await runChromeCliJsonWithWakeIsolation("chrome submit", [
+        "chrome",
+        "submit",
+        "--extension-id",
+        extensionId,
+        "--target-tab-id",
+        targetTabId,
+        "--selector",
+        "form",
+        "--json"
+      ]);
+      scrollRun = await runChromeCliJsonWithWakeIsolation("chrome scroll", [
+        "chrome",
+        "scroll",
+        "--extension-id",
+        extensionId,
+        "--target-tab-id",
+        targetTabId,
+        "--dy",
+        "600",
+        "--json"
+      ]);
+      finalObserveRun = await runChromeCliJsonWithWakeIsolation("chrome observe", [
+        "chrome",
+        "observe",
+        "--extension-id",
+        extensionId,
+        "--target-tab-id",
+        targetTabId,
+        "--json"
+      ]);
+      const finalVisibleText = readVisibleTextFromChromeCliRun(finalObserveRun);
+      actionRun = {
+        result: "not-classified",
+        productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
+        runnerHasTmux: Boolean(process.env.TMUX),
+        extensionId,
+        browserSelection,
+        fixtureUrl: fixture.url,
+        policyRun,
+        openRun,
+        tabsRun,
+        selectedTargetTab,
+        screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
+        reloadRun,
+        observeRun,
+        screenshotRun,
+        fillRun,
+        clickRun,
+        submitRun,
+        scrollRun,
+        finalObserveRun,
+        finalVisibleText
       };
     }
-
-    const targetTabId = String(selectedTargetTab.id);
-    reloadRun = await runChromeCliJson(options, "chrome reload-extension", [
-      "chrome",
-      "reload-extension",
-      "--extension-id",
-      extensionId,
-      "--target-tab-id",
-      targetTabId,
-      "--json"
-    ]);
-    observeRun = await runChromeCliJson(options, "chrome observe", [
-      "chrome",
-      "observe",
-      "--extension-id",
-      extensionId,
-      "--target-tab-id",
-      targetTabId,
-      "--json"
-    ]);
-    screenshotRun = await runChromeCliJson(options, "chrome screenshot", [
-      "chrome",
-      "screenshot",
-      "--extension-id",
-      extensionId,
-      "--target-tab-id",
-      targetTabId,
-      "--json"
-    ]);
-    fillRun = await runChromeCliJson(options, "chrome fill", [
-      "chrome",
-      "fill",
-      "--extension-id",
-      extensionId,
-      "--target-tab-id",
-      targetTabId,
-      "--selector",
-      "#name",
-      "--text",
-      "skfiy",
-      "--json"
-    ]);
-    clickRun = await runChromeCliJson(options, "chrome click", [
-      "chrome",
-      "click",
-      "--extension-id",
-      extensionId,
-      "--target-tab-id",
-      targetTabId,
-      "--selector",
-      "#submit",
-      "--json"
-    ]);
-    submitRun = await runChromeCliJson(options, "chrome submit", [
-      "chrome",
-      "submit",
-      "--extension-id",
-      extensionId,
-      "--target-tab-id",
-      targetTabId,
-      "--selector",
-      "form",
-      "--json"
-    ]);
-    scrollRun = await runChromeCliJson(options, "chrome scroll", [
-      "chrome",
-      "scroll",
-      "--extension-id",
-      extensionId,
-      "--target-tab-id",
-      targetTabId,
-      "--dy",
-      "600",
-      "--json"
-    ]);
-    finalObserveRun = await runChromeCliJson(options, "chrome observe", [
-      "chrome",
-      "observe",
-      "--extension-id",
-      extensionId,
-      "--target-tab-id",
-      targetTabId,
-      "--json"
-    ]);
-    const finalVisibleText = readVisibleTextFromChromeCliRun(finalObserveRun);
-    const actionRun = {
-      result: "not-classified",
-      productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
-      runnerHasTmux: Boolean(process.env.TMUX),
-      extensionId,
-      fixtureUrl: fixture.url,
-      policyRun,
-      openRun,
-      tabsRun,
-      selectedTargetTab,
-      screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
-      reloadRun,
-      observeRun,
-      screenshotRun,
-      fillRun,
-      clickRun,
-      submitRun,
-      scrollRun,
-      finalObserveRun,
-      finalVisibleText
-    };
-    const classification = classifyInstalledExtensionActionSmokeEvidence(actionRun);
-
-    return {
-      ...actionRun,
-      result: classification,
-      classification
-    };
   } catch (error) {
-    return {
+    actionRun = {
       result: "error",
       productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
       runnerHasTmux: Boolean(process.env.TMUX),
       extensionId,
+      browserSelection,
       fixtureUrl: fixture.url,
       policyRun,
       openRun,
@@ -969,8 +1000,36 @@ async function runInstalledChromeExtensionActionSmoke(options) {
       error: error instanceof Error ? error.message : String(error)
     };
   } finally {
+    cleanupAfterRun = await closeInstalledExtensionWakeTabs(actionOptions, extensionId);
+    const fixtureTabCleanup = await closeInstalledExtensionActionFixtureTabs(
+      actionOptions,
+      fixture.url
+    );
+    cleanupAfterRun = {
+      ...cleanupAfterRun,
+      fixtureTabCleanup
+    };
     await fixture.close();
   }
+
+  const runWithCleanup = {
+    ...actionRun,
+    wakeIsolationStrategy,
+    cleanupBeforeRun,
+    cleanupBetweenCommands,
+    cleanupAfterRun
+  };
+
+  if (runWithCleanup.result === "error") {
+    return runWithCleanup;
+  }
+
+  const classification = classifyInstalledExtensionActionSmokeEvidence(runWithCleanup);
+  return {
+    ...runWithCleanup,
+    result: classification,
+    classification
+  };
 }
 
 async function createInstalledExtensionActionFixture() {
@@ -1001,6 +1060,7 @@ async function createInstalledExtensionActionFixture() {
       <h1>skfiy action smoke ready</h1>
       <form id="profile">
         <label>Name <input id="name" name="name" autocomplete="off" /></label>
+        <button id="click-only" type="button">Click</button>
         <button id="submit" type="submit">Submit</button>
       </form>
       <p id="result">clicked 0 submitted none #0</p>
@@ -1012,7 +1072,7 @@ async function createInstalledExtensionActionFixture() {
         document.querySelector("#result").textContent =
           "clicked " + state.clicked + " submitted " + state.name + " #" + state.submitted;
       };
-      document.querySelector("#submit").addEventListener("click", () => {
+      document.querySelector("#click-only").addEventListener("click", () => {
         state.clicked += 1;
         state.name = document.querySelector("#name").value || "none";
         render();
@@ -1054,13 +1114,27 @@ async function createInstalledExtensionActionFixture() {
 }
 
 async function openInstalledExtensionActionFixture(options, url) {
-  const command = ["open", "-a", options.chromeAppName, url];
+  const script = `
+tell application "${options.chromeAppName}"
+  if not running then launch
+  if (count of windows) = 0 then make new window
+  tell window 1
+    set skfiyNewTab to make new tab at end of tabs with properties {URL:${JSON.stringify(url)}}
+    set active tab index to (count of tabs)
+    delay 0.2
+    return ((id of skfiyNewTab) as string) & "\t" & (URL of skfiyNewTab) & "\t" & (title of skfiyNewTab)
+  end tell
+end tell
+`;
+  const command = ["osascript", "-e", script];
 
   try {
     const { stdout, stderr } = await execFileAsync(command[0], command.slice(1));
     return {
       command,
       result: "launched",
+      launchStrategy: "apple-events-new-tab",
+      openedTab: parseInstalledExtensionActionOpenedTab(stdout, url),
       stdout: stdout.trim(),
       stderr: stderr.trim()
     };
@@ -1076,8 +1150,179 @@ async function openInstalledExtensionActionFixture(options, url) {
   }
 }
 
+function parseInstalledExtensionActionOpenedTab(stdout, expectedUrl) {
+  const [idText, url = "", title = ""] = String(stdout ?? "").trim().split("\t");
+  const id = Number(idText);
+
+  if (!Number.isFinite(id) || id <= 0) {
+    return undefined;
+  }
+
+  return {
+    id,
+    url: url || expectedUrl,
+    title,
+    eligible: true,
+    state: "eligible",
+    source: "apple-events-new-tab"
+  };
+}
+
+function readInstalledExtensionActionOpenedTab(openRun, fixtureUrl) {
+  const openedTab = readRecord(openRun?.openedTab);
+  if (!openedTab) {
+    return undefined;
+  }
+
+  if (!isInstalledExtensionActionFixtureUrl(openedTab.url, fixtureUrl)) {
+    return undefined;
+  }
+
+  return openedTab;
+}
+
+function isInstalledExtensionActionFixtureUrl(value, fixtureUrl) {
+  try {
+    const url = new URL(String(value ?? ""));
+    const fixture = new URL(String(fixtureUrl ?? ""));
+
+    return url.origin === fixture.origin
+      && url.pathname === fixture.pathname
+      && (
+        url.search === fixture.search
+        || (
+          url.searchParams.get("skfiy_action_live") === "<redacted>"
+          && fixture.searchParams.has("skfiy_action_live")
+        )
+      );
+  } catch {
+    return false;
+  }
+}
+
+async function closeInstalledExtensionActionFixtureTabs(options, url) {
+  const chromeAppName = options.chromeAppName;
+  const fixtureUrlPrefix = String(url);
+  const script = `
+(() => {
+const chromeAppName = ${JSON.stringify(chromeAppName)};
+const fixtureUrlPrefix = ${JSON.stringify(fixtureUrlPrefix)};
+const chrome = Application(chromeAppName);
+let closedCount = 0;
+
+if (!chrome.running()) {
+  return JSON.stringify({ chromeRunning: false, closedCount, fixtureUrlPrefix });
+}
+
+for (const window of chrome.windows()) {
+  const tabs = window.tabs();
+  for (let index = tabs.length - 1; index >= 0; index -= 1) {
+    const tab = tabs[index];
+    const url = String(tab.url() || "");
+    if (url.startsWith(fixtureUrlPrefix)) {
+      tab.close();
+      closedCount += 1;
+    }
+  }
+}
+return JSON.stringify({ chromeRunning: true, closedCount, fixtureUrlPrefix });
+})();
+`;
+  const command = ["osascript", "-l", "JavaScript", "-e", script];
+
+  try {
+    const { stdout, stderr } = await execFileAsync(command[0], command.slice(1));
+    const parsed = JSON.parse(stdout.trim() || "{}");
+
+    return {
+      command,
+      result: "passed",
+      chromeAppName,
+      fixtureUrlPrefix,
+      chromeRunning: parsed.chromeRunning === true,
+      closedCount: Number.isInteger(parsed.closedCount) ? parsed.closedCount : 0,
+      stdout: stdout.trim(),
+      stderr: stderr.trim()
+    };
+  } catch (error) {
+    return {
+      command,
+      result: "blocked",
+      chromeAppName,
+      fixtureUrlPrefix,
+      exitCode: typeof error.code === "number" ? error.code : 1,
+      stdout: typeof error.stdout === "string" ? error.stdout.trim() : "",
+      stderr: typeof error.stderr === "string" ? error.stderr.trim() : "",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+async function closeInstalledExtensionWakeTabs(options, extensionId) {
+  const chromeAppName = options.chromeAppName;
+  const wakeUrlPrefix = `chrome-extension://${extensionId}/popup.html?skfiyWake=`;
+  const script = `
+(() => {
+const chromeAppName = ${JSON.stringify(chromeAppName)};
+const wakeUrlPrefix = ${JSON.stringify(wakeUrlPrefix)};
+const chrome = Application(chromeAppName);
+let closedCount = 0;
+
+if (!chrome.running()) {
+  return JSON.stringify({ chromeRunning: false, closedCount, wakeUrlPrefix });
+}
+
+for (const window of chrome.windows()) {
+  const tabs = window.tabs();
+  for (let index = tabs.length - 1; index >= 0; index -= 1) {
+    const tab = tabs[index];
+    const url = String(tab.url() || "");
+    if (url.startsWith(wakeUrlPrefix)) {
+      tab.close();
+      closedCount += 1;
+    }
+  }
+}
+return JSON.stringify({ chromeRunning: true, closedCount, wakeUrlPrefix });
+})();
+`;
+  const command = ["osascript", "-l", "JavaScript", "-e", script];
+
+  try {
+    const { stdout, stderr } = await execFileAsync(command[0], command.slice(1));
+    const parsed = JSON.parse(stdout.trim() || "{}");
+
+    return {
+      command,
+      result: "passed",
+      chromeAppName,
+      extensionId,
+      wakeUrlPrefix,
+      chromeRunning: parsed.chromeRunning === true,
+      closedCount: Number.isInteger(parsed.closedCount) ? parsed.closedCount : 0,
+      stdout: stdout.trim(),
+      stderr: stderr.trim()
+    };
+  } catch (error) {
+    return {
+      command,
+      result: "blocked",
+      chromeAppName,
+      extensionId,
+      wakeUrlPrefix,
+      closedCount: 0,
+      reason: "wake-tab-cleanup-failed",
+      exitCode: typeof error.code === "number" ? error.code : 1,
+      stdout: typeof error.stdout === "string" ? error.stdout.trim() : "",
+      stderr: typeof error.stderr === "string" ? error.stderr.trim() : "",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
 async function runChromeCliJson(options, commandName, args) {
   const command = [options.cliPath, ...args];
+  const chromeAppName = options.extensionChromeAppName || options.chromeAppName;
   let stdout = "";
   let stderr = "";
   let exitCode = 0;
@@ -1086,6 +1331,10 @@ async function runChromeCliJson(options, commandName, args) {
   try {
     const result = await execFileAsync(command[0], command.slice(1), {
       cwd: ROOT_DIR,
+      env: {
+        ...process.env,
+        ...(chromeAppName ? { SKFIY_CHROME_APP_NAME: chromeAppName } : {})
+      },
       maxBuffer: 4 * 1024 * 1024
     });
     stdout = result.stdout;
@@ -1151,18 +1400,45 @@ async function writeNativeMessagingHostManifest({
   chromeAppName
 }) {
   const manifestPath = createNativeMessagingHostManifestPath(homeDir, chromeAppName);
-  const manifest = {
+  const manifest = createNativeMessagingHostManifest({
+    cliPath,
+    extensionId
+  });
+
+  await mkdir(path.dirname(manifestPath), { recursive: true });
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  return manifestPath;
+}
+
+async function writeNativeMessagingHostProfileManifest({
+  chromeUserDataDir,
+  cliPath,
+  extensionId
+}) {
+  const manifestPath = createNativeMessagingHostProfileManifestPath(chromeUserDataDir);
+  const manifest = createNativeMessagingHostManifest({
+    cliPath,
+    extensionId
+  });
+
+  await mkdir(path.dirname(manifestPath), { recursive: true });
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  return manifestPath;
+}
+
+function createNativeMessagingHostManifest({
+  cliPath,
+  extensionId
+}) {
+  return {
     name: "com.sskift.skfiy",
     description: "skfiy desktop Computer Use bridge",
     path: cliPath,
     type: "stdio",
     allowed_origins: [`chrome-extension://${extensionId}/`]
   };
-
-  await mkdir(path.dirname(manifestPath), { recursive: true });
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-
-  return manifestPath;
 }
 
 function createNativeMessagingHostManifestPath(homeDir, chromeAppName = "") {
@@ -1172,6 +1448,14 @@ function createNativeMessagingHostManifestPath(homeDir, chromeAppName = "") {
     "Library",
     "Application Support",
     ...supportRoot,
+    "NativeMessagingHosts",
+    "com.sskift.skfiy.json"
+  );
+}
+
+function createNativeMessagingHostProfileManifestPath(chromeUserDataDir) {
+  return path.join(
+    chromeUserDataDir,
     "NativeMessagingHosts",
     "com.sskift.skfiy.json"
   );
@@ -1307,6 +1591,17 @@ function isInstalledExtensionActionSmokeAcceptable(run) {
 }
 
 function createChromeSmokePageControlEvidence(evidence) {
+  const action = readChromeSmokePageControlFromInstalledExtensionAction(
+    evidence.installedExtensionActionRun
+  );
+
+  if (action) {
+    return normalizeChromeSmokePageControlEvidence(
+      action.record,
+      action.source
+    );
+  }
+
   const reportedHealth = readChromeSmokePageControlFromExtensionHealth(
     evidence.installedExtensionRun?.pageControlHealth
   );
@@ -1375,6 +1670,49 @@ function createChromeSmokePageControlEvidence(evidence) {
   };
 }
 
+function readChromeSmokePageControlFromInstalledExtensionAction(actionRun) {
+  const run = readRecord(actionRun);
+  if (!run) {
+    return undefined;
+  }
+
+  const names = [
+    "finalObserveRun",
+    "scrollRun",
+    "submitRun",
+    "clickRun",
+    "fillRun",
+    "screenshotRun",
+    "observeRun",
+    "reloadRun"
+  ];
+  const candidates = [];
+
+  for (const name of names) {
+    const step = readRecord(run[name]);
+    const connection = readRecord(step?.extensionConnection);
+    const latestCommand = readRecord(connection?.latestCommand);
+    const pageActionResult = readRecord(latestCommand?.pageActionResult);
+    const pageObservation = readRecord(latestCommand?.pageObservation)
+      ?? readRecord(connection?.pageObservation);
+
+    candidates.push(
+      [readRecord(connection?.pageControl), `installedExtensionActionRun.${name}.extensionConnection.pageControl`],
+      [readRecord(latestCommand?.pageControl), `installedExtensionActionRun.${name}.extensionConnection.latestCommand.pageControl`],
+      [readRecord(pageActionResult?.pageControl), `installedExtensionActionRun.${name}.extensionConnection.latestCommand.pageActionResult.pageControl`],
+      [readRecord(pageObservation?.pageControl), `installedExtensionActionRun.${name}.extensionConnection.pageObservation.pageControl`]
+    );
+  }
+
+  const ready = candidates.find(([record]) => record?.state === "ready" || record?.capable === true);
+  if (ready) {
+    return { record: ready[0], source: ready[1] };
+  }
+
+  const fallback = candidates.find(([record]) => record);
+  return fallback ? { record: fallback[0], source: fallback[1] } : undefined;
+}
+
 function readChromeSmokePageControlFromExtensionHealth(health) {
   const candidates = [
     [readRecord(health?.pageControl), "installedExtensionRun.pageControlHealth.pageControl"],
@@ -1407,6 +1745,13 @@ function readChromeSmokePageControlFromExtensionStatus(status) {
   }
 
   return undefined;
+}
+
+function hasInstalledExtensionHeartbeatEvidence(heartbeat, launchOrigin) {
+  const record = readRecord(heartbeat);
+
+  return record?.hostName === "com.sskift.skfiy"
+    && record?.launchOrigin === launchOrigin;
 }
 
 function normalizeChromeSmokePageControlEvidence(pageControl, source) {
@@ -1804,7 +2149,8 @@ function hasInstalledExtensionStatusDiagnostics(status, extensionId) {
       || status.syncStatus?.hostPolicyState === "invalid"
     )
     && status.diagnostics?.extension?.id === extensionId
-    && status.diagnostics?.extension?.version === "0.0.1"
+    && typeof status.diagnostics?.extension?.version === "string"
+    && status.diagnostics.extension.version.length > 0
     && status.diagnostics?.capabilities?.nativeMessaging === true
     && status.diagnostics?.capabilities?.scripting === true
     && status.diagnostics?.nativeHost?.name === "com.sskift.skfiy"

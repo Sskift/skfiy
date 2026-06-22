@@ -120,8 +120,8 @@ describe("dogfood handoff generator", () => {
     expect(handoff).toContain("Do not run this from tmux");
     expect(handoff).toContain("Screen Recording");
     expect(handoff).toContain("Accessibility");
-    expect(handoff).toContain("Microphone");
-    expect(handoff).toContain("Speech Recognition");
+    expect(handoff).not.toContain("Microphone");
+    expect(handoff).not.toContain("Speech Recognition");
     expect(handoff).toContain("npm run dogfood:tester -- \\");
     expect(handoff).toContain("--app /Applications/skfiy.app");
     expect(handoff).toContain("--file-issue");

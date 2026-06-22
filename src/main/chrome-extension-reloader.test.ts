@@ -7,6 +7,7 @@ import {
   createChromeExtensionManagerUrl,
   createChromeExtensionWakeUrl,
   findChromeExtensionReloadTarget,
+  readChromeExtensionOpenerAppName,
   reloadChromeExtensionWithDesktopControl
 } from "./chrome-extension-reloader";
 import type {
@@ -75,6 +76,15 @@ describe("Chrome extension reloader", () => {
     expect(createChromeExtensionWakeUrl(EXTENSION_ID)).toMatch(
       /^chrome-extension:\/\/plcpkkhlcacihjfohlojdknnkademlno\/popup\.html\?skfiyWake=\d+$/
     );
+  });
+
+  it("can route extension wake URLs to Chromium for isolated dogfood", () => {
+    expect(readChromeExtensionOpenerAppName({ SKFIY_CHROME_APP_NAME: "Chromium" }))
+      .toBe("Chromium");
+    expect(readChromeExtensionOpenerAppName({ SKFIY_CHROME_APP_NAME: "  " }))
+      .toBe("Google Chrome");
+    expect(readChromeExtensionOpenerAppName({ SKFIY_CHROME_APP_NAME: "--bad" }))
+      .toBe("Google Chrome");
   });
 
   it("targets the reload icon on the skfiy extension card", () => {

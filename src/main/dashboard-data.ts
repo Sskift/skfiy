@@ -486,22 +486,6 @@ function createDashboardAlerts({
     });
   }
 
-  if (permissions.microphone !== "granted") {
-    alerts.push({
-      code: "microphone-missing",
-      severity: "warning",
-      message: "Microphone is not granted."
-    });
-  }
-
-  if (permissions.speechRecognition !== "granted") {
-    alerts.push({
-      code: "speech-recognition-missing",
-      severity: "warning",
-      message: "Speech Recognition is not granted."
-    });
-  }
-
   if (desktopSession?.state === "blocked" || desktopSession?.mainDisplayAsleep === true) {
     alerts.push({
       code: "desktop-session-blocked",
@@ -1822,7 +1806,11 @@ function readSmokeArtifactPageControlSummary(
     return {};
   }
 
-  const pageControl = readDashboardPageControlFromCandidates([
+  const actionPageControl = createDashboardPageControlSummary(
+    readSmokeArtifactInstalledActionPageControl(artifact),
+    "chrome-smoke-action"
+  );
+  const pageControl = actionPageControl ?? readDashboardPageControlFromCandidates([
     readRecord(artifact.pageControl),
     readRecord(artifact.chromePageControl),
     readDashboardPageControlFromDiagnostics(readRecord(artifact.diagnostics)),
@@ -1832,6 +1820,63 @@ function readSmokeArtifactPageControlSummary(
   ], "chrome-smoke");
 
   return pageControl ? { pageControl } : {};
+}
+
+function readSmokeArtifactInstalledActionPageControl(
+  artifact: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  const run = readRecord(artifact.installedExtensionActionRun);
+  if (!run) {
+    return undefined;
+  }
+
+  const pageControl = readInstalledActionObservedPageControl(readRecord(run.finalObserveRun))
+    ?? readInstalledActionObservedPageControl(readRecord(run.observeRun));
+  if (!pageControl) {
+    return undefined;
+  }
+
+  const activeTab = readInstalledActionSelectedTargetActiveTab(readRecord(run.selectedTargetTab));
+  return {
+    ...pageControl,
+    ...(activeTab ? {
+      activeTab: {
+        ...(readRecord(pageControl.activeTab) ?? {}),
+        ...activeTab
+      }
+    } : {})
+  };
+}
+
+function readInstalledActionObservedPageControl(
+  commandRun: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (commandRun?.result !== "verified") {
+    return undefined;
+  }
+
+  const extensionConnection = readRecord(commandRun.extensionConnection);
+  const pageObservation = readRecord(extensionConnection?.pageObservation)
+    ?? readRecord(readRecord(extensionConnection?.latestCommand)?.pageObservation);
+  return readRecord(pageObservation?.pageControl);
+}
+
+function readInstalledActionSelectedTargetActiveTab(
+  tab: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!tab) {
+    return undefined;
+  }
+
+  const summary: Record<string, unknown> = {
+    ...(typeof tab.state === "string" ? { state: tab.state } : {}),
+    ...(Number.isInteger(tab.id) ? { tabId: tab.id } : {}),
+    ...(Number.isInteger(tab.windowId) ? { windowId: tab.windowId } : {}),
+    ...(typeof tab.host === "string" ? { host: tab.host } : {}),
+    ...(typeof tab.scheme === "string" ? { scheme: tab.scheme } : {})
+  };
+
+  return Object.keys(summary).length > 0 ? summary : undefined;
 }
 
 function readSmokeArtifactPageSafetySummary(
@@ -2255,7 +2300,9 @@ function createDashboardPageControlSummary(
   const summary: Record<string, unknown> = {
     schemaVersion: typeof pageControl.schemaVersion === "number" ? pageControl.schemaVersion : 1,
     state,
-    source,
+    source: source === "chrome-smoke"
+      ? readNonEmptyStringValue(pageControl.source) ?? source
+      : source,
     capable: typeof pageControl.capable === "boolean"
       ? pageControl.capable
       : isDashboardPageControlCapable(state, capabilities),
@@ -2324,7 +2371,8 @@ function readDashboardPageControlActiveTab(
     ...(typeof activeTab.state === "string" ? { state: activeTab.state } : {}),
     ...(Number.isInteger(activeTab.tabId) ? { tabId: activeTab.tabId } : {}),
     ...(Number.isInteger(activeTab.windowId) ? { windowId: activeTab.windowId } : {}),
-    ...(typeof activeTab.host === "string" ? { host: activeTab.host } : {})
+    ...(typeof activeTab.host === "string" ? { host: activeTab.host } : {}),
+    ...(typeof activeTab.scheme === "string" ? { scheme: activeTab.scheme } : {})
   };
 
   return Object.keys(summary).length > 0 ? summary : undefined;
@@ -2541,7 +2589,6 @@ function readSmokeTarget(entry: string, artifact: Record<string, unknown>): stri
     "codex-plugin",
     "dashboard",
     "finder",
-    "voice",
     "money-run"
   ];
 
@@ -3162,8 +3209,6 @@ function createPermissionStates(permissions: Record<string, unknown>): Record<st
   return {
     screenRecording: readPermissionState(permissions.screenRecording),
     accessibility: readPermissionState(permissions.accessibility),
-    microphone: readPermissionState(permissions.microphone),
-    speechRecognition: readPermissionState(permissions.speechRecognition),
     finderAutomation: readPermissionState(permissions.finderAutomation)
   };
 }
@@ -3260,8 +3305,6 @@ function createUnknownPermissions(): Record<string, string> {
   return {
     screenRecording: "unknown",
     accessibility: "unknown",
-    microphone: "unknown",
-    speechRecognition: "unknown",
     finderAutomation: "unknown"
   };
 }

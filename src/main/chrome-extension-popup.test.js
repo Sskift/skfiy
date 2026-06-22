@@ -11,6 +11,7 @@ const DEV_RELOAD_REQUEST = "skfiy.dev.reload";
 const PAGE_OBSERVE = "skfiy.page.observe";
 const PAGE_ACTION = "skfiy.page.action";
 const PAGE_SCREENSHOT = "skfiy.page.screenshot";
+const PAGE_CONTROL_WAKE = "skfiy.page_control.wake";
 const TABS_DISCOVER = "skfiy.tabs.discover";
 const NATIVE_MESSAGE = "skfiy.native.message";
 
@@ -431,6 +432,114 @@ describe("Chrome extension popup policy sync status", () => {
     await waitForAssertion(() => {
       expect(mock.requestPermission).toHaveBeenCalledWith({
         origins: ["https://example.com/*"]
+      });
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: HOST_POLICY_SYNC_REFRESH
+      }));
+    });
+  });
+
+  it("requests all-urls capture permission when screenshots are the remaining blocker", async () => {
+    installPopupDocument();
+    const policy = createPolicy({
+      allowedHosts: ["example.com"]
+    });
+    const mock = createPopupChromeMock({
+      policy,
+      tab: { id: 8, url: "https://example.com/page" },
+      snapshot: {
+        syncStatus: {
+          state: "synced",
+          source: "native_host",
+          entryCount: 1,
+          nativeBridgeState: "connected"
+        },
+        diagnostics: {
+          extension: {
+            version: "0.0.16",
+            manifestVersion: 3
+          },
+          capabilities: {
+            activeTab: true,
+            scripting: true,
+            storage: true,
+            tabs: true,
+            downloads: true
+          },
+          nativeHost: {
+            name: "com.sskift.skfiy",
+            connectionState: "connected",
+            bridgeState: "connected",
+            syncState: "synced",
+            syncSource: "native_host",
+            policyState: "configured",
+            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            messageType: "skfiy.page.observe"
+          },
+          hostPolicy: {
+            defaultMode: "ask",
+            entryCount: 1,
+            allowedHosts: 1,
+            currentTurnAllowedHosts: 0,
+            blockedHosts: 0
+          },
+          currentTab: {
+            state: "available",
+            host: "example.com",
+            origin: "https://example.com",
+            hostPolicy: {
+              decision: "allowed",
+              reason: "host_allowed"
+            },
+            chromeHostPermission: {
+              state: "granted",
+              origin: "https://example.com",
+              host: "example.com",
+              origins: ["https://example.com/*"]
+            },
+            chromeCapturePermission: {
+              state: "missing",
+              reason: "chrome_capture_permission_missing",
+              code: "chrome_capture_permission_missing",
+              origins: ["<all_urls>"],
+              message: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture."
+            },
+            contentScript: {
+              state: "loaded"
+            },
+            pageControl: {
+              state: "partial",
+              capabilities: {
+                screenshot: false,
+                domActions: true,
+                click: true,
+                fill: true,
+                submit: true,
+                scroll: true
+              },
+              reason: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture."
+            }
+          }
+        }
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(document.getElementById("grant-site-access-button").hidden).toBe(false);
+      expect(document.getElementById("grant-site-access-button").textContent)
+        .toBe("Grant <all_urls>");
+      expect(document.getElementById("page-action-summary").textContent)
+        .toBe("Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.");
+    });
+
+    document.getElementById("grant-site-access-button").click();
+
+    await waitForAssertion(() => {
+      expect(mock.requestPermission).toHaveBeenCalledWith({
+        origins: ["<all_urls>"]
       });
       expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
         type: HOST_POLICY_SYNC_REFRESH
@@ -978,8 +1087,69 @@ describe("Chrome extension popup policy sync status", () => {
         type: NATIVE_HEARTBEAT,
         schemaVersion: 1
       }));
-      expect(document.getElementById("dev-reload-status").textContent)
-        .toContain("Reload scheduled");
+    });
+  });
+
+  it("auto-schedules dev reload before status rendering can block wake handling", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/popup.html?skfiyWake=1&skfiyWakeAction=dev-reload&skfiyTargetTabId=42&skfiyRequestId=dev-reload-render-fails"
+    );
+    installPopupDocument();
+    const policy = createPolicy();
+    const mock = createPopupChromeMock({
+      policy,
+      onSendMessage: (message) => {
+        if (message.type === DEV_RELOAD_REQUEST) {
+          return {
+            type: "skfiy.dev.reload_result",
+            schemaVersion: 1,
+            requestId: message.requestId,
+            policy,
+            syncStatus: {
+              schemaVersion: 1,
+              state: "synced",
+              source: "native_host",
+              nativeBridgeState: "connected",
+              entryCount: 0
+            },
+            devReload: {
+              schemaVersion: 1,
+              state: "scheduled",
+              reloadAvailable: true,
+              reason: "heartbeat_connected",
+              browserPolicy: "extension_context_reload",
+              heartbeat: {
+                state: "connected"
+              }
+            },
+            diagnostics: {
+              schemaVersion: 1,
+              devReload: {
+                state: "scheduled",
+                reloadAvailable: true,
+                heartbeat: {
+                  state: "connected"
+                }
+              }
+            }
+          };
+        }
+
+        throw new Error("status unavailable before wake");
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: DEV_RELOAD_REQUEST,
+        schemaVersion: 1,
+        requestId: "dev-reload-render-fails"
+      }));
     });
   });
 
@@ -1158,35 +1328,15 @@ describe("Chrome extension popup policy sync status", () => {
     });
   });
 
-  it("runs page observe from wake URLs when skfiyWakeAction is observe", async () => {
+  it("delegates observe wake URLs to the background without writing native evidence inside the popup", async () => {
     installPopupDocument();
-    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe");
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe&skfiyRequestId=page-control-observe-cli-1");
     const policy = createPolicy();
     const sentMessages = [];
     const mock = createPopupChromeMock({
       policy,
       onSendMessage: (message) => {
         sentMessages.push(message);
-        if (message.type === PAGE_OBSERVE) {
-          return {
-            type: "skfiy.page.observe_result",
-            schemaVersion: 1,
-            requestId: message.requestId,
-            snapshot: {
-              title: "skfiy page control live test",
-              url: "http://127.0.0.1:63852/",
-              visibleText: "skfiy chrome smoke ready"
-            }
-          };
-        }
-        if (message.type === NATIVE_MESSAGE) {
-          return {
-            type: "skfiy.native.response",
-            schemaVersion: 1,
-            requestId: message.payload.requestId,
-            result: "accepted"
-          };
-        }
         return {
           type: "skfiy.host_policy.response",
           schemaVersion: 1,
@@ -1224,28 +1374,21 @@ describe("Chrome extension popup policy sync status", () => {
     globalThis.chrome = mock.chrome;
 
     await importPopup();
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-    await waitForAssertion(() => {
-      expect(sentMessages).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          type: PAGE_OBSERVE,
-          tabId: 42
-        }),
-        expect.objectContaining({
-          type: NATIVE_MESSAGE,
-          payload: expect.objectContaining({
-            type: PAGE_OBSERVE,
-            payload: expect.objectContaining({
-              source: "popup_observe",
-              pageObservation: expect.objectContaining({
-                title: "skfiy page control live test",
-                visibleText: "skfiy chrome smoke ready"
-              })
-            })
-          })
-        })
-      ]));
-    });
+    expect(sentMessages).toContainEqual(expect.objectContaining({
+      type: PAGE_CONTROL_WAKE,
+      schemaVersion: 1,
+      requestId: "page-control-observe-cli-1",
+      directive: expect.objectContaining({
+        wakeId: "1",
+        requestId: "page-control-observe-cli-1",
+        targetTabId: 42,
+        wakeAction: "observe"
+      })
+    }));
+    expect(sentMessages.filter((message) => message.type === PAGE_OBSERVE)).toEqual([]);
+    expect(sentMessages.filter((message) => message.type === NATIVE_MESSAGE)).toEqual([]);
   });
 
   it("runs tab discovery from wake URLs when skfiyWakeAction is tabs", async () => {
@@ -1360,9 +1503,9 @@ describe("Chrome extension popup policy sync status", () => {
     }));
   });
 
-  it("does not capture page screenshots from wake URLs inside the popup", async () => {
+  it("delegates screenshot wake URLs to the background without capturing inside the popup", async () => {
     installPopupDocument();
-    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot");
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot&skfiyRequestId=page-control-screenshot-cli-1");
     const policy = createPolicy();
     const sentMessages = [];
     const mock = createPopupChromeMock({
@@ -1401,15 +1544,26 @@ describe("Chrome extension popup policy sync status", () => {
     await importPopup();
     await new Promise((resolve) => setTimeout(resolve, 300));
 
+    expect(sentMessages).toContainEqual(expect.objectContaining({
+      type: PAGE_CONTROL_WAKE,
+      schemaVersion: 1,
+      requestId: "page-control-screenshot-cli-1",
+      directive: expect.objectContaining({
+        wakeId: "1",
+        requestId: "page-control-screenshot-cli-1",
+        targetTabId: 42,
+        wakeAction: "screenshot"
+      })
+    }));
     expect(sentMessages.filter((message) => message.type === NATIVE_MESSAGE)).toEqual([]);
     expect(mock.chrome.tabs.get).not.toHaveBeenCalled();
     expect(mock.chrome.tabs.update).not.toHaveBeenCalled();
     expect(mock.chrome.tabs.captureVisibleTab).not.toHaveBeenCalled();
   });
 
-  it("does not run page actions from wake URLs inside the popup", async () => {
+  it("delegates page action wake URLs to the background without running them inside the popup", async () => {
     installPopupDocument();
-    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=secret");
+    window.history.replaceState({}, "", "/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiyRequestId=page-control-fill-cli-1&skfiySelector=%23name&skfiyText=secret");
     const policy = createPolicy();
     const sentMessages = [];
     const mock = createPopupChromeMock({
@@ -1441,6 +1595,19 @@ describe("Chrome extension popup policy sync status", () => {
     await importPopup();
     await new Promise((resolve) => setTimeout(resolve, 300));
 
+    expect(sentMessages).toContainEqual(expect.objectContaining({
+      type: PAGE_CONTROL_WAKE,
+      schemaVersion: 1,
+      requestId: "page-control-fill-cli-1",
+      directive: expect.objectContaining({
+        wakeId: "1",
+        requestId: "page-control-fill-cli-1",
+        targetTabId: 42,
+        wakeAction: "fill",
+        selector: "#name",
+        text: "secret"
+      })
+    }));
     expect(sentMessages.filter((message) => message.type === PAGE_ACTION)).toEqual([]);
     expect(sentMessages.filter((message) => message.type === NATIVE_MESSAGE)).toEqual([]);
   });

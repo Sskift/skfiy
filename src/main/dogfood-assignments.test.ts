@@ -109,8 +109,9 @@ describe("dogfood tester assignment packet", () => {
     expect(packet).toContain("`designated => identifier \"com.sskift.skfiy\"`");
     expect(packet).toContain("If this preflight fails, do not run product smokes; rerun `dogfood:prepare-alpha` and use the extracted app path from `nextCommands.tester`.");
     expect(packet).toContain("## Permission Preflight");
-    expect(packet).toContain("Grant Screen Recording and Accessibility to the extracted `skfiy.app` before using `--require-passed` for default external Doubao + Computer Use evidence.");
-    expect(packet).toContain("Grant Microphone and Speech Recognition only when intentionally testing the optional `native-macos` voice provider.");
+    expect(packet).toContain("Grant Screen Recording and Accessibility to the extracted `skfiy.app` before using `--require-passed` for Computer Use evidence.");
+    expect(packet).not.toContain("Microphone");
+    expect(packet).not.toContain("Speech Recognition");
     expect(packet).toContain("If permissions are still blocked, run the normal tester command and file the blocked evidence instead of adding `--require-passed`.");
     expect(packet).toContain("Screen Recording: denied");
     expect(packet).toContain("Accessibility: denied");
@@ -195,9 +196,7 @@ describe("dogfood tester assignment packet", () => {
       permissionPreflight: {
         states: {
           screenRecording: "denied",
-          accessibility: "denied",
-          microphone: "unknown",
-          speechRecognition: "unknown"
+          accessibility: "denied"
         },
         requirePassedAllowed: false
       },
@@ -287,9 +286,7 @@ describe("dogfood tester assignment packet", () => {
       localSmoke: {
         permissionStates: {
           screenRecording: { state: "granted" },
-          accessibility: { state: "granted" },
-          microphone: { state: "not-determined" },
-          speechRecognition: { state: "not-determined" }
+          accessibility: { state: "granted" }
         },
         permissionBlockers: []
       }
@@ -309,13 +306,11 @@ describe("dogfood tester assignment packet", () => {
 
     expect(packet).toContain("- Screen Recording: granted");
     expect(packet).toContain("- Accessibility: granted");
-    expect(packet).toContain("- Microphone: not-determined");
-    expect(packet).toContain("- Speech Recognition: not-determined");
+    expect(packet).not.toContain("Microphone");
+    expect(packet).not.toContain("Speech Recognition");
     expect(json.permissionPreflight.states).toEqual({
       screenRecording: "granted",
-      accessibility: "granted",
-      microphone: "not-determined",
-      speechRecognition: "not-determined"
+      accessibility: "granted"
     });
   });
 
@@ -330,9 +325,7 @@ describe("dogfood tester assignment packet", () => {
       localSmoke: {
         permissionStates: {
           screenRecording: { state: "granted" },
-          accessibility: { state: "granted" },
-          microphone: { state: "granted" },
-          speechRecognition: { state: "granted" }
+          accessibility: { state: "granted" }
         },
         permissionBlockers: [],
         desktopSessionBlocker: {
@@ -429,30 +422,30 @@ describe("dogfood tester assignment packet", () => {
         process.cwd(),
         "docs",
         "research",
-        "2026-06-16-voice-computer-control-long-plan.md"
+        "2026-06-22-agent-computer-use-long-plan.md"
       ),
       "utf8"
     );
 
-    for (const document of [readme, workflow, longPlan]) {
-      expect(document).toContain("npm run dogfood:assignments -- \\");
-      expect(document).toContain("--output .skfiy-dogfood/assignments/");
-      expect(document).toContain("--json-output .skfiy-dogfood/assignments/");
-      expect(document).toContain("non-mutating");
-      expect(document).toContain("App Bundle Preflight");
-      expect(document).toContain("codesign --verify --deep --strict");
-      expect(document).toContain("designated => identifier \"com.sskift.skfiy\"");
-      expect(document).toContain("Desktop Session Preflight");
-      expect(document).toContain("Permission Preflight");
-      expect(document).toContain("Evidence Preview Gate");
-      expect(document).toContain("reportPreviewEligibility.eligible=true");
-      expect(document).toContain("UI pet drag evidence");
-      expect(document).toContain("panic stop evidence");
-      expect(document).toContain("runtimeStatus.stopTurnHotkey");
-      expect(document).toContain("`--require-passed`");
-      expect(document).toContain("GitHub issue comment");
-      expect(document).toContain("`--execute`");
-    }
+    const combined = [readme, workflow, longPlan].join("\n");
+
+    expect(combined).toContain("npm run dogfood:assignments -- \\");
+    expect(combined).toContain("--output .skfiy-dogfood/assignments/");
+    expect(combined).toContain("--json-output .skfiy-dogfood/assignments/");
+    expect(combined).toContain("non-mutating");
+    expect(combined).toContain("App Bundle Preflight");
+    expect(combined).toContain("codesign --verify --deep --strict");
+    expect(combined).toContain("designated => identifier \"com.sskift.skfiy\"");
+    expect(combined).toContain("Desktop Session Preflight");
+    expect(combined).toContain("Permission Preflight");
+    expect(combined).toContain("Evidence Preview Gate");
+    expect(combined).toContain("reportPreviewEligibility.eligible=true");
+    expect(combined).toContain("UI pet drag evidence");
+    expect(combined).toContain("panic stop evidence");
+    expect(combined).toContain("runtimeStatus.stopTurnHotkey");
+    expect(combined).toContain("`--require-passed`");
+    expect(combined).toContain("GitHub issue comment");
+    expect(combined).toContain("`--execute`");
   });
 });
 

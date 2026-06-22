@@ -281,7 +281,7 @@ renderer -> preload -> main -> helper -> Ghostty.
 
 Options:
   --app <path>          App bundle path. Default: dist/skfiy.app
-  --command <text>      Voice command text. Default: ${DEFAULT_COMMAND}
+  --command <text>      Task command text. Default: ${DEFAULT_COMMAND}
   --matrix              Run the Week 2 Ghostty task matrix: pwd, date, mkdir approval, clipboard approvals, rm deny, and non-terminal route guards.
   --port <number>       Electron remote debugging port. Default: ${defaults.port}
   --timeout-ms <ms>     Wait time for the renderer CDP page. Default: ${defaults.timeoutMs}

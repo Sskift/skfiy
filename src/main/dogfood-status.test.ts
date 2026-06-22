@@ -75,7 +75,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const jsonOutputPath = "/repo/.skfiy-dogfood/status.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
@@ -83,18 +82,14 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed", {
         screenRecording: "denied",
         accessibility: "denied",
-        microphone: "not-determined",
-        speechRecognition: "not-determined"
       }),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -130,7 +125,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
@@ -138,14 +132,12 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath,
         moneyRunSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked"),
       [moneyRunSmokePath]: {
         ...createSmokeArtifact(moneyRunSmokePath, "passed"),
         productPath: "LaunchServices -> renderer -> preload -> main -> tmux supervision -> tmux read-only probes",
@@ -220,7 +212,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const trackingIssueFile = "/repo/.skfiy-dogfood/tracking-issue-abc123.md";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
@@ -228,26 +219,15 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [trackingIssueFile]: createTrackingIssueBody([]),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed", {
         screenRecording: "denied",
         accessibility: "denied",
-        microphone: "not-determined",
-        speechRecognition: "not-determined"
       }),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: {
-        ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "native-macos",
-        speechStatus: {
-          speechRecognition: { state: "not-determined" },
-          microphone: { state: "not-determined" }
-        }
-      }
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked")
     }, {});
 
     const status = await createDogfoodStatus({
@@ -293,32 +273,20 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed", {
         screenRecording: "denied",
         accessibility: "denied",
-        microphone: "not-determined",
-        speechRecognition: "not-determined"
       }),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: {
-        ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "native-macos",
-        speechStatus: {
-          speechRecognition: { state: "not-determined" },
-          microphone: { state: "not-determined" }
-        }
-      }
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -380,21 +348,17 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: {
         ...createSmokeArtifact(uiSmokePath, "no-onboarding", {
           screenRecording: "authorized",
           accessibility: "authorized",
-          microphone: "authorized",
-          speechRecognition: "authorized"
         }),
         desktopSessionDiagnostics: {
           state: "blocked",
@@ -410,7 +374,6 @@ describe("dogfood status reporter", () => {
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -512,7 +475,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const desktopSessionArtifactPath = "/repo/.skfiy-smoke/desktop-session-current.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
@@ -520,7 +482,6 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: {
         ...createSmokeArtifact(uiSmokePath, "no-onboarding"),
@@ -537,7 +498,6 @@ describe("dogfood status reporter", () => {
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked"),
       [desktopSessionArtifactPath]: {
         artifactPath: desktopSessionArtifactPath,
         result: "passed",
@@ -598,7 +558,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const desktopSessionArtifactPath = "/repo/.skfiy-smoke/desktop-session-current.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
@@ -606,18 +565,14 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
         screenRecording: "authorized",
         accessibility: "authorized",
-        microphone: "authorized",
-        speechRecognition: "authorized"
       }),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked"),
       [desktopSessionArtifactPath]: {
         artifactPath: desktopSessionArtifactPath,
         result: "blocked",
@@ -688,7 +643,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const desktopPreflight = {
       result: "blocked",
       frontmost: {
@@ -708,13 +662,10 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
         screenRecording: "authorized",
         accessibility: "authorized",
-        microphone: "authorized",
-        speechRecognition: "authorized"
       }),
       [ghosttySmokePath]: {
         ...createSmokeArtifact(ghosttySmokePath, "blocked"),
@@ -722,7 +673,6 @@ describe("dogfood status reporter", () => {
       },
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -771,14 +721,12 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
@@ -820,7 +768,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = {
       ...createMemoryIo({
         [manifestPath]: createManifest({
@@ -828,13 +775,11 @@ describe("dogfood status reporter", () => {
           ghosttySmokePath,
           chromeSmokePath,
           finderSmokePath,
-          voiceSmokePath
         }),
         [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
         [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
         [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
         [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-        [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
       }, {
         [trackingIssueUrl]: {
           body: createTrackingIssueBody([]),
@@ -881,7 +826,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = {
       ...createMemoryIo({
         [manifestPath]: createManifest({
@@ -889,13 +833,11 @@ describe("dogfood status reporter", () => {
           ghosttySmokePath,
           chromeSmokePath,
           finderSmokePath,
-          voiceSmokePath
         }),
         [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
         [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
         [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
         [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-        [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
       }, {
         [trackingIssueUrl]: {
           body: createTrackingIssueBody([]),
@@ -963,7 +905,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = {
       ...createMemoryIo({
         [manifestPath]: createManifest({
@@ -971,13 +912,11 @@ describe("dogfood status reporter", () => {
           ghosttySmokePath,
           chromeSmokePath,
           finderSmokePath,
-          voiceSmokePath
         }),
         [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
         [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
         [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
         [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-        [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
       }, {
         [trackingIssueUrl]: {
           body: createTrackingIssueBody([]),
@@ -1062,7 +1001,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = {
       ...createMemoryIo({
         [manifestPath]: createManifest({
@@ -1070,13 +1008,11 @@ describe("dogfood status reporter", () => {
           ghosttySmokePath,
           chromeSmokePath,
           finderSmokePath,
-          voiceSmokePath
         }),
         [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
         [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
         [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
         [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-        [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
       }, {
         [trackingIssueUrl]: {
           body: createTrackingIssueBody([]),
@@ -1133,14 +1069,12 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       "/repo/docs/release-evidence/latest-alpha.json": {
         tagName: "skfiy-alpha-old9999",
@@ -1155,7 +1089,6 @@ describe("dogfood status reporter", () => {
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -1212,7 +1145,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [preparedManifestPath]: {
         ...createManifest({
@@ -1220,7 +1152,6 @@ describe("dogfood status reporter", () => {
           ghosttySmokePath,
           chromeSmokePath,
           finderSmokePath,
-          voiceSmokePath
         }),
         artifactBaseName: "skfiy-0.1.0-abc123-macos-unsigned"
       },
@@ -1237,7 +1168,6 @@ describe("dogfood status reporter", () => {
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -1289,7 +1219,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty-abc123.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome-abc123.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder-abc123.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice-abc123.json";
     const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run-supervision-abc123.json";
     const manifest = {
       ...createManifest({
@@ -1297,7 +1226,6 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath,
         moneyRunSmokePath
       }),
       artifactBaseName: "skfiy-0.1.0-abc123-macos-unsigned"
@@ -1317,14 +1245,12 @@ describe("dogfood status reporter", () => {
           ghostty: ".skfiy-smoke/ghostty-abc123.json",
           chrome: ".skfiy-smoke/chrome-abc123.json",
           finder: ".skfiy-smoke/finder-abc123.json",
-          voice: ".skfiy-smoke/voice-abc123.json"
         }
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked"),
       [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
@@ -1370,32 +1296,20 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed", {
         screenRecording: "denied",
         accessibility: "denied",
-        microphone: "not-determined",
-        speechRecognition: "not-determined"
       }),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: {
-        ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "native-macos",
-        speechStatus: {
-          speechRecognition: { state: "not-determined" },
-          microphone: { state: "not-determined" }
-        }
-      }
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -1480,7 +1394,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
     const preparedManifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc123/skfiy-0.1.0-abc123-macos-unsigned.json";
     const preparedAppPath = "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc123/skfiy.app";
@@ -1490,7 +1403,6 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath,
         moneyRunSmokePath
       }),
       [preparedManifestPath]: createManifest({
@@ -1498,7 +1410,6 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath,
         moneyRunSmokePath
       }),
       [preparedAppPath]: "prepared app bundle",
@@ -1506,10 +1417,6 @@ describe("dogfood status reporter", () => {
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: {
-        ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "browser"
-      },
       [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
@@ -1571,7 +1478,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
     const preparedManifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc123/skfiy-0.1.0-abc123-macos-unsigned.json";
     const preparedAppPath = "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc123/skfiy.app";
@@ -1581,7 +1487,6 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath,
         moneyRunSmokePath
       }),
       [preparedManifestPath]: createManifest({
@@ -1589,7 +1494,6 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath,
         moneyRunSmokePath
       }),
       [preparedAppPath]: "prepared app bundle",
@@ -1597,10 +1501,6 @@ describe("dogfood status reporter", () => {
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: {
-        ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "browser"
-      },
       [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
@@ -1662,7 +1562,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
     const preparedManifestPath = "/repo/.skfiy-dogfood/downloads/skfiy-alpha-abc123/skfiy-0.1.0-abc123-macos-unsigned.json";
     const preparedAppPath = "/repo/.skfiy-dogfood/apps/skfiy-alpha-abc123/skfiy.app";
@@ -1671,7 +1570,6 @@ describe("dogfood status reporter", () => {
       ghosttySmokePath,
       chromeSmokePath,
       finderSmokePath,
-      voiceSmokePath,
       moneyRunSmokePath
     });
     const stalePreparedManifest = {
@@ -1690,10 +1588,6 @@ describe("dogfood status reporter", () => {
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: {
-        ...createSmokeArtifact(voiceSmokePath, "blocked"),
-        provider: "browser"
-      },
       [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
@@ -1748,20 +1642,17 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -1818,20 +1709,17 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([], { includeDesktopSessionPreflight: false }),
@@ -1881,20 +1769,17 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -1944,20 +1829,17 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -2005,20 +1887,17 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -2066,20 +1945,17 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -2127,20 +2003,17 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([]),
@@ -2187,7 +2060,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -2199,18 +2071,14 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
         screenRecording: "authorized",
         accessibility: "authorized",
-        microphone: "authorized",
-        speechRecognition: "authorized"
       }),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls, {
@@ -2311,7 +2179,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -2323,7 +2190,6 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       "/repo/docs/release-evidence/latest-alpha.json": {
         tagName: "skfiy-alpha-old9999",
@@ -2337,13 +2203,10 @@ describe("dogfood status reporter", () => {
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
         screenRecording: "authorized",
         accessibility: "authorized",
-        microphone: "authorized",
-        speechRecognition: "authorized"
       }),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls, {
@@ -2410,7 +2273,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -2422,18 +2284,14 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
         screenRecording: "authorized",
         accessibility: "authorized",
-        microphone: "authorized",
-        speechRecognition: "authorized"
       }),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls, {
@@ -2503,7 +2361,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -2515,14 +2372,12 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath,
         includePanicStopProductPathEvidence: false
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls),
@@ -2581,7 +2436,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -2593,18 +2447,14 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding", {
         screenRecording: "authorized",
         accessibility: "authorized",
-        microphone: "authorized",
-        speechRecognition: "authorized"
       }),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls),
@@ -2667,7 +2517,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -2679,13 +2528,11 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls, {
@@ -2760,20 +2607,17 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const io = createMemoryIo({
       [manifestPath]: createManifest({
         uiSmokePath,
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody([], {
@@ -2821,7 +2665,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -2833,13 +2676,11 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls),
@@ -2908,7 +2749,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -2921,13 +2761,11 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls),
@@ -3036,7 +2874,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102"
@@ -3047,13 +2884,11 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls, {
@@ -3099,7 +2934,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -3111,13 +2945,11 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls, {
@@ -3186,7 +3018,6 @@ describe("dogfood status reporter", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/voice.json";
     const reportUrls = [
       "https://github.com/Sskift/skfiy/issues/101",
       "https://github.com/Sskift/skfiy/issues/102",
@@ -3198,13 +3029,11 @@ describe("dogfood status reporter", () => {
         ghosttySmokePath,
         chromeSmokePath,
         finderSmokePath,
-        voiceSmokePath
       }),
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "no-onboarding"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     }, {
       [trackingIssueUrl]: {
         body: createTrackingIssueBody(reportUrls),
@@ -3268,7 +3097,6 @@ function createManifest({
   ghosttySmokePath: string;
   chromeSmokePath: string;
   finderSmokePath: string;
-  voiceSmokePath?: string;
   moneyRunSmokePath?: string;
   includePanicStopProductPathEvidence?: boolean;
 }) {

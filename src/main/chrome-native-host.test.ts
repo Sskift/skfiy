@@ -1007,4 +1007,90 @@ describe("Chrome Native Messaging bridge runtime", () => {
     expect(JSON.stringify(heartbeats)).not.toContain("do-not-store-this-value");
     expect(JSON.stringify(heartbeats)).not.toContain(screenshotDataUrl);
   });
+
+  it("accepts tab discovery payloads and persists pageTabs command evidence", async () => {
+    const tabsFrame = encodeChromeNativeMessageFrame({
+      schemaVersion: 1,
+      type: "skfiy.tabs.discover",
+      requestId: "request-tabs",
+      payload: {
+        pageTabs: {
+          result: "passed",
+          tabs: [
+            {
+              id: 41,
+              windowId: 7,
+              title: "Ready fixture",
+              url: "http://127.0.0.1:63852/?skfiy_action_live=smoke",
+              host: "127.0.0.1:63852",
+              scheme: "http",
+              state: "eligible",
+              eligible: true
+            },
+            {
+              id: 42,
+              windowId: 7,
+              title: "Extensions",
+              url: "chrome://extensions/",
+              host: "extensions",
+              scheme: "chrome",
+              state: "blocked",
+              eligible: false,
+              blocker: "internal_chrome_page",
+              nextAction: "Open a normal HTTP(S) page before asking skfiy to control Chrome."
+            }
+          ]
+        }
+      }
+    });
+    const stdout: Buffer[] = [];
+    const stderr: string[] = [];
+    const heartbeats: unknown[] = [];
+
+    async function* stdin() {
+      yield tabsFrame;
+    }
+
+    await expect(runChromeNativeMessagingHost({
+      stdin: stdin(),
+      stdout: { write: (chunk: Buffer) => stdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) },
+      policy: { state: "allowed" },
+      connectionHeartbeat: async (heartbeat) => {
+        heartbeats.push(heartbeat);
+      },
+      dispatch: async () => ({
+        result: "accepted"
+      })
+    })).resolves.toBe(0);
+
+    expect(stderr).toEqual([]);
+    expect(stdout).toHaveLength(1);
+    expect(decodeChromeNativeMessageFrame(stdout[0])).toMatchObject({
+      requestId: "request-tabs",
+      result: "accepted"
+    });
+    expect(heartbeats).toEqual([
+      expect.objectContaining({
+        messageType: "skfiy.tabs.discover",
+        requestId: "request-tabs",
+        result: "accepted",
+        pageTabs: {
+          result: "passed",
+          tabs: [
+            expect.objectContaining({
+              id: 41,
+              state: "eligible",
+              eligible: true
+            }),
+            expect.objectContaining({
+              id: 42,
+              state: "blocked",
+              blocker: "internal_chrome_page"
+            })
+          ]
+        }
+      })
+    ]);
+  });
 });

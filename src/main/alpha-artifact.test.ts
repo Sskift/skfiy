@@ -90,7 +90,6 @@ describe("alpha artifact packaging", () => {
         smokeArtifactPath?: string;
         chromeSmokeArtifactPath?: string;
         finderSmokeArtifactPath?: string;
-        voiceSmokeArtifactPath?: string;
         moneyRunSmokeArtifactPath?: string;
       }) => Record<string, unknown>;
       parseAlphaArtifactArgs: (
@@ -108,8 +107,6 @@ describe("alpha artifact packaging", () => {
       ".skfiy-smoke/chrome-page.json",
       "--finder-smoke-artifact",
       ".skfiy-smoke/finder-item-drag-drop.json",
-      "--voice-smoke-artifact",
-      ".skfiy-smoke/voice-native.json",
       "--money-run-smoke-artifact",
       ".skfiy-smoke/money-run-supervision.json"
     ], {
@@ -119,7 +116,6 @@ describe("alpha artifact packaging", () => {
       smokeArtifactPath: undefined,
       chromeSmokeArtifactPath: undefined,
       finderSmokeArtifactPath: undefined,
-      voiceSmokeArtifactPath: undefined,
       moneyRunSmokeArtifactPath: undefined,
       help: false
     })).toMatchObject({
@@ -127,7 +123,6 @@ describe("alpha artifact packaging", () => {
       smokeArtifactPath: path.resolve(".skfiy-smoke/ghostty-matrix.json"),
       chromeSmokeArtifactPath: path.resolve(".skfiy-smoke/chrome-page.json"),
       finderSmokeArtifactPath: path.resolve(".skfiy-smoke/finder-item-drag-drop.json"),
-      voiceSmokeArtifactPath: path.resolve(".skfiy-smoke/voice-native.json"),
       moneyRunSmokeArtifactPath: path.resolve(".skfiy-smoke/money-run-supervision.json")
     });
 
@@ -149,7 +144,6 @@ describe("alpha artifact packaging", () => {
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abcdef1.json",
       chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abcdef1.json",
       finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
-      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-abcdef1.json",
       moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision-abcdef1.json"
     })).toMatchObject({
       schemaVersion: 1,
@@ -168,14 +162,12 @@ describe("alpha artifact packaging", () => {
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abcdef1.json",
       chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abcdef1.json",
       finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
-      voiceSmokeArtifactPath: "/repo/.skfiy-smoke/voice-abcdef1.json",
       moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision-abcdef1.json",
       requiredDogfoodEvidence: [
         "npm run smoke:ui -- --output <path>",
         "npm run smoke:ghostty -- --output <path>",
         "npm run smoke:chrome -- --output <path>",
         "npm run smoke:finder -- --output <path>",
-        "npm run smoke:voice -- --output <path>",
         "npm run smoke:money-run -- --json-output <path>",
         "skfiy status --json",
         "skfiy doctor",
@@ -185,16 +177,12 @@ describe("alpha artifact packaging", () => {
         "Panic stop product-path behavior evidence",
         "Screen Recording permission state",
         "Accessibility permission state",
-        "Microphone or ASR provider state",
-        "External Doubao voice transcript-to-task evidence",
-        "External Doubao voice Ghostty turn replay evidence",
-        "External Doubao voice no-transcript/cancellation evidence",
         "Accepted GitHub dogfood issue source",
         "before/after screenshot paths when Computer Use passes",
         "action verification events when Computer Use passes",
         "Ghostty app policy settings",
         "clipboard read/write approval runs",
-        "non-terminal voice route guard runs",
+        "non-Computer-Use route guard runs",
         "Chrome app policy settings",
         "Chrome test-page extraction evidence",
         "Chrome Native Messaging heartbeat evidence",
@@ -239,7 +227,6 @@ describe("alpha artifact packaging", () => {
         smokeArtifactPath?: string;
         chromeSmokeArtifactPath?: string;
         finderSmokeArtifactPath?: string;
-        voiceSmokeArtifactPath?: string;
         moneyRunSmokeArtifactPath?: string;
       }) => Record<string, unknown>;
     };

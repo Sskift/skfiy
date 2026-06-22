@@ -34,7 +34,7 @@ describe("packaged UI product smoke script", () => {
     expect(defaults).toMatchObject({
       appPath: path.join("/repo", "dist", "skfiy.app"),
       productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
-      requiredPermissionLabels: ["屏幕录制", "辅助功能", "麦克风", "语音识别"]
+      requiredPermissionLabels: ["屏幕录制", "辅助功能"]
     });
     expect(parseUiSmokeArgs([
       "--app",
@@ -81,17 +81,13 @@ describe("packaged UI product smoke script", () => {
       onboardingVisible: true,
       permissionRows: [
         { label: "屏幕录制", stateText: "未授权" },
-        { label: "辅助功能", stateText: "未授权" },
-        { label: "麦克风", stateText: "待授权" },
-        { label: "语音识别", stateText: "待授权" }
+        { label: "辅助功能", stateText: "未授权" }
       ],
       permissionSettingTargets: [
         { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
-        { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" },
-        { label: "麦克风", target: "microphone", buttonLabel: "打开麦克风设置" },
-        { label: "语音识别", target: "speech-recognition", buttonLabel: "打开语音识别设置" }
+        { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" }
       ],
-      requiredPermissionLabels: ["屏幕录制", "辅助功能", "麦克风", "语音识别"],
+      requiredPermissionLabels: ["屏幕录制", "辅助功能"],
       stopTurnBehavior: {
         result: "passed",
         source: "renderer-escape-key-product-path",
@@ -146,9 +142,7 @@ describe("packaged UI product smoke script", () => {
       onboardingVisible: false,
       permissions: {
         screenRecording: { state: "granted" },
-        accessibility: { state: "granted" },
-        microphone: { state: "granted" },
-        speechRecognition: { state: "granted" }
+        accessibility: { state: "granted" }
       }
     })).toBe("passed");
     expect(classifyUiSmokeEvidence({
@@ -156,9 +150,7 @@ describe("packaged UI product smoke script", () => {
       onboardingVisible: false,
       permissions: {
         screenRecording: { state: "granted" },
-        accessibility: { state: "granted" },
-        microphone: { state: "not-determined" },
-        speechRecognition: { state: "denied" }
+        accessibility: { state: "denied" }
       }
     })).toBe("missing-onboarding");
   });

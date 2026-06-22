@@ -16,7 +16,6 @@ const DOGFOOD_EVIDENCE = [
   "npm run smoke:ghostty -- --output <path>",
   "npm run smoke:chrome -- --output <path>",
   "npm run smoke:finder -- --output <path>",
-  "npm run smoke:voice -- --output <path>",
   "npm run smoke:money-run -- --json-output <path>",
   "skfiy status --json",
   "skfiy doctor",
@@ -26,16 +25,12 @@ const DOGFOOD_EVIDENCE = [
   "Panic stop product-path behavior evidence",
   "Screen Recording permission state",
   "Accessibility permission state",
-  "Microphone or ASR provider state",
-  "External Doubao voice transcript-to-task evidence",
-  "External Doubao voice Ghostty turn replay evidence",
-  "External Doubao voice no-transcript/cancellation evidence",
   "Accepted GitHub dogfood issue source",
   "before/after screenshot paths when Computer Use passes",
   "action verification events when Computer Use passes",
   "Ghostty app policy settings",
   "clipboard read/write approval runs",
-  "non-terminal voice route guard runs",
+  "non-Computer-Use route guard runs",
   "Chrome app policy settings",
   "Chrome test-page extraction evidence",
   "Chrome Native Messaging heartbeat evidence",
@@ -96,7 +91,6 @@ export function createAlphaManifest({
   smokeArtifactPath,
   chromeSmokeArtifactPath,
   finderSmokeArtifactPath,
-  voiceSmokeArtifactPath,
   moneyRunSmokeArtifactPath
 }) {
   validateCurrentAlphaSmokeArtifactPaths({
@@ -105,7 +99,6 @@ export function createAlphaManifest({
     smokeArtifactPath,
     chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
-    voiceSmokeArtifactPath,
     moneyRunSmokeArtifactPath
   });
 
@@ -131,7 +124,6 @@ export function createAlphaManifest({
     smokeArtifactPath,
     chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
-    voiceSmokeArtifactPath,
     moneyRunSmokeArtifactPath,
     requiredDogfoodEvidence: DOGFOOD_EVIDENCE
   };
@@ -143,7 +135,6 @@ function validateCurrentAlphaSmokeArtifactPaths({
   smokeArtifactPath,
   chromeSmokeArtifactPath,
   finderSmokeArtifactPath,
-  voiceSmokeArtifactPath,
   moneyRunSmokeArtifactPath
 }) {
   const shortSha = commitSha.slice(0, 7);
@@ -152,7 +143,6 @@ function validateCurrentAlphaSmokeArtifactPaths({
     smokeArtifactPath,
     chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
-    voiceSmokeArtifactPath,
     moneyRunSmokeArtifactPath
   })) {
     if (typeof artifactPath !== "string" || artifactPath.trim().length === 0) {
@@ -197,10 +187,6 @@ export function parseAlphaArtifactArgs(argv, defaults) {
         options.uiSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
-      case "--voice-smoke-artifact":
-        options.voiceSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
-        index += 1;
-        break;
       case "--money-run-smoke-artifact":
         options.moneyRunSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
@@ -232,8 +218,6 @@ Options:
                             Chrome smoke JSON artifact to reference in the manifest.
   --finder-smoke-artifact <path>
                             Finder smoke JSON artifact to reference in the manifest.
-  --voice-smoke-artifact <path>
-                            Voice smoke JSON artifact to reference in the manifest.
   --money-run-smoke-artifact <path>
                             Long-horizon money-run supervision smoke JSON artifact to reference in the manifest.
   -h, --help                Show this help.
@@ -255,7 +239,6 @@ export async function createAlphaArtifact({
     smokeArtifactPath: undefined,
     chromeSmokeArtifactPath: undefined,
     finderSmokeArtifactPath: undefined,
-    voiceSmokeArtifactPath: undefined,
     moneyRunSmokeArtifactPath: undefined,
     help: false
   });
@@ -304,7 +287,6 @@ export async function createAlphaArtifact({
     smokeArtifactPath: options.smokeArtifactPath,
     chromeSmokeArtifactPath: options.chromeSmokeArtifactPath,
     finderSmokeArtifactPath: options.finderSmokeArtifactPath,
-    voiceSmokeArtifactPath: options.voiceSmokeArtifactPath,
     moneyRunSmokeArtifactPath: options.moneyRunSmokeArtifactPath
   });
   await io.writeFile(plan.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);

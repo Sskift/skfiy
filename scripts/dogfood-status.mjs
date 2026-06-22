@@ -21,9 +21,7 @@ const ASSIGNMENT_EVIDENCE_PREVIEW_HEADING = "## Evidence Preview Gate";
 const ASSIGNMENT_PACKET_SCHEMA = "dogfood-assignments-v2";
 const REPORT_PERMISSION_KEYS = [
   "screenRecording",
-  "accessibility",
-  "microphone",
-  "speechRecognition"
+  "accessibility"
 ];
 const COMPUTER_USE_PERMISSION_KEYS = [
   "screenRecording",
@@ -71,12 +69,8 @@ const LATEST_ALPHA_EVIDENCE_RELATIVE_PATH = path.join(
 );
 const PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS = [
   "Run npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output .skfiy-smoke/ghostty-current.json after desktop preflight passes.",
-  "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes.",
-  "Run npm run smoke:voice -- --app dist/skfiy.app --provider doubao --require-passed --output .skfiy-smoke/voice-current.json after desktop preflight passes."
+  "Run npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-current.json after desktop preflight passes."
 ];
-const PASSED_NATIVE_SPEECH_SMOKE_COMMAND_ACTION = "Run npm run smoke:voice -- --app dist/skfiy.app --provider native-macos --require-passed --output .skfiy-smoke/voice-native-current.json after desktop preflight passes to prove the product-path native speech turn after Speech Recognition permission is granted.";
-const APP_SCOPED_NATIVE_SPEECH_PERMISSION_ACTION = "Collect app-scoped Microphone and Speech Recognition evidence from smoke:ui permissionDiagnostics.active or the native voice smoke before requiring passed native speech evidence.";
-const NATIVE_SPEECH_PERMISSION_KEYS = ["microphone", "speechRecognition"];
 const DEFAULT_DOGFOOD_COHORT_PATH = ".skfiy-dogfood/internal-alpha-cohort.json";
 const DEFAULT_DOGFOOD_COHORT_SUMMARY_PATH = ".skfiy-dogfood/internal-alpha-summary.md";
 const DEFAULT_STRICT_DOGFOOD_COHORT_SUMMARY_PATH = ".skfiy-dogfood/internal-alpha-summary-strict.md";
@@ -543,7 +537,6 @@ async function readSmokeArtifacts(manifest, options, io) {
     ghostty: await readOptionalJson(manifest?.smokeArtifactPath, io),
     chrome: await readOptionalJson(manifest?.chromeSmokeArtifactPath, io),
     finder: await readOptionalJson(manifest?.finderSmokeArtifactPath, io),
-    voice: await readOptionalJson(manifest?.voiceSmokeArtifactPath, io),
     ...(typeof options.desktopSessionArtifactPath === "string"
       ? { desktopSession: await readOptionalJson(options.desktopSessionArtifactPath, io) }
       : {}),
@@ -722,7 +715,7 @@ function createDesktopSessionArtifactBlockerReason({
 }
 
 function readDesktopPreflightBlocker(smokeArtifacts) {
-  for (const name of ["ghostty", "finder", "voice"]) {
+  for (const name of ["ghostty", "finder"]) {
     const preflight = smokeArtifacts?.[name]?.desktopPreflight;
     if (!preflight || preflight.result !== "blocked") {
       continue;
@@ -788,13 +781,6 @@ function readPermissionEvidenceForPermission(smokeArtifacts, permission) {
         value: artifact?.permissions?.[permission]?.state,
         appScoped: artifactName === "ui"
       }),
-      readPermissionCandidate({
-        artifact,
-        artifactName,
-        permission,
-        source: `${artifactName}.speechStatus`,
-        value: artifact?.speechStatus?.[permission]?.state
-      })
     );
   }
 
@@ -886,16 +872,6 @@ function readDirectHelperPermissionState(permission) {
 }
 
 function readRequiredPermissionKeys(smokeArtifacts) {
-  const provider = smokeArtifacts?.voice?.provider;
-
-  if (provider === "native-macos") {
-    return REPORT_PERMISSION_KEYS;
-  }
-
-  if (provider === "browser") {
-    return [...COMPUTER_USE_PERMISSION_KEYS, "microphone"];
-  }
-
   return COMPUTER_USE_PERMISSION_KEYS;
 }
 
@@ -1238,7 +1214,7 @@ function createNextActions({
     actions.push(`Regenerate the alpha artifact so the manifest requires ${summary} before assigning dogfood testers.`);
   }
   if (desktopSessionBlocker) {
-    actions.push("Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder/voice Computer Use evidence.");
+    actions.push("Unlock the Mac and keep the display awake before requiring passed Ghostty/Finder Computer Use evidence.");
     actions.push("After unlocking, rerun npm run smoke:desktop-session -- --app dist/skfiy.app --output .skfiy-smoke/desktop-session-current.json before collecting passed Computer Use evidence.");
     const desktopStatusCommand = createDesktopSessionStatusRefreshCommand({
       manifestPath,
@@ -1247,13 +1223,8 @@ function createNextActions({
     if (desktopStatusCommand) {
       actions.push(`${desktopStatusCommand} after smoke:desktop-session rerun to refresh desktop readiness.`);
     }
-    actions.push("When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty, Finder, and voice.");
+    actions.push("When desktop preflight passes, rerun packaged product smokes with --require-passed for Ghostty and Finder.");
     actions.push(...PASSED_COMPUTER_USE_SMOKE_COMMAND_ACTIONS);
-  }
-  if (needsNativeSpeechProductPathEvidence({ smokeArtifacts, permissionEvidence })) {
-    actions.push(PASSED_NATIVE_SPEECH_SMOKE_COMMAND_ACTION);
-  } else if (needsAppScopedNativeSpeechPermissionEvidence({ smokeArtifacts, permissionEvidence })) {
-    actions.push(APP_SCOPED_NATIVE_SPEECH_PERMISSION_ACTION);
   }
   if (workflowCoverage.missing.length > 0) {
     actions.push(`Collect accepted reports covering missing workflows: ${workflowCoverage.missing.join(", ")}.`);
@@ -1266,12 +1237,6 @@ function createNextActions({
   }
   if (permissionBlockers.some((item) => item.permission === "accessibility")) {
     actions.push("Grant Accessibility to dist/skfiy.app or the alpha app bundle before requiring passed click/type evidence.");
-  }
-  if (permissionBlockers.some((item) => item.permission === "microphone")) {
-    actions.push("Grant Microphone to dist/skfiy.app or the alpha app bundle before requiring passed native voice evidence.");
-  }
-  if (permissionBlockers.some((item) => item.permission === "speechRecognition")) {
-    actions.push("Grant Speech Recognition to dist/skfiy.app or the alpha app bundle before requiring passed native speech evidence.");
   }
   if (manifestChecks.releaseEvidence?.available === true && manifestChecks.releaseEvidence.ok !== true) {
     actions.push(
@@ -1312,32 +1277,6 @@ function readFreshAlphaBeforeTesterAssignmentAction(currentHead) {
     : "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha.";
 }
 
-function needsNativeSpeechProductPathEvidence({ smokeArtifacts, permissionEvidence }) {
-  if (smokeArtifacts?.voice?.provider === "native-macos" && smokeArtifacts.voice.result === "passed") {
-    return false;
-  }
-
-  return NATIVE_SPEECH_PERMISSION_KEYS.every((permission) =>
-    isUsableNativeSpeechPermissionEvidence(permissionEvidence?.[permission])
-  );
-}
-
-function needsAppScopedNativeSpeechPermissionEvidence({ smokeArtifacts, permissionEvidence }) {
-  if (smokeArtifacts?.voice?.provider === "native-macos" && smokeArtifacts.voice.result === "passed") {
-    return false;
-  }
-
-  return NATIVE_SPEECH_PERMISSION_KEYS.some((permission) => {
-    const evidence = permissionEvidence?.[permission];
-    return isNonBlockingPermissionEvidence(evidence)
-      && !isAppLaunchedPermissionEvidence(evidence);
-  });
-}
-
-function isUsableNativeSpeechPermissionEvidence(evidence) {
-  return isNonBlockingPermissionEvidence(evidence) && isAppLaunchedPermissionEvidence(evidence);
-}
-
 function isNonBlockingPermissionEvidence(evidence) {
   const state = evidence?.state;
   return typeof state === "string"
@@ -1347,9 +1286,7 @@ function isNonBlockingPermissionEvidence(evidence) {
 }
 
 function isAppLaunchedPermissionEvidence(evidence) {
-  return evidence?.appScoped === true
-    || evidence?.artifact === "voice"
-    || evidence?.source === "voice.speechStatus";
+  return evidence?.appScoped === true;
 }
 
 function createTesterPrepareNextActions(testerAssignments) {

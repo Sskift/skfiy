@@ -244,6 +244,46 @@ describe("Chrome extension content script", () => {
     });
   });
 
+  it("executes selectorless scroll page actions", async () => {
+    const mock = createChromeMock();
+    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {});
+    globalThis.chrome = mock.chrome;
+    document.title = "Long page";
+    document.body.innerHTML = `
+      <main style="min-height: 2000px">
+        <h1>Scrollable page</h1>
+      </main>
+    `;
+
+    await importContentScript();
+    const listener = mock.listener();
+
+    const scrolled = sendContentMessage(listener, {
+      type: "skfiy.page.action",
+      requestId: "scroll-without-selector",
+      payload: {
+        action: {
+          kind: "scroll",
+          deltaY: 600
+        }
+      }
+    });
+
+    expect(scrolled.keepChannelOpen).toBe(true);
+    expect(scrolled.response).toMatchObject({
+      type: "skfiy.page.action_result",
+      schemaVersion: 1,
+      requestId: "scroll-without-selector",
+      result: "passed",
+      action: "scroll"
+    });
+    expect(scrollBy).toHaveBeenCalledWith({
+      top: 600,
+      left: 0,
+      behavior: "auto"
+    });
+  });
+
   it("reports page-level sensitive risk and pauses unconfirmed destructive clicks", async () => {
     const mock = createChromeMock();
     globalThis.chrome = mock.chrome;

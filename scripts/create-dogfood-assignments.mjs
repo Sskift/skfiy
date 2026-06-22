@@ -14,9 +14,7 @@ const GITHUB_ISSUE_URL_PATTERN = /^https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/i
 const ASSIGNMENT_PACKET_SCHEMA = "dogfood-assignments-v2";
 const PERMISSION_LABELS = {
   screenRecording: "Screen Recording",
-  accessibility: "Accessibility",
-  microphone: "Microphone",
-  speechRecognition: "Speech Recognition"
+  accessibility: "Accessibility"
 };
 
 export function createDefaultDogfoodAssignmentsOptions(rootDir = DEFAULT_ROOT_DIR) {
@@ -302,8 +300,7 @@ export function createDogfoodAssignmentsMarkdown(status, { generatedAt } = {}) {
   }
 
   lines.push("", "## Permission Preflight", "");
-  lines.push("Grant Screen Recording and Accessibility to the extracted `skfiy.app` before using `--require-passed` for default external Doubao + Computer Use evidence.");
-  lines.push("Grant Microphone and Speech Recognition only when intentionally testing the optional `native-macos` voice provider.");
+  lines.push("Grant Screen Recording and Accessibility to the extracted `skfiy.app` before using `--require-passed` for Computer Use evidence.");
   lines.push("If permissions are still blocked, run the normal tester command and file the blocked evidence instead of adding `--require-passed`.");
   lines.push("For passed workflow evidence, rerun prepare/tester with `--require-passed` only after the provider-relevant permissions are granted and `smoke:desktop-session` passes on the tester machine.");
   lines.push("");

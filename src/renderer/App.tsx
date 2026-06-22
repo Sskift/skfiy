@@ -44,17 +44,12 @@ export type TaskStatus =
 
 export type ManualMode = "active" | "quiet";
 export type PetWindowMode = "compact" | "expanded";
-export type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
-export type DictationProviderSelection = "doubao" | "browser" | "native-macos";
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 export type DesktopSessionDiagnosticState = "controllable" | "blocked" | "unknown";
 export type PermissionSettingsTarget =
   | "screen-recording"
-  | "accessibility"
-  | "microphone"
-  | "speech-recognition";
+  | "accessibility";
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
-export type DictationProviderId = "doubao" | "browser" | "native-macos";
 export type AppPolicy = "allow" | "ask" | "deny";
 export type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
@@ -64,48 +59,6 @@ export type TurnTranscriptOutcome =
   | "verification_failed"
   | "failed"
   | "running";
-export type DictationProviderState =
-  | "unavailable"
-  | "waiting_for_shortcut_configuration"
-  | "listening"
-  | "no_transcript"
-  | "cancelled"
-  | "stopped"
-  | "failed";
-
-export interface DictationPreparation {
-  providerId?: DictationProviderId;
-  voiceTrigger: DoubaoVoiceTrigger;
-  nativeDictationActive?: boolean;
-  providerState?: DictationProviderState;
-  sessionId?: string;
-}
-
-export interface DictationProviderEvent {
-  providerId: DictationProviderId;
-  state: DictationProviderState;
-  message: string;
-}
-
-export interface DictationTranscriptUpdate {
-  text: string;
-  isFinal: boolean;
-  confidence?: number;
-}
-
-export interface DictationTranscriptEvent extends DictationTranscriptUpdate {
-  providerId: DictationProviderId;
-  sessionId?: string;
-}
-
-export interface DictationSettings {
-  provider: DictationProviderSelection;
-  doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
-  doubaoShortcutLabel: string;
-  nativeSpeechLocale: string;
-  nativeSpeechMaxDurationMs: number;
-  nativeSpeechSilenceTimeoutMs: number;
-}
 
 export interface ControlledAppPolicyEntry {
   name: string;
@@ -192,8 +145,6 @@ export interface TurnReplay {
 export interface PermissionSummary {
   screenRecording: { state: PermissionState };
   accessibility: { state: PermissionState };
-  microphone: { state: PermissionState };
-  speechRecognition: { state: PermissionState };
 }
 
 export interface PermissionDiagnostics {
@@ -313,17 +264,6 @@ export interface ObserveAppReplayRecord {
 
 export interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
-  prepareDictation: () => Promise<DictationPreparation>;
-  stopDictation: (sessionId?: string) => Promise<void>;
-  updateDictationTranscript: (
-    sessionId: string | undefined,
-    update: DictationTranscriptUpdate
-  ) => Promise<void>;
-  submitDictation: (
-    sessionId: string | undefined,
-    command: string,
-    options: { stopNativeDictation: boolean }
-  ) => Promise<void>;
   approveTask: () => Promise<void>;
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
@@ -333,18 +273,6 @@ export interface DesktopApi {
   getDesktopSessionDiagnostics: () => Promise<DesktopSessionDiagnostics>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
-  getDictationSettings: () => Promise<DictationSettings>;
-  setDictationSettings: (
-    update: Partial<
-      Pick<
-        DictationSettings,
-        | "provider"
-        | "nativeSpeechLocale"
-        | "nativeSpeechMaxDurationMs"
-        | "nativeSpeechSilenceTimeoutMs"
-      >
-    >
-  ) => Promise<DictationSettings>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
   getPlannerProviderSettings: () => Promise<PlannerProviderSettings>;
@@ -357,51 +285,13 @@ export interface DesktopApi {
   getWindowBounds: () => Promise<WindowBounds | null>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
-  onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
-  onDictationTranscriptEvent: (callback: (event: DictationTranscriptEvent) => void) => () => void;
   onStopTurnHotkey: (callback: () => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
 
-interface BrowserSpeechRecognitionResult {
-  0?: {
-    transcript?: string;
-    confidence?: number;
-  };
-  isFinal?: boolean;
-}
-
-interface BrowserSpeechRecognitionResultEvent {
-  resultIndex: number;
-  results: {
-    length: number;
-    [index: number]: BrowserSpeechRecognitionResult;
-  };
-}
-
-interface BrowserSpeechRecognitionErrorEvent {
-  error?: string;
-}
-
-interface BrowserSpeechRecognition {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((event: BrowserSpeechRecognitionResultEvent) => void) | null;
-  onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-  abort?: () => void;
-}
-
-type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
-
 declare global {
   interface Window {
     skfiy?: DesktopApi;
-    SpeechRecognition?: BrowserSpeechRecognitionConstructor;
-    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
   }
 }
 
@@ -462,9 +352,7 @@ const PERMISSION_ROWS: Array<{
   label: string;
 }> = [
   { key: "screenRecording", settingsTarget: "screen-recording", label: "屏幕录制" },
-  { key: "accessibility", settingsTarget: "accessibility", label: "辅助功能" },
-  { key: "microphone", settingsTarget: "microphone", label: "麦克风" },
-  { key: "speechRecognition", settingsTarget: "speech-recognition", label: "语音识别" }
+  { key: "accessibility", settingsTarget: "accessibility", label: "辅助功能" }
 ];
 
 const PERMISSION_STATE_COPY: Record<PermissionState, string> = {
@@ -494,36 +382,15 @@ const PLANNER_PROVIDER_OPTIONS: Array<{ mode: PlannerProviderMode; label: string
   { mode: "disabled", label: "关闭", aria: "选择关闭规划" }
 ];
 
-const DICTATION_PROVIDER_OPTIONS: Array<{
-  provider: DictationProviderSelection;
-  label: string;
-  aria: string;
-}> = [
-  { provider: "doubao", label: "豆包", aria: "选择豆包语音" },
-  { provider: "browser", label: "浏览器", aria: "选择浏览器语音" },
-  { provider: "native-macos", label: "macOS", aria: "选择 macOS 系统语音" }
-];
-
 const UNKNOWN_PERMISSIONS: PermissionSummary = {
   screenRecording: { state: "unknown" },
-  accessibility: { state: "unknown" },
-  microphone: { state: "unknown" },
-  speechRecognition: { state: "unknown" }
+  accessibility: { state: "unknown" }
 };
 
 const UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS: DesktopSessionDiagnostics = {
   state: "unknown",
   status: null,
   reason: "Desktop session status is unknown."
-};
-
-const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
-  provider: "doubao",
-  doubaoVoiceTrigger: "skfiy-shortcut",
-  doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
-  nativeSpeechLocale: "zh-CN",
-  nativeSpeechMaxDurationMs: 7000,
-  nativeSpeechSilenceTimeoutMs: 900
 };
 
 const DEFAULT_APP_POLICY_SETTINGS: AppPolicySettings = {
@@ -543,10 +410,6 @@ const DEFAULT_PLANNER_PROVIDER_SETTINGS: PlannerProviderSettings = {
 
 const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
-  prepareDictation: async () => ({ voiceTrigger: "none" }),
-  stopDictation: async () => undefined,
-  updateDictationTranscript: async () => undefined,
-  submitDictation: async () => undefined,
   approveTask: async () => undefined,
   denyTask: async () => undefined,
   takeScreenshot: async () => undefined,
@@ -568,15 +431,6 @@ const fallbackApi: DesktopApi = {
   getDesktopSessionDiagnostics: async () => UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS,
   openPermissionSettings: async () => undefined,
   getStartupWarnings: async () => [],
-  getDictationSettings: async () => DEFAULT_DICTATION_SETTINGS,
-  setDictationSettings: async (update) => ({
-    ...DEFAULT_DICTATION_SETTINGS,
-    provider: isDictationProviderSelection(update.provider) ? update.provider : "doubao",
-    nativeSpeechLocale:
-      typeof update.nativeSpeechLocale === "string" && update.nativeSpeechLocale.trim()
-        ? update.nativeSpeechLocale.trim()
-        : DEFAULT_DICTATION_SETTINGS.nativeSpeechLocale
-  }),
   getAppPolicySettings: async () => DEFAULT_APP_POLICY_SETTINGS,
   setAppPolicy: async (update) => ({
     apps: DEFAULT_APP_POLICY_SETTINGS.apps.map((entry) =>
@@ -602,67 +456,30 @@ const fallbackApi: DesktopApi = {
   getWindowBounds: async () => null,
   moveWindowBy: () => undefined,
   setWindowMode: () => undefined,
-  onDictationProviderEvent: () => () => undefined,
-  onDictationTranscriptEvent: () => () => undefined,
   onStopTurnHotkey: () => () => undefined,
   onTaskEvent: () => () => undefined
 };
-
-const DICTATION_AUTO_SUBMIT_DELAY_MS = 900;
-const MIN_BROWSER_ASR_AUTO_SUBMIT_CONFIDENCE = 0.55;
 
 function getDesktopApi(): DesktopApi {
   return window.skfiy ?? fallbackApi;
 }
 
-function isDictationProviderSelection(value: unknown): value is DictationProviderSelection {
-  return value === "doubao" || value === "browser" || value === "native-macos";
-}
+function readExternalCuaStatusLabel(settings: PlannerProviderSettings): string {
+  const endpointConfigured = Boolean(settings.externalEndpoint?.trim());
 
-function readDictationProviderLabel(provider: DictationProviderSelection): string {
-  return DICTATION_PROVIDER_OPTIONS.find((option) => option.provider === provider)?.label ?? "语音";
-}
-
-function getSpeechRecognitionConstructor(): BrowserSpeechRecognitionConstructor | undefined {
-  return window.SpeechRecognition ?? window.webkitSpeechRecognition;
-}
-
-function readSpeechTranscript(event: BrowserSpeechRecognitionResultEvent): string {
-  const parts: string[] = [];
-
-  for (let index = 0; index < event.results.length; index += 1) {
-    const transcript = event.results[index]?.[0]?.transcript;
-    if (transcript) {
-      parts.push(transcript);
-    }
+  if (endpointConfigured && settings.externalApiKeyConfigured) {
+    return "External CUA 已配置";
   }
 
-  return parts.join("").trim();
-}
-
-function readSpeechTranscriptUpdate(
-  event: BrowserSpeechRecognitionResultEvent
-): DictationTranscriptUpdate {
-  let isFinal = false;
-  let confidence: number | undefined;
-
-  for (let index = 0; index < event.results.length; index += 1) {
-    const result = event.results[index];
-    if (result?.isFinal) {
-      isFinal = true;
-    }
-
-    const nextConfidence = result?.[0]?.confidence;
-    if (typeof nextConfidence === "number" && Number.isFinite(nextConfidence)) {
-      confidence = nextConfidence;
-    }
+  if (endpointConfigured) {
+    return "External CUA 缺少 API Key";
   }
 
-  return {
-    text: readSpeechTranscript(event),
-    isFinal,
-    confidence
-  };
+  if (settings.externalApiKeyConfigured) {
+    return "External CUA 缺少 Endpoint";
+  }
+
+  return "External CUA 未配置";
 }
 
 function mergeReplayRecord(
@@ -851,25 +668,12 @@ function formatReplayAction(action: TurnTranscript["actions"][number]): string {
   return action.type;
 }
 
-function readRequiredPermissionKeys(
-  provider: DictationProviderSelection
-): Array<keyof PermissionSummary> {
-  if (provider === "native-macos") {
-    return ["screenRecording", "accessibility", "microphone", "speechRecognition"];
-  }
-
-  if (provider === "browser") {
-    return ["screenRecording", "accessibility", "microphone"];
-  }
-
+function readRequiredPermissionKeys(): Array<keyof PermissionSummary> {
   return ["screenRecording", "accessibility"];
 }
 
-function readMissingPermissionRows(
-  permissions: PermissionSummary,
-  provider: DictationProviderSelection
-): typeof PERMISSION_ROWS {
-  const requiredKeys = new Set(readRequiredPermissionKeys(provider));
+function readMissingPermissionRows(permissions: PermissionSummary): typeof PERMISSION_ROWS {
+  const requiredKeys = new Set(readRequiredPermissionKeys());
   return PERMISSION_ROWS.filter((permission) =>
     requiredKeys.has(permission.key)
     && BLOCKING_PERMISSION_STATES.includes(permissions[permission.key].state)
@@ -899,18 +703,11 @@ function canStopTurn(status: TaskStatus): boolean {
   );
 }
 
-function getDashboardStatusCopy(
-  task: TaskView,
-  listening: boolean
-): { label: string; detail: string; tone: "success" | "warning" | "danger" | "neutral" } {
-  if (listening) {
-    return {
-      label: "正在听取指令",
-      detail: "语音输入已打开",
-      tone: "warning"
-    };
-  }
-
+function getDashboardStatusCopy(task: TaskView): {
+  label: string;
+  detail: string;
+  tone: "success" | "warning" | "danger" | "neutral";
+} {
   switch (task.status) {
     case "observing":
       return { label: "正在观察桌面", detail: task.message, tone: "warning" };
@@ -964,8 +761,7 @@ function getRiskCopy(risk?: TurnTranscript["risk"]): {
 
 function getPermissionHealthCopy(
   permissions: PermissionSummary,
-  diagnostics: DesktopSessionDiagnostics,
-  provider: DictationProviderSelection
+  diagnostics: DesktopSessionDiagnostics
 ): { label: string; detail: string; tone: "success" | "warning" | "danger" | "neutral" } {
   if (diagnostics.state === "blocked") {
     return {
@@ -975,7 +771,7 @@ function getPermissionHealthCopy(
     };
   }
 
-  const missingRows = readMissingPermissionRows(permissions, provider);
+  const missingRows = readMissingPermissionRows(permissions);
   if (missingRows.length > 0) {
     return {
       label: `${missingRows.length} 项授权待处理`,
@@ -994,7 +790,7 @@ function getPermissionHealthCopy(
 
   return {
     label: "授权待检查",
-    detail: "刷新后确认屏幕录制、辅助功能和语音入口状态",
+    detail: "刷新后确认屏幕录制和辅助功能状态",
     tone: "neutral"
   };
 }
@@ -1074,8 +870,6 @@ function DashboardSignal({
 function UserDashboardPanel({
   appPolicySettings,
   desktopSessionDiagnostics,
-  dictationSettings,
-  listening,
   onApprove,
   onDeny,
   onRefresh,
@@ -1088,8 +882,6 @@ function UserDashboardPanel({
 }: {
   appPolicySettings: AppPolicySettings;
   desktopSessionDiagnostics: DesktopSessionDiagnostics;
-  dictationSettings: DictationSettings;
-  listening: boolean;
   onApprove: () => void;
   onDeny: () => void;
   onRefresh: () => void;
@@ -1100,15 +892,11 @@ function UserDashboardPanel({
   task: TaskView;
   turnReplay: TurnReplay | null;
 }) {
-  const status = getDashboardStatusCopy(task, listening);
-  const permissionHealth = getPermissionHealthCopy(
-    permissions,
-    desktopSessionDiagnostics,
-    dictationSettings.provider
-  );
+  const status = getDashboardStatusCopy(task);
+  const permissionHealth = getPermissionHealthCopy(permissions, desktopSessionDiagnostics);
   const risk = getRiskCopy(turnReplay?.transcript.risk);
   const recent = getRecentExecutionCopy(turnReplay);
-  const canStop = listening || canStopTurn(task.status);
+  const canStop = canStopTurn(task.status);
   const canApprove = task.status === "approval_required";
 
   return (
@@ -1154,7 +942,7 @@ function UserDashboardPanel({
           <span>刷新</span>
         </button>
         {canStop ? (
-          <button type="button" aria-label={listening ? "停止语音" : "停止任务"} onClick={onStop}>
+          <button type="button" aria-label="停止任务" onClick={onStop}>
             <CirclePause size={13} aria-hidden="true" />
             <span>停止</span>
           </button>
@@ -1178,7 +966,7 @@ function UserDashboardPanel({
       </div>
 
       <div className="dashboard-runtime-strip" aria-label="运行偏好">
-        <span>{readDictationProviderLabel(dictationSettings.provider)}</span>
+        <span>agent</span>
         <span>{plannerProviderSettings.mode === "disabled" ? "规划已关闭" : "规划可用"}</span>
       </div>
     </section>
@@ -1212,7 +1000,7 @@ function DesktopPet({
       data-atlas-state={state}
       data-frame-count={animation.frames}
       data-drag-mode="manual"
-      data-voice-entry="left-click"
+      data-agent-entry="left-click"
       data-settings-entry="right-click"
       onClick={onClick}
       onContextMenu={onContextMenu}
@@ -1230,8 +1018,7 @@ function DesktopPet({
 export default function App() {
   const api = useMemo(getDesktopApi, []);
   const [petAtlas, setPetAtlas] = useState<PetAtlas>(() => getConfiguredPetAtlas());
-  const [dictationText, setDictationText] = useState("");
-  const [listening, setListening] = useState(false);
+  const [assistantPanelOpen, setAssistantPanelOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [permissionOnboardingOpen, setPermissionOnboardingOpen] = useState(false);
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
@@ -1239,101 +1026,20 @@ export default function App() {
     useState<DesktopSessionDiagnostics>(UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [startupWarnings, setStartupWarnings] = useState<StartupWarning[]>([]);
-  const [dictationSettings, setDictationSettings] = useState<DictationSettings>(
-    DEFAULT_DICTATION_SETTINGS
-  );
   const [appPolicySettings, setAppPolicySettings] = useState<AppPolicySettings>(
     DEFAULT_APP_POLICY_SETTINGS
   );
   const [plannerProviderSettings, setPlannerProviderSettings] =
     useState<PlannerProviderSettings>(DEFAULT_PLANNER_PROVIDER_SETTINGS);
   const [turnReplay, setTurnReplay] = useState<TurnReplay | null>(null);
-  const [dictationProvider, setDictationProvider] = useState<DictationProviderEvent | null>(null);
-  const [dictationTranscriptCandidate, setDictationTranscriptCandidate] =
-    useState<DictationTranscriptUpdate | null>(null);
   const [task, setTask] = useState<TaskView>({
     status: "idle",
     message: STATUS_COPY.idle.message,
     finderPlanPreview: undefined
   });
   const [replayRecords, setReplayRecords] = useState<ObserveAppReplayRecord[]>([]);
-  const transcriptRef = useRef<HTMLTextAreaElement | null>(null);
-  const lastDictationSubmitRef = useRef("");
   const petDragRef = useRef<PetDragState | null>(null);
-  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
-  const nativeDictationActiveRef = useRef(false);
-  const voiceSessionIdRef = useRef<string | undefined>(undefined);
-  const manualDictationTextRef = useRef<string | null>(null);
   const suppressNextPetClickRef = useRef(false);
-
-  function stopBrowserSpeechRecognition() {
-    const recognition = recognitionRef.current;
-    if (!recognition) {
-      return;
-    }
-
-    recognition.onresult = null;
-    recognition.onerror = null;
-    recognition.onend = null;
-    recognition.stop();
-    recognitionRef.current = null;
-  }
-
-  function startBrowserSpeechRecognition(): boolean {
-    stopBrowserSpeechRecognition();
-
-    const SpeechRecognition = getSpeechRecognitionConstructor();
-    if (!SpeechRecognition) {
-      setListening(false);
-      setTask({
-        status: "failed",
-        message: "当前环境不支持语音识别."
-      });
-      return false;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "zh-CN";
-    recognition.onresult = (event) => {
-      const transcriptUpdate = readSpeechTranscriptUpdate(event);
-      setDictationTranscriptCandidate(transcriptUpdate);
-      manualDictationTextRef.current = null;
-      setDictationText(transcriptUpdate.text);
-
-      if (transcriptUpdate.text) {
-        void api.updateDictationTranscript(voiceSessionIdRef.current, transcriptUpdate);
-      }
-    };
-    recognition.onerror = (event) => {
-      recognitionRef.current = null;
-      setListening(false);
-      setTask({
-        status: "failed",
-        message: `语音识别失败${event.error ? `: ${event.error}` : "."}`
-      });
-    };
-    recognition.onend = () => {
-      if (recognitionRef.current === recognition) {
-        recognitionRef.current = null;
-      }
-    };
-    recognitionRef.current = recognition;
-
-    try {
-      recognition.start();
-      return true;
-    } catch (error) {
-      recognitionRef.current = null;
-      setListening(false);
-      setTask({
-        status: "failed",
-        message: error instanceof Error ? error.message : "语音识别启动失败."
-      });
-      return false;
-    }
-  }
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
@@ -1355,55 +1061,11 @@ export default function App() {
       });
 
       if (event.status !== "idle") {
-        stopBrowserSpeechRecognition();
-        nativeDictationActiveRef.current = false;
-        setDictationTranscriptCandidate(null);
-        manualDictationTextRef.current = null;
-        setListening(false);
+        setAssistantPanelOpen(false);
         setDetailsOpen(false);
-        setDictationProvider(null);
       }
     });
   }, [api]);
-
-  useEffect(() => {
-    return api.onDictationProviderEvent((event) => {
-      setDictationProvider(event);
-
-      if (event.state === "listening") {
-        setListening(true);
-      } else if (
-        event.state === "no_transcript"
-        || event.state === "cancelled"
-        || event.state === "stopped"
-        || event.state === "failed"
-        || event.state === "unavailable"
-      ) {
-        setListening(false);
-      }
-    });
-  }, [api]);
-
-  useEffect(() => {
-    return api.onDictationTranscriptEvent((event) => {
-      if (event.sessionId && event.sessionId !== voiceSessionIdRef.current) {
-        return;
-      }
-
-      const transcriptUpdate = {
-        text: event.text,
-        isFinal: event.isFinal,
-        confidence: event.confidence
-      };
-      setDictationTranscriptCandidate(transcriptUpdate);
-      manualDictationTextRef.current = null;
-      setDictationText(event.text);
-    });
-  }, [api]);
-
-  useEffect(() => {
-    return () => stopBrowserSpeechRecognition();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1430,20 +1092,6 @@ export default function App() {
     void api.getStartupWarnings().then((warnings) => {
       if (!cancelled) {
         setStartupWarnings(warnings);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void api.getDictationSettings().then((settings) => {
-      if (!cancelled) {
-        setDictationSettings(settings);
       }
     });
 
@@ -1520,170 +1168,7 @@ export default function App() {
     }
   }, [detailsOpen, refreshPermissions, refreshTurnReplay]);
 
-  useEffect(() => {
-    if (listening) {
-      transcriptRef.current?.focus();
-    }
-  }, [listening]);
-
-  const submitDictation = useCallback(
-    async (rawCommand: string) => {
-      const nextCommand = rawCommand.trim();
-      if (!nextCommand || nextCommand === lastDictationSubmitRef.current) {
-        return;
-      }
-
-      lastDictationSubmitRef.current = nextCommand;
-      const shouldStopNativeDictation = nativeDictationActiveRef.current;
-      const sessionId = voiceSessionIdRef.current;
-      voiceSessionIdRef.current = undefined;
-      nativeDictationActiveRef.current = false;
-      setDictationTranscriptCandidate(null);
-      manualDictationTextRef.current = null;
-      stopBrowserSpeechRecognition();
-      setListening(false);
-      setDetailsOpen(false);
-      setDictationText("");
-      setTask({
-        status: "executing",
-        message: `听到: ${nextCommand}`
-      });
-
-      try {
-        await api.submitDictation(sessionId, nextCommand, {
-          stopNativeDictation: shouldStopNativeDictation
-        });
-      } catch {
-        setTask({
-          status: "failed",
-          message: "语音指令发送失败."
-        });
-      }
-    },
-    [api]
-  );
-
-  function canAutoSubmitDictation(command: string): boolean {
-    if (!dictationTranscriptCandidate && (nativeDictationActiveRef.current || !recognitionRef.current)) {
-      return true;
-    }
-
-    if (manualDictationTextRef.current?.trim() === command) {
-      return true;
-    }
-
-    const candidate = dictationTranscriptCandidate;
-
-    if (!candidate || candidate.text.trim() !== command) {
-      return false;
-    }
-
-    if (!candidate.isFinal) {
-      return false;
-    }
-
-    return candidate.confidence === undefined
-      || candidate.confidence >= MIN_BROWSER_ASR_AUTO_SUBMIT_CONFIDENCE;
-  }
-
-  useEffect(() => {
-    if (!listening) {
-      return undefined;
-    }
-
-    const nextCommand = dictationText.trim();
-    if (!nextCommand || nextCommand === lastDictationSubmitRef.current) {
-      return undefined;
-    }
-
-    if (!canAutoSubmitDictation(nextCommand)) {
-      return undefined;
-    }
-
-    const timer = window.setTimeout(() => {
-      void submitDictation(nextCommand);
-    }, DICTATION_AUTO_SUBMIT_DELAY_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [dictationTranscriptCandidate, dictationText, listening, submitDictation]);
-
-  async function startDictation() {
-    lastDictationSubmitRef.current = "";
-    setDictationText("");
-    setDictationTranscriptCandidate(null);
-    manualDictationTextRef.current = null;
-    setListening(true);
-    setDetailsOpen(false);
-    setPermissionOnboardingOpen(false);
-    setTask({
-      status: "idle",
-      message: "正在听你说."
-    });
-
-    try {
-      const preparation = await api.prepareDictation();
-      voiceSessionIdRef.current = preparation.sessionId;
-
-      if (preparation.providerState === "failed" || preparation.providerState === "unavailable") {
-        voiceSessionIdRef.current = undefined;
-        nativeDictationActiveRef.current = false;
-        setListening(false);
-        return;
-      }
-
-      nativeDictationActiveRef.current =
-        preparation.nativeDictationActive ?? preparation.voiceTrigger !== "none";
-
-      if (!nativeDictationActiveRef.current && !startBrowserSpeechRecognition()) {
-        return;
-      }
-    } catch {
-      voiceSessionIdRef.current = undefined;
-      setListening(false);
-      setTask({
-        status: "failed",
-        message: "语音准备失败."
-      });
-      return;
-    }
-
-    transcriptRef.current?.focus();
-  }
-
-  async function stopDictation() {
-    lastDictationSubmitRef.current = "";
-    const sessionId = voiceSessionIdRef.current;
-    voiceSessionIdRef.current = undefined;
-    setDictationTranscriptCandidate(null);
-    manualDictationTextRef.current = null;
-    stopBrowserSpeechRecognition();
-    nativeDictationActiveRef.current = false;
-    setListening(false);
-    setDetailsOpen(false);
-    setPermissionOnboardingOpen(false);
-    setDictationText("");
-    setDictationProvider(null);
-    setTask({
-      status: "idle",
-      message: STATUS_COPY.idle.message
-    });
-
-    try {
-      await api.stopDictation(sessionId);
-    } catch {
-      setTask({
-        status: "failed",
-        message: "停止语音失败."
-      });
-    }
-  }
-
   const stopCurrentTurn = useCallback(async () => {
-    if (listening) {
-      await stopDictation();
-      return;
-    }
-
     if (
       task.status === "observing"
       || task.status === "executing"
@@ -1691,7 +1176,7 @@ export default function App() {
       || task.status === "needs_confirmation"
     ) {
       setDetailsOpen(false);
-      setDictationProvider(null);
+      setAssistantPanelOpen(false);
       setTask({
         status: "idle",
         message: STATUS_COPY.idle.message
@@ -1706,7 +1191,7 @@ export default function App() {
         });
       }
     }
-  }, [api, listening, task.status]);
+  }, [api, task.status]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1760,7 +1245,7 @@ export default function App() {
       const nextPermissions = await refreshPermissions();
       if (
         permissionOnboardingOpen
-        && readMissingPermissionRows(nextPermissions, dictationSettings.provider).length === 0
+        && readMissingPermissionRows(nextPermissions).length === 0
       ) {
         setPermissionOnboardingOpen(false);
       }
@@ -1774,22 +1259,11 @@ export default function App() {
 
   async function refreshPermissionOnboarding() {
     const nextPermissions = await refreshPermissions();
-    if (readMissingPermissionRows(nextPermissions, dictationSettings.provider).length === 0) {
+    if (readMissingPermissionRows(nextPermissions).length === 0) {
       setPermissionOnboardingOpen(false);
       setTask({
         status: "idle",
-        message: "权限已就绪，再次左键开始语音."
-      });
-    }
-  }
-
-  async function selectDictationProvider(provider: DictationProviderSelection) {
-    try {
-      setDictationSettings(await api.setDictationSettings({ provider }));
-    } catch {
-      setTask({
-        status: "failed",
-        message: "切换语音入口失败."
+        message: "权限已就绪."
       });
     }
   }
@@ -1868,80 +1342,39 @@ export default function App() {
     }
   }
 
-  function startDictationFromPet() {
+  function openAssistantPanelFromPet() {
     if (suppressNextPetClickRef.current) {
       suppressNextPetClickRef.current = false;
       return;
     }
 
-    void startDictationAfterPermissionCheck();
-  }
-
-  async function startDictationAfterPermissionCheck() {
-    const nextPermissions = await refreshPermissions();
-    const missingPermissions = readMissingPermissionRows(
-      nextPermissions,
-      dictationSettings.provider
-    );
-
-    if (missingPermissions.length > 0) {
-      lastDictationSubmitRef.current = "";
-      setDictationText("");
-      stopBrowserSpeechRecognition();
-      nativeDictationActiveRef.current = false;
-      setListening(false);
-      setDetailsOpen(false);
-      setPermissionOnboardingOpen(true);
-      setTask({
-        status: "idle",
-        message: "需要授权后才能开始."
-      });
-      return;
-    }
-
+    setDetailsOpen(false);
     setPermissionOnboardingOpen(false);
-    await startDictation();
+    setAssistantPanelOpen((open) => !open);
   }
 
   function toggleDetailsFromPet(event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault();
-    lastDictationSubmitRef.current = "";
-    setDictationText("");
-    stopBrowserSpeechRecognition();
     setPermissionOnboardingOpen(false);
-    if (nativeDictationActiveRef.current) {
-      nativeDictationActiveRef.current = false;
-      void api.stopDictation();
-    }
-    setListening(false);
+    setAssistantPanelOpen(false);
 
     setDetailsOpen((open) => !open);
   }
 
   const status = STATUS_COPY[task.status];
-  const petState = getPetStateForTask(listening ? "observing" : task.status);
+  const petState = getPetStateForTask(task.status);
   const startupWarning = startupWarnings[0];
   const showStartupWarning = Boolean(startupWarning)
-    && !listening
-    && !detailsOpen
-    && !permissionOnboardingOpen
-    && task.status === "idle";
-  const showProviderStatus = Boolean(dictationProvider)
-    && !listening
     && !detailsOpen
     && !permissionOnboardingOpen
     && task.status === "idle";
   const showPanel =
-    listening
+    assistantPanelOpen
     || detailsOpen
     || permissionOnboardingOpen
     || task.status !== "idle"
-    || showStartupWarning
-    || showProviderStatus;
-  const permissionOnboardingRows = readMissingPermissionRows(
-    permissions,
-    dictationSettings.provider
-  );
+    || showStartupWarning;
+  const permissionOnboardingRows = readMissingPermissionRows(permissions);
 
   useEffect(() => {
     api.setWindowMode(showPanel ? "expanded" : "compact");
@@ -1949,7 +1382,7 @@ export default function App() {
 
   return (
     <main
-      className={`pet-stage status-${task.status}${listening ? " listening" : ""}${showPanel ? " panel-open" : ""}`}
+      className={`pet-stage status-${task.status}${showPanel ? " panel-open" : ""}`}
       aria-label="skfiy desktop pet"
     >
       <div className="status-orb" role="status" aria-label="Task status">
@@ -1959,13 +1392,15 @@ export default function App() {
 
       {showPanel ? (
         <section
-          className={`voice-bubble${detailsOpen || permissionOnboardingOpen ? " settings-bubble" : ""}`}
+          className={`assistant-bubble${detailsOpen || permissionOnboardingOpen ? " settings-bubble" : ""}`}
           aria-label={
             detailsOpen
               ? "skfiy settings"
               : permissionOnboardingOpen
                 ? "权限引导"
-                : "skfiy voice status"
+                : assistantPanelOpen
+                  ? "skfiy assistant panel"
+                  : "skfiy task status"
           }
         >
           {detailsOpen ? (
@@ -1973,8 +1408,6 @@ export default function App() {
               <UserDashboardPanel
                 appPolicySettings={appPolicySettings}
                 desktopSessionDiagnostics={desktopSessionDiagnostics}
-                dictationSettings={dictationSettings}
-                listening={listening}
                 onApprove={() => void approveTask()}
                 onDeny={() => void denyTask()}
                 onRefresh={refreshDashboardStatus}
@@ -1985,34 +1418,7 @@ export default function App() {
                 task={task}
                 turnReplay={turnReplay}
               />
-              <p>设置</p>
-              <div className="provider-panel" aria-label="语音入口">
-                <div className="provider-heading">
-                  <strong>语音入口</strong>
-                  <span>{readDictationProviderLabel(dictationSettings.provider)}</span>
-                </div>
-                <div className="provider-switch" role="group" aria-label="ASR provider">
-                  {DICTATION_PROVIDER_OPTIONS.map((option) => (
-                    <button
-                      type="button"
-                      key={option.provider}
-                      aria-label={option.aria}
-                      aria-pressed={dictationSettings.provider === option.provider}
-                      onClick={() => void selectDictationProvider(option.provider)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="settings-grid">
-                <span>入口</span>
-                <strong>左键</strong>
-                <span>豆包输入法语音快捷键</span>
-                <strong>{dictationSettings.doubaoShortcutLabel}</strong>
-                <span>macOS 语音 locale</span>
-                <strong>{dictationSettings.nativeSpeechLocale}</strong>
-              </div>
+              <p>偏好</p>
               <div className="app-policy-panel" aria-label="应用策略">
                 <div className="app-policy-heading">
                   <strong>应用策略</strong>
@@ -2071,15 +1477,9 @@ export default function App() {
                       ))}
                     </div>
                     {plannerProviderSettings.mode === "external-cua" ? (
-                      <div className="settings-grid" aria-label="External CUA 配置">
-                        <span>Endpoint</span>
-                        <strong>
-                          {plannerProviderSettings.externalEndpoint ? "Endpoint 已配置" : "Endpoint 未配置"}
-                        </strong>
-                        <span>API Key</span>
-                        <strong>
-                          {plannerProviderSettings.externalApiKeyConfigured ? "API Key 已配置" : "API Key 未配置"}
-                        </strong>
+                      <div className="provider-status-card" aria-label="External CUA 连接状态">
+                        <strong>{readExternalCuaStatusLabel(plannerProviderSettings)}</strong>
+                        <p>在 dashboard 中配置</p>
                       </div>
                     ) : null}
                   </div>
@@ -2164,30 +1564,11 @@ export default function App() {
                 </div>
               </div>
             </>
-          ) : listening ? (
-            <>
-              <p>{dictationProvider?.message ?? "正在听你说"}</p>
-              <textarea
-                ref={transcriptRef}
-                aria-label="语音转写"
-                className="voice-transcript"
-                value={dictationText}
-                onChange={(event) => {
-                  manualDictationTextRef.current = event.currentTarget.value;
-                  setDictationTranscriptCandidate(null);
-                  setDictationText(event.currentTarget.value);
-                }}
-                autoCapitalize="off"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <div className="voice-actions">
-                <button type="button" aria-label="停止" onClick={stopDictation}>
-                  <CirclePause size={14} aria-hidden="true" />
-                  <span>停止</span>
-                </button>
-              </div>
-            </>
+          ) : assistantPanelOpen ? (
+            <div className="agent-status" aria-label="skfiy agent status">
+              <strong>agent</strong>
+              <span>Computer Use 是 agent 可调用工具</span>
+            </div>
           ) : task.status === "approval_required" ? (
             <>
               <p>{task.message}</p>
@@ -2205,11 +1586,6 @@ export default function App() {
                 </button>
               </div>
             </>
-          ) : showProviderStatus && dictationProvider ? (
-            <div className="provider-status" aria-label="语音 provider 状态">
-              <strong>{readDictationProviderLabel(dictationProvider.providerId)}</strong>
-              <span>{dictationProvider.message}</span>
-            </div>
           ) : showStartupWarning && startupWarning ? (
             <div className="startup-warning" aria-label="启动警告">
               <strong>{startupWarning.title}</strong>
@@ -2227,7 +1603,7 @@ export default function App() {
       <DesktopPet
         state={petState}
         atlas={petAtlas}
-        onClick={startDictationFromPet}
+        onClick={openAssistantPanelFromPet}
         onContextMenu={toggleDetailsFromPet}
         onPointerDown={startPetDrag}
         onPointerMove={movePetDrag}

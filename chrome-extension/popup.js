@@ -18,6 +18,7 @@ const MESSAGE_TYPES = Object.freeze({
   PAGE_OBSERVE: "skfiy.page.observe",
   PAGE_ACTION: "skfiy.page.action",
   PAGE_SCREENSHOT: "skfiy.page.screenshot",
+  PAGE_CONTROL_WAKE: "skfiy.page_control.wake",
   TABS_DISCOVER: "skfiy.tabs.discover",
   NATIVE_MESSAGE: "skfiy.native.message"
 });
@@ -559,7 +560,7 @@ function applySyncStatus(syncStatus, diagnostics) {
   document.getElementById("host-policy-reason").textContent = formatPolicyReason(currentTab.hostPolicy);
   document.getElementById("chrome-host-permission").textContent =
     formatHostPermission(currentTab.chromeHostPermission);
-  applyGrantSiteAccessState(currentTab.chromeHostPermission);
+  applyGrantSiteAccessState(currentTab);
   document.getElementById("content-script-session").textContent =
     formatContentScriptSession(readPageSessionDiagnostics(diagnostics));
   document.getElementById("page-control-readiness").textContent =
@@ -590,12 +591,21 @@ function applySyncStatus(syncStatus, diagnostics) {
   }
 }
 
-function applyGrantSiteAccessState(chromeHostPermission) {
+function applyGrantSiteAccessState(currentTab) {
   const button = document.getElementById("grant-site-access-button");
-  const origins = Array.isArray(chromeHostPermission?.origins)
+  const chromeHostPermission = currentTab?.chromeHostPermission;
+  const chromeCapturePermission = currentTab?.chromeCapturePermission;
+  const hostOrigins = Array.isArray(chromeHostPermission?.origins)
     ? chromeHostPermission.origins.filter((origin) => typeof origin === "string" && origin.length > 0)
     : [];
-  pendingHostPermissionOrigins = chromeHostPermission?.state === "missing" ? origins : [];
+  const captureOrigins = Array.isArray(chromeCapturePermission?.origins)
+    ? chromeCapturePermission.origins.filter((origin) => typeof origin === "string" && origin.length > 0)
+    : [];
+  pendingHostPermissionOrigins = chromeHostPermission?.state === "missing"
+    ? hostOrigins
+    : chromeCapturePermission?.state === "missing"
+      ? captureOrigins
+      : [];
   button.hidden = pendingHostPermissionOrigins.length === 0;
   button.disabled = false;
   if (pendingHostPermissionOrigins.length > 0) {
@@ -605,11 +615,11 @@ function applyGrantSiteAccessState(chromeHostPermission) {
   }
 }
 
-async function requestPolicySnapshot(type) {
+async function requestPolicySnapshot(type, requestId = `popup-${Date.now()}`) {
   return chrome.runtime.sendMessage({
     type,
     schemaVersion: MESSAGE_SCHEMA_VERSION,
-    requestId: `popup-${Date.now()}`
+    requestId
   });
 }
 
@@ -667,6 +677,19 @@ function readWakeParam(name) {
 function readWakeDy() {
   const parsed = Number.parseInt(readWakeParam("skfiyDy"), 10);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function createWakeDirectiveFromLocation() {
+  const targetTabId = readTargetTabId();
+  return {
+    wakeId: readWakeParam("skfiyWake"),
+    requestId: readWakeParam("skfiyRequestId"),
+    ...(Number.isInteger(targetTabId) ? { targetTabId } : {}),
+    wakeAction: readWakeAction(),
+    selector: readWakeParam("skfiySelector"),
+    text: readWakeParam("skfiyText"),
+    dy: readWakeDy()
+  };
 }
 
 async function refreshHostPolicy() {
@@ -990,6 +1013,39 @@ async function runPageControlFromWake() {
   }
 }
 
+async function delegatePageControlWakeToBackground() {
+  const directive = createWakeDirectiveFromLocation();
+  const requestId = directive.requestId || `popup-${directive.wakeAction}-wake-${Date.now()}`;
+
+  try {
+    const snapshot = await chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.PAGE_CONTROL_WAKE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId,
+      directive
+    });
+    applySyncStatus({
+      state: snapshot?.result === "scheduled" ? "syncing" : "error",
+      source: "extension_background",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      nativeBridgeState: "unknown",
+      nativeMessageType: MESSAGE_TYPES.PAGE_CONTROL_WAKE,
+      lastError: snapshot?.reason ?? snapshot?.error ?? null,
+      error: snapshot?.reason ?? snapshot?.error ?? null
+    }, undefined);
+  } catch (error) {
+    applySyncStatus({
+      state: "error",
+      source: "extension_background",
+      entryCount: 0,
+      updatedAt: new Date().toISOString(),
+      lastError: error instanceof Error ? error.message : "Unable to delegate page action",
+      error: error instanceof Error ? error.message : "Unable to delegate page action"
+    }, undefined);
+  }
+}
+
 async function runTabDiscoveryFromWake() {
   try {
     const wakeRequestId = readWakeParam("skfiyRequestId");
@@ -1026,7 +1082,10 @@ async function reloadExtension() {
   document.getElementById("dev-reload-status").textContent = "Checking heartbeat";
 
   try {
-    const snapshot = await requestPolicySnapshot(MESSAGE_TYPES.DEV_RELOAD_REQUEST);
+    const snapshot = await requestPolicySnapshot(
+      MESSAGE_TYPES.DEV_RELOAD_REQUEST,
+      readWakeParam("skfiyRequestId") || `popup-${Date.now()}`
+    );
     applySyncStatus(snapshot?.syncStatus, snapshot?.diagnostics);
     document.getElementById("dev-reload-status").textContent =
       formatDevReload(snapshot?.devReload ?? snapshot?.diagnostics?.devReload);
@@ -1098,7 +1157,7 @@ function startAutoWakeAction() {
   autoWakeActionStarted = true;
   const wakeAction = readWakeAction();
   if (wakeAction === "observe") {
-    void observeCurrentPageFromWake();
+    void delegatePageControlWakeToBackground();
     return true;
   }
   if (wakeAction === "tabs") {
@@ -1110,8 +1169,7 @@ function startAutoWakeAction() {
     return true;
   }
   if (["screenshot", "click", "fill", "submit", "scroll"].includes(wakeAction)) {
-    // The background service worker owns wake actions from extension tabs.
-    // Running them here as well duplicates clicks/submits and can trip Chrome capture quotas.
+    void delegatePageControlWakeToBackground();
     return true;
   }
 
@@ -1119,7 +1177,7 @@ function startAutoWakeAction() {
   return true;
 }
 
-if (shouldAutoCheckHeartbeat() && readWakeAction() === "tabs") {
+if (shouldAutoCheckHeartbeat() && readWakeAction()) {
   startAutoWakeAction();
 }
 

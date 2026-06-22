@@ -75,7 +75,6 @@ describe("dogfood report reviewer", () => {
         [paths.ghostty]: createSmokeArtifact(paths.ghostty, "blocked"),
         [paths.chrome]: createSmokeArtifact(paths.chrome, "passed"),
         [paths.finder]: createSmokeArtifact(paths.finder, "blocked"),
-        [paths.voice]: createSmokeArtifact(paths.voice, "blocked")
       },
       issues: {
         [issueUrl]: {
@@ -152,7 +151,6 @@ describe("dogfood report reviewer", () => {
         [paths.ghostty]: createSmokeArtifact(paths.ghostty, "blocked"),
         [paths.chrome]: createSmokeArtifact(paths.chrome, "passed"),
         [paths.finder]: createSmokeArtifact(paths.finder, "blocked"),
-        [paths.voice]: createSmokeArtifact(paths.voice, "blocked")
       },
       issues: {
         [issueUrl]: {
@@ -242,7 +240,6 @@ describe("dogfood report reviewer", () => {
         [paths.ghostty]: createSmokeArtifact(paths.ghostty, "blocked"),
         [paths.chrome]: createSmokeArtifact(paths.chrome, "passed"),
         [paths.finder]: createSmokeArtifact(paths.finder, "blocked"),
-        [paths.voice]: createSmokeArtifact(paths.voice, "blocked")
       },
       issues: {
         [issueUrl]: {
@@ -291,7 +288,6 @@ describe("dogfood report reviewer", () => {
         [paths.ghostty]: createSmokeArtifact(paths.ghostty, "passed"),
         [paths.chrome]: createSmokeArtifact(paths.chrome, "passed"),
         [paths.finder]: createSmokeArtifact(paths.finder, "passed"),
-        [paths.voice]: createSmokeArtifact(paths.voice, "passed")
       },
       issues: {
         [issueUrl]: {
@@ -323,7 +319,6 @@ describe("dogfood report reviewer", () => {
       ghostty: `/repo/.skfiy-smoke/${testerId}-ghostty.json`,
       chrome: `/repo/.skfiy-smoke/${testerId}-chrome.json`,
       finder: `/repo/.skfiy-smoke/${testerId}-finder.json`,
-      voice: `/repo/.skfiy-smoke/${testerId}-voice.json`
     };
   }
 
@@ -365,8 +360,6 @@ describe("dogfood report reviewer", () => {
       permissions: {
         screenRecording: { state: "denied" },
         accessibility: { state: "denied" },
-        microphone: { state: "not-determined" },
-        speechRecognition: { state: "not-determined" }
       },
       runtimeStatus: {
         stopTurnHotkey: {
@@ -430,9 +423,6 @@ describe("dogfood report reviewer", () => {
       "",
       paths.finder,
       "",
-      "### voice smoke artifact",
-      "",
-      paths.voice,
       "",
       "### app bundle preflight",
       "",

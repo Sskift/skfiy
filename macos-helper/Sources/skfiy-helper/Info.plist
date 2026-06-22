@@ -21,9 +21,5 @@
   <string>0.1.0</string>
   <key>CFBundleVersion</key>
   <string>0.1.0</string>
-  <key>NSMicrophoneUsageDescription</key>
-  <string>skfiy needs microphone access for local voice command recognition.</string>
-  <key>NSSpeechRecognitionUsageDescription</key>
-  <string>skfiy needs speech recognition access to transcribe local voice commands.</string>
 </dict>
 </plist>

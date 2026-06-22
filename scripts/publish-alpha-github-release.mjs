@@ -283,7 +283,7 @@ export function createGitHubAlphaReleaseNotes({
     "",
     "- Do not run dogfood from tmux, `npm start`, Vite, or direct Electron.",
     "- Use the packaged app from this release so macOS permissions attach to `skfiy.app`.",
-    "- Grant Screen Recording and Accessibility before expecting passed Computer Use or default external Doubao voice evidence. Grant Microphone and Speech Recognition only for optional native/browser speech provider tests.",
+    "- Grant Screen Recording and Accessibility before expecting passed Computer Use evidence.",
     "- Permission-blocked reports are acceptable only when they preserve the real packaged-app artifact chain.",
     "",
     "## Tester Setup",
@@ -382,7 +382,6 @@ export function createLatestAlphaEvidence({
       ghostty: toRepoRelativePath(rootDir, manifest.smokeArtifactPath),
       chrome: toRepoRelativePath(rootDir, manifest.chromeSmokeArtifactPath),
       finder: toRepoRelativePath(rootDir, manifest.finderSmokeArtifactPath),
-      voice: toRepoRelativePath(rootDir, manifest.voiceSmokeArtifactPath),
       ...(typeof manifest.moneyRunSmokeArtifactPath === "string"
         ? { moneyRun: toRepoRelativePath(rootDir, manifest.moneyRunSmokeArtifactPath) }
         : {})
@@ -434,8 +433,7 @@ function validateManifest(manifest) {
     "uiSmokeArtifactPath",
     "smokeArtifactPath",
     "chromeSmokeArtifactPath",
-    "finderSmokeArtifactPath",
-    "voiceSmokeArtifactPath"
+    "finderSmokeArtifactPath"
   ]) {
     if (typeof manifest[key] !== "string" || manifest[key].trim().length === 0) {
       throw new Error(`alpha manifest ${key} is required.`);
@@ -489,7 +487,6 @@ function validateCurrentAlphaSmokeArtifacts(manifest) {
     "smokeArtifactPath",
     "chromeSmokeArtifactPath",
     "finderSmokeArtifactPath",
-    "voiceSmokeArtifactPath",
     "moneyRunSmokeArtifactPath"
   ]) {
     const artifactPath = manifest[key];

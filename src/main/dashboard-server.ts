@@ -1,4 +1,12 @@
 import http from "node:http";
+import { execFile } from "node:child_process";
+import {
+  mkdir as fsMkdir,
+  readFile as fsReadFile,
+  rename as fsRename,
+  writeFile as fsWriteFile
+} from "node:fs/promises";
+import path from "node:path";
 import type {
   DashboardDescriptor,
   DashboardDescriptorInput
@@ -27,6 +35,21 @@ import {
   type ChromeHostPolicyResetIo
 } from "./chrome-host-policy.js";
 import { DASHBOARD_RUNTIME_SNAPSHOT_STALE_SECONDS } from "../shared/dashboard-runtime.js";
+import {
+  createRuntimeSnapshotStatePath,
+  RUNTIME_SNAPSHOT_SCHEMA_VERSION
+} from "./runtime-snapshot.js";
+import {
+  readInitialAssistantAgentSettings,
+  type AssistantAgentSettings
+} from "./assistant-agent.js";
+import {
+  createPlannerProviderSettingsStore,
+  readInitialPlannerProviderSettings,
+  summarizePlannerProviderSettings,
+  type PlannerProviderSettings,
+  type PlannerProviderSettingsUpdate
+} from "./planner-provider-settings.js";
 
 export interface DashboardHttpRequest {
   method?: string;
@@ -44,9 +67,62 @@ export interface DashboardHttpResponseOptions extends DashboardDescriptorInput {
   rootDir?: string;
   homeDir?: string;
   chromeHostPolicyIo?: ChromeHostPolicyResetIo;
+  chromeControlRunner?: DashboardChromeControlRunner;
+  chromeControlActivityStore?: DashboardChromeControlActivityStore;
+  chromeControlActivityIo?: DashboardChromeControlActivityIo;
+  assistantAgentSettings?: AssistantAgentSettings;
+  plannerProviderSettingsStore?: DashboardPlannerProviderSettingsStore;
   workspaceIo?: DashboardWorkspaceIo;
   createDescriptor?: (input: DashboardDescriptorInput) => DashboardDescriptor;
   createSnapshot?: (input: DashboardSnapshotInput) => DashboardSnapshot;
+}
+
+export interface DashboardChromeControlRunnerInput {
+  binaryPath: string;
+  args: string[];
+  env?: Record<string, string>;
+}
+
+export interface DashboardChromeControlRunnerResult {
+  exitCode?: number | null;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+}
+
+export type DashboardChromeControlRunner = (
+  input: DashboardChromeControlRunnerInput
+) => Promise<DashboardChromeControlRunnerResult>;
+
+export interface DashboardChromeControlActivityEntry {
+  kind: "chrome-control-action";
+  title: string;
+  target: {
+    app: string;
+    host?: string;
+    tabId?: number;
+  };
+  result: "verified" | "blocked" | "failed";
+  blockerReason?: string | null;
+  command: string;
+  timestamp: string;
+}
+
+export interface DashboardChromeControlActivityStore {
+  entries: DashboardChromeControlActivityEntry[];
+}
+
+export interface DashboardChromeControlActivityIo {
+  exists?: (targetPath: string) => boolean | Promise<boolean>;
+  mkdir: (targetPath: string) => Promise<void>;
+  readFile: (targetPath: string) => Promise<string>;
+  writeFile: (targetPath: string, content: string) => Promise<void>;
+  rename?: (oldPath: string, newPath: string) => Promise<void>;
+}
+
+export interface DashboardPlannerProviderSettingsStore {
+  get: () => PlannerProviderSettings;
+  set: (update: PlannerProviderSettingsUpdate) => PlannerProviderSettings;
 }
 
 export interface DashboardServer {
@@ -131,12 +207,20 @@ export async function startDashboardServer(
 ): Promise<DashboardServer> {
   const requestedPort = options.port ?? 0;
   const eventStreams = new Set<http.ServerResponse>();
+  const serverOptions: DashboardHttpResponseOptions = {
+    ...options,
+    chromeControlActivityStore: options.chromeControlActivityStore ?? { entries: [] },
+    assistantAgentSettings: options.assistantAgentSettings
+      ?? readInitialAssistantAgentSettings(process.env, { cwd: options.rootDir }),
+    plannerProviderSettingsStore: options.plannerProviderSettingsStore
+      ?? createPlannerProviderSettingsStore(readInitialPlannerProviderSettings(process.env))
+  };
   const server = http.createServer((request, response) => {
     void handleDashboardServerRequest({
       request,
       response,
       server,
-      options,
+      options: serverOptions,
       eventStreams
     }).catch((error) => {
       const dashboardResponse = jsonResponse({
@@ -230,6 +314,49 @@ async function handleDashboardServerRequest({
     return;
   }
 
+  if (url.pathname === "/api/chrome-control-action") {
+    const body = requestMethod === "POST" ? await readRequestBody(request) : "";
+    const dashboardResponse = await createDashboardChromeControlActionResponse({
+      method: request.method,
+      url: requestUrl,
+      body
+    }, {
+      ...options,
+      port: readServerPort(server)
+    });
+
+    response.writeHead(dashboardResponse.status, dashboardResponse.headers);
+    response.end(dashboardResponse.body);
+    return;
+  }
+
+  if (url.pathname === "/api/provider-settings") {
+    const body = requestMethod === "POST" ? await readRequestBody(request) : "";
+    const dashboardResponse = createDashboardProviderSettingsResponse({
+      method: request.method,
+      url: requestUrl,
+      body
+    }, {
+      ...options,
+      port: readServerPort(server)
+    });
+
+    response.writeHead(dashboardResponse.status, dashboardResponse.headers);
+    response.end(dashboardResponse.body);
+    return;
+  }
+
+  const builtDashboardResponse = await createBuiltDashboardHttpResponse({
+    method: requestMethod,
+    url,
+    rootDir: options.rootDir
+  });
+  if (builtDashboardResponse) {
+    response.writeHead(builtDashboardResponse.status, builtDashboardResponse.headers);
+    response.end(builtDashboardResponse.body);
+    return;
+  }
+
   const dashboardResponse = createDashboardHttpResponse({
     method: request.method,
     url: requestUrl
@@ -242,6 +369,111 @@ async function handleDashboardServerRequest({
   response.end(dashboardResponse.body);
 }
 
+async function createBuiltDashboardHttpResponse({
+  method,
+  url,
+  rootDir
+}: {
+  method: string;
+  url: URL;
+  rootDir?: string;
+}): Promise<DashboardHttpResponse | undefined> {
+  if (!rootDir || (method !== "GET" && method !== "HEAD")) {
+    return undefined;
+  }
+
+  const rendererDir = path.resolve(rootDir, "dist", "renderer");
+  if (url.pathname === "/" || url.pathname === "/index.html") {
+    return readStaticDashboardFile({
+      targetPath: path.join(rendererDir, "dashboard.html"),
+      contentType: "text/html; charset=utf-8",
+      cacheControl: "no-store",
+      method
+    });
+  }
+
+  if (!url.pathname.startsWith("/assets/")) {
+    return undefined;
+  }
+
+  const relativePath = decodeStaticDashboardPath(url.pathname);
+  if (!relativePath) {
+    return textResponse(400, "Bad Request\n", {}, method === "HEAD" ? "" : undefined);
+  }
+
+  const targetPath = path.resolve(rendererDir, relativePath);
+  const rendererPrefix = `${rendererDir}${path.sep}`;
+  if (!targetPath.startsWith(rendererPrefix)) {
+    return textResponse(403, "Forbidden\n", {}, method === "HEAD" ? "" : undefined);
+  }
+
+  return readStaticDashboardFile({
+    targetPath,
+    contentType: readDashboardAssetContentType(targetPath),
+    cacheControl: "public, max-age=31536000, immutable",
+    method
+  });
+}
+
+function decodeStaticDashboardPath(pathname: string): string | undefined {
+  try {
+    const decoded = decodeURIComponent(pathname);
+    return decoded.replace(/^\/+/, "");
+  } catch {
+    return undefined;
+  }
+}
+
+async function readStaticDashboardFile({
+  targetPath,
+  contentType,
+  cacheControl,
+  method
+}: {
+  targetPath: string;
+  contentType: string;
+  cacheControl: string;
+  method: string;
+}): Promise<DashboardHttpResponse | undefined> {
+  try {
+    const body = await fsReadFile(targetPath, "utf8");
+    return {
+      status: 200,
+      headers: {
+        "content-type": contentType,
+        "cache-control": cacheControl,
+        "x-content-type-options": "nosniff"
+      },
+      body: method === "HEAD" ? "" : body
+    };
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+    if (code === "ENOENT" || code === "ENOTDIR") {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function readDashboardAssetContentType(targetPath: string): string {
+  const extension = path.extname(targetPath).toLowerCase();
+  if (extension === ".js" || extension === ".mjs") {
+    return "text/javascript; charset=utf-8";
+  }
+  if (extension === ".css") {
+    return "text/css; charset=utf-8";
+  }
+  if (extension === ".svg") {
+    return "image/svg+xml";
+  }
+  if (extension === ".json") {
+    return "application/json; charset=utf-8";
+  }
+  return "application/octet-stream";
+}
+
 function createDescriptorFromOptions(
   options: DashboardHttpResponseOptions
 ): DashboardDescriptor {
@@ -251,11 +483,139 @@ function createDescriptorFromOptions(
     rootDir: _rootDir,
     homeDir: _homeDir,
     chromeHostPolicyIo: _chromeHostPolicyIo,
+    chromeControlRunner: _chromeControlRunner,
+    chromeControlActivityStore: _chromeControlActivityStore,
+    chromeControlActivityIo: _chromeControlActivityIo,
+    assistantAgentSettings: _assistantAgentSettings,
+    plannerProviderSettingsStore: _plannerProviderSettingsStore,
     workspaceIo: _workspaceIo,
     ...descriptorInput
   } = options;
 
   return createDescriptor(descriptorInput);
+}
+
+export function createDashboardProviderSettingsResponse(
+  request: DashboardHttpRequest,
+  options: DashboardHttpResponseOptions = {}
+): DashboardHttpResponse {
+  const method = (request.method ?? "GET").toUpperCase();
+  const generatedAt = new Date().toISOString();
+
+  if (method !== "GET" && method !== "HEAD" && method !== "POST") {
+    return textResponse(405, "Method Not Allowed\n", {
+      allow: "GET, HEAD, POST"
+    });
+  }
+
+  const assistantSettings = options.assistantAgentSettings
+    ?? readInitialAssistantAgentSettings(process.env, { cwd: options.rootDir });
+  const plannerStore = options.plannerProviderSettingsStore
+    ?? createPlannerProviderSettingsStore(readInitialPlannerProviderSettings(process.env));
+
+  if (method === "POST") {
+    const body = parseJsonObject(request.body ?? "");
+    if (!body.ok) {
+      return createDashboardProviderSettingsErrorResponse({
+        generatedAt,
+        code: "invalid-json",
+        message: body.error
+      });
+    }
+
+    const plannerUpdate = readDashboardPlannerProviderUpdate(body.value.planner);
+    if (plannerUpdate) {
+      plannerStore.set(plannerUpdate);
+    }
+  }
+
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard provider settings",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: method === "POST",
+    executesSystemMutation: false,
+    result: method === "POST" ? "configured" : "ok",
+    providers: {
+      assistant: summarizeAssistantAgentSettings(assistantSettings),
+      planner: summarizeDashboardPlannerProviderSettings(plannerStore.get())
+    }
+  }, method === "HEAD" ? "" : undefined);
+}
+
+function readDashboardPlannerProviderUpdate(
+  value: unknown
+): PlannerProviderSettingsUpdate | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const update = value as Record<string, unknown>;
+  return {
+    mode: update.mode,
+    externalProviderLabel: update.externalProviderLabel,
+    externalEndpoint: update.externalEndpoint,
+    externalApiKey: update.externalApiKey
+  };
+}
+
+function summarizeAssistantAgentSettings(settings: AssistantAgentSettings): Record<string, unknown> {
+  return {
+    provider: "assistant",
+    mode: settings.mode,
+    label: settings.mode === "codex"
+      ? "Codex"
+      : settings.mode === "claude-code"
+        ? "Claude Code"
+        : "Local",
+    health: "available",
+    codexBinary: settings.codexBinary,
+    claudeCodeBinary: settings.claudeCodeBinary,
+    cwd: settings.cwd,
+    timeoutMs: settings.timeoutMs
+  };
+}
+
+function summarizeDashboardPlannerProviderSettings(
+  settings: PlannerProviderSettings
+): Record<string, unknown> {
+  const summary = summarizePlannerProviderSettings(settings);
+
+  return {
+    provider: summary.provider,
+    mode: summary.mode,
+    label: summary.externalProviderLabel,
+    health: summary.mode === "disabled" ? "unavailable" : "available",
+    endpoint: summary.externalEndpoint,
+    externalProviderLabel: summary.externalProviderLabel,
+    externalEndpoint: summary.externalEndpoint,
+    externalApiKeyConfigured: summary.externalApiKeyConfigured
+  };
+}
+
+function createDashboardProviderSettingsErrorResponse({
+  generatedAt,
+  code,
+  message
+}: {
+  generatedAt: string;
+  code: string;
+  message: string;
+}): DashboardHttpResponse {
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard provider settings",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: false,
+    executesSystemMutation: false,
+    result: "error",
+    error: {
+      code,
+      message
+    }
+  }, undefined, 400);
 }
 
 export async function createDashboardChromeHostPolicyResponse(
@@ -374,25 +734,166 @@ export async function createDashboardChromeHostPolicyResponse(
   });
 }
 
+export async function createDashboardChromeControlActionResponse(
+  request: DashboardHttpRequest,
+  options: DashboardHttpResponseOptions = {}
+): Promise<DashboardHttpResponse> {
+  const method = (request.method ?? "GET").toUpperCase();
+  const generatedAt = new Date().toISOString();
+
+  if (method !== "POST") {
+    return textResponse(405, "Method Not Allowed\n", {
+      allow: "POST"
+    });
+  }
+
+  const body = parseJsonObject(request.body ?? "");
+  if (!body.ok) {
+    return createDashboardChromeControlErrorResponse({
+      generatedAt,
+      code: "invalid-json",
+      message: body.error
+    });
+  }
+
+  const action = normalizeDashboardChromeControlAction(body.value.action);
+  if (!action) {
+    return createDashboardChromeControlErrorResponse({
+      generatedAt,
+      code: "unknown-action",
+      message: "Chrome control action must be observe, screenshot, click, fill, submit, or scroll."
+    });
+  }
+
+  const extensionId = normalizeDashboardChromeExtensionId(body.value.extensionId);
+  if (!extensionId) {
+    return createDashboardChromeControlErrorResponse({
+      generatedAt,
+      code: "extension-id-required",
+      message: "Chrome control action requires a valid extension id."
+    });
+  }
+
+  const targetTabId = normalizeDashboardChromeTargetTabId(body.value.targetTabId);
+  if (targetTabId === undefined) {
+    return createDashboardChromeControlErrorResponse({
+      generatedAt,
+      code: "target-tab-id-required",
+      message: "Chrome control action requires a numeric target tab id."
+    });
+  }
+
+  const selector = normalizeOptionalNonEmptyString(body.value.selector);
+  const text = normalizeOptionalNonEmptyString(body.value.text);
+  const dy = normalizeDashboardChromeScrollDelta(body.value.dy);
+  const chromeAppName = normalizeDashboardChromeAppName(body.value.chromeAppName)
+    ?? readDashboardChromeAppNameFromEnv(process.env);
+  const argumentError = validateDashboardChromeControlArguments({
+    action,
+    selector,
+    text,
+    dy
+  });
+  if (argumentError) {
+    return createDashboardChromeControlErrorResponse({
+      generatedAt,
+      code: argumentError.code,
+      message: argumentError.message
+    });
+  }
+
+  const descriptor = createDescriptorFromOptions(options);
+  const snapshot = createSnapshotFromOptions(options, descriptor);
+  const pageControl = readDashboardChromePageControl(snapshot);
+  const eligibility = validateDashboardChromeControlEligibility({
+    action,
+    pageControl,
+    targetTabId
+  });
+  if (!eligibility.ok) {
+    return createDashboardChromeControlErrorResponse({
+      generatedAt,
+      code: eligibility.code,
+      message: eligibility.message
+    });
+  }
+
+  const rootDir = options.rootDir ?? process.cwd();
+  const binaryPath = path.join(rootDir, "dist", "skfiy");
+  const args = createDashboardChromeControlArgs({
+    action,
+    extensionId,
+    targetTabId,
+    selector,
+    text,
+    dy
+  });
+  const runner = options.chromeControlRunner ?? runDashboardChromeControlCommand;
+  const runResult = await runner({
+    binaryPath,
+    args,
+    env: createDashboardChromeControlEnv(process.env, chromeAppName)
+  });
+  const parsed = parseDashboardChromeControlStdout(runResult.stdout);
+  const result = readDashboardChromeControlResult(runResult, parsed);
+  const blockerReason = readDashboardChromeControlBlockerReason(runResult, parsed);
+  const activeTab = readRecord(pageControl.activeTab) ?? {};
+  const activityEntry = createDashboardChromeControlActivityEntry({
+    action,
+    chromeAppName,
+    host: readDashboardChromeHost(activeTab),
+    targetTabId,
+    result,
+    blockerReason,
+    command: formatDashboardChromeControlCommand(binaryPath, args),
+    generatedAt
+  });
+
+  await persistDashboardChromeControlActivity({
+    homeDir: options.homeDir ?? process.env.HOME,
+    entry: activityEntry,
+    io: options.chromeControlActivityIo
+  });
+  appendDashboardChromeControlActivity(options.chromeControlActivityStore, activityEntry);
+
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard chrome control action",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: true,
+    executesSystemMutation: true,
+    result,
+    action,
+    chromeAppName,
+    targetTabId,
+    launchedCommand: activityEntry.command,
+    stdoutSummary: createDashboardChromeControlStdoutSummary(parsed),
+    blockerReason,
+    activityEntry
+  }, undefined, result === "failed" ? 502 : 200);
+}
+
 function createSnapshotFromOptions(
   options: DashboardHttpResponseOptions,
   descriptor: DashboardDescriptor
 ): DashboardSnapshot {
   const { createSnapshot, rootDir, workspaceIo } = options;
+  let snapshot: DashboardSnapshot;
 
   if (createSnapshot) {
-    return createSnapshot({ descriptor });
-  }
-
-  if (rootDir) {
-    return createDashboardWorkspaceSnapshot({
+    snapshot = createSnapshot({ descriptor });
+  } else if (rootDir) {
+    snapshot = createDashboardWorkspaceSnapshot({
       rootDir,
       descriptor,
       io: workspaceIo
     });
+  } else {
+    snapshot = createDashboardSnapshot({ descriptor });
   }
 
-  return createDashboardSnapshot({ descriptor });
+  return attachDashboardChromeControlActivity(snapshot, options.chromeControlActivityStore);
 }
 
 function parseDashboardRequestUrl(url: string | URL): URL {
@@ -616,6 +1117,14 @@ function renderDashboardHtml(descriptor: DashboardDescriptor): string {
     ".policy-actions button:hover{background:#f2f4f7}",
     ".policy-actions button:disabled{cursor:progress;opacity:.58}",
     ".policy-feedback{margin:0;color:#5b6673;font-size:12px;min-height:18px}",
+    ".chrome-control-launchers{display:grid;gap:8px;margin-top:12px;border-top:1px solid #edf0f2;padding-top:12px}",
+    ".chrome-control-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px}",
+    ".chrome-control-fields input{box-sizing:border-box;width:100%;border:1px solid #c8d0d8;border-radius:6px;padding:7px 8px;color:#172026;background:#fff;font:inherit;font-size:12px}",
+    ".chrome-control-actions{display:flex;flex-wrap:wrap;gap:6px}",
+    ".chrome-control-actions button{border:1px solid #c8d0d8;border-radius:6px;background:#fff;color:#172026;font:inherit;font-size:12px;padding:6px 8px;cursor:pointer}",
+    ".chrome-control-actions button:hover{background:#f2f4f7}",
+    ".chrome-control-actions button:disabled{cursor:progress;opacity:.58}",
+    ".chrome-control-feedback{margin:0;color:#5b6673;font-size:12px;min-height:18px}",
     ".state-error{background:#fff2f0;border-color:#ffc6bd}",
     ".state-warning{background:#fff8e5;border-color:#f5d27a}",
     ".state-ok{background:#ebf8f2;border-color:#a6d9c4}",
@@ -850,7 +1359,9 @@ function renderDashboardScript(): string {
     "  function renderUserActivityPanel(snapshot) {",
     "    const turn = snapshot.currentTurn || {};",
     "    const replay = snapshot.replay || {};",
+    "    const chromeControlItems = readChromeControlActivityItems(turn, replay);",
     "    const items = [",
+    "      ...chromeControlItems,",
     "      turn.latestAction ? `Last action: ${formatRuntimeAction(turn.latestAction)}` : \"Last action: none\",",
     "      turn.latestVerification ? `Verification: ${formatRuntimeVerification(turn.latestVerification)}` : \"Verification: none\",",
     "      turn.latestScreenshot ? `Screenshot: ${formatRuntimeScreenshot(turn.latestScreenshot)}` : `Screenshots: ${formatValue(replay.screenshotCount)}`,",
@@ -860,15 +1371,41 @@ function renderDashboardScript(): string {
     "    setUserList(\"activity\", items, \"No recent activity.\", active ? \"Live\" : replay.state === \"available\" ? \"Recent\" : \"Idle\", active ? \"warning\" : \"ok\");",
     "  }",
     "",
+    "  function readChromeControlActivityItems(turn, replay) {",
+    "    const entries = [",
+    "      turn.chromeControlActivity,",
+    "      turn.latestChromeControlAction,",
+    "      ...readArray(replay.chromeControlActions)",
+    "    ].filter((entry) => entry && typeof entry === \"object\" && !Array.isArray(entry));",
+    "    return entries.slice(-4).map(formatChromeControlActivity);",
+    "  }",
+    "",
+    "  function formatChromeControlActivity(entry) {",
+    "    const target = entry.target && typeof entry.target === \"object\" && !Array.isArray(entry.target) ? entry.target : {};",
+    "    const title = entry.title || \"Chrome action\";",
+    "    const host = target.host || \"current page\";",
+    "    const tab = Number.isInteger(target.tabId) ? ` tab ${target.tabId}` : \"\";",
+    "    const result = formatChromeControlActivityResult(entry);",
+    "    return `${title}: ${result} - ${host}${tab}`;",
+    "  }",
+    "",
+    "  function formatChromeControlActivityResult(entry) {",
+    "    if (entry.result === \"verified\") return \"Verified\";",
+    "    if (entry.result === \"blocked\") return entry.blockerReason || \"Blocked\";",
+    "    if (entry.result === \"failed\") return entry.blockerReason || \"Failed\";",
+    "    return entry.blockerReason || \"Unknown\";",
+    "  }",
+    "",
     "  function renderUserAppsSitesPanel(snapshot) {",
     "    const runtime = snapshot.runtimeHealth || {};",
     "    const extension = runtime.extension || {};",
     "    const nativeHost = runtime.nativeHost || {};",
+    "    const desktopSession = runtime.desktopSession || {};",
     "    const chromeArtifact = findSmokeArtifact(snapshot, \"chrome\");",
     "    const pageControl = readChromePageControlSummary(runtime, chromeArtifact);",
     "    const tabDiscovery = readChromeTabDiscoverySummary(runtime, chromeArtifact);",
     "    const liveConnection = readChromeLiveConnectionState(extension);",
-    "    const chromeControl = readChromeControlCardState({ extension, nativeHost, pageControl, tabDiscovery, liveConnection });",
+    "    const chromeControl = readChromeControlCardState({ extension, nativeHost, desktopSession, pageControl, tabDiscovery, liveConnection });",
     "    const target = userPanelBody(\"apps-sites\");",
     "    if (!target) return;",
     "    target.replaceChildren();",
@@ -887,6 +1424,8 @@ function renderDashboardScript(): string {
     "      row(\"Screenshot\", chromeControl.screenshotLane),",
     "      row(\"Tab discovery\", chromeControl.tabDiscoveryLabel)",
     "    ]));",
+    "    const launchers = createChromeControlLauncherControls(chromeControl, pageControl, extension, nativeHost);",
+    "    if (launchers) card.append(launchers);",
     "    const commands = createChromeControlCommands(chromeControl, pageControl, extension, nativeHost);",
     "    if (commands.length > 0) {",
     "      const commandList = document.createElement(\"ul\");",
@@ -903,7 +1442,7 @@ function renderDashboardScript(): string {
     "    setUserStatus(\"apps-sites\", chromeControl.statusLabel, chromeControl.kind);",
     "  }",
     "",
-    "  function readChromeControlCardState({ extension, nativeHost, pageControl, tabDiscovery, liveConnection }) {",
+    "  function readChromeControlCardState({ extension, nativeHost, desktopSession, pageControl, tabDiscovery, liveConnection }) {",
     "    const capabilities = pageControl.capabilities || {};",
     "    const blockers = readArray(pageControl.blockers);",
     "    const blockerCodes = blockers.map((blocker) => blocker && blocker.code).filter(Boolean);",
@@ -916,6 +1455,9 @@ function renderDashboardScript(): string {
     "      screenshotLane: screenshotNeedsPermission ? \"screenshot needs permission\" : capabilities.screenshot === true ? \"ready\" : \"fallback available\",",
     "      tabDiscoveryLabel: tabDiscoveryLabel || \"not-probed\"",
     "    };",
+    "    if ((nativeHost.state !== \"installed\" || liveConnection !== \"connected\" || extension.state === \"stale\") && isDesktopLockedForChromeRefresh(desktopSession)) {",
+    "      return { ...base, label: \"Desktop locked for extension refresh\", detail: \"Unlock the desktop and keep the display awake before refreshing the installed skfiy Chrome extension.\", statusLabel: \"Locked\", kind: \"error\", screenshotLane: \"unknown\" };",
+    "    }",
     "    if (nativeHost.state !== \"installed\" || liveConnection !== \"connected\" || extension.state === \"stale\") {",
     "      return { ...base, label: \"Extension needs refresh\", detail: \"Refresh the installed skfiy Chrome extension before trusting page actions.\", statusLabel: \"Refresh\", kind: \"warning\", screenshotLane: \"unknown\" };",
     "    }",
@@ -961,6 +1503,11 @@ function renderDashboardScript(): string {
     "    return scheme === \"chrome\" || scheme === \"chrome-extension\" || String(host).startsWith(\"chrome://\") || String(host).startsWith(\"chrome-extension://\") || blockerCodes.includes(\"internal_chrome_page\") || blockerCodes.includes(\"chrome_extension_page\");",
     "  }",
     "",
+    "  function isDesktopLockedForChromeRefresh(desktopSession) {",
+    "    if (!desktopSession || typeof desktopSession !== \"object\" || Array.isArray(desktopSession)) return false;",
+    "    return desktopSession.state === \"blocked\" || desktopSession.mainDisplayAsleep === true || desktopSession.cgSessionScreenIsLocked === true || desktopSession.ioConsoleLocked === true || desktopSession.frontmostBundleId === \"com.apple.loginwindow\";",
+    "  }",
+    "",
     "  function formatChromeControlTarget(activeTab) {",
     "    if (!activeTab || typeof activeTab !== \"object\" || Array.isArray(activeTab)) return \"No active page\";",
     "    const host = activeTab.host || \"unknown host\";",
@@ -984,14 +1531,110 @@ function renderDashboardScript(): string {
     "    ];",
     "  }",
     "",
+    "  function createChromeControlLauncherControls(chromeControl, pageControl, extension, nativeHost) {",
+    "    if (!chromeControl.actionable) return null;",
+    "    const tabId = pageControl.activeTab && Number.isInteger(pageControl.activeTab.tabId) ? pageControl.activeTab.tabId : undefined;",
+    "    if (!Number.isInteger(tabId)) return null;",
+    "    const extensionId = readChromeExtensionId(extension, nativeHost);",
+    "    if (!extensionId || extensionId === \"<extension-id>\") return null;",
+    "    const form = document.createElement(\"form\");",
+    "    form.className = \"chrome-control-launchers\";",
+    "    form.setAttribute(\"data-chrome-control-launchers\", \"\");",
+    "    form.addEventListener(\"submit\", (event) => event.preventDefault());",
+    "",
+    "    const fields = document.createElement(\"div\");",
+    "    fields.className = \"chrome-control-fields\";",
+    "    const selectorInput = document.createElement(\"input\");",
+    "    selectorInput.type = \"text\";",
+    "    selectorInput.placeholder = \"selector\";",
+    "    selectorInput.setAttribute(\"aria-label\", \"Chrome action selector\");",
+    "    selectorInput.setAttribute(\"data-chrome-control-selector-input\", \"\");",
+    "    const textInput = document.createElement(\"input\");",
+    "    textInput.type = \"text\";",
+    "    textInput.placeholder = \"fill text\";",
+    "    textInput.setAttribute(\"aria-label\", \"Chrome fill text\");",
+    "    textInput.setAttribute(\"data-chrome-control-text-input\", \"\");",
+    "    fields.append(selectorInput, textInput);",
+    "",
+    "    const actions = document.createElement(\"div\");",
+    "    actions.className = \"chrome-control-actions\";",
+    "    actions.append(",
+    "      createChromeControlLauncherButton(\"observe\", \"Observe\"),",
+    "      createChromeControlLauncherButton(\"screenshot\", \"Screenshot\"),",
+    "      createChromeControlLauncherButton(\"click\", \"Click\"),",
+    "      createChromeControlLauncherButton(\"fill\", \"Fill\"),",
+    "      createChromeControlLauncherButton(\"submit\", \"Submit\"),",
+    "      createChromeControlLauncherButton(\"scroll\", \"Scroll\")",
+    "    );",
+    "",
+    "    const feedback = document.createElement(\"p\");",
+    "    feedback.className = \"chrome-control-feedback\";",
+    "    feedback.setAttribute(\"data-chrome-control-feedback\", \"\");",
+    "",
+    "    form.addEventListener(\"click\", (event) => {",
+    "      if (!(event.target instanceof Element)) return;",
+    "      const button = event.target.closest(\"button[data-chrome-control-launcher]\");",
+    "      if (!button) return;",
+    "      event.preventDefault();",
+    "      void launchChromeControlAction(button.getAttribute(\"data-chrome-control-launcher\") || \"\", { extensionId, tabId, selectorInput, textInput, feedback, button });",
+    "    });",
+    "    form.append(fields, actions, feedback);",
+    "    return form;",
+    "  }",
+    "",
+    "  function createChromeControlLauncherButton(action, label) {",
+    "    const button = document.createElement(\"button\");",
+    "    button.type = \"button\";",
+    "    button.textContent = label;",
+    "    button.setAttribute(\"data-chrome-control-launcher\", action);",
+    "    return button;",
+    "  }",
+    "",
+    "  async function launchChromeControlAction(action, { extensionId, tabId, selectorInput, textInput, feedback, button }) {",
+    "    const selector = selectorInput.value.trim();",
+    "    const text = textInput.value.trim();",
+    "    if ((action === \"click\" || action === \"fill\") && !selector) {",
+    "      feedback.textContent = \"Enter a selector before launching this action.\";",
+    "      return;",
+    "    }",
+    "    if (action === \"fill\" && !text) {",
+    "      feedback.textContent = \"Enter fill text before launching this action.\";",
+    "      return;",
+    "    }",
+    "    button.disabled = true;",
+    "    feedback.textContent = `Running Chrome ${action}...`;",
+    "    const body = { action, extensionId, targetTabId: tabId };",
+    "    if (action === \"click\" || action === \"fill\") body.selector = selector;",
+    "    if (action === \"submit\") body.selector = selector || \"form\";",
+    "    if (action === \"fill\") body.text = text;",
+    "    if (action === \"scroll\") body.dy = 600;",
+    "    try {",
+    "      const response = await fetch(\"/api/chrome-control-action\", {",
+    "        method: \"POST\",",
+    "        headers: { \"content-type\": \"application/json\" },",
+    "        body: JSON.stringify(body)",
+    "      });",
+    "      const payload = await response.json().catch(() => ({}));",
+    "      if (!response.ok) {",
+    "        const message = payload && payload.error && payload.error.message;",
+    "        throw new Error(message || `Chrome action failed: ${response.status}`);",
+    "      }",
+    "      const entry = payload.activityEntry || {};",
+    "      feedback.textContent = `${entry.title || `Chrome ${action}`}: ${entry.result || payload.result || \"reported\"}${entry.blockerReason ? ` - ${entry.blockerReason}` : \"\"}`;",
+    "      await loadSnapshot();",
+    "    } catch (error) {",
+    "      feedback.textContent = error instanceof Error ? error.message : String(error);",
+    "    } finally {",
+    "      button.disabled = false;",
+    "    }",
+    "  }",
+    "",
     "  function renderUserPermissionsPanel(snapshot) {",
     "    const permissions = snapshot.permissions || {};",
     "    const missing = Object.entries(permissions).filter(([, value]) => value === \"denied\" || value === \"unknown\" || value === \"not-determined\");",
     "    setUserRows(\"permissions\", [",
     "      row(\"Screen Recording\", permissions.screenRecording),",
     "      row(\"Accessibility\", permissions.accessibility),",
-    "      row(\"Microphone\", permissions.microphone),",
-    "      row(\"Speech\", permissions.speechRecognition),",
     "      row(\"Finder\", permissions.finderAutomation)",
     "    ], missing.length > 0 ? `${missing.length} needed` : \"Ready\", missing.length > 0 ? \"warning\" : \"ok\");",
     "  }",
@@ -1019,7 +1662,7 @@ function renderDashboardScript(): string {
     "    if (turn.state === \"observing\") return { label: \"Watching\", detail: \"Reading the desktop\", kind: \"warning\" };",
     "    if (turn.state === \"failed\") return { label: \"Failed\", detail: \"Last task failed\", kind: \"error\" };",
     "    if (turn.state === \"completed\") return { label: \"Done\", detail: \"Last task completed\", kind: \"ok\" };",
-    "    return { label: \"Idle\", detail: \"Ready for voice\", kind: \"ok\" };",
+    "    return { label: \"Idle\", detail: \"Ready for an agent task\", kind: \"ok\" };",
     "  }",
     "",
     "  function readUserNextAction(snapshot) {",
@@ -1030,7 +1673,7 @@ function renderDashboardScript(): string {
     "    if (turn.approvalState === \"required\") return \"Review the pending approval.\";",
     "    const extension = snapshot.runtimeHealth && snapshot.runtimeHealth.extension || {};",
     "    if (readChromeLiveConnectionState(extension) !== \"connected\") return \"Refresh Chrome extension heartbeat.\";",
-    "    return \"Ready for the next voice task.\";",
+    "    return \"Ready for the next agent task.\";",
     "  }",
     "",
     "  function renderEvidenceSummaryPanel(snapshot) {",
@@ -1388,8 +2031,6 @@ function renderDashboardScript(): string {
     "    setRows(\"permissions\", [",
     "      row(\"screen\", permissions.screenRecording),",
     "      row(\"accessibility\", permissions.accessibility),",
-    "      row(\"microphone\", permissions.microphone),",
-    "      row(\"speech\", permissions.speechRecognition),",
     "      row(\"finder\", permissions.finderAutomation)",
     "    ], missing ? \"Needs attention\" : \"Ready\", missing ? \"warning\" : \"ok\");",
     "  }",
@@ -1407,7 +2048,7 @@ function renderDashboardScript(): string {
     "      row(\"risk\", turn.risk),",
     "      row(\"approval\", turn.approvalState),",
     "      row(\"stop\", turn.stopState),",
-    "      row(\"voice\", turn.voiceProvider),",
+    "      row(\"agent provider\", turn.agentProvider),",
     "      row(\"command\", turn.command),",
     "      row(\"latest action\", formatRuntimeAction(turn.latestAction)),",
     "      row(\"latest verify\", formatRuntimeVerification(turn.latestVerification)),",
@@ -1868,7 +2509,7 @@ function renderDashboardScript(): string {
     "  function classifyAlertGroup(alert) {",
     "    const code = String(alert && alert.code || \"\");",
     "    if (code.startsWith(\"desktop-\") || code === \"desktop-session-blocked\") return { id: \"desktop\", label: \"Desktop session\", order: 10 };",
-    "    if (code.includes(\"recording\") || code.includes(\"accessibility\") || code.includes(\"microphone\") || code.includes(\"speech\") || code.includes(\"finder-automation\")) return { id: \"permissions\", label: \"Permissions\", order: 20 };",
+    "    if (code.includes(\"recording\") || code.includes(\"accessibility\") || code.includes(\"finder-automation\")) return { id: \"permissions\", label: \"Permissions\", order: 20 };",
     "    if (code.startsWith(\"chrome-\") || code.startsWith(\"extension-\")) return { id: \"chrome\", label: \"Chrome bridge\", order: 30 };",
     "    if (code.startsWith(\"smoke-\")) return { id: \"evidence\", label: \"Smoke evidence\", order: 40 };",
     "    if (code.startsWith(\"release-\")) return { id: \"release\", label: \"Release drift\", order: 50 };",
@@ -2035,6 +2676,540 @@ function escapeHtml(value: string): string {
   });
 }
 
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+type DashboardChromeControlAction =
+  | "observe"
+  | "screenshot"
+  | "click"
+  | "fill"
+  | "submit"
+  | "scroll";
+
+function normalizeDashboardChromeControlAction(value: unknown): DashboardChromeControlAction | undefined {
+  if (
+    value === "observe"
+    || value === "screenshot"
+    || value === "click"
+    || value === "fill"
+    || value === "submit"
+    || value === "scroll"
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function normalizeDashboardChromeExtensionId(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return /^[a-z]{32}$/.test(trimmed) ? trimmed : undefined;
+}
+
+function normalizeDashboardChromeTargetTabId(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === "string" && /^[0-9]+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
+function normalizeOptionalNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeDashboardChromeAppName(value: unknown): string | undefined {
+  const trimmed = normalizeOptionalNonEmptyString(value);
+  if (!trimmed || trimmed.startsWith("-") || /[\0\r\n]/.test(trimmed)) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
+function readDashboardChromeAppNameFromEnv(env: NodeJS.ProcessEnv): string {
+  return normalizeDashboardChromeAppName(env.SKFIY_CHROME_APP_NAME) ?? "Google Chrome";
+}
+
+function createDashboardChromeControlEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  chromeAppName: string
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (typeof value === "string") {
+      env[key] = value;
+    }
+  }
+  env.SKFIY_CHROME_APP_NAME = chromeAppName;
+
+  return env;
+}
+
+function normalizeDashboardChromeScrollDelta(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
+function validateDashboardChromeControlArguments({
+  action,
+  selector,
+  text,
+  dy
+}: {
+  action: DashboardChromeControlAction;
+  selector?: string;
+  text?: string;
+  dy?: number;
+}): { code: string; message: string } | undefined {
+  if ((action === "click" || action === "fill" || action === "submit") && !selector) {
+    return {
+      code: "selector-required",
+      message: `Chrome ${action} action requires a selector.`
+    };
+  }
+  if (action === "fill" && !text) {
+    return {
+      code: "text-required",
+      message: "Chrome fill action requires text."
+    };
+  }
+  if (action === "scroll" && !Number.isFinite(dy)) {
+    return {
+      code: "dy-required",
+      message: "Chrome scroll action requires a numeric dy value."
+    };
+  }
+
+  return undefined;
+}
+
+function readDashboardChromePageControl(snapshot: DashboardSnapshot): Record<string, unknown> {
+  const runtime = readRecord(snapshot.runtimeHealth) ?? {};
+  const extension = readRecord(runtime.extension) ?? {};
+
+  return readRecord(extension.pageControl) ?? {};
+}
+
+function validateDashboardChromeControlEligibility({
+  action,
+  pageControl,
+  targetTabId
+}: {
+  action: DashboardChromeControlAction;
+  pageControl: Record<string, unknown>;
+  targetTabId: number;
+}): { ok: true } | { ok: false; code: string; message: string } {
+  const activeTab = readRecord(pageControl.activeTab) ?? {};
+  const activeTabId = normalizeDashboardChromeTargetTabId(activeTab.tabId);
+  if (activeTabId !== undefined && activeTabId !== targetTabId) {
+    return {
+      ok: false,
+      code: "target-tab-mismatch",
+      message: "Chrome control action target does not match the current dashboard page."
+    };
+  }
+
+  const blockers = Array.isArray(pageControl.blockers) ? pageControl.blockers : [];
+  const blockerCodes = blockers
+    .map((blocker) => readRecord(blocker)?.code)
+    .filter((code): code is string => typeof code === "string");
+  const scheme = normalizeDashboardChromeScheme(activeTab.scheme);
+  const host = readDashboardChromeHost(activeTab);
+  if (
+    scheme === "chrome"
+    || scheme === "chrome-extension"
+    || scheme === "file"
+    || (scheme !== "" && scheme !== "http" && scheme !== "https")
+    || host.startsWith("chrome://")
+    || host.startsWith("chrome-extension://")
+    || blockerCodes.includes("internal_chrome_page")
+    || blockerCodes.includes("chrome_extension_page")
+    || blockerCodes.includes("unsupported_scheme")
+  ) {
+    return {
+      ok: false,
+      code: "unsupported-page",
+      message: "Open an ordinary HTTP or HTTPS page before launching Chrome control actions."
+    };
+  }
+  if (pageControl.state === "blocked_by_host_policy" || blockerCodes.includes("blocked_by_host_policy")) {
+    return {
+      ok: false,
+      code: "host-policy-blocked",
+      message: "Allow this host in skfiy before launching Chrome control actions."
+    };
+  }
+  if (
+    pageControl.state === "blocked_by_chrome_host_permission"
+    || blockerCodes.includes("blocked_by_chrome_host_permission")
+  ) {
+    return {
+      ok: false,
+      code: "chrome-site-access-required",
+      message: "Grant Chrome site access for the current host before launching page actions."
+    };
+  }
+  if (
+    pageControl.state === "sensitive-paused"
+    || blockerCodes.includes("sensitive_form")
+    || blockerCodes.includes("sensitive-paused")
+  ) {
+    return {
+      ok: false,
+      code: "sensitive-paused",
+      message: "This Chrome action needs explicit user approval before it can run."
+    };
+  }
+
+  const capabilities = readRecord(pageControl.capabilities) ?? {};
+  if (action !== "screenshot" && capabilities.domActions !== true) {
+    return {
+      ok: false,
+      code: "dom-actions-not-ready",
+      message: "Chrome DOM actions are not ready for the current page."
+    };
+  }
+
+  return { ok: true };
+}
+
+function readDashboardChromeHost(activeTab: Record<string, unknown>): string {
+  return typeof activeTab.host === "string" ? activeTab.host : "";
+}
+
+function normalizeDashboardChromeScheme(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().replace(/:$/, "").toLowerCase();
+}
+
+function createDashboardChromeControlArgs({
+  action,
+  extensionId,
+  targetTabId,
+  selector,
+  text,
+  dy
+}: {
+  action: DashboardChromeControlAction;
+  extensionId: string;
+  targetTabId: number;
+  selector?: string;
+  text?: string;
+  dy?: number;
+}): string[] {
+  const args = [
+    "chrome",
+    action,
+    "--extension-id",
+    extensionId,
+    "--target-tab-id",
+    String(targetTabId)
+  ];
+
+  if (selector) {
+    args.push("--selector", selector);
+  }
+  if (text) {
+    args.push("--text", text);
+  }
+  if (Number.isFinite(dy)) {
+    args.push("--dy", String(dy));
+  }
+  args.push("--json");
+
+  return args;
+}
+
+function runDashboardChromeControlCommand({
+  binaryPath,
+  args,
+  env
+}: DashboardChromeControlRunnerInput): Promise<DashboardChromeControlRunnerResult> {
+  return new Promise((resolve) => {
+    execFile(binaryPath, args, {
+      cwd: path.dirname(path.dirname(binaryPath)),
+      env,
+      maxBuffer: 256 * 1024
+    }, (error, stdout, stderr) => {
+      const nodeError = error as NodeJS.ErrnoException | null;
+      resolve({
+        exitCode: typeof nodeError?.code === "number" ? nodeError.code : nodeError ? 1 : 0,
+        stdout,
+        stderr,
+        error: nodeError?.message
+      });
+    });
+  });
+}
+
+function parseDashboardChromeControlStdout(stdout: unknown): Record<string, unknown> | undefined {
+  if (typeof stdout !== "string" || !stdout.trim()) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(stdout);
+    return readRecord(parsed) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readDashboardChromeControlResult(
+  runResult: DashboardChromeControlRunnerResult,
+  parsed: Record<string, unknown> | undefined
+): DashboardChromeControlActivityEntry["result"] {
+  if (parsed?.result === "verified") {
+    return "verified";
+  }
+  if (parsed?.result === "blocked") {
+    return "blocked";
+  }
+
+  return runResult.exitCode === 0 ? "verified" : "failed";
+}
+
+function readDashboardChromeControlBlockerReason(
+  runResult: DashboardChromeControlRunnerResult,
+  parsed: Record<string, unknown> | undefined
+): string | null {
+  if (typeof parsed?.reason === "string") {
+    return parsed.reason;
+  }
+  const error = readRecord(parsed?.error);
+  if (typeof error?.message === "string") {
+    return error.message;
+  }
+  if (typeof runResult.error === "string" && runResult.error) {
+    return runResult.error;
+  }
+  if (typeof runResult.stderr === "string" && runResult.stderr.trim()) {
+    return runResult.stderr.trim().slice(0, 240);
+  }
+
+  return null;
+}
+
+function createDashboardChromeControlStdoutSummary(
+  parsed: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  return {
+    result: parsed?.result,
+    action: parsed?.action,
+    targetTabId: parsed?.targetTabId,
+    reason: parsed?.reason
+  };
+}
+
+function createDashboardChromeControlActivityEntry({
+  action,
+  chromeAppName,
+  host,
+  targetTabId,
+  result,
+  blockerReason,
+  command,
+  generatedAt
+}: {
+  action: DashboardChromeControlAction;
+  chromeAppName: string;
+  host?: string;
+  targetTabId: number;
+  result: DashboardChromeControlActivityEntry["result"];
+  blockerReason: string | null;
+  command: string;
+  generatedAt: string;
+}): DashboardChromeControlActivityEntry {
+  return {
+    kind: "chrome-control-action",
+    title: `Chrome ${action}`,
+    target: {
+      app: chromeAppName,
+      host,
+      tabId: targetTabId
+    },
+    result,
+    blockerReason,
+    command,
+    timestamp: generatedAt
+  };
+}
+
+function appendDashboardChromeControlActivity(
+  store: DashboardChromeControlActivityStore | undefined,
+  entry: DashboardChromeControlActivityEntry
+): void {
+  if (!store) {
+    return;
+  }
+
+  store.entries = [...store.entries, entry].slice(-20);
+}
+
+async function persistDashboardChromeControlActivity({
+  homeDir,
+  entry,
+  io = createDefaultDashboardChromeControlActivityIo()
+}: {
+  homeDir?: string;
+  entry: DashboardChromeControlActivityEntry;
+  io?: DashboardChromeControlActivityIo;
+}): Promise<void> {
+  if (!homeDir) {
+    throw new Error("Home directory is required to persist Chrome control Activity.");
+  }
+
+  const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
+  const snapshot = await readDashboardRuntimeSnapshotForActivity(snapshotPath, io);
+  const currentTurn = {
+    ...(readRecord(snapshot.currentTurn) ?? {}),
+    chromeControlActivity: entry
+  };
+  const existingReplay = readRecord(snapshot.replay) ?? {};
+  const existingActions = Array.isArray(existingReplay.chromeControlActions)
+    ? existingReplay.chromeControlActions.filter((value) => readRecord(value))
+    : [];
+  const replay = {
+    state: typeof existingReplay.state === "string" ? existingReplay.state : "available",
+    source: typeof existingReplay.source === "string" ? existingReplay.source : "runtime-snapshot",
+    ...existingReplay,
+    chromeControlActions: [...existingActions, entry].slice(-20)
+  };
+  const nextSnapshot = {
+    schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+    observedAt: entry.timestamp,
+    ...snapshot,
+    currentTurn,
+    replay
+  };
+  const text = `${JSON.stringify(nextSnapshot, null, 2)}\n`;
+
+  await io.mkdir(path.dirname(snapshotPath));
+  if (io.rename) {
+    const tempPath = `${snapshotPath}.tmp-${process.pid}-${Date.now()}`;
+    await io.writeFile(tempPath, text);
+    await io.rename(tempPath, snapshotPath);
+  } else {
+    await io.writeFile(snapshotPath, text);
+  }
+}
+
+async function readDashboardRuntimeSnapshotForActivity(
+  snapshotPath: string,
+  io: DashboardChromeControlActivityIo
+): Promise<Record<string, unknown>> {
+  try {
+    if (io.exists && !await io.exists(snapshotPath)) {
+      return createEmptyDashboardRuntimeSnapshotForActivity();
+    }
+
+    const parsed = JSON.parse(await io.readFile(snapshotPath)) as unknown;
+    const snapshot = readRecord(parsed);
+    if (snapshot?.schemaVersion !== RUNTIME_SNAPSHOT_SCHEMA_VERSION) {
+      return createEmptyDashboardRuntimeSnapshotForActivity();
+    }
+
+    return snapshot;
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError?.code === "ENOENT") {
+      return createEmptyDashboardRuntimeSnapshotForActivity();
+    }
+    throw error;
+  }
+}
+
+function createEmptyDashboardRuntimeSnapshotForActivity(): Record<string, unknown> {
+  return {
+    schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+    observedAt: new Date().toISOString(),
+    currentTurn: {
+      state: "idle",
+      source: "runtime-snapshot"
+    },
+    replay: {
+      state: "available",
+      source: "runtime-snapshot",
+      chromeControlActions: []
+    }
+  };
+}
+
+function createDefaultDashboardChromeControlActivityIo(): DashboardChromeControlActivityIo {
+  return {
+    mkdir: async (targetPath) => {
+      await fsMkdir(targetPath, { recursive: true });
+    },
+    readFile: (targetPath) => fsReadFile(targetPath, "utf8"),
+    writeFile: (targetPath, content) => fsWriteFile(targetPath, content, "utf8"),
+    rename: (oldPath, newPath) => fsRename(oldPath, newPath)
+  };
+}
+
+function attachDashboardChromeControlActivity(
+  snapshot: DashboardSnapshot,
+  store: DashboardChromeControlActivityStore | undefined
+): DashboardSnapshot {
+  if (!store || store.entries.length === 0) {
+    return snapshot;
+  }
+
+  const currentTurn = {
+    ...snapshot.currentTurn,
+    chromeControlActivity: store.entries.at(-1)
+  };
+  const existingReplayActions = Array.isArray(snapshot.replay.chromeControlActions)
+    ? snapshot.replay.chromeControlActions
+    : [];
+  const replay = {
+    ...snapshot.replay,
+    chromeControlActions: [...existingReplayActions, ...store.entries].slice(-20)
+  };
+
+  return {
+    ...snapshot,
+    currentTurn,
+    replay
+  };
+}
+
+function formatDashboardChromeControlCommand(binaryPath: string, args: string[]): string {
+  return [binaryPath, ...args].map((part, index) => {
+    if (index > 0 && args[index - 1] === "--text") {
+      return "<redacted>";
+    }
+    return /^[A-Za-z0-9_./:=@%+-]+$/.test(part) ? part : JSON.stringify(part);
+  }).join(" ");
+}
+
 function readRequestBody(request: http.IncomingMessage, maxBytes = 32_768): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -2097,6 +3272,30 @@ function createDashboardChromePolicyErrorResponse({
     plannedMutation: false,
     executesSystemMutation: false,
     result: "error",
+    error: {
+      code,
+      message
+    }
+  }, undefined, 400);
+}
+
+function createDashboardChromeControlErrorResponse({
+  generatedAt,
+  code,
+  message
+}: {
+  generatedAt: string;
+  code: string;
+  message: string;
+}): DashboardHttpResponse {
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard chrome control action",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: false,
+    executesSystemMutation: false,
+    result: "blocked",
     error: {
       code,
       message

@@ -81,8 +81,6 @@ const DASHBOARD_PANELS: DashboardPanel[] = [
     signals: [
       "screen-recording",
       "accessibility",
-      "microphone",
-      "speech-recognition",
       "finder-automation",
       "chrome-extension-connection"
     ],
@@ -92,8 +90,8 @@ const DASHBOARD_PANELS: DashboardPanel[] = [
     id: "current-turn",
     title: "Current turn",
     signals: [
-      "voice-provider",
-      "transcript",
+      "agent-provider",
+      "computer-use-tool",
       "target-app",
       "policy-decision",
       "risk",
@@ -135,7 +133,6 @@ const DASHBOARD_PANELS: DashboardPanel[] = [
       "ghostty",
       "chrome",
       "finder",
-      "voice",
       "money-run",
       "pass-or-block-reasons"
     ],

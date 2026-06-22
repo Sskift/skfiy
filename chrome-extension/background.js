@@ -18,6 +18,7 @@ export const MESSAGE_TYPES = Object.freeze({
   PAGE_ACTION_RESULT: "skfiy.page.action_result",
   PAGE_SCREENSHOT: "skfiy.page.screenshot",
   PAGE_SCREENSHOT_RESULT: "skfiy.page.screenshot_result",
+  PAGE_CONTROL_WAKE: "skfiy.page_control.wake",
   TABS_DISCOVER: "skfiy.tabs.discover",
   TABS_DISCOVER_RESULT: "skfiy.tabs.discover_result",
   PAGE_CONTROL_HEALTH: "skfiy.page_control.health",
@@ -44,13 +45,15 @@ const LAST_SENSITIVE_PAUSE_KEY = "lastSensitivePause";
 const HOST_POLICY_SYNC_REQUEST_PREFIX = "host-policy-sync";
 const DEV_RELOAD_DELAY_MS = 250;
 const NATIVE_MESSAGE_TIMEOUT_MS = 3_000;
+const CONTENT_SCRIPT_DIAGNOSTICS_TIMEOUT_MS = 750;
+const MAX_WAKE_DIRECTIVE_AGE_MS = 30_000;
 const FALLBACK_EXTENSION_MANIFEST = Object.freeze({
   manifest_version: 3,
   name: "skfiy Chrome Adapter",
-  version: "0.0.8",
+  version: "0.0.16",
   minimum_chrome_version: "116",
   permissions: ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
-  optional_host_permissions: ["http://*/*", "https://*/*"]
+  optional_host_permissions: ["http://*/*", "https://*/*", "<all_urls>"]
 });
 
 let hostPolicySyncPromise = null;
@@ -121,6 +124,7 @@ function readPageControlProtocol() {
       observe: MESSAGE_TYPES.PAGE_OBSERVE,
       action: MESSAGE_TYPES.PAGE_ACTION,
       screenshot: MESSAGE_TYPES.PAGE_SCREENSHOT,
+      wake: MESSAGE_TYPES.PAGE_CONTROL_WAKE,
       tabs: MESSAGE_TYPES.TABS_DISCOVER,
       downloads: MESSAGE_TYPES.DOWNLOADS_STATUS,
       hostPolicy: MESSAGE_TYPES.HOST_POLICY_REQUEST
@@ -493,12 +497,20 @@ async function readContentScriptSession(tab, policyDecision, hostPermission, opt
 }
 
 async function requestContentScriptDiagnostics(tab) {
+  let timeout;
   try {
-    const response = await chrome.tabs.sendMessage(tab.id, {
-      type: MESSAGE_TYPES.PAGE_DIAGNOSTICS,
-      schemaVersion: MESSAGE_SCHEMA_VERSION,
-      requestId: `content-diagnostics-${Date.now()}`
-    });
+    const response = await Promise.race([
+      chrome.tabs.sendMessage(tab.id, {
+        type: MESSAGE_TYPES.PAGE_DIAGNOSTICS,
+        schemaVersion: MESSAGE_SCHEMA_VERSION,
+        requestId: `content-diagnostics-${Date.now()}`
+      }),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error("content_script_diagnostics_timeout"));
+        }, CONTENT_SCRIPT_DIAGNOSTICS_TIMEOUT_MS);
+      })
+    ]);
 
     if (response?.type === MESSAGE_TYPES.PAGE_DIAGNOSTICS_RESULT && response.session) {
       return {
@@ -513,6 +525,13 @@ async function requestContentScriptDiagnostics(tab) {
     };
   } catch (error) {
     const lastError = readErrorMessage(error);
+    if (lastError.includes("content_script_diagnostics_timeout")) {
+      return {
+        state: "unavailable",
+        reason: "content_script_diagnostics_timeout",
+        lastError
+      };
+    }
     return {
       state: lastError.includes("Receiving end does not exist") ? "not_loaded" : "unavailable",
       reason: lastError.includes("Receiving end does not exist")
@@ -520,6 +539,10 @@ async function requestContentScriptDiagnostics(tab) {
         : "content_script_unavailable",
       lastError
     };
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
 }
 
@@ -739,7 +762,7 @@ async function discoverChromeTabs(requestId = `tabs-discover-${Date.now()}`) {
     nativeHeartbeat = await sendNativeMessage({
       type: MESSAGE_TYPES.TABS_DISCOVER,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
-      requestId: `tabs-discover-native-${Date.now()}`,
+      requestId,
       payload: {
         pageTabs
       }
@@ -1187,6 +1210,22 @@ async function routePageScreenshot(message) {
   }
 
   const format = message.payload?.format === "jpeg" ? "jpeg" : "png";
+  const capturePermission = await readChromeCapturePermissionStatus(tab);
+  if (capturePermission.state !== "granted") {
+    return {
+      type: MESSAGE_TYPES.PAGE_SCREENSHOT_RESULT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId,
+      result: "blocked",
+      reason: capturePermission.message ?? capturePermission.lastError ?? createChromeCapturePermissionMessage(),
+      code: capturePermission.code ?? capturePermission.reason ?? "chrome_capture_permission_missing",
+      chromeCapturePermission: capturePermission,
+      host,
+      tabId: tab.id,
+      format
+    };
+  }
+
   let dataUrl;
   try {
     if (typeof chrome.tabs.update === "function") {
@@ -1579,6 +1618,23 @@ function readWakeDirective(url) {
   };
 }
 
+function normalizeWakeDirective(directive) {
+  const record = readObject(directive) ?? {};
+  const targetTabId = Number.isInteger(record.targetTabId) ? record.targetTabId : undefined;
+  const dy = Number.isFinite(record.dy) ? record.dy : 0;
+
+  return {
+    wakeId: readString(record.wakeId) ?? "",
+    requestId: readString(record.requestId) ?? "",
+    targetTabId,
+    wakeTabId: Number.isInteger(record.wakeTabId) ? record.wakeTabId : undefined,
+    wakeAction: readString(record.wakeAction) ?? "",
+    selector: readString(record.selector) ?? "",
+    text: readString(record.text) ?? "",
+    dy
+  };
+}
+
 function mergeWakeDirectives(primary, fallback) {
   if (!primary) {
     return fallback;
@@ -1591,10 +1647,22 @@ function mergeWakeDirectives(primary, fallback) {
     wakeId: primary.wakeId || fallback.wakeId,
     requestId: primary.requestId || fallback.requestId,
     targetTabId: Number.isInteger(primary.targetTabId) ? primary.targetTabId : fallback.targetTabId,
+    wakeTabId: Number.isInteger(primary.wakeTabId) ? primary.wakeTabId : fallback.wakeTabId,
     wakeAction: primary.wakeAction || fallback.wakeAction,
     selector: primary.selector || fallback.selector,
     text: primary.text || fallback.text,
     dy: Number.isFinite(primary.dy) ? primary.dy : fallback.dy
+  };
+}
+
+function withWakeTabId(directive, tabId) {
+  if (!directive || !Number.isInteger(tabId)) {
+    return directive;
+  }
+
+  return {
+    ...directive,
+    wakeTabId: tabId
   };
 }
 
@@ -1633,36 +1701,83 @@ function claimWakeDirective(directive) {
   return true;
 }
 
+function isStaleTimestampedWakeDirective(directive) {
+  const wakeId = readString(directive?.wakeId);
+  if (!wakeId || !/^\d{12,}$/.test(wakeId)) {
+    return false;
+  }
+
+  const createdAt = Number.parseInt(wakeId, 10);
+  return Number.isFinite(createdAt)
+    && createdAt > 0
+    && createdAt < Date.now() - MAX_WAKE_DIRECTIVE_AGE_MS;
+}
+
 function scheduleWakeDirective(directive) {
   const wakeTargetTabId = directive?.targetTabId;
   const wakeAction = directive?.wakeAction ?? "";
+  if (isStaleTimestampedWakeDirective(directive)) {
+    void closeWakeTab(directive);
+    return true;
+  }
   if (wakeAction === "tabs") {
-    if (!claimWakeDirective(directive)) {
-      return true;
-    }
-    setTimeout(() => {
-      void discoverChromeTabs("tabs-discover-wake");
-    }, 150);
+    void executeWakeDirective(directive);
     return true;
   }
   if (!Number.isInteger(wakeTargetTabId)) {
     return false;
   }
-  if (!claimWakeDirective(directive)) {
-    return true;
-  }
   setTimeout(() => {
-    if (wakeAction === "observe") {
-      void sendWakePageObservation(directive);
-      return;
-    }
-    if (["screenshot", "click", "fill", "submit", "scroll"].includes(wakeAction)) {
-      void sendWakePageControlAction(directive);
-      return;
-    }
-    void pingNativeHeartbeat("popup_wake", wakeTargetTabId);
+    void executeWakeDirective(directive);
   }, 150);
   return true;
+}
+
+async function executeWakeDirective(directive) {
+  const wakeAction = directive?.wakeAction ?? "";
+  if (isStaleTimestampedWakeDirective(directive)) {
+    return "ignored";
+  }
+  if (wakeAction !== "tabs" && !Number.isInteger(directive?.targetTabId)) {
+    return "blocked";
+  }
+  if (!claimWakeDirective(directive)) {
+    return "deduplicated";
+  }
+
+  try {
+    await runWakeDirective(directive);
+  } finally {
+    await closeWakeTab(directive);
+  }
+  return "executed";
+}
+
+async function runWakeDirective(directive) {
+  const wakeAction = directive?.wakeAction ?? "";
+  if (wakeAction === "tabs") {
+    return discoverChromeTabs(directive?.requestId || "tabs-discover-wake");
+  }
+  if (wakeAction === "observe") {
+    return sendWakePageObservation(directive);
+  }
+  if (["screenshot", "click", "fill", "submit", "scroll"].includes(wakeAction)) {
+    return sendWakePageControlAction(directive);
+  }
+  return pingNativeHeartbeat("popup_wake", directive.targetTabId);
+}
+
+async function closeWakeTab(directive) {
+  const wakeTabId = directive?.wakeTabId;
+  if (!Number.isInteger(wakeTabId) || typeof chrome.tabs?.remove !== "function") {
+    return;
+  }
+
+  try {
+    await chrome.tabs.remove(wakeTabId);
+  } catch {
+    // Best-effort cleanup; wake evidence must not fail just because Chrome already closed the tab.
+  }
 }
 
 function readObject(value) {
@@ -1732,21 +1847,29 @@ function createWakePageControlRequest(directive) {
   };
 }
 
-function summarizeWakePageActionResult(response, targetTabId, action) {
+function summarizeWakePageActionResult(response, targetTabId, action, requestId) {
   const record = readObject(response) ?? {};
   const actionName = readString(record.action) ?? readString(action?.kind);
   const selector = readString(record.selector) ?? readString(action?.selector);
   const deltaY = readNumber(record.deltaY) ?? readNumber(action?.deltaY);
+  const result = readString(record.result) ?? "blocked";
+  const reason = readString(record.reason) ?? (readObject(response) ? undefined : "page_action_no_response");
+  const code = readString(record.code);
+  const message = readString(record.message);
+  const chromeHostPermission = readObject(record.chromeHostPermission);
 
   return {
     type: readString(record.type) ?? MESSAGE_TYPES.PAGE_ACTION_RESULT,
-    ...(readString(record.requestId) ? { requestId: record.requestId } : {}),
-    ...(readString(record.result) ? { result: record.result } : {}),
+    requestId: readString(record.requestId) ?? requestId,
+    result,
     ...(actionName ? { action: actionName } : {}),
-    ...(readString(record.reason) ? { reason: record.reason } : {}),
+    ...(reason ? { reason } : {}),
+    ...(code ? { code } : {}),
+    ...(message ? { message } : {}),
     targetTabId,
     ...(selector ? { selector } : {}),
-    ...(typeof deltaY === "number" ? { deltaY } : {})
+    ...(typeof deltaY === "number" ? { deltaY } : {}),
+    ...(chromeHostPermission ? { chromeHostPermission } : {})
   };
 }
 
@@ -1808,9 +1931,22 @@ async function sendWakePageControlAction(directive) {
     return pingNativeHeartbeat("popup_wake", directive.targetTabId);
   }
 
-  const response = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
-    ? await routePageScreenshot(request)
-    : await routePageMessage(request);
+  let response;
+  try {
+    response = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
+      ? await routePageScreenshot(request)
+      : await routePageMessage(request);
+  } catch (error) {
+    response = {
+      type: request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
+        ? MESSAGE_TYPES.PAGE_SCREENSHOT_RESULT
+        : MESSAGE_TYPES.PAGE_ACTION_RESULT,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: request.requestId,
+      result: "blocked",
+      reason: readErrorMessage(error)
+    };
+  }
   const nativeRequestId = directive.requestId || `page-control-${directive.wakeAction}-native-popup_wake-${Date.now()}`;
   const payload = request.type === MESSAGE_TYPES.PAGE_SCREENSHOT
     ? {
@@ -1826,7 +1962,8 @@ async function sendWakePageControlAction(directive) {
         pageActionResult: summarizeWakePageActionResult(
           response,
           directive.targetTabId,
-          request.payload.action
+          request.payload.action,
+          request.requestId
         )
       };
 
@@ -1903,7 +2040,10 @@ async function scheduleExistingWakeTabs() {
   try {
     const tabs = await chrome.tabs.query({});
     for (const tab of Array.isArray(tabs) ? tabs : []) {
-      scheduleWakeDirective(readWakeDirective(tab?.pendingUrl ?? tab?.url));
+      scheduleWakeDirective(withWakeTabId(
+        readWakeDirective(tab?.pendingUrl ?? tab?.url),
+        tab?.id
+      ));
     }
   } catch {
     // Best-effort startup recovery; normal tab update listeners still handle later wake URLs.
@@ -1912,7 +2052,10 @@ async function scheduleExistingWakeTabs() {
 
 function registerTabHeartbeatListeners() {
   chrome.tabs?.onCreated?.addListener?.((tab) => {
-    const wakeDirective = readWakeDirective(tab?.pendingUrl ?? tab?.url);
+    const wakeDirective = withWakeTabId(
+      readWakeDirective(tab?.pendingUrl ?? tab?.url),
+      tab?.id
+    );
     if (scheduleWakeDirective(wakeDirective)) {
       return;
     }
@@ -1925,8 +2068,8 @@ function registerTabHeartbeatListeners() {
   chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo, tab) => {
     if (changeInfo?.status === "complete" || typeof changeInfo?.url === "string") {
       const wakeDirective = mergeWakeDirectives(
-        readWakeDirective(changeInfo?.url),
-        readWakeDirective(tab?.url)
+        withWakeTabId(readWakeDirective(changeInfo?.url), tabId),
+        withWakeTabId(readWakeDirective(tab?.url), tab?.id ?? tabId)
       );
       if (scheduleWakeDirective(wakeDirective)) {
         return;
@@ -2008,6 +2151,18 @@ async function handleRuntimeMessage(message) {
 
   if (message?.type === MESSAGE_TYPES.PAGE_CONTROL_HEALTH) {
     return readPageControlHealth(message.requestId, message.tabId);
+  }
+
+  if (message?.type === MESSAGE_TYPES.PAGE_CONTROL_WAKE) {
+    const directive = normalizeWakeDirective(message.directive);
+    const result = await executeWakeDirective(directive);
+    return {
+      type: MESSAGE_TYPES.PAGE_CONTROL_WAKE,
+      schemaVersion: MESSAGE_SCHEMA_VERSION,
+      requestId: message.requestId ?? directive.requestId,
+      result,
+      ...(result === "blocked" ? { reason: "invalid_wake_directive" } : {})
+    };
   }
 
   if (message?.type === MESSAGE_TYPES.DOWNLOADS_STATUS) {

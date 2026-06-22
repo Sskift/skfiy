@@ -37,6 +37,16 @@ export interface PetAtlasManifest {
   columns: number;
   rows: number;
   source?: "bundled-original" | "bundled-legacy" | "custom-user";
+  rendering?: {
+    mode: "sprite-atlas" | "animated-raster";
+    ambientMotion?: boolean;
+    failureShake?: boolean;
+  };
+  layout?: {
+    hitboxWidth: number;
+    hitboxHeight: number;
+    visualScale?: number;
+  };
   notes?: string;
   states: Record<PetAtlasState, PetAnimationState>;
 }
@@ -110,6 +120,10 @@ function isPositiveInteger(value: unknown): value is number {
   return Number.isInteger(value) && Number(value) > 0;
 }
 
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 function isNonNegativeInteger(value: unknown): value is number {
   return Number.isInteger(value) && Number(value) >= 0;
 }
@@ -132,6 +146,13 @@ function hasCompleteStateMap(value: unknown): value is Record<PetAtlasState, Pet
 }
 
 export function isPetAtlasManifest(value: unknown): value is PetAtlasManifest {
+  const rendering = isRecord(value) && isRecord(value.rendering)
+    ? value.rendering
+    : undefined;
+  const layout = isRecord(value) && isRecord(value.layout)
+    ? value.layout
+    : undefined;
+
   return (
     isRecord(value)
     && typeof value.displayName === "string"
@@ -144,6 +165,27 @@ export function isPetAtlasManifest(value: unknown): value is PetAtlasManifest {
     && isPositiveInteger(value.frameHeight)
     && isPositiveInteger(value.columns)
     && isPositiveInteger(value.rows)
+    && (
+      rendering === undefined
+      || rendering.mode === "sprite-atlas"
+      || rendering.mode === "animated-raster"
+    )
+    && (
+      rendering === undefined
+      || (rendering.ambientMotion === undefined || typeof rendering.ambientMotion === "boolean")
+    )
+    && (
+      rendering === undefined
+      || (rendering.failureShake === undefined || typeof rendering.failureShake === "boolean")
+    )
+    && (
+      layout === undefined
+      || (
+        isPositiveInteger(layout.hitboxWidth)
+        && isPositiveInteger(layout.hitboxHeight)
+        && (layout.visualScale === undefined || isPositiveNumber(layout.visualScale))
+      )
+    )
     && hasCompleteStateMap(value.states)
   );
 }
@@ -212,6 +254,10 @@ export function getPetSpriteStyle(
   atlas: PetAtlas = PET_ATLAS
 ): PetSpriteStyle {
   const animation = atlas.states[state];
+  const animatedRaster = atlas.rendering?.mode === "animated-raster";
+  const visualScale = atlas.layout?.visualScale ?? 0.82;
+  const hitboxWidth = atlas.layout?.hitboxWidth ?? Math.round(atlas.frameWidth * visualScale);
+  const hitboxHeight = atlas.layout?.hitboxHeight ?? Math.round(atlas.frameHeight * visualScale);
   const lastColumn = Math.max(1, atlas.columns - 1);
   const lastRow = Math.max(1, atlas.rows - 1);
   const finalColumn = Math.max(0, Math.min(animation.frames - 1, lastColumn));
@@ -225,6 +271,12 @@ export function getPetSpriteStyle(
     "--pet-y": `${(animation.row / lastRow) * 100}%`,
     "--pet-x-end": `${(finalColumn / lastColumn) * 100}%`,
     "--pet-steps": String(Math.max(1, animation.frames - 1)),
-    "--pet-duration": `${animation.frames * animation.frameMs}ms`
+    "--pet-duration": `${animation.frames * animation.frameMs}ms`,
+    "--pet-atlas-animation-name": animatedRaster ? "none" : "pet-atlas-play",
+    "--pet-motion-animation-name": atlas.rendering?.ambientMotion === false ? "none" : "pet-bob",
+    "--pet-failed-animation-name": atlas.rendering?.failureShake === false ? "none" : "pet-error-shake",
+    "--pet-hitbox-width": `${hitboxWidth}px`,
+    "--pet-hitbox-height": `${hitboxHeight}px`,
+    "--pet-visual-scale": String(visualScale)
   };
 }

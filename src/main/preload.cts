@@ -10,17 +10,12 @@ type TaskStatus =
   | "needs_confirmation"
   | "completed"
   | "failed";
-type DoubaoVoiceTrigger = "skfiy-shortcut" | "fn-double-tap" | "none";
-type DictationProviderSelection = "doubao" | "browser" | "native-macos";
 type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 type DesktopSessionDiagnosticState = "controllable" | "blocked" | "unknown";
 type PermissionSettingsTarget =
   | "screen-recording"
-  | "accessibility"
-  | "microphone"
-  | "speech-recognition";
+  | "accessibility";
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
-type DictationProviderId = "doubao" | "browser" | "native-macos";
 type AppPolicy = "allow" | "ask" | "deny";
 type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 type RiskLevel = "low" | "medium" | "high" | "blocked";
@@ -30,14 +25,6 @@ type TurnTranscriptOutcome =
   | "verification_failed"
   | "failed"
   | "running";
-type DictationProviderState =
-  | "unavailable"
-  | "waiting_for_shortcut_configuration"
-  | "listening"
-  | "no_transcript"
-  | "cancelled"
-  | "stopped"
-  | "failed";
 
 interface TaskEvent {
   status: TaskStatus;
@@ -100,41 +87,6 @@ interface ObserveAppReplayRecord {
       height: number;
     };
   }>;
-}
-
-interface DictationPreparation {
-  providerId?: DictationProviderId;
-  voiceTrigger: DoubaoVoiceTrigger;
-  nativeDictationActive?: boolean;
-  providerState?: DictationProviderState;
-  sessionId?: string;
-}
-
-interface DictationProviderEvent {
-  providerId: DictationProviderId;
-  state: DictationProviderState;
-  message: string;
-}
-
-interface DictationTranscriptUpdate {
-  text: string;
-  isFinal: boolean;
-  confidence?: number;
-  provenance?: object;
-}
-
-interface DictationTranscriptEvent extends DictationTranscriptUpdate {
-  providerId: DictationProviderId;
-  sessionId?: string;
-}
-
-interface DictationSettings {
-  provider: DictationProviderSelection;
-  doubaoVoiceTrigger: Exclude<DoubaoVoiceTrigger, "none">;
-  doubaoShortcutLabel: string;
-  nativeSpeechLocale: string;
-  nativeSpeechMaxDurationMs: number;
-  nativeSpeechSilenceTimeoutMs: number;
 }
 
 interface ControlledAppPolicyEntry {
@@ -219,8 +171,6 @@ interface TurnReplay {
 interface PermissionSummary {
   screenRecording: { state: PermissionState };
   accessibility: { state: PermissionState };
-  microphone: { state: PermissionState };
-  speechRecognition: { state: PermissionState };
 }
 
 interface PermissionDiagnostics {
@@ -254,13 +204,6 @@ interface DesktopSessionDiagnostics {
   reason: string;
 }
 
-interface NativeSpeechStatus {
-  locale: string;
-  recognizerAvailable: boolean;
-  speechRecognition: { state: PermissionState };
-  microphone: { state: PermissionState };
-}
-
 interface StartupWarning {
   id: StartupWarningId;
   title: string;
@@ -290,6 +233,16 @@ interface PetSkinManifest {
   columns: number;
   rows: number;
   source?: "custom-user";
+  rendering?: {
+    mode: "sprite-atlas" | "animated-raster";
+    ambientMotion?: boolean;
+    failureShake?: boolean;
+  };
+  layout?: {
+    hitboxWidth: number;
+    hitboxHeight: number;
+    visualScale?: number;
+  };
   states: Record<string, PetAnimationState>;
 }
 
@@ -302,17 +255,6 @@ interface WindowBounds {
 
 interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
-  prepareDictation: () => Promise<DictationPreparation>;
-  stopDictation: (sessionId?: string) => Promise<void>;
-  updateDictationTranscript: (
-    sessionId: string | undefined,
-    update: DictationTranscriptUpdate
-  ) => Promise<void>;
-  submitDictation: (
-    sessionId: string | undefined,
-    command: string,
-    options: { stopNativeDictation: boolean }
-  ) => Promise<void>;
   approveTask: () => Promise<void>;
   denyTask: () => Promise<void>;
   takeScreenshot: () => Promise<void>;
@@ -320,21 +262,8 @@ interface DesktopApi {
   getPermissions: () => Promise<PermissionSummary>;
   getPermissionDiagnostics: () => Promise<PermissionDiagnostics>;
   getDesktopSessionDiagnostics: () => Promise<DesktopSessionDiagnostics>;
-  getNativeSpeechStatus: (locale: string) => Promise<NativeSpeechStatus>;
   openPermissionSettings: (permission: PermissionSettingsTarget) => Promise<void>;
   getStartupWarnings: () => Promise<StartupWarning[]>;
-  getDictationSettings: () => Promise<DictationSettings>;
-  setDictationSettings: (
-    update: Partial<
-      Pick<
-        DictationSettings,
-        | "provider"
-        | "nativeSpeechLocale"
-        | "nativeSpeechMaxDurationMs"
-        | "nativeSpeechSilenceTimeoutMs"
-      >
-    >
-  ) => Promise<DictationSettings>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
   getPlannerProviderSettings: () => Promise<PlannerProviderSettings>;
@@ -347,8 +276,6 @@ interface DesktopApi {
   getWindowBounds: () => Promise<WindowBounds | null>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
-  onDictationProviderEvent: (callback: (event: DictationProviderEvent) => void) => () => void;
-  onDictationTranscriptEvent: (callback: (event: DictationTranscriptEvent) => void) => () => void;
   onStopTurnHotkey: (callback: () => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
 }
@@ -375,19 +302,6 @@ function isTaskEvent(value: unknown): value is TaskEvent {
 const api: DesktopApi = {
   async runCommand(command, options) {
     await ipcRenderer.invoke("skfiy:run-command", command, options);
-  },
-  async prepareDictation() {
-    const payload = await ipcRenderer.invoke("skfiy:prepare-dictation");
-    return isDictationPreparation(payload) ? payload : { voiceTrigger: "none" };
-  },
-  async stopDictation(sessionId) {
-    await ipcRenderer.invoke("skfiy:stop-dictation", sessionId);
-  },
-  async updateDictationTranscript(sessionId, update) {
-    await ipcRenderer.invoke("skfiy:update-dictation-transcript", sessionId, update);
-  },
-  async submitDictation(sessionId, command, options) {
-    await ipcRenderer.invoke("skfiy:submit-dictation", sessionId, command, options);
   },
   async approveTask() {
     await ipcRenderer.invoke("skfiy:approve-task");
@@ -417,10 +331,6 @@ const api: DesktopApi = {
       ? payload
       : createUnknownDesktopSessionDiagnostics();
   },
-  async getNativeSpeechStatus(locale) {
-    const payload = await ipcRenderer.invoke("skfiy:get-native-speech-status", locale);
-    return isNativeSpeechStatus(payload) ? payload : createUnknownNativeSpeechStatus(locale);
-  },
   async openPermissionSettings(permission) {
     if (!isPermissionSettingsTarget(permission)) {
       return;
@@ -431,39 +341,6 @@ const api: DesktopApi = {
   async getStartupWarnings() {
     const payload = await ipcRenderer.invoke("skfiy:get-startup-warnings");
     return Array.isArray(payload) ? payload.filter(isStartupWarning) : [];
-  },
-  async getDictationSettings() {
-    const payload = await ipcRenderer.invoke("skfiy:get-dictation-settings");
-    return isDictationSettings(payload) ? payload : createDefaultDictationSettings();
-  },
-  async setDictationSettings(update) {
-    const provider =
-      update && typeof update === "object" && "provider" in update
-        ? update.provider
-        : undefined;
-    const nativeSpeechLocale =
-      update && typeof update === "object" && "nativeSpeechLocale" in update
-        ? update.nativeSpeechLocale
-        : undefined;
-    const nativeSpeechMaxDurationMs =
-      update && typeof update === "object" && "nativeSpeechMaxDurationMs" in update
-        ? update.nativeSpeechMaxDurationMs
-        : undefined;
-    const nativeSpeechSilenceTimeoutMs =
-      update && typeof update === "object" && "nativeSpeechSilenceTimeoutMs" in update
-        ? update.nativeSpeechSilenceTimeoutMs
-        : undefined;
-    const payload = await ipcRenderer.invoke("skfiy:set-dictation-settings", {
-      provider: isDictationProviderSelection(provider) ? provider : undefined,
-      nativeSpeechLocale: readNonEmptyString(nativeSpeechLocale),
-      nativeSpeechMaxDurationMs: isPositiveInteger(nativeSpeechMaxDurationMs)
-        ? nativeSpeechMaxDurationMs
-        : undefined,
-      nativeSpeechSilenceTimeoutMs: isPositiveInteger(nativeSpeechSilenceTimeoutMs)
-        ? nativeSpeechSilenceTimeoutMs
-        : undefined
-    });
-    return isDictationSettings(payload) ? payload : createDefaultDictationSettings();
   },
   async getAppPolicySettings() {
     const payload = await ipcRenderer.invoke("skfiy:get-app-policy-settings");
@@ -524,26 +401,6 @@ const api: DesktopApi = {
   setWindowMode(mode) {
     ipcRenderer.send("skfiy:set-window-mode", mode);
   },
-  onDictationProviderEvent(callback) {
-    const listener = (_event: IpcRendererEvent, payload: unknown) => {
-      if (isDictationProviderEvent(payload)) {
-        callback(payload);
-      }
-    };
-
-    ipcRenderer.on("skfiy:dictation-provider-event", listener);
-    return () => ipcRenderer.removeListener("skfiy:dictation-provider-event", listener);
-  },
-  onDictationTranscriptEvent(callback) {
-    const listener = (_event: IpcRendererEvent, payload: unknown) => {
-      if (isDictationTranscriptEvent(payload)) {
-        callback(payload);
-      }
-    };
-
-    ipcRenderer.on("skfiy:dictation-transcript-event", listener);
-    return () => ipcRenderer.removeListener("skfiy:dictation-transcript-event", listener);
-  },
   onStopTurnHotkey(callback) {
     const listener = () => callback();
 
@@ -562,95 +419,12 @@ const api: DesktopApi = {
   }
 };
 
-function isDictationPreparation(value: unknown): value is DictationPreparation {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const trigger = (value as Partial<DictationPreparation>).voiceTrigger;
-  return trigger === "skfiy-shortcut" || trigger === "fn-double-tap" || trigger === "none";
-}
-
-function isDictationProviderEvent(value: unknown): value is DictationProviderEvent {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const event = value as Partial<DictationProviderEvent>;
-  return (
-    isDictationProviderId(event.providerId)
-    && isDictationProviderState(event.state)
-    && typeof event.message === "string"
-  );
-}
-
-function isDictationTranscriptEvent(value: unknown): value is DictationTranscriptEvent {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const event = value as Partial<DictationTranscriptEvent>;
-  return (
-    isDictationProviderId(event.providerId)
-    && typeof event.text === "string"
-    && typeof event.isFinal === "boolean"
-    && (event.sessionId === undefined || typeof event.sessionId === "string")
-    && (event.confidence === undefined || typeof event.confidence === "number")
-    && (event.provenance === undefined || (
-      typeof event.provenance === "object" && event.provenance !== null
-    ))
-  );
-}
-
-function isDictationProviderId(value: unknown): value is DictationProviderId {
-  return value === "doubao" || value === "browser" || value === "native-macos";
-}
-
-function isDictationProviderState(value: unknown): value is DictationProviderState {
-  return (
-    value === "unavailable"
-    || value === "waiting_for_shortcut_configuration"
-    || value === "listening"
-    || value === "no_transcript"
-    || value === "cancelled"
-    || value === "stopped"
-    || value === "failed"
-  );
-}
-
-function isDictationSettings(value: unknown): value is DictationSettings {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const settings = value as Partial<DictationSettings>;
-  return (
-    isDictationProviderSelection(settings.provider)
-    && (settings.doubaoVoiceTrigger === "skfiy-shortcut"
-      || settings.doubaoVoiceTrigger === "fn-double-tap")
-    && typeof settings.doubaoShortcutLabel === "string"
-    && typeof settings.nativeSpeechLocale === "string"
-    && settings.nativeSpeechLocale.trim().length > 0
-    && isPositiveInteger(settings.nativeSpeechMaxDurationMs)
-    && isPositiveInteger(settings.nativeSpeechSilenceTimeoutMs)
-  );
-}
-
-function readNonEmptyString(value: unknown): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function isDictationProviderSelection(value: unknown): value is DictationProviderSelection {
-  return value === "doubao" || value === "browser" || value === "native-macos";
-}
-
 function isPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function isWindowBounds(value: unknown): value is WindowBounds {
@@ -915,8 +689,6 @@ function isPermissionSummary(value: unknown): value is PermissionSummary {
   return (
     isPermissionStatus(summary.screenRecording)
     && isPermissionStatus(summary.accessibility)
-    && isPermissionStatus(summary.microphone)
-    && isPermissionStatus(summary.speechRecognition)
   );
 }
 
@@ -953,8 +725,6 @@ function isPermissionDiagnosticsKey(value: unknown): value is keyof PermissionSu
   return (
     value === "screenRecording"
     || value === "accessibility"
-    || value === "microphone"
-    || value === "speechRecognition"
   );
 }
 
@@ -1017,20 +787,6 @@ function isDesktopSessionDiagnosticState(
   return value === "controllable" || value === "blocked" || value === "unknown";
 }
 
-function isNativeSpeechStatus(value: unknown): value is NativeSpeechStatus {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const status = value as Partial<NativeSpeechStatus>;
-  return (
-    typeof status.locale === "string"
-    && typeof status.recognizerAvailable === "boolean"
-    && isPermissionStatus(status.speechRecognition)
-    && isPermissionStatus(status.microphone)
-  );
-}
-
 function isPermissionStatus(value: unknown): value is { state: PermissionState } {
   if (!value || typeof value !== "object") {
     return false;
@@ -1053,8 +809,6 @@ function isPermissionSettingsTarget(value: unknown): value is PermissionSettings
   return (
     value === "screen-recording"
     || value === "accessibility"
-    || value === "microphone"
-    || value === "speech-recognition"
   );
 }
 
@@ -1098,6 +852,8 @@ function isPetSkinManifest(value: unknown): value is PetSkinManifest {
 
   const manifest = value as Partial<PetSkinManifest>;
   const states = manifest.states;
+  const rendering = manifest.rendering;
+  const layout = manifest.layout;
   return (
     typeof manifest.displayName === "string"
     && typeof manifest.slug === "string"
@@ -1106,6 +862,26 @@ function isPetSkinManifest(value: unknown): value is PetSkinManifest {
     && isPositiveInteger(manifest.frameHeight)
     && isPositiveInteger(manifest.columns)
     && isPositiveInteger(manifest.rows)
+    && (
+      rendering === undefined
+      || (
+        typeof rendering === "object"
+        && rendering !== null
+        && (rendering.mode === "sprite-atlas" || rendering.mode === "animated-raster")
+        && (rendering.ambientMotion === undefined || typeof rendering.ambientMotion === "boolean")
+        && (rendering.failureShake === undefined || typeof rendering.failureShake === "boolean")
+      )
+    )
+    && (
+      layout === undefined
+      || (
+        typeof layout === "object"
+        && layout !== null
+        && isPositiveInteger(layout.hitboxWidth)
+        && isPositiveInteger(layout.hitboxHeight)
+        && (layout.visualScale === undefined || isPositiveNumber(layout.visualScale))
+      )
+    )
     && Boolean(states)
     && typeof states === "object"
     && [
@@ -1139,9 +915,7 @@ function isPetAnimationState(value: unknown): value is PetAnimationState {
 function createUnknownPermissionSummary(): PermissionSummary {
   return {
     screenRecording: { state: "unknown" },
-    accessibility: { state: "unknown" },
-    microphone: { state: "unknown" },
-    speechRecognition: { state: "unknown" }
+    accessibility: { state: "unknown" }
   };
 }
 
@@ -1168,26 +942,6 @@ function createUnknownDesktopSessionDiagnostics(): DesktopSessionDiagnostics {
     state: "unknown",
     status: null,
     reason: "Desktop session status is unknown."
-  };
-}
-
-function createUnknownNativeSpeechStatus(locale: string): NativeSpeechStatus {
-  return {
-    locale,
-    recognizerAvailable: false,
-    speechRecognition: { state: "unknown" },
-    microphone: { state: "unknown" }
-  };
-}
-
-function createDefaultDictationSettings(): DictationSettings {
-  return {
-    provider: "doubao",
-    doubaoVoiceTrigger: "skfiy-shortcut",
-    doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
-    nativeSpeechLocale: "zh-CN",
-    nativeSpeechMaxDurationMs: 7000,
-    nativeSpeechSilenceTimeoutMs: 900
   };
 }
 

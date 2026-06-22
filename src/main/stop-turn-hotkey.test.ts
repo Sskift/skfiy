@@ -6,7 +6,7 @@ import {
 } from "./stop-turn-hotkey";
 
 describe("registerStopTurnHotkey", () => {
-  it("registers a non-Doubao global panic accelerator and notifies the renderer", () => {
+  it("registers a skfiy-owned global panic accelerator and notifies the renderer", () => {
     let callback: (() => void) | undefined;
     const send = vi.fn();
     const registered = registerStopTurnHotkey({

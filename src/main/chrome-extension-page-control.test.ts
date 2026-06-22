@@ -226,6 +226,179 @@ describe("Chrome extension page control invoker", () => {
     });
   });
 
+  it("maps missing Chrome site access readiness to an actionable page-control blocker", async () => {
+    const siteAccessMessage = "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run.";
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        requestId: "page-control-health-tab_activated-1",
+        pageControl: {
+          state: "blocked_by_chrome_host_permission",
+          reason: siteAccessMessage,
+          nextAction: "grant_chrome_host_permission",
+          chromeHostPermission: {
+            state: "missing",
+            reason: "chrome_host_permission_missing",
+            code: "chrome_host_permission_missing",
+            origins: ["https://allowed.example/*"],
+            message: siteAccessMessage
+          },
+          blockers: [
+            {
+              code: "blocked_by_chrome_host_permission",
+              reason: "chrome_host_permission_missing",
+              message: siteAccessMessage
+            }
+          ]
+        }
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+
+    const result = await invokeChromeExtensionPageControl({
+      action: "fill",
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      targetTabId: 42,
+      selector: "#name",
+      text: "skfiy",
+      requestId: "page-control-fill-cli-current",
+      generatedAt: GENERATED_AT,
+      opener: vi.fn(async () => undefined),
+      io,
+      wait: async () => undefined,
+      pollTimeoutMs: 1
+    });
+
+    expect(result).toMatchObject({
+      result: "blocked",
+      action: "fill",
+      reason: "chrome-site-access-missing",
+      nextAction: "Grant Chrome site access for https://allowed.example/*, then retry `skfiy chrome fill`.",
+      extensionConnection: {
+        pageControl: {
+          state: "blocked_by_chrome_host_permission",
+          chromeHostPermission: {
+            state: "missing"
+          }
+        }
+      }
+    });
+  });
+
+  it("maps blocked latest action evidence to the underlying Chrome site-access blocker", async () => {
+    const siteAccessMessage = "Missing optional Chrome host permission for https://allowed.example/*. Grant site access before page diagnostics or actions can run.";
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-tab_activated-1",
+        pageControl: {
+          state: "partial"
+        },
+        latestCommand: {
+          observedAt: "2026-06-21T10:10:00.100Z",
+          messageType: "skfiy.page.action",
+          requestId: "page-control-fill-cli-current",
+          pageActionResult: {
+            type: "skfiy.host_policy.response",
+            requestId: "page-control-fill-cli-current",
+            result: "blocked",
+            action: "fill",
+            reason: "chrome_host_permission_missing",
+            code: "chrome_host_permission_missing",
+            message: siteAccessMessage,
+            targetTabId: 42,
+            selector: "#name",
+            chromeHostPermission: {
+              state: "missing",
+              origins: ["https://allowed.example/*"],
+              message: siteAccessMessage
+            }
+          }
+        }
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+
+    const result = await invokeChromeExtensionPageControl({
+      action: "fill",
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      targetTabId: 42,
+      selector: "#name",
+      text: "skfiy",
+      requestId: "page-control-fill-cli-current",
+      generatedAt: GENERATED_AT,
+      opener: vi.fn(async () => undefined),
+      io,
+      wait: async () => undefined,
+      pollTimeoutMs: 1
+    });
+
+    expect(result).toMatchObject({
+      result: "blocked",
+      action: "fill",
+      reason: "chrome-site-access-missing",
+      nextAction: "Grant Chrome site access for https://allowed.example/*, then retry `skfiy chrome fill`."
+    });
+  });
+
+  it("maps skfiy host policy readiness blocks to an actionable page-control blocker", async () => {
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        requestId: "page-control-health-tab_activated-1",
+        pageControl: {
+          state: "blocked_by_host_policy",
+          reason: "Host policy has not allowed this page.",
+          nextAction: "allow_host",
+          hostPolicy: {
+            decision: "ask",
+            reason: "default_policy"
+          },
+          activeTab: {
+            host: "ask.example"
+          },
+          blockers: [
+            {
+              code: "blocked_by_host_policy",
+              reason: "default_policy",
+              message: "Host policy has not allowed this page."
+            }
+          ]
+        }
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+
+    const result = await invokeChromeExtensionPageControl({
+      action: "observe",
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      targetTabId: 42,
+      requestId: "page-control-observe-cli-current",
+      generatedAt: GENERATED_AT,
+      opener: vi.fn(async () => undefined),
+      io,
+      wait: async () => undefined,
+      pollTimeoutMs: 1
+    });
+
+    expect(result).toMatchObject({
+      result: "blocked",
+      action: "observe",
+      reason: "chrome-host-policy-blocked",
+      nextAction: "Allow ask.example in skfiy Chrome host policy, then retry `skfiy chrome observe`."
+    });
+  });
+
   it("verifies preserved command evidence for the current request id", async () => {
     const io: ChromeNativeHostIo = {
       exists: vi.fn(async () => true),
@@ -571,6 +744,140 @@ describe("Chrome extension page control invoker", () => {
           state: "blocked",
           eligible: false,
           blocker: "internal_chrome_page"
+        }
+      ]
+    });
+  });
+
+  it("opens tab discovery wake with a request id and verifies matching pageTabs evidence", async () => {
+    const openedUrls: string[] = [];
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-popup_wake-1",
+        latestCommand: {
+          observedAt: "2026-06-21T10:10:01.000Z",
+          messageType: "skfiy.tabs.discover",
+          requestId: "tabs-discover-cli-test",
+          pageTabs: {
+            result: "passed",
+            tabs: [
+              {
+                id: 42,
+                windowId: 7,
+                active: true,
+                title: "Allowed app",
+                url: "https://allowed.example/dashboard",
+                host: "allowed.example",
+                scheme: "https:",
+                state: "eligible",
+                eligible: true
+              }
+            ]
+          }
+        }
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+
+    const result = await invokeChromeExtensionTabDiscovery({
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      generatedAt: GENERATED_AT,
+      requestId: "tabs-discover-cli-test",
+      opener: vi.fn(async (url: string) => {
+        openedUrls.push(url);
+      }),
+      io,
+      wait: async () => undefined,
+      fallbackTabLister: vi.fn(async () => [])
+    } as Parameters<typeof invokeChromeExtensionTabDiscovery>[0] & { requestId: string });
+
+    expect(openedUrls[0]).toContain("skfiyWakeAction=tabs");
+    expect(openedUrls[0]).toContain("skfiyRequestId=tabs-discover-cli-test");
+    expect(result).toMatchObject({
+      result: "verified",
+      discoveryMode: "extension",
+      tabs: [
+        {
+          id: 42,
+          state: "eligible",
+          eligible: true
+        }
+      ],
+      extensionConnection: {
+        latestCommand: {
+          messageType: "skfiy.tabs.discover",
+          requestId: "tabs-discover-cli-test"
+        }
+      }
+    });
+  });
+
+  it("rejects tab discovery evidence from a different request id before using fallback", async () => {
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-popup_wake-1",
+        latestCommand: {
+          observedAt: "2026-06-21T10:10:01.000Z",
+          messageType: "skfiy.tabs.discover",
+          requestId: "tabs-discover-cli-stale",
+          pageTabs: {
+            result: "passed",
+            tabs: [
+              {
+                id: 42,
+                windowId: 7,
+                title: "Stale app",
+                url: "https://stale.example/dashboard",
+                host: "stale.example",
+                scheme: "https:",
+                state: "eligible",
+                eligible: true
+              }
+            ]
+          }
+        }
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+
+    const result = await invokeChromeExtensionTabDiscovery({
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      generatedAt: GENERATED_AT,
+      requestId: "tabs-discover-cli-current",
+      opener: vi.fn(async () => undefined),
+      io,
+      wait: async () => undefined,
+      pollTimeoutMs: 1,
+      fallbackTabLister: vi.fn(async () => [
+        {
+          id: 99,
+          windowId: 8,
+          active: true,
+          title: "Fallback app",
+          url: "https://fallback.example/dashboard"
+        }
+      ])
+    } as Parameters<typeof invokeChromeExtensionTabDiscovery>[0] & { requestId: string });
+
+    expect(result).toMatchObject({
+      result: "verified",
+      discoveryMode: "chrome-apple-events",
+      tabs: [
+        {
+          id: 99,
+          host: "fallback.example",
+          state: "eligible",
+          eligible: true
         }
       ]
     });

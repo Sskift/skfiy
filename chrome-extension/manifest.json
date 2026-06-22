@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "skfiy Chrome Adapter",
-  "version": "0.0.8",
+  "version": "0.0.16",
   "description": "Static Manifest V3 skeleton for the skfiy browser adapter.",
   "minimum_chrome_version": "116",
   "action": {
@@ -14,5 +14,5 @@
   },
   "permissions": ["activeTab", "downloads", "nativeMessaging", "scripting", "storage", "tabs"],
   "host_permissions": [],
-  "optional_host_permissions": ["http://*/*", "https://*/*"]
+  "optional_host_permissions": ["http://*/*", "https://*/*", "<all_urls>"]
 }

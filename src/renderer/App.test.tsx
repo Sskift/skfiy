@@ -5,30 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, {
   type AppPolicySettings,
   type DesktopApi,
-  type DictationProviderEvent,
-  type DictationTranscriptEvent,
   type PlannerProviderSettings,
   type TaskEvent
 } from "./App";
 import type { PetAtlasManifest } from "./pet-atlas";
 
-type TestDesktopApi = DesktopApi & {
-  submitDictation: (
-    sessionId: string | undefined,
-    command: string,
-    options: { stopNativeDictation: boolean }
-  ) => Promise<void>;
-  updateDictationTranscript: (
-    sessionId: string | undefined,
-    update: { text: string; isFinal: boolean; confidence?: number }
-  ) => Promise<void>;
-};
-
 let emitTaskEvent: (event: TaskEvent) => void;
-let emitDictationProviderEvent: (event: DictationProviderEvent) => void;
-let emitDictationTranscriptEvent: (event: DictationTranscriptEvent) => void;
 let emitStopTurnHotkey: () => void;
-const speechRecognitionInstances: MockSpeechRecognition[] = [];
 
 const LOCAL_LUOXIAOHEI_SKIN = {
   displayName: "Luo Xiaohei local",
@@ -52,41 +35,9 @@ const LOCAL_LUOXIAOHEI_SKIN = {
   }
 } satisfies PetAtlasManifest;
 
-interface MockSpeechRecognitionResult {
-  0: { transcript: string; confidence?: number };
-  isFinal: boolean;
-}
-
-interface MockSpeechRecognitionResultEvent {
-  resultIndex: number;
-  results: MockSpeechRecognitionResult[];
-}
-
-class MockSpeechRecognition {
-  continuous = false;
-  interimResults = false;
-  lang = "";
-  onresult: ((event: MockSpeechRecognitionResultEvent) => void) | null = null;
-  onerror: ((event: { error?: string }) => void) | null = null;
-  onend: (() => void) | null = null;
-  start = vi.fn();
-  stop = vi.fn();
-  abort = vi.fn();
-
-  constructor() {
-    speechRecognitionInstances.push(this);
-  }
-}
-
 beforeEach(() => {
   emitTaskEvent = () => undefined;
-  emitDictationProviderEvent = () => undefined;
-  emitDictationTranscriptEvent = () => undefined;
   emitStopTurnHotkey = () => undefined;
-  speechRecognitionInstances.length = 0;
-
-  window.webkitSpeechRecognition =
-    MockSpeechRecognition as unknown as NonNullable<typeof window.webkitSpeechRecognition>;
   const appPolicySettings: AppPolicySettings = {
     apps: [
       { name: "Ghostty", bundleId: "com.mitchellh.ghostty", policy: "allow" },
@@ -103,15 +54,6 @@ beforeEach(() => {
 
   window.skfiy = {
     runCommand: vi.fn<DesktopApi["runCommand"]>().mockResolvedValue(undefined),
-    prepareDictation: vi.fn<DesktopApi["prepareDictation"]>().mockResolvedValue({
-      voiceTrigger: "none",
-      sessionId: "voice-turn-test"
-    }),
-    stopDictation: vi.fn<DesktopApi["stopDictation"]>().mockResolvedValue(undefined),
-    submitDictation: vi.fn<TestDesktopApi["submitDictation"]>().mockResolvedValue(undefined),
-    updateDictationTranscript: vi
-      .fn<TestDesktopApi["updateDictationTranscript"]>()
-      .mockResolvedValue(undefined),
     approveTask: vi.fn<DesktopApi["approveTask"]>().mockResolvedValue(undefined),
     denyTask: vi.fn<DesktopApi["denyTask"]>().mockResolvedValue(undefined),
     takeScreenshot: vi.fn<DesktopApi["takeScreenshot"]>().mockResolvedValue(undefined),
@@ -119,27 +61,19 @@ beforeEach(() => {
     getPermissions: vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
       screenRecording: { state: "unknown" },
       accessibility: { state: "unknown" },
-      microphone: { state: "unknown" },
-      speechRecognition: { state: "unknown" }
     }),
     getPermissionDiagnostics: vi.fn<DesktopApi["getPermissionDiagnostics"]>().mockResolvedValue({
       active: {
         screenRecording: { state: "unknown" },
         accessibility: { state: "unknown" },
-        microphone: { state: "unknown" },
-        speechRecognition: { state: "unknown" }
       },
       appProcess: {
         screenRecording: { state: "unknown" },
         accessibility: { state: "unknown" },
-        microphone: { state: "unknown" },
-        speechRecognition: { state: "unknown" }
       },
       helperProcess: {
         screenRecording: { state: "unknown" },
         accessibility: { state: "unknown" },
-        microphone: { state: "unknown" },
-        speechRecognition: { state: "unknown" }
       },
       mismatches: [],
       identity: {
@@ -161,22 +95,6 @@ beforeEach(() => {
       undefined
     ),
     getStartupWarnings: vi.fn<DesktopApi["getStartupWarnings"]>().mockResolvedValue([]),
-    getDictationSettings: vi.fn<DesktopApi["getDictationSettings"]>().mockResolvedValue({
-      provider: "doubao",
-      doubaoVoiceTrigger: "skfiy-shortcut",
-      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
-      nativeSpeechLocale: "zh-CN",
-      nativeSpeechMaxDurationMs: 7000,
-      nativeSpeechSilenceTimeoutMs: 900
-    }),
-    setDictationSettings: vi.fn<DesktopApi["setDictationSettings"]>().mockResolvedValue({
-      provider: "browser",
-      doubaoVoiceTrigger: "skfiy-shortcut",
-      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
-      nativeSpeechLocale: "zh-CN",
-      nativeSpeechMaxDurationMs: 7000,
-      nativeSpeechSilenceTimeoutMs: 900
-    }),
     getAppPolicySettings: vi.fn<DesktopApi["getAppPolicySettings"]>().mockResolvedValue(
       appPolicySettings
     ),
@@ -213,14 +131,6 @@ beforeEach(() => {
     }),
     moveWindowBy: vi.fn<DesktopApi["moveWindowBy"]>(),
     setWindowMode: vi.fn<DesktopApi["setWindowMode"]>(),
-    onDictationProviderEvent: vi.fn((callback: (event: DictationProviderEvent) => void) => {
-      emitDictationProviderEvent = callback;
-      return vi.fn();
-    }),
-    onDictationTranscriptEvent: vi.fn((callback: (event: DictationTranscriptEvent) => void) => {
-      emitDictationTranscriptEvent = callback;
-      return vi.fn();
-    }),
     onStopTurnHotkey: vi.fn((callback: () => void) => {
       emitStopTurnHotkey = callback;
       return vi.fn();
@@ -229,13 +139,12 @@ beforeEach(() => {
       emitTaskEvent = callback;
       return vi.fn();
     })
-  } satisfies TestDesktopApi;
+  } satisfies DesktopApi;
 });
 
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
-  delete window.webkitSpeechRecognition;
 });
 
 describe("App", () => {
@@ -248,7 +157,7 @@ describe("App", () => {
     expect(pet).toHaveAttribute("data-atlas-state", "idle");
     expect(pet).toHaveAttribute("data-frame-count", "6");
     expect(pet.getAttribute("style")).toContain("--pet-frame-width: 192px");
-    expect(pet).toHaveAttribute("data-voice-entry", "left-click");
+    expect(pet).toHaveAttribute("data-agent-entry", "left-click");
     expect(pet).toHaveAttribute("data-settings-entry", "right-click");
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
     expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
@@ -275,7 +184,7 @@ describe("App", () => {
     );
   });
 
-  it("starts dictation from a plain left click on the pet", async () => {
+  it("opens the agent panel from a plain left click on the pet without obsolete audio controls", async () => {
     render(<App />);
 
     const pet = screen.getByLabelText(/skfiy codex-style pet/i);
@@ -285,257 +194,36 @@ describe("App", () => {
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByLabelText("语音转写")).toHaveFocus();
-    });
-    expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
-    expect(speechRecognitionInstances).toHaveLength(1);
-    expect(speechRecognitionInstances[0]).toMatchObject({
-      continuous: true,
-      interimResults: true,
-      lang: "zh-CN"
-    });
-    expect(speechRecognitionInstances[0].start).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/skfiy audio status/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/skfiy agent status/i)).toHaveTextContent("agent");
   });
 
-  it("opens permission onboarding from left click when required permissions are missing", async () => {
+  it("keeps left click on the agent entry even when Computer Use permissions are missing", async () => {
     const api = window.skfiy as DesktopApi;
     api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
       screenRecording: { state: "denied" },
       accessibility: { state: "not-determined" },
-      microphone: { state: "granted" },
-      speechRecognition: { state: "granted" }
     });
 
     render(<App />);
 
     fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
 
-    const onboarding = await screen.findByLabelText("权限引导");
-    expect(within(onboarding).getByText("需要授权")).toBeInTheDocument();
-    expect(within(onboarding).getByText("屏幕录制")).toBeInTheDocument();
-    expect(within(onboarding).getByText("辅助功能")).toBeInTheDocument();
-    expect(within(onboarding).queryByText("麦克风")).not.toBeInTheDocument();
-    expect(api.prepareDictation).not.toHaveBeenCalled();
-
-    fireEvent.click(within(onboarding).getByRole("button", { name: "打开屏幕录制设置" }));
-
-    expect(api.openPermissionSettings).toHaveBeenCalledWith("screen-recording");
-  });
-
-  it("does not require Speech Recognition for the default external Doubao voice path", async () => {
-    const api = window.skfiy as DesktopApi;
-    api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
-      screenRecording: { state: "granted" },
-      accessibility: { state: "granted" },
-      microphone: { state: "granted" },
-      speechRecognition: { state: "not-determined" }
-    });
-
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-
-    await waitFor(() => {
-      expect(api.prepareDictation).toHaveBeenCalledTimes(1);
-    });
+    expect(screen.getByLabelText(/skfiy agent status/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("权限引导")).not.toBeInTheDocument();
     expect(api.openPermissionSettings).not.toHaveBeenCalled();
   });
 
-  it("opens permission onboarding when native macOS Speech Recognition is missing", async () => {
-    const api = window.skfiy as DesktopApi;
-    api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
-      screenRecording: { state: "granted" },
-      accessibility: { state: "granted" },
-      microphone: { state: "granted" },
-      speechRecognition: { state: "not-determined" }
-    });
-    api.getDictationSettings = vi.fn<DesktopApi["getDictationSettings"]>().mockResolvedValue({
-      provider: "native-macos",
-      doubaoVoiceTrigger: "skfiy-shortcut",
-      doubaoShortcutLabel: "Ctrl Opt Cmd Shift Space",
-      nativeSpeechLocale: "zh-CN",
-      nativeSpeechMaxDurationMs: 7000,
-      nativeSpeechSilenceTimeoutMs: 900
-    });
-
-    render(<App />);
-    await waitFor(() => {
-      expect(api.getDictationSettings).toHaveBeenCalledTimes(1);
-    });
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-
-    const onboarding = await screen.findByLabelText("权限引导");
-    expect(within(onboarding).getByText("语音识别")).toBeInTheDocument();
-    expect(within(onboarding).queryByText("屏幕录制")).not.toBeInTheDocument();
-    expect(within(onboarding).queryByText("辅助功能")).not.toBeInTheDocument();
-    expect(within(onboarding).queryByText("麦克风")).not.toBeInTheDocument();
-    expect(api.prepareDictation).not.toHaveBeenCalled();
-
-    fireEvent.click(within(onboarding).getByRole("button", { name: "打开语音识别设置" }));
-
-    expect(api.openPermissionSettings).toHaveBeenCalledWith("speech-recognition");
-  });
-
-  it("leaves permission onboarding after refresh grants required permissions", async () => {
-    const api = window.skfiy as DesktopApi;
-    api.getPermissions = vi
-      .fn<DesktopApi["getPermissions"]>()
-      .mockResolvedValueOnce({
-        screenRecording: { state: "denied" },
-        accessibility: { state: "granted" },
-        microphone: { state: "granted" },
-        speechRecognition: { state: "granted" }
-      })
-      .mockResolvedValue({
-        screenRecording: { state: "granted" },
-        accessibility: { state: "granted" },
-        microphone: { state: "granted" },
-        speechRecognition: { state: "granted" }
-      });
-
-    render(<App />);
-
-    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
-    fireEvent.click(pet);
-    const onboarding = await screen.findByLabelText("权限引导");
-    fireEvent.click(within(onboarding).getByRole("button", { name: "刷新权限状态" }));
-
-    await waitFor(() => {
-      expect(screen.queryByLabelText("权限引导")).not.toBeInTheDocument();
-    });
-    expect(api.prepareDictation).not.toHaveBeenCalled();
-
-    fireEvent.click(pet);
-
-    await waitFor(() => {
-      expect(api.prepareDictation).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it("uses native Doubao dictation without starting browser speech recognition", async () => {
-    (window.skfiy as DesktopApi).prepareDictation = vi
-      .fn<DesktopApi["prepareDictation"]>()
-      .mockResolvedValue({ voiceTrigger: "skfiy-shortcut" });
-
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("语音转写")).toHaveFocus();
-    });
-    expect(speechRecognitionInstances).toHaveLength(0);
-    expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
-  });
-
-  it("uses native macOS speech transcripts without starting browser speech recognition", async () => {
-    vi.useFakeTimers();
-    (window.skfiy as DesktopApi).prepareDictation = vi
-      .fn<DesktopApi["prepareDictation"]>()
-      .mockResolvedValue({
-        providerId: "native-macos",
-        voiceTrigger: "none",
-        nativeDictationActive: true,
-        sessionId: "native-session-test"
-      });
-
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(speechRecognitionInstances).toHaveLength(0);
-
-    act(() => {
-      emitDictationTranscriptEvent({
-        providerId: "native-macos",
-        sessionId: "native-session-test",
-        text: "打开 Ghostty 执行 pwd",
-        isFinal: true,
-        confidence: 0.91
-      });
-    });
-    expect(screen.getByDisplayValue("打开 Ghostty 执行 pwd")).toBeInTheDocument();
-
-    await act(async () => {
-      vi.advanceTimersByTime(900);
-    });
-
-    expect((window.skfiy as TestDesktopApi).submitDictation).toHaveBeenCalledWith(
-      "native-session-test",
-      "打开 Ghostty 执行 pwd",
-      { stopNativeDictation: true }
-    );
-  });
-
-  it("does not start browser fallback when the provider reports a failed preparation", async () => {
-    (window.skfiy as DesktopApi).prepareDictation = vi
-      .fn<DesktopApi["prepareDictation"]>()
-      .mockResolvedValue({
-        providerId: "doubao",
-        voiceTrigger: "skfiy-shortcut",
-        nativeDictationActive: false,
-        providerState: "failed"
-      });
-
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-
-    await waitFor(() => {
-      expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
-    });
-    expect(speechRecognitionInstances).toHaveLength(0);
-  });
-
-  it("renders dictation provider state events in the voice bubble", async () => {
-    render(<App />);
-
-    act(() => emitDictationProviderEvent({
-      providerId: "doubao",
-      state: "listening",
-      message: "豆包语音已启动."
-    }));
-
-    expect(screen.getByLabelText(/skfiy voice status/i)).toHaveTextContent("豆包语音已启动.");
-    expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
-  });
-
-  it("shows a no-transcript native voice result without submitting a command", async () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    await waitFor(() => {
-      expect(screen.getByLabelText("语音转写")).toHaveFocus();
-    });
-
-    act(() => emitDictationProviderEvent({
-      providerId: "native-macos",
-      state: "no_transcript",
-      message: "没有识别到语音内容，请重试或检查麦克风输入."
-    }));
-
-    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/skfiy voice status/i)).toHaveTextContent(
-      "没有识别到语音内容，请重试或检查麦克风输入."
-    );
-    expect((window.skfiy as TestDesktopApi).submitDictation).not.toHaveBeenCalled();
-  });
-
-  it("opens settings details from a right click on the pet without starting dictation", () => {
+  it("opens settings details from a right click on the pet without starting legacy input capture", () => {
     render(<App />);
 
     fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
 
     expect(screen.getByLabelText(/skfiy settings/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
-    expect((window.skfiy as DesktopApi).prepareDictation).not.toHaveBeenCalled();
+    expect(screen.queryByText("左键")).not.toBeInTheDocument();
+    expect(screen.queryByText("右键")).not.toBeInTheDocument();
   });
 
   it("shows a user-mode dashboard summary before advanced diagnostics", async () => {
@@ -573,23 +261,19 @@ describe("App", () => {
     expect(api.setWindowMode).toHaveBeenLastCalledWith("expanded");
   });
 
-  it("shows permission status in settings and opens the matching macOS settings pane", async () => {
+  it("shows only Computer Use permissions in settings and opens the matching macOS pane", async () => {
     const api = window.skfiy as DesktopApi & {
       getPermissions: () => Promise<{
         screenRecording: { state: "granted" | "denied" | "not-determined" | "unknown" };
         accessibility: { state: "granted" | "denied" | "not-determined" | "unknown" };
-        microphone: { state: "granted" | "denied" | "not-determined" | "unknown" };
-        speechRecognition: { state: "granted" | "denied" | "not-determined" | "unknown" };
       }>;
       openPermissionSettings: (
-        permission: "screen-recording" | "accessibility" | "microphone" | "speech-recognition"
+        permission: "screen-recording" | "accessibility"
       ) => Promise<void>;
     };
     api.getPermissions = vi.fn().mockResolvedValue({
       screenRecording: { state: "denied" },
       accessibility: { state: "granted" },
-      microphone: { state: "not-determined" },
-      speechRecognition: { state: "not-determined" }
     });
     api.openPermissionSettings = vi.fn().mockResolvedValue(undefined);
 
@@ -602,15 +286,14 @@ describe("App", () => {
     });
     expect(screen.getByText("屏幕录制")).toBeInTheDocument();
     expect(screen.getByText("辅助功能")).toBeInTheDocument();
-    expect(screen.getByText("麦克风")).toBeInTheDocument();
-    expect(screen.getByText("语音识别")).toBeInTheDocument();
+    expect(screen.queryByText("麦克风")).not.toBeInTheDocument();
+    expect(screen.queryByText("语音识别")).not.toBeInTheDocument();
     expect(screen.getByText("未授权")).toBeInTheDocument();
     expect(screen.getByText("已授权")).toBeInTheDocument();
-    expect(screen.getAllByText("待授权")).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "打开语音识别设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开屏幕录制设置" }));
 
-    expect(api.openPermissionSettings).toHaveBeenCalledWith("speech-recognition");
+    expect(api.openPermissionSettings).toHaveBeenCalledWith("screen-recording");
   });
 
   it("shows desktop session blockers in settings when permissions are granted", async () => {
@@ -618,8 +301,6 @@ describe("App", () => {
     api.getPermissions = vi.fn<DesktopApi["getPermissions"]>().mockResolvedValue({
       screenRecording: { state: "granted" },
       accessibility: { state: "granted" },
-      microphone: { state: "granted" },
-      speechRecognition: { state: "not-determined" }
     });
     api.getDesktopSessionDiagnostics = vi
       .fn<DesktopApi["getDesktopSessionDiagnostics"]>()
@@ -647,35 +328,18 @@ describe("App", () => {
     );
   });
 
-  it("shows ASR provider choices and Doubao shortcut instructions in settings", async () => {
-    const api = window.skfiy as DesktopApi;
+  it("does not load or expose obsolete audio provider settings in the pet settings bubble", async () => {
     render(<App />);
 
     fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
 
     await waitFor(() => {
-      expect(screen.getByText("语音入口")).toBeInTheDocument();
+      expect(screen.getByText("偏好")).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "选择豆包语音" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    expect(screen.getByRole("button", { name: "选择浏览器语音" })).toHaveAttribute(
-      "aria-pressed",
-      "false"
-    );
-    expect(screen.getByText("豆包输入法语音快捷键")).toBeInTheDocument();
-    expect(screen.getByText("Ctrl Opt Cmd Shift Space")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "选择浏览器语音" }));
-
-    await waitFor(() => {
-      expect(api.setDictationSettings).toHaveBeenCalledWith({ provider: "browser" });
-    });
-    expect(screen.getByRole("button", { name: "选择浏览器语音" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    expect(screen.queryByText("语音入口")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Audio provider")).not.toBeInTheDocument();
+    expect(screen.queryByText(/macOS 语音/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /语音/ })).not.toBeInTheDocument();
   });
 
   it("shows app policy choices and updates app allowlist decisions from settings", async () => {
@@ -738,7 +402,7 @@ describe("App", () => {
     );
   });
 
-  it("shows external CUA endpoint and API key configuration status", async () => {
+  it("shows concise external CUA configuration status", async () => {
     const api = window.skfiy as DesktopApi;
     api.getPlannerProviderSettings = vi.fn<DesktopApi["getPlannerProviderSettings"]>()
       .mockResolvedValue({
@@ -755,8 +419,34 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText("External CUA")).toBeInTheDocument();
     });
-    expect(screen.getByText("Endpoint 已配置")).toBeInTheDocument();
-    expect(screen.getByText("API Key 已配置")).toBeInTheDocument();
+    expect(screen.getByText("External CUA 已配置")).toBeInTheDocument();
+    expect(screen.getByText("在 dashboard 中配置")).toBeInTheDocument();
+    expect(screen.queryByText("Endpoint 已配置")).not.toBeInTheDocument();
+    expect(screen.queryByText("API Key 已配置")).not.toBeInTheDocument();
+  });
+
+  it("keeps heavy provider configuration out of the pet settings bubble", async () => {
+    const api = window.skfiy as DesktopApi;
+    api.getPlannerProviderSettings = vi.fn<DesktopApi["getPlannerProviderSettings"]>()
+      .mockResolvedValue({
+        mode: "external-cua",
+        externalProviderLabel: "External CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      });
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+    fireEvent.click(screen.getByText("诊断/高级"));
+
+    await waitFor(() => {
+      expect(screen.getByText("External CUA")).toBeInTheDocument();
+    });
+    expect(screen.getByText("在 dashboard 中配置")).toBeInTheDocument();
+    expect(screen.queryByText("https://cua.example.test/plan")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("https://cua.example.test/plan")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /endpoint/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/api key/i)).not.toBeInTheDocument();
   });
 
   it("shows the latest local replay transcript in settings", async () => {
@@ -877,21 +567,17 @@ describe("App", () => {
     expect(replay.getByText(/Command submitted to Ghostty/)).toBeInTheDocument();
   });
 
-  it("switches from listening to settings on right click without sending a native stop key", async () => {
+  it("switches from the agent panel to settings on right click", async () => {
     render(<App />);
 
     const pet = screen.getByLabelText(/skfiy codex-style pet/i);
     fireEvent.click(pet);
-    await waitFor(() => {
-      expect(screen.getByLabelText("语音转写")).toHaveFocus();
-    });
+    expect(screen.getByLabelText(/skfiy agent status/i)).toBeInTheDocument();
 
     fireEvent.contextMenu(pet);
 
     expect(screen.getByLabelText(/skfiy settings/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
-    expect((window.skfiy as DesktopApi).stopDictation).not.toHaveBeenCalled();
-    expect(speechRecognitionInstances[0].stop).toHaveBeenCalledTimes(1);
   });
 
   it("renders each task status and switches pet animation from task events", () => {
@@ -944,11 +630,10 @@ describe("App", () => {
     expect(pet).toHaveAttribute("data-drag-mode", "manual");
     expect(api.moveWindowBy).toHaveBeenNthCalledWith(1, 12, -58);
     expect(api.moveWindowBy).toHaveBeenNthCalledWith(2, 0, -30);
-    expect(api.prepareDictation).not.toHaveBeenCalled();
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
   });
 
-  it("uses a compact transparent window until a voice or task bubble is visible", async () => {
+  it("uses a compact transparent window until an agent or task bubble is visible", async () => {
     render(<App />);
 
     const api = window.skfiy as DesktopApi;
@@ -962,75 +647,12 @@ describe("App", () => {
     });
     expect(screen.getByLabelText(/skfiy desktop pet/i)).toHaveClass("panel-open");
 
-    fireEvent.click(screen.getByRole("button", { name: "停止" }));
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
 
     await waitFor(() => {
       expect(api.setWindowMode).toHaveBeenLastCalledWith("compact");
     });
     expect(screen.getByLabelText(/skfiy desktop pet/i)).not.toHaveClass("panel-open");
-  });
-
-  it("focuses a visible Doubao transcript area without showing a command input", async () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("语音转写")).toHaveFocus();
-    });
-    expect(screen.queryByRole("textbox", { name: /command/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
-    expect((window.skfiy as DesktopApi).prepareDictation).toHaveBeenCalledTimes(1);
-  });
-
-  it("can manually stop dictation without submitting the current transcript", async () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    const transcript = await screen.findByLabelText("语音转写");
-    fireEvent.change(transcript, {
-      target: { value: "不要提交这句话" }
-    });
-    await waitFor(() => {
-      expect(speechRecognitionInstances).toHaveLength(1);
-    });
-    fireEvent.click(screen.getByRole("button", { name: "停止" }));
-
-    expect((window.skfiy as DesktopApi).runCommand).not.toHaveBeenCalled();
-    expect((window.skfiy as DesktopApi).stopDictation).toHaveBeenCalledTimes(1);
-    expect(speechRecognitionInstances[0].stop).toHaveBeenCalledTimes(1);
-    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
-  });
-
-  it("stops dictation with the Escape stop-turn hotkey", async () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    await waitFor(() => {
-      expect(screen.getByLabelText("语音转写")).toHaveFocus();
-    });
-
-    fireEvent.keyDown(window, { key: "Escape" });
-
-    expect((window.skfiy as DesktopApi).stopDictation).toHaveBeenCalledTimes(1);
-    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
-  });
-
-  it("stops dictation when the main process panic hotkey fires", async () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    await waitFor(() => {
-      expect(screen.getByLabelText("语音转写")).toHaveFocus();
-    });
-
-    act(() => emitStopTurnHotkey());
-
-    expect((window.skfiy as DesktopApi).stopDictation).toHaveBeenCalledTimes(1);
-    expect(screen.queryByLabelText("语音转写")).not.toBeInTheDocument();
   });
 
   it("stops an active task with the Escape stop-turn hotkey", () => {
@@ -1040,178 +662,6 @@ describe("App", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect((window.skfiy as DesktopApi).stopTask).toHaveBeenCalledTimes(1);
-  });
-
-  it("writes browser speech recognition results into the transcript", async () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    await waitFor(() => {
-      expect(screen.getByLabelText("语音转写")).toHaveFocus();
-    });
-
-    act(() => {
-      speechRecognitionInstances[0].onresult?.({
-        resultIndex: 0,
-        results: [
-          {
-            0: { transcript: "打开 Ghostty 并截图", confidence: 0.87 },
-            isFinal: true
-          }
-        ]
-      });
-    });
-
-    expect(screen.getByDisplayValue("打开 Ghostty 并截图")).toBeInTheDocument();
-    expect((window.skfiy as TestDesktopApi).updateDictationTranscript).toHaveBeenCalledWith(
-      "voice-turn-test",
-      {
-        text: "打开 Ghostty 并截图",
-        isFinal: true,
-        confidence: 0.87
-      }
-    );
-  });
-
-  it("auto-submits settled Doubao dictation text", async () => {
-    vi.useFakeTimers();
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    fireEvent.change(screen.getByLabelText("语音转写"), {
-      target: { value: "打开 Ghostty 并截图" }
-    });
-
-    expect(screen.getByDisplayValue("打开 Ghostty 并截图")).toBeInTheDocument();
-
-    await act(async () => {
-      vi.advanceTimersByTime(899);
-    });
-
-    const api = window.skfiy as TestDesktopApi;
-    expect(api.runCommand).not.toHaveBeenCalled();
-
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-    });
-
-    expect(api.submitDictation).toHaveBeenCalledWith("voice-turn-test", "打开 Ghostty 并截图", {
-      stopNativeDictation: false
-    });
-    expect(api.runCommand).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
-  });
-
-  it("does not auto-submit interim browser speech candidates", async () => {
-    vi.useFakeTimers();
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    act(() => {
-      speechRecognitionInstances[0].onresult?.({
-        resultIndex: 0,
-        results: [
-          {
-            0: { transcript: "打开 Ghost", confidence: 0.9 },
-            isFinal: false
-          }
-        ]
-      });
-    });
-
-    await act(async () => {
-      vi.advanceTimersByTime(1_200);
-    });
-
-    expect((window.skfiy as TestDesktopApi).submitDictation).not.toHaveBeenCalled();
-    expect(screen.getByDisplayValue("打开 Ghost")).toBeInTheDocument();
-  });
-
-  it("does not auto-submit low-confidence final browser speech candidates", async () => {
-    vi.useFakeTimers();
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    act(() => {
-      speechRecognitionInstances[0].onresult?.({
-        resultIndex: 0,
-        results: [
-          {
-            0: { transcript: "打开 Ghostty 并截图", confidence: 0.34 },
-            isFinal: true
-          }
-        ]
-      });
-    });
-
-    await act(async () => {
-      vi.advanceTimersByTime(1_200);
-    });
-
-    expect((window.skfiy as TestDesktopApi).submitDictation).not.toHaveBeenCalled();
-    expect(screen.getByDisplayValue("打开 Ghostty 并截图")).toBeInTheDocument();
-  });
-
-  it("auto-submits when an interim browser speech candidate becomes final with confidence", async () => {
-    vi.useFakeTimers();
-    render(<App />);
-
-    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    act(() => {
-      speechRecognitionInstances[0].onresult?.({
-        resultIndex: 0,
-        results: [
-          {
-            0: { transcript: "打开 Ghostty 并截图", confidence: 0.89 },
-            isFinal: false
-          }
-        ]
-      });
-    });
-    await act(async () => {
-      vi.advanceTimersByTime(1_200);
-    });
-    expect((window.skfiy as TestDesktopApi).submitDictation).not.toHaveBeenCalled();
-
-    act(() => {
-      speechRecognitionInstances[0].onresult?.({
-        resultIndex: 0,
-        results: [
-          {
-            0: { transcript: "打开 Ghostty 并截图", confidence: 0.89 },
-            isFinal: true
-          }
-        ]
-      });
-    });
-    await act(async () => {
-      vi.advanceTimersByTime(900);
-    });
-
-    expect((window.skfiy as TestDesktopApi).submitDictation).toHaveBeenCalledWith(
-      "voice-turn-test",
-      "打开 Ghostty 并截图",
-      { stopNativeDictation: false }
-    );
   });
 
   it("exposes approval controls when a command is waiting for approval", () => {
@@ -1363,5 +813,7 @@ describe("App", () => {
     expect(css).toContain("line-height: 0;");
     expect(css).toContain(".permissions-heading button svg,\n.permission-row button svg");
     expect(css).toContain("display: block;");
+    expect(css).toContain(".dashboard-actions button svg,\n.approval-actions button svg");
+    expect(css).toContain("flex: 0 0 auto;");
   });
 });

@@ -68,7 +68,7 @@ describe("dogfood cohort updater", () => {
     expect(createDogfoodReportHelpText()).toContain("--issue-url");
     expect(createDogfoodReportHelpText()).toContain("--issue-labels");
     expect(createDogfoodReportHelpText()).toContain("requires a readable accepted issue body");
-    expect(createDogfoodReportHelpText()).toContain("must include all five issue smoke artifact paths");
+    expect(createDogfoodReportHelpText()).toContain("must include the required issue smoke artifact paths");
     expect(createDogfoodReportHelpText()).toContain("must include app bundle preflight evidence");
     expect(createDogfoodReportHelpText()).toContain("must include UI pet drag evidence");
     expect(createDogfoodReportHelpText()).toContain("requires the issue alpha manifest, zip, and commit sha to match --manifest");
@@ -88,7 +88,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -99,13 +98,11 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     await expect(updateDogfoodCohort({
       manifestPath,
@@ -133,7 +130,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -144,20 +140,17 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     });
     const issueBody = createIssueBody("tester-a", ["coding-terminal", "screenshot-inspection"], {
       uiSmokePath,
       ghosttySmokePath,
       chromeSmokePath,
       finderSmokePath,
-      voiceSmokePath
     });
 
     await expect(updateDogfoodCohort({
@@ -220,23 +213,19 @@ describe("dogfood cohort updater", () => {
       },
       permissionStates: {
         screenRecording: { state: "denied" },
-        accessibility: { state: "denied" },
-        microphone: { state: "not-determined" },
-        speechRecognition: { state: "not-determined" }
+        accessibility: { state: "denied" }
       },
       artifacts: {
         uiSmokeArtifactPath: uiSmokePath,
         ghosttySmokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
-        finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
+        finderSmokeArtifactPath: finderSmokePath
       },
       artifactResults: {
         ui: "passed",
         ghostty: "blocked",
         chrome: "passed",
-        finder: "blocked",
-        voice: "blocked"
+        finder: "blocked"
       },
       uiPetDragEvidence: {
         result: "passed",
@@ -282,7 +271,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -293,7 +281,6 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: {
@@ -302,14 +289,12 @@ describe("dogfood cohort updater", () => {
       },
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "blocked")
     });
     const issueBody = createIssueBody("tester-a", ["coding-terminal", "screenshot-inspection"], {
       uiSmokePath,
       ghosttySmokePath,
       chromeSmokePath,
       finderSmokePath,
-      voiceSmokePath
     });
 
     await expect(updateDogfoodCohort({
@@ -353,7 +338,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -364,13 +348,11 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const fetchedIssueLabels = [
       "dogfood:accepted",
@@ -382,7 +364,6 @@ describe("dogfood cohort updater", () => {
       ghosttySmokePath,
       chromeSmokePath,
       finderSmokePath,
-      voiceSmokePath
     });
 
     await expect(updateDogfoodCohort({
@@ -424,7 +405,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -435,20 +415,17 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const issueBody = createIssueBody("tester-a", ["coding-terminal", "browser-fallback"], {
       uiSmokePath,
       ghosttySmokePath,
       chromeSmokePath,
       finderSmokePath,
-      voiceSmokePath
     }, "abc123", { includeAppBundlePreflight: false });
 
     await expect(updateDogfoodCohort({
@@ -489,7 +466,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -500,20 +476,17 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const issueBody = createIssueBody("tester-a", ["coding-terminal", "browser-fallback"], {
       uiSmokePath,
       ghosttySmokePath,
       chromeSmokePath,
       finderSmokePath,
-      voiceSmokePath
     }, "abc123", { includeUiPetDragEvidence: false });
 
     await expect(updateDogfoodCohort({
@@ -554,7 +527,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -565,20 +537,17 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const issueBody = createIssueBody("tester-a", ["coding-terminal", "browser-fallback"], {
       uiSmokePath,
       ghosttySmokePath,
       chromeSmokePath,
       finderSmokePath,
-      voiceSmokePath
     }, "abc123", { includePanicStopEvidence: false });
 
     await expect(updateDogfoodCohort({
@@ -655,7 +624,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -666,20 +634,17 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const issueBody = createIssueBody("tester-a", ["coding-terminal", "browser-fallback"], {
       uiSmokePath,
       ghosttySmokePath,
       chromeSmokePath,
       finderSmokePath,
-      voiceSmokePath
     }, "abc123", { uiPetDragEvidenceLineOverrides: lines });
 
     await expect(updateDogfoodCohort({
@@ -720,7 +685,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -731,13 +695,11 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const issueBody = [
       "### alpha manifest",
@@ -778,10 +740,6 @@ describe("dogfood cohort updater", () => {
       "### Finder smoke artifact",
       "",
       finderSmokePath,
-      "",
-      "### voice smoke artifact",
-      "",
-      voiceSmokePath,
       "",
       ...createAppBundlePreflightLines(),
       "",
@@ -838,12 +796,10 @@ describe("dogfood cohort updater", () => {
     const manifestGhosttySmokePath = "/repo/.skfiy-smoke/manifest-ghostty.json";
     const manifestChromeSmokePath = "/repo/.skfiy-smoke/manifest-chrome.json";
     const manifestFinderSmokePath = "/repo/.skfiy-smoke/manifest-finder.json";
-    const manifestVoiceSmokePath = "/repo/.skfiy-smoke/manifest-voice.json";
     const testerUiSmokePath = "/repo/.skfiy-smoke/tester-issue-ui.json";
     const testerGhosttySmokePath = "/repo/.skfiy-smoke/tester-issue-ghostty.json";
     const testerChromeSmokePath = "/repo/.skfiy-smoke/tester-issue-chrome.json";
     const testerFinderSmokePath = "/repo/.skfiy-smoke/tester-issue-finder.json";
-    const testerVoiceSmokePath = "/repo/.skfiy-smoke/tester-issue-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -854,13 +810,11 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: manifestGhosttySmokePath,
         chromeSmokeArtifactPath: manifestChromeSmokePath,
         finderSmokeArtifactPath: manifestFinderSmokePath,
-        voiceSmokeArtifactPath: manifestVoiceSmokePath
       },
       [testerUiSmokePath]: createSmokeArtifact(testerUiSmokePath, "passed"),
       [testerGhosttySmokePath]: createSmokeArtifact(testerGhosttySmokePath, "passed"),
       [testerChromeSmokePath]: createSmokeArtifact(testerChromeSmokePath, "passed"),
       [testerFinderSmokePath]: createSmokeArtifact(testerFinderSmokePath, "passed"),
-      [testerVoiceSmokePath]: createSmokeArtifact(testerVoiceSmokePath, "passed")
     });
     const issueBody = [
       "### alpha manifest",
@@ -902,10 +856,6 @@ describe("dogfood cohort updater", () => {
       "",
       testerFinderSmokePath,
       "",
-      "### voice smoke artifact",
-      "",
-      testerVoiceSmokePath,
-      "",
       ...createAppBundlePreflightLines(),
       "",
       ...createUiPetDragEvidenceLines(),
@@ -944,15 +894,13 @@ describe("dogfood cohort updater", () => {
         uiSmokeArtifactPath: testerUiSmokePath,
         ghosttySmokeArtifactPath: testerGhosttySmokePath,
         chromeSmokeArtifactPath: testerChromeSmokePath,
-        finderSmokeArtifactPath: testerFinderSmokePath,
-        voiceSmokeArtifactPath: testerVoiceSmokePath
+        finderSmokeArtifactPath: testerFinderSmokePath
       },
       artifactResults: {
         ui: "passed",
         ghostty: "passed",
         chrome: "passed",
-        finder: "passed",
-        voice: "passed"
+        finder: "passed"
       }
     });
   });
@@ -968,7 +916,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -979,13 +926,11 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const incompleteIssueBody = [
       "### alpha manifest",
@@ -1020,9 +965,6 @@ describe("dogfood cohort updater", () => {
       "",
       chromeSmokePath,
       "",
-      "### voice smoke artifact",
-      "",
-      voiceSmokePath
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -1055,7 +997,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -1066,13 +1007,11 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const mismatchedIssueBody = [
       "### alpha manifest",
@@ -1111,9 +1050,6 @@ describe("dogfood cohort updater", () => {
       "",
       finderSmokePath,
       "",
-      "### voice smoke artifact",
-      "",
-      voiceSmokePath
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -1146,7 +1082,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -1157,7 +1092,6 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: {
         ...createSmokeArtifact("/repo/.skfiy-smoke/other-ui.json", "passed")
@@ -1165,7 +1099,6 @@ describe("dogfood cohort updater", () => {
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const issueBody = [
       "### alpha manifest",
@@ -1204,9 +1137,6 @@ describe("dogfood cohort updater", () => {
       "",
       finderSmokePath,
       "",
-      "### voice smoke artifact",
-      "",
-      voiceSmokePath
     ].join("\n");
 
     await expect(updateDogfoodCohort({
@@ -1263,7 +1193,6 @@ describe("dogfood cohort updater", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-    const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
     const io = createMemoryIo({
       [manifestPath]: {
         schemaVersion: 1,
@@ -1273,20 +1202,17 @@ describe("dogfood cohort updater", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
-        voiceSmokeArtifactPath: voiceSmokePath
       },
       [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
       [finderSmokePath]: createSmokeArtifact(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmokeArtifact(voiceSmokePath, "passed")
     });
     const issueBody = createIssueBody("tester-a", ["coding-terminal", "browser-fallback"], {
       uiSmokePath,
       ghosttySmokePath,
       chromeSmokePath,
       finderSmokePath,
-      voiceSmokePath
     });
     const ioWithIssueBody = {
       ...io,
@@ -1507,7 +1433,6 @@ describe("dogfood cohort updater", () => {
       ghosttySmokePath: string;
       chromeSmokePath: string;
       finderSmokePath: string;
-      voiceSmokePath: string;
     },
     commitSha = "abc123",
     options: {
@@ -1561,9 +1486,6 @@ describe("dogfood cohort updater", () => {
       "",
       paths.finderSmokePath,
       "",
-      "### voice smoke artifact",
-      "",
-      paths.voiceSmokePath
     ];
 
     if (options.includeAppBundlePreflight !== false) {
@@ -1682,15 +1604,12 @@ describe("dogfood cohort updater", () => {
       permissionStates: {
         screenRecording: { state: result === "passed" ? "granted" : "denied" },
         accessibility: { state: result === "passed" ? "granted" : "denied" },
-        microphone: { state: result === "passed" ? "granted" : "not-determined" },
-        speechRecognition: { state: result === "passed" ? "granted" : "not-determined" }
       },
       artifacts: {
         uiSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-ui.json`,
         ghosttySmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-ghostty.json`,
         chromeSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-chrome.json`,
         finderSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-finder.json`,
-        voiceSmokeArtifactPath: `/repo/.skfiy-smoke/${testerId}-voice.json`
       },
       stopTurnEvidence: {
         accelerator: "Control+Alt+Shift+Esc",
@@ -1728,8 +1647,6 @@ describe("dogfood cohort updater", () => {
       permissions: {
         screenRecording: { state: "denied" },
         accessibility: { state: "denied" },
-        microphone: { state: "not-determined" },
-        speechRecognition: { state: "not-determined" }
       },
       runtimeStatus: {
         stopTurnHotkey: {

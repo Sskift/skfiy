@@ -22,15 +22,14 @@ import {
   decideAppPolicy,
   readInitialAppPolicySettings
 } from "./app-policy-settings.js";
+import {
+  readInitialAssistantAgentSettings,
+  runAssistantAgentTurn
+} from "./assistant-agent.js";
 import { applyApprovedChromeTaskHostPolicy } from "./chrome-approval-policy.js";
 import { createChromeCdpClient } from "./chrome-cdp-client.js";
 import { readChromeCdpEndpoint } from "./chrome-cdp-settings.js";
 import { createTmuxSupervisionClient } from "./tmux-supervision-client.js";
-import {
-  createDictationSettingsStore,
-  readInitialDictationSettings,
-  resolveDictationVoiceTrigger
-} from "./dictation-settings.js";
 import {
   createPlannerProviderSettingsStore,
   readInitialPlannerProviderSettings
@@ -38,20 +37,7 @@ import {
 import { decidePlannerProviderRuntime } from "./planner-provider-runtime.js";
 import { resolvePlannerCommand } from "./planner-command.js";
 import { createExternalCuaTerminalPlannerFromEnv } from "./external-cua-planner.js";
-import {
-  createDoubaoDictationProvider,
-  createNativeMacOSDictationProvider,
-  type DictationProviderEvent
-} from "./dictation-provider.js";
 import { readDesktopSessionDiagnosticsForRenderer } from "./desktop-session-diagnostics.js";
-import {
-  createVoiceTurnSessionStore,
-  decideVoiceIntentAdmission,
-  type VoiceTurnSession,
-  type VoiceTurnProviderId,
-  type VoiceIntentAdmissionDecision,
-  type VoiceTurnTranscriptCandidateInput
-} from "./voice-turn-session.js";
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
 import {
   runChromePageTask,
@@ -93,6 +79,7 @@ import {
   type RuntimeSnapshotCurrentTurnInput
 } from "./runtime-snapshot.js";
 import { readDefaultLocalOriginPetSkin } from "./pet-skin.js";
+import { readDefaultApprovalBypass } from "./approval-bypass.js";
 
 type ManualMode = "active" | "quiet";
 type TaskStatus =
@@ -145,24 +132,18 @@ const chromeCdpEndpoint = readChromeCdpEndpoint({
 const plannerProviderSettingsStore = createPlannerProviderSettingsStore(
   readInitialPlannerProviderSettings(process.env)
 );
+const assistantAgentSettings = readInitialAssistantAgentSettings(process.env);
 const turnReplayStore = createTurnReplayStore({
   onReplayChanged: (replay) => {
     persistRuntimeSnapshot(replay);
   }
 });
-const dictationSettingsStore = createDictationSettingsStore(
-  readInitialDictationSettings(process.env)
-);
-const voiceTurnSessionStore = createVoiceTurnSessionStore();
-const DICTATION_STOP_KEY_SETTLE_WAIT_MS = 300;
-
 let mainWindow: BrowserWindow | null = null;
 let currentTaskId = 0;
 let screenshotSerial = 0;
 let activeTaskController: AbortController | null = null;
 let pendingApproval: PendingApproval | null = null;
 let stopTurnHotkeyRegistered = false;
-let activeDictationProviderStop: (() => Promise<void>) | null = null;
 
 function persistRuntimeSnapshot(
   replay: TurnReplay | null,
@@ -196,101 +177,6 @@ function emitTaskEvent(window: BrowserWindow | null, event: TaskEvent) {
   }
 
   window.webContents.send("skfiy:task-event", event);
-}
-
-function emitDictationProviderEvent(window: BrowserWindow | null, event: DictationProviderEvent) {
-  if (!window || window.isDestroyed()) {
-    return;
-  }
-
-  window.webContents.send("skfiy:dictation-provider-event", event);
-}
-
-function emitDictationTranscriptEvent(
-  window: BrowserWindow | null,
-  event: {
-    providerId: VoiceTurnProviderId;
-    sessionId: string;
-    text: string;
-    isFinal: boolean;
-    confidence?: number;
-    provenance?: object;
-  }
-) {
-  if (!window || window.isDestroyed()) {
-    return;
-  }
-
-  window.webContents.send("skfiy:dictation-transcript-event", event);
-}
-
-function startVoiceTurnSession(providerId: VoiceTurnProviderId): VoiceTurnSession {
-  return voiceTurnSessionStore.start({
-    providerId,
-    trigger: "pet-click"
-  });
-}
-
-function cancelVoiceTurnSession(sessionId: unknown): void {
-  const id = typeof sessionId === "string" ? sessionId : voiceTurnSessionStore.getActive()?.id;
-
-  if (!id) {
-    return;
-  }
-
-  try {
-    voiceTurnSessionStore.cancel(id, "manual-stop");
-  } catch {
-    // The renderer can send a late stop after a submit already finalized the session.
-  }
-}
-
-function readVoiceTurnSession(sessionId: unknown): VoiceTurnSession | null {
-  const id = typeof sessionId === "string" ? sessionId : voiceTurnSessionStore.getActive()?.id;
-  return id ? voiceTurnSessionStore.get(id) : null;
-}
-
-function finalizeVoiceTurnSession(sessionId: unknown, transcript: string): void {
-  const id = typeof sessionId === "string" ? sessionId : voiceTurnSessionStore.getActive()?.id;
-
-  if (!id) {
-    return;
-  }
-
-  voiceTurnSessionStore.finalize(id, { text: transcript });
-}
-
-function recordVoiceTranscriptCandidate(
-  sessionId: unknown,
-  update: VoiceTurnTranscriptCandidateInput
-): void {
-  const id = typeof sessionId === "string" ? sessionId : voiceTurnSessionStore.getActive()?.id;
-
-  if (!id) {
-    return;
-  }
-
-  voiceTurnSessionStore.recordTranscriptCandidate(id, update);
-}
-
-function failVoiceTurnSession(sessionId: string, message: string): void {
-  try {
-    voiceTurnSessionStore.fail(sessionId, message);
-  } catch {
-    // The session may already have been stopped by the user.
-  }
-}
-
-async function stopCurrentDictationProvider(window: BrowserWindow | null): Promise<void> {
-  if (activeDictationProviderStop) {
-    const stop = activeDictationProviderStop;
-    activeDictationProviderStop = null;
-    await stop();
-  }
-}
-
-async function waitForDictationStopKeyToSettle(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, DICTATION_STOP_KEY_SETTLE_WAIT_MS));
 }
 
 function emitTurnReplayTaskEvent(window: BrowserWindow | null, event: TaskEvent): void {
@@ -502,33 +388,6 @@ function readMode(value: unknown): ManualMode {
   return value === "quiet" || value === "active" ? value : "active";
 }
 
-function readVoiceTranscriptCandidate(value: unknown): VoiceTurnTranscriptCandidateInput | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-
-  const candidate = value as Partial<VoiceTurnTranscriptCandidateInput>;
-
-  if (typeof candidate.text !== "string" || !candidate.text.trim()) {
-    return undefined;
-  }
-
-  if (typeof candidate.isFinal !== "boolean") {
-    return undefined;
-  }
-
-  return {
-    text: candidate.text,
-    isFinal: candidate.isFinal,
-    confidence: typeof candidate.confidence === "number" && Number.isFinite(candidate.confidence)
-      ? candidate.confidence
-      : undefined,
-    provenance: candidate.provenance && typeof candidate.provenance === "object"
-      ? candidate.provenance
-      : undefined
-  };
-}
-
 function readPetWindowMode(value: unknown): PetWindowMode | undefined {
   return value === "compact" || value === "expanded" ? value : undefined;
 }
@@ -544,8 +403,6 @@ function readTurnReplayTaskEvent(event: TaskEvent): TurnReplayTaskEvent {
 function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget | undefined {
   return value === "screen-recording"
     || value === "accessibility"
-    || value === "microphone"
-    || value === "speech-recognition"
     ? value
     : undefined;
 }
@@ -557,12 +414,6 @@ function readAppProcessPermissions(): PermissionSummary {
     },
     accessibility: {
       state: systemPreferences.isTrustedAccessibilityClient(false) ? "granted" : "denied"
-    },
-    microphone: {
-      state: readElectronMediaPermissionState(systemPreferences.getMediaAccessStatus("microphone"))
-    },
-    speechRecognition: {
-      state: "unknown"
     }
   };
 }
@@ -581,28 +432,16 @@ function readFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function handleVoiceAdmissionInterruption(
-  window: BrowserWindow | null,
-  voiceAdmission: Exclude<VoiceIntentAdmissionDecision, { decision: "computer_use" }>
-): void {
-  pendingApproval = null;
-  activeTaskController?.abort();
-  activeTaskController = null;
-  currentTaskId += 1;
-  turnReplayStore.startTurn();
-
-  if (voiceAdmission.decision === "chat") {
-    emitTurnReplayTaskEvent(window, {
-      status: "completed",
-      message: "Voice intent routed to chat: 我是 skfiy，可以帮你把明确的语音意图转成受控的桌面操作。"
+async function createAssistantAgentTaskMessage(input: string): Promise<string> {
+  try {
+    const result = await runAssistantAgentTurn(input, {
+      settings: assistantAgentSettings
     });
-    return;
-  }
 
-  emitTurnReplayTaskEvent(window, {
-    status: "needs_confirmation",
-    message: `Voice intent needs clarification: ${voiceAdmission.reason} 请重新说清目标应用和动作。`
-  });
+    return `${result.providerLabel}: ${result.message}`;
+  } catch (error) {
+    return `Assistant agent failed: ${error instanceof Error ? error.message : "unknown error"}`;
+  }
 }
 
 async function runCommandTask(
@@ -625,7 +464,7 @@ async function runCommandTask(
     currentTaskId += 1;
     emitTurnReplayTaskEvent(window, {
       status: "completed",
-      message: "我是 skfiy，可以帮你把明确的语音意图转成受控的桌面操作。"
+      message: await createAssistantAgentTaskMessage(command)
     });
     return;
   }
@@ -999,226 +838,7 @@ ipcMain.handle(
       return;
     }
 
-    await runCommandTask(window, trimmed, mode, false);
-  }
-);
-
-ipcMain.handle("skfiy:prepare-dictation", async (event) => {
-  const window = BrowserWindow.fromWebContents(event.sender);
-  const dictationSettings = dictationSettingsStore.get();
-  const voiceTrigger = resolveDictationVoiceTrigger(dictationSettings);
-  const voiceTurnSession = startVoiceTurnSession(dictationSettings.provider);
-  let lastProviderState: DictationProviderEvent["state"] | undefined;
-
-  if (window && !window.isDestroyed()) {
-    window.setFocusable(true);
-    window.show();
-    window.focus();
-  }
-
-  if (dictationSettings.provider === "browser") {
-    activeDictationProviderStop = null;
-    return {
-      providerId: "browser",
-      sessionId: voiceTurnSession.id,
-      voiceTrigger: "none",
-      nativeDictationActive: false
-    };
-  }
-
-  if (dictationSettings.provider === "native-macos") {
-    const provider = createNativeMacOSDictationProvider({
-      helper: createDesktopHelper(),
-      locale: dictationSettings.nativeSpeechLocale,
-      maxDurationMs: dictationSettings.nativeSpeechMaxDurationMs,
-      silenceTimeoutMs: dictationSettings.nativeSpeechSilenceTimeoutMs,
-      emit: (providerEvent) => {
-        lastProviderState = providerEvent.state;
-        emitDictationProviderEvent(window, providerEvent);
-      },
-      emitTranscript: (transcript) => {
-        const update = {
-          text: transcript.text,
-          isFinal: transcript.isFinal,
-          confidence: transcript.confidence,
-          provenance: transcript.provenance
-        };
-
-        try {
-          recordVoiceTranscriptCandidate(voiceTurnSession.id, update);
-        } catch {
-          // The user may have stopped the voice turn before native ASR returned.
-        }
-
-        emitDictationTranscriptEvent(window, {
-          providerId: "native-macos",
-          sessionId: voiceTurnSession.id,
-          ...update
-        });
-      }
-    });
-
-    try {
-      const preparation = await provider.prepare();
-      activeDictationProviderStop = provider.stop;
-      return {
-        ...preparation,
-        sessionId: voiceTurnSession.id
-      };
-    } catch (error) {
-      activeDictationProviderStop = null;
-      failVoiceTurnSession(
-        voiceTurnSession.id,
-        error instanceof Error ? error.message : "macOS speech could not be prepared."
-      );
-      emitTaskEvent(window, {
-        status: "failed",
-        message: error instanceof Error ? error.message : "macOS speech could not be prepared."
-      });
-    }
-
-    return {
-      providerId: "native-macos",
-      sessionId: voiceTurnSession.id,
-      voiceTrigger: "none",
-      nativeDictationActive: false,
-      providerState: lastProviderState ?? "failed"
-    };
-  }
-
-  try {
-    const provider = createDoubaoDictationProvider({
-      helper: createDesktopHelper(),
-      voiceTrigger,
-      emit: (providerEvent) => {
-        lastProviderState = providerEvent.state;
-        emitDictationProviderEvent(window, providerEvent);
-      }
-    });
-    const preparation = await provider.prepare();
-    activeDictationProviderStop = provider.stop;
-    return {
-      ...preparation,
-      sessionId: voiceTurnSession.id
-    };
-  } catch (error) {
-    failVoiceTurnSession(
-      voiceTurnSession.id,
-      error instanceof Error ? error.message : "Doubao dictation could not be prepared."
-    );
-    emitTaskEvent(window, {
-      status: "failed",
-      message: error instanceof Error ? error.message : "Doubao dictation could not be prepared."
-    });
-  }
-
-  return {
-    providerId: "doubao",
-    sessionId: voiceTurnSession.id,
-    voiceTrigger,
-    nativeDictationActive: false,
-    providerState: lastProviderState ?? "failed"
-  };
-});
-
-ipcMain.handle("skfiy:stop-dictation", async (event, sessionId: unknown) => {
-  const window = BrowserWindow.fromWebContents(event.sender);
-  cancelVoiceTurnSession(sessionId);
-  await stopCurrentDictationProvider(window);
-});
-
-ipcMain.handle("skfiy:update-dictation-transcript", (event, sessionId: unknown, update: unknown) => {
-  const window = BrowserWindow.fromWebContents(event.sender);
-  const transcriptUpdate = readVoiceTranscriptCandidate(update);
-
-  if (!transcriptUpdate) {
-    return;
-  }
-
-  try {
-    const voiceTurnSession = readVoiceTurnSession(sessionId);
-    if (!voiceTurnSession) {
-      return;
-    }
-    recordVoiceTranscriptCandidate(sessionId, transcriptUpdate);
-    emitDictationTranscriptEvent(window, {
-      providerId: voiceTurnSession.providerId,
-      sessionId: voiceTurnSession.id,
-      ...transcriptUpdate
-    });
-  } catch (error) {
-    emitTaskEvent(window, {
-      status: "failed",
-      message: error instanceof Error ? error.message : "Voice transcript could not be recorded."
-    });
-  }
-});
-
-ipcMain.handle(
-  "skfiy:submit-dictation",
-  async (
-    event,
-    sessionId: unknown,
-    command: unknown,
-    options: { stopNativeDictation?: unknown } = {}
-  ) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-
-    if (typeof command !== "string") {
-      emitTaskEvent(window, {
-        status: "failed",
-        message: "Voice command must be text."
-      });
-      return;
-    }
-
-    const trimmed = command.trim();
-
-    if (!trimmed) {
-      emitTaskEvent(window, {
-        status: "failed",
-        message: "No voice command was provided."
-      });
-      return;
-    }
-
-    const voiceTurnSession = readVoiceTurnSession(sessionId);
-    if (!voiceTurnSession) {
-      emitTaskEvent(window, {
-        status: "failed",
-        message: "Voice turn session is missing."
-      });
-      return;
-    }
-
-    const route = selectCommandRoute(trimmed);
-    const voiceAdmission = decideVoiceIntentAdmission({
-      session: voiceTurnSession,
-      submittedText: trimmed,
-      route
-    });
-
-    try {
-      finalizeVoiceTurnSession(sessionId, trimmed);
-    } catch (error) {
-      emitTaskEvent(window, {
-        status: "failed",
-        message: error instanceof Error ? error.message : "Voice turn could not be finalized."
-      });
-      return;
-    }
-
-    if (options.stopNativeDictation === true) {
-      await stopCurrentDictationProvider(window);
-      await waitForDictationStopKeyToSettle();
-    }
-
-    if (voiceAdmission.decision === "computer_use") {
-      await runCommandTask(window, trimmed, "active", false);
-      return;
-    }
-
-    handleVoiceAdmissionInterruption(window, voiceAdmission);
+    await runCommandTask(window, trimmed, mode, readDefaultApprovalBypass(process.env));
   }
 );
 
@@ -1314,14 +934,6 @@ ipcMain.handle("skfiy:get-desktop-session-diagnostics", async () => {
   return readDesktopSessionDiagnosticsForRenderer({ helper: createDesktopHelper() });
 });
 
-ipcMain.handle("skfiy:get-native-speech-status", async (_event, locale: unknown) => {
-  const requestedLocale = typeof locale === "string" && locale.trim()
-    ? locale.trim()
-    : dictationSettingsStore.get().nativeSpeechLocale;
-
-  return createDesktopHelper().getSpeechStatus(requestedLocale);
-});
-
 ipcMain.handle("skfiy:open-permission-settings", async (event, permission: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const target = readPermissionSettingsTarget(permission);
@@ -1353,16 +965,6 @@ ipcMain.handle("skfiy:get-startup-warnings", () => {
     isPackaged: app.isPackaged,
     resourcesPath: process.resourcesPath
   });
-});
-
-ipcMain.handle("skfiy:get-dictation-settings", () => {
-  return dictationSettingsStore.get();
-});
-
-ipcMain.handle("skfiy:set-dictation-settings", (_event, update: unknown) => {
-  return dictationSettingsStore.set(
-    update && typeof update === "object" ? update : {}
-  );
 });
 
 ipcMain.handle("skfiy:get-app-policy-settings", () => {

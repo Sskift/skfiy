@@ -39,9 +39,13 @@ export function selectCommandRoute(command: string): CommandRoute {
     };
   }
 
+  if (isShortGreetingPrompt(command)) {
+    return createChatRoute();
+  }
+
   const terminalIntent = parseTerminalIntent(command);
 
-  if (terminalIntent.ok) {
+  if (terminalIntent.ok && isExplicitTerminalControlRequest(command)) {
     return {
       kind: "ghostty",
       bundleId: GHOSTTY_BUNDLE_ID
@@ -49,10 +53,7 @@ export function selectCommandRoute(command: string): CommandRoute {
   }
 
   if (isConversationalPrompt(command)) {
-    return {
-      kind: "chat",
-      reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
-    };
+    return createChatRoute();
   }
 
   return {
@@ -61,18 +62,42 @@ export function selectCommandRoute(command: string): CommandRoute {
   };
 }
 
+function createChatRoute(): CommandRoute {
+  return {
+    kind: "chat",
+    reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+  };
+}
+
+function isShortGreetingPrompt(command: string): boolean {
+  const normalized = normalizeConversationalPrompt(command);
+
+  return /^(hello|hi|hey|yo|你好|哈喽|哈啰|嗨)(\s+(skfiy|assistant|bot))?$/.test(normalized);
+}
+
 function isConversationalPrompt(command: string): boolean {
-  const normalized = command.trim().toLowerCase();
+  const normalized = normalizeConversationalPrompt(command);
 
   return [
     "你是谁",
     "你叫什么",
     "你能做什么",
-    "介绍一下",
-    "你好",
-    "hello",
-    "hi"
+    "介绍一下"
   ].some((phrase) => normalized.includes(phrase));
+}
+
+function normalizeConversationalPrompt(command: string): string {
+  return command
+    .trim()
+    .toLowerCase()
+    .replace(/^[\s,，。.!！?？、]+|[\s,，。.!！?？、]+$/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function isExplicitTerminalControlRequest(command: string): boolean {
+  const normalized = command.trim().toLowerCase();
+
+  return /\b(ghostty|terminal|shell|term)\b|终端|命令行/u.test(normalized);
 }
 
 function isMoneyRunSupervisionRequest(command: string): boolean {

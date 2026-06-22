@@ -92,8 +92,8 @@ describe("dashboard status descriptor", () => {
     });
     expect(panels.find((panel) => panel.id === "current-turn")).toMatchObject({
       signals: [
-        "voice-provider",
-        "transcript",
+        "agent-provider",
+        "computer-use-tool",
         "target-app",
         "policy-decision",
         "risk",

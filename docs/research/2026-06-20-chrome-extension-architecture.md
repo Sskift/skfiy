@@ -5,7 +5,7 @@ Date: 2026-06-20
 ## Scope
 
 This note covers the first skfiy Chrome extension adapter groundwork from the
-2026-06-16 voice computer control long plan. It is not a Codex plugin design
+current agent and Computer Use long plan. It is not a Codex plugin design
 and it does not describe private OpenAI implementation internals.
 
 The first checked-in extension is a static Manifest V3 skeleton under
@@ -56,7 +56,7 @@ Sources:
 - OpenAI Codex manual, `Codex Chrome extension`, fetched 2026-06-20 from
   `https://developers.openai.com/codex/app/chrome-extension`.
 - Local long plan:
-  `docs/research/2026-06-16-voice-computer-control-long-plan.md`.
+  `docs/research/2026-06-22-agent-computer-use-long-plan.md`.
 
 ## skfiy Responsibilities
 
@@ -215,8 +215,8 @@ runtime behavior.
   is reported as a read-only blocked diagnostic with the origin pattern that
   must be granted before page diagnostics or actions can run. Automated
   unpacked-extension loading remains blocked by branded Chrome's
-  `--load-extension` removal, but a manually installed branded-Chrome extension
-  id `plcpkkhlcacihjfohlojdknnkademlno` has now proven `pageControl.ready` on
+  `--load-extension` removal, but a manually installed Chromium extension id
+  `plcpkkhlcacihjfohlojdknnkademlno` has now proven `pageControl.ready` on
   an authorized localhost HTTP tab. The next architecture gap is turning that
   readiness into packaged CLI/dashboard page actions and a repeatable
   installed-extension smoke, not just popup diagnostics.
@@ -237,6 +237,15 @@ runtime behavior.
   fallback is proven. Next architecture gaps are tab discovery, repeatable
   installed-extension smoke, dashboard launchers, and sensitive/logged-in
   workflow recovery.
+- 2026-06-22 dashboard dogfood update: `smoke:dashboard` now has an explicit
+  `--extension-chrome-app` selector so `/api/chrome-control-action` dogfood can
+  run with `SKFIY_CHROME_APP_NAME=Chromium` instead of the user's primary
+  branded Chrome profile. The fixed Chromium dogfood extension id is
+  `plcpkkhlcacihjfohlojdknnkademlno`; the preflight is a read-only check that
+  `~/Library/Application Support/Chromium/NativeMessagingHosts/com.sskift.skfiy.json`
+  allows `chrome-extension://plcpkkhlcacihjfohlojdknnkademlno/`, followed by
+  `npm run smoke:dashboard -- --extension-id plcpkkhlcacihjfohlojdknnkademlno --extension-chrome-app "Chromium" --output .skfiy-smoke/dashboard-chromium-web-control.json`
+  against a disposable authorized HTTP(S) tab.
 - A focused Vitest test validates the manifest and skeleton strings without
   launching Chrome.
 

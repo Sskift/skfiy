@@ -46,10 +46,6 @@ describe("dogfood tester runner", () => {
       ".skfiy-dogfood/issues/tester-a.md",
       "--summary",
       ".skfiy-dogfood/tester-a-summary.md",
-      "--listen-ms",
-      "1200",
-      "--voice-provider",
-      "native-macos",
       "--app",
       "/Applications/skfiy.app",
       "--finder-target-dir",
@@ -68,8 +64,6 @@ describe("dogfood tester runner", () => {
       artifactsDir: path.resolve(".skfiy-smoke/dogfood/tester-a"),
       issueOutputPath: path.resolve(".skfiy-dogfood/issues/tester-a.md"),
       summaryPath: path.resolve(".skfiy-dogfood/tester-a-summary.md"),
-      listenMs: 1200,
-      voiceProvider: "native-macos",
       appPath: "/Applications/skfiy.app",
       finderTargetDir: path.join(os.homedir(), "Desktop/skfiy-finder-dogfood"),
       chromeCurrentPageEndpoint: "http://127.0.0.1:9222",
@@ -83,8 +77,7 @@ describe("dogfood tester runner", () => {
     expect(createDogfoodTesterHelpText()).toContain("does not fabricate tester reports");
     expect(createDogfoodTesterHelpText()).toContain("By default it does not file GitHub issues");
     expect(createDogfoodTesterHelpText()).toContain("app bundle identity preflight");
-    expect(createDogfoodTesterHelpText()).toContain("provider-aware permission preflight");
-    expect(createDogfoodTesterHelpText()).toContain("--voice-provider");
+    expect(createDogfoodTesterHelpText()).toContain("Computer Use permission preflight");
     expect(createDogfoodTesterHelpText()).toContain("--file-issue");
     expect(createDogfoodTesterHelpText()).toContain("--tracking-issue-url");
     expect(createDogfoodTesterHelpText()).toContain("Reserved tester id prefixes");
@@ -102,7 +95,6 @@ describe("dogfood tester runner", () => {
       workflows: ["coding-terminal", "screenshot-inspection"],
       artifactsDir: "/repo/.skfiy-smoke/dogfood/tester-a",
       issueOutputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
-      listenMs: 1200,
       appPath: "/Applications/skfiy.app",
       requirePassed: false
     }) as {
@@ -115,18 +107,16 @@ describe("dogfood tester runner", () => {
       ui: "/repo/.skfiy-smoke/dogfood/tester-a/tester-a-ui.json",
       ghostty: "/repo/.skfiy-smoke/dogfood/tester-a/tester-a-ghostty.json",
       chrome: "/repo/.skfiy-smoke/dogfood/tester-a/tester-a-chrome.json",
-      finder: "/repo/.skfiy-smoke/dogfood/tester-a/tester-a-finder.json",
-      voice: "/repo/.skfiy-smoke/dogfood/tester-a/tester-a-voice.json"
+      finder: "/repo/.skfiy-smoke/dogfood/tester-a/tester-a-finder.json"
     });
     expect(plan.commands.map((command) => command.id)).toEqual([
       "smoke:ui",
       "smoke:ghostty",
       "smoke:chrome",
       "smoke:finder",
-      "smoke:voice",
       "dogfood:issue"
     ]);
-    expect(plan.commands.slice(0, 5).every((command) =>
+    expect(plan.commands.slice(0, 4).every((command) =>
       command.args.includes("--app") && command.args.includes("/Applications/skfiy.app")
     )).toBe(true);
     expect(plan.commands[1]).toMatchObject({
@@ -154,8 +144,6 @@ describe("dogfood tester runner", () => {
         "--check-report",
         "--ui-smoke-artifact",
         "/repo/.skfiy-smoke/dogfood/tester-a/tester-a-ui.json",
-        "--voice-smoke-artifact",
-        "/repo/.skfiy-smoke/dogfood/tester-a/tester-a-voice.json",
         "--output",
         "/repo/.skfiy-dogfood/issues/tester-a.md"
       ])
@@ -178,7 +166,7 @@ describe("dogfood tester runner", () => {
     };
 
     expect(plan.appPath).toBe("/repo/dist/skfiy.app");
-    expect(plan.commands.slice(0, 5).every((command) =>
+    expect(plan.commands.slice(0, 4).every((command) =>
       command.args.includes("--app") && command.args.includes("/repo/dist/skfiy.app")
     )).toBe(true);
   });
@@ -262,7 +250,6 @@ describe("dogfood tester runner", () => {
         { id: "smoke:ghostty", exitCode: 0 },
         { id: "smoke:chrome", exitCode: 0 },
         { id: "smoke:finder", exitCode: 0 },
-        { id: "smoke:voice", exitCode: 0 },
         { id: "dogfood:issue", exitCode: 0 }
       ]
     });
@@ -272,7 +259,6 @@ describe("dogfood tester runner", () => {
       "run smoke:ghostty",
       "run smoke:chrome",
       "run smoke:finder",
-      "run smoke:voice",
       "run dogfood:issue"
     ]);
     expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
@@ -303,9 +289,7 @@ describe("dogfood tester runner", () => {
           productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
           permissions: {
             screenRecording: { state: "granted" },
-            accessibility: { state: "granted" },
-            microphone: { state: "granted" },
-            speechRecognition: { state: "granted" }
+            accessibility: { state: "granted" }
           }
         })
       },
@@ -347,7 +331,7 @@ describe("dogfood tester runner", () => {
 
     const summary = io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"];
     expect(summary).toContain("## Smoke Results");
-    expect(summary).toContain("| smoke:ui | no-onboarding | LaunchServices -> renderer DOM -> React permission onboarding | screenRecording=granted, accessibility=granted, microphone=granted, speechRecognition=granted |");
+    expect(summary).toContain("| smoke:ui | no-onboarding | LaunchServices -> renderer DOM -> React permission onboarding | screenRecording=granted, accessibility=granted |");
     expect(summary).toContain("| smoke:ghostty | blocked | renderer -> preload -> main -> helper -> Ghostty | screenRecording=denied, accessibility=granted |");
     expect(summary).toContain("| smoke:chrome | passed | renderer -> preload -> main -> CDP -> Chrome | screenRecording=granted |");
   });
@@ -392,22 +376,6 @@ describe("dogfood tester runner", () => {
             { status: "failed", message: "Screen Recording permission is required." }
           ]
         })
-      },
-      "smoke:voice": {
-        stdout: JSON.stringify({
-          result: "passed",
-          productPath: "renderer -> preload -> main -> external Doubao Input Method -> text bridge -> Computer Use",
-          permissions: {
-            screenRecording: { state: "granted" },
-            accessibility: { state: "granted" },
-            microphone: { state: "denied" },
-            speechRecognition: { state: "denied" }
-          },
-          taskEvents: [
-            { status: "executing", message: "Voice transcript accepted." },
-            { status: "completed", message: "Downstream task completed." }
-          ]
-        })
       }
     });
 
@@ -424,11 +392,11 @@ describe("dogfood tester runner", () => {
 
     const summary = io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"];
     expect(summary).toContain("## Computer Use Scorecard");
-    expect(summary).toContain("| total runs | 4 |");
-    expect(summary).toContain("| successful runs | 2 |");
-    expect(summary).toContain("| task success rate | 50.0% |");
+    expect(summary).toContain("| total runs | 3 |");
+    expect(summary).toContain("| successful runs | 1 |");
+    expect(summary).toContain("| task success rate | 33.3% |");
     expect(summary).toContain("| manual interventions | 1 |");
-    expect(summary).toContain("| average steps | 1.75 |");
+    expect(summary).toContain("| average steps | 1.67 |");
     expect(summary).toContain("| unsafe action blocks | 1 |");
     expect(summary).toContain("| permission failures | 1 |");
   });
@@ -509,9 +477,7 @@ describe("dogfood tester runner", () => {
           result: "passed",
           permissions: {
             screenRecording: { state: "denied" },
-            accessibility: { state: "granted" },
-            microphone: { state: "not-determined" },
-            speechRecognition: { state: "unknown" }
+            accessibility: { state: "granted" }
           }
         }),
         exitCode: 0
@@ -541,15 +507,9 @@ describe("dogfood tester runner", () => {
     expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
       "screenRecording: denied"
     );
-    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).not.toContain(
-      "- microphone:"
-    );
-    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).not.toContain(
-      "- speechRecognition:"
-    );
   });
 
-  it("does not block strict default Doubao evidence on native microphone or speech recognition state", async () => {
+  it("only blocks strict passed evidence on Computer Use permission state", async () => {
     const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodTester: (
         input: Record<string, unknown>,
@@ -562,9 +522,7 @@ describe("dogfood tester runner", () => {
           result: "passed",
           permissions: {
             screenRecording: { state: "granted" },
-            accessibility: { state: "granted" },
-            microphone: { state: "not-determined" },
-            speechRecognition: { state: "unknown" }
+            accessibility: { state: "granted" }
           }
         }),
         exitCode: 0
@@ -590,7 +548,6 @@ describe("dogfood tester runner", () => {
       "run smoke:ghostty",
       "run smoke:chrome",
       "run smoke:finder",
-      "run smoke:voice",
       "run dogfood:issue"
     ]);
   });
@@ -608,9 +565,7 @@ describe("dogfood tester runner", () => {
           result: "no-onboarding",
           permissions: {
             screenRecording: { state: "granted" },
-            accessibility: { state: "granted" },
-            microphone: { state: "granted" },
-            speechRecognition: { state: "granted" }
+            accessibility: { state: "granted" }
           },
           desktopSessionDiagnostics: {
             state: "blocked",
@@ -656,54 +611,6 @@ describe("dogfood tester runner", () => {
     expect(summary).toContain("Desktop console is locked");
   });
 
-  it("requires microphone and speech recognition only for explicit native macOS voice strict evidence", async () => {
-    const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
-      runDogfoodTester: (
-        input: Record<string, unknown>,
-        io?: Record<string, unknown>
-      ) => Promise<Record<string, unknown>>;
-    };
-    const io = createMemoryIo({
-      "smoke:ui": {
-        stdout: JSON.stringify({
-          result: "passed",
-          permissions: {
-            screenRecording: { state: "granted" },
-            accessibility: { state: "granted" },
-            microphone: { state: "not-determined" },
-            speechRecognition: { state: "unknown" }
-          }
-        }),
-        exitCode: 0
-      }
-    });
-
-    await expect(runDogfoodTester({
-      rootDir: "/repo",
-      manifestPath,
-      testerId: "tester-a",
-      workflows: ["coding-terminal", "screenshot-inspection"],
-      artifactsDir: "/repo/.skfiy-smoke/dogfood/tester-a",
-      issueOutputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
-      summaryPath: "/repo/.skfiy-dogfood/tester-a-summary.md",
-      requirePassed: true,
-      voiceProvider: "native-macos",
-      now: () => "2026-06-16T12:00:00.000Z"
-    }, io)).rejects.toThrow(
-      "dogfood:tester permission preflight failed before strict passed smokes"
-    );
-
-    expect(io.commands.map((command) => command.args.slice(0, 2).join(" "))).toEqual([
-      "run smoke:ui"
-    ]);
-    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
-      "microphone: not-determined"
-    );
-    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
-      "speechRecognition: unknown"
-    );
-  });
-
   it("records a passed app bundle preflight when strict permission preflight fails", async () => {
     const { runDogfoodTester } = await import(pathToFileURL(modulePath).href) as {
       runDogfoodTester: (
@@ -718,9 +625,7 @@ describe("dogfood tester runner", () => {
             result: "passed",
             permissions: {
               screenRecording: { state: "denied" },
-              accessibility: { state: "granted" },
-              microphone: { state: "granted" },
-              speechRecognition: { state: "granted" }
+              accessibility: { state: "granted" }
             }
           }),
           exitCode: 0
@@ -816,9 +721,7 @@ describe("dogfood tester runner", () => {
             result: "passed",
             permissions: {
               screenRecording: { state: "denied" },
-              accessibility: { state: "denied" },
-              microphone: { state: "not-determined" },
-              speechRecognition: { state: "not-determined" }
+              accessibility: { state: "denied" }
             }
           }, null, 2)
         ].join("\n"),
@@ -840,9 +743,6 @@ describe("dogfood tester runner", () => {
     );
     expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).toContain(
       "accessibility: denied"
-    );
-    expect(io.textFiles["/repo/.skfiy-dogfood/tester-a-summary.md"]).not.toContain(
-      "- speechRecognition:"
     );
   });
 
@@ -896,9 +796,7 @@ describe("dogfood tester runner", () => {
           result: "passed",
           permissions: {
             screenRecording: { state: "denied" },
-            accessibility: { state: "denied" },
-            microphone: { state: "not-determined" },
-            speechRecognition: { state: "not-determined" }
+            accessibility: { state: "denied" }
           }
         }),
         exitCode: 0
@@ -990,7 +888,7 @@ function createMemoryIo(
         };
       }
       return {
-        stdout: JSON.stringify({ result: args[1] === "smoke:voice" ? "blocked" : "passed" }),
+        stdout: JSON.stringify({ result: "passed" }),
         stderr: "",
         exitCode: 0
       };

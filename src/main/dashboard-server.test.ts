@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 import http from "node:http";
+import os from "node:os";
+import path from "node:path";
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile
+} from "node:fs/promises";
 import { waitFor } from "@testing-library/react";
 import { createDashboardDescriptor } from "./dashboard-status";
 import {
   createDashboardHttpResponse,
-  startDashboardServer
+  startDashboardServer,
+  type DashboardChromeControlRunnerInput
 } from "./dashboard-server";
+import type { DashboardSnapshot } from "./dashboard-data";
+import { createRuntimeSnapshotStatePath } from "./runtime-snapshot";
 
 function readUrl(url: string): Promise<{
   status: number;
@@ -120,7 +131,7 @@ function readFirstSseEvent(url: string): Promise<{
 }
 
 async function renderDashboardHtmlWithSnapshot(
-  snapshot: Record<string, unknown>
+  snapshot: unknown
 ): Promise<() => void> {
   const response = createDashboardHttpResponse({
     method: "GET",
@@ -164,14 +175,16 @@ async function renderDashboardHtmlWithSnapshot(
 function createChromeControlDashboardSnapshot({
   extension = {},
   nativeHost = { state: "installed" },
+  desktopSession = { state: "controllable" },
   pageControl,
   chromeArtifact
 }: {
   extension?: Record<string, unknown>;
   nativeHost?: Record<string, unknown>;
+  desktopSession?: Record<string, unknown>;
   pageControl?: Record<string, unknown>;
   chromeArtifact?: Record<string, unknown>;
-}): Record<string, unknown> {
+}): DashboardSnapshot {
   const descriptor = createDashboardDescriptor({ port: 8787 });
   return {
     schemaVersion: 1,
@@ -180,6 +193,7 @@ function createChromeControlDashboardSnapshot({
     runtimeHealth: {
       dashboard: { state: "running", url: descriptor.url },
       nativeHost,
+      desktopSession,
       extension: {
         state: "connected",
         connection: { state: "connected" },
@@ -201,7 +215,17 @@ function createChromeControlDashboardSnapshot({
   };
 }
 
-async function readAppsSitesPanelText(snapshot: Record<string, unknown>): Promise<string> {
+function createNoopChromeControlActivityIo() {
+  return {
+    exists: async () => false,
+    mkdir: async () => undefined,
+    readFile: async () => "",
+    writeFile: async () => undefined,
+    rename: async () => undefined
+  };
+}
+
+async function readAppsSitesPanelText(snapshot: unknown): Promise<string> {
   const cleanup = await renderDashboardHtmlWithSnapshot(snapshot);
   try {
     return document.querySelector('[data-user-panel="apps-sites"]')?.textContent ?? "";
@@ -275,6 +299,9 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain('new EventSource("/events")');
     expect(response.body).toContain('fetch("/snapshot.json", { cache: "no-store" })');
     expect(response.body).toContain("/api/chrome-host-policy");
+    expect(response.body).toContain("/api/chrome-control-action");
+    expect(response.body).toContain("data-chrome-control-launcher");
+    expect(response.body).toContain("launchChromeControlAction(");
     expect(response.body).toContain("renderEvidenceSummaryPanel(snapshot)");
     expect(response.body).toContain("createEvidenceSummaryLanes(snapshot)");
     expect(response.body).toContain("createChromeSetupGuide(extension, nativeHost, chromeArtifact)");
@@ -332,6 +359,144 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.body).toContain('row("latest verify", formatRuntimeVerification(turn.latestVerification))');
     expect(response.body).toContain('row("timeline tail", formatRuntimeTimelineTail(replay.timelineTail))');
     expect(response.body).not.toContain("token=");
+  });
+
+  it("serves the built React dashboard shell and assets when renderer output exists", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "skfiy-dashboard-"));
+
+    try {
+      const assetsDir = path.join(rootDir, "dist", "renderer", "assets");
+      await mkdir(assetsDir, { recursive: true });
+      await writeFile(
+        path.join(rootDir, "dist", "renderer", "dashboard.html"),
+        '<!doctype html><html><body><div id="dashboard-root"></div><script type="module" src="./assets/dashboard-test.js"></script></body></html>'
+      );
+      await writeFile(path.join(assetsDir, "dashboard-test.js"), "export {};\n");
+
+      const server = await startDashboardServer({ rootDir });
+      try {
+        const shell = await readUrl(server.url);
+        expect(shell.status).toBe(200);
+        expect(shell.headers["content-type"]).toBe("text/html; charset=utf-8");
+        expect(shell.body).toContain('id="dashboard-root"');
+        expect(shell.body).toContain("dashboard-test.js");
+        expect(shell.body).not.toContain("Advanced Diagnostics");
+
+        const asset = await readUrl(`${server.url}assets/dashboard-test.js`);
+        expect(asset.status).toBe(200);
+        expect(asset.headers["content-type"]).toBe("text/javascript; charset=utf-8");
+        expect(asset.headers["cache-control"]).toContain("immutable");
+        expect(asset.body).toBe("export {};\n");
+      } finally {
+        await server.close();
+      }
+    } finally {
+      await rm(rootDir, { force: true, recursive: true });
+    }
+  });
+
+  it("serves and updates redacted provider settings for the dashboard", async () => {
+    const server = await startDashboardServer({ rootDir: process.cwd() });
+    try {
+      const initial = await readUrl(`${server.url}api/provider-settings`);
+      expect(initial.status).toBe(200);
+      expect(initial.headers["content-type"]).toBe("application/json; charset=utf-8");
+      expect(initial.body).not.toContain("sk-secret");
+
+      const initialPayload = JSON.parse(initial.body);
+      expect(initialPayload.providers.assistant.label).toBeTruthy();
+      expect(initialPayload.providers.planner.mode).toBe("local-deterministic");
+
+      const configured = await requestUrl(`${server.url}api/provider-settings`, {
+        method: "POST",
+        body: JSON.stringify({
+          planner: {
+            mode: "external-cua",
+            externalProviderLabel: "OpenAI CUA",
+            externalEndpoint: " https://cua.example.test/plan ",
+            externalApiKey: "sk-secret"
+          }
+        })
+      });
+
+      expect(configured.status).toBe(200);
+      expect(configured.body).not.toContain("sk-secret");
+      const configuredPayload = JSON.parse(configured.body);
+      expect(configuredPayload.result).toBe("configured");
+      expect(configuredPayload.providers.planner).toMatchObject({
+        mode: "external-cua",
+        label: "OpenAI CUA",
+        endpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      });
+
+      const afterInvalidEndpoint = await requestUrl(`${server.url}api/provider-settings`, {
+        method: "POST",
+        body: JSON.stringify({
+          planner: {
+            externalEndpoint: "not a url",
+            externalApiKey: ""
+          }
+        })
+      });
+      const afterInvalidPayload = JSON.parse(afterInvalidEndpoint.body);
+      expect(afterInvalidPayload.providers.planner).toMatchObject({
+        endpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: false
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("renders one-click Chrome control launchers for actionable pages", async () => {
+    const cleanup = await renderDashboardHtmlWithSnapshot(createChromeControlDashboardSnapshot({
+      extension: {
+        extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"]
+      },
+      pageControl: {
+        state: "ready",
+        capable: true,
+        activeTab: {
+          state: "available",
+          tabId: 7,
+          windowId: 1,
+          host: "example.test",
+          scheme: "https"
+        },
+        capabilities: {
+          domActions: true,
+          screenshot: true,
+          click: true,
+          fill: true,
+          submit: true,
+          scroll: true
+        }
+      }
+    }));
+
+    try {
+      const appsSitesPanel = document.querySelector('[data-user-panel="apps-sites"]');
+
+      expect(appsSitesPanel?.querySelector('[data-chrome-control-launcher="observe"]')?.textContent)
+        .toContain("Observe");
+      expect(appsSitesPanel?.querySelector('[data-chrome-control-launcher="screenshot"]')?.textContent)
+        .toContain("Screenshot");
+      expect(appsSitesPanel?.querySelector('[data-chrome-control-launcher="click"]')?.textContent)
+        .toContain("Click");
+      expect(appsSitesPanel?.querySelector('[data-chrome-control-launcher="fill"]')?.textContent)
+        .toContain("Fill");
+      expect(appsSitesPanel?.querySelector('[data-chrome-control-launcher="submit"]')?.textContent)
+        .toContain("Submit");
+      expect(appsSitesPanel?.querySelector('[data-chrome-control-launcher="scroll"]')?.textContent)
+        .toContain("Scroll");
+      expect(appsSitesPanel?.querySelector('[data-chrome-control-selector-input]'))
+        .not.toBeNull();
+      expect(appsSitesPanel?.querySelector('[data-chrome-control-text-input]'))
+        .not.toBeNull();
+    } finally {
+      cleanup();
+    }
   });
 
   it("renders user-facing Chrome control states in Apps and Sites", async () => {
@@ -409,6 +574,25 @@ describe("dashboard loopback HTTP response helper", () => {
         label: "extension refresh required",
         expected: "Extension needs refresh",
         snapshot: createChromeControlDashboardSnapshot({
+          extension: {
+            state: "stale",
+            connection: { state: "stale" }
+          },
+          pageControl: readyControl
+        })
+      },
+      {
+        label: "desktop locked during extension refresh",
+        expected: "Desktop locked for extension refresh",
+        snapshot: createChromeControlDashboardSnapshot({
+          desktopSession: {
+            state: "blocked",
+            frontmostBundleId: "com.apple.loginwindow",
+            frontmostLocalizedName: "loginwindow",
+            cgSessionScreenIsLocked: true,
+            ioConsoleLocked: true,
+            mainDisplayAsleep: true
+          },
           extension: {
             state: "stale",
             connection: { state: "stale" }
@@ -670,8 +854,6 @@ describe("dashboard loopback HTTP response helper", () => {
           permissions: {
             screenRecording: "granted",
             accessibility: "granted",
-            microphone: "granted",
-            speechRecognition: "not-determined",
             finderAutomation: "unknown"
           },
           currentTurn: { state: "idle" },
@@ -1443,6 +1625,432 @@ describe("dashboard loopback HTTP response helper", () => {
       expect(resetResponse.body).not.toContain("token=");
     } finally {
       await dashboard.close();
+    }
+  });
+
+  it("launches a local packaged Chrome control action through the loopback server", async () => {
+    const runnerCalls: DashboardChromeControlRunnerInput[] = [];
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const dashboard = await startDashboardServer({
+      port: 0,
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      createSnapshot: () => createChromeControlDashboardSnapshot({
+        extension: {
+          extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"]
+        },
+        pageControl: {
+          state: "ready",
+          capable: true,
+          activeTab: {
+            state: "available",
+            tabId: 1782096947,
+            host: "127.0.0.1:59369",
+            scheme: "http:"
+          },
+          capabilities: {
+            domActions: true,
+            screenshot: true,
+            click: true,
+            fill: true,
+            submit: true,
+            scroll: true
+          }
+        }
+      }),
+      chromeControlRunner: async (input) => {
+        runnerCalls.push(input);
+        return {
+          exitCode: 0,
+          stdout: `${JSON.stringify({
+            result: "verified",
+            action: "observe",
+            targetTabId: 1782096947
+          })}\n`,
+          stderr: ""
+        };
+      },
+      chromeControlActivityIo: createNoopChromeControlActivityIo()
+    });
+
+    try {
+      const response = await requestUrl(`${dashboard.url}api/chrome-control-action`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "observe",
+          extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+          chromeAppName: "Chromium",
+          targetTabId: 1782096947
+        })
+      });
+
+      expect(response.status).toBe(200);
+      const payload = JSON.parse(response.body);
+      expect(payload).toMatchObject({
+        command: "dashboard chrome control action",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "verified",
+        action: "observe",
+        targetTabId: 1782096947,
+        activityEntry: {
+          kind: "chrome-control-action",
+          title: "Chrome observe",
+          result: "verified",
+          target: {
+            app: "Chromium",
+            host: "127.0.0.1:59369",
+            tabId: 1782096947
+          }
+        }
+      });
+      expect(runnerCalls).toHaveLength(1);
+      expect(runnerCalls[0]).toMatchObject({
+        binaryPath: "/repo/dist/skfiy",
+        args: [
+          "chrome",
+          "observe",
+          "--extension-id",
+          "plcpkkhlcacihjfohlojdknnkademlno",
+          "--target-tab-id",
+          "1782096947",
+          "--json"
+        ],
+        env: expect.objectContaining({
+          SKFIY_CHROME_APP_NAME: "Chromium"
+        })
+      });
+      expect(response.body).not.toContain("token=");
+      expect(response.body).not.toContain("visibleText");
+      expect(descriptor.bind.host).toBe("127.0.0.1");
+
+      const snapshotResponse = await readUrl(`${dashboard.url}snapshot.json`);
+      expect(snapshotResponse.status).toBe(200);
+      expect(JSON.parse(snapshotResponse.body)).toMatchObject({
+        currentTurn: {
+          chromeControlActivity: {
+            title: "Chrome observe",
+            result: "verified",
+            target: {
+              host: "127.0.0.1:59369",
+              tabId: 1782096947
+            }
+          }
+        },
+        replay: {
+          chromeControlActions: [
+            expect.objectContaining({
+              title: "Chrome observe",
+              result: "verified"
+            })
+          ]
+        }
+      });
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  it("persists Chrome control launcher Activity into the runtime snapshot", async () => {
+    const runnerCalls: DashboardChromeControlRunnerInput[] = [];
+    const files: Record<string, string> = {};
+    const mkdirs: string[] = [];
+    const runtimePath = createRuntimeSnapshotStatePath("/Users/tester");
+    files[runtimePath] = `${JSON.stringify({
+      schemaVersion: 1,
+      observedAt: "2026-06-21T00:00:00.000Z",
+      currentTurn: {
+        state: "idle",
+        source: "runtime-snapshot",
+        command: "previous command"
+      },
+      replay: {
+        state: "available",
+        source: "runtime-snapshot",
+        chromeControlActions: [
+          {
+            kind: "chrome-control-action",
+            title: "Chrome screenshot",
+            result: "blocked",
+            target: {
+              app: "Google Chrome",
+              host: "127.0.0.1:59369",
+              tabId: 1782096947
+            },
+            blockerReason: "Screenshot permission needed",
+            command: "dist/skfiy chrome screenshot --json",
+            timestamp: "2026-06-21T00:00:00.000Z"
+          }
+        ]
+      }
+    })}\n`;
+    const dashboard = await startDashboardServer({
+      port: 0,
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      createSnapshot: () => createChromeControlDashboardSnapshot({
+        extension: {
+          extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"]
+        },
+        pageControl: {
+          state: "ready",
+          capable: true,
+          activeTab: {
+            state: "available",
+            tabId: 1782096947,
+            host: "127.0.0.1:59369",
+            scheme: "http"
+          },
+          capabilities: {
+            domActions: true,
+            screenshot: true
+          }
+        }
+      }),
+      chromeControlRunner: async (input) => {
+        runnerCalls.push(input);
+        return {
+          exitCode: 0,
+          stdout: `${JSON.stringify({
+            result: "verified",
+            action: "observe",
+            targetTabId: 1782096947,
+            visibleText: "token=secret should not persist"
+          })}\n`,
+          stderr: ""
+        };
+      },
+      chromeControlActivityIo: {
+        exists: async (targetPath: string) => Object.hasOwn(files, targetPath),
+        mkdir: async (targetPath: string) => {
+          mkdirs.push(targetPath);
+        },
+        readFile: async (targetPath: string) => files[targetPath],
+        writeFile: async (targetPath: string, content: string) => {
+          files[targetPath] = content;
+        },
+        rename: async (oldPath: string, newPath: string) => {
+          files[newPath] = files[oldPath];
+          delete files[oldPath];
+        }
+      }
+    });
+
+    try {
+      const response = await requestUrl(`${dashboard.url}api/chrome-control-action`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "observe",
+          extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+          targetTabId: 1782096947
+        })
+      });
+
+      expect(response.status).toBe(200);
+      expect(mkdirs).toEqual([
+        "/Users/tester/Library/Application Support/skfiy"
+      ]);
+      const persisted = JSON.parse(files[runtimePath]);
+      expect(persisted).toMatchObject({
+        schemaVersion: 1,
+        observedAt: expect.any(String),
+        currentTurn: {
+          state: "idle",
+          command: "previous command",
+          chromeControlActivity: {
+            title: "Chrome observe",
+            result: "verified",
+            target: {
+              host: "127.0.0.1:59369",
+              tabId: 1782096947
+            }
+          }
+        },
+        replay: {
+          state: "available",
+          chromeControlActions: [
+            expect.objectContaining({
+              title: "Chrome screenshot",
+              result: "blocked"
+            }),
+            expect.objectContaining({
+              title: "Chrome observe",
+              result: "verified"
+            })
+          ]
+        }
+      });
+      expect(files[runtimePath]).not.toContain("token=secret");
+      expect(runnerCalls).toHaveLength(1);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  it("blocks Chrome control action launches for unsupported pages", async () => {
+    const runnerCalls: DashboardChromeControlRunnerInput[] = [];
+    const dashboard = await startDashboardServer({
+      port: 0,
+      rootDir: "/repo",
+      createSnapshot: () => createChromeControlDashboardSnapshot({
+        pageControl: {
+          state: "unavailable",
+          capable: false,
+          activeTab: {
+            state: "blocked",
+            tabId: 1782096947,
+            host: "chrome://extensions",
+            scheme: "chrome"
+          },
+          capabilities: {
+            domActions: false,
+            screenshot: false
+          },
+          blockers: [{ code: "internal_chrome_page" }]
+        }
+      }),
+      chromeControlRunner: async (input) => {
+        runnerCalls.push(input);
+        return { exitCode: 0, stdout: "{}\n", stderr: "" };
+      }
+    });
+
+    try {
+      const response = await requestUrl(`${dashboard.url}api/chrome-control-action`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "observe",
+          extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+          targetTabId: 1782096947
+        })
+      });
+
+      expect(response.status).toBe(400);
+      expect(JSON.parse(response.body)).toMatchObject({
+        command: "dashboard chrome control action",
+        result: "blocked",
+        error: {
+          code: "unsupported-page",
+          message: expect.stringContaining("ordinary HTTP or HTTPS page")
+        }
+      });
+      expect(runnerCalls).toEqual([]);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  it("blocks Chrome control action launches for non-web page schemes", async () => {
+    const runnerCalls: DashboardChromeControlRunnerInput[] = [];
+    const dashboard = await startDashboardServer({
+      port: 0,
+      rootDir: "/repo",
+      createSnapshot: () => createChromeControlDashboardSnapshot({
+        pageControl: {
+          state: "ready",
+          capable: true,
+          activeTab: {
+            state: "available",
+            tabId: 1782096947,
+            host: "example.test",
+            scheme: "ftp"
+          },
+          capabilities: {
+            domActions: true,
+            screenshot: true
+          }
+        }
+      }),
+      chromeControlRunner: async (input) => {
+        runnerCalls.push(input);
+        return { exitCode: 0, stdout: "{}\n", stderr: "" };
+      }
+    });
+
+    try {
+      const response = await requestUrl(`${dashboard.url}api/chrome-control-action`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "observe",
+          extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+          targetTabId: 1782096947
+        })
+      });
+
+      expect(response.status).toBe(400);
+      expect(JSON.parse(response.body)).toMatchObject({
+        result: "blocked",
+        error: {
+          code: "unsupported-page"
+        }
+      });
+      expect(runnerCalls).toEqual([]);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  it("renders Chrome control launcher results in user Activity", async () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const cleanup = await renderDashboardHtmlWithSnapshot({
+      schemaVersion: 1,
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        nativeHost: { state: "installed" },
+        desktopSession: { state: "controllable" },
+        extension: { state: "connected", connection: { state: "connected" } }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "idle",
+        chromeControlActivity: {
+          kind: "chrome-control-action",
+          title: "Chrome observe",
+          result: "verified",
+          target: {
+            app: "Google Chrome",
+            host: "127.0.0.1:59369",
+            tabId: 1782096947
+          }
+        }
+      },
+      replay: {
+        state: "available",
+        chromeControlActions: [
+          {
+            kind: "chrome-control-action",
+            title: "Chrome screenshot",
+            result: "blocked",
+            blockerReason: "Screenshot permission needed",
+            target: {
+              app: "Google Chrome",
+              host: "127.0.0.1:59369",
+              tabId: 1782096947
+            }
+          }
+        ]
+      },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "unknown" },
+      alerts: []
+    });
+
+    try {
+      const activityPanel = document.querySelector('[data-user-panel="activity"]');
+
+      expect(activityPanel?.textContent).toContain("Chrome observe");
+      expect(activityPanel?.textContent).toContain("127.0.0.1:59369");
+      expect(activityPanel?.textContent).toContain("Verified");
+      expect(activityPanel?.textContent).toContain("tab 1782096947");
+      expect(activityPanel?.textContent).toContain("Chrome screenshot");
+      expect(activityPanel?.textContent).toContain("Screenshot permission needed");
+    } finally {
+      cleanup();
     }
   });
 });

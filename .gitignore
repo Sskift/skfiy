@@ -7,6 +7,7 @@ macos-helper/.build/
 .skfiy-release/
 .skfiy-plugin-install/
 .skfiy-cli-smoke/
+.chromium-skfiy-profile/
 .DS_Store
 *.log
 .env

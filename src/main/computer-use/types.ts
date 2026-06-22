@@ -66,38 +66,6 @@ export interface OcrImageResult {
   labels: OcrLabelObservation[];
 }
 
-export interface SpeechStatusResult {
-  locale: string;
-  recognizerAvailable: boolean;
-  speechRecognition: PermissionStatus;
-  microphone: PermissionStatus;
-}
-
-export interface NativeSpeechTranscriptionOptions {
-  locale: string;
-  maxDurationMs: number;
-  silenceTimeoutMs: number;
-  signal?: AbortSignal;
-}
-
-export interface NativeSpeechTranscriptProvenance {
-  source: "native-macos-speech-helper";
-  locale: string;
-  durationMs: number;
-  silenceTimedOut: boolean;
-  maxDurationMs: number;
-  silenceTimeoutMs: number;
-}
-
-export interface NativeSpeechTranscriptionResult {
-  text: string;
-  isFinal: boolean;
-  confidence?: number;
-  durationMs: number;
-  silenceTimedOut: boolean;
-  provenance?: NativeSpeechTranscriptProvenance;
-}
-
 export type FinderSelectionSource = "finder-applescript";
 export type FinderItemLayoutSource = "finder-applescript-layout";
 export type FinderSelectionItemKind = "file" | "directory" | "other";
@@ -149,9 +117,7 @@ export type PermissionState = "granted" | "denied" | "not-determined" | "unknown
 
 export type PermissionSettingsTarget =
   | "screen-recording"
-  | "accessibility"
-  | "microphone"
-  | "speech-recognition";
+  | "accessibility";
 
 export interface PermissionStatus {
   state: PermissionState;
@@ -160,8 +126,6 @@ export interface PermissionStatus {
 export interface PermissionSummary {
   screenRecording: PermissionStatus;
   accessibility: PermissionStatus;
-  microphone: PermissionStatus;
-  speechRecognition: PermissionStatus;
 }
 
 export interface DesktopAppState {
@@ -202,8 +166,6 @@ export interface WaitResult {
 export type DesktopActionResult =
   | ScreenshotResult
   | OcrImageResult
-  | SpeechStatusResult
-  | NativeSpeechTranscriptionResult
   | DesktopSessionStatus
   | DesktopHelperActionResult
   | OpenGhosttySessionResult

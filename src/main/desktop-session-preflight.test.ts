@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("desktop session preflight script", () => {
-  it("marks permission reads as direct-helper scoped", async () => {
+  it("marks Computer Use permission reads as direct-helper scoped", async () => {
     const {
       runDesktopSessionPreflight
     } = await importPreflightScript();
@@ -29,9 +29,7 @@ describe("desktop session preflight script", () => {
                 command: "permissions-status",
                 data: {
                   screenRecording: { status: "authorized", granted: true },
-                  accessibility: { status: "authorized", granted: true },
-                  microphone: { status: "authorized", granted: true },
-                  speechRecognition: { status: "notDetermined", granted: false }
+                  accessibility: { status: "authorized", granted: true }
                 }
               }),
               stderr: ""
@@ -79,21 +77,11 @@ describe("desktop session preflight script", () => {
     expect(evidence).toMatchObject({
       permissionProbe: {
         scope: "direct-helper",
-        speechRecognitionStatusSource: "direct-helper",
-        appScopedSpeechRecognitionStatusSource: "smoke:ui permissionDiagnostics.active",
-        defaultExternalDoubaoRequiredPermissions: ["screenRecording", "accessibility"],
-        nonAuthoritativeForAppScopedPermissionChecks: ["speechRecognition"]
+        computerUseRequiredPermissions: ["screenRecording", "accessibility"]
       },
       permissionInterpretation: {
-        defaultExternalDoubaoReady: true,
-        blockers: [],
-        nonAuthoritative: [
-          {
-            permission: "speechRecognition",
-            status: "notDetermined",
-            reason: "Direct helper Speech Recognition status can differ from app-scoped status; use smoke:ui permissionDiagnostics.active for app-scoped speech evidence."
-          }
-        ]
+        computerUseReady: true,
+        blockers: []
       },
       result: "passed"
     });

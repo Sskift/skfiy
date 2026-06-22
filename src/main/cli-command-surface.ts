@@ -91,15 +91,12 @@ export const SMOKE_TARGETS = [
   "dashboard",
   "codex-plugin",
   "finder",
-  "voice",
   "money-run"
 ] as const;
 
 export const PERMISSION_SETTINGS_TARGETS = [
   "screen-recording",
   "accessibility",
-  "microphone",
-  "speech-recognition",
   "automation-finder"
 ] as const;
 
@@ -143,7 +140,6 @@ const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
   dashboard: "scripts/smoke-dashboard-product.mjs",
   "codex-plugin": "scripts/smoke-codex-plugin-product.mjs",
   finder: "scripts/smoke-finder-product.mjs",
-  voice: "scripts/smoke-voice-product.mjs",
   "money-run": "scripts/smoke-money-run-supervision.mjs"
 };
 const RUNTIME_EVIDENCE_RECENT_SECONDS = 300;
@@ -188,16 +184,6 @@ const PERMISSION_SETTINGS_TARGET_DETAILS: Record<PermissionSettingsTarget, {
     label: "Accessibility",
     anchor: "Privacy_Accessibility",
     guidance: "Grant skfiy Accessibility access."
-  },
-  microphone: {
-    label: "Microphone",
-    anchor: "Privacy_Microphone",
-    guidance: "Grant skfiy Microphone access."
-  },
-  "speech-recognition": {
-    label: "Speech Recognition",
-    anchor: "Privacy_SpeechRecognition",
-    guidance: "Grant skfiy Speech Recognition access."
   },
   "automation-finder": {
     label: "Automation",
@@ -531,7 +517,7 @@ const COMMANDS: CliCommandDefinition[] = [
     outputShape: "dashboard-snapshot"
   },
   {
-    path: "permissions open <screen-recording|accessibility|microphone|speech-recognition|automation-finder>",
+    path: "permissions open <screen-recording|accessibility|automation-finder>",
     summary: "Open the matching macOS Privacy & Security permission settings panel.",
     jsonOutput: true,
     plannedMutation: true,
@@ -1070,8 +1056,6 @@ export function createCliOutput(
       permissions: {
         screenRecording: "unknown",
         accessibility: "unknown",
-        microphone: "unknown",
-        speechRecognition: "unknown",
         finderAutomation: "unknown"
       },
       desktopSession: { state: "unknown" },
@@ -1132,8 +1116,6 @@ export function createCliOutput(
       permissions: {
         screenRecording: "unknown",
         accessibility: "unknown",
-        microphone: "unknown",
-        speechRecognition: "unknown",
         finderAutomation: "unknown"
       },
       desktopSession: { state: "unknown" },
@@ -2323,24 +2305,6 @@ function createDoctorOutput({
       severity: "error",
       message: "Accessibility is required for Computer Use clicks, typing, scrolling, and drag actions.",
       nextAction: "Open System Settings > Privacy & Security > Accessibility and grant skfiy."
-    });
-  }
-
-  if (permissions?.microphone === "denied") {
-    addDiagnostic({
-      code: "microphone-permission",
-      severity: "warning",
-      message: "Microphone is denied, so native/browser speech providers cannot capture audio.",
-      nextAction: "Open System Settings > Privacy & Security > Microphone and grant skfiy."
-    });
-  }
-
-  if (permissions?.speechRecognition === "denied") {
-    addDiagnostic({
-      code: "speech-recognition-permission",
-      severity: "warning",
-      message: "Speech Recognition is denied, so the native macOS speech provider cannot transcribe.",
-      nextAction: "Open System Settings > Privacy & Security > Speech Recognition and grant skfiy."
     });
   }
 
@@ -4233,8 +4197,6 @@ function createPermissionStates(permissions: PermissionSummary): Record<string, 
   return {
     screenRecording: permissions.screenRecording.state,
     accessibility: permissions.accessibility.state,
-    microphone: permissions.microphone.state,
-    speechRecognition: permissions.speechRecognition.state,
     finderAutomation: "unknown"
   };
 }
@@ -4243,8 +4205,6 @@ function createUnknownPermissionStates(): Record<string, "unknown"> {
   return {
     screenRecording: "unknown",
     accessibility: "unknown",
-    microphone: "unknown",
-    speechRecognition: "unknown",
     finderAutomation: "unknown"
   };
 }

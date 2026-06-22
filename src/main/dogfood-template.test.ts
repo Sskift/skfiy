@@ -10,7 +10,7 @@ describe("skfiy dogfood issue template", () => {
     "skfiy-dogfood.yml"
   );
 
-  it("requires dogfood reports to include alpha, smoke, permission, voice, and screenshot evidence", () => {
+  it("requires dogfood reports to include alpha, smoke, permission, route guard, and screenshot evidence", () => {
     expect(existsSync(templatePath)).toBe(true);
 
     const template = readFileSync(templatePath, "utf8");
@@ -34,7 +34,7 @@ describe("skfiy dogfood issue template", () => {
       "--issue-labels",
       "gh issue view",
       "readable accepted issue body",
-      "testerId, workflows, all five smoke artifact paths, app bundle preflight, UI pet drag evidence, panic stop evidence, and labels",
+      "testerId, workflows, the four required smoke artifact paths, app bundle preflight, UI pet drag evidence, panic stop evidence, and labels",
       "missing/mismatched app bundle preflight",
       "missing/mismatched app bundle preflight or UI pet drag evidence or panic stop evidence are rejected",
       "app bundle preflight must match the UI smoke artifact",
@@ -58,17 +58,11 @@ describe("skfiy dogfood issue template", () => {
       "smoke artifact",
       "Chrome smoke artifact",
       "Finder smoke artifact",
-      "voice smoke artifact",
       "runnerHasTmux",
       "Screen Recording",
       "Accessibility",
-      "Microphone",
-      "ASR provider",
-      "Speech Recognition",
-      "External Doubao voice transcript-to-task evidence",
       "turnReplay",
-      "External Doubao voice no-transcript/cancellation evidence",
-      "transcriptEvents",
+      "cancellation",
       "taskEvents",
       "Computer Use result",
       "before screenshot",
@@ -76,7 +70,7 @@ describe("skfiy dogfood issue template", () => {
       "action verification events",
       "Verified type_text",
       "Verified press_key",
-      "non-terminal voice route guards",
+      "non-Computer-Use route guards",
       "chat-question-route-guard",
       "unsupported-desktop-route-guard",
       "app policy settings",
@@ -118,6 +112,7 @@ describe("skfiy dogfood issue template", () => {
       "Verified create_folder",
       "Verified move_file",
       "panic stop",
+      "Replay and panic stop notes",
       "stopTurnHotkey",
       "Control+Alt+Shift+Esc",
       "runtimeStatus.stopTurnHotkey"
@@ -130,5 +125,6 @@ describe("skfiy dogfood issue template", () => {
     expect(template).toContain("labels:");
     expect(template).toContain("dogfood");
     expect(template).toContain("skfiy");
+    expect(template).not.toMatch(/smoke:voice|voice smoke artifact|Microphone|ASR provider|Speech Recognition/i);
   });
 });

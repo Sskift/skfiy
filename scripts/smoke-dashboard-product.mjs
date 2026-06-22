@@ -19,6 +19,14 @@ import { acquireSmokeLock } from "./smoke-lock.mjs";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const DASHBOARD_ARGS = ["dashboard", "--no-open", "--port", "0", "--json"];
+const CHROME_CONTROL_ACTION_PRODUCT_PATH = "dist/skfiy dashboard -> /api/chrome-control-action -> dist/skfiy chrome actions -> installed Chrome extension";
+const DASHBOARD_CHROME_CONTROL_SMOKE_ACTIONS = [
+  { action: "observe" },
+  { action: "fill", selector: "#name", text: "skfiy-dashboard" },
+  { action: "click", selector: "#click-only" },
+  { action: "submit", selector: "form" },
+  { action: "scroll", dy: 600 }
+];
 
 async function main() {
   const defaults = createDefaultDashboardSmokeOptions(ROOT_DIR);
@@ -33,6 +41,7 @@ async function main() {
     timestamp: new Date().toISOString(),
     cliPath: options.cliPath,
     command: [options.cliPath, ...DASHBOARD_ARGS],
+    extensionChromeAppName: options.extensionChromeAppName,
     productPath: PRODUCT_PATH,
     runnerHasTmux: Boolean(process.env.TMUX),
     artifactPath: options.outputPath,
@@ -46,6 +55,7 @@ async function main() {
     eventsResponse: undefined,
     shellResponse: undefined,
     chromeHostPolicyApi: undefined,
+    dashboardChromeControlActionApi: undefined,
     dashboardStatusAutoDiscovery: undefined,
     runtimeSnapshotFixture: undefined,
     runtimeSnapshotCoverage: undefined,
@@ -94,6 +104,13 @@ async function main() {
       dashboardUrl: launched.cliOutput.url,
       timeoutMs: options.timeoutMs
     });
+    if (options.extensionId) {
+      evidence.dashboardChromeControlActionApi = await collectRealHomeChromeControlActionEvidence({
+        options,
+        extensionId: options.extensionId,
+        fallbackSnapshot: evidence.snapshotResponse?.body
+      });
+    }
     evidence.dashboardStatusAutoDiscovery = await collectDashboardStatusAutoDiscoveryEvidence(options, {
       homeDir: isolatedHomeDir,
       cliOutput: launched.cliOutput
@@ -107,6 +124,7 @@ async function main() {
       JSON.stringify(evidence.snapshotResponse),
       JSON.stringify(evidence.eventsResponse),
       JSON.stringify(evidence.chromeHostPolicyApi),
+      JSON.stringify(evidence.dashboardChromeControlActionApi),
       JSON.stringify(evidence.dashboardStatusAutoDiscovery),
       JSON.stringify(evidence.freshInstallRuntimeSnapshot),
       JSON.stringify(evidence.missingAfterTurnRuntimeSnapshot),
@@ -169,7 +187,8 @@ async function collectDashboardStatusAutoDiscoveryEvidence(options, { homeDir, c
   const command = [options.cliPath, "status", "--json"];
   const result = await runCliJsonCommand(command, {
     homeDir,
-    timeoutMs: options.timeoutMs
+    timeoutMs: options.timeoutMs,
+    extensionChromeAppName: options.extensionChromeAppName
   });
 
   return {
@@ -439,10 +458,7 @@ function launchDashboardCli(options, { homeDir } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(options.cliPath, DASHBOARD_ARGS, {
       cwd: ROOT_DIR,
-      env: {
-        ...process.env,
-        ...(homeDir ? { HOME: homeDir } : {})
-      },
+      env: createDashboardSmokeEnv(options, { homeDir }),
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -495,14 +511,11 @@ function launchDashboardCli(options, { homeDir } = {}) {
   });
 }
 
-function runCliJsonCommand(command, { homeDir, timeoutMs }) {
+function runCliJsonCommand(command, { homeDir, timeoutMs, extensionChromeAppName }) {
   return new Promise((resolve) => {
     const child = spawn(command[0], command.slice(1), {
       cwd: ROOT_DIR,
-      env: {
-        ...process.env,
-        ...(homeDir ? { HOME: homeDir } : {})
-      },
+      env: createDashboardSmokeEnv({ extensionChromeAppName }, { homeDir }),
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -573,6 +586,16 @@ function runCliJsonCommand(command, { homeDir, timeoutMs }) {
   });
 }
 
+function createDashboardSmokeEnv(options = {}, { homeDir } = {}) {
+  return {
+    ...process.env,
+    ...(homeDir ? { HOME: homeDir } : {}),
+    ...(options.extensionChromeAppName
+      ? { SKFIY_CHROME_APP_NAME: options.extensionChromeAppName }
+      : {})
+  };
+}
+
 async function exerciseChromeHostPolicyApi({ dashboardUrl, timeoutMs }) {
   const apiUrl = new URL("/api/chrome-host-policy", dashboardUrl).toString();
   const productPath = "dist/skfiy -> dashboard /api/chrome-host-policy -> chrome-host-policy.json";
@@ -599,6 +622,298 @@ async function exerciseChromeHostPolicyApi({ dashboardUrl, timeoutMs }) {
     setResponse,
     showConfigured,
     resetResponse
+  };
+}
+
+async function collectRealHomeChromeControlActionEvidence({ options, extensionId, fallbackSnapshot }) {
+  const realUserHomeDir = process.env.HOME;
+  const evidence = {
+    productPath: CHROME_CONTROL_ACTION_PRODUCT_PATH,
+    homeMode: "real-user-home",
+    realUserHomeDir,
+    extensionChromeAppName: options.extensionChromeAppName,
+    dashboard: undefined,
+    extensionStatusBeforeActions: undefined,
+    snapshotBeforeResponse: undefined,
+    result: "not-run",
+    tokenLeakDetected: false
+  };
+  let dashboardProcess;
+
+  try {
+    const launched = await launchDashboardCli(options);
+    dashboardProcess = launched.child;
+    evidence.dashboard = {
+      pid: dashboardProcess.pid,
+      cliOutput: launched.cliOutput,
+      cliStdout: launched.stdout,
+      cliStderr: launched.stderr
+    };
+    evidence.extensionStatusBeforeActions = await collectChromeExtensionStatusBeforeDashboardActions({
+      options,
+      extensionId
+    });
+    evidence.snapshotBeforeResponse = await readJsonResponse(
+      new URL("/snapshot.json", launched.cliOutput.url).toString(),
+      options.timeoutMs
+    );
+
+    const actionEvidence = await exerciseChromeControlActionApi({
+      dashboardUrl: launched.cliOutput.url,
+      extensionId,
+      chromeAppName: options.extensionChromeAppName,
+      snapshot: evidence.snapshotBeforeResponse?.body ?? fallbackSnapshot,
+      timeoutMs: options.timeoutMs
+    });
+
+    Object.assign(evidence, actionEvidence, {
+      productPath: CHROME_CONTROL_ACTION_PRODUCT_PATH,
+      homeMode: "real-user-home",
+      realUserHomeDir,
+      dashboard: evidence.dashboard,
+      extensionStatusBeforeActions: evidence.extensionStatusBeforeActions,
+      snapshotBeforeResponse: evidence.snapshotBeforeResponse
+    });
+  } catch (error) {
+    evidence.result = "error";
+    evidence.error = error instanceof Error ? error.message : String(error);
+  } finally {
+    if (dashboardProcess) {
+      evidence.dashboard = {
+        ...(evidence.dashboard ?? {}),
+        cleanup: await terminateDashboardProcess(dashboardProcess)
+      };
+    }
+    evidence.tokenLeakDetected = hasTokenLeak([
+      JSON.stringify(evidence.dashboard),
+      JSON.stringify(evidence.extensionStatusBeforeActions),
+      JSON.stringify(evidence.snapshotBeforeResponse),
+      JSON.stringify(evidence.actionRuns),
+      evidence.error
+    ]);
+    if (evidence.result === "passed" && evidence.tokenLeakDetected) {
+      evidence.result = "failed";
+    }
+  }
+
+  return evidence;
+}
+
+async function collectChromeExtensionStatusBeforeDashboardActions({ options, extensionId }) {
+  const command = [
+    options.cliPath,
+    "chrome",
+    "status",
+    "--extension-id",
+    extensionId,
+    "--json"
+  ];
+
+  return {
+    productPath: "dist/skfiy chrome status -> Chromium extension host-policy sync",
+    command,
+    extensionChromeAppName: options.extensionChromeAppName,
+    ...await runCliJsonCommand(command, {
+      timeoutMs: options.timeoutMs,
+      extensionChromeAppName: options.extensionChromeAppName
+    })
+  };
+}
+
+async function exerciseChromeControlActionApi({ dashboardUrl, extensionId, chromeAppName, snapshot, timeoutMs }) {
+  const apiUrl = new URL("/api/chrome-control-action", dashboardUrl).toString();
+  const productPath = CHROME_CONTROL_ACTION_PRODUCT_PATH;
+  const targetTab = readDashboardChromeControlTarget(snapshot);
+  if (!targetTab || !Number.isInteger(targetTab.tabId)) {
+    return {
+      productPath,
+      apiUrl,
+      actionRuns: [],
+      result: "blocked",
+      reason: "dashboard-page-control-target-missing",
+      tokenLeakDetected: false
+    };
+  }
+
+  const actionRuns = [];
+  for (const actionInput of DASHBOARD_CHROME_CONTROL_SMOKE_ACTIONS) {
+    actionRuns.push(await runDashboardChromeControlActionWithRetry({
+      apiUrl,
+      dashboardUrl,
+      actionInput,
+      extensionId,
+      chromeAppName: chromeAppName ?? snapshot?.runtimeHealth?.extension?.chromeAppName,
+      targetTabId: targetTab.tabId,
+      timeoutMs
+    }));
+  }
+
+  const tokenLeakDetected = actionRuns.some((run) => run.tokenLeakDetected);
+  const passed = actionRuns.length === DASHBOARD_CHROME_CONTROL_SMOKE_ACTIONS.length
+    && actionRuns.every((run) => run.result === "passed")
+    && !tokenLeakDetected;
+
+  return {
+    productPath,
+    apiUrl,
+    targetTab,
+    actionRuns,
+    tokenLeakDetected,
+    result: passed ? "passed" : "failed"
+  };
+}
+
+async function runDashboardChromeControlActionWithRetry({
+  apiUrl,
+  dashboardUrl,
+  actionInput,
+  extensionId,
+  chromeAppName,
+  targetTabId,
+  timeoutMs
+}) {
+  const first = await runDashboardChromeControlActionOnce({
+    apiUrl,
+    dashboardUrl,
+    actionInput,
+    extensionId,
+    chromeAppName,
+    targetTabId,
+    timeoutMs
+  });
+
+  if (
+    actionInput.action !== "observe"
+    || first.result === "passed"
+    || first.response?.body?.blockerReason !== "page-control-observe-not-verified"
+  ) {
+    return first;
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const retry = await runDashboardChromeControlActionOnce({
+    apiUrl,
+    dashboardUrl,
+    actionInput,
+    extensionId,
+    chromeAppName,
+    targetTabId,
+    timeoutMs
+  });
+
+  return {
+    ...retry,
+    attempts: [first, retry],
+    retriedAfter: "page-control-observe-not-verified"
+  };
+}
+
+async function runDashboardChromeControlActionOnce({
+  apiUrl,
+  dashboardUrl,
+  actionInput,
+  extensionId,
+  chromeAppName,
+  targetTabId,
+  timeoutMs
+}) {
+  const request = createDashboardChromeControlActionRequest({
+    actionInput,
+    extensionId,
+    chromeAppName,
+    targetTabId
+  });
+  const response = await readJsonRequest(apiUrl, timeoutMs, {
+    method: "POST",
+    body: JSON.stringify(request)
+  });
+  const snapshotAfterResponse = await readJsonResponse(
+    new URL("/snapshot.json", dashboardUrl).toString(),
+    timeoutMs
+  );
+  const tokenLeakDetected = hasTokenLeak([
+    JSON.stringify(request),
+    JSON.stringify(response),
+    JSON.stringify(snapshotAfterResponse)
+  ]);
+
+  return {
+    action: actionInput.action,
+    apiUrl,
+    request,
+    response,
+    snapshotAfterResponse,
+    tokenLeakDetected,
+    result: isDashboardChromeControlActionRunPassed({
+      action: actionInput.action,
+      targetTabId,
+      response,
+      snapshotAfterResponse,
+      tokenLeakDetected
+    }) ? "passed" : "failed"
+  };
+}
+
+function createDashboardChromeControlActionRequest({ actionInput, extensionId, chromeAppName, targetTabId }) {
+  return {
+    action: actionInput.action,
+    extensionId,
+    ...(typeof chromeAppName === "string" && chromeAppName.trim()
+      ? { chromeAppName: chromeAppName.trim() }
+      : {}),
+    targetTabId,
+    ...(typeof actionInput.selector === "string" ? { selector: actionInput.selector } : {}),
+    ...(typeof actionInput.text === "string" ? { text: actionInput.text } : {}),
+    ...(Number.isFinite(actionInput.dy) ? { dy: actionInput.dy } : {})
+  };
+}
+
+function isDashboardChromeControlActionRunPassed({
+  action,
+  targetTabId,
+  response,
+  snapshotAfterResponse,
+  tokenLeakDetected
+}) {
+  const activityEntry = response?.body?.activityEntry;
+  const snapshotActivity = snapshotAfterResponse?.body?.currentTurn?.chromeControlActivity;
+  const replayActions = Array.isArray(snapshotAfterResponse?.body?.replay?.chromeControlActions)
+    ? snapshotAfterResponse.body.replay.chromeControlActions
+    : [];
+
+  return response?.status === 200
+    && response?.body?.result === "verified"
+    && response?.body?.action === action
+    && response?.body?.targetTabId === targetTabId
+    && activityEntry?.kind === "chrome-control-action"
+    && activityEntry?.title === `Chrome ${action}`
+    && activityEntry?.result === "verified"
+    && activityEntry?.target?.tabId === targetTabId
+    && snapshotAfterResponse?.status === 200
+    && snapshotActivity?.kind === "chrome-control-action"
+    && snapshotActivity?.title === `Chrome ${action}`
+    && snapshotActivity?.result === "verified"
+    && snapshotActivity?.target?.tabId === targetTabId
+    && replayActions.some((entry) =>
+      entry?.kind === "chrome-control-action"
+      && entry?.title === `Chrome ${action}`
+      && entry?.target?.tabId === targetTabId
+      && entry?.result === "verified"
+    )
+    && !tokenLeakDetected;
+}
+
+function readDashboardChromeControlTarget(snapshot) {
+  const pageControl = snapshot?.runtimeHealth?.extension?.pageControl;
+  const activeTab = pageControl?.activeTab;
+  if (!activeTab || !Number.isInteger(activeTab.tabId)) {
+    return undefined;
+  }
+
+  return {
+    tabId: activeTab.tabId,
+    ...(typeof activeTab.host === "string" ? { host: activeTab.host } : {}),
+    ...(typeof activeTab.scheme === "string" ? { scheme: activeTab.scheme } : {})
   };
 }
 

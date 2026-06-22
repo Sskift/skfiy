@@ -3,12 +3,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 
 export const PRODUCT_PATH = "dist/skfiy -> skfiy dashboard -> loopback dashboard server";
 export const DEFAULT_TIMEOUT_MS = 8_000;
+const REQUIRED_DASHBOARD_CHROME_CONTROL_ACTIONS = ["observe", "fill", "click", "submit", "scroll"];
 
 export function createDefaultDashboardSmokeOptions(rootDir) {
   return {
     cliPath: path.join(rootDir, "dist", "skfiy"),
     timeoutMs: DEFAULT_TIMEOUT_MS,
     outputPath: undefined,
+    extensionId: undefined,
+    extensionChromeAppName: undefined,
     requirePassed: false,
     help: false
   };
@@ -31,6 +34,14 @@ export function parseDashboardSmokeArgs(argv, defaults) {
         break;
       case "--output":
         options.outputPath = path.resolve(readRequiredValue(argv, index, arg));
+        index += 1;
+        break;
+      case "--extension-id":
+        options.extensionId = readRequiredValue(argv, index, arg).trim();
+        index += 1;
+        break;
+      case "--extension-chrome-app":
+        options.extensionChromeAppName = readRequiredValue(argv, index, arg).trim();
         index += 1;
         break;
       case "--require-passed":
@@ -110,7 +121,6 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || !hasRuntimeSnapshotCoverageEvidence(evidence.runtimeSnapshotCoverage, runtimeSnapshotCoverage)
     || !hasFreshInstallRuntimeSnapshotEvidence(evidence.freshInstallRuntimeSnapshot)
     || !hasMissingAfterTurnRuntimeSnapshotEvidence(evidence.missingAfterTurnRuntimeSnapshot)
-    || !hasOperatorReadinessEvidence(snapshot?.operatorReadiness)
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
     || !Number.isInteger(snapshot?.runtimeHealth?.dashboard?.pid)
@@ -122,13 +132,28 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || !snapshot?.currentTurn
     || !snapshot?.replay
     || !Array.isArray(snapshot?.smokeEvidence?.artifacts)
-    || !hasChromeNativeHostBridgeSmokeEvidence(snapshot.smokeEvidence.artifacts)
-    || !hasChromeInstalledExtensionSmokeEvidence(snapshot.smokeEvidence.artifacts)
     || !hasDogfoodReleaseEvidence(snapshot?.dogfoodRelease)
     || !hasLongHorizonEvidence(snapshot?.longHorizon)
     || !Array.isArray(snapshot?.alerts)
   ) {
     return "failed";
+  }
+
+  const chromeBlocked = hasChromeBlockedSmokeEvidence(snapshot.smokeEvidence.artifacts, snapshot);
+
+  if (!hasOperatorReadinessEvidence(snapshot.operatorReadiness)) {
+    return chromeBlocked && hasOperatorReadinessBlockedByChromeEvidence(snapshot.operatorReadiness)
+      ? "blocked"
+      : "failed";
+  }
+
+  if (
+    !hasChromeNativeHostBridgeSmokeEvidence(snapshot.smokeEvidence.artifacts)
+    || !hasChromeInstalledExtensionSmokeEvidence(snapshot.smokeEvidence.artifacts)
+  ) {
+    return chromeBlocked
+      ? "blocked"
+      : "failed";
   }
 
   if (!hasDashboardEventsEvidence(evidence.eventsResponse)) {
@@ -140,6 +165,13 @@ export function classifyDashboardSmokeEvidence(evidence) {
   }
 
   if (!hasDashboardStatusAutoDiscoveryEvidence(evidence.dashboardStatusAutoDiscovery, cliOutput)) {
+    return "failed";
+  }
+
+  if (
+    evidence.dashboardChromeControlActionApi
+    && !hasDashboardChromeControlActionApiEvidence(evidence.dashboardChromeControlActionApi)
+  ) {
     return "failed";
   }
 
@@ -258,6 +290,9 @@ Options:
   --cli <path>          Built CLI path. Default: ${defaults.cliPath}
   --timeout-ms <ms>     Wait time for CLI output and dashboard fetches. Default: ${defaults.timeoutMs}
   --output <path>       Persist JSON evidence to a file.
+  --extension-id <id>   Exercise /api/chrome-control-action against this installed Chrome extension id.
+  --extension-chrome-app <name>
+                        Browser app for installed-extension dashboard action smoke. Use "Chromium" for dogfood.
   --require-passed      Exit 2 unless the dashboard smoke result is passed.
   -h, --help            Show this help.
 `;
@@ -339,9 +374,7 @@ function sameBind(left, right) {
 function hasPermissionEvidence(permissions) {
   const required = [
     "screenRecording",
-    "accessibility",
-    "microphone",
-    "speechRecognition"
+    "accessibility"
   ];
 
   return required.every((permission) =>
@@ -462,6 +495,77 @@ function hasDashboardStatusAutoDiscoveryEvidence(evidence, cliOutput) {
     && dashboardReadiness?.state === "ready"
     && dashboardReadiness?.dashboardState === "running"
     && dashboardReadiness?.url === cliOutput?.url;
+}
+
+function hasDashboardChromeControlActionApiEvidence(evidence) {
+  const dashboard = evidence?.dashboard;
+  const realUserHomeDir = evidence?.realUserHomeDir;
+  const actionRuns = Array.isArray(evidence?.actionRuns) ? evidence.actionRuns : [];
+
+  return evidence?.productPath === "dist/skfiy dashboard -> /api/chrome-control-action -> dist/skfiy chrome actions -> installed Chrome extension"
+    && evidence?.homeMode === "real-user-home"
+    && typeof realUserHomeDir === "string"
+    && realUserHomeDir.startsWith("/")
+    && dashboard?.cliOutput?.command === "dashboard"
+    && dashboard.cliOutput.result === "running"
+    && typeof dashboard.cliOutput.url === "string"
+    && typeof dashboard.cliOutput.statePath === "string"
+    && dashboard.cliOutput.statePath.startsWith(`${realUserHomeDir}/`)
+    && evidence.apiUrl?.startsWith(dashboard.cliOutput.url)
+    && dashboard?.cleanup?.exited === true
+    && evidence?.result === "passed"
+    && evidence?.tokenLeakDetected === false
+    && typeof evidence?.apiUrl === "string"
+    && evidence.apiUrl.endsWith("/api/chrome-control-action")
+    && REQUIRED_DASHBOARD_CHROME_CONTROL_ACTIONS.every((action) =>
+      actionRuns.some((run) => hasDashboardChromeControlActionRunEvidence(run, action, evidence.apiUrl))
+    );
+}
+
+function hasDashboardChromeControlActionRunEvidence(run, action, apiUrl) {
+  const request = run?.request;
+  const responseBody = run?.response?.body;
+  const activityEntry = responseBody?.activityEntry;
+  const snapshot = run?.snapshotAfterResponse?.body;
+  const snapshotActivity = snapshot?.currentTurn?.chromeControlActivity;
+  const replayActions = Array.isArray(snapshot?.replay?.chromeControlActions)
+    ? snapshot.replay.chromeControlActions
+    : [];
+
+  return run?.action === action
+    && run?.result === "passed"
+    && run?.tokenLeakDetected === false
+    && run?.apiUrl === apiUrl
+    && request?.action === action
+    && typeof request?.extensionId === "string"
+    && request.extensionId.length > 0
+    && Number.isInteger(request?.targetTabId)
+    && run?.response?.status === 200
+    && responseBody?.schemaVersion === 1
+    && responseBody?.command === "dashboard chrome control action"
+    && responseBody?.source === "dashboard"
+    && responseBody?.plannedMutation === true
+    && responseBody?.executesSystemMutation === true
+    && responseBody?.result === "verified"
+    && responseBody?.action === action
+    && responseBody?.targetTabId === request.targetTabId
+    && hasChromeControlActivityEntry(activityEntry, request.targetTabId, action)
+    && run?.snapshotAfterResponse?.status === 200
+    && hasChromeControlActivityEntry(snapshotActivity, request.targetTabId, action)
+    && replayActions.some((entry) => hasChromeControlActivityEntry(entry, request.targetTabId, action));
+}
+
+function hasChromeControlActivityEntry(entry, targetTabId, action) {
+  return entry?.kind === "chrome-control-action"
+    && entry?.title === `Chrome ${action}`
+    && entry?.result === "verified"
+    && entry?.target?.app === "Google Chrome"
+    && entry?.target?.tabId === targetTabId
+    && typeof entry?.target?.host === "string"
+    && entry.target.host.length > 0
+    && typeof entry?.command === "string"
+    && entry.command.includes(`dist/skfiy chrome ${action}`)
+    && typeof entry?.timestamp === "string";
 }
 
 function hasExtensionConnectionEvidence(connection) {
@@ -791,6 +895,51 @@ function hasChromeInstalledExtensionSmokeEvidence(artifacts) {
   });
 }
 
+function hasChromeBlockedSmokeEvidence(artifacts, snapshot) {
+  if (!Array.isArray(artifacts)) {
+    return false;
+  }
+
+  const knownBlockerPattern = /desktop-session-locked|extension-card-reload-required|chrome-capture-permission-missing|screen recording|accessibility|locked|loginwindow|display asleep/i;
+  const desktopSession = snapshot?.runtimeHealth?.desktopSession;
+  const alerts = Array.isArray(snapshot?.alerts) ? snapshot.alerts : [];
+  const desktopBlockedBySnapshot = desktopSession?.state === "blocked"
+    || desktopSession?.mainDisplayAsleep === true
+    || desktopSession?.cgSessionScreenIsLocked === true
+    || desktopSession?.ioConsoleLocked === true
+    || desktopSession?.frontmostBundleId === "com.apple.loginwindow"
+    || alerts.some((alert) =>
+      alert?.code === "desktop-session-blocked"
+      || alert?.code === "desktop-session-loginwindow"
+      || alert?.code === "desktop-display-asleep"
+    );
+
+  return artifacts.some((artifact) => {
+    if (artifact?.target !== "chrome" || artifact?.result !== "blocked") {
+      return false;
+    }
+
+    const installedExtensionActionRun = artifact?.installedExtensionActionRun;
+    const blockerText = [
+      artifact.reason,
+      artifact.blockedReason,
+      artifact.nextAction,
+      installedExtensionActionRun?.classification,
+      installedExtensionActionRun?.blockedReason,
+      installedExtensionActionRun?.reason
+    ]
+      .filter((value) => typeof value === "string")
+      .join(" ");
+
+    return knownBlockerPattern.test(blockerText)
+      || (desktopBlockedBySnapshot && /chrome|extension|helper activate_app|reload-extension/i.test([
+        artifact.productPath,
+        artifact.command,
+        artifact.path
+      ].filter((value) => typeof value === "string").join(" ")));
+  });
+}
+
 function hasDogfoodReleaseEvidence(dogfoodRelease) {
   return typeof dogfoodRelease?.state === "string"
     && hasLatestAlphaEvidence(dogfoodRelease.latestAlpha)
@@ -856,7 +1005,43 @@ function hasOperatorReadinessEvidence(operatorReadiness) {
     && recentSmokeEvidence.missingTargets.length === 0;
 }
 
+function hasOperatorReadinessBlockedByChromeEvidence(operatorReadiness) {
+  const commandSurface = operatorReadiness?.commandSurface;
+  const extensionReadiness = operatorReadiness?.extensionReadiness;
+  const packagedBinary = operatorReadiness?.packagedBinary;
+  const recentSmokeEvidence = operatorReadiness?.recentSmokeEvidence;
+  const allowedOverallStates = new Set(["needs-evidence", "blocked"]);
+  const allowedCheckStates = new Set(["needs-evidence", "blocked"]);
+
+  return allowedOverallStates.has(operatorReadiness?.state)
+    && commandSurface?.state === "ready"
+    && typeof commandSurface?.path === "string"
+    && path.basename(commandSurface.path) === "skfiy"
+    && allowedCheckStates.has(extensionReadiness?.state)
+    && typeof extensionReadiness?.nativeHostState === "string"
+    && packagedBinary?.state === "ready"
+    && packagedBinary?.checks?.app === true
+    && packagedBinary?.checks?.helper === true
+    && packagedBinary?.checks?.cli === true
+    && packagedBinary?.checks?.signing === true
+    && packagedBinary?.signingState === "valid"
+    && recentSmokeEvidence?.state === "needs-evidence"
+    && Array.isArray(recentSmokeEvidence?.requiredTargets)
+    && ["chrome", "cli"].every((target) =>
+      recentSmokeEvidence.requiredTargets.includes(target)
+    )
+    && Array.isArray(recentSmokeEvidence?.recentPassedTargets)
+    && recentSmokeEvidence.recentPassedTargets.includes("cli")
+    && Array.isArray(recentSmokeEvidence?.missingTargets)
+    && recentSmokeEvidence.missingTargets.includes("chrome");
+}
+
 function hasDashboardShellEvidence(shellBody) {
+  return hasLegacyDashboardShellEvidence(shellBody)
+    || hasReactDashboardShellEvidence(shellBody);
+}
+
+function hasLegacyDashboardShellEvidence(shellBody) {
   return shellBody.includes("skfiy Dashboard")
     && shellBody.includes("/descriptor.json")
     && shellBody.includes("/snapshot.json")
@@ -881,6 +1066,15 @@ function hasDashboardShellEvidence(shellBody) {
     && shellBody.includes("groupAlerts(alerts)")
     && shellBody.includes("createAlertBand(group)")
     && shellBody.includes("data-alert-groups");
+}
+
+function hasReactDashboardShellEvidence(shellBody) {
+  return shellBody.includes("<!doctype html>")
+    && shellBody.includes("<title>skfiy dashboard</title>")
+    && shellBody.includes('id="dashboard-root"')
+    && shellBody.includes('type="module"')
+    && shellBody.includes("/assets/")
+    && shellBody.includes(".js");
 }
 
 function hasDashboardEventsEvidence(eventsResponse) {

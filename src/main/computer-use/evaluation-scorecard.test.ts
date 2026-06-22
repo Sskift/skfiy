@@ -32,8 +32,6 @@ describe("createComputerUseScorecard", () => {
         permissions: {
           screenRecording: { state: "denied" },
           accessibility: { state: "denied" },
-          microphone: { state: "not-determined" },
-          speechRecognition: { state: "not-determined" }
         }
       }
       ,
@@ -72,18 +70,16 @@ describe("createComputerUseScorecard", () => {
     });
   });
 
-  it("does not count Speech Recognition denial as a Computer Use permission failure", () => {
+  it("does not count unrelated non-Computer-Use data as a permission failure", () => {
     expect(createComputerUseScorecard([
       {
-        id: "external-doubao-computer-use-ready",
+        id: "external-text-entry-computer-use-ready",
         events: [
-          { status: "completed", message: "Command submitted to Ghostty from external Doubao text." }
+          { status: "completed", message: "Command submitted to Ghostty from external text entry." }
         ],
         permissions: {
           screenRecording: { state: "granted" },
           accessibility: { state: "granted" },
-          microphone: { state: "granted" },
-          speechRecognition: { state: "denied" }
         }
       }
     ])).toMatchObject({

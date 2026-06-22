@@ -11,7 +11,6 @@ describe("dogfood issue draft generator", () => {
   const ghosttySmokePath = "/repo/.skfiy-smoke/tester-a-ghostty.json";
   const chromeSmokePath = "/repo/.skfiy-smoke/tester-a-chrome.json";
   const finderSmokePath = "/repo/.skfiy-smoke/tester-a-finder.json";
-  const voiceSmokePath = "/repo/.skfiy-smoke/tester-a-voice.json";
 
   it("is exposed as an npm script for preparing real tester issue bodies", () => {
     const packageJson = JSON.parse(
@@ -54,8 +53,6 @@ describe("dogfood issue draft generator", () => {
       ".skfiy-smoke/tester-a-chrome.json",
       "--finder-smoke-artifact",
       ".skfiy-smoke/tester-a-finder.json",
-      "--voice-smoke-artifact",
-      ".skfiy-smoke/tester-a-voice.json",
       "--output",
       ".skfiy-dogfood/issues/tester-a.md"
     ], defaults)).toMatchObject({
@@ -67,7 +64,6 @@ describe("dogfood issue draft generator", () => {
       smokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-ghostty.json"),
       chromeSmokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-chrome.json"),
       finderSmokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-finder.json"),
-      voiceSmokeArtifactPath: path.resolve(".skfiy-smoke/tester-a-voice.json"),
       outputPath: path.resolve(".skfiy-dogfood/issues/tester-a.md")
     });
     expect(createDogfoodIssueDraftHelpText()).toContain("dogfood:issue");
@@ -95,9 +91,7 @@ describe("dogfood issue draft generator", () => {
         productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
         permissionStates: {
           screenRecording: { state: "granted" },
-          accessibility: { state: "granted" },
-          microphone: { state: "granted" },
-          speechRecognition: { state: "granted" }
+          accessibility: { state: "granted" }
         }
       }),
       [ghosttySmokePath]: createSmoke(ghosttySmokePath, "passed", {
@@ -144,14 +138,6 @@ describe("dogfood issue draft generator", () => {
         appPolicySettings: [
           { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
         ]
-      }),
-      [voiceSmokePath]: createSmoke(voiceSmokePath, "no-transcript", {
-        provider: "native-macos",
-        transcriptEvents: [{ type: "no_transcript", reason: "silence timeout" }],
-        speechStatus: {
-          speechRecognition: { state: "granted" },
-          microphone: { state: "granted" }
-        }
       })
     });
 
@@ -163,7 +149,6 @@ describe("dogfood issue draft generator", () => {
       smokeArtifactPath: ghosttySmokePath,
       chromeSmokeArtifactPath: chromeSmokePath,
       finderSmokeArtifactPath: finderSmokePath,
-      voiceSmokeArtifactPath: voiceSmokePath,
       outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md"
     }, io);
 
@@ -194,7 +179,6 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain(ghosttySmokePath);
     expect(body).toContain(chromeSmokePath);
     expect(body).toContain(finderSmokePath);
-    expect(body).toContain(voiceSmokePath);
     expect(body).toContain("### runnerHasTmux");
     expect(body).toContain("false");
     expect(body).toContain("### app bundle preflight");
@@ -209,12 +193,10 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("suppressedClickAfterDrag: true");
     expect(body).toContain("### Screen Recording");
     expect(body).toContain("granted");
-    expect(body).toContain("### ASR provider");
-    expect(body).toContain("native-macos");
     expect(body).toContain("### action verification events");
     expect(body).toContain("Verified type_text");
     expect(body).toContain("Verified press_key");
-    expect(body).toContain("### non-terminal voice route guards");
+    expect(body).toContain("### non-Computer-Use route guards");
     expect(body).toContain("chat-question-route-guard");
     expect(body).toContain("unsupported-desktop-route-guard");
     expect(body).toContain("### Chrome extracted text");
@@ -223,8 +205,6 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("Sensitive form input is not allowed for Chrome Computer Use.");
     expect(body).toContain("### Finder plan preview");
     expect(body).toContain("destructiveOperationCount: 0");
-    expect(body).toContain("### External Doubao voice no-transcript/cancellation evidence");
-    expect(body).toContain("no_transcript");
     expect(body).toContain("### panic stop");
     expect(body).toContain("accelerator: Control+Alt+Shift+Esc");
     expect(body).toContain("label: Ctrl Opt Shift Esc");
@@ -235,68 +215,6 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("behaviorBeforeStatus: approval_required");
     expect(body).toContain("behaviorAfterStatus: idle");
     expect(body).toContain("behaviorAfterMessage: Task stopped.");
-  });
-
-  it("includes final voice transcript task events and turn replay evidence", async () => {
-    const { createDogfoodIssueDraft } = await import(pathToFileURL(modulePath).href) as {
-      createDogfoodIssueDraft: (
-        input: Record<string, unknown>,
-        io?: Record<string, unknown>
-      ) => Promise<Record<string, unknown>>;
-    };
-    const io = createMemoryIo({
-      [manifestPath]: createManifest(),
-      [uiSmokePath]: createSmoke(uiSmokePath, "passed"),
-      [ghosttySmokePath]: createSmoke(ghosttySmokePath, "passed"),
-      [chromeSmokePath]: createSmoke(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed", {
-        provider: "native-macos",
-        transcriptEvents: [
-          { providerId: "native-macos", isFinal: true, text: "pwd" }
-        ],
-        taskEvents: [
-          { status: "completed", message: "Command completed from voice transcript." }
-        ],
-        turnReplay: {
-          transcript: {
-            apps: [{ bundleId: "com.mitchellh.ghostty" }],
-            screenshots: [
-              { stage: "before", path: "/tmp/voice-before.png", bytes: 1200 },
-              { stage: "after", path: "/tmp/voice-after.png", bytes: 1400 }
-            ],
-            actions: [
-              { type: "type_text", text: "pwd" },
-              { type: "verify", actionType: "type_text", status: "passed" },
-              { type: "press_key", key: "enter" },
-              { type: "verify", actionType: "press_key", status: "passed" }
-            ],
-            outcome: "completed"
-          },
-          timeline: [{ status: "completed" }]
-        }
-      })
-    });
-
-    await createDogfoodIssueDraft({
-      manifestPath,
-      testerId: "tester-a",
-      workflows: ["coding-terminal"],
-      uiSmokeArtifactPath: uiSmokePath,
-      smokeArtifactPath: ghosttySmokePath,
-      chromeSmokeArtifactPath: chromeSmokePath,
-      finderSmokeArtifactPath: finderSmokePath,
-      voiceSmokeArtifactPath: voiceSmokePath,
-      outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md"
-    }, io);
-
-    const body = io.files["/repo/.skfiy-dogfood/issues/tester-a.md"] as string;
-    expect(body).toContain("### External Doubao voice transcript-to-task evidence");
-    expect(body).toContain("transcriptEvents:");
-    expect(body).toContain("taskEvents:");
-    expect(body).toContain("turnReplay:");
-    expect(body).toContain("com.mitchellh.ghostty");
-    expect(body).toContain("/tmp/voice-after.png");
   });
 
   it("summarizes Computer Use result from the artifacts that match selected workflows", async () => {
@@ -311,8 +229,7 @@ describe("dogfood issue draft generator", () => {
       [uiSmokePath]: createSmoke(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmoke(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmoke(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed")
+      [finderSmokePath]: createSmoke(finderSmokePath, "passed")
     });
 
     const result = await createDogfoodIssueDraft({
@@ -323,7 +240,6 @@ describe("dogfood issue draft generator", () => {
       smokeArtifactPath: ghosttySmokePath,
       chromeSmokeArtifactPath: chromeSmokePath,
       finderSmokeArtifactPath: finderSmokePath,
-      voiceSmokeArtifactPath: voiceSmokePath,
       outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md"
     }, io);
 
@@ -356,8 +272,7 @@ describe("dogfood issue draft generator", () => {
           reason: "Screen Recording permission is required for screenshot fallback."
         }
       }),
-      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed")
+      [finderSmokePath]: createSmoke(finderSmokePath, "passed")
     });
 
     const result = await createDogfoodIssueDraft({
@@ -368,7 +283,6 @@ describe("dogfood issue draft generator", () => {
       smokeArtifactPath: ghosttySmokePath,
       chromeSmokeArtifactPath: chromeSmokePath,
       finderSmokeArtifactPath: finderSmokePath,
-      voiceSmokeArtifactPath: voiceSmokePath,
       outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md"
     }, io);
 
@@ -396,8 +310,7 @@ describe("dogfood issue draft generator", () => {
       [uiSmokePath]: createSmoke(uiSmokePath, "passed"),
       [ghosttySmokePath]: createSmoke(ghosttySmokePath, "blocked"),
       [chromeSmokePath]: createSmoke(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed")
+      [finderSmokePath]: createSmoke(finderSmokePath, "passed")
     });
 
     await expect(createDogfoodIssueDraft({
@@ -408,7 +321,6 @@ describe("dogfood issue draft generator", () => {
       smokeArtifactPath: ghosttySmokePath,
       chromeSmokeArtifactPath: chromeSmokePath,
       finderSmokeArtifactPath: finderSmokePath,
-      voiceSmokeArtifactPath: voiceSmokePath,
       outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
       checkReport: true,
       now: () => "2026-06-16T12:00:00.000Z"
@@ -432,8 +344,7 @@ describe("dogfood issue draft generator", () => {
           ui: "passed",
           ghostty: "blocked",
           chrome: "passed",
-          finder: "passed",
-          voice: "passed"
+          finder: "passed"
         }
       },
       reportPreviewEligibility: {
@@ -455,8 +366,7 @@ describe("dogfood issue draft generator", () => {
       [uiSmokePath]: createSmoke(uiSmokePath, "passed", { appLaunchViaOpen: false }),
       [ghosttySmokePath]: createSmoke(ghosttySmokePath, "passed"),
       [chromeSmokePath]: createSmoke(chromeSmokePath, "passed"),
-      [finderSmokePath]: createSmoke(finderSmokePath, "passed"),
-      [voiceSmokePath]: createSmoke(voiceSmokePath, "passed")
+      [finderSmokePath]: createSmoke(finderSmokePath, "passed")
     });
 
     await expect(createDogfoodIssueDraft({
@@ -467,7 +377,6 @@ describe("dogfood issue draft generator", () => {
       smokeArtifactPath: ghosttySmokePath,
       chromeSmokeArtifactPath: chromeSmokePath,
       finderSmokeArtifactPath: finderSmokePath,
-      voiceSmokeArtifactPath: voiceSmokePath,
       outputPath: "/repo/.skfiy-dogfood/issues/tester-a.md",
       checkReport: true,
       now: () => "2026-06-16T12:00:00.000Z"
@@ -483,8 +392,7 @@ describe("dogfood issue draft generator", () => {
       uiSmokeArtifactPath: uiSmokePath,
       smokeArtifactPath: ghosttySmokePath,
       chromeSmokeArtifactPath: chromeSmokePath,
-      finderSmokeArtifactPath: finderSmokePath,
-      voiceSmokeArtifactPath: voiceSmokePath
+      finderSmokeArtifactPath: finderSmokePath
     };
   }
 
@@ -503,9 +411,7 @@ describe("dogfood issue draft generator", () => {
       productPath: "renderer -> preload -> main",
       permissionStates: {
         screenRecording: { state: "unknown" },
-        accessibility: { state: "unknown" },
-        microphone: { state: "unknown" },
-        speechRecognition: { state: "unknown" }
+        accessibility: { state: "unknown" }
       },
       petDrag: {
         result: "passed",

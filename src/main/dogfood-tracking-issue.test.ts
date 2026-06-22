@@ -112,7 +112,7 @@ describe("dogfood tracking issue sync", () => {
     expect(body).toContain("Workflow coverage is computed from verified accepted report issue labels by `dogfood:status`, not from this checklist.");
     expect(body).toContain("- Strict permission preflight summary: `.skfiy-dogfood/preflight-abcdef1-summary.md`");
     expect(body).toContain("- UI artifact: `.skfiy-smoke/dogfood/preflight-abcdef1/preflight-abcdef1-ui.json`");
-    expect(body).toContain("Screen Recording `denied`, Accessibility `denied`, Microphone `not-determined`, Speech Recognition `not-determined`");
+    expect(body).toContain("Screen Recording `denied`, Accessibility `denied`");
     expect(body).toContain("npm run dogfood:status -- \\");
     expect(body).toContain("--manifest .skfiy-alpha/skfiy-0.1.0-abcdef1-macos-unsigned.json");
     expect(body).toContain("## Desktop Session Preflight");
@@ -352,8 +352,6 @@ function createMemoryIo(options: {
           permissions: {
             screenRecording: { state: "denied" },
             accessibility: { state: "denied" },
-            microphone: { state: "not-determined" },
-            speechRecognition: { state: "not-determined" }
           }
         };
       }
