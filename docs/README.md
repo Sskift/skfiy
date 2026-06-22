@@ -14,6 +14,8 @@ research notes as dated context unless they contain a still-open product gap.
   dogfood tester flow, and cohort verification.
 - `chrome-extension-setup.md`: Chrome unpacked extension setup, Native
   Messaging host install/status checks, and troubleshooting.
+- `product-readiness-matrix.md`: supervisor-facing product boundary,
+  workstream ownership, real-scenario acceptance, and QA/SRE gate.
 - `release-evidence/latest-alpha.json`: latest published alpha pointer used by
   dashboard and dogfood readiness checks.
 - `research/2026-06-22-agent-computer-use-long-plan.md`: the single active
