@@ -198,6 +198,7 @@ describe("GitHub alpha release publisher", () => {
         ghostty: ".skfiy-smoke/ghostty-abcdef1.json",
         chrome: ".skfiy-smoke/chrome-abcdef1.json",
         finder: ".skfiy-smoke/finder-abcdef1.json",
+        dashboard: ".skfiy-smoke/dashboard-abcdef1.json",
         moneyRun: ".skfiy-smoke/money-run-abcdef1.json"
       },
       dogfoodStatus: "waiting-for-dogfood",
@@ -334,6 +335,35 @@ describe("GitHub alpha release publisher", () => {
     expect(io.textFiles["/repo/docs/release-evidence/latest-alpha.json"]).toBeUndefined();
   });
 
+  it("rejects a release when the manifest omits dashboard smoke evidence", async () => {
+    const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
+      runGitHubAlphaRelease: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const staleManifest = createManifest();
+    delete (staleManifest as { dashboardSmokeArtifactPath?: unknown }).dashboardSmokeArtifactPath;
+    staleManifest.requiredDogfoodEvidence = staleManifest.requiredDogfoodEvidence.filter(
+      (entry) => entry !== "Dashboard readiness and dogfood evidence"
+    );
+    const io = createMemoryIo({
+      manifest: staleManifest
+    });
+
+    await expect(runGitHubAlphaRelease({
+      rootDir: "/repo",
+      manifestPath,
+      repo: "Sskift/skfiy",
+      trackingIssueUrl,
+      dryRun: true
+    }, io)).rejects.toThrow(
+      "alpha manifest dashboardSmokeArtifactPath is required."
+    );
+    expect(io.commands).toEqual([]);
+  });
+
+
   it("rejects a dry-run release when the zip bytes match but the SHA256 differs", async () => {
     const { runGitHubAlphaRelease } = await import(pathToFileURL(modulePath).href) as {
       runGitHubAlphaRelease: (
@@ -379,9 +409,11 @@ function createManifest() {
     smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abcdef1.json",
     chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abcdef1.json",
     finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
+    dashboardSmokeArtifactPath: "/repo/.skfiy-smoke/dashboard-abcdef1.json",
     moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-abcdef1.json",
     requiredDogfoodEvidence: [
       "Panic stop product-path behavior evidence",
+      "Dashboard readiness and dogfood evidence",
       "Long-horizon money-run supervision evidence",
       "Chrome Native Messaging heartbeat evidence",
       "Chrome installed-extension smoke evidence"

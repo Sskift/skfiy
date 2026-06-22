@@ -90,6 +90,7 @@ describe("alpha artifact packaging", () => {
         smokeArtifactPath?: string;
         chromeSmokeArtifactPath?: string;
         finderSmokeArtifactPath?: string;
+        dashboardSmokeArtifactPath?: string;
         moneyRunSmokeArtifactPath?: string;
       }) => Record<string, unknown>;
       parseAlphaArtifactArgs: (
@@ -107,6 +108,8 @@ describe("alpha artifact packaging", () => {
       ".skfiy-smoke/chrome-page.json",
       "--finder-smoke-artifact",
       ".skfiy-smoke/finder-item-drag-drop.json",
+      "--dashboard-smoke-artifact",
+      ".skfiy-smoke/dashboard-status.json",
       "--money-run-smoke-artifact",
       ".skfiy-smoke/money-run-supervision.json"
     ], {
@@ -116,6 +119,7 @@ describe("alpha artifact packaging", () => {
       smokeArtifactPath: undefined,
       chromeSmokeArtifactPath: undefined,
       finderSmokeArtifactPath: undefined,
+      dashboardSmokeArtifactPath: undefined,
       moneyRunSmokeArtifactPath: undefined,
       help: false
     })).toMatchObject({
@@ -123,6 +127,7 @@ describe("alpha artifact packaging", () => {
       smokeArtifactPath: path.resolve(".skfiy-smoke/ghostty-matrix.json"),
       chromeSmokeArtifactPath: path.resolve(".skfiy-smoke/chrome-page.json"),
       finderSmokeArtifactPath: path.resolve(".skfiy-smoke/finder-item-drag-drop.json"),
+      dashboardSmokeArtifactPath: path.resolve(".skfiy-smoke/dashboard-status.json"),
       moneyRunSmokeArtifactPath: path.resolve(".skfiy-smoke/money-run-supervision.json")
     });
 
@@ -144,6 +149,7 @@ describe("alpha artifact packaging", () => {
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abcdef1.json",
       chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abcdef1.json",
       finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
+      dashboardSmokeArtifactPath: "/repo/.skfiy-smoke/dashboard-abcdef1.json",
       moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision-abcdef1.json"
     })).toMatchObject({
       schemaVersion: 1,
@@ -162,12 +168,14 @@ describe("alpha artifact packaging", () => {
       smokeArtifactPath: "/repo/.skfiy-smoke/ghostty-abcdef1.json",
       chromeSmokeArtifactPath: "/repo/.skfiy-smoke/chrome-abcdef1.json",
       finderSmokeArtifactPath: "/repo/.skfiy-smoke/finder-abcdef1.json",
+      dashboardSmokeArtifactPath: "/repo/.skfiy-smoke/dashboard-abcdef1.json",
       moneyRunSmokeArtifactPath: "/repo/.skfiy-smoke/money-run-supervision-abcdef1.json",
       requiredDogfoodEvidence: [
         "npm run smoke:ui -- --output <path>",
         "npm run smoke:ghostty -- --output <path>",
         "npm run smoke:chrome -- --output <path>",
         "npm run smoke:finder -- --output <path>",
+        "npm run smoke:dashboard -- --output <path>",
         "npm run smoke:money-run -- --json-output <path>",
         "skfiy status --json",
         "skfiy doctor",
@@ -175,6 +183,7 @@ describe("alpha artifact packaging", () => {
         "Permission settings direct links",
         "Panic stop runtime hotkey evidence",
         "Panic stop product-path behavior evidence",
+        "Dashboard readiness and dogfood evidence",
         "Screen Recording permission state",
         "Accessibility permission state",
         "Accepted GitHub dogfood issue source",

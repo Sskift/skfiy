@@ -13,6 +13,7 @@ const DEFAULT_REPO = "Sskift/skfiy";
 const DEFAULT_TRACKING_ISSUE_URL = "https://github.com/Sskift/skfiy/issues/1";
 const REQUIRED_RELEASE_DOGFOOD_EVIDENCE = [
   "Panic stop product-path behavior evidence",
+  "Dashboard readiness and dogfood evidence",
   "Long-horizon money-run supervision evidence",
   "Chrome Native Messaging heartbeat evidence",
   "Chrome installed-extension smoke evidence"
@@ -382,6 +383,7 @@ export function createLatestAlphaEvidence({
       ghostty: toRepoRelativePath(rootDir, manifest.smokeArtifactPath),
       chrome: toRepoRelativePath(rootDir, manifest.chromeSmokeArtifactPath),
       finder: toRepoRelativePath(rootDir, manifest.finderSmokeArtifactPath),
+      dashboard: toRepoRelativePath(rootDir, manifest.dashboardSmokeArtifactPath),
       ...(typeof manifest.moneyRunSmokeArtifactPath === "string"
         ? { moneyRun: toRepoRelativePath(rootDir, manifest.moneyRunSmokeArtifactPath) }
         : {})
@@ -433,7 +435,8 @@ function validateManifest(manifest) {
     "uiSmokeArtifactPath",
     "smokeArtifactPath",
     "chromeSmokeArtifactPath",
-    "finderSmokeArtifactPath"
+    "finderSmokeArtifactPath",
+    "dashboardSmokeArtifactPath"
   ]) {
     if (typeof manifest[key] !== "string" || manifest[key].trim().length === 0) {
       throw new Error(`alpha manifest ${key} is required.`);
@@ -487,6 +490,7 @@ function validateCurrentAlphaSmokeArtifacts(manifest) {
     "smokeArtifactPath",
     "chromeSmokeArtifactPath",
     "finderSmokeArtifactPath",
+    "dashboardSmokeArtifactPath",
     "moneyRunSmokeArtifactPath"
   ]) {
     const artifactPath = manifest[key];

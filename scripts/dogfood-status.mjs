@@ -143,6 +143,13 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   validateStatusOptions(options);
 
   const manifest = await io.readJson(options.manifestPath);
+  if (!hasTrackingIssueInput(options)) {
+    return await createMissingTrackingIssueStatus({
+      manifest,
+      options,
+      io
+    });
+  }
   const trackingIssueUrl = readTrackingIssueUrl(options);
   const trackingIssue = normalizeIssueEvidence(await readTrackingIssue(options, io));
   const currentAlpha = validateTrackingIssueCurrentAlpha({
@@ -300,13 +307,95 @@ export async function createDogfoodStatus(options, io = createDefaultIo()) {
   return status;
 }
 
+async function createMissingTrackingIssueStatus({
+  manifest,
+  options,
+  io
+}) {
+  const smokeArtifacts = await readSmokeArtifacts(manifest, options, io);
+  const artifactResults = readArtifactResults(smokeArtifacts);
+  const permissionEvidence = readPermissionEvidence(smokeArtifacts);
+  const permissionStates = readPermissionStates(smokeArtifacts, permissionEvidence);
+  const permissionBlockers = readPermissionBlockers(smokeArtifacts, permissionStates);
+  const desktopSessionBlocker = readDesktopSessionBlocker(smokeArtifacts);
+  const manifestChecks = await readManifestChecks(manifest, options, io);
+  const workflowCoverage = createEmptyWorkflowCoverage();
+  const status = {
+    result: "missing-tracking-issue",
+    generatedAt: typeof options.now === "function" ? options.now() : new Date().toISOString(),
+    manifestPath: options.manifestPath,
+    trackingIssueUrl: undefined,
+    trackingIssueFile: undefined,
+    manifest: {
+      appName: manifest?.appName,
+      commitSha: manifest?.commitSha,
+      bundleIdentifier: manifest?.bundleIdentifier,
+      artifactBaseName: manifest?.artifactBaseName,
+      zipPath: manifest?.zip?.path,
+      checks: manifestChecks
+    },
+    trackingIssue: {
+      state: "missing",
+      currentAlpha: {
+        ok: false,
+        reasons: ["tracking issue input is missing"]
+      },
+      bodyPreflight: {
+        ok: false,
+        reasons: ["tracking issue input is missing"]
+      },
+      assignmentComment: {
+        available: false,
+        ok: false,
+        reasons: ["tracking issue input is missing"]
+      },
+      acceptedReportIssueUrls: [],
+      acceptedReportCount: 0,
+      verifiedAcceptedReportIssueUrls: [],
+      verifiedAcceptedReportCount: 0,
+      verifiedRealAcceptedReportIssueUrls: [],
+      verifiedRealAcceptedReportCount: 0,
+      reportIssueValidation: [],
+      missingRequiredReports: 3,
+      workflowCoverage,
+      passedWorkflowCoverage: workflowCoverage
+    },
+    localSmoke: {
+      artifactResults,
+      permissionStates,
+      permissionEvidence,
+      permissionBlockers,
+      desktopSessionBlocker
+    },
+    readiness: {
+      canRunCollect: false,
+      canRunPassedCohort: false,
+      cohortReady: false
+    },
+    testerAssignments: [],
+    nextActions: [
+      "Provide --tracking-issue-url or --tracking-issue-file before collecting dogfood reports."
+    ]
+  };
+
+  if (typeof options.summaryPath === "string") {
+    await io.writeText(options.summaryPath, createDogfoodStatusMarkdown(status));
+  }
+  if (typeof options.jsonOutputPath === "string") {
+    await io.writeText(options.jsonOutputPath, `${JSON.stringify(status, null, 2)}\n`);
+  }
+
+  return status;
+}
+
 export function createDogfoodStatusHelpText() {
   return [
-    "Usage: npm run dogfood:status -- --manifest <alpha-manifest> (--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>) [--summary <markdown-path>] [--json-output <json-path>] [--desktop-session-artifact <json-path>] [--require-current-head]",
+    "Usage: npm run dogfood:status -- --manifest <alpha-manifest> [--tracking-issue-url <issue-url> | --tracking-issue-file <markdown-path>] [--summary <markdown-path>] [--json-output <json-path>] [--desktop-session-artifact <json-path>] [--require-current-head]",
     "",
     "Creates a non-mutating dogfood readiness status report.",
     "It summarizes the alpha manifest, local smoke artifact results, permission blockers,",
     "and accepted report URLs recorded in the tracking issue or local tracking issue markdown file.",
+    "Without a tracking issue input it writes a missing-tracking-issue status artifact instead of mutating anything.",
     "It separates real tester readiness from local synthetic reports such as local-* and preflight-* runs.",
     "It separates verified accepted workflow coverage from passed product-path workflow coverage.",
     "It warns when app-build inputs changed after the selected alpha manifest commit.",
@@ -480,17 +569,27 @@ function validateStatusOptions(options) {
   if (typeof options.manifestPath !== "string") {
     throw new Error("Missing --manifest <path>.");
   }
-  const hasTrackingIssueUrl =
-    typeof options.trackingIssueUrl === "string" && options.trackingIssueUrl.trim().length > 0;
-  const hasTrackingIssueFile =
-    typeof options.trackingIssueFile === "string" && options.trackingIssueFile.trim().length > 0;
-
-  if (!hasTrackingIssueUrl && !hasTrackingIssueFile) {
-    throw new Error("Missing --tracking-issue-url <url> or --tracking-issue-file <markdown-path>.");
-  }
+  const hasTrackingIssueUrl = hasTrackingIssueUrlInput(options);
   if (hasTrackingIssueUrl && !isGitHubIssueUrl(options.trackingIssueUrl)) {
     throw new Error("--tracking-issue-url must be a GitHub issue URL.");
   }
+}
+
+function hasTrackingIssueInput(options) {
+  return hasTrackingIssueUrlInput(options)
+    || (typeof options.trackingIssueFile === "string" && options.trackingIssueFile.trim().length > 0);
+}
+
+function hasTrackingIssueUrlInput(options) {
+  return typeof options.trackingIssueUrl === "string" && options.trackingIssueUrl.trim().length > 0;
+}
+
+function createEmptyWorkflowCoverage() {
+  return {
+    required: [...REQUIRED_WORKFLOW_IDS],
+    covered: [],
+    missing: [...REQUIRED_WORKFLOW_IDS]
+  };
 }
 
 async function readTrackingIssue(options, io) {
@@ -537,6 +636,9 @@ async function readSmokeArtifacts(manifest, options, io) {
     ghostty: await readOptionalJson(manifest?.smokeArtifactPath, io),
     chrome: await readOptionalJson(manifest?.chromeSmokeArtifactPath, io),
     finder: await readOptionalJson(manifest?.finderSmokeArtifactPath, io),
+    ...(typeof manifest?.dashboardSmokeArtifactPath === "string"
+      ? { dashboard: await readOptionalJson(manifest.dashboardSmokeArtifactPath, io) }
+      : {}),
     ...(typeof options.desktopSessionArtifactPath === "string"
       ? { desktopSession: await readOptionalJson(options.desktopSessionArtifactPath, io) }
       : {}),

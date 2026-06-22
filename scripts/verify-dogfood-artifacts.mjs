@@ -13,6 +13,7 @@ const execFileAsync = promisify(execFile);
 const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 const GHOSTTY_PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 const CHROME_PRODUCT_PATH = "renderer -> preload -> main -> CDP -> Chrome";
+const DASHBOARD_PRODUCT_PATH = "dist/skfiy -> skfiy dashboard -> loopback dashboard server";
 const CHROME_NATIVE_HOST_BRIDGE_PRODUCT_PATH = "dist/skfiy -> Chrome Native Messaging heartbeat";
 const CHROME_INSTALLED_EXTENSION_PRODUCT_PATH = "Chrome MV3 extension -> Native Messaging -> dist/skfiy heartbeat";
 const FINDER_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
@@ -23,6 +24,7 @@ const ACCEPTED_UI_RESULTS = new Set(["passed", "no-onboarding"]);
 const ACCEPTED_GHOSTTY_RESULTS = new Set(["passed", "blocked"]);
 const ACCEPTED_CHROME_RESULTS = new Set(["passed", "blocked", "sensitive-paused"]);
 const ACCEPTED_FINDER_RESULTS = new Set(["passed", "blocked"]);
+const ACCEPTED_DASHBOARD_RESULTS = new Set(["passed"]);
 const REQUIRED_COMPUTER_USE_PERMISSION_KEYS = ["screenRecording", "accessibility"];
 const REQUIRED_UI_PERMISSION_LABELS = ["屏幕录制", "辅助功能"];
 const REQUIRED_UI_PERMISSION_SETTING_TARGETS = [
@@ -108,6 +110,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
   const smokeArtifactPath = readString(manifest?.smokeArtifactPath);
   const chromeSmokeArtifactPath = readString(manifest?.chromeSmokeArtifactPath);
   const finderSmokeArtifactPath = readString(manifest?.finderSmokeArtifactPath);
+  const dashboardSmokeArtifactPath = readString(manifest?.dashboardSmokeArtifactPath);
   const moneyRunSmokeArtifactPath = readString(manifest?.moneyRunSmokeArtifactPath);
 
   check(checks, "manifest.appName", manifest?.appName === "skfiy", "manifest appName must be skfiy");
@@ -147,6 +150,14 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     typeof finderSmokeArtifactPath === "string",
     "manifest finderSmokeArtifactPath is required"
   );
+  if (manifest?.dashboardSmokeArtifactPath !== undefined) {
+    check(
+      checks,
+      "manifest.dashboardSmokeArtifactPath",
+      typeof dashboardSmokeArtifactPath === "string",
+      "manifest dashboardSmokeArtifactPath must be a string when present"
+    );
+  }
   check(
     checks,
     "manifest.requiredDogfoodEvidence.ui",
@@ -233,6 +244,22 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && manifest.requiredDogfoodEvidence.includes("npm run smoke:finder -- --output <path>"),
     "manifest must require Finder smoke evidence"
   );
+  if (dashboardSmokeArtifactPath) {
+    check(
+      checks,
+      "manifest.requiredDogfoodEvidence.dashboard",
+      Array.isArray(manifest?.requiredDogfoodEvidence)
+        && manifest.requiredDogfoodEvidence.includes("npm run smoke:dashboard -- --output <path>"),
+      "manifest must require Dashboard smoke evidence"
+    );
+    check(
+      checks,
+      "manifest.requiredDogfoodEvidence.dashboardReadiness",
+      Array.isArray(manifest?.requiredDogfoodEvidence)
+        && manifest.requiredDogfoodEvidence.includes("Dashboard readiness and dogfood evidence"),
+      "manifest must require Dashboard readiness and dogfood evidence"
+    );
+  }
   check(
     checks,
     "manifest.requiredDogfoodEvidence.actionVerification",
@@ -366,6 +393,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     smokeArtifactPath,
     chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
+    dashboardSmokeArtifactPath,
     moneyRunSmokeArtifactPath
   }, checks);
 
@@ -384,6 +412,9 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     : undefined;
   const finder = finderSmokeArtifactPath
     ? await readArtifactJson(finderSmokeArtifactPath, "finder", io, checks)
+    : undefined;
+  const dashboard = dashboardSmokeArtifactPath
+    ? await readArtifactJson(dashboardSmokeArtifactPath, "dashboard", io, checks)
     : undefined;
   const moneyRun = moneyRunSmokeArtifactPath
     ? await readArtifactJson(moneyRunSmokeArtifactPath, "moneyRun", io, checks)
@@ -405,6 +436,10 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     verifyFinderSmoke(finder, finderSmokeArtifactPath, options, checks);
   }
 
+  if (dashboard) {
+    verifyDashboardSmoke(dashboard, dashboardSmokeArtifactPath, checks);
+  }
+
   if (moneyRun) {
     verifyMoneyRunSmoke(moneyRun, moneyRunSmokeArtifactPath, checks);
   }
@@ -418,6 +453,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       && (!smokeArtifactPath || path.isAbsolute(smokeArtifactPath))
       && (!chromeSmokeArtifactPath || path.isAbsolute(chromeSmokeArtifactPath))
       && (!finderSmokeArtifactPath || path.isAbsolute(finderSmokeArtifactPath))
+      && (!dashboardSmokeArtifactPath || path.isAbsolute(dashboardSmokeArtifactPath))
       && (!moneyRunSmokeArtifactPath || path.isAbsolute(moneyRunSmokeArtifactPath)),
     `manifest and artifact paths should be absolute; manifest is in ${manifestDir}`
   );
@@ -432,6 +468,57 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
     errors,
     checks
   };
+}
+
+function verifyDashboardSmoke(artifact, expectedPath, checks) {
+  check(
+    checks,
+    "dashboard.artifactPath",
+    samePath(artifact.artifactPath, expectedPath),
+    "Dashboard artifactPath must match manifest dashboardSmokeArtifactPath"
+  );
+  check(
+    checks,
+    "dashboard.result",
+    ACCEPTED_DASHBOARD_RESULTS.has(artifact.result),
+    "Dashboard smoke result must pass before it can count as dashboard readiness evidence"
+  );
+  check(
+    checks,
+    "dashboard.runnerHasTmux",
+    artifact.runnerHasTmux === false,
+    "Dashboard smoke runner must not be inside tmux"
+  );
+  check(
+    checks,
+    "dashboard.productPath",
+    artifact.productPath === DASHBOARD_PRODUCT_PATH,
+    `Dashboard smoke productPath must be ${DASHBOARD_PRODUCT_PATH}`
+  );
+  check(
+    checks,
+    "dashboard.descriptor",
+    artifact.descriptorResponse?.status === 200,
+    "Dashboard smoke must prove the descriptor endpoint responds"
+  );
+  check(
+    checks,
+    "dashboard.snapshot",
+    artifact.snapshotResponse?.status === 200,
+    "Dashboard smoke must prove the snapshot endpoint responds"
+  );
+  check(
+    checks,
+    "dashboard.runtimeSnapshotCoverage",
+    artifact.runtimeSnapshotCoverage?.result === "passed",
+    "Dashboard smoke must prove runtime snapshot coverage"
+  );
+  check(
+    checks,
+    "dashboard.tokenLeak",
+    artifact.tokenLeakDetected === false,
+    "Dashboard smoke must prove no token leak was detected"
+  );
 }
 
 function verifyUiSmoke(artifact, expectedPath, options, checks) {
@@ -1067,6 +1154,7 @@ function verifyCurrentAlphaSmokeArtifactPaths({
   smokeArtifactPath,
   chromeSmokeArtifactPath,
   finderSmokeArtifactPath,
+  dashboardSmokeArtifactPath,
   moneyRunSmokeArtifactPath
 }, checks) {
   const commitSha = readString(manifest?.commitSha);
@@ -1088,6 +1176,7 @@ function verifyCurrentAlphaSmokeArtifactPaths({
     smokeArtifactPath,
     chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
+    dashboardSmokeArtifactPath,
     moneyRunSmokeArtifactPath
   })) {
     if (!artifactPathHasAlphaSuffix(artifactPath)) {

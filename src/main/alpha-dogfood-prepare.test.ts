@@ -614,6 +614,34 @@ describe("alpha dogfood preparation", () => {
     );
   });
 
+  it("rejects downloaded alpha manifests missing dashboard smoke evidence", async () => {
+    const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
+      runPrepareAlphaDogfood: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const staleManifest = createDownloadedManifest();
+    delete (staleManifest as { dashboardSmokeArtifactPath?: unknown }).dashboardSmokeArtifactPath;
+    staleManifest.requiredDogfoodEvidence = staleManifest.requiredDogfoodEvidence.filter(
+      (entry) => !entry.includes("dashboard") && !entry.includes("Dashboard readiness")
+    );
+
+    await expect(runPrepareAlphaDogfood({
+      rootDir: "/repo",
+      releaseUrl,
+      tagName: "skfiy-alpha-abc1234",
+      repo: "Sskift/skfiy",
+      testerId: "tester-a",
+      dryRun: false
+    }, createMemoryIo({
+      manifest: staleManifest
+    }))).rejects.toThrow(
+      "alpha manifest must include dashboardSmokeArtifactPath and dashboard readiness evidence."
+    );
+  });
+
+
   it("rejects downloaded alpha zips whose app bundle identity is not lowercase skfiy", async () => {
     const { runPrepareAlphaDogfood } = await import(pathToFileURL(modulePath).href) as {
       runPrepareAlphaDogfood: (
@@ -771,14 +799,17 @@ function createDownloadedManifest() {
     smokeArtifactPath: "/build/.skfiy-smoke/ghostty-abc1234.json",
     chromeSmokeArtifactPath: "/build/.skfiy-smoke/chrome-abc1234.json",
     finderSmokeArtifactPath: "/build/.skfiy-smoke/finder-abc1234.json",
+    dashboardSmokeArtifactPath: "/build/.skfiy-smoke/dashboard-abc1234.json",
     moneyRunSmokeArtifactPath: "/build/.skfiy-smoke/money-run-supervision-abc1234.json",
     requiredDogfoodEvidence: [
       "npm run smoke:ui -- --output <path>",
       "npm run smoke:ghostty -- --output <path>",
       "npm run smoke:chrome -- --output <path>",
       "npm run smoke:finder -- --output <path>",
+      "npm run smoke:dashboard -- --output <path>",
       "npm run smoke:money-run -- --json-output <path>",
       "Panic stop product-path behavior evidence",
+      "Dashboard readiness and dogfood evidence",
       "Long-horizon money-run supervision evidence",
       "Chrome Native Messaging heartbeat evidence",
       "Chrome installed-extension smoke evidence"

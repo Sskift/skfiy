@@ -10,10 +10,12 @@ describe("dogfood artifact verifier", () => {
     "npm run smoke:ghostty -- --output <path>",
     "npm run smoke:chrome -- --output <path>",
     "npm run smoke:finder -- --output <path>",
+    "npm run smoke:dashboard -- --output <path>",
     "npm run smoke:money-run -- --json-output <path>",
     "Permission settings direct links",
     "Panic stop runtime hotkey evidence",
     "Panic stop product-path behavior evidence",
+    "Dashboard readiness and dogfood evidence",
     "Accepted GitHub dogfood issue source",
     "action verification events when Computer Use passes",
     "Ghostty app policy settings",
@@ -373,6 +375,36 @@ describe("dogfood artifact verifier", () => {
     chromeProcessesAfterCleanup: [],
     processesAfterCleanup: []
   });
+  const createDashboardSmokeArtifact = (artifactPath: string) => ({
+    result: "passed",
+    artifactPath,
+    runnerHasTmux: false,
+    productPath: "dist/skfiy -> skfiy dashboard -> loopback dashboard server",
+    descriptorResponse: {
+      status: 200
+    },
+    snapshotResponse: {
+      status: 200,
+      body: {
+        schemaVersion: 1
+      }
+    },
+    runtimeSnapshotCoverage: {
+      result: "passed"
+    },
+    tokenLeakDetected: false,
+    operatorReadiness: {
+      state: "ready"
+    },
+    snapshot: {
+      dogfoodRelease: {
+        state: "ready"
+      },
+      evidenceSummary: {
+        state: "ready"
+      }
+    }
+  });
   const createBrokenChromeSmokeArtifact = (artifactPath: string) => ({
     result: "passed",
     appLaunchViaOpen: true,
@@ -623,6 +655,7 @@ describe("dogfood artifact verifier", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const dashboardSmokePath = "/repo/.skfiy-smoke/dashboard.json";
     const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
 
@@ -640,6 +673,7 @@ describe("dogfood artifact verifier", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
+        dashboardSmokeArtifactPath: dashboardSmokePath,
         moneyRunSmokeArtifactPath: moneyRunSmokePath,
         requiredDogfoodEvidence: requiredManifestEvidence
       },
@@ -681,6 +715,7 @@ describe("dogfood artifact verifier", () => {
       },
       [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
       [finderSmokePath]: createFinderSmokeArtifact(finderSmokePath),
+      [dashboardSmokePath]: createDashboardSmokeArtifact(dashboardSmokePath),
       [moneyRunSmokePath]: {
         result: "passed",
         appLaunchViaOpen: true,
@@ -713,6 +748,7 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "manifest.smokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "manifest.chromeSmokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "manifest.finderSmokeArtifactPath", ok: true }),
+        expect.objectContaining({ id: "manifest.dashboardSmokeArtifactPath", ok: true }),
         expect.objectContaining({ id: "ui.productPath", ok: true }),
         expect.objectContaining({ id: "ui.stopTurnHotkey", ok: true }),
         expect.objectContaining({ id: "ghostty.productPath", ok: true }),
@@ -726,6 +762,9 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "finder.actionVerification", ok: true }),
         expect.objectContaining({ id: "finder.planPreview", ok: true }),
         expect.objectContaining({ id: "finder.itemDragDrop", ok: true }),
+        expect.objectContaining({ id: "dashboard.artifactPath", ok: true }),
+        expect.objectContaining({ id: "dashboard.result", ok: true }),
+        expect.objectContaining({ id: "dashboard.tokenLeak", ok: true }),
         expect.objectContaining({ id: "moneyRun.productPath", ok: true }),
         expect.objectContaining({ id: "moneyRun.readOnly", ok: true }),
         expect.objectContaining({ id: "moneyRun.report", ok: true })
@@ -790,6 +829,7 @@ describe("dogfood artifact verifier", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const dashboardSmokePath = "/repo/.skfiy-smoke/dashboard.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
 
     await expect(verifyDogfoodArtifacts({
@@ -859,6 +899,7 @@ describe("dogfood artifact verifier", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const dashboardSmokePath = "/repo/.skfiy-smoke/dashboard.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
     const desktopPreflight = createDisplayAsleepPreflightBlockedEvidence();
     const desktopPreflightEvent = {
@@ -987,6 +1028,7 @@ describe("dogfood artifact verifier", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const dashboardSmokePath = "/repo/.skfiy-smoke/dashboard.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
 
     await expect(verifyDogfoodArtifacts({
@@ -1754,6 +1796,7 @@ describe("dogfood artifact verifier", () => {
     const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
     const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
     const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const dashboardSmokePath = "/repo/.skfiy-smoke/dashboard.json";
     const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
 
     await expect(verifyDogfoodArtifacts({
@@ -1770,6 +1813,7 @@ describe("dogfood artifact verifier", () => {
         smokeArtifactPath: ghosttySmokePath,
         chromeSmokeArtifactPath: chromeSmokePath,
         finderSmokeArtifactPath: finderSmokePath,
+        dashboardSmokeArtifactPath: dashboardSmokePath,
         requiredDogfoodEvidence: []
       },
       [zipPath]: Buffer.alloc(42),
@@ -1793,7 +1837,14 @@ describe("dogfood artifact verifier", () => {
         processesAfterCleanup: ["123 skfiy.app"]
       },
       [chromeSmokePath]: createBrokenChromeSmokeArtifact(chromeSmokePath),
-      [finderSmokePath]: createBrokenFinderSmokeArtifact(finderSmokePath)
+      [finderSmokePath]: createBrokenFinderSmokeArtifact(finderSmokePath),
+      [dashboardSmokePath]: {
+        result: "failed",
+        artifactPath: "/repo/.skfiy-smoke/other-dashboard.json",
+        snapshot: {
+          tokenLeak: true
+        }
+      }
     }))).resolves.toMatchObject({
       result: "failed",
       errors: expect.arrayContaining([
@@ -1821,6 +1872,8 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderPlanConfirmation"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderOrganization"),
         expect.stringContaining("manifest.requiredDogfoodEvidence.finderItemDragDrop"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.dashboard"),
+        expect.stringContaining("manifest.requiredDogfoodEvidence.dashboardReadiness"),
         expect.stringContaining("ui.runnerHasTmux"),
         expect.stringContaining("ui.productPath"),
         expect.stringContaining("ui.petClicked"),
@@ -1833,6 +1886,9 @@ describe("dogfood artifact verifier", () => {
         expect.stringContaining("ghostty.clipboardApprovalRuns"),
         expect.stringContaining("ghostty.nonComputerUseRouteGuards"),
         expect.stringContaining("ghostty.processesAfterCleanup"),
+        expect.stringContaining("dashboard.artifactPath"),
+        expect.stringContaining("dashboard.result"),
+        expect.stringContaining("dashboard.tokenLeak"),
         expect.stringContaining("chrome.runnerHasTmux"),
         expect.stringContaining("chrome.productPath"),
         expect.stringContaining("chrome.appPolicySettings"),

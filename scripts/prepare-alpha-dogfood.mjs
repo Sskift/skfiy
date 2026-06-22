@@ -628,6 +628,14 @@ function validateManifest(manifest) {
   ) {
     throw new Error("alpha manifest must include moneyRunSmokeArtifactPath and long-horizon money-run evidence.");
   }
+  if (
+    typeof manifest.dashboardSmokeArtifactPath !== "string"
+    || manifest.dashboardSmokeArtifactPath.trim().length === 0
+    || !evidence.includes("npm run smoke:dashboard -- --output <path>")
+    || !evidence.includes("Dashboard readiness and dogfood evidence")
+  ) {
+    throw new Error("alpha manifest must include dashboardSmokeArtifactPath and dashboard readiness evidence.");
+  }
   if (!evidence.includes("Panic stop product-path behavior evidence")) {
     throw new Error("alpha manifest must include panic stop product-path behavior evidence.");
   }

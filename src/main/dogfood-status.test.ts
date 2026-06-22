@@ -62,6 +62,7 @@ describe("dogfood status reporter", () => {
     expect(createDogfoodStatusHelpText()).toContain("tester assignments");
     expect(createDogfoodStatusHelpText()).toContain("--json-output");
     expect(createDogfoodStatusHelpText()).toContain("--desktop-session-artifact");
+    expect(createDogfoodStatusHelpText()).toContain("missing-tracking-issue");
   });
 
   it("writes a machine-readable JSON status artifact for automation", async () => {
@@ -113,6 +114,65 @@ describe("dogfood status reporter", () => {
     });
     expect(io.textFiles[jsonOutputPath]).toMatch(/\n$/);
   });
+
+  it("writes a non-mutating status artifact when tracking issue input is missing", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const jsonOutputPath = "/repo/.skfiy-dogfood/status-missing-tracking.json";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath
+      }),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked")
+    }, {});
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      summaryPath,
+      jsonOutputPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      result: "missing-tracking-issue",
+      trackingIssueUrl: undefined,
+      trackingIssue: {
+        state: "missing",
+        acceptedReportCount: 0
+      },
+      localSmoke: {
+        artifactResults: {
+          ui: "passed",
+          ghostty: "blocked",
+          chrome: "passed",
+          finder: "blocked"
+        }
+      },
+      readiness: {
+        canRunCollect: false
+      },
+      nextActions: expect.arrayContaining([
+        "Provide --tracking-issue-url or --tracking-issue-file before collecting dogfood reports."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("Result: missing-tracking-issue");
+    expect(io.textFiles[jsonOutputPath]).toContain('"result": "missing-tracking-issue"');
+  });
+
 
   it("includes long-horizon money-run supervision smoke in local readiness status", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
@@ -169,6 +229,50 @@ describe("dogfood status reporter", () => {
       }
     });
     expect(io.textFiles[summaryPath]).toContain("- money-run: passed");
+  });
+
+  it("includes dashboard smoke in local readiness status when the manifest references it", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<{
+        localSmoke: {
+          artifactResults: Record<string, string>;
+        };
+      }>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const dashboardSmokePath = "/repo/.skfiy-smoke/dashboard.json";
+    const trackingIssueFile = "/repo/.skfiy-dogfood/tracking-issue-abc123.md";
+    const io = createMemoryIo({
+      [manifestPath]: createManifest({
+        uiSmokePath,
+        ghosttySmokePath,
+        chromeSmokePath,
+        finderSmokePath,
+        dashboardSmokePath
+      }),
+      [trackingIssueFile]: createTrackingIssueBody([]),
+      [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+      [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+      [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+      [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+      [dashboardSmokePath]: createSmokeArtifact(dashboardSmokePath, "passed")
+    }, {});
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueFile,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status.localSmoke.artifactResults.dashboard).toBe("passed");
+    expect(io.textFiles[summaryPath]).toContain("- dashboard: passed");
   });
 
   it("parses a local tracking issue file for offline status checks", async () => {
@@ -3090,6 +3194,7 @@ function createManifest({
   ghosttySmokePath,
   chromeSmokePath,
   finderSmokePath,
+  dashboardSmokePath,
   moneyRunSmokePath,
   includePanicStopProductPathEvidence = true
 }: {
@@ -3097,6 +3202,7 @@ function createManifest({
   ghosttySmokePath: string;
   chromeSmokePath: string;
   finderSmokePath: string;
+  dashboardSmokePath?: string;
   moneyRunSmokePath?: string;
   includePanicStopProductPathEvidence?: boolean;
 }) {
@@ -3123,6 +3229,7 @@ function createManifest({
     smokeArtifactPath: ghosttySmokePath,
     chromeSmokeArtifactPath: chromeSmokePath,
     finderSmokeArtifactPath: finderSmokePath,
+    dashboardSmokeArtifactPath: dashboardSmokePath,
     moneyRunSmokeArtifactPath: moneyRunSmokePath,
     requiredDogfoodEvidence: requiredEvidence
   };

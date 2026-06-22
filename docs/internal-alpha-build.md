@@ -62,10 +62,11 @@ npm run alpha:artifact -- \
   --smoke-artifact .skfiy-smoke/ghostty-current.json \
   --chrome-smoke-artifact .skfiy-smoke/chrome-current.json \
   --finder-smoke-artifact .skfiy-smoke/finder-current.json \
+  --dashboard-smoke-artifact .skfiy-smoke/dashboard-current.json \
   --money-run-smoke-artifact .skfiy-smoke/money-run-current.json
 ```
 
-The manifest records commit SHA, bundle identity, zip checksum, UI/Ghostty/Chrome/Finder smoke artifact paths, optional money-run supervision evidence, CLI/dashboard evidence, permission setting direct links, panic stop evidence, Chrome bridge evidence, Finder evidence, and Computer Use screenshots/actions when available.
+The manifest records commit SHA, bundle identity, zip checksum, UI/Ghostty/Chrome/Finder/dashboard smoke artifact paths, optional money-run supervision evidence, CLI/dashboard evidence, permission setting direct links, panic stop evidence, Chrome bridge evidence, Finder evidence, and Computer Use screenshots/actions when available.
 
 Verify it:
 

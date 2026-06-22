@@ -16,6 +16,7 @@ const DOGFOOD_EVIDENCE = [
   "npm run smoke:ghostty -- --output <path>",
   "npm run smoke:chrome -- --output <path>",
   "npm run smoke:finder -- --output <path>",
+  "npm run smoke:dashboard -- --output <path>",
   "npm run smoke:money-run -- --json-output <path>",
   "skfiy status --json",
   "skfiy doctor",
@@ -23,6 +24,7 @@ const DOGFOOD_EVIDENCE = [
   "Permission settings direct links",
   "Panic stop runtime hotkey evidence",
   "Panic stop product-path behavior evidence",
+  "Dashboard readiness and dogfood evidence",
   "Screen Recording permission state",
   "Accessibility permission state",
   "Accepted GitHub dogfood issue source",
@@ -91,6 +93,7 @@ export function createAlphaManifest({
   smokeArtifactPath,
   chromeSmokeArtifactPath,
   finderSmokeArtifactPath,
+  dashboardSmokeArtifactPath,
   moneyRunSmokeArtifactPath
 }) {
   validateCurrentAlphaSmokeArtifactPaths({
@@ -99,6 +102,7 @@ export function createAlphaManifest({
     smokeArtifactPath,
     chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
+    dashboardSmokeArtifactPath,
     moneyRunSmokeArtifactPath
   });
 
@@ -124,6 +128,7 @@ export function createAlphaManifest({
     smokeArtifactPath,
     chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
+    dashboardSmokeArtifactPath,
     moneyRunSmokeArtifactPath,
     requiredDogfoodEvidence: DOGFOOD_EVIDENCE
   };
@@ -135,6 +140,7 @@ function validateCurrentAlphaSmokeArtifactPaths({
   smokeArtifactPath,
   chromeSmokeArtifactPath,
   finderSmokeArtifactPath,
+  dashboardSmokeArtifactPath,
   moneyRunSmokeArtifactPath
 }) {
   const shortSha = commitSha.slice(0, 7);
@@ -143,6 +149,7 @@ function validateCurrentAlphaSmokeArtifactPaths({
     smokeArtifactPath,
     chromeSmokeArtifactPath,
     finderSmokeArtifactPath,
+    dashboardSmokeArtifactPath,
     moneyRunSmokeArtifactPath
   })) {
     if (typeof artifactPath !== "string" || artifactPath.trim().length === 0) {
@@ -183,6 +190,10 @@ export function parseAlphaArtifactArgs(argv, defaults) {
         options.finderSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
         break;
+      case "--dashboard-smoke-artifact":
+        options.dashboardSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
+        index += 1;
+        break;
       case "--ui-smoke-artifact":
         options.uiSmokeArtifactPath = path.resolve(readValue(argv, index, arg));
         index += 1;
@@ -218,6 +229,8 @@ Options:
                             Chrome smoke JSON artifact to reference in the manifest.
   --finder-smoke-artifact <path>
                             Finder smoke JSON artifact to reference in the manifest.
+  --dashboard-smoke-artifact <path>
+                            Dashboard smoke JSON artifact to reference in the manifest.
   --money-run-smoke-artifact <path>
                             Long-horizon money-run supervision smoke JSON artifact to reference in the manifest.
   -h, --help                Show this help.
@@ -239,6 +252,7 @@ export async function createAlphaArtifact({
     smokeArtifactPath: undefined,
     chromeSmokeArtifactPath: undefined,
     finderSmokeArtifactPath: undefined,
+    dashboardSmokeArtifactPath: undefined,
     moneyRunSmokeArtifactPath: undefined,
     help: false
   });
@@ -287,6 +301,7 @@ export async function createAlphaArtifact({
     smokeArtifactPath: options.smokeArtifactPath,
     chromeSmokeArtifactPath: options.chromeSmokeArtifactPath,
     finderSmokeArtifactPath: options.finderSmokeArtifactPath,
+    dashboardSmokeArtifactPath: options.dashboardSmokeArtifactPath,
     moneyRunSmokeArtifactPath: options.moneyRunSmokeArtifactPath
   });
   await io.writeFile(plan.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
