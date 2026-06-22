@@ -275,6 +275,24 @@ interface RuntimeStatus {
   };
 }
 
+interface PetAnimationState {
+  row: number;
+  frames: number;
+  frameMs: number;
+}
+
+interface PetSkinManifest {
+  displayName: string;
+  slug: string;
+  asset: string;
+  frameWidth: number;
+  frameHeight: number;
+  columns: number;
+  rows: number;
+  source?: "custom-user";
+  states: Record<string, PetAnimationState>;
+}
+
 interface WindowBounds {
   x: number;
   y: number;
@@ -325,6 +343,7 @@ interface DesktopApi {
   ) => Promise<PlannerProviderSettings>;
   getTurnReplay: () => Promise<TurnReplay | null>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
+  getPetSkin: () => Promise<PetSkinManifest | null>;
   getWindowBounds: () => Promise<WindowBounds | null>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
@@ -490,6 +509,10 @@ const api: DesktopApi = {
           registered: false
         }
       };
+  },
+  async getPetSkin() {
+    const payload = await ipcRenderer.invoke("skfiy:get-pet-skin");
+    return isPetSkinManifest(payload) ? payload : null;
   },
   async getWindowBounds() {
     const payload = await ipcRenderer.invoke("skfiy:get-window-bounds");
@@ -1065,6 +1088,51 @@ function isRuntimeStatus(value: unknown): value is RuntimeStatus {
     && typeof stopTurnHotkey.accelerator === "string"
     && typeof stopTurnHotkey.label === "string"
     && typeof stopTurnHotkey.registered === "boolean"
+  );
+}
+
+function isPetSkinManifest(value: unknown): value is PetSkinManifest {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const manifest = value as Partial<PetSkinManifest>;
+  const states = manifest.states;
+  return (
+    typeof manifest.displayName === "string"
+    && typeof manifest.slug === "string"
+    && typeof manifest.asset === "string"
+    && isPositiveInteger(manifest.frameWidth)
+    && isPositiveInteger(manifest.frameHeight)
+    && isPositiveInteger(manifest.columns)
+    && isPositiveInteger(manifest.rows)
+    && Boolean(states)
+    && typeof states === "object"
+    && [
+      "idle",
+      "running-right",
+      "running-left",
+      "waving",
+      "jumping",
+      "failed",
+      "waiting",
+      "running",
+      "review"
+    ].every((state) => isPetAnimationState((states as Record<string, unknown>)[state]))
+  );
+}
+
+function isPetAnimationState(value: unknown): value is PetAnimationState {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const state = value as Partial<PetAnimationState>;
+  return (
+    Number.isInteger(state.row)
+    && Number(state.row) >= 0
+    && isPositiveInteger(state.frames)
+    && isPositiveInteger(state.frameMs)
   );
 }
 

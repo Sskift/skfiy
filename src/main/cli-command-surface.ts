@@ -41,6 +41,7 @@ import {
 } from "./chrome-readiness.js";
 import {
   CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
+  readChromeExtensionOpenerAppName,
   reloadChromeExtensionWithDesktopControl,
   type ChromeExtensionReloadInput,
   type ChromeExtensionReloadResult
@@ -60,6 +61,11 @@ import {
   createRuntimeTurnMarkerStatePath,
   RUNTIME_TURN_MARKER_SCHEMA_VERSION
 } from "./runtime-snapshot.js";
+import {
+  LOCAL_ORIGIN_PET_SKIN_DISPLAY_NAME,
+  LOCAL_ORIGIN_PET_SKIN_SLUG,
+  importPetSkin
+} from "./pet-skin.js";
 import {
   SKFIY_MCP_TOOL_NAMES,
   runSkfiyMcpStdioServer,
@@ -115,6 +121,7 @@ export type ChromeSubcommand =
   | "uninstall-host";
 type ChromePageControlSubcommand = ChromeExtensionPageControlInput["action"];
 export type ChromePolicySubcommand = "show" | "set" | "reset";
+export type SkinSubcommand = "import";
 export type McpTransport = "stdio";
 export type ChromeExtensionReloader = (
   input: ChromeExtensionReloadInput
@@ -302,6 +309,18 @@ export type CliCommandInvocation =
       options: {
         host?: string;
         action?: ChromeHostPolicyAction;
+      };
+    }
+  | {
+      kind: "skin-import";
+      path: `skin ${SkinSubcommand}`;
+      subcommand: SkinSubcommand;
+      json: boolean;
+      options: {
+        sourcePath: string;
+        slug: string;
+        displayName: string;
+        licenseSource: string;
       };
     }
   | {
@@ -650,6 +669,14 @@ const COMMANDS: CliCommandDefinition[] = [
     outputShape: "chrome-host-plan"
   },
   {
+    path: "skin import",
+    summary: "Import local licensed pet art into the user skin directory.",
+    jsonOutput: true,
+    plannedMutation: true,
+    executesSystemMutation: true,
+    outputShape: "pet-skin-import"
+  },
+  {
     path: "mcp serve",
     summary: "Serve skfiy status and Computer Use tools over MCP stdio for Codex plugins.",
     jsonOutput: true,
@@ -921,6 +948,33 @@ export function normalizeCliCommand(
         ...(selector !== undefined ? { selector } : {}),
         ...(text !== undefined ? { text } : {}),
         ...(dy !== undefined ? { dy } : {})
+      }
+    });
+  }
+
+  if (command === "skin") {
+    const subcommand = argv[1];
+
+    if (!isSkinSubcommand(subcommand)) {
+      return error("unknown-skin-subcommand", `Unknown skin subcommand: ${subcommand ?? ""}`);
+    }
+
+    const sourceValue = readOptionValue(argv, "--source");
+    if (!sourceValue || sourceValue.startsWith("--")) {
+      return error("missing-skin-source", "Skin import requires --source <image-or-atlas>.");
+    }
+
+    return ok({
+      kind: "skin-import",
+      path: "skin import",
+      subcommand,
+      json: argv.includes("--json"),
+      options: {
+        sourcePath: path.isAbsolute(sourceValue) ? sourceValue : path.resolve(rootDir, sourceValue),
+        slug: readOptionValue(argv, "--slug") ?? LOCAL_ORIGIN_PET_SKIN_SLUG,
+        displayName:
+          readOptionValue(argv, "--display-name") ?? LOCAL_ORIGIN_PET_SKIN_DISPLAY_NAME,
+        licenseSource: readOptionValue(argv, "--license-source") ?? "local-user-provided"
       }
     });
   }
@@ -1277,6 +1331,29 @@ export function createCliOutput(
       ...(invocation.options.host ? { host: invocation.options.host } : {}),
       ...(invocation.options.action ? { action: invocation.options.action } : {}),
       hostPolicy: { state: "not-mutated" }
+    };
+  }
+
+  if (invocation.kind === "skin-import") {
+    return {
+      schemaVersion: 1,
+      command: invocation.path,
+      generatedAt,
+      result: "not-run",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      sourcePath: invocation.options.sourcePath,
+      skin: {
+        slug: invocation.options.slug,
+        displayName: invocation.options.displayName,
+        licenseSource: invocation.options.licenseSource,
+        redistribution: "local-only"
+      },
+      actionPlan: [
+        "copy the local origin asset into the user's skfiy skin directory",
+        "write skin.pet.json with local-only redistribution metadata",
+        "let the packaged app load the local manifest before bundled fallback skins"
+      ]
     };
   }
 
@@ -1755,6 +1832,48 @@ export async function runSkfiyCli({
       stdout,
       stderr
     });
+  }
+
+  if (result.invocation.kind === "skin-import") {
+    if (!effectiveHomeDir) {
+      stderr.write("Home directory is required to import a pet skin.\n");
+      return 2;
+    }
+
+    try {
+      const importResult = await importPetSkin({
+        homeDir: effectiveHomeDir,
+        sourcePath: result.invocation.options.sourcePath,
+        slug: result.invocation.options.slug,
+        displayName: result.invocation.options.displayName,
+        licenseSource: result.invocation.options.licenseSource,
+        importedAt: generatedAt
+      });
+
+      stdout.write(`${JSON.stringify({
+        schemaVersion: 1,
+        command: result.invocation.path,
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        plannedMutation: true,
+        executesSystemMutation: true,
+        ...importResult
+      }, null, 2)}\n`);
+      return 0;
+    } catch (error) {
+      stdout.write(`${JSON.stringify({
+        schemaVersion: 1,
+        command: result.invocation.path,
+        generatedAt: generatedAt ?? new Date().toISOString(),
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "blocked",
+        sourcePath: result.invocation.options.sourcePath,
+        reason: "pet-skin-import-failed",
+        error: readErrorMessage(error),
+        nextAction: "Export a local PNG, GIF, WebP, SVG, or JPEG from an authorized Luo Xiaohei source, then retry `skfiy skin import --source <path>`."
+      }, null, 2)}\n`);
+      return 1;
+    }
   }
 
   if (result.invocation.kind === "smoke") {
@@ -6059,6 +6178,7 @@ async function runChromeNativeHostCli({
       const tabDiscoveryResult = await chromeExtensionTabDiscoveryInvoker({
         extensionId: invocation.options.extensionIds[0],
         homeDir,
+        chromeAppName: readChromeExtensionOpenerAppName(),
         generatedAt,
         io
       });
@@ -6374,6 +6494,10 @@ function isDashboardProbeSubcommand(value: string | undefined): value is Dashboa
 
 function isChromePolicySubcommand(value: string | undefined): value is ChromePolicySubcommand {
   return value === "show" || value === "set" || value === "reset";
+}
+
+function isSkinSubcommand(value: string | undefined): value is SkinSubcommand {
+  return value === "import";
 }
 
 function normalizeChromePolicySetAction(value: string | undefined): ChromeHostPolicyAction | undefined {

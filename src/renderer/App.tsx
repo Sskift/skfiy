@@ -26,7 +26,10 @@ import {
   getConfiguredPetAtlas,
   getPetSpriteStyle,
   getPetStateForTask,
+  isPetAtlasManifest,
+  resolvePetAtlas,
   type PetAtlas,
+  type PetAtlasManifest,
   type PetAtlasState
 } from "./pet-atlas";
 
@@ -350,6 +353,7 @@ export interface DesktopApi {
   ) => Promise<PlannerProviderSettings>;
   getTurnReplay: () => Promise<TurnReplay | null>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
+  getPetSkin: () => Promise<PetAtlasManifest | null>;
   getWindowBounds: () => Promise<WindowBounds | null>;
   moveWindowBy: (deltaX: number, deltaY: number) => void;
   setWindowMode: (mode: PetWindowMode) => void;
@@ -594,6 +598,7 @@ const fallbackApi: DesktopApi = {
       registered: false
     }
   }),
+  getPetSkin: async () => null,
   getWindowBounds: async () => null,
   moveWindowBy: () => undefined,
   setWindowMode: () => undefined,
@@ -1224,7 +1229,7 @@ function DesktopPet({
 
 export default function App() {
   const api = useMemo(getDesktopApi, []);
-  const petAtlas = useMemo(() => getConfiguredPetAtlas(), []);
+  const [petAtlas, setPetAtlas] = useState<PetAtlas>(() => getConfiguredPetAtlas());
   const [dictationText, setDictationText] = useState("");
   const [listening, setListening] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -1399,6 +1404,25 @@ export default function App() {
   useEffect(() => {
     return () => stopBrowserSpeechRecognition();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void api.getPetSkin().then((skin) => {
+      if (!cancelled && isPetAtlasManifest(skin)) {
+        setPetAtlas(resolvePetAtlas({
+          selectedSkinId: skin.slug,
+          customManifest: skin
+        }));
+      }
+    }).catch(() => {
+      // A missing local skin should quietly keep the bundled fallback.
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
 
   useEffect(() => {
     let cancelled = false;

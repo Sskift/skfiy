@@ -63,10 +63,30 @@ host/app policy, smoke artifacts, dogfood/release readiness, and `money-run`.
 2026-06-22 product update: the desktop pet visual layer must stay separate from
 Computer Use and backend state. The backend owns task status, permissions,
 approval state, replay evidence, and app/browser actions; the renderer owns skin
-selection, atlas loading, and animation mapping. The default source skin is now
-`skfiy-black-cat`, while `skfiy-cloudbot` remains a legacy built-in. The
-renderer exposes a manifest-driven skin registry plus a custom-manifest hook so
-future settings UI can switch skins without changing backend logic.
+selection, atlas loading, and animation mapping. The packaged app now first asks
+the main process for a local `luoxiaohei-local` skin under
+`~/Library/Application Support/skfiy/skins/luoxiaohei-local/skin.pet.json`.
+When that local origin skin is absent or invalid, the renderer falls back to
+bundled `skfiy-black-cat`, while `skfiy-cloudbot` remains a legacy built-in. The
+renderer also exposes a custom-manifest hook so future settings UI can switch
+skins without changing backend logic.
+
+Implemented local-origin workflow:
+
+```bash
+./dist/skfiy skin import \
+  --source ~/Downloads/luoxiaohei-origin.png \
+  --slug luoxiaohei-local \
+  --display-name "Luo Xiaohei local" \
+  --license-source canva-local \
+  --json
+```
+
+The importer copies PNG/GIF/WebP/SVG/JPEG files into the user skin directory and
+writes a single-frame `.pet.json` manifest with `redistribution: "local-only"`.
+This is intentionally enough to replace the visually poor generated fallback
+with a closer origin image immediately, while leaving multi-frame atlas packing
+as the next product step.
 
 The Luo Xiaohei direction should be implemented as an optional local skin pack,
 not as committed public repo art, unless the project has explicit rights to
@@ -85,8 +105,9 @@ Planned product work:
 
 - Add a dashboard/user-settings skin picker that lists bundled skins and local
   user skins under `~/Library/Application Support/skfiy/skins/`.
-- Add a `skfiy skin import <manifest-or-image>` CLI that validates license
-  metadata, builds a local manifest, and never writes third-party art into git.
+- Extend `skfiy skin import` from single-image origin import to multi-frame
+  atlas packing: accept a folder or GIF/sticker sequence, trim flat/transparent
+  bounds, pad 12-16%, align bottom-center, and write a consistent 8-by-9 atlas.
 - Keep release packaging fail-closed: public artifacts include only bundled
   original assets unless an explicit redistribution license is recorded.
 - Keep smoke coverage at the renderer boundary: default skin renders, custom

@@ -98,6 +98,7 @@ describe("CLI command surface", () => {
       "chrome policy reset",
       "chrome install-host",
       "chrome uninstall-host",
+      "skin import",
       "mcp serve",
       "smoke ui",
       "smoke desktop-session",
@@ -223,6 +224,12 @@ describe("CLI command surface", () => {
         executesSystemMutation: true,
         outputShape: "chrome-extension-reload",
         capabilities: ["chrome-extension-page-control"]
+      }),
+      expect.objectContaining({
+        path: "skin import",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        outputShape: "pet-skin-import"
       }),
       expect.objectContaining({
         path: "chrome policy set",
@@ -892,6 +899,117 @@ describe("CLI command surface", () => {
       });
       expectJsonSafe(createCliOutput(invocation));
     }
+  });
+
+  it("normalizes local pet skin imports for origin art without bundling the asset", () => {
+    const invocation = expectInvocation([
+      "skin",
+      "import",
+      "--source",
+      "origin/luoxiaohei.png",
+      "--slug",
+      "luoxiaohei-local",
+      "--display-name",
+      "Luo Xiaohei local",
+      "--license-source",
+      "canva-local",
+      "--json"
+    ]);
+
+    expect(invocation).toMatchObject({
+      kind: "skin-import",
+      path: "skin import",
+      json: true,
+      options: {
+        sourcePath: "/repo/origin/luoxiaohei.png",
+        slug: "luoxiaohei-local",
+        displayName: "Luo Xiaohei local",
+        licenseSource: "canva-local"
+      }
+    });
+    expect(createCliOutput(invocation, {
+      generatedAt: "2026-06-22T05:30:00.000Z"
+    })).toMatchObject({
+      schemaVersion: 1,
+      command: "skin import",
+      generatedAt: "2026-06-22T05:30:00.000Z",
+      result: "not-run",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      skin: {
+        slug: "luoxiaohei-local",
+        displayName: "Luo Xiaohei local",
+        licenseSource: "canva-local",
+        redistribution: "local-only"
+      }
+    });
+  });
+
+  it("imports local origin art into the user skin directory", async () => {
+    const homeDir = createTempRoot();
+    const rootDir = createTempRoot();
+    const sourcePath = path.join(rootDir, "luoxiaohei official.png");
+    writeFileSync(sourcePath, "fake image");
+    const stdout = { write: vi.fn() };
+    const stderr = { write: vi.fn() };
+
+    const exitCode = await runSkfiyCli({
+      argv: [
+        "skin",
+        "import",
+        "--source",
+        sourcePath,
+        "--slug",
+        "luoxiaohei-local",
+        "--display-name",
+        "Luo Xiaohei local",
+        "--license-source",
+        "canva-local",
+        "--json"
+      ],
+      rootDir,
+      homeDir,
+      stdout,
+      stderr
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stderr.write).not.toHaveBeenCalled();
+    const output = JSON.parse(String(stdout.write.mock.calls[0][0]));
+    expect(output).toMatchObject({
+      command: "skin import",
+      result: "imported",
+      skin: {
+        slug: "luoxiaohei-local",
+        displayName: "Luo Xiaohei local",
+        licenseSource: "canva-local",
+        redistribution: "local-only"
+      }
+    });
+    expect(output.manifestPath).toBe(
+      path.join(homeDir, "Library/Application Support/skfiy/skins/luoxiaohei-local/skin.pet.json")
+    );
+    expect(existsSync(output.assetPath)).toBe(true);
+    const manifest = JSON.parse(readFileSync(output.manifestPath, "utf8"));
+    expect(manifest).toMatchObject({
+      displayName: "Luo Xiaohei local",
+      slug: "luoxiaohei-local",
+      asset: expect.stringMatching(/^file:\/\//),
+      frameWidth: 192,
+      frameHeight: 208,
+      columns: 1,
+      rows: 1,
+      source: "custom-user",
+      origin: {
+        sourcePath,
+        licenseSource: "canva-local",
+        redistribution: "local-only"
+      },
+      states: {
+        idle: { row: 0, frames: 1, frameMs: 170 },
+        review: { row: 0, frames: 1, frameMs: 135 }
+      }
+    });
   });
 
   it("normalizes MCP stdio serving as a plugin-safe installed-binary command", () => {

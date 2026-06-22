@@ -11,9 +11,10 @@ first real regression fixtures, not the product boundary.
 The first version keeps the public surface narrow while the control loop is
 hardened: voice enters through the desktop pet, app policy gates the target,
 Computer Use performs observe-plan-act-verify, and task state remains visible in
-the floating companion. The bundled pet art is now manifest-driven and separate
-from the backend, so users can install a local, licensed skin pack without
-changing Computer Use logic.
+the floating companion. The pet art is now manifest-driven and separate from
+the backend: skfiy first looks for a local `luoxiaohei-local` skin pack under
+the user's Application Support directory, then falls back to bundled original
+skins when no local origin art has been imported.
 
 ## Current Local Evidence
 
@@ -81,8 +82,9 @@ caches can be deleted locally.
 ## MVP Scope
 
 - Floating desktop companion with active and quiet modes.
-- Manifest-driven pixel pet skins, with the bundled black-cat skin as the
-  default and the previous cloudbot kept as a legacy built-in.
+- Manifest-driven pixel pet skins, with a local `luoxiaohei-local` origin skin
+  preferred when installed, bundled black-cat fallback, and previous cloudbot
+  kept as a legacy built-in.
 - App-agnostic macOS helper primitives for app listing, app activation,
   screenshots/OCR, clicks, drags, scrolls, text input, hotkeys, and key presses.
 - Target-specific adapters for early fixtures: Ghostty terminal turns, Chrome
@@ -97,9 +99,32 @@ caches can be deleted locally.
 The desktop pet renderer is intentionally independent from the backend. The
 main process emits task status such as `idle`, `executing`, `waiting`, or
 `failed`; the renderer maps those states to the selected skin manifest and atlas.
-The default bundled skin is `skfiy-black-cat`, an original placeholder in the
-same small black-cat direction as the current product reference. The older
-`skfiy-cloudbot` skin remains in the source tree as a legacy built-in.
+At startup, the packaged app asks the main process for the local
+`luoxiaohei-local` skin. If present, that user-owned skin wins. If it is missing
+or invalid, the renderer falls back to the bundled original `skfiy-black-cat`
+skin, while the older `skfiy-cloudbot` skin remains a legacy built-in.
+
+Import a local origin image exported from an authorized source:
+
+```bash
+./dist/skfiy skin import \
+  --source ~/Downloads/luoxiaohei-origin.png \
+  --slug luoxiaohei-local \
+  --display-name "Luo Xiaohei local" \
+  --license-source canva-local \
+  --json
+```
+
+This copies the image into:
+
+```text
+~/Library/Application Support/skfiy/skins/luoxiaohei-local/
+```
+
+and writes `skin.pet.json` with `redistribution: "local-only"` metadata. The
+importer supports PNG, GIF, WebP, SVG, and JPEG. A single image becomes a
+one-frame skin immediately; a later importer pass should pack multiple official
+sticker/GIF frames into an 8-by-9 atlas.
 
 A skin is a `.pet.json` manifest plus an atlas image:
 
@@ -120,10 +145,11 @@ A skin is a `.pet.json` manifest plus an atlas image:
 
 Every skin must define all renderer states: `idle`, `running-right`,
 `running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and
-`review`. During local prototype work, a custom manifest can be stored in
+`review`. During local prototype work, a custom manifest can also be stored in
 `localStorage` under `skfiy.petSkin.customManifest`, with
-`skfiy.petSkin.selectedId` set to the same slug. A later settings screen should
-replace this developer hook with a user-facing skin importer.
+`skfiy.petSkin.selectedId` set to the same slug. The packaged-product path is
+the `skin import` command above, because it keeps user-provided art outside git
+and outside public release assets.
 
 For the Luo Xiaohei direction, use only official or otherwise licensed images in
 private/local skin packs; do not commit those assets to this public repository

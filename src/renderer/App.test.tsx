@@ -10,6 +10,7 @@ import App, {
   type PlannerProviderSettings,
   type TaskEvent
 } from "./App";
+import type { PetAtlasManifest } from "./pet-atlas";
 
 type TestDesktopApi = DesktopApi & {
   submitDictation: (
@@ -28,6 +29,28 @@ let emitDictationProviderEvent: (event: DictationProviderEvent) => void;
 let emitDictationTranscriptEvent: (event: DictationTranscriptEvent) => void;
 let emitStopTurnHotkey: () => void;
 const speechRecognitionInstances: MockSpeechRecognition[] = [];
+
+const LOCAL_LUOXIAOHEI_SKIN = {
+  displayName: "Luo Xiaohei local",
+  slug: "luoxiaohei-local",
+  asset: "file:///Users/tester/Library/Application%20Support/skfiy/skins/luoxiaohei-local/source.png",
+  frameWidth: 192,
+  frameHeight: 208,
+  columns: 1,
+  rows: 1,
+  source: "custom-user",
+  states: {
+    idle: { row: 0, frames: 1, frameMs: 170 },
+    "running-right": { row: 0, frames: 1, frameMs: 90 },
+    "running-left": { row: 0, frames: 1, frameMs: 90 },
+    waving: { row: 0, frames: 1, frameMs: 120 },
+    jumping: { row: 0, frames: 1, frameMs: 95 },
+    failed: { row: 0, frames: 1, frameMs: 150 },
+    waiting: { row: 0, frames: 1, frameMs: 190 },
+    running: { row: 0, frames: 1, frameMs: 85 },
+    review: { row: 0, frames: 1, frameMs: 135 }
+  }
+} satisfies PetAtlasManifest;
 
 interface MockSpeechRecognitionResult {
   0: { transcript: string; confidence?: number };
@@ -181,6 +204,7 @@ beforeEach(() => {
         registered: true
       }
     }),
+    getPetSkin: vi.fn<DesktopApi["getPetSkin"]>().mockResolvedValue(null),
     getWindowBounds: vi.fn<DesktopApi["getWindowBounds"]>().mockResolvedValue({
       x: 100,
       y: 100,
@@ -231,6 +255,24 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "执行" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "语音" })).not.toBeInTheDocument();
+  });
+
+  it("prefers a local Luo Xiaohei skin loaded by the main process", async () => {
+    (window.skfiy as DesktopApi).getPetSkin = vi
+      .fn<DesktopApi["getPetSkin"]>()
+      .mockResolvedValue(LOCAL_LUOXIAOHEI_SKIN);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/skfiy codex-style pet/i)).toHaveAttribute(
+        "data-pet-skin",
+        "luoxiaohei-local"
+      );
+    });
+    expect(screen.getByLabelText(/skfiy codex-style pet/i).getAttribute("style")).toContain(
+      "source.png"
+    );
   });
 
   it("starts dictation from a plain left click on the pet", async () => {

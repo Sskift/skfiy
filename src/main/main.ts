@@ -92,6 +92,7 @@ import {
   writeRuntimeTurnMarker,
   type RuntimeSnapshotCurrentTurnInput
 } from "./runtime-snapshot.js";
+import { readDefaultLocalOriginPetSkin } from "./pet-skin.js";
 
 type ManualMode = "active" | "quiet";
 type TaskStatus =
@@ -1392,6 +1393,10 @@ ipcMain.handle("skfiy:get-runtime-status", () => {
   return {
     stopTurnHotkey: readStopTurnHotkeyStatus(stopTurnHotkeyRegistered)
   };
+});
+
+ipcMain.handle("skfiy:get-pet-skin", async () => {
+  return readDefaultLocalOriginPetSkin({ homeDir: os.homedir() });
 });
 
 app.whenReady().then(async () => {
