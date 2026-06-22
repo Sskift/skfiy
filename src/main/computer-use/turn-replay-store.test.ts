@@ -83,6 +83,96 @@ describe("createTurnReplayStore", () => {
     expect(store.getReplay()?.transcript.outcome).toBe("failed");
   });
 
+  it("keeps turn/tool lifecycle identity across approval and completion", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "tool_call",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "打开 Chrome 测试页面",
+      route: "chrome",
+      status: "planned"
+    });
+    store.recordTaskEvent({
+      status: "planned",
+      command: "打开 Chrome 测试页面",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      route: "chrome"
+    });
+    store.recordComputerUseEvent({
+      type: "approval_decision",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "打开 Chrome 测试页面",
+      route: "chrome",
+      decision: "bypassed",
+      reason: "Dogfood bypass enabled."
+    });
+    store.recordComputerUseEvent({
+      type: "tool_result",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "打开 Chrome 测试页面",
+      route: "chrome",
+      status: "completed",
+      summary: "Chrome page opened.",
+      evidence: {
+        summary: "Screenshot captured.",
+        artifacts: ["/tmp/chrome-after.png"]
+      }
+    });
+    store.recordTaskEvent({
+      status: "completed",
+      message: "Chrome page opened.",
+      command: "打开 Chrome 测试页面",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      route: "chrome"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "completed",
+        actions: expect.arrayContaining([
+          expect.objectContaining({
+            type: "approval_decision",
+            turnId: "turn-agent-1",
+            toolCallId: "turn-agent-1-tool-1",
+            decision: "bypassed"
+          }),
+          expect.objectContaining({
+            type: "tool_result",
+            turnId: "turn-agent-1",
+            toolCallId: "turn-agent-1-tool-1",
+            status: "completed",
+            evidenceSummary: "Screenshot captured.",
+            artifactCount: 1
+          })
+        ])
+      },
+      timeline: [
+        {
+          status: "planned",
+          command: "打开 Chrome 测试页面",
+          turnId: "turn-agent-1",
+          toolCallId: "turn-agent-1-tool-1",
+          route: "chrome"
+        },
+        {
+          status: "completed",
+          message: "Chrome page opened.",
+          command: "打开 Chrome 测试页面",
+          turnId: "turn-agent-1",
+          toolCallId: "turn-agent-1-tool-1",
+          route: "chrome"
+        }
+      ]
+    });
+  });
+
   it("keeps external planner rationale in the replay transcript", () => {
     const store = createTurnReplayStore();
 

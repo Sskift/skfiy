@@ -4,6 +4,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 export const PRODUCT_PATH = "dist/skfiy -> skfiy dashboard -> loopback dashboard server";
 export const DEFAULT_TIMEOUT_MS = 8_000;
 const REQUIRED_DASHBOARD_CHROME_CONTROL_ACTIONS = ["observe", "fill", "click", "submit", "scroll"];
+export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
+  "Chrome readiness",
+  "Finder readiness",
+  "Ghostty readiness",
+  "Dogfood and replay",
+  "Provider settings"
+];
 
 export function createDefaultDashboardSmokeOptions(rootDir) {
   return {
@@ -177,7 +184,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
 
   if (
     evidence.shellResponse?.status !== 200
-    || !hasDashboardShellEvidence(shellBody)
+    || !hasDashboardShellEvidence(shellBody, evidence.reactContentEvidence)
   ) {
     return "failed";
   }
@@ -1036,9 +1043,12 @@ function hasOperatorReadinessBlockedByChromeEvidence(operatorReadiness) {
     && recentSmokeEvidence.missingTargets.includes("chrome");
 }
 
-function hasDashboardShellEvidence(shellBody) {
+function hasDashboardShellEvidence(shellBody, reactContentEvidence) {
   return hasLegacyDashboardShellEvidence(shellBody)
-    || hasReactDashboardShellEvidence(shellBody);
+    || (
+      hasReactDashboardShellEvidence(shellBody)
+      && hasReactDashboardContentEvidence(reactContentEvidence)
+    );
 }
 
 function hasLegacyDashboardShellEvidence(shellBody) {
@@ -1075,6 +1085,24 @@ function hasReactDashboardShellEvidence(shellBody) {
     && shellBody.includes('type="module"')
     && shellBody.includes("/assets/")
     && shellBody.includes(".js");
+}
+
+function hasReactDashboardContentEvidence(reactContentEvidence) {
+  return reactContentEvidence?.productPath === "dist/skfiy dashboard -> React asset content"
+    && reactContentEvidence?.status === 200
+    && Array.isArray(reactContentEvidence?.requiredMarkers)
+    && REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS.every((marker) =>
+      reactContentEvidence.requiredMarkers.includes(marker)
+    )
+    && Array.isArray(reactContentEvidence?.foundMarkers)
+    && REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS.every((marker) =>
+      reactContentEvidence.foundMarkers.includes(marker)
+    )
+    && Array.isArray(reactContentEvidence?.missingMarkers)
+    && reactContentEvidence.missingMarkers.length === 0
+    && typeof reactContentEvidence?.assetUrl === "string"
+    && reactContentEvidence.assetUrl.includes("/assets/")
+    && reactContentEvidence.assetUrl.endsWith(".js");
 }
 
 function hasDashboardEventsEvidence(eventsResponse) {

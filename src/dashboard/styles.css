@@ -212,8 +212,16 @@ a:focus-visible {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.skfiy-dashboard-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .skfiy-dashboard-grid--main {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.skfiy-dashboard-grid-note {
+  grid-column: 1 / -1;
 }
 
 .skfiy-dashboard-card.card {
@@ -369,6 +377,103 @@ a:focus-visible {
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.skfiy-dashboard-muted-message {
+  margin: 0;
+  color: #52525b;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.skfiy-dashboard-permission-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.skfiy-dashboard-status-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.skfiy-dashboard-status-row-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  color: #52525b;
+  background: #f4f4f5;
+}
+
+.skfiy-dashboard-status-row-icon[data-tone="success"] {
+  color: #047857;
+  background: #dff6ea;
+}
+
+.skfiy-dashboard-status-row-icon[data-tone="warning"] {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.skfiy-dashboard-status-row-icon[data-tone="danger"] {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.skfiy-dashboard-status-row strong,
+.skfiy-dashboard-status-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.skfiy-dashboard-status-row strong {
+  display: block;
+  color: #18181b;
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.25;
+}
+
+.skfiy-dashboard-status-row div > span {
+  display: block;
+  margin-top: 2px;
+  color: #71717a;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.skfiy-dashboard-activity-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.skfiy-dashboard-activity-counts div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.skfiy-dashboard-activity-counts span {
+  display: block;
+  color: #71717a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.skfiy-dashboard-activity-counts strong {
+  display: block;
+  margin-top: 2px;
+  color: #18181b;
+  font-size: 18px;
+  font-weight: 780;
 }
 
 .skfiy-dashboard-provider {
@@ -606,6 +711,10 @@ a:focus-visible {
   }
 
   .skfiy-dashboard-grid--three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .skfiy-dashboard-grid--two {
     grid-template-columns: minmax(0, 1fr);
   }
 

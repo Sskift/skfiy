@@ -1,4 +1,8 @@
 import type { AssistantAgentTurnResult } from "./assistant-agent.js";
+import type {
+  AssistantComputerUseTerminalStatus,
+  AssistantComputerUseToolCall
+} from "./assistant-computer-use-executor.js";
 import type { CommandRoute } from "./task-routing.js";
 
 export interface AssistantToolPlanSummary {
@@ -6,6 +10,18 @@ export interface AssistantToolPlanSummary {
   turnId: string;
   route: CommandRoute;
   plannedToolCount: number;
+  message: string;
+}
+
+export interface AssistantComputerUseToolCallSummary {
+  turnId: string;
+  toolCallId: string;
+  route: CommandRoute;
+  status: AssistantComputerUseToolCall["status"];
+  approvalState: AssistantComputerUseToolCall["approval"]["state"];
+  resultStatus?: AssistantComputerUseTerminalStatus;
+  evidenceSummary?: string;
+  artifactCount: number;
   message: string;
 }
 
@@ -23,6 +39,27 @@ export function summarizeAssistantToolPlan(
     route: turn.route,
     plannedToolCount,
     message: `${turn.providerLabel} planned ${formatToolCount(plannedToolCount)} for ${formatCommandRoute(turn.route)}.`
+  };
+}
+
+export function summarizeAssistantComputerUseToolCall(
+  toolCall: AssistantComputerUseToolCall
+): AssistantComputerUseToolCallSummary {
+  const routeLabel = formatCommandRoute(toolCall.route);
+  const resultText = toolCall.result?.summary ? `: ${toolCall.result.summary}` : ".";
+
+  return {
+    turnId: toolCall.turnId,
+    toolCallId: toolCall.toolCallId,
+    route: toolCall.route,
+    status: toolCall.status,
+    approvalState: toolCall.approval.state,
+    ...(toolCall.result ? { resultStatus: toolCall.result.status } : {}),
+    ...(toolCall.result?.evidence?.summary
+      ? { evidenceSummary: toolCall.result.evidence.summary }
+      : {}),
+    artifactCount: toolCall.result?.evidence?.artifacts?.length ?? 0,
+    message: `Computer Use tool ${toolCall.toolCallId} ${toolCall.status} for ${routeLabel}${resultText}`
   };
 }
 

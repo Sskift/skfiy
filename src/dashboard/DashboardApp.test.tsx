@@ -40,7 +40,35 @@ const snapshot: DashboardSnapshot = {
     cli: { state: "installed" }
   },
   operatorReadiness: {
-    state: "ready"
+    state: "blocked",
+    appReadiness: {
+      chrome: {
+        app: "Chrome",
+        state: "blocked",
+        source: "runtime",
+        reason: "Chrome Native Messaging host manifest is not installed."
+      },
+      finder: {
+        app: "Finder",
+        state: "blocked",
+        source: "finder-smoke",
+        reason: "Finder Automation has not been proven because desktop preflight is blocked."
+      },
+      ghostty: {
+        app: "Ghostty",
+        state: "needs-evidence",
+        source: "smoke-missing",
+        reason: "No fresh Ghostty smoke artifact has been recorded."
+      }
+    },
+    recentSmokeEvidence: {
+      state: "needs-evidence",
+      requiredTargets: ["chrome", "cli"],
+      recentPassedTargets: ["dashboard"],
+      missingTargets: ["chrome", "cli"],
+      unsupportedTargets: ["voice"],
+      unsupportedPassedTargets: ["voice"]
+    }
   },
   permissions: {
     screenRecording: "granted",
@@ -62,7 +90,19 @@ const snapshot: DashboardSnapshot = {
     ]
   },
   dogfoodRelease: {
-    state: "waiting-for-dogfood"
+    state: "waiting-for-dogfood",
+    releaseDrift: {
+      state: "behind-head",
+      releaseCommitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      currentHeadCommitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    cohort: {
+      state: "present",
+      acceptedReportCount: 1,
+      distinctRealTesterCount: 1,
+      ready: false,
+      passedReady: false
+    }
   },
   longHorizon: {
     state: "observing",
@@ -124,6 +164,13 @@ describe("DashboardApp", () => {
     const readiness = screen.getByRole("region", { name: "Browser and computer readiness" });
     expect(within(readiness).getByRole("heading", { name: "Browser control" })).toBeInTheDocument();
     expect(within(readiness).getByRole("heading", { name: "Computer use" })).toBeInTheDocument();
+    expect(within(readiness).getByRole("heading", { name: "Chrome readiness" })).toBeInTheDocument();
+    expect(within(readiness).getByRole("heading", { name: "Finder readiness" })).toBeInTheDocument();
+    expect(within(readiness).getByRole("heading", { name: "Ghostty readiness" })).toBeInTheDocument();
+    expect(within(readiness).getByText("Chrome Native Messaging host manifest is not installed.")).toBeInTheDocument();
+    expect(within(readiness).getByText("Finder Automation has not been proven because desktop preflight is blocked.")).toBeInTheDocument();
+    expect(within(readiness).getByText("No fresh Ghostty smoke artifact has been recorded.")).toBeInTheDocument();
+    expect(within(readiness).getByText("ignored unsupported smoke: voice")).toBeInTheDocument();
     expect(within(readiness).getByText("127.0.0.1:52363")).toBeInTheDocument();
     expect(within(readiness).getByText("Screen Recording")).toBeInTheDocument();
 
@@ -134,6 +181,11 @@ describe("DashboardApp", () => {
     expect(within(connections).getByText("planner · external-cua")).toBeInTheDocument();
     expect(within(connections).getByText("External CUA endpoint and API key are configured.")).toBeInTheDocument();
     expect(within(connections).getByText("api key configured")).toBeInTheDocument();
+
+    const activity = screen.getByRole("region", { name: "Recent activity" });
+    expect(within(activity).getByRole("heading", { name: "Dogfood and replay" })).toBeInTheDocument();
+    expect(within(activity).getByText("release behind-head")).toBeInTheDocument();
+    expect(within(activity).getByText("cohort 1/1")).toBeInTheDocument();
 
     const nextAction = screen.getByRole("region", { name: "Next action" });
     expect(within(nextAction).getByRole("heading", { name: "Grant Screen Recording" })).toBeInTheDocument();

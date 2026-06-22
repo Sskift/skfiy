@@ -4,6 +4,7 @@ import {
   Bot,
   CheckCircle2,
   Chrome,
+  Folder,
   Gauge,
   History,
   Home,
@@ -12,6 +13,7 @@ import {
   RefreshCw,
   Save,
   ShieldCheck,
+  Terminal,
   TriangleAlert
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
@@ -32,13 +34,17 @@ import type {
 } from "./contracts";
 import {
   readAlertMessages,
+  readAppReadinessLanes,
   readChromeControlState,
   readComputerUseReadiness,
+  readDogfoodSummary,
   readNextAction,
   readProviderSummaries,
   readReadinessSummary,
   readRecentActivity,
   readSnapshotState,
+  readUnsupportedSmokeEvidence,
+  type DashboardAppReadinessLane,
   type Tone
 } from "./model";
 
@@ -213,8 +219,11 @@ function DashboardContent({
   const readiness = useMemo(() => readReadinessSummary(snapshot), [snapshot]);
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
+  const appReadiness = useMemo(() => readAppReadinessLanes(snapshot), [snapshot]);
+  const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
+  const dogfood = useMemo(() => readDogfoodSummary(snapshot), [snapshot]);
   const nextAction = useMemo(() => readNextAction(snapshot), [snapshot]);
   const alerts = useMemo(() => readAlertMessages(snapshot), [snapshot]);
 
@@ -296,65 +305,73 @@ function DashboardContent({
           </div>
         </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
-        <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
-          <Card.Header className="skfiy-dashboard-card-header">
-            <div>
-              <Card.Description>Apps and sites</Card.Description>
-              <Card.Title>Browser control</Card.Title>
+          <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
+            <Card.Header className="skfiy-dashboard-card-header">
+              <div>
+                <Card.Description>Apps and sites</Card.Description>
+                <Card.Title>Browser control</Card.Title>
+              </div>
+              <Chrome size={18} aria-hidden="true" />
+            </Card.Header>
+            <Card.Content className="skfiy-dashboard-card-content">
+              <div className="skfiy-dashboard-key-value">
+                <span>State</span>
+                <StatusChip tone={chromeControl.tone}>{chromeControl.label}</StatusChip>
+                <span>Target</span>
+                <strong>{chromeControl.host}</strong>
+                <span>Tab</span>
+                <strong>{chromeControl.tabId ?? "unknown"}</strong>
+                <span>Script</span>
+                <strong>{chromeControl.contentScript ?? "unknown"}</strong>
+              </div>
+              <p className="skfiy-dashboard-muted-message">{chromeControl.reason}</p>
+              <div className="skfiy-dashboard-inline-list">
+                {chromeControl.capabilities.length > 0 ? (
+                  chromeControl.capabilities.map((capability) => (
+                    <StatusChip key={capability} tone="success">{capability}</StatusChip>
+                  ))
+                ) : (
+                  <StatusChip tone="neutral">no actions</StatusChip>
+                )}
+              </div>
+            </Card.Content>
+          </Card.Root>
+          <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
+            <Card.Header className="skfiy-dashboard-card-header">
+              <div>
+                <Card.Description>Desktop control</Card.Description>
+                <Card.Title>Computer use</Card.Title>
+              </div>
+              <MonitorCog size={18} aria-hidden="true" />
+            </Card.Header>
+            <Card.Content className="skfiy-dashboard-card-content">
+              <StatusRow
+                icon={<MousePointer2 size={16} aria-hidden="true" />}
+                label="Desktop session"
+                tone={computerUse.desktop.tone}
+                value={computerUse.desktop.value}
+                detail={computerUse.desktop.detail}
+              />
+              <div className="skfiy-dashboard-permission-grid" aria-label="Computer use permissions">
+                {computerUse.permissions.map((permission) => (
+                  <StatusRow
+                    key={permission.label}
+                    label={permission.label}
+                    tone={permission.tone}
+                    value={permission.value}
+                  />
+                ))}
+              </div>
+            </Card.Content>
+          </Card.Root>
+          {appReadiness.map((lane) => (
+            <AppReadinessCard key={lane.id} lane={lane} />
+          ))}
+          {unsupportedSmoke ? (
+            <div className="skfiy-dashboard-inline-list skfiy-dashboard-grid-note">
+              <StatusChip tone="warning">{unsupportedSmoke}</StatusChip>
             </div>
-            <Chrome size={18} aria-hidden="true" />
-          </Card.Header>
-          <Card.Content className="skfiy-dashboard-card-content">
-            <div className="skfiy-dashboard-key-value">
-              <span>State</span>
-              <StatusChip tone={chromeControl.tone}>{chromeControl.label}</StatusChip>
-              <span>Target</span>
-              <strong>{chromeControl.host}</strong>
-              <span>Tab</span>
-              <strong>{chromeControl.tabId ?? "unknown"}</strong>
-              <span>Script</span>
-              <strong>{chromeControl.contentScript ?? "unknown"}</strong>
-            </div>
-            <p className="skfiy-dashboard-muted-message">{chromeControl.reason}</p>
-            <div className="skfiy-dashboard-inline-list">
-              {chromeControl.capabilities.length > 0 ? (
-                chromeControl.capabilities.map((capability) => (
-                  <StatusChip key={capability} tone="success">{capability}</StatusChip>
-                ))
-              ) : (
-                <StatusChip tone="neutral">no actions</StatusChip>
-              )}
-            </div>
-          </Card.Content>
-        </Card.Root>
-        <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
-          <Card.Header className="skfiy-dashboard-card-header">
-            <div>
-              <Card.Description>Desktop control</Card.Description>
-              <Card.Title>Computer use</Card.Title>
-            </div>
-            <MonitorCog size={18} aria-hidden="true" />
-          </Card.Header>
-          <Card.Content className="skfiy-dashboard-card-content">
-            <StatusRow
-              icon={<MousePointer2 size={16} aria-hidden="true" />}
-              label="Desktop session"
-              tone={computerUse.desktop.tone}
-              value={computerUse.desktop.value}
-              detail={computerUse.desktop.detail}
-            />
-            <div className="skfiy-dashboard-permission-grid" aria-label="Computer use permissions">
-              {computerUse.permissions.map((permission) => (
-                <StatusRow
-                  key={permission.label}
-                  label={permission.label}
-                  tone={permission.tone}
-                  value={permission.value}
-                />
-              ))}
-            </div>
-          </Card.Content>
-        </Card.Root>
+          ) : null}
         </div>
       </section>
 
@@ -369,33 +386,53 @@ function DashboardContent({
             <h2 id="activity-title">Recent activity</h2>
           </div>
         </div>
-        <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
-          <Card.Header className="skfiy-dashboard-card-header">
-            <div>
-              <Card.Title>Current turn</Card.Title>
-              <Card.Description>Latest user-facing runtime state</Card.Description>
-            </div>
-            <History size={18} aria-hidden="true" />
-          </Card.Header>
-          <Card.Content className="skfiy-dashboard-card-content">
-            <p className="skfiy-dashboard-message">{activity.latestMessage}</p>
-            <div className="skfiy-dashboard-inline-list">
-              <StatusChip tone={activity.turnState === "failed" ? "danger" : "neutral"}>
-                turn {activity.turnState}
-              </StatusChip>
-              <StatusChip tone="neutral">
-                replay {activity.replayState}
-              </StatusChip>
-              {activity.command ? <StatusChip tone="neutral">{activity.command}</StatusChip> : null}
-              {activity.targetApp ? <StatusChip tone="neutral">{activity.targetApp}</StatusChip> : null}
-            </div>
-            <div className="skfiy-dashboard-activity-counts">
-              <ActivityCount label="Actions" value={activity.actionCount} />
-              <ActivityCount label="Screenshots" value={activity.screenshotCount} />
-              <ActivityCount label="Checks" value={activity.verificationCount} />
-            </div>
-          </Card.Content>
-        </Card.Root>
+        <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
+          <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+            <Card.Header className="skfiy-dashboard-card-header">
+              <div>
+                <Card.Title>Current turn</Card.Title>
+                <Card.Description>Latest user-facing runtime state</Card.Description>
+              </div>
+              <History size={18} aria-hidden="true" />
+            </Card.Header>
+            <Card.Content className="skfiy-dashboard-card-content">
+              <p className="skfiy-dashboard-message">{activity.latestMessage}</p>
+              <div className="skfiy-dashboard-inline-list">
+                <StatusChip tone={activity.turnState === "failed" ? "danger" : "neutral"}>
+                  turn {activity.turnState}
+                </StatusChip>
+                <StatusChip tone="neutral">
+                  replay {activity.replayState}
+                </StatusChip>
+                {activity.command ? <StatusChip tone="neutral">{activity.command}</StatusChip> : null}
+                {activity.targetApp ? <StatusChip tone="neutral">{activity.targetApp}</StatusChip> : null}
+              </div>
+              <div className="skfiy-dashboard-activity-counts">
+                <ActivityCount label="Actions" value={activity.actionCount} />
+                <ActivityCount label="Screenshots" value={activity.screenshotCount} />
+                <ActivityCount label="Checks" value={activity.verificationCount} />
+              </div>
+            </Card.Content>
+          </Card.Root>
+          <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+            <Card.Header className="skfiy-dashboard-card-header">
+              <div>
+                <Card.Title>Dogfood and replay</Card.Title>
+                <Card.Description>Release drift and cohort status</Card.Description>
+              </div>
+              <Activity size={18} aria-hidden="true" />
+            </Card.Header>
+            <Card.Content className="skfiy-dashboard-card-content">
+              <p className="skfiy-dashboard-message">{dogfood.detail}</p>
+              <div className="skfiy-dashboard-inline-list">
+                <StatusChip tone={dogfood.tone}>release {dogfood.releaseDriftState}</StatusChip>
+                <StatusChip tone="neutral">dogfood {dogfood.releaseState}</StatusChip>
+                <StatusChip tone="neutral">{dogfood.cohortLabel}</StatusChip>
+                <StatusChip tone="neutral">replay {activity.replayState}</StatusChip>
+              </div>
+            </Card.Content>
+          </Card.Root>
+        </div>
       </section>
 
       <section
@@ -615,6 +652,34 @@ function ProviderCard({
             ) : null}
           </div>
         ) : null}
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function AppReadinessCard({ lane }: { lane: DashboardAppReadinessLane }) {
+  const Icon = lane.id === "chrome"
+    ? Chrome
+    : lane.id === "finder"
+      ? Folder
+      : Terminal;
+
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>{lane.source}</Card.Description>
+          <Card.Title>{lane.title}</Card.Title>
+        </div>
+        <Icon size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <StatusRow
+          label={lane.title.replace(" readiness", "")}
+          tone={lane.tone}
+          value={lane.value}
+          detail={lane.detail}
+        />
       </Card.Content>
     </Card.Root>
   );

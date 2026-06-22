@@ -6,17 +6,25 @@ import {
 
 export type TurnReplayTaskStatus =
   | "idle"
+  | "planned"
   | "observing"
   | "executing"
   | "approval_required"
   | "needs_confirmation"
+  | "running"
   | "completed"
+  | "denied"
+  | "blocked"
+  | "cancelled"
   | "failed";
 
 export interface TurnReplayTaskEvent {
   status: TurnReplayTaskStatus;
   message?: string;
   command?: string;
+  turnId?: string;
+  toolCallId?: string;
+  route?: string;
 }
 
 export interface TurnReplay {
@@ -68,6 +76,9 @@ export function createTurnReplayStore(options: TurnReplayStoreOptions = {}) {
       if (
         event.status === "completed"
         || event.status === "failed"
+        || event.status === "denied"
+        || event.status === "blocked"
+        || event.status === "cancelled"
         || event.status === "needs_confirmation"
         || event.status === "idle"
       ) {
@@ -99,10 +110,15 @@ function createReplayTranscript(
   const transcript = createTurnTranscript(events);
   const finalStatus = timeline.at(-1)?.status;
 
-  if (finalStatus === "failed") {
+  if (
+    finalStatus === "failed"
+    || finalStatus === "denied"
+    || finalStatus === "blocked"
+    || finalStatus === "cancelled"
+  ) {
     return {
       ...transcript,
-      outcome: "failed"
+      outcome: finalStatus
     };
   }
 

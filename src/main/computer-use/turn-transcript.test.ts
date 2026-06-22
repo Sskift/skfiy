@@ -171,6 +171,82 @@ describe("createTurnTranscript", () => {
     });
   });
 
+  it("records agent-owned tool lifecycle identity and terminal denial", () => {
+    expect(createTurnTranscript([
+      {
+        type: "tool_call",
+        turnId: "turn-agent-1",
+        toolCallId: "turn-agent-1-tool-1",
+        command: "打开 Chrome 测试页面",
+        route: "chrome",
+        status: "planned"
+      },
+      {
+        type: "tool_call",
+        turnId: "turn-agent-1",
+        toolCallId: "turn-agent-1-tool-1",
+        command: "打开 Chrome 测试页面",
+        route: "chrome",
+        status: "approval_required"
+      },
+      {
+        type: "approval_decision",
+        turnId: "turn-agent-1",
+        toolCallId: "turn-agent-1-tool-1",
+        command: "打开 Chrome 测试页面",
+        route: "chrome",
+        decision: "denied",
+        reason: "User denied browser mutation."
+      },
+      {
+        type: "tool_result",
+        turnId: "turn-agent-1",
+        toolCallId: "turn-agent-1-tool-1",
+        command: "打开 Chrome 测试页面",
+        route: "chrome",
+        status: "denied",
+        summary: "User denied browser mutation."
+      }
+    ])).toMatchObject({
+      command: "打开 Chrome 测试页面",
+      approvalRequired: true,
+      outcome: "denied",
+      actions: [
+        {
+          type: "tool_call",
+          turnId: "turn-agent-1",
+          toolCallId: "turn-agent-1-tool-1",
+          route: "chrome",
+          status: "planned"
+        },
+        {
+          type: "tool_call",
+          turnId: "turn-agent-1",
+          toolCallId: "turn-agent-1-tool-1",
+          route: "chrome",
+          status: "approval_required"
+        },
+        {
+          type: "approval_decision",
+          turnId: "turn-agent-1",
+          toolCallId: "turn-agent-1-tool-1",
+          route: "chrome",
+          decision: "denied",
+          reason: "User denied browser mutation."
+        },
+        {
+          type: "tool_result",
+          turnId: "turn-agent-1",
+          toolCallId: "turn-agent-1-tool-1",
+          route: "chrome",
+          status: "denied",
+          summary: "User denied browser mutation.",
+          artifactCount: 0
+        }
+      ]
+    });
+  });
+
   it("records planner rationale before execution actions", () => {
     expect(createTurnTranscript([
       {

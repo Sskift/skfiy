@@ -882,6 +882,33 @@ describe("dashboard product smoke script", () => {
         status: 200,
         body: '<!doctype html><html lang="en"><head><title>skfiy dashboard</title><script type="module" crossorigin src="./assets/dashboard-test.js"></script></head><body><div id="dashboard-root"></div></body></html>'
       }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      shellResponse: {
+        status: 200,
+        body: '<!doctype html><html lang="en"><head><title>skfiy dashboard</title><script type="module" crossorigin src="./assets/dashboard-test.js"></script></head><body><div id="dashboard-root"></div></body></html>'
+      },
+      reactContentEvidence: {
+        productPath: "dist/skfiy dashboard -> React asset content",
+        assetUrl: "http://127.0.0.1:51234/assets/dashboard-test.js",
+        status: 200,
+        requiredMarkers: [
+          "Chrome readiness",
+          "Finder readiness",
+          "Ghostty readiness",
+          "Dogfood and replay",
+          "Provider settings"
+        ],
+        foundMarkers: [
+          "Chrome readiness",
+          "Finder readiness",
+          "Ghostty readiness",
+          "Dogfood and replay",
+          "Provider settings"
+        ],
+        missingMarkers: []
+      }
     })).toBe("passed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,

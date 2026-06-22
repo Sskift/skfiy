@@ -117,12 +117,19 @@ export function createRuntimeSnapshotFromReplay({
     .filter((action) => action.type === "verify")
     .slice(-MAX_RUNTIME_SNAPSHOT_ITEMS)
     .map(summarizeVerification);
+  const toolCallSummaries = replay.transcript.actions
+    .filter((action) => action.type === "tool_call" || action.type === "tool_result")
+    .slice(-MAX_RUNTIME_SNAPSHOT_ITEMS)
+    .map(summarizeAction);
   const timelineTail = replay.timeline
     .slice(-MAX_RUNTIME_SNAPSHOT_ITEMS)
     .map((event) => ({
       status: event.status,
       ...(event.message ? { message: sanitizeRuntimeSnapshotText(event.message) } : {}),
-      ...(event.command ? { command: sanitizeRuntimeSnapshotText(event.command) } : {})
+      ...(event.command ? { command: sanitizeRuntimeSnapshotText(event.command) } : {}),
+      ...(event.turnId ? { turnId: event.turnId } : {}),
+      ...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
+      ...(event.route ? { route: event.route } : {})
     }));
   const verificationCount = replay.transcript.actions
     .filter((action) => action.type === "verify")
@@ -134,6 +141,8 @@ export function createRuntimeSnapshotFromReplay({
   const latestAction = actionSummaries.at(-1);
   const latestVerification = verificationSummaries.at(-1);
   const latestScreenshot = screenshotSummaries.at(-1);
+  const latestToolCall = toolCallSummaries.at(-1);
+  const approvalState = readApprovalState(replay.transcript, state);
 
   const snapshotCurrentTurn = mergeRuntimeCurrentTurnPanel(
     {
@@ -146,14 +155,13 @@ export function createRuntimeSnapshotFromReplay({
         ? { plannerProvider: replay.transcript.planner.providerLabel }
         : {}),
       approvalRequired: replay.transcript.approvalRequired || state === "approval_required",
-      approvalState: replay.transcript.approvalRequired || state === "approval_required"
-        ? "required"
-        : "not-required",
+      approvalState,
       stopState: isActiveTurnState(state) ? "available" : "inactive",
       ...(latestMessage ? { latestMessage } : {}),
       ...(latestAction ? { latestAction } : {}),
       ...(latestVerification ? { latestVerification } : {}),
       ...(latestScreenshot ? { latestScreenshot } : {}),
+      ...(latestToolCall ? createLatestToolCurrentTurnFields(latestToolCall) : {}),
       source: "runtime-snapshot"
     },
     currentTurn
@@ -171,6 +179,7 @@ export function createRuntimeSnapshotFromReplay({
       verificationCount,
       timelineCount: replay.timeline.length,
       ...(latestMessage ? { latestMessage } : {}),
+      ...(latestToolCall ? { latestToolCall } : {}),
       screenshots: screenshotSummaries,
       actions: actionSummaries,
       verifications: verificationSummaries,
@@ -310,13 +319,23 @@ function readTurnStateFromOutcome(outcome: string): string {
       return "failed";
     case "completed":
       return "completed";
+    case "denied":
+      return "denied";
+    case "blocked":
+      return "blocked";
+    case "cancelled":
+      return "cancelled";
     default:
       return "executing";
   }
 }
 
 function isActiveTurnState(state: string): boolean {
-  return state === "observing" || state === "executing" || state === "approval_required";
+  return state === "planned"
+    || state === "observing"
+    || state === "executing"
+    || state === "running"
+    || state === "approval_required";
 }
 
 function createRuntimeCurrentTurnPanel(
@@ -400,6 +419,37 @@ function summarizeScreenshot(screenshot: TurnTranscriptScreenshot): Record<strin
 
 function summarizeAction(action: TurnTranscriptAction): Record<string, unknown> {
   switch (action.type) {
+    case "tool_call":
+      return {
+        type: action.type,
+        turnId: action.turnId,
+        toolCallId: action.toolCallId,
+        route: action.route,
+        status: action.status,
+        command: sanitizeRuntimeSnapshotText(action.command)
+      };
+    case "approval_decision":
+      return {
+        type: action.type,
+        turnId: action.turnId,
+        toolCallId: action.toolCallId,
+        route: action.route,
+        decision: action.decision,
+        ...(action.reason ? { reason: sanitizeRuntimeSnapshotText(action.reason) } : {})
+      };
+    case "tool_result":
+      return {
+        type: action.type,
+        turnId: action.turnId,
+        toolCallId: action.toolCallId,
+        route: action.route,
+        status: action.status,
+        ...(action.summary ? { summary: sanitizeRuntimeSnapshotText(action.summary) } : {}),
+        ...(action.evidenceSummary
+          ? { evidenceSummary: sanitizeRuntimeSnapshotText(action.evidenceSummary) }
+          : {}),
+        artifactCount: action.artifactCount
+      };
     case "plan":
       return {
         type: action.type,
@@ -466,6 +516,36 @@ function summarizeAction(action: TurnTranscriptAction): Record<string, unknown> 
         reason: sanitizeRuntimeSnapshotText(action.reason)
       };
   }
+}
+
+function readApprovalState(transcript: {
+  approvalRequired: boolean;
+  actions: TurnTranscriptAction[];
+}, state: string): string {
+  const latestDecision = transcript.actions
+    .filter((action) => action.type === "approval_decision")
+    .at(-1);
+
+  if (latestDecision?.type === "approval_decision") {
+    return latestDecision.decision === "bypassed" ? "bypassed" : latestDecision.decision;
+  }
+
+  if (transcript.approvalRequired || state === "approval_required") {
+    return "required";
+  }
+
+  return "not-required";
+}
+
+function createLatestToolCurrentTurnFields(
+  latestToolCall: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    ...(typeof latestToolCall.turnId === "string" ? { turnId: latestToolCall.turnId } : {}),
+    ...(typeof latestToolCall.toolCallId === "string" ? { toolCallId: latestToolCall.toolCallId } : {}),
+    ...(typeof latestToolCall.route === "string" ? { route: latestToolCall.route } : {}),
+    ...(typeof latestToolCall.status === "string" ? { latestToolStatus: latestToolCall.status } : {})
+  };
 }
 
 function summarizeVerification(

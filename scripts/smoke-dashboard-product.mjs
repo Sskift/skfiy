@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   PRODUCT_PATH,
+  REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS,
   classifyDashboardSmokeEvidence,
   createDashboardHelpText,
   createDefaultDashboardSmokeOptions,
@@ -54,6 +55,7 @@ async function main() {
     operatorReadiness: undefined,
     eventsResponse: undefined,
     shellResponse: undefined,
+    reactContentEvidence: undefined,
     chromeHostPolicyApi: undefined,
     dashboardChromeControlActionApi: undefined,
     dashboardStatusAutoDiscovery: undefined,
@@ -100,6 +102,11 @@ async function main() {
       options.timeoutMs
     );
     evidence.shellResponse = await readTextResponse(launched.cliOutput.url, options.timeoutMs);
+    evidence.reactContentEvidence = await collectReactDashboardContentEvidence({
+      dashboardUrl: launched.cliOutput.url,
+      shellBody: evidence.shellResponse?.body,
+      timeoutMs: options.timeoutMs
+    });
     evidence.chromeHostPolicyApi = await exerciseChromeHostPolicyApi({
       dashboardUrl: launched.cliOutput.url,
       timeoutMs: options.timeoutMs
@@ -123,6 +130,7 @@ async function main() {
       JSON.stringify(evidence.descriptorResponse),
       JSON.stringify(evidence.snapshotResponse),
       JSON.stringify(evidence.eventsResponse),
+      JSON.stringify(evidence.reactContentEvidence),
       JSON.stringify(evidence.chromeHostPolicyApi),
       JSON.stringify(evidence.dashboardChromeControlActionApi),
       JSON.stringify(evidence.dashboardStatusAutoDiscovery),
@@ -167,6 +175,51 @@ async function main() {
 
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
   }
+}
+
+async function collectReactDashboardContentEvidence({
+  dashboardUrl,
+  shellBody,
+  timeoutMs
+}) {
+  const assetPath = readReactDashboardAssetPath(shellBody);
+  if (!assetPath) {
+    return {
+      productPath: "dist/skfiy dashboard -> React asset content",
+      status: "skipped",
+      requiredMarkers: REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS,
+      foundMarkers: [],
+      missingMarkers: REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS,
+      reason: "Dashboard shell did not reference a React module asset."
+    };
+  }
+
+  const assetUrl = new URL(assetPath, dashboardUrl).toString();
+  const response = await readTextResponse(assetUrl, timeoutMs);
+  const body = response.body ?? "";
+  const foundMarkers = REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS.filter((marker) =>
+    body.includes(marker)
+  );
+
+  return {
+    productPath: "dist/skfiy dashboard -> React asset content",
+    assetUrl,
+    status: response.status,
+    requiredMarkers: REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS,
+    foundMarkers,
+    missingMarkers: REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS.filter((marker) =>
+      !foundMarkers.includes(marker)
+    )
+  };
+}
+
+function readReactDashboardAssetPath(shellBody) {
+  if (typeof shellBody !== "string" || !shellBody.includes('id="dashboard-root"')) {
+    return undefined;
+  }
+
+  return shellBody.match(/<script[^>]+type=["']module["'][^>]+src=["']([^"']+\.js)["']/i)?.[1]
+    ?? shellBody.match(/<script[^>]+src=["']([^"']+\.js)["'][^>]+type=["']module["']/i)?.[1];
 }
 
 async function seedRuntimeSnapshotFixture(homeDir) {

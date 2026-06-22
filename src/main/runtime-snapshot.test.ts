@@ -186,6 +186,105 @@ describe("runtime snapshot", () => {
     });
   });
 
+  it("summarizes agent-owned tool lifecycle identity and result evidence", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: {
+        transcript: {
+          command: "打开 Chrome 测试页面",
+          approvalRequired: true,
+          apps: [],
+          screenshots: [],
+          actions: [
+            {
+              type: "tool_call",
+              turnId: "turn-agent-1",
+              toolCallId: "turn-agent-1-tool-1",
+              route: "chrome",
+              status: "planned",
+              command: "打开 Chrome 测试页面"
+            },
+            {
+              type: "approval_decision",
+              turnId: "turn-agent-1",
+              toolCallId: "turn-agent-1-tool-1",
+              route: "chrome",
+              decision: "approved"
+            },
+            {
+              type: "tool_result",
+              turnId: "turn-agent-1",
+              toolCallId: "turn-agent-1-tool-1",
+              route: "chrome",
+              status: "completed",
+              summary: "Chrome page opened.",
+              evidenceSummary: "Screenshot captured.",
+              artifactCount: 1
+            }
+          ],
+          outcome: "completed"
+        },
+        timeline: [
+          {
+            status: "approval_required",
+            command: "打开 Chrome 测试页面",
+            turnId: "turn-agent-1",
+            toolCallId: "turn-agent-1-tool-1",
+            route: "chrome"
+          },
+          {
+            status: "completed",
+            command: "打开 Chrome 测试页面",
+            turnId: "turn-agent-1",
+            toolCallId: "turn-agent-1-tool-1",
+            route: "chrome"
+          }
+        ]
+      },
+      observedAt: "2026-06-20T10:01:30.000Z"
+    })).toMatchObject({
+      currentTurn: {
+        state: "completed",
+        command: "打开 Chrome 测试页面",
+        turnId: "turn-agent-1",
+        toolCallId: "turn-agent-1-tool-1",
+        route: "chrome",
+        latestToolStatus: "completed",
+        approvalRequired: true,
+        approvalState: "approved",
+        stopState: "inactive"
+      },
+      replay: {
+        state: "available",
+        outcome: "completed",
+        latestToolCall: {
+          type: "tool_result",
+          turnId: "turn-agent-1",
+          toolCallId: "turn-agent-1-tool-1",
+          route: "chrome",
+          status: "completed",
+          evidenceSummary: "Screenshot captured.",
+          artifactCount: 1
+        },
+        timelineTail: [
+          {
+            status: "approval_required",
+            command: "打开 Chrome 测试页面",
+            turnId: "turn-agent-1",
+            toolCallId: "turn-agent-1-tool-1",
+            route: "chrome"
+          },
+          {
+            status: "completed",
+            command: "打开 Chrome 测试页面",
+            turnId: "turn-agent-1",
+            toolCallId: "turn-agent-1-tool-1",
+            route: "chrome"
+          }
+        ]
+      }
+    });
+  });
+
   it("lets the latest live event refresh replay-derived current turn state", () => {
     expect(createRuntimeSnapshotFromReplay({
       replay: createReplay(),

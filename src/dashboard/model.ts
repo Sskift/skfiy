@@ -24,6 +24,23 @@ export interface DashboardComputerUseReadiness {
   permissions: DashboardStatusItem[];
 }
 
+export interface DashboardAppReadinessLane {
+  id: "chrome" | "finder" | "ghostty";
+  title: string;
+  value: string;
+  detail: string;
+  source: string;
+  tone: Tone;
+}
+
+export interface DashboardDogfoodSummary {
+  releaseState: string;
+  releaseDriftState: string;
+  cohortLabel: string;
+  detail: string;
+  tone: Tone;
+}
+
 export interface DashboardRecentActivity {
   latestMessage: string;
   turnState: string;
@@ -162,6 +179,51 @@ export function readComputerUseReadiness(snapshot: DashboardSnapshot): Dashboard
   };
 }
 
+export function readAppReadinessLanes(snapshot: DashboardSnapshot): DashboardAppReadinessLane[] {
+  const appReadiness = readRecord(snapshot.operatorReadiness.appReadiness);
+
+  return [
+    createAppReadinessLane("chrome", "Chrome readiness", readRecord(appReadiness?.chrome)),
+    createAppReadinessLane("finder", "Finder readiness", readRecord(appReadiness?.finder)),
+    createAppReadinessLane("ghostty", "Ghostty readiness", readRecord(appReadiness?.ghostty))
+  ];
+}
+
+export function readUnsupportedSmokeEvidence(snapshot: DashboardSnapshot): string | undefined {
+  const unsupported = readStringArray(readRecord(snapshot.operatorReadiness.recentSmokeEvidence)?.unsupportedTargets);
+  return unsupported.length > 0
+    ? `ignored unsupported smoke: ${unsupported.join(", ")}`
+    : undefined;
+}
+
+export function readDogfoodSummary(snapshot: DashboardSnapshot): DashboardDogfoodSummary {
+  const release = readRecord(snapshot.dogfoodRelease);
+  const releaseState = readString(release?.state) ?? "unknown";
+  const drift = readRecord(release?.releaseDrift);
+  const releaseDriftState = readString(drift?.state) ?? "unknown";
+  const cohort = readRecord(release?.cohort);
+  const acceptedReports = readNumber(cohort?.acceptedReportCount) ?? 0;
+  const distinctTesters = readNumber(cohort?.distinctRealTesterCount) ?? 0;
+  const ready = cohort?.ready === true;
+  const passedReady = cohort?.passedReady === true;
+
+  return {
+    releaseState,
+    releaseDriftState,
+    cohortLabel: `cohort ${acceptedReports}/${distinctTesters}`,
+    detail: ready
+      ? passedReady
+        ? "Accepted dogfood cohort has passed workflow coverage."
+        : "Accepted dogfood cohort exists, but passed workflow coverage is incomplete."
+      : "Dogfood cohort is not ready yet.",
+    tone: releaseDriftState === "behind-head"
+      ? "warning"
+      : releaseState === "cohort-ready" && passedReady
+        ? "success"
+        : "neutral"
+  };
+}
+
 export function readProviderSummaries(snapshot: DashboardSnapshot): DashboardProviderSummary[] {
   return [
     snapshot.providers?.assistant ?? {
@@ -179,6 +241,34 @@ export function readProviderSummaries(snapshot: DashboardSnapshot): DashboardPro
       detail: "Provider settings are not present in this snapshot."
     }
   ];
+}
+
+function createAppReadinessLane(
+  id: DashboardAppReadinessLane["id"],
+  title: string,
+  lane: Record<string, unknown> | undefined
+): DashboardAppReadinessLane {
+  const state = readString(lane?.state) ?? "needs-evidence";
+
+  return {
+    id,
+    title,
+    value: state,
+    detail: readString(lane?.reason) ?? "No readiness detail has been recorded yet.",
+    source: readString(lane?.source) ?? "snapshot",
+    tone: readReadinessTone(state)
+  };
+}
+
+function readReadinessTone(state: string): Tone {
+  if (state === "ready") {
+    return "success";
+  }
+  if (state === "blocked") {
+    return "danger";
+  }
+
+  return "warning";
 }
 
 export function readAlertMessages(snapshot: DashboardSnapshot): string[] {

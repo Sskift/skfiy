@@ -18,6 +18,36 @@ export type ComputerUseTurnEvent =
   | { type: "started"; command: string; risk: RiskDecision }
   | { type: "approval_required"; command: string; risk: RiskDecision }
   | {
+    type: "tool_call";
+    turnId: string;
+    toolCallId: string;
+    command: string;
+    route: string;
+    status: "planned" | "approval_required" | "running" | "completed" | "denied" | "blocked" | "failed" | "cancelled";
+  }
+  | {
+    type: "approval_decision";
+    turnId: string;
+    toolCallId: string;
+    command: string;
+    route: string;
+    decision: "approved" | "denied" | "bypassed";
+    reason?: string;
+  }
+  | {
+    type: "tool_result";
+    turnId: string;
+    toolCallId: string;
+    command: string;
+    route: string;
+    status: "completed" | "denied" | "blocked" | "failed" | "cancelled";
+    summary?: string;
+    evidence?: {
+      summary: string;
+      artifacts?: string[];
+    };
+  }
+  | {
     type: "planner_resolved";
     providerLabel: string;
     input: string;
@@ -81,6 +111,32 @@ export interface TurnTranscriptPlanner {
 }
 
 export type TurnTranscriptAction =
+  | {
+    type: "tool_call";
+    turnId: string;
+    toolCallId: string;
+    route: string;
+    status: "planned" | "approval_required" | "running" | "completed" | "denied" | "blocked" | "failed" | "cancelled";
+    command: string;
+  }
+  | {
+    type: "approval_decision";
+    turnId: string;
+    toolCallId: string;
+    route: string;
+    decision: "approved" | "denied" | "bypassed";
+    reason?: string;
+  }
+  | {
+    type: "tool_result";
+    turnId: string;
+    toolCallId: string;
+    route: string;
+    status: "completed" | "denied" | "blocked" | "failed" | "cancelled";
+    summary?: string;
+    evidenceSummary?: string;
+    artifactCount: number;
+  }
   | { type: "plan"; providerLabel: string; command: string; rationale?: string }
   | { type: "open_session"; appName: string; pid: number }
   | { type: "activate_app"; appName: string; bundleId: string; pid?: number }
@@ -122,6 +178,9 @@ export type TurnTranscriptOutcome =
   | "completed"
   | "approval_required"
   | "verification_failed"
+  | "denied"
+  | "blocked"
+  | "cancelled"
   | "failed"
   | "running";
 
@@ -159,6 +218,51 @@ export function createTurnTranscript(
         risk = event.risk;
         approvalRequired = true;
         outcome = "approval_required";
+        break;
+      case "tool_call":
+        command = event.command;
+        if (event.status === "approval_required") {
+          approvalRequired = true;
+          outcome = "approval_required";
+        } else if (event.status === "running" || event.status === "planned") {
+          outcome = "running";
+        } else {
+          outcome = event.status;
+        }
+        actions.push({
+          type: "tool_call",
+          turnId: event.turnId,
+          toolCallId: event.toolCallId,
+          route: event.route,
+          status: event.status,
+          command: event.command
+        });
+        break;
+      case "approval_decision":
+        command = event.command;
+        approvalRequired = true;
+        actions.push({
+          type: "approval_decision",
+          turnId: event.turnId,
+          toolCallId: event.toolCallId,
+          route: event.route,
+          decision: event.decision,
+          reason: event.reason
+        });
+        break;
+      case "tool_result":
+        command = event.command;
+        outcome = event.status;
+        actions.push({
+          type: "tool_result",
+          turnId: event.turnId,
+          toolCallId: event.toolCallId,
+          route: event.route,
+          status: event.status,
+          summary: event.summary,
+          evidenceSummary: event.evidence?.summary,
+          artifactCount: event.evidence?.artifacts?.length ?? 0
+        });
         break;
       case "planner_resolved":
         planner = {

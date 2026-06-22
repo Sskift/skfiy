@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { summarizeAssistantToolPlan } from "./assistant-tools";
+import {
+  summarizeAssistantComputerUseToolCall,
+  summarizeAssistantToolPlan
+} from "./assistant-tools";
 import type { AssistantAgentTurnResult } from "./assistant-agent";
 
 describe("assistant tool bridge", () => {
@@ -63,5 +66,44 @@ describe("assistant tool bridge", () => {
         requested: false
       }
     })).toBeUndefined();
+  });
+
+  it("summarizes executor-owned tool continuation status and evidence", () => {
+    expect(summarizeAssistantComputerUseToolCall({
+      turnId: "turn-1",
+      toolCallId: "turn-1-tool-1",
+      command: "打开 Chrome 测试页面",
+      route: {
+        kind: "chrome",
+        bundleId: "com.google.Chrome"
+      },
+      status: "completed",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      updatedAt: "2026-06-22T10:00:01.000Z",
+      approval: {
+        state: "approved"
+      },
+      result: {
+        status: "completed",
+        summary: "Chrome page opened.",
+        evidence: {
+          summary: "Screenshot captured.",
+          artifacts: ["/tmp/chrome-after.png"]
+        }
+      }
+    })).toEqual({
+      turnId: "turn-1",
+      toolCallId: "turn-1-tool-1",
+      route: {
+        kind: "chrome",
+        bundleId: "com.google.Chrome"
+      },
+      status: "completed",
+      approvalState: "approved",
+      resultStatus: "completed",
+      evidenceSummary: "Screenshot captured.",
+      artifactCount: 1,
+      message: "Computer Use tool turn-1-tool-1 completed for Chrome: Chrome page opened."
+    });
   });
 });

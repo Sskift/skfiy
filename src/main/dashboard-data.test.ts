@@ -280,6 +280,26 @@ describe("dashboard snapshot data", () => {
           requiredTargets: ["chrome", "cli"],
           recentPassedTargets: ["ui"],
           missingTargets: ["chrome", "cli"]
+        },
+        appReadiness: {
+          chrome: {
+            app: "Chrome",
+            state: "blocked",
+            source: "runtime",
+            reason: "Chrome pageControl readiness has not been probed yet."
+          },
+          finder: {
+            app: "Finder",
+            state: "blocked",
+            source: "permission",
+            reason: "Finder Automation has not been proven yet."
+          },
+          ghostty: {
+            app: "Ghostty",
+            state: "needs-evidence",
+            source: "smoke-missing",
+            reason: "No fresh Ghostty smoke artifact has been recorded."
+          }
         }
       },
       permissions: {
@@ -403,6 +423,161 @@ describe("dashboard snapshot data", () => {
       severity: "warning",
       message: "Chrome extension is not connected, so pageControl readiness cannot be trusted.",
       extensionState: "native-host-installed"
+    });
+  });
+
+  it("creates app-specific readiness lanes and marks unsupported smoke targets as ignored evidence", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-22T09:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: {
+        permissions: {
+          screenRecording: "granted",
+          accessibility: "granted",
+          finderAutomation: "unknown"
+        },
+        desktopSession: {
+          state: "blocked",
+          frontmostBundleId: "com.apple.loginwindow",
+          mainDisplayAsleep: true
+        },
+        nativeHost: {
+          state: "missing"
+        },
+        extension: {
+          state: "native-host-missing",
+          liveConnection: "unknown",
+          nativeHostState: "missing"
+        },
+        cli: {
+          state: "installed",
+          path: "/repo/dist/skfiy"
+        },
+        app: {
+          state: "installed",
+          path: "/repo/dist/skfiy.app",
+          signing: { state: "valid" }
+        },
+        helper: {
+          state: "installed",
+          path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+        }
+      },
+      smokeEvidence: {
+        artifacts: [
+          {
+            target: "chrome",
+            result: "blocked",
+            blocker: "Chrome Native Messaging host manifest is not installed.",
+            stale: false
+          },
+          {
+            target: "finder",
+            result: "blocked",
+            stale: false,
+            finder: {
+              desktopPreflight: {
+                result: "blocked",
+                reason: "Desktop session is locked or loginwindow is frontmost.",
+                frontmostBundleId: "com.apple.loginwindow",
+                mainDisplayAsleep: true,
+                controllable: false
+              }
+            }
+          },
+          {
+            target: "ghostty",
+            result: "blocked",
+            desktopPreflight: {
+              result: "blocked",
+              reason: "Desktop session is locked or loginwindow is frontmost."
+            },
+            stale: false
+          },
+          {
+            target: "voice",
+            result: "passed",
+            stale: true,
+            productPath: "obsolete voice smoke"
+          }
+        ]
+      }
+    });
+
+    expect(snapshot.operatorReadiness).toMatchObject({
+      appReadiness: {
+        chrome: {
+          app: "Chrome",
+          state: "blocked",
+          source: "chrome-smoke",
+          reason: "Chrome Native Messaging host manifest is not installed."
+        },
+        finder: {
+          app: "Finder",
+          state: "blocked",
+          source: "finder-smoke",
+          reason: "Desktop session is locked or loginwindow is frontmost."
+        },
+        ghostty: {
+          app: "Ghostty",
+          state: "blocked",
+          source: "ghostty-smoke",
+          reason: "Desktop session is locked or loginwindow is frontmost."
+        }
+      },
+      recentSmokeEvidence: {
+        unsupportedTargets: ["voice"],
+        unsupportedPassedTargets: ["voice"],
+        recentPassedTargets: []
+      }
+    });
+    expect(snapshot.alerts).toContainEqual({
+      code: "smoke-evidence-unsupported",
+      severity: "warning",
+      message: "Unsupported smoke evidence is ignored for product readiness: voice.",
+      unsupportedTargets: ["voice"],
+      unsupportedPassedTargets: ["voice"]
+    });
+  });
+
+  it("keeps passed Chrome app readiness from inheriting pageControl blocker text", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-22T09:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: createPageControlStatus({
+        extension: {
+          state: "connected",
+          pageControl: {
+            state: "blocked_by_host_policy",
+            capable: false,
+            reason: "Host policy has not allowed this page."
+          }
+        }
+      }),
+      smokeEvidence: {
+        artifacts: [
+          {
+            target: "chrome",
+            result: "passed",
+            stale: false,
+            pageControl: {
+              state: "blocked_by_host_policy",
+              reason: "Host policy has not allowed this page."
+            }
+          }
+        ]
+      }
+    });
+
+    expect(snapshot.operatorReadiness).toMatchObject({
+      appReadiness: {
+        chrome: {
+          app: "Chrome",
+          state: "ready",
+          source: "chrome-smoke",
+          reason: "Fresh Chrome smoke evidence is available."
+        }
+      }
     });
   });
 

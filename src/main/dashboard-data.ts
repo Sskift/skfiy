@@ -47,6 +47,17 @@ const REQUIRED_DOGFOOD_WORKFLOWS = [
   "finder-file",
   "browser-fallback"
 ] as const;
+const SUPPORTED_SMOKE_TARGETS = new Set([
+  "chrome",
+  "cli",
+  "codex-plugin",
+  "dashboard",
+  "desktop-session",
+  "finder",
+  "ghostty",
+  "money-run",
+  "ui"
+]);
 const ACCEPTED_DOGFOOD_LABEL = "dogfood:accepted";
 const DOGFOOD_WORKFLOW_LABEL_PREFIX = "workflow:";
 const MONEY_RUN_SESSION_NAME = "money-run";
@@ -214,6 +225,7 @@ export function createDashboardSnapshot({
     runtimeHealth,
     operatorReadiness: createOperatorReadiness({
       runtimeHealth,
+      permissions,
       smokeEvidence
     }),
     permissions,
@@ -409,9 +421,11 @@ function readPlannerProviderDetail(
 
 function createOperatorReadiness({
   runtimeHealth,
+  permissions,
   smokeEvidence
 }: {
   runtimeHealth: Record<string, unknown>;
+  permissions: Record<string, unknown>;
   smokeEvidence: {
     artifacts: Array<Record<string, unknown>>;
   };
@@ -423,6 +437,11 @@ function createOperatorReadiness({
   );
   const packagedBinary = createPackagedBinaryReadiness(runtimeHealth);
   const recentSmokeEvidence = createRecentSmokeEvidenceReadiness(smokeEvidence.artifacts);
+  const appReadiness = createAppReadiness({
+    runtimeHealth,
+    permissions,
+    artifacts: smokeEvidence.artifacts
+  });
   const checks = [
     commandSurface,
     extensionReadiness,
@@ -440,7 +459,8 @@ function createOperatorReadiness({
     commandSurface,
     extensionReadiness,
     packagedBinary,
-    recentSmokeEvidence
+    recentSmokeEvidence,
+    appReadiness
   };
 }
 
@@ -531,8 +551,16 @@ function createRecentSmokeEvidenceReadiness(
   artifacts: Array<Record<string, unknown>>
 ): Record<string, unknown> {
   const requiredTargets = ["chrome", "cli"];
+  const unsupportedTargets = collectUnsupportedSmokeTargets(artifacts);
+  const unsupportedPassedTargets = collectUnsupportedSmokeTargets(
+    artifacts.filter((artifact) => artifact.result === "passed")
+  );
   const recentPassedTargets = artifacts
-    .filter((artifact) => artifact.result === "passed" && artifact.stale !== true)
+    .filter((artifact) =>
+      artifact.result === "passed"
+      && artifact.stale !== true
+      && isSupportedSmokeTarget(artifact.target)
+    )
     .map((artifact) => String(artifact.target));
   const missingTargets = requiredTargets.filter((target) => !recentPassedTargets.includes(target));
 
@@ -540,8 +568,175 @@ function createRecentSmokeEvidenceReadiness(
     state: missingTargets.length === 0 ? "ready" : "needs-evidence",
     requiredTargets,
     recentPassedTargets: [...new Set(recentPassedTargets)].sort(),
-    missingTargets
+    missingTargets,
+    ...(unsupportedTargets.length > 0 ? { unsupportedTargets } : {}),
+    ...(unsupportedPassedTargets.length > 0 ? { unsupportedPassedTargets } : {})
   };
+}
+
+function createAppReadiness({
+  artifacts,
+  permissions,
+  runtimeHealth
+}: {
+  artifacts: Array<Record<string, unknown>>;
+  permissions: Record<string, unknown>;
+  runtimeHealth: Record<string, unknown>;
+}): Record<string, Record<string, unknown>> {
+  return {
+    chrome: createChromeAppReadiness(runtimeHealth, artifacts),
+    finder: createFinderAppReadiness(permissions, artifacts),
+    ghostty: createGhosttyAppReadiness(artifacts)
+  };
+}
+
+function createChromeAppReadiness(
+  runtimeHealth: Record<string, unknown>,
+  artifacts: Array<Record<string, unknown>>
+): Record<string, unknown> {
+  const artifact = readLatestTargetArtifact(artifacts, "chrome");
+  const extension = readRecord(runtimeHealth.extension);
+  const nativeHost = readRecord(runtimeHealth.nativeHost);
+  const pageControl = readRecord(extension?.pageControl);
+  const state = readAppReadinessState({
+    artifact,
+    runtimeBlocked: nativeHost?.state === "missing"
+      || extension?.state === "native-host-missing"
+      || extension?.state === "unknown"
+  });
+
+  return {
+    app: "Chrome",
+    state,
+    source: artifact ? "chrome-smoke" : "runtime",
+    reason: readChromeAppReadinessReason({
+      artifact,
+      extension,
+      nativeHost,
+      pageControl,
+      state
+    })
+  };
+}
+
+function createFinderAppReadiness(
+  permissions: Record<string, unknown>,
+  artifacts: Array<Record<string, unknown>>
+): Record<string, unknown> {
+  const artifact = readLatestTargetArtifact(artifacts, "finder");
+  const finder = readRecord(artifact?.finder);
+  const state = readAppReadinessState({
+    artifact,
+    runtimeBlocked: permissions.finderAutomation !== "granted"
+  });
+
+  return {
+    app: "Finder",
+    state,
+    source: artifact ? "finder-smoke" : "permission",
+    reason: readFinderAppReadinessReason(finder)
+      ?? readSmokeArtifactReason(artifact)
+      ?? (state === "ready"
+        ? "Fresh Finder smoke evidence is available."
+        : "Finder Automation has not been proven yet.")
+  };
+}
+
+function createGhosttyAppReadiness(
+  artifacts: Array<Record<string, unknown>>
+): Record<string, unknown> {
+  const artifact = readLatestTargetArtifact(artifacts, "ghostty");
+  const state = readAppReadinessState({ artifact });
+
+  return {
+    app: "Ghostty",
+    state,
+    source: artifact ? "ghostty-smoke" : "smoke-missing",
+    reason: readSmokeArtifactReason(artifact)
+      ?? (state === "ready"
+        ? "Fresh Ghostty smoke evidence is available."
+        : "No fresh Ghostty smoke artifact has been recorded.")
+  };
+}
+
+function readAppReadinessState({
+  artifact,
+  runtimeBlocked = false
+}: {
+  artifact?: Record<string, unknown>;
+  runtimeBlocked?: boolean;
+}): "ready" | "blocked" | "needs-evidence" {
+  if (artifact?.result === "passed" && artifact.stale !== true) {
+    return "ready";
+  }
+  if (artifact?.result === "blocked" || runtimeBlocked) {
+    return "blocked";
+  }
+
+  return "needs-evidence";
+}
+
+function readLatestTargetArtifact(
+  artifacts: Array<Record<string, unknown>>,
+  target: string
+): Record<string, unknown> | undefined {
+  return artifacts.find((artifact) => artifact.target === target);
+}
+
+function readSmokeArtifactReason(
+  artifact: Record<string, unknown> | undefined
+): string | undefined {
+  return readNonEmptyStringValue(artifact?.blocker)
+    ?? readNonEmptyStringValue(artifact?.reason)
+    ?? readNonEmptyStringValue(readRecord(artifact?.desktopPreflight)?.reason)
+    ?? readNonEmptyStringValue(readRecord(artifact?.blocked)?.reason);
+}
+
+function readChromeAppReadinessReason({
+  artifact,
+  extension,
+  nativeHost,
+  pageControl,
+  state
+}: {
+  artifact: Record<string, unknown> | undefined;
+  extension: Record<string, unknown> | undefined;
+  nativeHost: Record<string, unknown> | undefined;
+  pageControl: Record<string, unknown> | undefined;
+  state: "ready" | "blocked" | "needs-evidence";
+}): string {
+  if (state === "ready") {
+    return "Fresh Chrome smoke evidence is available.";
+  }
+
+  return readSmokeArtifactReason(artifact)
+    ?? readNonEmptyStringValue(pageControl?.reason)
+    ?? readNonEmptyStringValue(extension?.reason)
+    ?? readNonEmptyStringValue(nativeHost?.reason)
+    ?? "Chrome Native Messaging and pageControl evidence is not ready.";
+}
+
+function readFinderAppReadinessReason(
+  finder: Record<string, unknown> | undefined
+): string | undefined {
+  return readNonEmptyStringValue(readRecord(finder?.desktopPreflight)?.reason)
+    ?? readNonEmptyStringValue(finder?.reason)
+    ?? readNonEmptyStringValue(readRecord(finder?.finderObservation)?.reason)
+    ?? readNonEmptyStringValue(readRecord(finder?.finderSemanticObservation)?.reason)
+    ?? readNonEmptyStringValue(readRecord(finder?.finderItemDragDrop)?.reason);
+}
+
+function isSupportedSmokeTarget(target: unknown): boolean {
+  return typeof target === "string" && SUPPORTED_SMOKE_TARGETS.has(target);
+}
+
+function collectUnsupportedSmokeTargets(
+  artifacts: Array<Record<string, unknown>>
+): string[] {
+  return [...new Set(artifacts
+    .map((artifact) => typeof artifact.target === "string" ? artifact.target : "unknown")
+    .filter((target) => !SUPPORTED_SMOKE_TARGETS.has(target)))]
+    .sort();
 }
 
 function readDashboardFinderSmokeSummary(
@@ -825,15 +1020,29 @@ function createDashboardAlerts({
   }
 
   const staleTargets = smokeEvidence.artifacts
-    .filter((artifact) => artifact.stale === true)
+    .filter((artifact) => artifact.stale === true && isSupportedSmokeTarget(artifact.target))
     .map((artifact) => String(artifact.target))
     .sort();
+  const unsupportedTargets = collectUnsupportedSmokeTargets(smokeEvidence.artifacts);
+  const unsupportedPassedTargets = collectUnsupportedSmokeTargets(
+    smokeEvidence.artifacts.filter((artifact) => artifact.result === "passed")
+  );
 
   if (staleTargets.length > 0) {
     alerts.push({
       code: "smoke-evidence-stale",
       severity: "warning",
       message: `Smoke evidence is stale for: ${staleTargets.join(", ")}.`
+    });
+  }
+
+  if (unsupportedTargets.length > 0) {
+    alerts.push({
+      code: "smoke-evidence-unsupported",
+      severity: "warning",
+      message: `Unsupported smoke evidence is ignored for product readiness: ${unsupportedTargets.join(", ")}.`,
+      unsupportedTargets,
+      ...(unsupportedPassedTargets.length > 0 ? { unsupportedPassedTargets } : {})
     });
   }
 
@@ -1857,16 +2066,23 @@ function readLatestSmokeArtifacts(
     const target = readSmokeTarget(entry, artifact);
     const mtimeMs = io.stat(artifactPath).mtimeMs;
     const ageSeconds = readSmokeArtifactAgeSeconds(generatedAt, mtimeMs);
+    const supported = isSupportedSmokeTarget(target);
     const summary = {
       target,
       result: typeof artifact.result === "string" ? artifact.result : "unknown",
       path: artifactPath,
       ...(typeof artifact.productPath === "string" ? { productPath: artifact.productPath } : {}),
+      ...(!supported ? {
+        evidenceStatus: "unsupported",
+        ignored: true,
+        reason: "Unsupported smoke target is ignored for product readiness."
+      } : {}),
       ...readSmokeArtifactSetupGuideSummary(target, artifact),
       ...readSmokeArtifactNativeHostBridgeSummary(target, artifact),
       ...readSmokeArtifactInstalledExtensionSummary(target, artifact),
       ...readSmokeArtifactPageControlSummary(target, artifact),
       ...readSmokeArtifactPageSafetySummary(target, artifact),
+      ...readSmokeArtifactDesktopPreflightSummary(target, artifact),
       ...readSmokeArtifactFinderSummary(target, artifact),
       mtimeMs,
       ...(ageSeconds === undefined ? {} : {
@@ -1885,6 +2101,21 @@ function readLatestSmokeArtifacts(
   return [...latestByTarget.values()].sort((left, right) =>
     String(left.target).localeCompare(String(right.target))
   );
+}
+
+function readSmokeArtifactDesktopPreflightSummary(
+  target: string,
+  artifact: Record<string, unknown>
+): Record<string, unknown> {
+  if (target !== "ghostty") {
+    return {};
+  }
+
+  const desktopPreflight = createFinderDesktopPreflightSummary(
+    readRecord(artifact.desktopPreflight)
+  );
+
+  return desktopPreflight ? { desktopPreflight } : {};
 }
 
 function readSmokeArtifactSetupGuideSummary(
