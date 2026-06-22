@@ -59,6 +59,40 @@ export interface DashboardNextAction {
   source: string;
 }
 
+export interface DashboardChromeHostPolicySummary {
+  state: string;
+  reason?: string;
+  source?: string;
+  updatedAt?: string;
+  defaultMode: string;
+  entries: string[];
+  tone: Tone;
+}
+
+export interface DashboardChromeControlState {
+  label: string;
+  host: string;
+  activeTabLabel: string;
+  tabId?: number;
+  windowId?: number;
+  extensionId?: string;
+  chromeAppName?: string;
+  liveConnection: string;
+  nativeHostState: string;
+  tone: Tone;
+  capabilities: string[];
+  capable: boolean;
+  actionable: boolean;
+  actionUnavailableReason?: string;
+  reason: string;
+  nextAction?: string;
+  contentScript?: string;
+  screenshotLane: string;
+  tabDiscoveryLabel: string;
+  tabDiscoveryReason?: string;
+  hostPolicy: DashboardChromeHostPolicySummary;
+}
+
 export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusItem[] {
   return [
     {
@@ -85,33 +119,64 @@ export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusI
   ];
 }
 
-export function readChromeControlState(snapshot: DashboardSnapshot): {
-  label: string;
-  host: string;
-  tabId?: number;
-  tone: Tone;
-  capabilities: string[];
-  capable: boolean;
-  reason: string;
-  nextAction?: string;
-  contentScript?: string;
-} {
-  const pageControl = readRecord(readRecord(snapshot.runtimeHealth.extension)?.pageControl);
+export function readChromeControlState(snapshot: DashboardSnapshot): DashboardChromeControlState {
+  const extension = readRecord(snapshot.runtimeHealth.extension);
+  const nativeHost = readRecord(snapshot.runtimeHealth.nativeHost);
+  const desktopSession = readRecord(snapshot.runtimeHealth.desktopSession);
+  const pageControl = readRecord(extension?.pageControl);
   const activeTab = readRecord(pageControl?.activeTab);
   const capabilities = readRecord(pageControl?.capabilities);
   const contentScript = readRecord(pageControl?.contentScript);
   const capabilityLabels = Object.entries(capabilities ?? {})
     .filter(([, value]) => value === true || typeof value === "string")
-    .map(([key]) => key);
+    .map(([key, value]) => typeof value === "string" ? `${key}: ${value}` : key);
   const state = readString(pageControl?.state) ?? "unknown";
   const capable = typeof pageControl?.capable === "boolean"
     ? pageControl.capable
     : state === "ready";
+  const host = readString(activeTab?.host) ?? "No active ordinary page";
+  const tabId = readNumber(activeTab?.tabId);
+  const windowId = readNumber(activeTab?.windowId);
+  const extensionId = readChromeExtensionId(extension, nativeHost);
+  const liveConnection = readString(extension?.liveConnection)
+    ?? readNestedString(extension ?? {}, ["connection", "liveConnection"])
+    ?? readNestedString(extension ?? {}, ["connection", "state"])
+    ?? readString(extension?.state)
+    ?? "unknown";
+  const nativeHostState = readString(nativeHost?.state)
+    ?? readString(extension?.nativeHostState)
+    ?? "unknown";
+  const screenshotLane = readChromeScreenshotLane(pageControl, capabilities);
+  const tabDiscovery = readChromeTabDiscoverySummary(extension);
+  const hostPolicy = readChromeHostPolicySummary(
+    readRecord(extension?.hostPolicy)
+      ?? readRecord(snapshot.runtimeHealth.chromeHostPolicy)
+      ?? readRecord(pageControl?.hostPolicy)
+  );
+  const actionable = isChromeControlActionable({
+    desktopSession,
+    extension,
+    liveConnection,
+    nativeHostState,
+    pageControl,
+    capabilities
+  });
+  const actionUnavailableReason = readChromeActionUnavailableReason({
+    actionable,
+    extensionId,
+    tabId
+  });
 
   return {
     label: state,
-    host: readString(activeTab?.host) ?? "No active ordinary page",
-    tabId: readNumber(activeTab?.tabId),
+    host,
+    activeTabLabel: formatChromeActiveTabLabel(host, tabId),
+    tabId,
+    windowId,
+    extensionId,
+    chromeAppName: readString(extension?.chromeAppName),
+    liveConnection,
+    nativeHostState,
     tone: state === "ready" && capable
       ? "success"
       : state === "unavailable" || state === "blocked"
@@ -119,10 +184,228 @@ export function readChromeControlState(snapshot: DashboardSnapshot): {
         : "warning",
     capabilities: capabilityLabels,
     capable,
+    actionable,
+    actionUnavailableReason,
     reason: readString(pageControl?.reason) ?? "Browser control readiness has not reported a reason.",
     nextAction: readString(pageControl?.nextAction),
-    contentScript: readString(contentScript?.state)
+    contentScript: readString(contentScript?.state),
+    screenshotLane,
+    tabDiscoveryLabel: tabDiscovery.label,
+    tabDiscoveryReason: tabDiscovery.reason,
+    hostPolicy
   };
+}
+
+function readChromeExtensionId(
+  extension: Record<string, unknown> | undefined,
+  nativeHost: Record<string, unknown> | undefined
+): string | undefined {
+  return readString(extension?.extensionId)
+    ?? readStringArray(extension?.extensionIds)[0]
+    ?? readString(nativeHost?.extensionId)
+    ?? readStringArray(nativeHost?.extensionIds)[0]
+    ?? readChromeExtensionIdFromAllowedOrigins(readStringArray(extension?.allowedOrigins))
+    ?? readChromeExtensionIdFromAllowedOrigins(readStringArray(nativeHost?.allowedOrigins));
+}
+
+function readChromeExtensionIdFromAllowedOrigins(origins: string[]): string | undefined {
+  for (const origin of origins) {
+    const match = origin.match(/^chrome-extension:\/\/([a-z]{32})\//i);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return undefined;
+}
+
+function formatChromeActiveTabLabel(host: string, tabId: number | undefined): string {
+  return Number.isInteger(tabId) ? `${host} tab ${tabId}` : host;
+}
+
+function readChromeScreenshotLane(
+  pageControl: Record<string, unknown> | undefined,
+  capabilities: Record<string, unknown> | undefined
+): string {
+  const screenshot = capabilities?.screenshot;
+  const domActions = capabilities?.domActions;
+  if (domActions === true && screenshot !== true) {
+    return "screenshot needs permission";
+  }
+  if (screenshot === true) {
+    return "ready";
+  }
+  if (isChromeInternalPage(pageControl)) {
+    return "blocked";
+  }
+
+  return "fallback available";
+}
+
+function readChromeTabDiscoverySummary(extension: Record<string, unknown> | undefined): {
+  label: string;
+  reason?: string;
+} {
+  const candidate = [
+    readRecord(extension?.tabDiscovery),
+    readRecord(extension?.pageTabs)
+  ].find(Boolean);
+  if (!candidate) {
+    return { label: "not-probed" };
+  }
+
+  const state = readString(candidate.state)
+    ?? readString(candidate.result)
+    ?? "reported";
+  const discoveryMode = readString(candidate.discoveryMode) ?? readString(candidate.mode);
+  const tabCount = readRecordArray(candidate.tabs).length;
+  const reason = readString(candidate.reason) ?? readString(candidate.fallbackReason);
+  if (discoveryMode === "chrome-apple-events") {
+    return {
+      label: "Using Chrome tab fallback",
+      reason
+    };
+  }
+
+  return {
+    label: tabCount > 0 ? `${state} · ${tabCount} tab${tabCount === 1 ? "" : "s"}` : state,
+    reason
+  };
+}
+
+function readChromeHostPolicySummary(
+  hostPolicy: Record<string, unknown> | undefined
+): DashboardChromeHostPolicySummary {
+  const policy = readRecord(hostPolicy?.policy);
+  const entries = readChromeHostPolicyEntries(hostPolicy, policy);
+  const state = readString(hostPolicy?.state) ?? "unknown";
+
+  return {
+    state,
+    reason: readString(hostPolicy?.reason),
+    source: readString(hostPolicy?.source),
+    updatedAt: readString(hostPolicy?.updatedAt),
+    defaultMode: readString(policy?.defaultMode) ?? "ask",
+    entries,
+    tone: state === "invalid" ? "danger" : state === "configured" ? "success" : "warning"
+  };
+}
+
+function readChromeHostPolicyEntries(
+  hostPolicy: Record<string, unknown> | undefined,
+  policy: Record<string, unknown> | undefined
+): string[] {
+  const entries = readRecordArray(hostPolicy?.entries).map(formatChromeHostPolicyEntry);
+  if (entries.length > 0) {
+    return entries;
+  }
+
+  return [
+    ...readStringArray(policy?.allowedHosts).map((host) => `allow:always:${host}`),
+    ...readStringArray(policy?.currentTurnAllowedHosts).map((host) => `allow:current-turn:${host}`),
+    ...readStringArray(policy?.blockedHosts).map((host) => `block:host:${host}`)
+  ];
+}
+
+function formatChromeHostPolicyEntry(entry: Record<string, unknown>): string {
+  return [
+    readString(entry.decision) ?? "policy",
+    readString(entry.scope) ?? "host",
+    readString(entry.host) ?? "unknown"
+  ].join(":");
+}
+
+function isChromeControlActionable({
+  capabilities,
+  desktopSession,
+  extension,
+  liveConnection,
+  nativeHostState,
+  pageControl
+}: {
+  capabilities: Record<string, unknown> | undefined;
+  desktopSession: Record<string, unknown> | undefined;
+  extension: Record<string, unknown> | undefined;
+  liveConnection: string;
+  nativeHostState: string;
+  pageControl: Record<string, unknown> | undefined;
+}): boolean {
+  const state = readString(pageControl?.state) ?? "";
+  const blockerCodes = readChromeBlockerCodes(pageControl);
+  if (
+    (nativeHostState !== "installed" || liveConnection !== "connected" || readString(extension?.state) === "stale")
+    && isDesktopLockedForChromeRefresh(desktopSession)
+  ) {
+    return false;
+  }
+  if (nativeHostState !== "installed" || liveConnection !== "connected" || readString(extension?.state) === "stale") {
+    return false;
+  }
+  if (isChromeInternalPage(pageControl)) {
+    return false;
+  }
+  if (
+    state === "blocked_by_host_policy"
+    || state === "blocked_by_chrome_host_permission"
+    || blockerCodes.includes("blocked_by_host_policy")
+    || blockerCodes.includes("blocked_by_chrome_host_permission")
+  ) {
+    return false;
+  }
+
+  return capabilities?.domActions === true
+    && (pageControl?.capable === true || state === "ready" || state === "partial");
+}
+
+function readChromeActionUnavailableReason({
+  actionable,
+  extensionId,
+  tabId
+}: {
+  actionable: boolean;
+  extensionId: string | undefined;
+  tabId: number | undefined;
+}): string | undefined {
+  if (!actionable) {
+    return "Chrome page actions are not ready for the current tab.";
+  }
+  if (!extensionId) {
+    return "Chrome extension id is not available yet.";
+  }
+  if (!Number.isInteger(tabId)) {
+    return "Active Chrome tab id is not available yet.";
+  }
+
+  return undefined;
+}
+
+function isChromeInternalPage(pageControl: Record<string, unknown> | undefined): boolean {
+  const activeTab = readRecord(pageControl?.activeTab);
+  const blockerCodes = readChromeBlockerCodes(pageControl);
+  const scheme = readString(activeTab?.scheme) ?? "";
+  const host = readString(activeTab?.host) ?? "";
+  return scheme === "chrome"
+    || scheme === "chrome-extension"
+    || host.startsWith("chrome://")
+    || host.startsWith("chrome-extension://")
+    || blockerCodes.includes("internal_chrome_page")
+    || blockerCodes.includes("chrome_extension_page");
+}
+
+function readChromeBlockerCodes(pageControl: Record<string, unknown> | undefined): string[] {
+  return readRecordArray(pageControl?.blockers)
+    .map((blocker) => readString(blocker.code))
+    .filter((code): code is string => Boolean(code));
+}
+
+function isDesktopLockedForChromeRefresh(
+  desktopSession: Record<string, unknown> | undefined
+): boolean {
+  return readString(desktopSession?.state) === "blocked"
+    || desktopSession?.mainDisplayAsleep === true
+    || desktopSession?.cgSessionScreenIsLocked === true
+    || desktopSession?.ioConsoleLocked === true
+    || readString(desktopSession?.frontmostBundleId) === "com.apple.loginwindow";
 }
 
 export function readReadinessSummary(snapshot: DashboardSnapshot): DashboardReadinessSummary {
@@ -443,6 +726,14 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : undefined;
+}
+
+function readRecordArray(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value)
+    ? value
+      .map((item) => readRecord(item))
+      .filter((item): item is Record<string, unknown> => Boolean(item))
+    : [];
 }
 
 function readString(value: unknown): string | undefined {

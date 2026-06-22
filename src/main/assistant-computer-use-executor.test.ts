@@ -238,6 +238,82 @@ describe("assistant-owned Computer Use executor", () => {
     });
   });
 
+  it("records bypass, running, and completion evidence without changing tool identity", () => {
+    const replayStore = createTurnReplayStore();
+    const executor = createAssistantComputerUseExecutor({ replayStore });
+
+    executor.planToolCall(baseToolCall);
+    expect(executor.bypassApproval({
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      reason: "Default approval bypass enabled for local dogfood."
+    })).toMatchObject({
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      status: "running",
+      approval: {
+        state: "bypassed",
+        reason: "Default approval bypass enabled for local dogfood."
+      }
+    });
+
+    expect(executor.completeToolCall({
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      result: {
+        status: "completed",
+        summary: "Chrome page opened.",
+        evidence: {
+          summary: "Chrome orchestration completed with replay events."
+        }
+      }
+    })).toMatchObject({
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      status: "completed",
+      approval: {
+        state: "bypassed"
+      },
+      result: {
+        status: "completed",
+        summary: "Chrome page opened."
+      }
+    });
+
+    expect(replayStore.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "completed",
+        actions: expect.arrayContaining([
+          expect.objectContaining({
+            type: "approval_decision",
+            turnId: "turn-agent-1",
+            toolCallId: "turn-agent-1-tool-1",
+            decision: "bypassed"
+          }),
+          expect.objectContaining({
+            type: "tool_call",
+            turnId: "turn-agent-1",
+            toolCallId: "turn-agent-1-tool-1",
+            status: "running"
+          }),
+          expect.objectContaining({
+            type: "tool_result",
+            turnId: "turn-agent-1",
+            toolCallId: "turn-agent-1-tool-1",
+            status: "completed",
+            summary: "Chrome page opened.",
+            evidenceSummary: "Chrome orchestration completed with replay events."
+          })
+        ])
+      },
+      timeline: [
+        expect.objectContaining({ status: "planned", toolCallId: "turn-agent-1-tool-1" }),
+        expect.objectContaining({ status: "running", toolCallId: "turn-agent-1-tool-1" }),
+        expect.objectContaining({ status: "completed", toolCallId: "turn-agent-1-tool-1" })
+      ]
+    });
+  });
+
   it("exposes lifecycle identity and evidence in runtime snapshots", () => {
     const replayStore = createTurnReplayStore();
     const executor = createAssistantComputerUseExecutor({ replayStore });

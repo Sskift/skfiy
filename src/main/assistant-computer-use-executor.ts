@@ -82,6 +82,10 @@ export interface AssistantComputerUseCancelInput extends AssistantComputerUseToo
   reason: string;
 }
 
+export interface AssistantComputerUseCompletionInput extends AssistantComputerUseToolIdentity {
+  result: AssistantComputerUseToolResult;
+}
+
 export type AssistantComputerUseReplayStore = Pick<
   ReturnType<typeof createTurnReplayStore>,
   "startTurn" | "recordComputerUseEvent" | "recordTaskEvent"
@@ -210,6 +214,7 @@ export function createAssistantComputerUseExecutor({
       pendingApprovals.delete(createToolKey(input));
       const next = save({
         ...previous,
+        status: "running",
         updatedAt: readTimestamp(),
         approval: {
           state: "bypassed",
@@ -218,6 +223,21 @@ export function createAssistantComputerUseExecutor({
       });
 
       recordApprovalDecision(replayStore, next, "bypassed", input.reason);
+      recordToolLifecycle(replayStore, next);
+      return next;
+    },
+
+    completeToolCall(input: AssistantComputerUseCompletionInput): AssistantComputerUseToolCall {
+      const previous = readExisting(input);
+      pendingApprovals.delete(createToolKey(input));
+      const next = save({
+        ...previous,
+        status: input.result.status,
+        updatedAt: readTimestamp(),
+        result: input.result
+      });
+
+      recordToolResult(replayStore, next);
       return next;
     },
 

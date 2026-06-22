@@ -117,37 +117,39 @@ local evidence, but it is not a published dogfood release yet.
 
 ## Subagent Convergence
 
-Four long-horizon subagent audits converged on the same boundary: the cleanup
+Long-horizon subagent audits converged on the same boundary: the cleanup
 baseline is usable as a development starting point, but the product is not
 release-ready. The remaining blockers are split between manual desktop session
-authorization and product design gaps.
+authorization, release evidence, and product design gaps.
 
 - Agent and tool ownership: `src/main/assistant-computer-use-executor.ts` now
   defines an agent-owned Computer Use tool continuation contract and proves one
   `{turnId, toolCallId}` through approval, denial, bypass, cancellation,
-  completion, replay, transcript, and runtime snapshot evidence. Runtime
-  approval in `main.ts` still re-enters `runCommandTask(...)`, so the contract
-  is not fully wired into the real app path yet.
+  completion, replay, transcript, and runtime snapshot evidence. `main.ts` now
+  stores pending approvals by that identity and resumes approval through the
+  existing continuation instead of re-entering the command route. Renderer-facing
+  status vocabulary still needs to catch up with the richer replay states.
 - Dashboard parity: React now renders app readiness lanes for Chrome, Finder,
   and Ghostty, provider details, dogfood/release drift, replay state, and
   ignored unsupported smoke evidence. `smoke:dashboard` now requires React asset
-  content markers for that operator surface rather than accepting a bare shell.
-  Chrome policy action controls remain richer in server/fallback paths.
+  content markers for readiness and Chrome operator controls rather than
+  accepting a bare shell. Chrome page actions and host-policy controls are now
+  available in the React dashboard; installed-extension execution still needs an
+  extension-id-backed smoke before it counts as real action proof.
 - Release SRE: `7666314` local alpha evidence is verifier-checkable with UI,
   Ghostty, Chrome, Finder, and dashboard artifacts for that commit, but
   `latest-alpha.json` remains the old published `2e292e9`. `dogfood:status`
   correctly emits `missing-tracking-issue` until a tracking issue/file is
-  provided.
+  provided. After `7627010`, that `7666314` alpha is stale and any new app-code
+  commit must regenerate alpha evidence before publication.
 - Real Computer Use: pet drag/click/stop and Chrome CDP/native-host paths have
   real evidence. Ghostty and Finder are blocked by locked/asleep desktop state,
   and generic visible-app fallback remains product-design incomplete.
 
 | Priority | Workstream | Finding | First implementation package | Focused acceptance |
 | --- | --- | --- | --- | --- |
-| P0 | Agent and routing | The executor contract exists, but real provider lifecycle methods such as `configure`, `healthCheck`, `startTurn`, `cancelTurn`, and runtime `toolCall` wiring are not fully first-class. | Wire the agent-owned Computer Use turn executor into `main.ts` so replay starts before provider/tool work, one abort signal owns the turn, pending approval continuations are stored by `{turnId, toolCallId}`, and final tool results drive replay/dashboard. | `npx vitest run src/main/assistant-computer-use-executor.test.ts src/main/assistant-agent.test.ts src/main/assistant-tools.test.ts src/main/task-routing.test.ts src/main/runtime-snapshot.test.ts src/main/computer-use/turn-replay-store.test.ts src/main/computer-use/turn-transcript.test.ts src/main/orchestrator/ghostty-task.test.ts src/main/orchestrator/chrome-task.test.ts src/main/orchestrator/finder-task.test.ts --reporter=dot` |
-| P0 | Agent and routing | Approval resume currently re-enters the command path, and default approval bypass can drop replay evidence. | Preserve a single turn/tool continuation through approval, denial, cancellation, bypass, and completion instead of re-running the command route. | Stop/approval focused tests plus UI smoke stop evidence. |
-| P0 | Dashboard and settings | React now owns provider, dogfood/release, replay, and Chrome/Finder/Ghostty readiness visibility, but Chrome policy action controls are still richer in fallback/server paths. | Move remaining Chrome policy action controls into `src/dashboard/*`; keep fallback only as degraded mode. | `npx vitest run src/dashboard/DashboardApp.test.tsx src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/main/dashboard-status.test.ts src/main/dashboard-evidence-summary.test.ts src/main/dashboard-smoke-script.test.ts --reporter=dot` and `npm run smoke:dashboard -- --cli dist/skfiy --require-passed --output .skfiy-smoke/dashboard-<commit>.json` |
-| P0 | Dashboard and settings | Real provider settings are exposed via `/api/provider-settings` but not folded into `/snapshot.json` or the React dashboard state model. | Add provider settings summary to dashboard snapshot and render selectable provider/readiness details in React dashboard. | `npx vitest run src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot` |
+| P0 | Agent and routing | Runtime approval now preserves a single `{turnId, toolCallId}` through app-policy approval, orchestrator approval, denial, stop, bypass, completion, and replay evidence. Renderer/preload status vocabulary still collapses richer terminal states into legacy UI states. | Extend renderer-facing task states and pet copy so `denied`, `blocked`, `cancelled`, `planned`, and `running` cannot be misread as generic idle/failed states. | `npx vitest run src/main/assistant-computer-use-executor.test.ts src/main/assistant-tools-main-wiring.test.ts src/main/approval-bypass-main-wiring.test.ts src/main/runtime-snapshot.test.ts src/main/computer-use/turn-replay-store.test.ts src/main/computer-use/turn-transcript.test.ts src/renderer/App.test.tsx --reporter=dot` |
+| P0 | Dashboard and settings | React now owns provider, dogfood/release, replay, Chrome/Finder/Ghostty readiness, Chrome page action controls, and Chrome host-policy controls. The remaining proof gap is installed-extension action execution with a real extension id. | Run/record installed-extension action smoke with an extension id and keep React controls as the primary operator surface. | `npx vitest run src/dashboard/DashboardApp.test.tsx src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/main/dashboard-status.test.ts src/main/dashboard-evidence-summary.test.ts src/main/dashboard-smoke-script.test.ts --reporter=dot` and `npm run smoke:dashboard -- --cli dist/skfiy --require-passed --output .skfiy-smoke/dashboard-<commit>.json` |
 | P0 | Release and dogfood SRE | `docs/release-evidence/latest-alpha.json` still points to old published commit `2e292e9`; alpha evidence for `7666314` verifies locally, but any later source commit must regenerate it before publication. | Publish/update latest-alpha only if release ownership accepts the locked-desktop Ghostty/Finder blocker artifacts and a tracking issue/file is provided. | `npm run dogfood:verify -- --manifest <current-alpha-manifest> --require-current-head` |
 | P0 | Release and dogfood SRE | Current machine evidence proves Chrome and UI, but Ghostty/Finder are blocked by locked/asleep desktop and money-run product path is not valid. | Record blocker artifacts first, then rerun strict smokes after the Mac is unlocked/awake and money-run product-path approval reaches the renderer. | `npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session-<commit>.json` plus strict smoke reruns |
 | P0 | Release and dogfood SRE | Dashboard smoke is a first-class alpha manifest/verifier/status/publish/prepare input, and `dogfood:status` can emit a non-mutating `missing-tracking-issue` status. Dashboard artifact exists for `7666314`. | Keep regenerated alpha evidence local until release ownership accepts blockers and tracking issue state exists; regenerate after each source commit. | `npx vitest run src/main/alpha-artifact.test.ts src/main/alpha-github-release.test.ts src/main/dogfood-status.test.ts src/main/dogfood-verifier.test.ts src/main/alpha-dogfood-prepare.test.ts --reporter=dot` |

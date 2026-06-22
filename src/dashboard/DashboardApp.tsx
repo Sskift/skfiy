@@ -1,30 +1,44 @@
 import {
   Activity,
+  ArrowDown,
   ArrowRight,
   Bot,
+  Camera,
   CheckCircle2,
   Chrome,
+  Eye,
   Folder,
   Gauge,
   History,
   Home,
   MonitorCog,
   MousePointer2,
+  MousePointerClick,
   RefreshCw,
+  RotateCcw,
   Save,
+  Send,
   ShieldCheck,
   Terminal,
+  Type as TypeIcon,
   TriangleAlert
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, Skeleton } from "@heroui/react";
 import {
+  fetchChromeHostPolicy,
   fetchDashboardSnapshot,
   fetchProviderSettings,
+  postChromeControlAction,
+  postChromeHostPolicyAction,
   postPlannerProviderSettings
 } from "./api";
 import type {
+  DashboardChromeControlActionRequest,
+  DashboardChromeHostPolicyAction,
+  DashboardChromeHostPolicyActionRequest,
+  DashboardChromeHostPolicyResponse,
   DashboardPlannerProviderMode,
   DashboardPlannerProviderSettingsUpdate,
   DashboardProviderSettingsPlanner,
@@ -45,12 +59,20 @@ import {
   readSnapshotState,
   readUnsupportedSmokeEvidence,
   type DashboardAppReadinessLane,
+  type DashboardChromeControlState,
   type Tone
 } from "./model";
 
 export interface DashboardAppProps {
+  loadChromeHostPolicy?: () => Promise<DashboardChromeHostPolicyResponse>;
   loadSnapshot?: () => Promise<DashboardSnapshot>;
   loadProviderSettings?: () => Promise<DashboardProviderSettingsResponse>;
+  runChromeControlAction?: (
+    request: DashboardChromeControlActionRequest
+  ) => Promise<Record<string, unknown>>;
+  saveChromeHostPolicyAction?: (
+    request: DashboardChromeHostPolicyActionRequest
+  ) => Promise<DashboardChromeHostPolicyResponse>;
   savePlannerProviderSettings?: (
     update: DashboardPlannerProviderSettingsUpdate
   ) => Promise<DashboardProviderSettingsResponse>;
@@ -64,9 +86,40 @@ const NAV_ITEMS = [
   { id: "next-action", label: "Next action", icon: ArrowRight }
 ] as const;
 
+const CHROME_CONTROL_ACTIONS: Array<{
+  action: DashboardChromeControlActionRequest["action"];
+  label: string;
+  icon: typeof Eye;
+}> = [
+  { action: "observe", label: "Observe current tab", icon: Eye },
+  { action: "screenshot", label: "Screenshot current tab", icon: Camera },
+  { action: "click", label: "Click selector", icon: MousePointerClick },
+  { action: "fill", label: "Fill selector", icon: TypeIcon },
+  { action: "submit", label: "Submit form", icon: Send },
+  { action: "scroll", label: "Scroll page", icon: ArrowDown }
+];
+
+type ChromeHostPolicyControlAction = DashboardChromeHostPolicyAction | "refresh";
+
+const CHROME_HOST_POLICY_ACTIONS: Array<{
+  action: ChromeHostPolicyControlAction;
+  label: string;
+  icon: typeof RefreshCw;
+}> = [
+  { action: "refresh", label: "Refresh policy", icon: RefreshCw },
+  { action: "always-allow", label: "Always allow", icon: ShieldCheck },
+  { action: "allow-current-turn", label: "Allow current turn", icon: CheckCircle2 },
+  { action: "block", label: "Block", icon: TriangleAlert },
+  { action: "ask", label: "Ask", icon: ShieldCheck },
+  { action: "reset", label: "Reset policy", icon: RotateCcw }
+];
+
 export function DashboardApp({
+  loadChromeHostPolicy = fetchChromeHostPolicy,
   loadSnapshot = fetchDashboardSnapshot,
   loadProviderSettings = fetchProviderSettings,
+  runChromeControlAction = postChromeControlAction,
+  saveChromeHostPolicyAction = postChromeHostPolicyAction,
   savePlannerProviderSettings = postPlannerProviderSettings
 }: DashboardAppProps) {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
@@ -186,6 +239,10 @@ export function DashboardApp({
             providerSettingsNotice={providerSettingsNotice}
             isProviderSettingsLoading={isRefreshing && !providerSettings}
             isProviderSettingsSaving={isSavingProviderSettings}
+            onLoadChromeHostPolicy={loadChromeHostPolicy}
+            onRefresh={refresh}
+            onRunChromeControlAction={runChromeControlAction}
+            onSaveChromeHostPolicyAction={saveChromeHostPolicyAction}
             onSubmitPlannerProviderSettings={submitPlannerProviderSettings}
           />
         ) : (
@@ -203,6 +260,10 @@ function DashboardContent({
   providerSettingsNotice,
   isProviderSettingsLoading,
   isProviderSettingsSaving,
+  onLoadChromeHostPolicy,
+  onRefresh,
+  onRunChromeControlAction,
+  onSaveChromeHostPolicyAction,
   onSubmitPlannerProviderSettings
 }: {
   snapshot: DashboardSnapshot;
@@ -211,6 +272,14 @@ function DashboardContent({
   providerSettingsNotice: string | null;
   isProviderSettingsLoading: boolean;
   isProviderSettingsSaving: boolean;
+  onLoadChromeHostPolicy: () => Promise<DashboardChromeHostPolicyResponse>;
+  onRefresh: () => Promise<void>;
+  onRunChromeControlAction: (
+    request: DashboardChromeControlActionRequest
+  ) => Promise<Record<string, unknown>>;
+  onSaveChromeHostPolicyAction: (
+    request: DashboardChromeHostPolicyActionRequest
+  ) => Promise<DashboardChromeHostPolicyResponse>;
   onSubmitPlannerProviderSettings: (
     update: DashboardPlannerProviderSettingsUpdate
   ) => Promise<void>;
@@ -317,14 +386,30 @@ function DashboardContent({
               <div className="skfiy-dashboard-key-value">
                 <span>State</span>
                 <StatusChip tone={chromeControl.tone}>{chromeControl.label}</StatusChip>
-                <span>Target</span>
-                <strong>{chromeControl.host}</strong>
-                <span>Tab</span>
-                <strong>{chromeControl.tabId ?? "unknown"}</strong>
+                <span>Extension id</span>
+                <strong>{chromeControl.extensionId ?? "unknown"}</strong>
+                <span>Active tab</span>
+                <strong>{chromeControl.activeTabLabel}</strong>
+                <span>Chrome</span>
+                <strong>{chromeControl.liveConnection}</strong>
+                <span>Native host</span>
+                <strong>{chromeControl.nativeHostState}</strong>
                 <span>Script</span>
                 <strong>{chromeControl.contentScript ?? "unknown"}</strong>
+                <span>Screenshot</span>
+                <strong>{chromeControl.screenshotLane}</strong>
+                <span>Tab discovery</span>
+                <strong>{chromeControl.tabDiscoveryLabel}</strong>
+                <span>Host policy</span>
+                <StatusChip tone={chromeControl.hostPolicy.tone}>{chromeControl.hostPolicy.state}</StatusChip>
               </div>
               <p className="skfiy-dashboard-muted-message">{chromeControl.reason}</p>
+              {chromeControl.nextAction ? (
+                <p className="skfiy-dashboard-muted-message">{chromeControl.nextAction}</p>
+              ) : null}
+              {chromeControl.tabDiscoveryReason ? (
+                <p className="skfiy-dashboard-muted-message">{chromeControl.tabDiscoveryReason}</p>
+              ) : null}
               <div className="skfiy-dashboard-inline-list">
                 {chromeControl.capabilities.length > 0 ? (
                   chromeControl.capabilities.map((capability) => (
@@ -334,6 +419,34 @@ function DashboardContent({
                   <StatusChip tone="neutral">no actions</StatusChip>
                 )}
               </div>
+              <div className="skfiy-dashboard-control-panel" aria-label="Chrome host policy state">
+                <div className="skfiy-dashboard-key-value">
+                  <span>Reason</span>
+                  <strong>{chromeControl.hostPolicy.reason ?? "No host policy reason reported."}</strong>
+                  <span>Default</span>
+                  <strong>{chromeControl.hostPolicy.defaultMode}</strong>
+                </div>
+                <div className="skfiy-dashboard-inline-list">
+                  {chromeControl.hostPolicy.entries.length > 0 ? (
+                    chromeControl.hostPolicy.entries.map((entry) => (
+                      <StatusChip key={entry} tone="neutral">{entry}</StatusChip>
+                    ))
+                  ) : (
+                    <StatusChip tone="neutral">none</StatusChip>
+                  )}
+                </div>
+              </div>
+              <ChromeControlActions
+                chromeControl={chromeControl}
+                onRefresh={onRefresh}
+                onRunAction={onRunChromeControlAction}
+              />
+              <ChromeHostPolicyControls
+                chromeControl={chromeControl}
+                onLoadPolicy={onLoadChromeHostPolicy}
+                onRefresh={onRefresh}
+                onSavePolicyAction={onSaveChromeHostPolicyAction}
+              />
             </Card.Content>
           </Card.Root>
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
@@ -657,6 +770,264 @@ function ProviderCard({
   );
 }
 
+function ChromeControlActions({
+  chromeControl,
+  onRefresh,
+  onRunAction
+}: {
+  chromeControl: DashboardChromeControlState;
+  onRefresh: () => Promise<void>;
+  onRunAction: (
+    request: DashboardChromeControlActionRequest
+  ) => Promise<Record<string, unknown>>;
+}) {
+  const [selector, setSelector] = useState("");
+  const [text, setText] = useState("");
+  const [dy, setDy] = useState("600");
+  const [busyAction, setBusyAction] = useState<DashboardChromeControlActionRequest["action"] | null>(null);
+  const [feedback, setFeedback] = useState("");
+  const [feedbackTone, setFeedbackTone] = useState<Tone>("neutral");
+  const canRun = chromeControl.actionable
+    && Boolean(chromeControl.extensionId)
+    && Number.isInteger(chromeControl.tabId);
+
+  const launchAction = async (action: DashboardChromeControlActionRequest["action"]) => {
+    const trimmedSelector = selector.trim();
+    const trimmedText = text.trim();
+    const targetTabId = Number.isInteger(chromeControl.tabId) ? chromeControl.tabId : undefined;
+    if (!canRun || !chromeControl.extensionId || targetTabId === undefined) {
+      setFeedbackTone("warning");
+      setFeedback(chromeControl.actionUnavailableReason ?? "Chrome action controls are not ready.");
+      return;
+    }
+    if ((action === "click" || action === "fill") && !trimmedSelector) {
+      setFeedbackTone("warning");
+      setFeedback("Enter a selector before launching this action.");
+      return;
+    }
+    if (action === "fill" && !trimmedText) {
+      setFeedbackTone("warning");
+      setFeedback("Enter fill text before launching this action.");
+      return;
+    }
+
+    const request: DashboardChromeControlActionRequest = {
+      action,
+      extensionId: chromeControl.extensionId,
+      ...(chromeControl.chromeAppName ? { chromeAppName: chromeControl.chromeAppName } : {}),
+      targetTabId
+    };
+    if (action === "click" || action === "fill") {
+      request.selector = trimmedSelector;
+    }
+    if (action === "submit") {
+      request.selector = trimmedSelector || "form";
+    }
+    if (action === "fill") {
+      request.text = trimmedText;
+    }
+    if (action === "scroll") {
+      const scrollDelta = readScrollDelta(dy);
+      if (scrollDelta === undefined) {
+        setFeedbackTone("warning");
+        setFeedback("Enter a numeric scroll delta before launching this action.");
+        return;
+      }
+      request.dy = scrollDelta;
+    }
+
+    setBusyAction(action);
+    setFeedbackTone("neutral");
+    setFeedback(`Running Chrome ${action}...`);
+    try {
+      const payload = await onRunAction(request);
+      setFeedbackTone("success");
+      setFeedback(formatChromeActionFeedback(action, payload));
+      await onRefresh();
+    } catch (error) {
+      setFeedbackTone("danger");
+      setFeedback(readErrorMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  return (
+    <form
+      aria-label="Chrome control actions"
+      className="skfiy-dashboard-control-form"
+      onSubmit={(event) => event.preventDefault()}
+    >
+      <div className="skfiy-dashboard-control-fields">
+        <div className="skfiy-dashboard-field">
+          <label htmlFor="chrome-control-selector">Selector</label>
+          <input
+            id="chrome-control-selector"
+            aria-label="Chrome action selector"
+            autoComplete="off"
+            onChange={(event) => setSelector(event.target.value)}
+            placeholder="#selector"
+            spellCheck={false}
+            type="text"
+            value={selector}
+          />
+        </div>
+        <div className="skfiy-dashboard-field">
+          <label htmlFor="chrome-control-fill-text">Text</label>
+          <input
+            id="chrome-control-fill-text"
+            aria-label="Chrome fill text"
+            autoComplete="off"
+            onChange={(event) => setText(event.target.value)}
+            placeholder="fill text"
+            type="text"
+            value={text}
+          />
+        </div>
+        <div className="skfiy-dashboard-field">
+          <label htmlFor="chrome-control-scroll-delta">dy</label>
+          <input
+            id="chrome-control-scroll-delta"
+            aria-label="Chrome scroll delta"
+            inputMode="numeric"
+            onChange={(event) => setDy(event.target.value)}
+            type="number"
+            value={dy}
+          />
+        </div>
+      </div>
+      <div className="skfiy-dashboard-control-actions">
+        {CHROME_CONTROL_ACTIONS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.action}
+              className="skfiy-dashboard-button button"
+              disabled={busyAction !== null}
+              onClick={() => void launchAction(item.action)}
+              type="button"
+            >
+              <Icon size={15} aria-hidden="true" />
+              {busyAction === item.action ? `Running ${item.action}` : item.label}
+            </button>
+          );
+        })}
+      </div>
+      {chromeControl.actionUnavailableReason ? (
+        <p className="skfiy-dashboard-muted-message">{chromeControl.actionUnavailableReason}</p>
+      ) : null}
+      <p
+        aria-live="polite"
+        className="skfiy-dashboard-control-feedback"
+        data-tone={feedbackTone}
+      >
+        {feedback}
+      </p>
+    </form>
+  );
+}
+
+function ChromeHostPolicyControls({
+  chromeControl,
+  onLoadPolicy,
+  onRefresh,
+  onSavePolicyAction
+}: {
+  chromeControl: DashboardChromeControlState;
+  onLoadPolicy: () => Promise<DashboardChromeHostPolicyResponse>;
+  onRefresh: () => Promise<void>;
+  onSavePolicyAction: (
+    request: DashboardChromeHostPolicyActionRequest
+  ) => Promise<DashboardChromeHostPolicyResponse>;
+}) {
+  const [host, setHost] = useState("");
+  const [busyAction, setBusyAction] = useState<ChromeHostPolicyControlAction | null>(null);
+  const [feedback, setFeedback] = useState("");
+  const [feedbackTone, setFeedbackTone] = useState<Tone>("neutral");
+
+  const updatePolicy = async (action: ChromeHostPolicyControlAction) => {
+    const trimmedHost = host.trim();
+    if (action !== "refresh" && action !== "reset" && !trimmedHost) {
+      setFeedbackTone("warning");
+      setFeedback("Enter a host before setting policy.");
+      return;
+    }
+
+    setBusyAction(action);
+    setFeedbackTone("neutral");
+    setFeedback(action === "refresh" ? "Refreshing policy..." : "Updating policy...");
+    try {
+      if (action === "refresh") {
+        await onLoadPolicy();
+        setFeedbackTone("success");
+        setFeedback("Policy refreshed.");
+        await onRefresh();
+        return;
+      }
+
+      const payload = await onSavePolicyAction(
+        action === "reset" ? { action } : { action, host: trimmedHost }
+      );
+      setFeedbackTone("success");
+      setFeedback(formatChromePolicyFeedback(payload));
+      await onRefresh();
+    } catch (error) {
+      setFeedbackTone("danger");
+      setFeedback(readErrorMessage(error));
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  return (
+    <form
+      aria-label="Chrome host policy controls"
+      className="skfiy-dashboard-control-form"
+      onSubmit={(event) => event.preventDefault()}
+    >
+      <div className="skfiy-dashboard-control-fields skfiy-dashboard-control-fields--policy">
+        <div className="skfiy-dashboard-field">
+          <label htmlFor="chrome-host-policy-host">Host</label>
+          <input
+            id="chrome-host-policy-host"
+            aria-label="Chrome host policy host"
+            autoComplete="off"
+            onChange={(event) => setHost(event.target.value)}
+            placeholder={chromeControl.host === "No active ordinary page" ? "example.com" : chromeControl.host}
+            spellCheck={false}
+            type="text"
+            value={host}
+          />
+        </div>
+      </div>
+      <div className="skfiy-dashboard-control-actions">
+        {CHROME_HOST_POLICY_ACTIONS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.action}
+              className="skfiy-dashboard-button button"
+              disabled={busyAction !== null}
+              onClick={() => void updatePolicy(item.action)}
+              type="button"
+            >
+              <Icon size={15} aria-hidden="true" />
+              {busyAction === item.action ? "Working" : item.label}
+            </button>
+          );
+        })}
+      </div>
+      <p
+        aria-live="polite"
+        className="skfiy-dashboard-control-feedback"
+        data-tone={feedbackTone}
+      >
+        {feedback}
+      </p>
+    </form>
+  );
+}
+
 function AppReadinessCard({ lane }: { lane: DashboardAppReadinessLane }) {
   const Icon = lane.id === "chrome"
     ? Chrome
@@ -683,6 +1054,42 @@ function AppReadinessCard({ lane }: { lane: DashboardAppReadinessLane }) {
       </Card.Content>
     </Card.Root>
   );
+}
+
+function readScrollDelta(value: string): number | undefined {
+  if (!value.trim()) {
+    return 600;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function formatChromeActionFeedback(
+  action: DashboardChromeControlActionRequest["action"],
+  payload: Record<string, unknown>
+): string {
+  const activityEntry = readRecord(payload.activityEntry);
+  const title = readPayloadString(activityEntry?.title) ?? `Chrome ${action}`;
+  const result = readPayloadString(activityEntry?.result)
+    ?? readPayloadString(payload.result)
+    ?? "reported";
+  const blockerReason = readPayloadString(activityEntry?.blockerReason);
+  return blockerReason ? `${title}: ${result} - ${blockerReason}` : `${title}: ${result}`;
+}
+
+function formatChromePolicyFeedback(payload: DashboardChromeHostPolicyResponse): string {
+  const result = payload.result === "reset" ? "reset" : payload.result ?? "updated";
+  return `Policy ${result}.`;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function readPayloadString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 function readProviderDetail(provider: DashboardProviderSummary): string {

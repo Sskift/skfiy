@@ -9,7 +9,22 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Finder readiness",
   "Ghostty readiness",
   "Dogfood and replay",
-  "Provider settings"
+  "Provider settings",
+  "Chrome control actions",
+  "Chrome host policy controls",
+  "Observe current tab",
+  "Screenshot current tab",
+  "Click selector",
+  "Fill selector",
+  "Submit form",
+  "Scroll page",
+  "Chrome action selector",
+  "Chrome fill text",
+  "Chrome scroll delta",
+  "Chrome host policy host",
+  "Always allow",
+  "Allow current turn",
+  "Reset policy"
 ];
 
 export function createDefaultDashboardSmokeOptions(rootDir) {

@@ -58,6 +58,35 @@ export interface DashboardChromeControlActionRequest {
   dy?: number;
 }
 
+export type DashboardChromeHostPolicyAction =
+  | "always-allow"
+  | "allow-current-turn"
+  | "block"
+  | "ask"
+  | "reset";
+
+export interface DashboardChromeHostPolicyActionRequest {
+  action: DashboardChromeHostPolicyAction;
+  host?: string;
+}
+
+export interface DashboardChromeHostPolicyResponse {
+  schemaVersion?: number;
+  command?: string;
+  generatedAt?: string;
+  source?: string;
+  plannedMutation?: boolean;
+  executesSystemMutation?: boolean;
+  result?: string;
+  action?: DashboardChromeHostPolicyAction;
+  host?: string;
+  hostPolicy?: Record<string, unknown>;
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
 export type DashboardPlannerProviderMode =
   | "local-deterministic"
   | "external-cua"

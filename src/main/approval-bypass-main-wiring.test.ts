@@ -8,5 +8,7 @@ describe("pet approval bypass wiring", () => {
 
     expect(source).toContain("readDefaultApprovalBypass(process.env)");
     expect(source).toContain("await runCommandTask(window, trimmed, mode, readDefaultApprovalBypass(process.env));");
+    expect(source).toContain("assistantComputerUseExecutor.bypassApproval({");
+    expect(source).toContain("reason: \"Default approval bypass enabled for this Computer Use turn.\"");
   });
 });

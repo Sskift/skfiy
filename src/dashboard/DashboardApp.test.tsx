@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DashboardApp } from "./DashboardApp";
-import type { DashboardSnapshot } from "./contracts";
+import type { DashboardProviderSettingsResponse, DashboardSnapshot } from "./contracts";
 
 const snapshot: DashboardSnapshot = {
   schemaVersion: 1,
@@ -22,10 +22,34 @@ const snapshot: DashboardSnapshot = {
     extension: {
       state: "connected",
       liveConnection: "connected",
+      extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"],
+      tabDiscovery: {
+        result: "verified",
+        discoveryMode: "chrome-apple-events",
+        tabs: [{ id: 42, host: "127.0.0.1:52363" }]
+      },
+      hostPolicy: {
+        schemaVersion: 1,
+        state: "configured",
+        reason: "Chrome host policy loaded from disk.",
+        policy: {
+          defaultMode: "ask",
+          allowedHosts: ["127.0.0.1"],
+          currentTurnAllowedHosts: ["turn.example"],
+          blockedHosts: ["blocked.example"]
+        },
+        entries: [
+          { decision: "allow", scope: "always", host: "127.0.0.1" },
+          { decision: "allow", scope: "current-turn", host: "turn.example" },
+          { decision: "block", scope: "host", host: "blocked.example" }
+        ]
+      },
       pageControl: {
         state: "ready",
-        activeTab: { host: "127.0.0.1:52363", tabId: 42 },
+        activeTab: { host: "127.0.0.1:52363", tabId: 42, scheme: "http" },
+        contentScript: { state: "loaded" },
         capabilities: {
+          domActions: true,
           observe: true,
           click: true,
           fill: true,
@@ -171,7 +195,11 @@ describe("DashboardApp", () => {
     expect(within(readiness).getByText("Finder Automation has not been proven because desktop preflight is blocked.")).toBeInTheDocument();
     expect(within(readiness).getByText("No fresh Ghostty smoke artifact has been recorded.")).toBeInTheDocument();
     expect(within(readiness).getByText("ignored unsupported smoke: voice")).toBeInTheDocument();
-    expect(within(readiness).getByText("127.0.0.1:52363")).toBeInTheDocument();
+    expect(within(readiness).getByText("127.0.0.1:52363 tab 42")).toBeInTheDocument();
+    expect(within(readiness).getByText("plcpkkhlcacihjfohlojdknnkademlno")).toBeInTheDocument();
+    expect(within(readiness).getByText("screenshot: background_required")).toBeInTheDocument();
+    expect(within(readiness).getByText("Using Chrome tab fallback")).toBeInTheDocument();
+    expect(within(readiness).getByText("allow:always:127.0.0.1")).toBeInTheDocument();
     expect(within(readiness).getByText("Screen Recording")).toBeInTheDocument();
 
     const connections = screen.getByRole("region", { name: "Agent connection" });
@@ -301,6 +329,158 @@ describe("DashboardApp", () => {
     ));
     expect(providerSettingsReads).toHaveLength(2);
   });
+
+  it("launches Chrome control actions from the React browser section and refreshes the snapshot", async () => {
+    const actionRequests: unknown[] = [];
+    const loadSnapshot = vi.fn(async () => snapshot);
+    const loadProviderSettings = vi.fn(async () => createProviderSettingsPayload({
+      mode: "external-cua",
+      externalProviderLabel: "OpenAI CUA",
+      externalEndpoint: "https://cua.example.test/plan",
+      externalApiKeyConfigured: true
+    }));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      expect(String(input)).toBe("/api/chrome-control-action");
+      actionRequests.push(JSON.parse(String(init?.body)));
+      const action = (actionRequests.at(-1) as { action: string }).action;
+      return createJsonResponse({
+        result: "verified",
+        action,
+        activityEntry: {
+          title: `Chrome ${action}`,
+          result: "verified"
+        }
+      });
+    });
+
+    render(<DashboardApp loadSnapshot={loadSnapshot} loadProviderSettings={loadProviderSettings} />);
+
+    const form = await screen.findByRole("form", { name: "Chrome control actions" });
+    const selectorInput = within(form).getByLabelText("Chrome action selector");
+    const textInput = within(form).getByLabelText("Chrome fill text");
+    const scrollInput = within(form).getByLabelText("Chrome scroll delta");
+
+    fireEvent.click(within(form).getByRole("button", { name: "Click selector" }));
+    expect(within(form).getByText("Enter a selector before launching this action.")).toBeInTheDocument();
+    expect(actionRequests).toEqual([]);
+
+    fireEvent.change(selectorInput, { target: { value: "#name" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Fill selector" }));
+    expect(within(form).getByText("Enter fill text before launching this action.")).toBeInTheDocument();
+    expect(actionRequests).toEqual([]);
+
+    fireEvent.change(textInput, { target: { value: "skfiy dashboard" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Fill selector" }));
+    await waitFor(() => expect(actionRequests).toHaveLength(1));
+    expect(actionRequests[0]).toEqual({
+      action: "fill",
+      extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+      targetTabId: 42,
+      selector: "#name",
+      text: "skfiy dashboard"
+    });
+    expect(within(form).getByText("Chrome fill: verified")).toBeInTheDocument();
+
+    fireEvent.click(within(form).getByRole("button", { name: "Observe current tab" }));
+    await waitFor(() => expect(actionRequests).toHaveLength(2));
+    expect(actionRequests[1]).toEqual({
+      action: "observe",
+      extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+      targetTabId: 42
+    });
+
+    fireEvent.click(within(form).getByRole("button", { name: "Screenshot current tab" }));
+    await waitFor(() => expect(actionRequests).toHaveLength(3));
+    expect(actionRequests[2]).toEqual({
+      action: "screenshot",
+      extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+      targetTabId: 42
+    });
+
+    fireEvent.click(within(form).getByRole("button", { name: "Click selector" }));
+    await waitFor(() => expect(actionRequests).toHaveLength(4));
+    expect(actionRequests[3]).toEqual({
+      action: "click",
+      extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+      targetTabId: 42,
+      selector: "#name"
+    });
+
+    fireEvent.change(selectorInput, { target: { value: "" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Submit form" }));
+    await waitFor(() => expect(actionRequests).toHaveLength(5));
+    expect(actionRequests[4]).toEqual({
+      action: "submit",
+      extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+      targetTabId: 42,
+      selector: "form"
+    });
+
+    fireEvent.change(scrollInput, { target: { value: "" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Scroll page" }));
+    await waitFor(() => expect(actionRequests).toHaveLength(6));
+    expect(actionRequests[5]).toEqual({
+      action: "scroll",
+      extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+      targetTabId: 42,
+      dy: 600
+    });
+    expect(loadSnapshot).toHaveBeenCalledTimes(7);
+  });
+
+  it("updates Chrome host policy from React controls and refreshes policy state", async () => {
+    const policyRequests: unknown[] = [];
+    const policyMethods: Array<string | undefined> = [];
+    const loadSnapshot = vi.fn(async () => snapshot);
+    const loadProviderSettings = vi.fn(async () => createProviderSettingsPayload({
+      mode: "external-cua",
+      externalProviderLabel: "OpenAI CUA",
+      externalEndpoint: "https://cua.example.test/plan",
+      externalApiKeyConfigured: true
+    }));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      expect(String(input)).toBe("/api/chrome-host-policy");
+      policyMethods.push(init?.method);
+      if (init?.method === "POST") {
+        policyRequests.push(JSON.parse(String(init.body)));
+        return createJsonResponse({
+          result: (policyRequests.at(-1) as { action: string }).action === "reset" ? "reset" : "configured",
+          hostPolicy: { state: "configured" }
+        });
+      }
+      return createJsonResponse({
+        hostPolicy: { state: "configured" }
+      });
+    });
+
+    render(<DashboardApp loadSnapshot={loadSnapshot} loadProviderSettings={loadProviderSettings} />);
+
+    const form = await screen.findByRole("form", { name: "Chrome host policy controls" });
+    const hostInput = within(form).getByLabelText("Chrome host policy host");
+
+    fireEvent.click(within(form).getByRole("button", { name: "Refresh policy" }));
+    await waitFor(() => expect(policyMethods).toEqual([undefined]));
+    expect(within(form).getByText("Policy refreshed.")).toBeInTheDocument();
+
+    fireEvent.click(within(form).getByRole("button", { name: "Always allow" }));
+    expect(within(form).getByText("Enter a host before setting policy.")).toBeInTheDocument();
+    expect(policyRequests).toEqual([]);
+
+    fireEvent.change(hostInput, { target: { value: "https://example.test/path" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Always allow" }));
+    await waitFor(() => expect(policyRequests).toHaveLength(1));
+    expect(policyRequests[0]).toEqual({
+      action: "always-allow",
+      host: "https://example.test/path"
+    });
+    expect(within(form).getByText("Policy configured.")).toBeInTheDocument();
+
+    fireEvent.change(hostInput, { target: { value: "" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Reset policy" }));
+    await waitFor(() => expect(policyRequests).toHaveLength(2));
+    expect(policyRequests[1]).toEqual({ action: "reset" });
+    expect(loadSnapshot).toHaveBeenCalledTimes(4);
+  });
 });
 
 function createProviderSettingsPayload(planner: {
@@ -308,7 +488,7 @@ function createProviderSettingsPayload(planner: {
   externalProviderLabel: string;
   externalEndpoint?: string;
   externalApiKeyConfigured: boolean;
-}) {
+}): DashboardProviderSettingsResponse {
   return {
     schemaVersion: 1,
     command: "dashboard provider settings",

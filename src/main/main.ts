@@ -26,9 +26,16 @@ import {
   AssistantAgentTurnRuntimeError,
   readInitialAssistantAgentSettings,
   runAssistantAgentTurn,
+  type AssistantAgentPlannedToolCall,
   type AssistantAgentTurnResult
 } from "./assistant-agent.js";
 import { summarizeAssistantToolPlan } from "./assistant-tools.js";
+import {
+  createAssistantComputerUseExecutor,
+  type AssistantComputerUseTerminalStatus,
+  type AssistantComputerUseToolIdentity,
+  type AssistantComputerUseToolResult
+} from "./assistant-computer-use-executor.js";
 import { applyApprovedChromeTaskHostPolicy } from "./chrome-approval-policy.js";
 import { createChromeCdpClient } from "./chrome-cdp-client.js";
 import { readChromeCdpEndpoint } from "./chrome-cdp-settings.js";
@@ -63,7 +70,7 @@ import {
   readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
-import { selectCommandRoute } from "./task-routing.js";
+import { selectCommandRoute, type CommandRoute } from "./task-routing.js";
 import { readStartupWarnings } from "./startup-guard.js";
 import {
   readStopTurnHotkeyStatus,
@@ -99,6 +106,11 @@ type ComputerUseTaskEvent =
   | ChromeTaskEvent
   | FinderTaskEvent
   | TmuxSupervisionTaskEvent;
+type ComputerUseCommandRoute =
+  | Extract<CommandRoute, { kind: "ghostty" }>
+  | Extract<CommandRoute, { kind: "chrome" }>
+  | Extract<CommandRoute, { kind: "finder" }>
+  | Extract<CommandRoute, { kind: "tmux_supervision" }>;
 
 interface TaskEvent {
   status: TaskStatus;
@@ -111,9 +123,10 @@ interface TaskEvent {
   tmuxSupervisionReport?: TmuxSupervisionReport;
 }
 
-interface PendingApproval {
+interface PendingApproval extends AssistantComputerUseToolIdentity {
   command: string;
   mode: ManualMode;
+  route: ComputerUseCommandRoute;
   planApproved?: boolean;
 }
 
@@ -141,10 +154,14 @@ const turnReplayStore = createTurnReplayStore({
     persistRuntimeSnapshot(replay);
   }
 });
+const assistantComputerUseExecutor = createAssistantComputerUseExecutor({
+  replayStore: turnReplayStore
+});
 let mainWindow: BrowserWindow | null = null;
 let currentTaskId = 0;
 let screenshotSerial = 0;
 let activeTaskController: AbortController | null = null;
+let activeComputerUseToolIdentity: AssistantComputerUseToolIdentity | null = null;
 let pendingApproval: PendingApproval | null = null;
 let stopTurnHotkeyRegistered = false;
 
@@ -474,6 +491,541 @@ function emitAssistantToolPlanTaskEvent(
   });
 }
 
+function readAssistantComputerUseToolCall(turn: AssistantAgentTurnResult): AssistantAgentPlannedToolCall {
+  const toolCall = turn.toolCalls.find((candidate) =>
+    candidate.type === "computer-use" && candidate.name === "desktop-control"
+  );
+  if (!toolCall) {
+    throw new Error(`Assistant turn ${turn.id} did not plan a Computer Use tool call.`);
+  }
+
+  return toolCall;
+}
+
+function createPendingApproval(
+  command: string,
+  mode: ManualMode,
+  identity: AssistantComputerUseToolIdentity,
+  route: ComputerUseCommandRoute,
+  planApproved = false
+): PendingApproval {
+  return {
+    ...identity,
+    command,
+    mode,
+    route,
+    ...(planApproved ? { planApproved } : {})
+  };
+}
+
+function requireComputerUseApproval({
+  command,
+  mode,
+  route,
+  toolIdentity,
+  reason,
+  planApproved = false
+}: {
+  command: string;
+  mode: ManualMode;
+  route: ComputerUseCommandRoute;
+  toolIdentity: AssistantComputerUseToolIdentity;
+  reason: string;
+  planApproved?: boolean;
+}): void {
+  assistantComputerUseExecutor.requireApproval({
+    ...toolIdentity,
+    reason
+  });
+  pendingApproval = createPendingApproval(command, mode, toolIdentity, route, planApproved);
+  activeComputerUseToolIdentity = toolIdentity;
+}
+
+function completeComputerUseToolCall(
+  identity: AssistantComputerUseToolIdentity,
+  result: AssistantComputerUseToolResult
+): void {
+  assistantComputerUseExecutor.completeToolCall({
+    ...identity,
+    result
+  });
+  if (isSameComputerUseToolIdentity(activeComputerUseToolIdentity, identity)) {
+    activeComputerUseToolIdentity = null;
+  }
+  if (
+    pendingApproval
+    && pendingApproval.turnId === identity.turnId
+    && pendingApproval.toolCallId === identity.toolCallId
+  ) {
+    pendingApproval = null;
+  }
+
+}
+
+function cancelActiveComputerUseToolCall(reason: string): void {
+  const identity = pendingApproval ?? activeComputerUseToolIdentity;
+  if (!identity) {
+    return;
+  }
+
+  assistantComputerUseExecutor.cancelToolCall({
+    turnId: identity.turnId,
+    toolCallId: identity.toolCallId,
+    reason
+  });
+  pendingApproval = null;
+  if (isSameComputerUseToolIdentity(activeComputerUseToolIdentity, identity)) {
+    activeComputerUseToolIdentity = null;
+  }
+}
+
+function isSameComputerUseToolIdentity(
+  left: AssistantComputerUseToolIdentity | null,
+  right: AssistantComputerUseToolIdentity
+): boolean {
+  return Boolean(left && left.turnId === right.turnId && left.toolCallId === right.toolCallId);
+}
+
+function createToolResultFromTaskEvent(event: ComputerUseTaskEvent): AssistantComputerUseToolResult | undefined {
+  if (event.type === "completed") {
+    return {
+      status: "completed",
+      summary: event.summary,
+      evidence: {
+        summary: "Computer Use route completed with replayed orchestration events."
+      }
+    };
+  }
+
+  if (event.type === "verification_failed") {
+    return {
+      status: "failed",
+      summary: event.reason,
+      evidence: {
+        summary: `Computer Use route stopped during ${event.stage} verification.`
+      }
+    };
+  }
+
+  return undefined;
+}
+
+function createToolResult(
+  status: AssistantComputerUseTerminalStatus,
+  summary: string
+): AssistantComputerUseToolResult {
+  return {
+    status,
+    summary,
+    evidence: {
+      summary
+    }
+  };
+}
+
+async function resumePendingApprovalTask(
+  window: BrowserWindow | null,
+  approval: PendingApproval
+): Promise<void> {
+  pendingApproval = null;
+  assistantComputerUseExecutor.resumeApproval({
+    turnId: approval.turnId,
+    toolCallId: approval.toolCallId,
+    decision: "approved",
+    reason: "User approved this Computer Use turn."
+  });
+
+  await continueComputerUseTask({
+    window,
+    command: approval.command,
+    mode: approval.mode,
+    approved: true,
+    planApproved: approval.planApproved === true,
+    route: approval.route,
+    toolIdentity: {
+      turnId: approval.turnId,
+      toolCallId: approval.toolCallId
+    }
+  });
+}
+
+async function continueComputerUseTask({
+  window,
+  command,
+  mode,
+  approved,
+  planApproved,
+  route,
+  toolIdentity
+}: {
+  window: BrowserWindow | null;
+  command: string;
+  mode: ManualMode;
+  approved: boolean;
+  planApproved: boolean;
+  route: ComputerUseCommandRoute;
+  toolIdentity: AssistantComputerUseToolIdentity;
+}): Promise<void> {
+  activeComputerUseToolIdentity = toolIdentity;
+
+  if (route.kind === "tmux_supervision") {
+    await runTmuxSupervisionCommandTask(window, {
+      command,
+      mode,
+      approved,
+      route,
+      toolIdentity
+    });
+    return;
+  }
+
+  const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), route.bundleId);
+
+  if (appPolicy.decision === "deny") {
+    pendingApproval = null;
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    completeComputerUseToolCall(toolIdentity, createToolResult("blocked", appPolicy.reason));
+    emitTaskEvent(window, {
+      status: "failed",
+      message: appPolicy.reason,
+      command
+    });
+    return;
+  }
+
+  if (appPolicy.decision === "ask" && !approved) {
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    requireComputerUseApproval({
+      command,
+      mode,
+      route,
+      toolIdentity,
+      reason: appPolicy.reason
+    });
+    emitTaskEvent(window, {
+      status: "approval_required",
+      message: `Approval required (app policy): ${appPolicy.reason}`,
+      command
+    });
+    return;
+  }
+
+  if (approved && route.kind === "chrome") {
+    const hostPolicyApproval = await applyApprovedChromeTaskHostPolicy({
+      command,
+      route,
+      homeDir: os.homedir()
+    });
+
+    if (hostPolicyApproval.status === "blocked") {
+      pendingApproval = null;
+      activeTaskController?.abort();
+      activeTaskController = null;
+      currentTaskId += 1;
+      completeComputerUseToolCall(
+        toolIdentity,
+        createToolResult("blocked", `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`)
+      );
+      emitTaskEvent(window, {
+        status: "failed",
+        message: `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`,
+        command
+      });
+      return;
+    }
+
+    if (hostPolicyApproval.status === "failed") {
+      pendingApproval = null;
+      activeTaskController?.abort();
+      activeTaskController = null;
+      currentTaskId += 1;
+      completeComputerUseToolCall(
+        toolIdentity,
+        createToolResult("failed", `Chrome host policy approval failed: ${hostPolicyApproval.message}`)
+      );
+      emitTaskEvent(window, {
+        status: "failed",
+        message: `Chrome host policy approval failed: ${hostPolicyApproval.message}`,
+        command
+      });
+      return;
+    }
+
+    if (hostPolicyApproval.status === "updated") {
+      emitTurnReplayTaskEvent(window, {
+        status: "executing",
+        message: `Chrome host policy allowed for current turn: ${hostPolicyApproval.host}`,
+        command
+      });
+    }
+  }
+
+  const taskId = currentTaskId + 1;
+  currentTaskId = taskId;
+  pendingApproval = null;
+  activeTaskController?.abort();
+
+  const controller = new AbortController();
+  activeTaskController = controller;
+
+  try {
+    if (route.kind === "finder") {
+      const helper = createDesktopHelper();
+      const desktopClient = createFinderDesktopClient(helper);
+
+      for await (const taskEvent of runFinderOrganizationTask(command, {
+        approved,
+        planApproved,
+        desktopClient,
+        createScreenshotPath: () => createScreenshotPath("finder-before")
+      })) {
+        if (controller.signal.aborted || taskId !== currentTaskId) {
+          return;
+        }
+
+        turnReplayStore.recordComputerUseEvent(taskEvent);
+
+        if (taskEvent.type === "approval_required" && !approved) {
+          requireComputerUseApproval({
+            command,
+            mode,
+            route,
+            toolIdentity,
+            reason: taskEvent.risk.reason
+          });
+        }
+
+        if (taskEvent.type === "plan_confirmation_required" && !planApproved) {
+          requireComputerUseApproval({
+            command,
+            mode,
+            route,
+            toolIdentity,
+            reason: taskEvent.reason,
+            planApproved: true
+          });
+        }
+
+        const result = createToolResultFromTaskEvent(taskEvent);
+        const taskStatus = createTaskEvent(taskEvent, mode);
+        if (result) {
+          completeComputerUseToolCall(toolIdentity, result);
+          emitTaskEvent(window, taskStatus);
+        } else {
+          emitTurnReplayTaskEvent(window, taskStatus);
+        }
+      }
+      return;
+    }
+
+    if (route.kind === "chrome") {
+      const chromeClient = chromeCdpEndpoint
+        ? createChromeCdpClient({ endpoint: chromeCdpEndpoint })
+        : undefined;
+      const helper = createDesktopHelper();
+      const desktopClient = createChromeDesktopClient(helper);
+
+      for await (const taskEvent of runChromePageTask(command, chromeClient, {
+        approved,
+        desktopClient,
+        createScreenshotPath: () => createScreenshotPath("chrome-fallback")
+      })) {
+        if (controller.signal.aborted || taskId !== currentTaskId) {
+          return;
+        }
+
+        turnReplayStore.recordComputerUseEvent(taskEvent);
+
+        if (taskEvent.type === "approval_required" && !approved) {
+          requireComputerUseApproval({
+            command,
+            mode,
+            route,
+            toolIdentity,
+            reason: taskEvent.risk.reason
+          });
+        }
+
+        const result = createToolResultFromTaskEvent(taskEvent);
+        const taskStatus = createTaskEvent(taskEvent, mode);
+        if (result) {
+          completeComputerUseToolCall(toolIdentity, result);
+          emitTaskEvent(window, taskStatus);
+        } else {
+          emitTurnReplayTaskEvent(window, taskStatus);
+        }
+      }
+      return;
+    }
+
+    const plannerRuntime = decidePlannerProviderRuntime(plannerProviderSettingsStore.get());
+
+    if (plannerRuntime.decision === "unavailable") {
+      pendingApproval = null;
+      activeTaskController?.abort();
+      activeTaskController = null;
+      currentTaskId += 1;
+      completeComputerUseToolCall(toolIdentity, createToolResult("failed", plannerRuntime.message));
+      emitTaskEvent(window, {
+        status: plannerRuntime.status,
+        message: plannerRuntime.message,
+        command
+      });
+      return;
+    }
+
+    const plannedCommand = await resolvePlannerCommand({
+      input: command,
+      runtime: plannerRuntime,
+      signal: controller.signal,
+      createExternalPlanner: () => createExternalCuaTerminalPlannerFromEnv(process.env)
+    });
+
+    if (plannedCommand.providerLabel) {
+      turnReplayStore.recordComputerUseEvent({
+        type: "planner_resolved",
+        providerLabel: plannedCommand.providerLabel,
+        input: command,
+        command: plannedCommand.command,
+        rationale: plannedCommand.rationale
+      });
+      emitTurnReplayTaskEvent(window, {
+        status: "executing",
+        message: plannedCommand.rationale
+          ? `${plannedCommand.providerLabel} planned: ${plannedCommand.command} (${plannedCommand.rationale})`
+          : `${plannedCommand.providerLabel} planned: ${plannedCommand.command}`,
+        command
+      });
+    }
+
+    const helper = createDesktopHelper();
+    const desktopClient = createGhosttyDesktopClient(helper);
+
+    for await (const taskEvent of runGhosttyCommandTask(desktopClient, plannedCommand.command, {
+      approved,
+      createScreenshotPath: (stage) => createScreenshotPath(`ghostty-${stage}`),
+      signal: controller.signal
+    })) {
+      if (controller.signal.aborted || taskId !== currentTaskId) {
+        return;
+      }
+
+      turnReplayStore.recordComputerUseEvent(taskEvent);
+
+      if (taskEvent.type === "approval_required" && !approved) {
+        requireComputerUseApproval({
+          command: taskEvent.command,
+          mode,
+          route,
+          toolIdentity,
+          reason: taskEvent.risk.reason
+        });
+      }
+
+      const result = createToolResultFromTaskEvent(taskEvent);
+      const taskStatus = createTaskEvent(taskEvent, mode);
+      if (result) {
+        completeComputerUseToolCall(toolIdentity, result);
+        emitTaskEvent(window, taskStatus);
+      } else {
+        emitTurnReplayTaskEvent(window, taskStatus);
+      }
+    }
+  } catch (error) {
+    if (controller.signal.aborted || taskId !== currentTaskId) {
+      return;
+    }
+
+    const message = error instanceof Error ? error.message : "Task failed.";
+    completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
+    emitTaskEvent(window, {
+      status: "failed",
+      message,
+      command
+    });
+  } finally {
+    if (activeTaskController === controller) {
+      activeTaskController = null;
+    }
+  }
+}
+
+async function runTmuxSupervisionCommandTask(
+  window: BrowserWindow | null,
+  {
+    command,
+    mode,
+    approved,
+    route,
+    toolIdentity
+  }: {
+    command: string;
+    mode: ManualMode;
+    approved: boolean;
+    route: Extract<ComputerUseCommandRoute, { kind: "tmux_supervision" }>;
+    toolIdentity: AssistantComputerUseToolIdentity;
+  }
+): Promise<void> {
+  const taskId = currentTaskId + 1;
+  currentTaskId = taskId;
+  pendingApproval = null;
+  activeTaskController?.abort();
+
+  const controller = new AbortController();
+  activeTaskController = controller;
+
+  try {
+    for await (const taskEvent of runTmuxSupervisionTask(
+      route.sessionName,
+      createTmuxSupervisionClient(),
+      { approved }
+    )) {
+      if (controller.signal.aborted || taskId !== currentTaskId) {
+        return;
+      }
+
+      if (taskEvent.type === "approval_required" && !approved) {
+        requireComputerUseApproval({
+          command,
+          mode,
+          route,
+          toolIdentity,
+          reason: taskEvent.risk.reason
+        });
+      }
+
+      const result = createToolResultFromTaskEvent(taskEvent);
+      const taskStatus = createTaskEvent(taskEvent, mode);
+      if (result) {
+        completeComputerUseToolCall(toolIdentity, result);
+        emitTaskEvent(window, taskStatus);
+      } else {
+        emitTurnReplayTaskEvent(window, taskStatus);
+      }
+    }
+  } catch (error) {
+    if (controller.signal.aborted || taskId !== currentTaskId) {
+      return;
+    }
+
+    const message = error instanceof Error ? error.message : "tmux supervision failed.";
+    completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
+    emitTaskEvent(window, {
+      status: "failed",
+      message,
+      command
+    });
+  } finally {
+    if (activeTaskController === controller) {
+      activeTaskController = null;
+    }
+  }
+}
+
 async function runCommandTask(
   window: BrowserWindow | null,
   command: string,
@@ -525,252 +1077,37 @@ async function runCommandTask(
     return;
   }
 
+  const plannedToolCall = readAssistantComputerUseToolCall(assistantTurn);
+  const toolIdentity: AssistantComputerUseToolIdentity = {
+    turnId: assistantTurn.id,
+    toolCallId: plannedToolCall.id
+  };
+  activeComputerUseToolIdentity = toolIdentity;
+  assistantComputerUseExecutor.planToolCall({
+    ...toolIdentity,
+    command: plannedToolCall.input.command,
+    route: plannedToolCall.input.route,
+    createdAt: plannedToolCall.createdAt
+  });
+
   emitAssistantToolPlanTaskEvent(window, assistantTurn, command);
 
-  if (route.kind === "tmux_supervision") {
-    const taskId = currentTaskId + 1;
-    currentTaskId = taskId;
-    pendingApproval = null;
-    activeTaskController?.abort();
-
-    const controller = new AbortController();
-    activeTaskController = controller;
-
-    try {
-      for await (const taskEvent of runTmuxSupervisionTask(
-        route.sessionName,
-        createTmuxSupervisionClient(),
-        { approved }
-      )) {
-        if (controller.signal.aborted || taskId !== currentTaskId) {
-          return;
-        }
-
-        if (taskEvent.type === "approval_required" && !approved) {
-          pendingApproval = { command, mode };
-        }
-
-        emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));
-      }
-    } catch (error) {
-      if (controller.signal.aborted || taskId !== currentTaskId) {
-        return;
-      }
-
-      emitTurnReplayTaskEvent(window, {
-        status: "failed",
-        message: error instanceof Error ? error.message : "tmux supervision failed."
-      });
-    } finally {
-      if (activeTaskController === controller) {
-        activeTaskController = null;
-      }
-    }
-    return;
+  if (approved) {
+    assistantComputerUseExecutor.bypassApproval({
+      ...toolIdentity,
+      reason: "Default approval bypass enabled for this Computer Use turn."
+    });
   }
 
-  const appPolicy = decideAppPolicy(appPolicySettingsStore.get(), route.bundleId);
-
-  if (appPolicy.decision === "deny") {
-    pendingApproval = null;
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
-      status: "failed",
-      message: appPolicy.reason
-    });
-    return;
-  }
-
-  if (appPolicy.decision === "ask" && !approved) {
-    pendingApproval = { command, mode };
-    activeTaskController?.abort();
-    activeTaskController = null;
-    currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
-      status: "approval_required",
-      message: `Approval required (app policy): ${appPolicy.reason}`,
-      command
-    });
-    return;
-  }
-
-  if (approved && route.kind === "chrome") {
-    const hostPolicyApproval = await applyApprovedChromeTaskHostPolicy({
-      command,
-      route,
-      homeDir: os.homedir()
-    });
-
-    if (hostPolicyApproval.status === "blocked") {
-      pendingApproval = null;
-      activeTaskController?.abort();
-      activeTaskController = null;
-      currentTaskId += 1;
-      emitTurnReplayTaskEvent(window, {
-        status: "failed",
-        message: `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`
-      });
-      return;
-    }
-
-    if (hostPolicyApproval.status === "failed") {
-      pendingApproval = null;
-      activeTaskController?.abort();
-      activeTaskController = null;
-      currentTaskId += 1;
-      emitTurnReplayTaskEvent(window, {
-        status: "failed",
-        message: `Chrome host policy approval failed: ${hostPolicyApproval.message}`
-      });
-      return;
-    }
-
-    if (hostPolicyApproval.status === "updated") {
-      emitTurnReplayTaskEvent(window, {
-        status: "executing",
-        message: `Chrome host policy allowed for current turn: ${hostPolicyApproval.host}`
-      });
-    }
-  }
-
-  const taskId = currentTaskId + 1;
-  currentTaskId = taskId;
-  pendingApproval = null;
-  activeTaskController?.abort();
-
-  const controller = new AbortController();
-  activeTaskController = controller;
-
-  try {
-    if (route.kind === "finder") {
-      const helper = createDesktopHelper();
-      const desktopClient = createFinderDesktopClient(helper);
-
-      for await (const taskEvent of runFinderOrganizationTask(command, {
-        approved,
-        planApproved,
-        desktopClient,
-        createScreenshotPath: () => createScreenshotPath("finder-before")
-      })) {
-        if (controller.signal.aborted || taskId !== currentTaskId) {
-          return;
-        }
-
-        turnReplayStore.recordComputerUseEvent(taskEvent);
-
-        if (taskEvent.type === "approval_required" && !approved) {
-          pendingApproval = { command, mode };
-        }
-
-        if (taskEvent.type === "plan_confirmation_required" && !planApproved) {
-          pendingApproval = { command, mode, planApproved: true };
-        }
-
-        emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));
-      }
-      return;
-    }
-
-    if (route.kind === "chrome") {
-      const chromeClient = chromeCdpEndpoint
-        ? createChromeCdpClient({ endpoint: chromeCdpEndpoint })
-        : undefined;
-      const helper = createDesktopHelper();
-      const desktopClient = createChromeDesktopClient(helper);
-
-      for await (const taskEvent of runChromePageTask(command, chromeClient, {
-        approved,
-        desktopClient,
-        createScreenshotPath: () => createScreenshotPath("chrome-fallback")
-      })) {
-        if (controller.signal.aborted || taskId !== currentTaskId) {
-          return;
-        }
-
-        turnReplayStore.recordComputerUseEvent(taskEvent);
-
-        if (taskEvent.type === "approval_required" && !approved) {
-          pendingApproval = { command, mode };
-        }
-
-        emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));
-      }
-      return;
-    }
-
-    const plannerRuntime = decidePlannerProviderRuntime(plannerProviderSettingsStore.get());
-
-    if (plannerRuntime.decision === "unavailable") {
-      pendingApproval = null;
-      activeTaskController?.abort();
-      activeTaskController = null;
-      currentTaskId += 1;
-      emitTurnReplayTaskEvent(window, {
-        status: plannerRuntime.status,
-        message: plannerRuntime.message
-      });
-      return;
-    }
-
-    const plannedCommand = await resolvePlannerCommand({
-      input: command,
-      runtime: plannerRuntime,
-      signal: controller.signal,
-      createExternalPlanner: () => createExternalCuaTerminalPlannerFromEnv(process.env)
-    });
-
-    if (plannedCommand.providerLabel) {
-      turnReplayStore.recordComputerUseEvent({
-        type: "planner_resolved",
-        providerLabel: plannedCommand.providerLabel,
-        input: command,
-        command: plannedCommand.command,
-        rationale: plannedCommand.rationale
-      });
-      emitTurnReplayTaskEvent(window, {
-        status: "executing",
-        message: plannedCommand.rationale
-          ? `${plannedCommand.providerLabel} planned: ${plannedCommand.command} (${plannedCommand.rationale})`
-          : `${plannedCommand.providerLabel} planned: ${plannedCommand.command}`
-      });
-    }
-
-    const helper = createDesktopHelper();
-    const desktopClient = createGhosttyDesktopClient(helper);
-
-    for await (const taskEvent of runGhosttyCommandTask(desktopClient, plannedCommand.command, {
-      approved,
-      createScreenshotPath: (stage) => createScreenshotPath(`ghostty-${stage}`),
-      signal: controller.signal
-    })) {
-      if (controller.signal.aborted || taskId !== currentTaskId) {
-        return;
-      }
-
-      turnReplayStore.recordComputerUseEvent(taskEvent);
-
-      if (taskEvent.type === "approval_required" && !approved) {
-        pendingApproval = { command: taskEvent.command, mode };
-      }
-
-      emitTurnReplayTaskEvent(window, createTaskEvent(taskEvent, mode));
-    }
-  } catch (error) {
-    if (controller.signal.aborted || taskId !== currentTaskId) {
-      return;
-    }
-
-    emitTurnReplayTaskEvent(window, {
-      status: "failed",
-      message: error instanceof Error ? error.message : "Task failed."
-    });
-  } finally {
-    if (activeTaskController === controller) {
-      activeTaskController = null;
-    }
-  }
+  await continueComputerUseTask({
+    window,
+    command,
+    mode,
+    approved,
+    planApproved,
+    route,
+    toolIdentity
+  });
 }
 
 async function createWindow() {
@@ -900,19 +1237,32 @@ ipcMain.handle("skfiy:approve-task", async (event) => {
     return;
   }
 
-  await runCommandTask(window, approval.command, approval.mode, true, approval.planApproved === true);
+  await resumePendingApprovalTask(window, approval);
 });
 
 ipcMain.handle("skfiy:deny-task", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
+  const approval = pendingApproval;
+
+  if (approval) {
+    assistantComputerUseExecutor.resumeApproval({
+      turnId: approval.turnId,
+      toolCallId: approval.toolCallId,
+      decision: "denied",
+      reason: "User denied this Computer Use turn."
+    });
+  }
+
   pendingApproval = null;
   activeTaskController?.abort();
   activeTaskController = null;
+  activeComputerUseToolIdentity = null;
   currentTaskId += 1;
 
   emitTaskEvent(window, {
     status: "idle",
-    message: "Task denied."
+    message: approval ? "Task denied." : "No task is waiting for approval.",
+    ...(approval ? { command: approval.command } : {})
   });
 });
 
@@ -941,9 +1291,11 @@ ipcMain.handle("skfiy:take-screenshot", async (event) => {
 
 ipcMain.handle("skfiy:stop-task", async (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
+  cancelActiveComputerUseToolCall("Task stopped.");
   pendingApproval = null;
   activeTaskController?.abort();
   activeTaskController = null;
+  activeComputerUseToolIdentity = null;
   currentTaskId += 1;
 
   emitTaskEvent(window, {

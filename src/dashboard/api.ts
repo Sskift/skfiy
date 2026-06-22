@@ -1,5 +1,7 @@
 import type {
   DashboardChromeControlActionRequest,
+  DashboardChromeHostPolicyActionRequest,
+  DashboardChromeHostPolicyResponse,
   DashboardPlannerProviderSettingsUpdate,
   DashboardProviderSettingsResponse,
   DashboardSnapshot
@@ -34,6 +36,38 @@ export async function postChromeControlAction(
   }
 
   return payload;
+}
+
+export async function fetchChromeHostPolicy(): Promise<DashboardChromeHostPolicyResponse> {
+  const response = await fetch("/api/chrome-host-policy", {
+    cache: "no-store"
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Chrome host policy request failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardChromeHostPolicyResponse;
+}
+
+export async function postChromeHostPolicyAction(
+  request: DashboardChromeHostPolicyActionRequest
+): Promise<DashboardChromeHostPolicyResponse> {
+  const response = await fetch("/api/chrome-host-policy", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(request)
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Chrome host policy request failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardChromeHostPolicyResponse;
 }
 
 export async function fetchProviderSettings(): Promise<DashboardProviderSettingsResponse> {
