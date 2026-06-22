@@ -12,18 +12,22 @@ describe("Ghostty product smoke script", () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
     const {
       createDefaultSmokeOptions,
+      formatLaunchCommand,
       parseSmokeArgs
     } = await import(pathToFileURL(modulePath).href) as {
+      formatLaunchCommand: (options: Record<string, unknown>) => string;
       createDefaultSmokeOptions: (rootDir: string) => Record<string, unknown>;
       parseSmokeArgs: (argv: string[], defaults: Record<string, unknown>) => Record<string, unknown>;
     };
+    const defaults = createDefaultSmokeOptions(process.cwd());
 
     expect(parseSmokeArgs(
       ["--planner-mode", "disabled"],
-      createDefaultSmokeOptions(process.cwd())
+      defaults
     )).toMatchObject({
       plannerMode: "disabled"
     });
+    expect(formatLaunchCommand(defaults)).toContain("--env SKFIY_BYPASS_APPROVAL=strict");
     expect(source).toContain("window.skfiy.setPlannerProviderSettings");
     expect(source).toContain("window.skfiy.getAppPolicySettings()");
     expect(source).toContain("acquireSmokeLock");
@@ -61,22 +65,22 @@ describe("Ghostty product smoke script", () => {
       },
       {
         id: "mkdir-approval",
-        command: "创建 skfiy-demo 文件夹",
+        command: "在 Ghostty 执行 mkdir skfiy-demo",
         expectedResults: ["needs-user-confirmation"]
       },
       {
         id: "clipboard-read-approval",
-        command: "pbpaste",
+        command: "在 Ghostty 执行 pbpaste",
         expectedResults: ["needs-user-confirmation"]
       },
       {
         id: "clipboard-write-approval",
-        command: "echo skfiy | pbcopy",
+        command: "在 Ghostty 执行 echo skfiy | pbcopy",
         expectedResults: ["needs-user-confirmation"]
       },
       {
         id: "rm-rf-deny",
-        command: "rm -rf ~/Desktop",
+        command: "在 Ghostty 执行 rm -rf ~/Desktop",
         approvalAction: "deny",
         expectedResults: ["denied"]
       },

@@ -5,6 +5,7 @@ export const DEFAULT_COMMAND = "打开 Ghostty 执行 pwd 并截图";
 export const DEFAULT_PORT = 9233;
 export const DEFAULT_TIMEOUT_MS = 8_000;
 export const DEFAULT_SETTLE_MS = 500;
+export const STRICT_APPROVAL_ENV = "SKFIY_BYPASS_APPROVAL=strict";
 export const PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 export const PLANNER_MODES = new Set(["local-deterministic", "external-cua", "disabled"]);
 
@@ -21,22 +22,22 @@ export const GHOSTTY_PRODUCT_SMOKE_MATRIX = [
   },
   {
     id: "mkdir-approval",
-    command: "创建 skfiy-demo 文件夹",
+    command: "在 Ghostty 执行 mkdir skfiy-demo",
     expectedResults: ["needs-user-confirmation"]
   },
   {
     id: "clipboard-read-approval",
-    command: "pbpaste",
+    command: "在 Ghostty 执行 pbpaste",
     expectedResults: ["needs-user-confirmation"]
   },
   {
     id: "clipboard-write-approval",
-    command: "echo skfiy | pbcopy",
+    command: "在 Ghostty 执行 echo skfiy | pbcopy",
     expectedResults: ["needs-user-confirmation"]
   },
   {
     id: "rm-rf-deny",
-    command: "rm -rf ~/Desktop",
+    command: "在 Ghostty 执行 rm -rf ~/Desktop",
     approvalAction: "deny",
     expectedResults: ["denied"]
   },
@@ -270,7 +271,7 @@ export function classifyMatrixResult(runs) {
 }
 
 export function formatLaunchCommand(options) {
-  return `open -na ${options.appPath} --args --remote-debugging-port=${options.port}`;
+  return `open -na ${options.appPath} --env ${STRICT_APPROVAL_ENV} --args --remote-debugging-port=${options.port}`;
 }
 
 export function createHelpText(defaults) {

@@ -14,6 +14,7 @@ import {
   formatLaunchCommand,
   parseSmokeArgs,
   PRODUCT_PATH,
+  STRICT_APPROVAL_ENV,
   writeSmokeEvidence
 } from "./smoke-ghostty-plan.mjs";
 import {
@@ -53,6 +54,7 @@ async function main() {
     appLaunchViaOpen: true,
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
+    approvalBypassEnv: STRICT_APPROVAL_ENV,
     artifactPath: options.outputPath,
     desktopPreflight: undefined,
     events: [],
@@ -218,6 +220,8 @@ async function launchSkfiy(options) {
     "-n",
     "-a",
     options.appPath,
+    "--env",
+    STRICT_APPROVAL_ENV,
     "--args",
     `--remote-debugging-port=${options.port}`
   ]);

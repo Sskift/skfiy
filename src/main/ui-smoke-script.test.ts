@@ -91,7 +91,7 @@ describe("packaged UI product smoke script", () => {
       stopTurnBehavior: {
         result: "passed",
         source: "renderer-escape-key-product-path",
-        command: "mkdir skfiy-stop-smoke",
+        command: "在 Ghostty 执行 mkdir skfiy-stop-smoke",
         beforeStatus: "approval_required",
         afterStatus: "idle",
         afterMessage: "Task stopped."
@@ -144,7 +144,7 @@ describe("packaged UI product smoke script", () => {
         screenRecording: { state: "granted" },
         accessibility: { state: "granted" }
       }
-    })).toBe("passed");
+    })).toBe("no-onboarding");
     expect(classifyUiSmokeEvidence({
       ...passedEvidence,
       onboardingVisible: false,

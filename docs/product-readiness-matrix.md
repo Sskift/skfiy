@@ -1,7 +1,7 @@
 # skfiy Product Readiness Matrix
 
 Updated: 2026-06-22
-Baseline commit: `cac4feb`
+Cleanup baseline commit: `d9b6c71`
 
 This document is the supervisor-facing convergence checklist for the active
 agent and Computer Use work. It does not replace
@@ -90,14 +90,32 @@ Manual blocker policy:
 These items are the current supervisor queue. A subagent audit can add items,
 but implementation should stay in disjoint work packages.
 
+## Current Cleanup Evidence
+
+The cleanup batch moved release evidence from stale-only to verifier-checkable
+local evidence, but it is not a published dogfood release yet.
+
+- UI smoke is valid as `no-onboarding` when Screen Recording and Accessibility
+  are already granted; it still proves pet drag, stop hotkey, and stop behavior.
+- Chrome smoke passes through strict app-policy approval, CDP extraction,
+  native-host heartbeat, installed-extension Native Messaging, and current-page
+  evidence.
+- Ghostty and Finder strict smokes are currently blocked by
+  `frontmostBundleId=com.apple.loginwindow` plus sleeping display. The blocker
+  artifacts are valid evidence, but not passed capability proof.
+- money-run product-path smoke is not valid evidence yet. It timed out waiting
+  for `approval_required` under the locked desktop session; keep it out of the
+  alpha manifest until the product path passes.
+- After this cleanup commit, regenerate the alpha artifact from the final HEAD
+  before publishing or updating `docs/release-evidence/latest-alpha.json`.
+
 | Priority | Workstream | Finding | First implementation package | Focused acceptance |
 | --- | --- | --- | --- | --- |
-| P0 | Agent and routing | `assistant-agent` is currently a chat provider wrapper, while `main.ts` still selects Ghostty/Chrome/Finder routes before the agent owns the turn. | Add an agent turn runtime contract with lifecycle events, cancellation, provider result, and planned tool-call records. | `npx vitest run src/main/assistant-agent.test.ts src/main/task-routing.test.ts --reporter=dot` |
-| P0 | Agent and routing | Computer Use orchestrators are direct main-process branches, not agent tools. | Add an `assistant-tools` bridge that describes supported tools and lets main emit tool-call/tool-result evidence before invoking existing orchestrators. | Focused agent + orchestrator tests, then UI/Ghostty/Chrome/Finder packaged smokes when auth allows. |
+| P0 | Agent and routing | Agent turns now emit provider/tool-plan evidence, but `main.ts` still ultimately owns direct Ghostty/Chrome/Finder execution. | Continue from the `assistant-tools` bridge into an agent-owned executor contract with cancellation, confirmation, and tool-result state. | Focused agent + orchestrator tests, then UI/Ghostty/Chrome/Finder packaged smokes when auth allows. |
 | P0 | Dashboard and settings | Packaged dashboard serves the React dashboard first, but the richer controls still live mostly in the fallback inline dashboard. | Move provider/settings/readiness/dogfood controls into `src/dashboard/*` and keep fallback only as degraded mode. | `npx vitest run src/dashboard/DashboardApp.test.tsx src/main/dashboard-server.test.ts --reporter=dot` |
 | P0 | Dashboard and settings | Real provider settings are exposed via `/api/provider-settings` but not folded into `/snapshot.json` or the React dashboard state model. | Add provider settings summary to dashboard snapshot and render selectable provider/readiness details in React dashboard. | `npx vitest run src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot` |
-| P0 | Release and dogfood SRE | `docs/release-evidence/latest-alpha.json` points to old commit `2e292e9`, and referenced alpha/smoke artifacts are missing locally. | Rebuild and rerun current-commit smoke/alpha evidence, or explicitly mark current release evidence stale until real smokes are available. | `npm run dogfood:verify -- --manifest <current-alpha-manifest> --require-current-head` |
-| P0 | Release and dogfood SRE | Current machine evidence cannot prove Finder/desktop/browser readiness when macOS authorization or desktop session is blocked. | Record blocker artifacts first, then rerun strict smokes after Screen Recording, Accessibility, Finder Automation, Chrome extension/native host, and unlock state are available. | `npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session-<commit>.json` plus strict smoke reruns |
+| P0 | Release and dogfood SRE | `docs/release-evidence/latest-alpha.json` still points to old published commit `2e292e9`; local alpha evidence can be regenerated for current HEAD, but is not published. | After the cleanup commit, regenerate current-head alpha evidence, run `dogfood:verify --require-current-head`, then publish/update latest-alpha only if release ownership accepts blocker artifacts. | `npm run dogfood:verify -- --manifest <current-alpha-manifest> --require-current-head` |
+| P0 | Release and dogfood SRE | Current machine evidence proves Chrome and UI, but Ghostty/Finder are blocked by locked/asleep desktop and money-run product path is not valid. | Record blocker artifacts first, then rerun strict smokes after the Mac is unlocked/awake and money-run product-path approval reaches the renderer. | `npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session-<commit>.json` plus strict smoke reruns |
 | P1 | Dashboard and settings | Chrome readiness is relatively complete, while Finder/Ghostty readiness are not first-class dashboard lanes. | Add readiness lane data and UI for Finder, Ghostty, and Chrome using existing smoke/runtime evidence. | `npx vitest run src/main/dashboard-data.test.ts src/main/dashboard-status.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot` |
 | P1 | Agent and routing | Route states lack first-class `confirmation` and `denial`; app-policy denial is surfaced as generic failure. | Extend route/status contracts so clarification, confirmation, denial, blocked, and failure are distinct. | `npx vitest run src/main/task-routing.test.ts src/main/app-policy-settings.test.ts --reporter=dot` |
 | P1 | Product boundary | “app-agnostic observe any visible app” can read as a full universal-app promise, while current real regression fixtures are Ghostty, Chromium/Chrome, and Finder. | Tighten docs so generic app support is described as capability direction/frontmost fallback, not a fully proven adapter set. | `npx vitest run src/main/plan-doc-status.test.ts --reporter=dot` plus boundary `rg` |

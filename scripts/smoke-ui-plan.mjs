@@ -94,7 +94,7 @@ export function classifyUiSmokeEvidence(evidence) {
   }
 
   if (!evidence.onboardingVisible) {
-    return hasAllRequiredPermissionsGranted(evidence.permissions) ? "passed" : "missing-onboarding";
+    return hasAllRequiredPermissionsGranted(evidence.permissions) ? "no-onboarding" : "missing-onboarding";
   }
 
   const rowLabels = new Set(

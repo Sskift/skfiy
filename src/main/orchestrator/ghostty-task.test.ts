@@ -1018,6 +1018,114 @@ describe("runGhosttyCommandTask", () => {
     });
   });
 
+  it("reactivates before typing when the ready marker appears after Ghostty lost focus", async () => {
+    const client = createDesktopClient();
+    let observeCount = 0;
+
+    client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
+      if (action.type === "open_ghostty_session") {
+        return {
+          bundleId: "com.mitchellh.ghostty",
+          title: "skfiy-shell",
+          pid: 54502,
+          opened: true
+        };
+      }
+
+      if (action.type === "observe_app") {
+        observeCount += 1;
+        return {
+          bundleId: action.bundleId,
+          pid: action.pid,
+          isRunning: true,
+          isActive: observeCount !== 2,
+          screenshotPath: action.screenshotOutputPath,
+          frontmostBundleId: observeCount === 2 ? "com.openai.codex" : "com.mitchellh.ghostty",
+          accessibilityTrusted: true,
+          windows: [
+            {
+              title: "skfiy-shell",
+              layer: 0,
+              bounds: { x: 10, y: 20, width: 640, height: 480 }
+            }
+          ]
+        };
+      }
+
+      return { ok: true };
+    });
+    client.ocrImage.mockImplementation(async (inputPath: string) => {
+      if (inputPath.includes("after")) {
+        return {
+          labels: [{
+            text: readLatestCompletionMarker(client.executeAction.mock.calls) ?? "SKFIY_DONE_A",
+            confidence: 0.93,
+            bounds: { x: 36, y: 420, width: 180, height: 18 }
+          }]
+        };
+      }
+
+      const observedBeforeCount = client.executeAction.mock.calls
+        .map(([action]) => action as DesktopExecutableAction)
+        .filter((action) => action.type === "observe_app")
+        .length;
+
+      return {
+        labels: observedBeforeCount >= 2
+          ? [{
+              text: "SKFIY_READY",
+              confidence: 0.92,
+              bounds: { x: 36, y: 120, width: 120, height: 18 }
+            }]
+          : []
+      };
+    });
+
+    const events = await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+    const actions = client.executeAction.mock.calls.map(([action]) => action as DesktopExecutableAction);
+    let lastActivationBeforeTyping = -1;
+    for (let index = actions.length - 1; index >= 0; index -= 1) {
+      const action = actions[index];
+      if (
+        action.type === "activate_app"
+        && action.bundleId === "com.mitchellh.ghostty"
+        && action.pid === 54502
+      ) {
+        lastActivationBeforeTyping = index;
+        break;
+      }
+    }
+    const userTypeIndex = actions.findIndex((action) =>
+      action.type === "type_text"
+      && action.text.startsWith("pwd; __skfiy_status=")
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "locating_app",
+      "session_opened",
+      "app_activated",
+      "screenshot_before",
+      "session_initialized",
+      "screenshot_before",
+      "recovery_attempted",
+      "screenshot_before",
+      "action_verified",
+      "typing",
+      "action_verified",
+      "submitted",
+      "screenshot_after",
+      "completed"
+    ]);
+    expect(events.find((event) => event.type === "recovery_attempted")).toMatchObject({
+      type: "recovery_attempted",
+      stage: "before",
+      action: "activate",
+      reason: "Target app is running but not frontmost."
+    });
+    expect(userTypeIndex).toBeGreaterThan(lastActivationBeforeTyping);
+  });
+
   it("recovers by opening a fresh skfiy Ghostty session when no target window is observable", async () => {
     const client = createDesktopClient();
     let openCount = 0;

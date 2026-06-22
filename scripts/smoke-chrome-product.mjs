@@ -43,6 +43,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
 const FIXTURE_EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
+const STRICT_APPROVAL_ENV = "SKFIY_BYPASS_APPROVAL=strict";
 const FORM_FIELDS = [
   { selector: "#name", value: "skfiy" },
   { selector: "#email", value: "agent@skfiy.test" },
@@ -81,6 +82,7 @@ async function main() {
     chromeLaunchViaOpen: options.currentPageEndpoint ? false : true,
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
+    approvalBypassEnv: STRICT_APPROVAL_ENV,
     fallbackProductPath: FALLBACK_PRODUCT_PATH,
     fallbackSwitchProductPath: FALLBACK_SWITCH_PRODUCT_PATH,
     targetMode: options.currentPageEndpoint ? "bring-your-own-current-page" : "fixture-suite",
@@ -673,12 +675,6 @@ async function runInstalledChromeExtensionSmoke(options) {
       });
       response = readInstalledExtensionNativeMessageEvaluation(evaluation);
 
-      try {
-        heartbeat = JSON.parse(await readFile(heartbeatPath, "utf8"));
-      } catch (error) {
-        heartbeatReadError = error instanceof Error ? error.message : String(error);
-      }
-
       const statusEvaluation = await cdp.send("Runtime.evaluate", {
         expression: createInstalledExtensionStatusExpression(statusRequestId),
         awaitPromise: true,
@@ -692,6 +688,23 @@ async function runInstalledChromeExtensionSmoke(options) {
         returnByValue: true
       });
       pageControlHealth = readInstalledExtensionNativeMessageEvaluation(healthEvaluation);
+
+      const finalEvaluation = await cdp.send("Runtime.evaluate", {
+        expression: createInstalledExtensionNativeMessageExpression(requestId),
+        awaitPromise: true,
+        returnByValue: true
+      });
+      response = readInstalledExtensionNativeMessageEvaluation(finalEvaluation);
+
+      try {
+        heartbeat = await readInstalledExtensionHeartbeatForRequest(
+          heartbeatPath,
+          requestId,
+          options.timeoutMs
+        );
+      } catch (error) {
+        heartbeatReadError = error instanceof Error ? error.message : String(error);
+      }
     } finally {
       cdp.close();
     }
@@ -768,6 +781,38 @@ async function runInstalledChromeExtensionSmoke(options) {
     }
     await rm(tempRoot, { recursive: true, force: true });
   }
+}
+
+async function readInstalledExtensionHeartbeatForRequest(heartbeatPath, requestId, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastHeartbeat;
+  let lastError;
+
+  while (Date.now() < deadline) {
+    try {
+      const heartbeat = JSON.parse(await readFile(heartbeatPath, "utf8"));
+      lastHeartbeat = heartbeat;
+
+      if (
+        heartbeat?.requestId === requestId
+        || heartbeat?.latestCommand?.requestId === requestId
+      ) {
+        return heartbeat;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await sleep(100);
+  }
+
+  if (lastHeartbeat) {
+    return lastHeartbeat;
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Timed out waiting for Chrome extension heartbeat ${requestId}.`);
 }
 
 async function runInstalledChromeExtensionActionSmoke(options) {
@@ -2274,15 +2319,15 @@ function readNativeHostResponse(stdout) {
 }
 
 function formatLaunchCommand(options, chromeEndpoint) {
-  return `open -na ${options.appPath} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${chromeEndpoint}`;
+  return `open -na ${options.appPath} --env ${STRICT_APPROVAL_ENV} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${chromeEndpoint}`;
 }
 
 function formatFallbackLaunchCommand(options) {
-  return `open -na ${options.appPath} --args --remote-debugging-port=${options.port}`;
+  return `open -na ${options.appPath} --env ${STRICT_APPROVAL_ENV} --args --remote-debugging-port=${options.port}`;
 }
 
 function formatFallbackSwitchLaunchCommand(options, configuredEndpoint) {
-  return `open -na ${options.appPath} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${configuredEndpoint}`;
+  return `open -na ${options.appPath} --env ${STRICT_APPROVAL_ENV} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${configuredEndpoint}`;
 }
 
 function formatChromeLaunchCommand(options) {
@@ -2364,6 +2409,8 @@ async function launchSkfiy(options, chromeEndpoint) {
     "-n",
     "-a",
     options.appPath,
+    "--env",
+    STRICT_APPROVAL_ENV,
     "--args",
     `--remote-debugging-port=${options.port}`,
     `--skfiy-chrome-cdp-endpoint=${chromeEndpoint}`
@@ -2375,6 +2422,8 @@ async function launchSkfiyWithoutChromeEndpoint(options) {
     "-n",
     "-a",
     options.appPath,
+    "--env",
+    STRICT_APPROVAL_ENV,
     "--args",
     `--remote-debugging-port=${options.port}`
   ]);

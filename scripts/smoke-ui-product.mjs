@@ -107,7 +107,7 @@ async function main() {
       cdp.close();
     }
 
-    if (options.requirePassed && evidence.result !== "passed") {
+    if (options.requirePassed && !["passed", "no-onboarding"].includes(evidence.result)) {
       process.exitCode = 2;
     }
   } catch (error) {
@@ -561,7 +561,7 @@ function dispatchPetPointerEvent(pet, type, { screenX, screenY, buttons }) {
 
 async function exerciseStopTurnBehavior() {
   const skfiy = window.skfiy;
-  const command = "mkdir skfiy-stop-smoke";
+  const command = "在 Ghostty 执行 mkdir skfiy-stop-smoke";
 
   if (
     !skfiy

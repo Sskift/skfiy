@@ -19,6 +19,10 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("window.skfiy.runCommand");
     expect(source).toContain("window.skfiy.approveTask()");
     expect(source).toContain("window.skfiy.getAppPolicySettings()");
+    expect(source).toContain("--env");
+    expect(source).toContain("SKFIY_BYPASS_APPROVAL=strict");
+    expect(source).toContain("readInstalledExtensionHeartbeatForRequest");
+    expect(source).toContain("heartbeat?.latestCommand?.requestId === requestId");
   });
 
   it("defines a Chrome product path, CDP port, and output option", async () => {
