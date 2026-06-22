@@ -2,7 +2,7 @@
   "name": "skfiy",
   "version": "0.1.0",
   "private": true,
-  "description": "Voice-first macOS Computer Use runtime with a desktop pet, packaged CLI, dashboard, and app adapters.",
+  "description": "Voice-first macOS Computer Use runtime with a pixel desktop pet, Chromium adapter, packaged CLI, and local dashboard.",
   "keywords": [
     "computer-use",
     "macos",

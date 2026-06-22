@@ -220,8 +220,10 @@ describe("App", () => {
 
     const pet = screen.getByLabelText(/skfiy codex-style pet/i);
     expect(pet).toBeInTheDocument();
+    expect(pet).toHaveAttribute("data-pet-skin", "skfiy-black-cat");
     expect(pet).toHaveAttribute("data-atlas-state", "idle");
     expect(pet).toHaveAttribute("data-frame-count", "6");
+    expect(pet.getAttribute("style")).toContain("--pet-frame-width: 192px");
     expect(pet).toHaveAttribute("data-voice-entry", "left-click");
     expect(pet).toHaveAttribute("data-settings-entry", "right-click");
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");

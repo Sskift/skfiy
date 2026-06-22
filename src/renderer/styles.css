@@ -133,11 +133,11 @@ textarea:focus-visible {
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: 192px;
-  height: 208px;
-  background-image: url("./assets/skfiy-cloudbot-atlas.svg");
+  width: var(--pet-frame-width, 192px);
+  height: var(--pet-frame-height, 208px);
+  background-image: var(--pet-atlas-url);
   background-repeat: no-repeat;
-  background-size: 800% 900%;
+  background-size: var(--pet-bg-width, 800%) var(--pet-bg-height, 900%);
   background-position: 0 var(--pet-y);
   image-rendering: pixelated;
   transform: translateX(-50%) scale(0.82);

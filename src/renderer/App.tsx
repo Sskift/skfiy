@@ -22,7 +22,13 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { getPetSpriteStyle, getPetStateForTask, PET_ATLAS, type PetAtlasState } from "./pet-atlas";
+import {
+  getConfiguredPetAtlas,
+  getPetSpriteStyle,
+  getPetStateForTask,
+  type PetAtlas,
+  type PetAtlasState
+} from "./pet-atlas";
 
 export type TaskStatus =
   | "idle"
@@ -1176,6 +1182,7 @@ function UserDashboardPanel({
 
 function DesktopPet({
   state,
+  atlas,
   onClick,
   onContextMenu,
   onPointerDown,
@@ -1183,18 +1190,20 @@ function DesktopPet({
   onPointerUp
 }: {
   state: PetAtlasState;
+  atlas: PetAtlas;
   onClick: () => void;
   onContextMenu: (event: ReactMouseEvent<HTMLDivElement>) => void;
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
 }) {
-  const animation = PET_ATLAS.states[state];
+  const animation = atlas.states[state];
 
   return (
     <div
       aria-label="skfiy Codex-style pet"
       className={`skfiy-pet pet-state-${state}`}
+      data-pet-skin={atlas.slug}
       data-atlas-state={state}
       data-frame-count={animation.frames}
       data-drag-mode="manual"
@@ -1206,7 +1215,7 @@ function DesktopPet({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      style={getPetSpriteStyle(state)}
+      style={getPetSpriteStyle(state, atlas)}
     >
       <span className="pet-sprite-frame" aria-hidden="true" />
     </div>
@@ -1215,6 +1224,7 @@ function DesktopPet({
 
 export default function App() {
   const api = useMemo(getDesktopApi, []);
+  const petAtlas = useMemo(() => getConfiguredPetAtlas(), []);
   const [dictationText, setDictationText] = useState("");
   const [listening, setListening] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -2192,6 +2202,7 @@ export default function App() {
 
       <DesktopPet
         state={petState}
+        atlas={petAtlas}
         onClick={startDictationFromPet}
         onContextMenu={toggleDetailsFromPet}
         onPointerDown={startPetDrag}

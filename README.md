@@ -1,17 +1,19 @@
 # skfiy
 
-skfiy is a voice-first macOS Computer Use runtime with a desktop pet, packaged
-CLI, local dashboard, and app adapters for local experiments. It is designed as
-an app-agnostic desktop control runtime: observe any visible
-macOS app, decide the next action, execute clicks/typing/dragging/hotkeys, then
-verify the result from screenshots, OCR, accessibility metadata, and replay
-events. Ghostty, Chrome, Finder, screenshots, and tmux supervision are the first
-real regression fixtures, not the product boundary.
+skfiy is a voice-first macOS Computer Use runtime with a pixel desktop pet,
+packaged CLI, local dashboard, and app adapters for local experiments. It is
+designed as an app-agnostic desktop control runtime: observe any visible macOS
+app, decide the next action, execute clicks/typing/dragging/hotkeys, then verify
+the result from screenshots, OCR, accessibility metadata, and replay events.
+Ghostty, Chromium/Chrome, Finder, screenshots, and tmux supervision are the
+first real regression fixtures, not the product boundary.
 
 The first version keeps the public surface narrow while the control loop is
 hardened: voice enters through the desktop pet, app policy gates the target,
 Computer Use performs observe-plan-act-verify, and task state remains visible in
-the floating companion.
+the floating companion. The bundled pet art is now manifest-driven and separate
+from the backend, so users can install a local, licensed skin pack without
+changing Computer Use logic.
 
 ## Current Local Evidence
 
@@ -25,7 +27,7 @@ compiled `skfiy.app` Automation path.
   `.skfiy-smoke/ui-<commit>.json`.
 - Ghostty terminal-adapter smoke: passed,
   `.skfiy-smoke/ghostty-<commit>.json`.
-- Chrome Computer Use smoke: passed,
+- Chromium/Chrome Computer Use smoke: passed,
   `.skfiy-smoke/chrome-<commit>.json`.
 - Binary CLI command matrix smoke: repeatable product gate,
   `.skfiy-smoke/cli-<commit>.json`.
@@ -79,6 +81,8 @@ caches can be deleted locally.
 ## MVP Scope
 
 - Floating desktop companion with active and quiet modes.
+- Manifest-driven pixel pet skins, with the bundled black-cat skin as the
+  default and the previous cloudbot kept as a legacy built-in.
 - App-agnostic macOS helper primitives for app listing, app activation,
   screenshots/OCR, clicks, drags, scrolls, text input, hotkeys, and key presses.
 - Target-specific adapters for early fixtures: Ghostty terminal turns, Chrome
@@ -87,6 +91,49 @@ caches can be deleted locally.
 - Explicit approval for risky actions or actions that can modify local state.
 - Local-only execution. The helper does not send screenshots or command output
   to a remote service by itself.
+
+## Desktop Pet Skins
+
+The desktop pet renderer is intentionally independent from the backend. The
+main process emits task status such as `idle`, `executing`, `waiting`, or
+`failed`; the renderer maps those states to the selected skin manifest and atlas.
+The default bundled skin is `skfiy-black-cat`, an original placeholder in the
+same small black-cat direction as the current product reference. The older
+`skfiy-cloudbot` skin remains in the source tree as a legacy built-in.
+
+A skin is a `.pet.json` manifest plus an atlas image:
+
+```json
+{
+  "displayName": "licensed local cat",
+  "slug": "licensed-local-cat",
+  "asset": "file:///Users/me/Library/Application%20Support/skfiy/skins/cat/atlas.png",
+  "frameWidth": 192,
+  "frameHeight": 208,
+  "columns": 8,
+  "rows": 9,
+  "states": {
+    "idle": { "row": 0, "frames": 6, "frameMs": 170 }
+  }
+}
+```
+
+Every skin must define all renderer states: `idle`, `running-right`,
+`running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and
+`review`. During local prototype work, a custom manifest can be stored in
+`localStorage` under `skfiy.petSkin.customManifest`, with
+`skfiy.petSkin.selectedId` set to the same slug. A later settings screen should
+replace this developer hook with a user-facing skin importer.
+
+For the Luo Xiaohei direction, use only official or otherwise licensed images in
+private/local skin packs; do not commit those assets to this public repository
+or include them in release artifacts without permission. The best crop target is
+the cat-form, avatar/sticker-like pose: full ears visible, tail included when it
+does not make the figure too wide, alpha/flat background preferred, bottom
+center aligned, and padded by roughly 12-16% after trimming transparent or flat
+background bounds. Export a consistent 8-by-9 atlas at 192x208 per frame so the
+existing animation mapping can drive idle, run, wave, jump, failed, waiting,
+running, and review states.
 
 ## macOS Permissions
 
