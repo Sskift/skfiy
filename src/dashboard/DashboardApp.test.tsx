@@ -192,7 +192,7 @@ describe("DashboardApp", () => {
     expect(within(navigation).getByRole("link", { name: "Provider" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Computer Use" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Browser" })).toBeInTheDocument();
-    expect(within(navigation).getByRole("link", { name: "Dogfood" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Activity" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Next action" })).toBeInTheDocument();
 
     expect(screen.getByRole("heading", { name: "skfiy control plane" })).toBeInTheDocument();
@@ -200,14 +200,14 @@ describe("DashboardApp", () => {
     expect(screen.getByRole("region", { name: "Provider" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Computer Use" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Browser" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Dogfood" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Activity" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Next action" })).toBeInTheDocument();
 
     const overview = screen.getByRole("region", { name: "Overview" });
-    expect(within(overview).getByRole("heading", { name: "Agent/provider" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Assistant Provider" })).toBeInTheDocument();
     expect(within(overview).getByRole("heading", { name: "Computer Use" })).toBeInTheDocument();
-    expect(within(overview).getByRole("heading", { name: "Browser bridge" })).toBeInTheDocument();
-    expect(within(overview).getByRole("heading", { name: "Dogfood/release" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Chrome Browser Context" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Current Turn" })).toBeInTheDocument();
 
     const provider = screen.getByRole("region", { name: "Provider" });
     expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();
@@ -250,16 +250,64 @@ describe("DashboardApp", () => {
     expect(within(browser).getByText("Using Chrome tab fallback")).toBeInTheDocument();
     expect(within(browser).getByText("allow:always:127.0.0.1")).toBeInTheDocument();
 
-    const dogfood = screen.getByRole("region", { name: "Dogfood" });
-    expect(within(dogfood).getByRole("heading", { name: "Dogfood and release" })).toBeInTheDocument();
-    expect(within(dogfood).getByText("release behind-head")).toBeInTheDocument();
-    expect(within(dogfood).getByText("cohort 1/1")).toBeInTheDocument();
+    const activity = screen.getByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Activity" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Latest blocker" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Runtime evidence" })).toBeInTheDocument();
+    expect(within(activity).getByText("release behind-head")).toBeInTheDocument();
+    expect(within(activity).getByText("cohort 1/1")).toBeInTheDocument();
 
     const nextAction = screen.getByRole("region", { name: "Next action" });
     expect(within(nextAction).getByRole("heading", { name: "Grant Screen Recording" })).toBeInTheDocument();
     expect(within(nextAction).getByText("Screen Recording is not granted.")).toBeInTheDocument();
 
     expect(screen.getByLabelText("Dashboard connection: connected")).toBeInTheDocument();
+  });
+
+  it("shows assistant provider, current turn, browser context, and latest blocker", async () => {
+    const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+    const blockedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      runtimeHealth: {
+        ...snapshot.runtimeHealth,
+        extension: {
+          ...extension,
+          browserContext: {
+            state: "blocked_by_chrome_host_permission",
+            source: "runtime-health",
+            reason: "Chrome host permission missing",
+            nextAction: "Grant site access"
+          }
+        }
+      },
+      currentTurn: {
+        state: "failed",
+        latestMessage: "Chrome host permission missing",
+        command: "summarize current page"
+      }
+    };
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => blockedSnapshot)}
+    />);
+
+    const overview = await screen.findByRole("region", { name: "Overview" });
+    expect(within(overview).getByRole("heading", { name: "Assistant Provider" })).toBeInTheDocument();
+    expect(within(overview).getByText("Codex")).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Chrome Browser Context" })).toBeInTheDocument();
+    expect(within(overview).getByText("blocked_by_chrome_host_permission")).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Current Turn" })).toBeInTheDocument();
+    expect(within(overview).getAllByText("failed").length).toBeGreaterThan(0);
+
+    const activity = screen.getByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Latest blocker" })).toBeInTheDocument();
+    expect(within(activity).getAllByText("Chrome host permission missing").length).toBeGreaterThan(0);
   });
 
   it("loads redacted planner settings from the provider settings endpoint", async () => {

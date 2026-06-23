@@ -55,15 +55,19 @@ import {
   readChromeControlState,
   readComputerUseReadiness,
   readDogfoodSummary,
+  readLatestTaskSignal,
   readNextAction,
   readProviderSummaries,
   readReadinessSummary,
   readRecentActivity,
+  readRuntimeEvidenceSummary,
   readSnapshotState,
   readUnsupportedSmokeEvidence,
   type DashboardAppReadinessLane,
   type DashboardCapabilitySummary,
   type DashboardChromeControlState,
+  type DashboardLatestTaskSignal,
+  type DashboardRuntimeEvidenceSummary,
   type Tone
 } from "./model";
 
@@ -87,7 +91,7 @@ const NAV_ITEMS = [
   { id: "provider", label: "Provider", icon: Bot },
   { id: "computer-use", label: "Computer Use", icon: MonitorCog },
   { id: "browser", label: "Browser", icon: Chrome },
-  { id: "dogfood", label: "Dogfood", icon: Activity },
+  { id: "activity", label: "Activity", icon: Activity },
   { id: "next-action", label: "Next action", icon: ArrowRight }
 ] as const;
 
@@ -298,6 +302,8 @@ function DashboardContent({
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
+  const latestSignal = useMemo(() => readLatestTaskSignal(snapshot), [snapshot]);
+  const runtimeEvidence = useMemo(() => readRuntimeEvidenceSummary(snapshot), [snapshot]);
   const dogfood = useMemo(() => readDogfoodSummary(snapshot), [snapshot]);
   const nextAction = useMemo(() => readNextAction(snapshot), [snapshot]);
   const alerts = useMemo(() => readAlertMessages(snapshot), [snapshot]);
@@ -530,14 +536,14 @@ function DashboardContent({
       </section>
 
       <section
-        id="dogfood"
+        id="activity"
         className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
-        aria-label="Dogfood"
+        aria-label="Activity"
       >
         <div className="skfiy-dashboard-section-heading">
           <div>
-            <span>Release</span>
-            <h2>Dogfood and release</h2>
+            <span>Runtime</span>
+            <h2>Activity</h2>
           </div>
         </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
@@ -568,6 +574,8 @@ function DashboardContent({
               </div>
             </Card.Content>
           </Card.Root>
+          <LatestSignalCard signal={latestSignal} />
+          <RuntimeEvidenceCard evidence={runtimeEvidence} />
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
               <div>
@@ -1281,6 +1289,46 @@ function ActivityCount({ label, value }: { label: string; value?: number }) {
       <span>{label}</span>
       <strong>{value ?? 0}</strong>
     </div>
+  );
+}
+
+function LatestSignalCard({ signal }: { signal: DashboardLatestTaskSignal }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{signal.title}</Card.Title>
+          <Card.Description>{signal.source}</Card.Description>
+        </div>
+        <TriangleAlert size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{signal.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={signal.tone}>{signal.value}</StatusChip>
+        </div>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function RuntimeEvidenceCard({ evidence }: { evidence: DashboardRuntimeEvidenceSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{evidence.title}</Card.Title>
+          <Card.Description>Smoke and replay proof</Card.Description>
+        </div>
+        <Activity size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{evidence.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={evidence.tone}>{evidence.value}</StatusChip>
+        </div>
+      </Card.Content>
+    </Card.Root>
   );
 }
 

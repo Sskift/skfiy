@@ -42,7 +42,7 @@ export interface DashboardDogfoodSummary {
 }
 
 export interface DashboardCapabilitySummary {
-  id: "provider" | "computer-use" | "browser" | "dogfood";
+  id: "assistant-provider" | "computer-use" | "browser-context" | "current-turn";
   title: string;
   value: string;
   detail: string;
@@ -58,6 +58,28 @@ export interface DashboardRecentActivity {
   actionCount?: number;
   screenshotCount?: number;
   verificationCount?: number;
+}
+
+export interface DashboardAssistantProviderView {
+  label: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+}
+
+export interface DashboardLatestTaskSignal {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  source: string;
+}
+
+export interface DashboardRuntimeEvidenceSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
 }
 
 export interface DashboardNextAction {
@@ -345,7 +367,7 @@ function readChromeHostPolicySummary(
   hostPolicy: Record<string, unknown> | undefined
 ): DashboardChromeHostPolicySummary {
   const policy = readRecord(hostPolicy?.policy);
-  const entries = readChromeHostPolicyEntries(hostPolicy, policy);
+  const entries = summarizeChromeHostPolicyEntries(readChromeHostPolicyEntries(hostPolicy, policy));
   const state = readString(hostPolicy?.state) ?? "unknown";
 
   return {
@@ -357,6 +379,18 @@ function readChromeHostPolicySummary(
     entries,
     tone: state === "invalid" ? "danger" : state === "configured" ? "success" : "warning"
   };
+}
+
+function summarizeChromeHostPolicyEntries(entries: string[]): string[] {
+  const maxVisibleEntries = 12;
+  if (entries.length <= maxVisibleEntries) {
+    return entries;
+  }
+
+  return [
+    ...entries.slice(0, maxVisibleEntries),
+    `and ${entries.length - maxVisibleEntries} more`
+  ];
 }
 
 function readChromeHostPolicyEntries(
@@ -595,20 +629,18 @@ export function readProviderSummaries(snapshot: DashboardSnapshot): DashboardPro
 }
 
 export function readCapabilitySummaries(snapshot: DashboardSnapshot): DashboardCapabilitySummary[] {
-  const providers = readProviderSummaries(snapshot);
-  const assistant = providers.find((provider) => provider.provider === "assistant") ?? providers[0];
-  const planner = providers.find((provider) => provider.provider === "planner") ?? providers[1];
+  const assistant = readAssistantProviderView(snapshot);
   const computerUse = readComputerUseReadiness(snapshot);
-  const chromeControl = readChromeControlState(snapshot);
-  const dogfood = readDogfoodSummary(snapshot);
+  const browserContext = readBrowserContextSummary(snapshot);
+  const latestSignal = readLatestTaskSignal(snapshot);
 
   return [
     {
-      id: "provider",
-      title: "Agent/provider",
-      value: readProviderCapabilityValue(assistant, planner),
-      detail: readProviderCapabilityDetail(assistant, planner),
-      tone: readProviderCapabilityTone(assistant, planner)
+      id: "assistant-provider",
+      title: "Assistant Provider",
+      value: assistant.value,
+      detail: assistant.detail,
+      tone: assistant.tone
     },
     {
       id: "computer-use",
@@ -618,51 +650,54 @@ export function readCapabilitySummaries(snapshot: DashboardSnapshot): DashboardC
       tone: computerUse.desktop.tone
     },
     {
-      id: "browser",
-      title: "Browser bridge",
-      value: chromeControl.label,
-      detail: chromeControl.activeTabLabel,
-      tone: chromeControl.tone
+      id: "browser-context",
+      title: "Chrome Browser Context",
+      value: browserContext.state,
+      detail: readBrowserContextDetail(browserContext),
+      tone: browserContext.tone
     },
     {
-      id: "dogfood",
-      title: "Dogfood/release",
-      value: dogfood.releaseDriftState,
-      detail: dogfood.detail,
-      tone: dogfood.tone
+      id: "current-turn",
+      title: "Current Turn",
+      value: latestSignal.value,
+      detail: latestSignal.detail,
+      tone: latestSignal.tone
     }
   ];
 }
 
-function readProviderCapabilityValue(
-  assistant: DashboardProviderSummary | undefined,
-  planner: DashboardProviderSummary | undefined
-): string {
-  const assistantLabel = assistant?.label ?? "assistant";
-  const plannerLabel = planner?.label ?? "planner";
-  return `${assistantLabel} / ${plannerLabel}`;
+export function readAssistantProviderView(snapshot: DashboardSnapshot): DashboardAssistantProviderView {
+  const providers = readProviderSummaries(snapshot);
+  const assistant = providers.find((provider) => provider.provider === "assistant") ?? providers[0];
+  const health = assistant?.health ?? "unknown";
+
+  return {
+    label: "Assistant Provider",
+    value: assistant?.label ?? "unknown",
+    detail: assistant?.detail ?? (health === "unknown"
+      ? "Assistant provider health has not been reported."
+      : `assistant ${health}`),
+    tone: readHealthTone(health)
+  };
 }
 
-function readProviderCapabilityDetail(
-  assistant: DashboardProviderSummary | undefined,
-  planner: DashboardProviderSummary | undefined
-): string {
-  return [
-    assistant?.health ? `assistant ${assistant.health}` : "assistant unknown",
-    planner?.health ? `planner ${planner.health}` : "planner unknown"
-  ].join(", ");
+export function readBrowserContextSummary(snapshot: DashboardSnapshot): DashboardBrowserContextSummary {
+  return readChromeControlState(snapshot).browserContext;
 }
 
-function readProviderCapabilityTone(
-  assistant: DashboardProviderSummary | undefined,
-  planner: DashboardProviderSummary | undefined
-): Tone {
-  const health = [assistant?.health, planner?.health];
-  if (health.some((value) => value === "unavailable")) {
-    return "danger";
-  }
-  if (health.every((value) => value === "available")) {
+function readBrowserContextDetail(browserContext: DashboardBrowserContextSummary): string {
+  return browserContext.title
+    ?? browserContext.url
+    ?? browserContext.nextAction
+    ?? browserContext.reason;
+}
+
+function readHealthTone(health: string): Tone {
+  if (health === "available" || health === "ready") {
     return "success";
+  }
+  if (health === "unavailable" || health === "failed") {
+    return "danger";
   }
 
   return "warning";
@@ -721,6 +756,109 @@ export function readRecentActivity(snapshot: DashboardSnapshot): DashboardRecent
   };
 }
 
+export function readLatestTaskSignal(snapshot: DashboardSnapshot): DashboardLatestTaskSignal {
+  const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
+  const currentTurnDetail = readCurrentTurnDetail(snapshot);
+
+  if (["failed", "blocked", "denied"].includes(currentTurnState)) {
+    return {
+      title: "Latest blocker",
+      value: currentTurnState,
+      detail: currentTurnDetail,
+      tone: "danger",
+      source: "Current turn"
+    };
+  }
+
+  if (["approval_required", "needs_confirmation"].includes(currentTurnState)) {
+    return {
+      title: "Latest blocker",
+      value: currentTurnState,
+      detail: currentTurnDetail,
+      tone: "warning",
+      source: "Current turn"
+    };
+  }
+
+  const browserContext = readBrowserContextSummary(snapshot);
+  if (browserContext.tone === "danger" || browserContext.tone === "warning") {
+    return {
+      title: "Latest blocker",
+      value: browserContext.state,
+      detail: browserContext.nextAction ?? browserContext.reason,
+      tone: browserContext.tone,
+      source: "Browser Context"
+    };
+  }
+
+  const visibleAlert = snapshot.alerts.find((alert) => readString(alert.severity) === "error")
+    ?? snapshot.alerts.find((alert) => readString(alert.severity) === "warning");
+  if (visibleAlert) {
+    return {
+      title: "Latest blocker",
+      value: readString(visibleAlert.code) ?? readString(visibleAlert.severity) ?? "alert",
+      detail: readString(visibleAlert.message) ?? "Review dashboard alert.",
+      tone: readAlertTone(visibleAlert),
+      source: "Dashboard alert"
+    };
+  }
+
+  const evidence = readRuntimeEvidenceSummary(snapshot);
+  if (evidence.tone !== "success") {
+    return {
+      title: "Latest blocker",
+      value: evidence.value,
+      detail: evidence.detail,
+      tone: evidence.tone,
+      source: "Runtime evidence"
+    };
+  }
+
+  return {
+    title: "Latest signal",
+    value: currentTurnState,
+    detail: readLatestMessage(snapshot),
+    tone: "success",
+    source: "Current turn"
+  };
+}
+
+export function readRuntimeEvidenceSummary(snapshot: DashboardSnapshot): DashboardRuntimeEvidenceSummary {
+  const recentSmokeEvidence = readRecord(snapshot.operatorReadiness.recentSmokeEvidence);
+  const recentPassedTargets = readStringArray(recentSmokeEvidence?.recentPassedTargets);
+  const missingTargets = readStringArray(recentSmokeEvidence?.missingTargets);
+  const unsupportedTargets = readStringArray(recentSmokeEvidence?.unsupportedTargets);
+  const state = readString(recentSmokeEvidence?.state) ?? "unknown";
+  const detail = missingTargets.length > 0
+    ? `Missing fresh evidence: ${missingTargets.join(", ")}.`
+    : recentPassedTargets.length > 0
+      ? `Fresh evidence: ${recentPassedTargets.join(", ")}.`
+      : "No recent smoke evidence has been recorded.";
+
+  return {
+    title: "Runtime evidence",
+    value: state,
+    detail: unsupportedTargets.length > 0
+      ? `${detail} Ignored unsupported smoke: ${unsupportedTargets.join(", ")}.`
+      : detail,
+    tone: state === "ready"
+      ? "success"
+      : missingTargets.length > 0
+        ? "warning"
+        : "neutral"
+  };
+}
+
+function readCurrentTurnDetail(snapshot: DashboardSnapshot): string {
+  const error = readRecord(snapshot.currentTurn.error);
+  return readString(error?.message)
+    ?? readString(snapshot.currentTurn.error)
+    ?? readString(snapshot.currentTurn.latestMessage)
+    ?? readString(snapshot.currentTurn.message)
+    ?? readString(snapshot.currentTurn.command)
+    ?? readLatestMessage(snapshot);
+}
+
 export function readNextAction(snapshot: DashboardSnapshot): DashboardNextAction {
   const currentTurnState = readString(snapshot.currentTurn.state) ?? "";
   const approvalState = readString(snapshot.currentTurn.approvalState) ?? "";
@@ -761,6 +899,15 @@ export function readNextAction(snapshot: DashboardSnapshot): DashboardNextAction
   }
 
   const chromeControl = readChromeControlState(snapshot);
+  if (chromeControl.browserContext.tone !== "success" && chromeControl.browserContext.nextAction) {
+    return {
+      title: "Prepare Browser Context",
+      detail: chromeControl.browserContext.nextAction,
+      tone: chromeControl.browserContext.tone,
+      source: "Browser Context"
+    };
+  }
+
   if (chromeControl.tone !== "success" && chromeControl.nextAction) {
     return {
       title: "Prepare browser control",
