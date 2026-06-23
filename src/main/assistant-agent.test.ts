@@ -189,6 +189,40 @@ describe("assistant agent provider", () => {
     expect(prompt).toContain("User: summarize this page");
   });
 
+  it("injects skfiy identity instructions before the real user prompt", () => {
+    const invocation = buildAssistantAgentInvocation({
+      mode: "codex",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      cwd: "/tmp/skfiy",
+      timeoutMs: 45_000
+    }, "你是谁");
+
+    const prompt = invocation.args.at(-1) ?? "";
+    expect(prompt).toContain("You are skfiy");
+    expect(prompt).toContain("Do not introduce yourself as Codex, Claude Code, Hermes");
+    expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("User: 你是谁"));
+  });
+
+  it("uses the same skfiy identity prompt for Claude Code backend calls", () => {
+    const invocation = buildAssistantAgentInvocation({
+      mode: "claude-code",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      cwd: "/tmp/skfiy",
+      timeoutMs: 45_000
+    }, "你好");
+
+    const prompt = invocation.args.at(-1) ?? "";
+    expect(prompt).toContain("You are skfiy");
+    expect(prompt).toContain("When asked who you are, answer as skfiy");
+    expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("User: 你好"));
+  });
+
   it("builds a Claude Code print invocation with valid safety flags for pet chat", () => {
     const invocation = buildAssistantAgentInvocation({
       mode: "claude-code",

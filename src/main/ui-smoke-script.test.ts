@@ -21,9 +21,11 @@ describe("packaged UI product smoke script", () => {
 
     const {
       createDefaultUiSmokeOptions,
+      formatUiLaunchCommand,
       parseUiSmokeArgs
     } = await import(pathToFileURL(modulePath).href) as {
       createDefaultUiSmokeOptions: (rootDir: string) => Record<string, unknown>;
+      formatUiLaunchCommand: (options: Record<string, unknown>) => string;
       parseUiSmokeArgs: (
         argv: string[],
         defaults: Record<string, unknown>
@@ -50,6 +52,7 @@ describe("packaged UI product smoke script", () => {
       settleMs: 1500,
       requirePassed: true
     });
+    expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_BYPASS_APPROVAL=strict");
   });
 
   it("classifies a real permission onboarding click as passed only with product-path evidence", async () => {
@@ -234,9 +237,12 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("assistantConversation");
     expect(source).toContain("exerciseAssistantConversation.toString()");
     expect(source).toContain("renderer-assistant-conversation-product-path");
+    expect(source).toContain("--env");
+    expect(source).toContain("STRICT_APPROVAL_ENV");
     expect(source).toContain("new KeyboardEvent(\"keydown\"");
     expect(source).toContain("waitForDomCondition.toString()");
     expect(source).toContain("button[aria-label=\"确认\"]");
+    expect(source).not.toContain("document.body.innerText.includes(\"Approval required\")");
     expect(source).toContain("event.status === \"cancelled\"");
     expect(source).toContain("after?.status === \"cancelled\"");
     expect(source).toContain("Page.captureScreenshot");

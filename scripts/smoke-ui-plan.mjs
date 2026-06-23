@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 export const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
+export const STRICT_APPROVAL_ENV = "SKFIY_BYPASS_APPROVAL=strict";
 export const REQUIRED_COMPUTER_USE_PERMISSION_KEYS = ["screenRecording", "accessibility"];
 export const REQUIRED_PERMISSION_KEYS = [
   "screenRecording",
@@ -127,7 +128,7 @@ export async function writeUiSmokeEvidence(outputPath, evidence, io = fs) {
 }
 
 export function formatUiLaunchCommand(options) {
-  return `open -na ${options.appPath} --args --remote-debugging-port=${options.port}`;
+  return `open -na ${options.appPath} --env ${STRICT_APPROVAL_ENV} --args --remote-debugging-port=${options.port}`;
 }
 
 export function createUiHelpText(defaults) {

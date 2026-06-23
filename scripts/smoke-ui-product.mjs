@@ -11,6 +11,7 @@ import {
   createUiHelpText,
   formatUiLaunchCommand,
   parseUiSmokeArgs,
+  STRICT_APPROVAL_ENV,
   writeUiSmokeEvidence
 } from "./smoke-ui-plan.mjs";
 import { acquireSmokeLock } from "./smoke-lock.mjs";
@@ -151,6 +152,8 @@ async function launchSkfiy(options) {
     "-n",
     "-a",
     options.appPath,
+    "--env",
+    STRICT_APPROVAL_ENV,
     "--args",
     `--remote-debugging-port=${options.port}`
   ]);
@@ -878,10 +881,22 @@ async function exerciseStopTurnBehavior() {
   try {
     await skfiy.runCommand(command, { mode: "active" });
     const before = await waitForTaskEvent(events, (event) => event.status === "approval_required");
-    await waitForDomCondition(() =>
+    const approvalVisible = await waitForDomCondition(() =>
       document.querySelector('button[aria-label="确认"]')
-      || document.body.innerText.includes("Approval required")
     );
+
+    if (!approvalVisible) {
+      return {
+        result: "failed",
+        source: "renderer-escape-key-product-path",
+        command,
+        beforeStatus: before?.status ?? "missing",
+        afterStatus: "missing-approval-ui",
+        beforeMessage: before?.message ?? "",
+        afterMessage: "",
+        eventCount: events.length
+      };
+    }
 
     window.dispatchEvent(new KeyboardEvent("keydown", {
       key: "Escape",
