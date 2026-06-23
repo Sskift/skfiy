@@ -209,6 +209,14 @@ describe("App", () => {
     expect(css).not.toContain(".assistant-bubble::after");
   });
 
+  it("anchors the pet to the bottom of expanded panels so bubbles do not pull it upward", () => {
+    const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
+
+    expect(css).toContain(".pet-stage.panel-open .skfiy-pet");
+    expect(css).toContain("bottom: 1px");
+    expect(css).toContain("bottom: 92px");
+  });
+
   it("starts as a Codex-style pet overlay with controls tucked away", () => {
     render(<App />);
 
@@ -748,6 +756,36 @@ describe("App", () => {
     expect((window.skfiy as DesktopApi).moveWindowBy).not.toHaveBeenCalled();
   });
 
+  it("opens a focused command input from a plain left click without moving the pet by drag", async () => {
+    render(<App />);
+
+    const api = window.skfiy as DesktopApi;
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    fireEvent.click(pet);
+
+    const input = screen.getByRole("textbox", { name: /ask skfiy/i });
+    expect(input).toHaveFocus();
+    expect(screen.getByLabelText(/skfiy assistant input/i)).toBeInTheDocument();
+    expect(api.moveWindowBy).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.setWindowMode).toHaveBeenLastCalledWith("expanded"));
+  });
+
+  it("submits command input through the active pet command path", async () => {
+    render(<App />);
+
+    const api = window.skfiy as DesktopApi;
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const input = screen.getByRole("textbox", { name: /ask skfiy/i });
+    fireEvent.change(input, { target: { value: "打开 Ghostty 查看 pwd" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送给 skfiy" }));
+
+    await waitFor(() => {
+      expect(api.runCommand).toHaveBeenCalledWith("打开 Ghostty 查看 pwd", { mode: "active" });
+    });
+    expect(screen.queryByLabelText(/skfiy assistant input/i)).not.toBeInTheDocument();
+  });
+
   it("maps planned and running canonical statuses to non-idle pet animation", () => {
     render(<App />);
 
@@ -857,7 +895,7 @@ describe("App", () => {
     expect(screen.queryByLabelText(/skfiy agent status/i)).not.toBeInTheDocument();
   });
 
-  it("uses a compact transparent window until an agent or task bubble is visible", async () => {
+  it("uses a compact transparent window until an input, task, or settings bubble is visible", async () => {
     render(<App />);
 
     const api = window.skfiy as DesktopApi;
@@ -877,6 +915,12 @@ describe("App", () => {
       expect(api.setWindowMode).toHaveBeenLastCalledWith("compact");
     });
     expect(screen.getByLabelText(/skfiy desktop pet/i)).not.toHaveClass("panel-open");
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    await waitFor(() => {
+      expect(api.setWindowMode).toHaveBeenLastCalledWith("expanded");
+    });
   });
 
   it("stops an active task with the Escape stop-turn hotkey", () => {

@@ -121,6 +121,11 @@ textarea:focus-visible {
   cursor: grabbing;
 }
 
+.pet-stage.panel-open .skfiy-pet {
+  top: auto;
+  bottom: 1px;
+}
+
 .pet-sprite-frame {
   position: absolute;
   left: 50%;
@@ -159,9 +164,9 @@ textarea:focus-visible {
   -webkit-app-region: no-drag;
   position: absolute;
   left: 8px;
-  top: 82px;
+  bottom: 92px;
   z-index: 5;
-  width: min(calc(100% - 52px), 248px);
+  width: min(calc(100% - 20px), 268px);
   padding: 8px 10px;
   border: 1px solid rgba(238, 247, 255, 0.2);
   border-radius: 8px;
@@ -175,11 +180,101 @@ textarea:focus-visible {
 }
 
 .assistant-bubble.settings-bubble {
-  max-height: calc(100vh - 94px);
+  max-height: calc(100vh - 104px);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(142, 232, 255, 0.34) transparent;
+}
+
+.assistant-input-panel {
+  display: grid;
+  gap: 7px;
+}
+
+.agent-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agent-status strong {
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.agent-status span {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(238, 247, 255, 0.72);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-input-panel textarea {
+  width: 100%;
+  min-height: 68px;
+  max-height: 120px;
+  resize: none;
+  padding: 7px 8px;
+  border: 1px solid rgba(238, 247, 255, 0.16);
+  border-radius: 7px;
+  color: #ffffff;
+  background: rgba(5, 10, 18, 0.72);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.assistant-input-panel textarea::placeholder {
+  color: rgba(238, 247, 255, 0.44);
+}
+
+.assistant-input-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.assistant-input-actions > span {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(238, 247, 255, 0.62);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-input-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 68px;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(142, 232, 255, 0.28);
+  border-radius: 7px;
+  color: #061224;
+  background: #8de6b0;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.assistant-input-actions button:disabled {
+  color: rgba(238, 247, 255, 0.44);
+  background: rgba(238, 247, 255, 0.08);
+  cursor: default;
 }
 
 .assistant-bubble p {
@@ -350,6 +445,12 @@ textarea:focus-visible {
   line-height: 1;
 }
 
+.dashboard-actions .dashboard-icon-action {
+  flex: 0 0 28px;
+  width: 28px;
+  padding: 0;
+}
+
 .dashboard-actions button:hover:not(:disabled) {
   border-color: rgba(142, 232, 255, 0.42);
   background: rgba(19, 35, 54, 0.86);
@@ -514,6 +615,20 @@ textarea:focus-visible {
   font-size: 10px;
 }
 
+.settings-layout {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-layout > p {
+  margin-top: 2px;
+  color: rgba(238, 247, 255, 0.72);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .provider-switch,
 .app-policy-switch {
   display: grid;
@@ -587,11 +702,15 @@ textarea:focus-visible {
 .app-policy-panel {
   display: grid;
   gap: 5px;
-  margin-top: 8px;
+  margin-top: 0;
+  padding: 7px;
+  border: 1px solid rgba(238, 247, 255, 0.12);
+  border-radius: 7px;
+  background: rgba(13, 22, 36, 0.42);
 }
 
 .advanced-panel {
-  margin-top: 9px;
+  margin-top: 0;
   border: 1px solid rgba(238, 247, 255, 0.12);
   border-radius: 7px;
   background: rgba(13, 22, 36, 0.4);
@@ -746,7 +865,11 @@ textarea:focus-visible {
 }
 
 .permissions-panel {
-  margin-top: 8px;
+  margin-top: 0;
+  padding: 7px;
+  border: 1px solid rgba(238, 247, 255, 0.12);
+  border-radius: 7px;
+  background: rgba(13, 22, 36, 0.42);
 }
 
 .permissions-heading {

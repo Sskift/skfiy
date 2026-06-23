@@ -14,9 +14,11 @@ import {
 import {
   useCallback,
   useEffect,
+  type FormEvent,
   useMemo,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
+  type KeyboardEvent as ReactKeyboardEvent,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent
@@ -1137,9 +1139,13 @@ function UserDashboardPanel({
       </div>
 
       <div className="dashboard-actions" aria-label="任务操作">
-        <button type="button" aria-label="刷新 dashboard 状态" onClick={onRefresh}>
+        <button
+          type="button"
+          className="dashboard-icon-action"
+          aria-label="刷新 dashboard 状态"
+          onClick={onRefresh}
+        >
           <RefreshCw size={13} aria-hidden="true" />
-          <span>刷新</span>
         </button>
         {canStop ? (
           <button type="button" aria-label="停止任务" onClick={onStop}>
@@ -1215,6 +1221,8 @@ export default function App() {
   const api = useMemo(getDesktopApi, []);
   const [petAtlas, setPetAtlas] = useState<PetAtlas>(() => getConfiguredPetAtlas());
   const [assistantPanelOpen, setAssistantPanelOpen] = useState(false);
+  const [assistantInput, setAssistantInput] = useState("");
+  const [assistantInputSubmitting, setAssistantInputSubmitting] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [permissionOnboardingOpen, setPermissionOnboardingOpen] = useState(false);
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
@@ -1236,6 +1244,7 @@ export default function App() {
     finderPlanPreview: undefined
   });
   const [replayRecords, setReplayRecords] = useState<ObserveAppReplayRecord[]>([]);
+  const assistantInputRef = useRef<HTMLTextAreaElement | null>(null);
   const petDragRef = useRef<PetDragState | null>(null);
   const suppressNextPetClickRef = useRef(false);
 
@@ -1373,6 +1382,12 @@ export default function App() {
   }, [refreshAssistantAgentSettings, refreshPermissions, refreshTurnReplay]);
 
   useEffect(() => {
+    if (assistantPanelOpen) {
+      assistantInputRef.current?.focus();
+    }
+  }, [assistantPanelOpen]);
+
+  useEffect(() => {
     if (detailsOpen) {
       void refreshAssistantAgentSettings();
       void refreshPermissions();
@@ -1505,6 +1520,44 @@ export default function App() {
         status: "failed",
         message: "切换规划模式失败."
       });
+    }
+  }
+
+  async function submitAssistantInput(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    const command = assistantInput.trim();
+
+    if (!command || assistantInputSubmitting) {
+      assistantInputRef.current?.focus();
+      return;
+    }
+
+    setAssistantInputSubmitting(true);
+    setAssistantPanelOpen(false);
+    setDetailsOpen(false);
+    setPermissionOnboardingOpen(false);
+    setTask({
+      status: "planned",
+      message: "已交给 Background Agent."
+    });
+    setAssistantInput("");
+
+    try {
+      await api.runCommand(command, { mode: "active" });
+    } catch {
+      setTask({
+        status: "failed",
+        message: "发送给 Background Agent 失败."
+      });
+    } finally {
+      setAssistantInputSubmitting(false);
+    }
+  }
+
+  function submitAssistantInputFromKeyboard(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void submitAssistantInput();
     }
   }
 
@@ -1662,139 +1715,141 @@ export default function App() {
                 task={task}
                 turnReplay={turnReplay}
               />
-              <p>偏好</p>
-              <div className="app-policy-panel" aria-label="Background Agent">
-                <div className="app-policy-heading">
-                  <strong>Background Agent</strong>
-                  <span>{selectedAssistantAgentProvider.label}</span>
+              <div className="settings-layout">
+                <p>偏好</p>
+                <div className="app-policy-panel" aria-label="Background Agent">
+                  <div className="app-policy-heading">
+                    <strong>Background Agent</strong>
+                    <span>{selectedAssistantAgentProvider.label}</span>
+                  </div>
+                  <div className="provider-switch provider-switch-three" role="group" aria-label="Background Agent provider">
+                    {ASSISTANT_AGENT_OPTIONS.map((option) => (
+                      <button
+                        type="button"
+                        key={option.mode}
+                        aria-label={option.aria}
+                        aria-pressed={assistantAgentSettings.settings.mode === option.mode}
+                        onClick={() => void selectAssistantAgentMode(option.mode)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="provider-status-card" aria-label="Background Agent 状态">
+                    <strong>{readAssistantAgentReadinessLabel(selectedAssistantAgentProvider.readiness)}</strong>
+                    <p>{readAssistantAgentProviderDetail(assistantAgentSettings, selectedAssistantAgentProvider)}</p>
+                    {selectedAssistantAgentProvider.lastError ? (
+                      <p>{selectedAssistantAgentProvider.lastError}</p>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="provider-switch provider-switch-three" role="group" aria-label="Background Agent provider">
-                  {ASSISTANT_AGENT_OPTIONS.map((option) => (
-                    <button
-                      type="button"
-                      key={option.mode}
-                      aria-label={option.aria}
-                      aria-pressed={assistantAgentSettings.settings.mode === option.mode}
-                      onClick={() => void selectAssistantAgentMode(option.mode)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                <div className="app-policy-panel" aria-label="应用策略">
+                  <div className="app-policy-heading">
+                    <strong>应用策略</strong>
+                    <span>Computer Use</span>
+                  </div>
+                  <div className="app-policy-list">
+                    {appPolicySettings.apps.map((entry) => (
+                      <div className="app-policy-row" key={entry.bundleId}>
+                        <span>{entry.name}</span>
+                        <div className="app-policy-switch" role="group" aria-label={`${entry.name} policy`}>
+                          {APP_POLICY_OPTIONS.map((option) => (
+                            <button
+                              type="button"
+                              key={option.policy}
+                              aria-label={`${option.label} ${entry.name}`}
+                              aria-pressed={entry.policy === option.policy}
+                              onClick={() => void selectAppPolicy(entry.bundleId, option.policy)}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="provider-status-card" aria-label="Background Agent 状态">
-                  <strong>{readAssistantAgentReadinessLabel(selectedAssistantAgentProvider.readiness)}</strong>
-                  <p>{readAssistantAgentProviderDetail(assistantAgentSettings, selectedAssistantAgentProvider)}</p>
-                  {selectedAssistantAgentProvider.lastError ? (
-                    <p>{selectedAssistantAgentProvider.lastError}</p>
-                  ) : null}
-                </div>
-              </div>
-              <div className="app-policy-panel" aria-label="应用策略">
-                <div className="app-policy-heading">
-                  <strong>应用策略</strong>
-                  <span>Computer Use</span>
-                </div>
-                <div className="app-policy-list">
-                  {appPolicySettings.apps.map((entry) => (
-                    <div className="app-policy-row" key={entry.bundleId}>
-                      <span>{entry.name}</span>
-                      <div className="app-policy-switch" role="group" aria-label={`${entry.name} policy`}>
-                        {APP_POLICY_OPTIONS.map((option) => (
+                <details className="advanced-panel" aria-label="诊断/高级">
+                  <summary>
+                    <span>
+                      <SlidersHorizontal size={13} aria-hidden="true" />
+                      诊断/高级
+                    </span>
+                    <em>回放与 Computer Use Planner</em>
+                  </summary>
+                  <div className="advanced-panel-body">
+                    <div className="app-policy-panel" aria-label="Computer Use Planner">
+                      <div className="app-policy-heading">
+                        <strong>Computer Use Planner</strong>
+                        <span>
+                          {plannerProviderSettings.mode === "external-cua"
+                            ? plannerProviderSettings.externalProviderLabel
+                            : "Computer Use"}
+                        </span>
+                      </div>
+                      <div className="provider-switch" role="group" aria-label="Computer Use planner">
+                        {PLANNER_PROVIDER_OPTIONS.map((option) => (
                           <button
                             type="button"
-                            key={option.policy}
-                            aria-label={`${option.label} ${entry.name}`}
-                            aria-pressed={entry.policy === option.policy}
-                            onClick={() => void selectAppPolicy(entry.bundleId, option.policy)}
+                            key={option.mode}
+                            aria-label={option.aria}
+                            aria-pressed={plannerProviderSettings.mode === option.mode}
+                            onClick={() => void selectPlannerProviderMode(option.mode)}
                           >
                             {option.label}
                           </button>
                         ))}
                       </div>
+                      {plannerProviderSettings.mode === "external-cua" ? (
+                        <div className="provider-status-card" aria-label="External CUA 连接状态">
+                          <strong>{readExternalCuaStatusLabel(plannerProviderSettings)}</strong>
+                          <p>在 dashboard 中配置</p>
+                        </div>
+                      ) : null}
                     </div>
-                  ))}
-                </div>
-              </div>
-              <details className="advanced-panel" aria-label="诊断/高级">
-                <summary>
-                  <span>
-                    <SlidersHorizontal size={13} aria-hidden="true" />
-                    诊断/高级
-                  </span>
-                  <em>回放与 Computer Use Planner</em>
-                </summary>
-                <div className="advanced-panel-body">
-                  <div className="app-policy-panel" aria-label="Computer Use Planner">
-                    <div className="app-policy-heading">
-                      <strong>Computer Use Planner</strong>
-                      <span>
-                        {plannerProviderSettings.mode === "external-cua"
-                          ? plannerProviderSettings.externalProviderLabel
-                          : "Computer Use"}
-                      </span>
+                    <LocalReplayViewer replay={turnReplay} />
+                  </div>
+                </details>
+                <div className="permissions-panel" aria-label="权限">
+                  <div className="permissions-heading">
+                    <strong>权限</strong>
+                    <button type="button" aria-label="刷新权限状态" onClick={() => void refreshPermissions()}>
+                      <RefreshCw size={12} aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="permissions-list">
+                    <div className="permission-row desktop-session-row">
+                      <span>桌面会话</span>
+                      <strong data-state={readDesktopSessionPermissionState(desktopSessionDiagnostics)}>
+                        {permissionsLoading
+                          ? "检查中"
+                          : DESKTOP_SESSION_STATE_COPY[desktopSessionDiagnostics.state]}
+                      </strong>
                     </div>
-                    <div className="provider-switch" role="group" aria-label="Computer Use planner">
-                      {PLANNER_PROVIDER_OPTIONS.map((option) => (
-                        <button
-                          type="button"
-                          key={option.mode}
-                          aria-label={option.aria}
-                          aria-pressed={plannerProviderSettings.mode === option.mode}
-                          onClick={() => void selectPlannerProviderMode(option.mode)}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                    {plannerProviderSettings.mode === "external-cua" ? (
-                      <div className="provider-status-card" aria-label="External CUA 连接状态">
-                        <strong>{readExternalCuaStatusLabel(plannerProviderSettings)}</strong>
-                        <p>在 dashboard 中配置</p>
-                      </div>
+                    {desktopSessionDiagnostics.state === "blocked" ? (
+                      <p className="permission-hint" aria-label="桌面会话阻塞原因">
+                        {desktopSessionDiagnostics.reason}
+                      </p>
                     ) : null}
+                    {PERMISSION_ROWS.map((permission) => {
+                      const state = permissions[permission.key].state;
+                      return (
+                        <div className="permission-row" key={permission.key}>
+                          <span>{permission.label}</span>
+                          <strong data-state={state}>
+                            {permissionsLoading ? "检查中" : PERMISSION_STATE_COPY[state]}
+                          </strong>
+                          <button
+                            type="button"
+                            aria-label={`打开${permission.label}设置`}
+                            onClick={() => void openPermissionSettings(permission.settingsTarget)}
+                          >
+                            <ExternalLink size={12} aria-hidden="true" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <LocalReplayViewer replay={turnReplay} />
-                </div>
-              </details>
-              <div className="permissions-panel" aria-label="权限">
-                <div className="permissions-heading">
-                  <strong>权限</strong>
-                  <button type="button" aria-label="刷新权限状态" onClick={() => void refreshPermissions()}>
-                    <RefreshCw size={12} aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="permissions-list">
-                  <div className="permission-row desktop-session-row">
-                    <span>桌面会话</span>
-                    <strong data-state={readDesktopSessionPermissionState(desktopSessionDiagnostics)}>
-                      {permissionsLoading
-                        ? "检查中"
-                        : DESKTOP_SESSION_STATE_COPY[desktopSessionDiagnostics.state]}
-                    </strong>
-                  </div>
-                  {desktopSessionDiagnostics.state === "blocked" ? (
-                    <p className="permission-hint" aria-label="桌面会话阻塞原因">
-                      {desktopSessionDiagnostics.reason}
-                    </p>
-                  ) : null}
-                  {PERMISSION_ROWS.map((permission) => {
-                    const state = permissions[permission.key].state;
-                    return (
-                      <div className="permission-row" key={permission.key}>
-                        <span>{permission.label}</span>
-                        <strong data-state={state}>
-                          {permissionsLoading ? "检查中" : PERMISSION_STATE_COPY[state]}
-                        </strong>
-                        <button
-                          type="button"
-                          aria-label={`打开${permission.label}设置`}
-                          onClick={() => void openPermissionSettings(permission.settingsTarget)}
-                        >
-                          <ExternalLink size={12} aria-hidden="true" />
-                        </button>
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
             </>
@@ -1835,9 +1890,36 @@ export default function App() {
               </div>
             </>
           ) : assistantPanelOpen ? (
-            <div className="agent-status" aria-label="skfiy agent status">
-              <strong>agent</strong>
-            </div>
+            <form
+              className="assistant-input-panel"
+              aria-label="skfiy assistant input"
+              onSubmit={(event) => void submitAssistantInput(event)}
+            >
+              <div className="agent-status" aria-label="skfiy agent status">
+                <strong>agent</strong>
+                <span>{selectedAssistantAgentProvider.label}</span>
+              </div>
+              <textarea
+                ref={assistantInputRef}
+                aria-label="Ask skfiy"
+                value={assistantInput}
+                placeholder="Ask skfiy..."
+                rows={3}
+                onChange={(event) => setAssistantInput(event.currentTarget.value)}
+                onKeyDown={submitAssistantInputFromKeyboard}
+              />
+              <div className="assistant-input-actions">
+                <span>Computer Use 会按应用策略审批</span>
+                <button
+                  type="submit"
+                  aria-label="发送给 skfiy"
+                  disabled={!assistantInput.trim() || assistantInputSubmitting}
+                >
+                  <Play size={13} aria-hidden="true" />
+                  <span>{assistantInputSubmitting ? "发送中" : "发送"}</span>
+                </button>
+              </div>
+            </form>
           ) : task.status === "approval_required" ? (
             <>
               <p>{task.message}</p>
