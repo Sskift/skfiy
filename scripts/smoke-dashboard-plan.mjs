@@ -5,14 +5,16 @@ export const PRODUCT_PATH = "dist/skfiy -> skfiy dashboard -> loopback dashboard
 export const DEFAULT_TIMEOUT_MS = 8_000;
 const REQUIRED_DASHBOARD_CHROME_CONTROL_ACTIONS = ["observe", "fill", "click", "submit", "scroll"];
 export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
-  "Agent/provider",
+  "Assistant Provider",
   "Computer Use",
-  "Browser bridge",
+  "Chrome Browser Context",
+  "Current Turn",
   "Chrome readiness",
   "Finder readiness",
   "Ghostty readiness",
-  "Dogfood/release",
-  "Dogfood and release",
+  "Activity",
+  "Latest blocker",
+  "Runtime evidence",
   "Assistant providers",
   "Provider settings",
   "Chrome control actions",
