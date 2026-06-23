@@ -19,6 +19,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Provider settings",
   "Knowledge graph",
   "User preferences",
+  "Forget memory",
   "Latest session",
   "Browser Context",
   "injects prompt",
@@ -195,6 +196,10 @@ export function classifyDashboardSmokeEvidence(evidence) {
   }
 
   if (!hasDashboardChromeHostPolicyApiEvidence(evidence.chromeHostPolicyApi)) {
+    return "failed";
+  }
+
+  if (!hasDashboardPersonalMemoryApiEvidence(evidence.personalMemoryApi)) {
     return "failed";
   }
 
@@ -501,6 +506,54 @@ function hasDashboardChromeHostPolicyApiEvidence(api) {
     && resetBody?.result === "reset"
     && hasChromeHostPolicyEvidence(resetBody?.hostPolicy)
     && resetBody.hostPolicy.state === "default";
+}
+
+function hasDashboardPersonalMemoryApiEvidence(api) {
+  const beforeMemory = api?.snapshotBefore?.body?.personalMemory;
+  const afterMemory = api?.snapshotAfter?.body?.personalMemory;
+  const forgetBody = api?.forgetResponse?.body;
+  const rejectedAddBody = api?.rejectedAddResponse?.body;
+  const beforeText = JSON.stringify(api?.snapshotBefore?.body ?? {});
+  const afterText = JSON.stringify(api?.snapshotAfter?.body ?? {});
+  const forgetText = JSON.stringify(forgetBody ?? {});
+
+  return api?.productPath === "smoke:dashboard -> isolated HOME memory fixture -> /api/personal-memory"
+    && typeof api?.apiUrl === "string"
+    && api.apiUrl.endsWith("/api/personal-memory")
+    && api?.fixture?.productPath === "smoke:dashboard -> isolated HOME -> personal memory files"
+    && typeof api.fixture.userMemoryPath === "string"
+    && api.fixture.userMemoryPath.includes("Application Support/skfiy/memory/USER.md")
+    && typeof api.fixture.agentMemoryPath === "string"
+    && api.fixture.agentMemoryPath.includes("Application Support/skfiy/memory/AGENT.md")
+    && api.fixture.seededUserEntries >= 2
+    && api.fixture.seededAgentEntries >= 1
+    && api?.snapshotBefore?.status === 200
+    && beforeMemory?.userEntryCount >= 2
+    && beforeMemory?.agentEntryCount >= 1
+    && Array.isArray(beforeMemory?.recentUserEntries)
+    && beforeMemory.recentUserEntries.includes("[redacted sensitive memory]")
+    && api?.forgetResponse?.status === 200
+    && forgetBody?.command === "dashboard personal memory"
+    && forgetBody?.source === "dashboard"
+    && forgetBody?.plannedMutation === true
+    && forgetBody?.executesSystemMutation === true
+    && forgetBody?.result === "forgotten"
+    && forgetBody?.applied === 1
+    && forgetBody?.personalMemory?.userEntryCount === beforeMemory.userEntryCount - 1
+    && api?.rejectedAddResponse?.status === 400
+    && rejectedAddBody?.command === "dashboard personal memory"
+    && rejectedAddBody?.result === "error"
+    && rejectedAddBody?.error?.code === "unknown-action"
+    && api?.snapshotAfter?.status === 200
+    && afterMemory?.userEntryCount === beforeMemory.userEntryCount - 1
+    && afterMemory?.agentEntryCount === beforeMemory.agentEntryCount
+    && api?.userMemoryFileAfter?.sensitiveEntryPresent === false
+    && api?.userMemoryFileAfter?.keptEntryPresent === true
+    && api?.tokenLeakDetected === false
+    && api?.result === "passed"
+    && !/token=/i.test(beforeText)
+    && !/token=/i.test(afterText)
+    && !/token=/i.test(forgetText);
 }
 
 function hasDashboardStatusAutoDiscoveryEvidence(evidence, cliOutput) {

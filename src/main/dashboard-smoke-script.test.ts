@@ -42,6 +42,10 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("collectDashboardScreenshotEvidence");
     expect(source).toContain("knowledgeGraphEvidence");
     expect(source).toContain("dashboard-knowledge-graph");
+    expect(source).toContain("seedPersonalMemoryFixture");
+    expect(source).toContain("exercisePersonalMemoryApi");
+    expect(source).toContain("personalMemoryApi");
+    expect(source).toContain("/api/personal-memory");
     expect(source).toContain("exerciseChromeControlActionApi");
     expect(source).toContain("dashboardChromeControlActionApi");
     expect(source).toContain("collectRealHomeChromeControlActionEvidence");
@@ -750,6 +754,79 @@ describe("dashboard product smoke script", () => {
           }
         }
       },
+      personalMemoryApi: {
+        productPath: "smoke:dashboard -> isolated HOME memory fixture -> /api/personal-memory",
+        apiUrl: "http://127.0.0.1:51234/api/personal-memory",
+        fixture: {
+          productPath: "smoke:dashboard -> isolated HOME -> personal memory files",
+          userMemoryPath: "/Users/tester/Library/Application Support/skfiy/memory/USER.md",
+          agentMemoryPath: "/Users/tester/Library/Application Support/skfiy/memory/AGENT.md",
+          seededUserEntries: 2,
+          seededAgentEntries: 1
+        },
+        snapshotBefore: {
+          status: 200,
+          body: {
+            personalMemory: {
+              userEntryCount: 2,
+              agentEntryCount: 1,
+              recentUserEntries: [
+                "User prefers concise Chinese updates.",
+                "[redacted sensitive memory]"
+              ],
+              recentAgentEntries: [
+                "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
+              ]
+            }
+          }
+        },
+        forgetResponse: {
+          status: 200,
+          body: {
+            command: "dashboard personal memory",
+            source: "dashboard",
+            plannedMutation: true,
+            executesSystemMutation: true,
+            result: "forgotten",
+            applied: 1,
+            personalMemory: {
+              userEntryCount: 1,
+              agentEntryCount: 1
+            }
+          }
+        },
+        rejectedAddResponse: {
+          status: 400,
+          body: {
+            command: "dashboard personal memory",
+            result: "error",
+            error: {
+              code: "unknown-action"
+            }
+          }
+        },
+        snapshotAfter: {
+          status: 200,
+          body: {
+            personalMemory: {
+              userEntryCount: 1,
+              agentEntryCount: 1,
+              recentUserEntries: [
+                "User prefers concise Chinese updates."
+              ],
+              recentAgentEntries: [
+                "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
+              ]
+            }
+          }
+        },
+        userMemoryFileAfter: {
+          sensitiveEntryPresent: false,
+          keptEntryPresent: true
+        },
+        tokenLeakDetected: false,
+        result: "passed"
+      },
       dashboardStatusAutoDiscovery: {
         productPath: "dist/skfiy dashboard -> dashboard-server.json -> skfiy status --json",
         command: ["/repo/dist/skfiy", "status", "--json"],
@@ -882,6 +959,10 @@ describe("dashboard product smoke script", () => {
     expect(classifyDashboardSmokeEvidence(passedEvidence)).toBe("passed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
+      personalMemoryApi: undefined
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
       shellResponse: {
         status: 200,
         body: '<!doctype html><html lang="en"><head><title>skfiy dashboard</title><script type="module" crossorigin src="./assets/dashboard-test.js"></script></head><body><div id="dashboard-root"></div></body></html>'
@@ -912,6 +993,7 @@ describe("dashboard product smoke script", () => {
           "Provider settings",
           "Knowledge graph",
           "User preferences",
+          "Forget memory",
           "Latest session",
           "Browser Context",
           "injects prompt",
@@ -946,6 +1028,7 @@ describe("dashboard product smoke script", () => {
           "Provider settings",
           "Knowledge graph",
           "User preferences",
+          "Forget memory",
           "Latest session",
           "Browser Context",
           "injects prompt",

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -28,6 +28,9 @@ const DASHBOARD_CHROME_CONTROL_SMOKE_ACTIONS = [
   { action: "submit", selector: "form" },
   { action: "scroll", dy: 600 }
 ];
+const DASHBOARD_MEMORY_SAFE_ENTRY = "User prefers concise Chinese updates.";
+const DASHBOARD_MEMORY_SENSITIVE_ENTRY = "User token=secret should be removable without echo.";
+const DASHBOARD_MEMORY_AGENT_ENTRY = "For dashboard work, prefer dense Obsidian-like knowledge surfaces.";
 
 async function main() {
   const defaults = createDefaultDashboardSmokeOptions(ROOT_DIR);
@@ -58,6 +61,8 @@ async function main() {
     reactContentEvidence: undefined,
     knowledgeGraphEvidence: undefined,
     chromeHostPolicyApi: undefined,
+    personalMemoryFixture: undefined,
+    personalMemoryApi: undefined,
     dashboardChromeControlActionApi: undefined,
     dashboardStatusAutoDiscovery: undefined,
     runtimeSnapshotFixture: undefined,
@@ -80,6 +85,7 @@ async function main() {
     isolatedHomeDir = await mkdtemp(path.join(tmpdir(), "skfiy-dashboard-smoke-home-"));
     evidence.isolatedHomeDir = isolatedHomeDir;
     evidence.runtimeSnapshotFixture = await seedRuntimeSnapshotFixture(isolatedHomeDir);
+    evidence.personalMemoryFixture = await seedPersonalMemoryFixture(isolatedHomeDir);
 
     const launched = await launchDashboardCli(options, {
       homeDir: isolatedHomeDir
@@ -117,6 +123,11 @@ async function main() {
       dashboardUrl: launched.cliOutput.url,
       timeoutMs: options.timeoutMs
     });
+    evidence.personalMemoryApi = await exercisePersonalMemoryApi({
+      dashboardUrl: launched.cliOutput.url,
+      fixture: evidence.personalMemoryFixture,
+      timeoutMs: options.timeoutMs
+    });
     if (options.extensionId) {
       evidence.dashboardChromeControlActionApi = await collectRealHomeChromeControlActionEvidence({
         options,
@@ -139,6 +150,8 @@ async function main() {
       JSON.stringify(evidence.reactContentEvidence),
       JSON.stringify(evidence.knowledgeGraphEvidence),
       JSON.stringify(evidence.chromeHostPolicyApi),
+      JSON.stringify(evidence.personalMemoryFixture),
+      JSON.stringify(evidence.personalMemoryApi),
       JSON.stringify(evidence.dashboardChromeControlActionApi),
       JSON.stringify(evidence.dashboardStatusAutoDiscovery),
       JSON.stringify(evidence.freshInstallRuntimeSnapshot),
@@ -500,6 +513,116 @@ async function seedRuntimeSnapshotFixture(homeDir) {
     productPath: "smoke:dashboard -> isolated HOME -> runtime-snapshot.json",
     path: snapshotPath,
     snapshot
+  };
+}
+
+async function seedPersonalMemoryFixture(homeDir) {
+  const memoryDir = path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "skfiy",
+    "memory"
+  );
+  const userMemoryPath = path.join(memoryDir, "USER.md");
+  const agentMemoryPath = path.join(memoryDir, "AGENT.md");
+  const sessionMemoryPath = path.join(memoryDir, "sessions.jsonl");
+  const session = {
+    schemaVersion: 1,
+    turnId: "dashboard-smoke-memory-turn",
+    createdAt: new Date().toISOString(),
+    userInput: "Summarize the current dashboard state.",
+    assistantReply: "The dashboard is showing local memory and runtime readiness.",
+    providerLabel: "Codex",
+    browserContext: {
+      title: "skfiy Dashboard",
+      url: "http://127.0.0.1/dashboard"
+    }
+  };
+
+  await mkdir(memoryDir, { recursive: true });
+  await writeFile(userMemoryPath, [
+    DASHBOARD_MEMORY_SAFE_ENTRY,
+    "---",
+    DASHBOARD_MEMORY_SENSITIVE_ENTRY,
+    ""
+  ].join("\n"), "utf8");
+  await writeFile(agentMemoryPath, `${DASHBOARD_MEMORY_AGENT_ENTRY}\n`, "utf8");
+  await writeFile(sessionMemoryPath, `${JSON.stringify(session)}\n`, "utf8");
+
+  return {
+    productPath: "smoke:dashboard -> isolated HOME -> personal memory files",
+    userMemoryPath,
+    agentMemoryPath,
+    sessionMemoryPath,
+    seededUserEntries: 2,
+    seededAgentEntries: 1,
+    seededSessionEntries: 1
+  };
+}
+
+async function exercisePersonalMemoryApi({ dashboardUrl, fixture, timeoutMs }) {
+  const apiUrl = new URL("/api/personal-memory", dashboardUrl).toString();
+  const productPath = "smoke:dashboard -> isolated HOME memory fixture -> /api/personal-memory";
+  const snapshotBefore = await readJsonResponse(
+    new URL("/snapshot.json", dashboardUrl).toString(),
+    timeoutMs
+  );
+  const forgetResponse = await readJsonRequest(apiUrl, timeoutMs, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "forget",
+      target: "user",
+      content: DASHBOARD_MEMORY_SENSITIVE_ENTRY
+    })
+  });
+  const rejectedAddResponse = await readJsonRequest(apiUrl, timeoutMs, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "add",
+      target: "user",
+      content: "User prefers dashboard smoke to reject broad memory writes."
+    })
+  });
+  const snapshotAfter = await readJsonResponse(
+    new URL("/snapshot.json", dashboardUrl).toString(),
+    timeoutMs
+  );
+  const userMemoryAfter = await readFile(fixture.userMemoryPath, "utf8").catch(() => "");
+  const tokenLeakDetected = hasTokenLeak([
+    JSON.stringify(snapshotBefore),
+    JSON.stringify(forgetResponse),
+    JSON.stringify(rejectedAddResponse),
+    JSON.stringify(snapshotAfter)
+  ]);
+  const passed = snapshotBefore.status === 200
+    && snapshotBefore.body?.personalMemory?.userEntryCount >= 2
+    && snapshotBefore.body.personalMemory.recentUserEntries?.includes("[redacted sensitive memory]")
+    && forgetResponse.status === 200
+    && forgetResponse.body?.result === "forgotten"
+    && forgetResponse.body?.applied === 1
+    && rejectedAddResponse.status === 400
+    && rejectedAddResponse.body?.error?.code === "unknown-action"
+    && snapshotAfter.status === 200
+    && snapshotAfter.body?.personalMemory?.userEntryCount === snapshotBefore.body.personalMemory.userEntryCount - 1
+    && !userMemoryAfter.includes(DASHBOARD_MEMORY_SENSITIVE_ENTRY)
+    && userMemoryAfter.includes(DASHBOARD_MEMORY_SAFE_ENTRY)
+    && !tokenLeakDetected;
+
+  return {
+    productPath,
+    apiUrl,
+    fixture,
+    snapshotBefore,
+    forgetResponse,
+    rejectedAddResponse,
+    snapshotAfter,
+    userMemoryFileAfter: {
+      sensitiveEntryPresent: userMemoryAfter.includes(DASHBOARD_MEMORY_SENSITIVE_ENTRY),
+      keptEntryPresent: userMemoryAfter.includes(DASHBOARD_MEMORY_SAFE_ENTRY)
+    },
+    tokenLeakDetected,
+    result: passed ? "passed" : "failed"
   };
 }
 

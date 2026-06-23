@@ -1160,6 +1160,14 @@ npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json
 ./dist/skfiy chrome extension-info --json
 ```
 
+Dashboard smoke now seeds an isolated personal memory fixture and must collect `personalMemoryApi.result === "passed"` evidence:
+
+- seeded user memory appears in `/snapshot.json`,
+- token-like memory is redacted from Dashboard responses,
+- `POST /api/personal-memory` can forget one exact user memory entry,
+- unsupported dashboard memory `add` requests are rejected,
+- the remembered-session graph still renders after memory mutation.
+
 If a smoke is blocked by local macOS permissions or Chrome environment, record the typed blocker and do not call the feature complete until the blocker is either resolved or explicitly accepted by the project owner.
 
 - [ ] **Step 4: Manual acceptance checklist**
