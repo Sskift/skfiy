@@ -38,6 +38,7 @@ import {
   createSkfiyApplicationSupportPath
 } from "./personal-memory.js";
 import {
+  createFallbackPersonalMemoryOperations,
   createPersonalMemoryReviewPrompt,
   parsePersonalMemoryReview
 } from "./personal-memory-review.js";
@@ -599,6 +600,14 @@ function schedulePersonalMemoryPostTurnReview(
   });
   const settings = assistantAgentSettingsStore.get();
 
+  const applyFallbackMemory = () => {
+    personalMemoryStore.applyOperations(createFallbackPersonalMemoryOperations({
+      userInput,
+      assistantReply: turn.message,
+      existingMemory
+    }));
+  };
+
   void runAssistantAgentTurn(reviewPrompt, {
     settings: {
       ...settings,
@@ -607,10 +616,17 @@ function schedulePersonalMemoryPostTurnReview(
     personalMemory: existingMemory
   }).then((reviewTurn) => {
     if (reviewTurn.status !== "completed") {
+      applyFallbackMemory();
       return;
     }
-    personalMemoryStore.applyOperations(parsePersonalMemoryReview(reviewTurn.message));
+    const operations = parsePersonalMemoryReview(reviewTurn.message);
+    if (operations.length > 0) {
+      personalMemoryStore.applyOperations(operations);
+      return;
+    }
+    applyFallbackMemory();
   }).catch(() => {
+    applyFallbackMemory();
     // Memory review is intentionally best-effort.
   });
 }

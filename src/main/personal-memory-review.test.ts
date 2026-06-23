@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createFallbackPersonalMemoryOperations,
   createPersonalMemoryReviewPrompt,
   parsePersonalMemoryReview
 } from "./personal-memory-review";
@@ -33,5 +34,23 @@ describe("personal memory review", () => {
     expect(parsePersonalMemoryReview(
       `{"operations":[{"action":"replace","target":"user","content":"User prefers dark dashboards."}]}`
     )).toEqual([]);
+  });
+
+  it("extracts narrow durable preferences locally when provider review is unavailable", () => {
+    expect(createFallbackPersonalMemoryOperations({
+      userInput: "以后进度更新短一点，中文就好",
+      assistantReply: "好的，我会更简洁。",
+      existingMemory: { userEntries: [], agentEntries: [] }
+    })).toEqual([
+      { action: "add", target: "user", content: "User prefers concise Chinese progress updates." }
+    ]);
+  });
+
+  it("does not turn one-off requests into local fallback memory", () => {
+    expect(createFallbackPersonalMemoryOperations({
+      userInput: "现在打开 Chrome 并总结这个网页",
+      assistantReply: "好的。",
+      existingMemory: { userEntries: [], agentEntries: [] }
+    })).toEqual([]);
   });
 });

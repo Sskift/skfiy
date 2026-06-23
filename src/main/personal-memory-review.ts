@@ -46,6 +46,24 @@ export function parsePersonalMemoryReview(text: string): PersonalMemoryOperation
     .slice(0, 10);
 }
 
+export function createFallbackPersonalMemoryOperations({
+  userInput,
+  existingMemory
+}: PersonalMemoryReviewPromptInput): PersonalMemoryOperation[] {
+  const normalized = normalizeReviewText(userInput);
+  const operations: PersonalMemoryOperation[] = [];
+
+  if (isExplicitFuturePreference(normalized) && prefersConciseChineseProgress(normalized)) {
+    pushUniqueUserMemory(
+      operations,
+      existingMemory.userEntries,
+      "User prefers concise Chinese progress updates."
+    );
+  }
+
+  return operations;
+}
+
 function parseReviewJson(text: string): { operations?: unknown[] } | undefined {
   const trimmed = text.trim()
     .replace(/^```(?:json)?\s*/iu, "")
@@ -98,4 +116,32 @@ function isMemoryTarget(value: unknown): value is PersonalMemoryTarget {
 
 function formatEntries(entries: string[]): string[] {
   return entries.length > 0 ? entries.map((entry) => `- ${entry}`) : ["- none"];
+}
+
+function pushUniqueUserMemory(
+  operations: PersonalMemoryOperation[],
+  existingEntries: string[],
+  content: string
+): void {
+  if (existingEntries.includes(content) || operations.some((operation) => operation.content === content)) {
+    return;
+  }
+
+  operations.push({ action: "add", target: "user", content });
+}
+
+function normalizeReviewText(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isExplicitFuturePreference(value: string): boolean {
+  return /以后|今后|之后都|以后都|please remember|remember that|i prefer|my preference is/u.test(value);
+}
+
+function prefersConciseChineseProgress(value: string): boolean {
+  const mentionsChinese = /中文|chinese/u.test(value);
+  const mentionsProgress = /进度|progress|update|updates/u.test(value);
+  const mentionsConcise = /短一点|简短|简洁|短些|concise|short|brief/u.test(value);
+
+  return mentionsChinese && mentionsProgress && mentionsConcise;
 }
