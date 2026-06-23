@@ -8,6 +8,8 @@ describe("assistant tool bridge main-process wiring", () => {
     const routeIndex = source.indexOf("const route = selectCommandRoute(command)");
     const assistantTurnIndex = source.indexOf("const assistantTurn = await createAssistantAgentTaskTurn(command)");
     const clarificationIndex = source.indexOf("if (route.kind === \"needs_clarification\")");
+    const terminalRouteStateIndex = source.indexOf("if (route.kind === \"denied\" || route.kind === \"blocked\")");
+    const confirmationIndex = source.indexOf("if (route.kind === \"needs_confirmation\" && !approved)");
     const executorPlanIndex = source.indexOf("assistantComputerUseExecutor.planToolCall");
     const toolPlanIndex = source.indexOf("emitAssistantToolPlanTaskEvent(window, assistantTurn, command)");
     const continuationIndex = source.indexOf("await continueComputerUseTask({", toolPlanIndex);
@@ -18,9 +20,13 @@ describe("assistant tool bridge main-process wiring", () => {
     expect(source).toContain("createAssistantComputerUseExecutor({");
     expect(routeIndex).toBeGreaterThan(-1);
     expect(assistantTurnIndex).toBeGreaterThan(routeIndex);
+    expect(terminalRouteStateIndex).toBeGreaterThan(clarificationIndex);
+    expect(terminalRouteStateIndex).toBeLessThan(executorPlanIndex);
     expect(executorPlanIndex).toBeGreaterThan(assistantTurnIndex);
     expect(executorPlanIndex).toBeLessThan(toolPlanIndex);
     expect(toolPlanIndex).toBeGreaterThan(clarificationIndex);
+    expect(confirmationIndex).toBeGreaterThan(toolPlanIndex);
+    expect(confirmationIndex).toBeLessThan(continuationIndex);
     expect(continuationIndex).toBeGreaterThan(toolPlanIndex);
     expect(tmuxIndex).toBeGreaterThan(-1);
   });

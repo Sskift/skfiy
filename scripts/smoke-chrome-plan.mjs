@@ -446,6 +446,10 @@ export function classifyInstalledExtensionActionSmokeEvidence(run = {}) {
     return "blocked";
   }
 
+  if (record.result === "blocked" && isKnownInstalledExtensionActionBlocker(record.reason)) {
+    return "blocked";
+  }
+
   const tabsRun = readRecord(record.tabsRun);
   const tabs = readInstalledExtensionActionTargetTabs(tabsRun);
   const selectedTargetTab = readRecord(record.selectedTargetTab)
@@ -1301,6 +1305,8 @@ function isKnownInstalledExtensionActionBlocker(reason) {
     "skfiy-host-policy-missing",
     "blocked_by_host_policy",
     "blocked_by_chrome_host_permission",
+    "chrome-active-tab-unavailable",
+    "target-tab-unavailable-after-reload",
     "sensitive-paused"
   ].includes(String(reason ?? ""));
 }

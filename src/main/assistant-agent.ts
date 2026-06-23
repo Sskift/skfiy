@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import { createAssistantChatReply } from "./assistant-chat.js";
-import { selectCommandRoute, type CommandRoute } from "./task-routing.js";
+import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
 
 export type AssistantAgentMode = "local" | "codex" | "claude-code";
 export type AssistantAgentProviderId = AssistantAgentMode;
@@ -78,7 +78,7 @@ export interface AssistantAgentPlannedToolCall {
   createdAt: string;
   input: {
     command: string;
-    route: CommandRoute;
+    route: ExecutableCommandRoute;
   };
 }
 
@@ -374,9 +374,15 @@ function createAssistantAgentPlannedToolCalls({
   command: string;
   route: CommandRoute;
 }): AssistantAgentPlannedToolCall[] {
-  if (route.kind === "chat" || route.kind === "needs_clarification") {
+  if (
+    route.kind === "chat"
+    || route.kind === "needs_clarification"
+    || route.kind === "denied"
+    || route.kind === "blocked"
+  ) {
     return [];
   }
+  const toolRoute = route.kind === "needs_confirmation" ? route.targetRoute : route;
 
   return [
     {
@@ -387,7 +393,7 @@ function createAssistantAgentPlannedToolCalls({
       createdAt,
       input: {
         command,
-        route
+        route: toolRoute
       }
     }
   ];

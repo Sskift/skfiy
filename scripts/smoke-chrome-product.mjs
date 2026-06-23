@@ -844,6 +844,11 @@ async function runInstalledChromeExtensionActionSmoke(options) {
   let tabsRun;
   let selectedTargetTab;
   let reloadRun;
+  let postReloadOpenRun;
+  let postReloadTabsRun;
+  let refreshedTargetTab;
+  let initialObserveRun;
+  let observeRetryRun;
   let observeRun;
   let screenshotRun;
   let fillRun;
@@ -914,112 +919,152 @@ async function runInstalledChromeExtensionActionSmoke(options) {
         nextAction: "Open the local HTTP fixture in a normal Chrome tab, grant skfiy host policy and Chrome site access, then rerun smoke:chrome."
       };
     } else {
-      const targetTabId = String(selectedTargetTab.id);
+      const initialTargetTabId = String(selectedTargetTab.id);
       reloadRun = await runChromeCliJsonWithWakeIsolation("chrome reload-extension", [
         "chrome",
         "reload-extension",
         "--extension-id",
         extensionId,
         "--target-tab-id",
-        targetTabId,
+        initialTargetTabId,
         "--json"
       ]);
-      observeRun = await runChromeCliJsonWithWakeIsolation("chrome observe", [
-        "chrome",
-        "observe",
-        "--extension-id",
+      ({
+        postReloadOpenRun,
+        postReloadTabsRun,
+        refreshedTargetTab
+      } = await refreshInstalledExtensionActionTargetTab({
+        actionOptions,
         extensionId,
-        "--target-tab-id",
-        targetTabId,
-        "--json"
-      ]);
-      screenshotRun = await runChromeCliJsonWithWakeIsolation("chrome screenshot", [
-        "chrome",
-        "screenshot",
-        "--extension-id",
-        extensionId,
-        "--target-tab-id",
-        targetTabId,
-        "--json"
-      ]);
-      fillRun = await runChromeCliJsonWithWakeIsolation("chrome fill", [
-        "chrome",
-        "fill",
-        "--extension-id",
-        extensionId,
-        "--target-tab-id",
-        targetTabId,
-        "--selector",
-        "#name",
-        "--text",
-        "skfiy",
-        "--json"
-      ]);
-      clickRun = await runChromeCliJsonWithWakeIsolation("chrome click", [
-        "chrome",
-        "click",
-        "--extension-id",
-        extensionId,
-        "--target-tab-id",
-        targetTabId,
-        "--selector",
-        "#click-only",
-        "--json"
-      ]);
-      submitRun = await runChromeCliJsonWithWakeIsolation("chrome submit", [
-        "chrome",
-        "submit",
-        "--extension-id",
-        extensionId,
-        "--target-tab-id",
-        targetTabId,
-        "--selector",
-        "form",
-        "--json"
-      ]);
-      scrollRun = await runChromeCliJsonWithWakeIsolation("chrome scroll", [
-        "chrome",
-        "scroll",
-        "--extension-id",
-        extensionId,
-        "--target-tab-id",
-        targetTabId,
-        "--dy",
-        "600",
-        "--json"
-      ]);
-      finalObserveRun = await runChromeCliJsonWithWakeIsolation("chrome observe", [
-        "chrome",
-        "observe",
-        "--extension-id",
-        extensionId,
-        "--target-tab-id",
-        targetTabId,
-        "--json"
-      ]);
-      const finalVisibleText = readVisibleTextFromChromeCliRun(finalObserveRun);
-      actionRun = {
-        result: "not-classified",
-        productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
-        runnerHasTmux: Boolean(process.env.TMUX),
-        extensionId,
-        browserSelection,
         fixtureUrl: fixture.url,
-        policyRun,
-        openRun,
-        tabsRun,
-        selectedTargetTab,
-        screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
-        reloadRun,
-        observeRun,
-        screenshotRun,
-        fillRun,
-        clickRun,
-        submitRun,
-        scrollRun,
-        finalObserveRun,
-        finalVisibleText
-      };
+        runChromeCliJsonWithWakeIsolation,
+        settleMs: options.settleMs
+      }));
+      if (!refreshedTargetTab?.id) {
+        actionRun = {
+          result: "blocked",
+          productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
+          runnerHasTmux: Boolean(process.env.TMUX),
+          extensionId,
+          browserSelection,
+          fixtureUrl: fixture.url,
+          policyRun,
+          openRun,
+          tabsRun,
+          selectedTargetTab,
+          screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
+          reloadRun,
+          postReloadOpenRun,
+          postReloadTabsRun,
+          refreshedTargetTab,
+          reason: "target-tab-unavailable-after-reload",
+          nextAction: "Reload or reopen the local HTTP fixture in Chrome, rerun `skfiy chrome tabs`, then retry the installed-extension action smoke."
+        };
+      } else {
+        const liveTargetTabId = String(refreshedTargetTab.id);
+        ({
+          initialObserveRun,
+          observeRetryRun,
+          observeRun
+        } = await runInstalledExtensionActionObserveWithRetry({
+          extensionId,
+          targetTabId: liveTargetTabId,
+          runChromeCliJsonWithWakeIsolation,
+          settleMs: options.settleMs
+        }));
+        screenshotRun = await runChromeCliJsonWithWakeIsolation("chrome screenshot", [
+          "chrome",
+          "screenshot",
+          "--extension-id",
+          extensionId,
+          "--target-tab-id",
+          liveTargetTabId,
+          "--json"
+        ]);
+        fillRun = await runChromeCliJsonWithWakeIsolation("chrome fill", [
+          "chrome",
+          "fill",
+          "--extension-id",
+          extensionId,
+          "--target-tab-id",
+          liveTargetTabId,
+          "--selector",
+          "#name",
+          "--text",
+          "skfiy",
+          "--json"
+        ]);
+        clickRun = await runChromeCliJsonWithWakeIsolation("chrome click", [
+          "chrome",
+          "click",
+          "--extension-id",
+          extensionId,
+          "--target-tab-id",
+          liveTargetTabId,
+          "--selector",
+          "#click-only",
+          "--json"
+        ]);
+        submitRun = await runChromeCliJsonWithWakeIsolation("chrome submit", [
+          "chrome",
+          "submit",
+          "--extension-id",
+          extensionId,
+          "--target-tab-id",
+          liveTargetTabId,
+          "--selector",
+          "form",
+          "--json"
+        ]);
+        scrollRun = await runChromeCliJsonWithWakeIsolation("chrome scroll", [
+          "chrome",
+          "scroll",
+          "--extension-id",
+          extensionId,
+          "--target-tab-id",
+          liveTargetTabId,
+          "--dy",
+          "600",
+          "--json"
+        ]);
+        finalObserveRun = await runChromeCliJsonWithWakeIsolation("chrome observe", [
+          "chrome",
+          "observe",
+          "--extension-id",
+          extensionId,
+          "--target-tab-id",
+          liveTargetTabId,
+          "--json"
+        ]);
+        const finalVisibleText = readVisibleTextFromChromeCliRun(finalObserveRun);
+        actionRun = {
+          result: "not-classified",
+          productPath: INSTALLED_EXTENSION_ACTION_PRODUCT_PATH,
+          runnerHasTmux: Boolean(process.env.TMUX),
+          extensionId,
+          browserSelection,
+          fixtureUrl: fixture.url,
+          policyRun,
+          openRun,
+          tabsRun,
+          selectedTargetTab,
+          screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
+          reloadRun,
+          postReloadOpenRun,
+          postReloadTabsRun,
+          refreshedTargetTab,
+          initialObserveRun,
+          observeRetryRun,
+          observeRun,
+          screenshotRun,
+          fillRun,
+          clickRun,
+          submitRun,
+          scrollRun,
+          finalObserveRun,
+          finalVisibleText
+        };
+      }
     }
   } catch (error) {
     actionRun = {
@@ -1035,6 +1080,11 @@ async function runInstalledChromeExtensionActionSmoke(options) {
       selectedTargetTab,
       screenshotBlockers: INSTALLED_EXTENSION_ACTION_SCREENSHOT_BLOCKERS,
       reloadRun,
+      postReloadOpenRun,
+      postReloadTabsRun,
+      refreshedTargetTab,
+      initialObserveRun,
+      observeRetryRun,
       observeRun,
       screenshotRun,
       fillRun,
@@ -1224,6 +1274,72 @@ function readInstalledExtensionActionOpenedTab(openRun, fixtureUrl) {
   }
 
   return openedTab;
+}
+
+async function refreshInstalledExtensionActionTargetTab({
+  actionOptions,
+  extensionId,
+  fixtureUrl,
+  runChromeCliJsonWithWakeIsolation,
+  settleMs
+}) {
+  const postReloadOpenRun = await openInstalledExtensionActionFixture(actionOptions, fixtureUrl);
+  await sleep(Math.max(settleMs ?? 0, 500));
+  const postReloadTabsRun = await runChromeCliJsonWithWakeIsolation("chrome tabs post-reload", [
+    "chrome",
+    "tabs",
+    "--extension-id",
+    extensionId,
+    "--json"
+  ]);
+  const refreshedTargetTab = selectInstalledExtensionActionTargetTab(
+    readInstalledExtensionActionTargetTabs(postReloadTabsRun),
+    fixtureUrl
+  ) ?? readInstalledExtensionActionOpenedTab(postReloadOpenRun, fixtureUrl);
+
+  return {
+    postReloadOpenRun,
+    postReloadTabsRun,
+    refreshedTargetTab
+  };
+}
+
+async function runInstalledExtensionActionObserveWithRetry({
+  extensionId,
+  targetTabId,
+  runChromeCliJsonWithWakeIsolation,
+  settleMs
+}) {
+  const runObserve = () => runChromeCliJsonWithWakeIsolation("chrome observe", [
+    "chrome",
+    "observe",
+    "--extension-id",
+    extensionId,
+    "--target-tab-id",
+    targetTabId,
+    "--json"
+  ]);
+  const initialObserveRun = await runObserve();
+  if (!isRetriableInstalledExtensionActionObserveRun(initialObserveRun)) {
+    return {
+      observeRun: initialObserveRun
+    };
+  }
+
+  await sleep(Math.max(settleMs ?? 0, 500));
+  const observeRetryRun = await runObserve();
+  return {
+    initialObserveRun,
+    observeRetryRun,
+    observeRun: observeRetryRun
+  };
+}
+
+function isRetriableInstalledExtensionActionObserveRun(run) {
+  const pageControl = readRecord(run?.extensionConnection?.pageControl);
+  return run?.result === "blocked"
+    && run.reason === "page-control-observe-not-verified"
+    && pageControl?.state === "ready";
 }
 
 function isInstalledExtensionActionFixtureUrl(value, fixtureUrl) {

@@ -81,5 +81,11 @@ function formatCommandRoute(route: CommandRoute): string {
       return "chat";
     case "needs_clarification":
       return "clarification";
+    case "needs_confirmation":
+      return "confirmation";
+    case "denied":
+      return "denied";
+    case "blocked":
+      return "blocked";
   }
 }

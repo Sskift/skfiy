@@ -70,7 +70,7 @@ import {
   readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
-import { selectCommandRoute, type CommandRoute } from "./task-routing.js";
+import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
 import { readStartupWarnings } from "./startup-guard.js";
 import {
   readStopTurnHotkeyStatus,
@@ -111,11 +111,7 @@ type ComputerUseTaskEvent =
   | ChromeTaskEvent
   | FinderTaskEvent
   | TmuxSupervisionTaskEvent;
-type ComputerUseCommandRoute =
-  | Extract<CommandRoute, { kind: "ghostty" }>
-  | Extract<CommandRoute, { kind: "chrome" }>
-  | Extract<CommandRoute, { kind: "finder" }>
-  | Extract<CommandRoute, { kind: "tmux_supervision" }>;
+type ComputerUseCommandRoute = ExecutableCommandRoute;
 
 interface TaskEvent {
   status: TaskStatus;
@@ -1082,6 +1078,20 @@ async function runCommandTask(
     return;
   }
 
+  if (route.kind === "denied" || route.kind === "blocked") {
+    pendingApproval = null;
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    emitTurnReplayTaskEvent(window, {
+      status: route.kind,
+      message: route.reason,
+      command
+    });
+    return;
+  }
+
+  const executionRoute = route.kind === "needs_confirmation" ? route.targetRoute : route;
   const plannedToolCall = readAssistantComputerUseToolCall(assistantTurn);
   const toolIdentity: AssistantComputerUseToolIdentity = {
     turnId: assistantTurn.id,
@@ -1097,6 +1107,25 @@ async function runCommandTask(
 
   emitAssistantToolPlanTaskEvent(window, assistantTurn, command);
 
+  if (route.kind === "needs_confirmation" && !approved) {
+    activeTaskController?.abort();
+    activeTaskController = null;
+    currentTaskId += 1;
+    requireComputerUseApproval({
+      command,
+      mode,
+      route: executionRoute,
+      toolIdentity,
+      reason: route.reason
+    });
+    emitTaskEvent(window, {
+      status: "needs_confirmation",
+      message: route.reason,
+      command
+    });
+    return;
+  }
+
   if (approved) {
     assistantComputerUseExecutor.bypassApproval({
       ...toolIdentity,
@@ -1110,7 +1139,7 @@ async function runCommandTask(
     mode,
     approved,
     planApproved,
-    route,
+    route: executionRoute,
     toolIdentity
   });
 }

@@ -280,6 +280,98 @@ describe("assistant agent provider", () => {
     });
   });
 
+  it("records route-level confirmation turns while planning the confirmed target route", async () => {
+    const command = "在 Ghostty 执行 pwd，先等我确认";
+
+    await expect(runAssistantAgentTurn(command, {
+      settings: baseSettings,
+      now: fixedNow,
+      createTurnId: () => "turn-confirmation"
+    })).resolves.toMatchObject({
+      id: "turn-confirmation",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      status: "completed",
+      providerLabel: "Local",
+      route: {
+        kind: "needs_confirmation",
+        reason: "Route policy requires confirmation before continuing with Ghostty.",
+        targetRoute: {
+          kind: "ghostty",
+          bundleId: "com.mitchellh.ghostty"
+        }
+      },
+      toolCalls: [
+        {
+          id: "turn-confirmation-tool-1",
+          type: "computer-use",
+          name: "desktop-control",
+          status: "planned",
+          createdAt: "2026-06-22T10:00:00.000Z",
+          input: {
+            command,
+            route: {
+              kind: "ghostty",
+              bundleId: "com.mitchellh.ghostty"
+            }
+          }
+        }
+      ],
+      cancellation: {
+        requested: false
+      }
+    });
+  });
+
+  it("records route-level denial turns without planning Computer Use", async () => {
+    await expect(runAssistantAgentTurn("不要在 Ghostty 执行 pwd", {
+      settings: baseSettings,
+      now: fixedNow,
+      createTurnId: () => "turn-denied"
+    })).resolves.toMatchObject({
+      id: "turn-denied",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      status: "completed",
+      providerLabel: "Local",
+      route: {
+        kind: "denied",
+        reason: "User denied this desktop control request.",
+        targetRoute: {
+          kind: "ghostty",
+          bundleId: "com.mitchellh.ghostty"
+        }
+      },
+      toolCalls: [],
+      cancellation: {
+        requested: false
+      }
+    });
+  });
+
+  it("records route-level blocked turns without planning Computer Use", async () => {
+    await expect(runAssistantAgentTurn("在 Ghostty 执行 rm -rf ~/Desktop", {
+      settings: baseSettings,
+      now: fixedNow,
+      createTurnId: () => "turn-blocked"
+    })).resolves.toMatchObject({
+      id: "turn-blocked",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      status: "completed",
+      providerLabel: "Local",
+      route: {
+        kind: "blocked",
+        reason: "Route policy blocks destructive or sensitive terminal commands before Computer Use.",
+        targetRoute: {
+          kind: "ghostty",
+          bundleId: "com.mitchellh.ghostty"
+        }
+      },
+      toolCalls: [],
+      cancellation: {
+        requested: false
+      }
+    });
+  });
+
   it("attaches structured failed turn details to provider failures", async () => {
     const providerError = new Error("provider offline");
     const runProcess = vi.fn(async () => {

@@ -645,6 +645,18 @@ function readPageActionResultBlocker(
   }
 
   const code = readString(blocked.code) ?? readString(blocked.reason);
+  const reason = readString(blocked.reason);
+  if (
+    code === "active_tab_unavailable"
+    || code === "chrome-active-tab-unavailable"
+    || Boolean(reason?.match(/^No tab with id:/))
+  ) {
+    return {
+      reason: "chrome-active-tab-unavailable",
+      nextAction: `Re-run \`skfiy chrome tabs\` to pick a live target tab, then retry \`skfiy chrome ${action}\`.`
+    };
+  }
+
   if (code === "blocked_by_chrome_host_permission" || code === "chrome_host_permission_missing") {
     const permission = readRecord(blocked.chromeHostPermission);
     const origins = Array.isArray(permission?.origins) ? permission.origins : [];
@@ -659,7 +671,7 @@ function readPageActionResultBlocker(
   }
 
   return {
-    reason: readString(blocked.reason) ?? "chrome-page-action-blocked",
+    reason: reason ?? "chrome-page-action-blocked",
     nextAction: `Resolve the Chrome page action blocker, then retry \`skfiy chrome ${action}\`.`
   };
 }

@@ -396,6 +396,13 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("classifyInstalledExtensionActionSmokeEvidence");
     expect(source).toContain("new URL(fixture.url).host");
     expect(source).not.toContain("new URL(fixture.url).hostname");
+    expect(source).toContain("refreshInstalledExtensionActionTargetTab");
+    expect(source).toContain("postReloadTabsRun");
+    expect(source).toContain("refreshedTargetTab");
+    expect(source).toContain("target-tab-unavailable-after-reload");
+    expect(source).toContain("runInstalledExtensionActionObserveWithRetry");
+    expect(source).toContain("initialObserveRun");
+    expect(source).toContain("observeRetryRun");
     expect(source).toContain("chrome-extension://${extensionId}/popup.html?skfiyWake=");
     expect(source).toContain("chrome-extension-actions.json");
     expect(source).toContain("cleanupBeforeRun");
@@ -564,6 +571,32 @@ describe("Chrome product smoke script", () => {
         }
       })
     )).toBe("screenshot-blocked");
+    expect(classifyInstalledExtensionActionSmokeEvidence(
+      createPassingInstalledExtensionActionRun(INSTALLED_EXTENSION_ACTION_PRODUCT_PATH, fixtureUrl, {
+        clickRun: {
+          result: "blocked",
+          reason: "chrome-active-tab-unavailable"
+        }
+      })
+    )).toBe("blocked");
+    expect(classifyInstalledExtensionActionSmokeEvidence(
+      createPassingInstalledExtensionActionRun(INSTALLED_EXTENSION_ACTION_PRODUCT_PATH, fixtureUrl, {
+        result: "blocked",
+        reason: "target-tab-unavailable-after-reload",
+        postReloadTabsRun: {
+          result: "verified",
+          tabs: [
+            { id: 8, url: "chrome://extensions/", eligible: false, state: "blocked" }
+          ]
+        },
+        observeRun: undefined,
+        fillRun: undefined,
+        clickRun: undefined,
+        submitRun: undefined,
+        scrollRun: undefined,
+        finalObserveRun: undefined
+      })
+    )).toBe("blocked");
     expect(classifyInstalledExtensionActionSmokeEvidence(
       createPassingInstalledExtensionActionRun(INSTALLED_EXTENSION_ACTION_PRODUCT_PATH, fixtureUrl, {
         clickRun: {

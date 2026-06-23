@@ -82,6 +82,53 @@ describe("selectCommandRoute", () => {
     }
   });
 
+  it("routes explicit confirmation-gated desktop requests to confirmation without losing the target route", () => {
+    expect(selectCommandRoute("在 Ghostty 执行 pwd，先等我确认")).toEqual({
+      kind: "needs_confirmation",
+      reason: "Route policy requires confirmation before continuing with Ghostty.",
+      targetRoute: {
+        kind: "ghostty",
+        bundleId: "com.mitchellh.ghostty"
+      }
+    });
+  });
+
+  it("keeps unsupported confirmation-gated visible-app requests as clarification", () => {
+    expect(selectCommandRoute("在 Safari 点击登录按钮，先等我确认")).toEqual({
+      kind: "needs_clarification",
+      reason: "Generic visible-app control is not a supported product route yet. Name Ghostty, Chrome/Chromium, Finder, or money-run supervision."
+    });
+  });
+
+  it("routes explicit user cancellation of desktop control to denial", () => {
+    expect(selectCommandRoute("不要在 Ghostty 执行 pwd")).toEqual({
+      kind: "denied",
+      reason: "User denied this desktop control request.",
+      targetRoute: {
+        kind: "ghostty",
+        bundleId: "com.mitchellh.ghostty"
+      }
+    });
+  });
+
+  it("routes explicit user cancellation of unsupported visible-app control to denial instead of clarification", () => {
+    expect(selectCommandRoute("不要在 Safari 点击登录按钮")).toEqual({
+      kind: "denied",
+      reason: "User denied this desktop control request."
+    });
+  });
+
+  it("routes route-policy-prohibited destructive terminal control to blocked", () => {
+    expect(selectCommandRoute("在 Ghostty 执行 rm -rf ~/Desktop")).toEqual({
+      kind: "blocked",
+      reason: "Route policy blocks destructive or sensitive terminal commands before Computer Use.",
+      targetRoute: {
+        kind: "ghostty",
+        bundleId: "com.mitchellh.ghostty"
+      }
+    });
+  });
+
   it("keeps terminal commands on the Ghostty route", () => {
     expect(selectCommandRoute("打开 Ghostty 执行 pwd 并截图")).toEqual({
       kind: "ghostty",

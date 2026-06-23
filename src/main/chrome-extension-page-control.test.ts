@@ -348,6 +348,65 @@ describe("Chrome extension page control invoker", () => {
     });
   });
 
+  it("maps stale target tab action evidence to an actionable tab rediscovery blocker", async () => {
+    const io: ChromeNativeHostIo = {
+      exists: vi.fn(async () => true),
+      mkdir: vi.fn(async () => undefined),
+      readFile: vi.fn(async () => createConnectionRecord({
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-popup_wake-1",
+        pageControl: {
+          state: "unavailable",
+          reason: "No tab with id: 42.",
+          blockers: [
+            {
+              code: "active_tab_unavailable",
+              message: "No tab with id: 42."
+            }
+          ]
+        },
+        latestCommand: {
+          observedAt: "2026-06-21T10:10:00.100Z",
+          messageType: "skfiy.page.action",
+          requestId: "page-control-fill-cli-current",
+          pageActionResult: {
+            type: "skfiy.page.action_result",
+            requestId: "page-control-fill-cli-current",
+            result: "blocked",
+            action: "fill",
+            reason: "No tab with id: 42.",
+            targetTabId: 42,
+            selector: "#name"
+          }
+        }
+      })),
+      writeFile: vi.fn(async () => undefined),
+      rm: vi.fn(async () => undefined)
+    };
+
+    const result = await invokeChromeExtensionPageControl({
+      action: "fill",
+      extensionId: EXTENSION_ID,
+      homeDir: "/Users/tester",
+      targetTabId: 42,
+      selector: "#name",
+      text: "skfiy",
+      requestId: "page-control-fill-cli-current",
+      generatedAt: GENERATED_AT,
+      opener: vi.fn(async () => undefined),
+      io,
+      wait: async () => undefined,
+      pollTimeoutMs: 1
+    });
+
+    expect(result).toMatchObject({
+      result: "blocked",
+      action: "fill",
+      reason: "chrome-active-tab-unavailable",
+      nextAction: "Re-run `skfiy chrome tabs` to pick a live target tab, then retry `skfiy chrome fill`."
+    });
+  });
+
   it("maps skfiy host policy readiness blocks to an actionable page-control blocker", async () => {
     const io: ChromeNativeHostIo = {
       exists: vi.fn(async () => true),

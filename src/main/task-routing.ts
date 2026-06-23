@@ -8,15 +8,51 @@ export const FINDER_BUNDLE_ID = "com.apple.finder";
 const GENERIC_VISIBLE_APP_CLARIFICATION_REASON =
   "Generic visible-app control is not a supported product route yet. Name Ghostty, Chrome/Chromium, Finder, or money-run supervision.";
 
-export type CommandRoute =
+export type ExecutableCommandRoute =
   | { kind: "ghostty"; bundleId: typeof GHOSTTY_BUNDLE_ID }
   | { kind: "chrome"; bundleId: typeof CHROME_BUNDLE_ID }
   | { kind: "finder"; bundleId: typeof FINDER_BUNDLE_ID }
-  | { kind: "tmux_supervision"; sessionName: "money-run" }
+  | { kind: "tmux_supervision"; sessionName: "money-run" };
+
+export type CommandRoute =
+  | ExecutableCommandRoute
   | { kind: "chat"; reason: string }
-  | { kind: "needs_clarification"; reason: string };
+  | { kind: "needs_clarification"; reason: string }
+  | { kind: "needs_confirmation"; reason: string; targetRoute: ExecutableCommandRoute }
+  | { kind: "denied"; reason: string; targetRoute?: ExecutableCommandRoute }
+  | { kind: "blocked"; reason: string; targetRoute?: ExecutableCommandRoute };
 
 export function selectCommandRoute(command: string): CommandRoute {
+  const route = selectBaseCommandRoute(command);
+
+  if (isRouteLevelDenialRequest(command) && (isExecutableCommandRoute(route) || isDesktopControlRequest(command))) {
+    return {
+      kind: "denied",
+      reason: "User denied this desktop control request.",
+      ...(isExecutableCommandRoute(route) ? { targetRoute: route } : {})
+    };
+  }
+
+  if (isExecutableCommandRoute(route) && isRoutePolicyBlockedRequest(command, route)) {
+    return {
+      kind: "blocked",
+      reason: "Route policy blocks destructive or sensitive terminal commands before Computer Use.",
+      targetRoute: route
+    };
+  }
+
+  if (isRouteLevelConfirmationRequest(command) && isExecutableCommandRoute(route)) {
+    return {
+      kind: "needs_confirmation",
+      reason: createRouteConfirmationReason(route),
+      targetRoute: route
+    };
+  }
+
+  return route;
+}
+
+function selectBaseCommandRoute(command: string): CommandRoute {
   if (isMoneyRunSupervisionRequest(command)) {
     return {
       kind: "tmux_supervision",
@@ -69,6 +105,26 @@ export function selectCommandRoute(command: string): CommandRoute {
     kind: "needs_clarification",
     reason: "No supported desktop control route matched this request."
   };
+}
+
+function isExecutableCommandRoute(route: CommandRoute): route is ExecutableCommandRoute {
+  return route.kind === "ghostty"
+    || route.kind === "chrome"
+    || route.kind === "finder"
+    || route.kind === "tmux_supervision";
+}
+
+function createRouteConfirmationReason(route: ExecutableCommandRoute): string {
+  switch (route.kind) {
+    case "ghostty":
+      return "Route policy requires confirmation before continuing with Ghostty.";
+    case "chrome":
+      return "Route policy requires confirmation before continuing with Chrome.";
+    case "finder":
+      return "Route policy requires confirmation before continuing with Finder.";
+    case "tmux_supervision":
+      return "Route policy requires confirmation before continuing with money-run supervision.";
+  }
 }
 
 function createChatRoute(): CommandRoute {
@@ -130,6 +186,43 @@ function isMoneyRunSupervisionRequest(command: string): boolean {
   ].some((phrase) => normalized.includes(phrase));
 
   return mentionsTmuxContext && asksForSupervision;
+}
+
+function isRouteLevelConfirmationRequest(command: string): boolean {
+  const normalized = command.trim().toLowerCase();
+
+  return /(?:先|等|待|需要).{0,12}(?:确认|批准|审批)|(?:确认|批准|审批).{0,12}(?:后|以后|再继续|再执行)|\b(?:wait for|ask for|after|before)\b.{0,24}\b(?:confirm|confirmation|approve|approval)\b/u
+    .test(normalized);
+}
+
+function isRouteLevelDenialRequest(command: string): boolean {
+  const normalized = command.trim().toLowerCase();
+
+  return /(?:不要|别|取消|拒绝|停止|不用).{0,24}(?:执行|运行|输入|点击|打开|整理|监督|观察|查看|拖|滚动|控制|ghostty|chrome|chromium|finder|app|应用|桌面)|\b(?:do\s+not|don't|dont|cancel|deny|decline|stop)\b.{0,32}\b(?:type|click|open|run|execute|control|ghostty|chrome|chromium|finder|terminal|app|desktop)\b/u
+    .test(normalized);
+}
+
+function isDesktopControlRequest(command: string): boolean {
+  const normalized = command.trim().toLowerCase();
+
+  return /\b(ghostty|chrome|chromium|finder|terminal|app|desktop)\b|终端|命令行|桌面|应用|执行|运行|输入|点击|打开|整理|监督|观察|查看|拖|滚动/u
+    .test(normalized);
+}
+
+function isRoutePolicyBlockedRequest(command: string, route: ExecutableCommandRoute): boolean {
+  if (route.kind !== "ghostty") {
+    return false;
+  }
+
+  const terminalIntent = parseTerminalIntent(command);
+  const terminalCommand = terminalIntent.ok ? terminalIntent.command : command;
+
+  return [
+    /\brm\s+-[^\n;|&]*r/i,
+    /\bsecurity\s+find-(generic|internet)-password\b/i,
+    /(~\/)?\.(ssh|aws|gnupg)(\/|\b)/i,
+    /\b(id_rsa|id_ed25519|\.pem|\.p12|\.key|\.npmrc|\.netrc)\b/i
+  ].some((pattern) => pattern.test(terminalCommand));
 }
 
 function isUnsupportedVisibleAppControlRequest(command: string): boolean {
