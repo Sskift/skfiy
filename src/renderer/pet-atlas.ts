@@ -102,6 +102,7 @@ export const BUILT_IN_PET_SKINS: Record<BuiltInPetSkinId, PetAtlas> = {
 };
 
 export const PET_ATLAS = BUILT_IN_PET_SKINS[DEFAULT_PET_SKIN_ID];
+const PRODUCT_PET_DISPLAY_SCALE = 0.48;
 
 export const TASK_STATUS_TO_PET_STATE: Record<TaskStatusName, PetAtlasState> = {
   idle: "idle",
@@ -265,9 +266,12 @@ export function getPetSpriteStyle(
 ): PetSpriteStyle {
   const animation = atlas.states[state];
   const animatedRaster = atlas.rendering?.mode === "animated-raster";
-  const visualScale = atlas.layout?.visualScale ?? 0.82;
-  const hitboxWidth = atlas.layout?.hitboxWidth ?? Math.round(atlas.frameWidth * visualScale);
-  const hitboxHeight = atlas.layout?.hitboxHeight ?? Math.round(atlas.frameHeight * visualScale);
+  const sourceVisualScale = atlas.layout?.visualScale ?? 0.82;
+  const visualScale = sourceVisualScale * PRODUCT_PET_DISPLAY_SCALE;
+  const sourceHitboxWidth = atlas.layout?.hitboxWidth ?? Math.round(atlas.frameWidth * sourceVisualScale);
+  const sourceHitboxHeight = atlas.layout?.hitboxHeight ?? Math.round(atlas.frameHeight * sourceVisualScale);
+  const hitboxWidth = Math.round(sourceHitboxWidth * PRODUCT_PET_DISPLAY_SCALE);
+  const hitboxHeight = Math.round(sourceHitboxHeight * PRODUCT_PET_DISPLAY_SCALE);
   const lastColumn = Math.max(1, atlas.columns - 1);
   const lastRow = Math.max(1, atlas.rows - 1);
   const finalColumn = Math.max(0, Math.min(animation.frames - 1, lastColumn));

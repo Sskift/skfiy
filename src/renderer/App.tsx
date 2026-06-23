@@ -737,6 +737,16 @@ function canStopTurn(status: TaskStatus): boolean {
   );
 }
 
+function canDismissTaskBubble(status: TaskStatus): boolean {
+  return (
+    status === "completed"
+    || status === "denied"
+    || status === "blocked"
+    || status === "failed"
+    || status === "cancelled"
+  );
+}
+
 function getDashboardStatusCopy(task: TaskView): {
   label: string;
   detail: string;
@@ -1386,6 +1396,19 @@ export default function App() {
   function openAssistantPanelFromPet() {
     if (suppressNextPetClickRef.current) {
       suppressNextPetClickRef.current = false;
+      return;
+    }
+
+    if (canDismissTaskBubble(task.status)) {
+      setTask({
+        status: "idle",
+        message: STATUS_COPY.idle.message,
+        finderPlanPreview: undefined
+      });
+      setReplayRecords([]);
+      setDetailsOpen(false);
+      setPermissionOnboardingOpen(false);
+      setAssistantPanelOpen(false);
       return;
     }
 

@@ -96,6 +96,13 @@ describe("pet atlas", () => {
     expect(PET_ATLAS.assetUrl).toContain("skfiy-black-cat-atlas.svg");
   });
 
+  it("scales pet hitbox and visual sprite for desktop use", () => {
+    const style = getPetSpriteStyle("idle");
+
+    expect(Number.parseFloat(style["--pet-visual-scale"])).toBeLessThan(0.5);
+    expect(Number.parseInt(style["--pet-hitbox-width"], 10)).toBeLessThan(100);
+  });
+
   it("turns a skin manifest into CSS variables without depending on backend state", () => {
     const atlas = resolvePetAtlas({
       selectedSkinId: CUSTOM_MANIFEST.slug,
@@ -125,9 +132,9 @@ describe("pet atlas", () => {
     expect(style["--pet-atlas-animation-name"]).toBe("none");
     expect(style["--pet-motion-animation-name"]).toBe("none");
     expect(style["--pet-failed-animation-name"]).toBe("none");
-    expect(style["--pet-hitbox-width"]).toBe("144px");
-    expect(style["--pet-hitbox-height"]).toBe("128px");
-    expect(style["--pet-visual-scale"]).toBe("1");
+    expect(style["--pet-hitbox-width"]).toBe("69px");
+    expect(style["--pet-hitbox-height"]).toBe("61px");
+    expect(style["--pet-visual-scale"]).toBe("0.48");
     expect(style["--pet-bg-width"]).toBe("100%");
     expect(style["--pet-bg-height"]).toBe("100%");
   });

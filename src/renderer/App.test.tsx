@@ -148,6 +148,12 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it("does not render the obsolete assistant bubble diamond marker", () => {
+    const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
+
+    expect(css).not.toContain(".assistant-bubble::after");
+  });
+
   it("starts as a Codex-style pet overlay with controls tucked away", () => {
     render(<App />);
 
@@ -633,6 +639,25 @@ describe("App", () => {
 
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Cancelled");
     expect(screen.getByText("任务已停止.")).toBeInTheDocument();
+  });
+
+  it("dismisses terminal task bubbles on a subsequent pet click", () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({ status: "cancelled", message: "Task stopped." }));
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
+    expect(screen.queryByText("Task stopped.")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/skfiy desktop pet/i)).not.toHaveClass("panel-open");
+  });
+
+  it("does not move the pet window from a plain left click", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    expect((window.skfiy as DesktopApi).moveWindowBy).not.toHaveBeenCalled();
   });
 
   it("maps planned and running canonical statuses to non-idle pet animation", () => {
