@@ -351,6 +351,12 @@ interface TaskView {
   finderPlanPreview?: FinderPlanPreview;
 }
 
+interface AssistantConversationMessage {
+  role: "user" | "assistant";
+  text: string;
+  state?: "pending" | "error";
+}
+
 interface PetDragState {
   pointerId: number;
   lastScreenX: number;
@@ -879,6 +885,21 @@ function canDismissTaskBubble(status: TaskStatus): boolean {
   );
 }
 
+function isAssistantConversationReplyEvent(
+  event: TaskEvent,
+  pendingPrompt: string | null
+): boolean {
+  return Boolean(pendingPrompt)
+    && !event.command
+    && (event.status === "completed" || event.status === "failed");
+}
+
+function readAssistantConversationReply(message: string | undefined, status: TaskStatus): string {
+  const fallback = status === "failed" ? "Background Agent 暂时不可用." : STATUS_COPY.completed.message;
+  const text = message?.trim() || fallback;
+  return text.replace(/^(?:Codex|Claude Code):\s*/u, "").trim() || fallback;
+}
+
 function getDashboardStatusCopy(task: TaskView): {
   label: string;
   detail: string;
@@ -1213,6 +1234,7 @@ export default function App() {
   const [assistantPanelOpen, setAssistantPanelOpen] = useState(false);
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantInputSubmitting, setAssistantInputSubmitting] = useState(false);
+  const [assistantConversation, setAssistantConversation] = useState<AssistantConversationMessage[]>([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [permissionOnboardingOpen, setPermissionOnboardingOpen] = useState(false);
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
@@ -1236,10 +1258,16 @@ export default function App() {
   const [replayRecords, setReplayRecords] = useState<ObserveAppReplayRecord[]>([]);
   const assistantInputRef = useRef<HTMLTextAreaElement | null>(null);
   const petDragRef = useRef<PetDragState | null>(null);
+  const pendingAssistantPromptRef = useRef<string | null>(null);
   const suppressNextPetClickRef = useRef(false);
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
+      const assistantConversationReply = isAssistantConversationReplyEvent(
+        event,
+        pendingAssistantPromptRef.current
+      );
+
       setTask({
         status: event.status,
         message: event.message ?? STATUS_COPY[event.status].message,
@@ -1257,7 +1285,28 @@ export default function App() {
         return event.status === "idle" ? [] : records;
       });
 
+      if (assistantConversationReply) {
+        pendingAssistantPromptRef.current = null;
+        setAssistantConversation((messages) => [
+          ...messages.filter((message) => message.state !== "pending"),
+          {
+            role: "assistant",
+            text: readAssistantConversationReply(event.message, event.status),
+            ...(event.status === "failed" ? { state: "error" as const } : {})
+          }
+        ]);
+        setAssistantInputSubmitting(false);
+        setAssistantPanelOpen(true);
+        setDetailsOpen(false);
+        setPermissionOnboardingOpen(false);
+        return;
+      }
+
       if (event.status !== "idle") {
+        if (event.command) {
+          pendingAssistantPromptRef.current = null;
+          setAssistantConversation((messages) => messages.filter((message) => message.state !== "pending"));
+        }
         setAssistantPanelOpen(false);
         setDetailsOpen(false);
       }
@@ -1522,8 +1571,21 @@ export default function App() {
       return;
     }
 
+    pendingAssistantPromptRef.current = command;
+    setAssistantConversation((messages) => [
+      ...messages.filter((message) => message.state !== "pending"),
+      {
+        role: "user",
+        text: command
+      },
+      {
+        role: "assistant",
+        text: "Background Agent 正在回复...",
+        state: "pending"
+      }
+    ]);
     setAssistantInputSubmitting(true);
-    setAssistantPanelOpen(false);
+    setAssistantPanelOpen(true);
     setDetailsOpen(false);
     setPermissionOnboardingOpen(false);
     setTask({
@@ -1535,6 +1597,15 @@ export default function App() {
     try {
       await api.runCommand(command, { mode: "active" });
     } catch {
+      pendingAssistantPromptRef.current = null;
+      setAssistantConversation((messages) => [
+        ...messages.filter((message) => message.state !== "pending"),
+        {
+          role: "assistant",
+          text: "发送给 Background Agent 失败.",
+          state: "error"
+        }
+      ]);
       setTask({
         status: "failed",
         message: "发送给 Background Agent 失败."
@@ -1627,7 +1698,7 @@ export default function App() {
       setReplayRecords([]);
       setDetailsOpen(false);
       setPermissionOnboardingOpen(false);
-      setAssistantPanelOpen(false);
+      setAssistantPanelOpen(true);
       return;
     }
 
@@ -1706,57 +1777,62 @@ export default function App() {
                 turnReplay={turnReplay}
               />
               <div className="settings-layout">
-                <p>偏好</p>
-                <div className="app-policy-panel" aria-label="Background Agent">
-                  <div className="app-policy-heading">
-                    <strong>Background Agent</strong>
-                    <span>{selectedAssistantAgentProvider.label}</span>
-                  </div>
-                  <div className="provider-switch provider-switch-three" role="group" aria-label="Background Agent provider">
-                    {ASSISTANT_AGENT_OPTIONS.map((option) => (
-                      <button
-                        type="button"
-                        key={option.mode}
-                        aria-label={option.aria}
-                        aria-pressed={assistantAgentSettings.settings.mode === option.mode}
-                        onClick={() => void selectAssistantAgentMode(option.mode)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="provider-status-card" aria-label="Background Agent 状态">
-                    <strong>{readAssistantAgentReadinessLabel(selectedAssistantAgentProvider.readiness)}</strong>
-                    <p>{readAssistantAgentProviderDetail(assistantAgentSettings, selectedAssistantAgentProvider)}</p>
-                    {selectedAssistantAgentProvider.lastError ? (
-                      <p>{selectedAssistantAgentProvider.lastError}</p>
-                    ) : null}
-                  </div>
+                <div className="settings-section-heading">
+                  <strong>日常设置</strong>
+                  <span>Agent 与应用策略</span>
                 </div>
-                <div className="app-policy-panel" aria-label="应用策略">
-                  <div className="app-policy-heading">
-                    <strong>应用策略</strong>
-                    <span>Computer Use</span>
+                <div className="settings-grid">
+                  <div className="app-policy-panel" aria-label="Background Agent 设置">
+                    <div className="app-policy-heading">
+                      <strong>Background Agent</strong>
+                      <span>{selectedAssistantAgentProvider.label}</span>
+                    </div>
+                    <div className="provider-switch" role="group" aria-label="Background Agent provider">
+                      {ASSISTANT_AGENT_OPTIONS.map((option) => (
+                        <button
+                          type="button"
+                          key={option.mode}
+                          aria-label={option.aria}
+                          aria-pressed={assistantAgentSettings.settings.mode === option.mode}
+                          onClick={() => void selectAssistantAgentMode(option.mode)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="provider-status-card" aria-label="Background Agent 状态">
+                      <strong>{readAssistantAgentReadinessLabel(selectedAssistantAgentProvider.readiness)}</strong>
+                      <p>{readAssistantAgentProviderDetail(assistantAgentSettings, selectedAssistantAgentProvider)}</p>
+                      {selectedAssistantAgentProvider.lastError ? (
+                        <p>{selectedAssistantAgentProvider.lastError}</p>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="app-policy-list">
-                    {appPolicySettings.apps.map((entry) => (
-                      <div className="app-policy-row" key={entry.bundleId}>
-                        <span>{entry.name}</span>
-                        <div className="app-policy-switch" role="group" aria-label={`${entry.name} policy`}>
-                          {APP_POLICY_OPTIONS.map((option) => (
-                            <button
-                              type="button"
-                              key={option.policy}
-                              aria-label={`${option.label} ${entry.name}`}
-                              aria-pressed={entry.policy === option.policy}
-                              onClick={() => void selectAppPolicy(entry.bundleId, option.policy)}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
+                  <div className="app-policy-panel" aria-label="Computer Use 设置">
+                    <div className="app-policy-heading">
+                      <strong>应用策略</strong>
+                      <span>Computer Use</span>
+                    </div>
+                    <div className="app-policy-list">
+                      {appPolicySettings.apps.map((entry) => (
+                        <div className="app-policy-row" key={entry.bundleId}>
+                          <span>{entry.name}</span>
+                          <div className="app-policy-switch" role="group" aria-label={`${entry.name} policy`}>
+                            {APP_POLICY_OPTIONS.map((option) => (
+                              <button
+                                type="button"
+                                key={option.policy}
+                                aria-label={`${option.label} ${entry.name}`}
+                                aria-pressed={entry.policy === option.policy}
+                                onClick={() => void selectAppPolicy(entry.bundleId, option.policy)}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <details className="advanced-panel" aria-label="诊断/高级">
@@ -1889,17 +1965,33 @@ export default function App() {
                 <strong>agent</strong>
                 <span>{selectedAssistantAgentProvider.label}</span>
               </div>
+              {assistantConversation.length > 0 ? (
+                <div className="assistant-thread" aria-label="skfiy conversation">
+                  {assistantConversation.map((message, index) => (
+                    <div
+                      className="assistant-message"
+                      data-role={message.role}
+                      data-state={message.state ?? "done"}
+                      aria-label={message.role === "user" ? "你发送给 skfiy" : "skfiy 回复"}
+                      key={`${message.role}-${index}-${message.text}`}
+                    >
+                      {message.text}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <textarea
                 ref={assistantInputRef}
                 aria-label="Ask skfiy"
                 value={assistantInput}
                 placeholder="Ask skfiy..."
                 rows={3}
+                disabled={assistantInputSubmitting}
                 onChange={(event) => setAssistantInput(event.currentTarget.value)}
                 onKeyDown={submitAssistantInputFromKeyboard}
               />
               <div className="assistant-input-actions">
-                <span>Computer Use 会按应用策略审批</span>
+                <span>{assistantInputSubmitting ? "等待回复" : `${selectedAssistantAgentProvider.label} · ${readAssistantAgentReadinessLabel(selectedAssistantAgentProvider.readiness)}`}</span>
                 <button
                   type="submit"
                   aria-label="发送给 skfiy"

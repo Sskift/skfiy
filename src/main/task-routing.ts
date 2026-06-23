@@ -141,9 +141,18 @@ function isShortGreetingPrompt(command: string): boolean {
 }
 
 function isConversationalPrompt(command: string): boolean {
+  if (isDesktopControlRequest(command)) {
+    return false;
+  }
+
   const normalized = normalizeConversationalPrompt(command);
 
-  return [
+  const asksForDirectReply =
+    /^(hello|hi|hey|yo|你好|哈喽|哈啰|嗨)(\s+(skfiy|assistant|bot))?[\s,，。.!！?？、:：].+/u
+      .test(normalized)
+    || /(?:请|帮我)?(?:回答|回复|解释|总结|介绍)(?:一下|下)?/u.test(normalized);
+
+  return asksForDirectReply || [
     "你是谁",
     "你叫什么",
     "你能做什么",

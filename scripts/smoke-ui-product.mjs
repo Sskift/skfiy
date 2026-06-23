@@ -48,6 +48,7 @@ async function main() {
     layoutDiagnostics: undefined,
     petClicked: false,
     petDrag: undefined,
+    assistantConversation: undefined,
     stopTurnBehavior: undefined,
     onboardingVisible: false,
     permissionRows: [],
@@ -244,6 +245,7 @@ function createInspectPermissionOnboardingExpression(settleMs) {
     inspectPermissionOnboardingExpression.toString(),
     exercisePetDrag.toString(),
     exerciseVisiblePetEdgeChecks.toString(),
+    exerciseAssistantConversation.toString(),
     dragPetByDelta.toString(),
     readVisiblePetDragSnapshot.toString(),
     readRendererScreenBounds.toString(),
@@ -251,7 +253,9 @@ function createInspectPermissionOnboardingExpression(settleMs) {
     isVisibleEdgeAligned.toString(),
     hasVisiblePetEdgeChecks.toString(),
     exerciseStopTurnBehavior.toString(),
+    waitForDomCondition.toString(),
     waitForTaskEvent.toString(),
+    setTextAreaValue.toString(),
     dispatchPetPointerEvent.toString(),
     rectToPlainObject.toString(),
     roundMetric.toString(),
@@ -381,11 +385,13 @@ async function inspectPermissionOnboardingExpression(settleMs) {
       target: permissionTargets[row.label] ?? "unknown",
       buttonLabel: row.buttonLabel
     }));
+  const assistantConversation = await exerciseAssistantConversation(pet);
   const stopTurnBehavior = await exerciseStopTurnBehavior();
 
   return {
     petClicked: Boolean(pet),
     petDrag,
+    assistantConversation,
     stopTurnBehavior,
     onboardingVisible: Boolean(onboarding),
     permissionRows,
@@ -734,6 +740,116 @@ function dispatchPetPointerEvent(pet, type, { screenX, screenY, buttons, clientX
   }));
 }
 
+async function exerciseAssistantConversation(pet) {
+  const skfiy = window.skfiy;
+  const prompt = "你好 skfiy，请用一句话回复。";
+
+  if (
+    !pet
+    || !skfiy
+    || typeof skfiy.onTaskEvent !== "function"
+  ) {
+    return {
+      result: "missing",
+      source: "renderer-assistant-conversation-product-path",
+      prompt,
+      eventStatus: "missing",
+      panelVisibleAfterReply: false,
+      inputReadyAfterReply: false,
+      replyVisible: false,
+      replyText: ""
+    };
+  }
+
+  const events = [];
+  const unsubscribe = skfiy.onTaskEvent((event) => {
+    events.push(event);
+  });
+
+  try {
+    if (!document.querySelector('[aria-label="skfiy assistant input"]')) {
+      pet.dispatchEvent(new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      }));
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+
+    const textarea = document.querySelector('textarea[aria-label="Ask skfiy"]');
+    const sendButton = document.querySelector('button[aria-label="发送给 skfiy"]');
+
+    if (!textarea || !sendButton) {
+      return {
+        result: "missing",
+        source: "renderer-assistant-conversation-product-path",
+        prompt,
+        eventStatus: "missing-input",
+        panelVisibleAfterReply: false,
+        inputReadyAfterReply: false,
+        replyVisible: false,
+        replyText: ""
+      };
+    }
+
+    setTextAreaValue(textarea, prompt);
+    await new Promise((resolve) => window.setTimeout(resolve, 120));
+    sendButton.click();
+
+    const replyEvent = await waitForTaskEvent(
+      events,
+      (event) => (event.status === "completed" || event.status === "failed") && !event.command,
+      60_000
+    );
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+
+    const panel = document.querySelector('[aria-label="skfiy assistant input"]');
+    const reply = document.querySelector('[aria-label="skfiy 回复"]');
+    const input = document.querySelector('textarea[aria-label="Ask skfiy"]');
+    const replyText = reply?.textContent?.trim() ?? "";
+    const inputReadyAfterReply = Boolean(input) && !input.disabled;
+    const passed = replyEvent?.status === "completed"
+      && Boolean(panel)
+      && inputReadyAfterReply
+      && Boolean(reply)
+      && replyText.length > 0;
+
+    return {
+      result: passed ? "passed" : "failed",
+      source: "renderer-assistant-conversation-product-path",
+      prompt,
+      eventStatus: replyEvent?.status ?? "missing",
+      panelVisibleAfterReply: Boolean(panel),
+      inputReadyAfterReply,
+      replyVisible: Boolean(reply),
+      replyText
+    };
+  } catch (error) {
+    return {
+      result: "failed",
+      source: "renderer-assistant-conversation-product-path",
+      prompt,
+      eventStatus: "error",
+      panelVisibleAfterReply: Boolean(document.querySelector('[aria-label="skfiy assistant input"]')),
+      inputReadyAfterReply: false,
+      replyVisible: false,
+      replyText: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    unsubscribe();
+  }
+}
+
+function setTextAreaValue(textarea, value) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+  setter?.call(textarea, value);
+  textarea.dispatchEvent(new Event("input", {
+    bubbles: true,
+    cancelable: true
+  }));
+}
+
 async function exerciseStopTurnBehavior() {
   const skfiy = window.skfiy;
   const command = "在 Ghostty 执行 mkdir skfiy-stop-smoke";
@@ -762,6 +878,10 @@ async function exerciseStopTurnBehavior() {
   try {
     await skfiy.runCommand(command, { mode: "active" });
     const before = await waitForTaskEvent(events, (event) => event.status === "approval_required");
+    await waitForDomCondition(() =>
+      document.querySelector('button[aria-label="确认"]')
+      || document.body.innerText.includes("Approval required")
+    );
 
     window.dispatchEvent(new KeyboardEvent("keydown", {
       key: "Escape",
@@ -801,8 +921,21 @@ async function exerciseStopTurnBehavior() {
   }
 }
 
-async function waitForTaskEvent(events, predicate) {
-  const deadline = Date.now() + 3_000;
+async function waitForDomCondition(predicate, timeoutMs = 3_000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return true;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+  }
+
+  return false;
+}
+
+async function waitForTaskEvent(events, predicate, timeoutMs = 3_000) {
+  const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
     const event = events.find(predicate);

@@ -125,6 +125,16 @@ describe("packaged UI product smoke script", () => {
         beforeStatus: "approval_required",
         afterStatus: "cancelled",
         afterMessage: "Task stopped."
+      },
+      assistantConversation: {
+        result: "passed",
+        source: "renderer-assistant-conversation-product-path",
+        prompt: "你好 skfiy",
+        eventStatus: "completed",
+        panelVisibleAfterReply: true,
+        inputReadyAfterReply: true,
+        replyVisible: true,
+        replyText: "你好，我在。"
       }
     };
 
@@ -148,6 +158,10 @@ describe("packaged UI product smoke script", () => {
       ...passedEvidence,
       stopTurnBehavior: undefined
     })).toBe("missing-stop-turn-behavior");
+    expect(classifyUiSmokeEvidence({
+      ...passedEvidence,
+      assistantConversation: undefined
+    })).toBe("missing-assistant-conversation");
     expect(classifyUiSmokeEvidence({
       ...passedEvidence,
       petDrag: {
@@ -217,7 +231,12 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("suppressedClickAfterDrag");
     expect(source).toContain("stopTurnBehavior");
     expect(source).toContain("exerciseStopTurnBehavior.toString()");
+    expect(source).toContain("assistantConversation");
+    expect(source).toContain("exerciseAssistantConversation.toString()");
+    expect(source).toContain("renderer-assistant-conversation-product-path");
     expect(source).toContain("new KeyboardEvent(\"keydown\"");
+    expect(source).toContain("waitForDomCondition.toString()");
+    expect(source).toContain("button[aria-label=\"确认\"]");
     expect(source).toContain("event.status === \"cancelled\"");
     expect(source).toContain("after?.status === \"cancelled\"");
     expect(source).toContain("Page.captureScreenshot");

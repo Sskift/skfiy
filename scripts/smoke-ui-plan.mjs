@@ -94,6 +94,10 @@ export function classifyUiSmokeEvidence(evidence) {
     return "missing-stop-turn-behavior";
   }
 
+  if (!hasAssistantConversationEvidence(evidence.assistantConversation)) {
+    return "missing-assistant-conversation";
+  }
+
   if (!evidence.onboardingVisible) {
     return hasAllRequiredPermissionsGranted(evidence.permissions) ? "no-onboarding" : "missing-onboarding";
   }
@@ -235,6 +239,22 @@ function hasStopTurnBehaviorEvidence(value) {
     && value.afterStatus === "cancelled"
     && typeof value.afterMessage === "string"
     && value.afterMessage.includes("Task stopped");
+}
+
+function hasAssistantConversationEvidence(value) {
+  if (!value || value.result !== "passed") {
+    return false;
+  }
+
+  return value.source === "renderer-assistant-conversation-product-path"
+    && typeof value.prompt === "string"
+    && value.prompt.trim().length > 0
+    && value.eventStatus === "completed"
+    && value.panelVisibleAfterReply === true
+    && value.inputReadyAfterReply === true
+    && value.replyVisible === true
+    && typeof value.replyText === "string"
+    && value.replyText.trim().length > 0;
 }
 
 function hasWindowBounds(bounds) {

@@ -40,6 +40,19 @@ describe("assistant tool bridge main-process wiring", () => {
     expect(source).toContain("activeComputerUseToolIdentity = toolIdentity");
   });
 
+  it("does not report a failed chat provider turn as completed", () => {
+    const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const chatRouteStart = source.indexOf("if (route.kind === \"chat\")");
+    const nextRouteStart = source.indexOf("if (assistantTurn.status !== \"completed\")", chatRouteStart);
+    const chatRouteBlock = source.slice(chatRouteStart, nextRouteStart);
+
+    expect(chatRouteStart).toBeGreaterThan(-1);
+    expect(nextRouteStart).toBeGreaterThan(chatRouteStart);
+    expect(chatRouteBlock).toContain(
+      "status: assistantTurn.status === \"completed\" ? \"completed\" : \"failed\""
+    );
+  });
+
   it("resumes approval, denial, and stop through the existing Computer Use continuation", () => {
     const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
     const approveHandlerStart = source.indexOf("ipcMain.handle(\"skfiy:approve-task\"");

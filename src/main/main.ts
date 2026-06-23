@@ -1123,7 +1123,7 @@ async function runCommandTask(
     activeTaskController = null;
     currentTaskId += 1;
     emitTurnReplayTaskEvent(window, {
-      status: "completed",
+      status: assistantTurn.status === "completed" ? "completed" : "failed",
       message: createAssistantAgentTaskMessage(assistantTurn)
     });
     return;

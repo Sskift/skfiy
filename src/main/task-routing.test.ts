@@ -175,6 +175,26 @@ describe("selectCommandRoute", () => {
     }
   });
 
+  it("routes natural greeting and reply prompts to chat", () => {
+    for (const prompt of [
+      "你好 skfiy，请用一句话回复。",
+      "请回答：你好 skfiy",
+      "帮我解释一下你能做什么"
+    ]) {
+      expect(selectCommandRoute(prompt)).toEqual({
+        kind: "chat",
+        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+      });
+    }
+  });
+
+  it("keeps desktop control requests out of chat even when phrased conversationally", () => {
+    expect(selectCommandRoute("你好 skfiy，在 Ghostty 执行 pwd")).toEqual({
+      kind: "ghostty",
+      bundleId: "com.mitchellh.ghostty"
+    });
+  });
+
   it("asks for clarification when the requested app or action is not supported yet", () => {
     expect(selectCommandRoute("帮我整理一下桌面")).toEqual({
       kind: "needs_clarification",

@@ -286,6 +286,19 @@ describe("App", () => {
     expect(screen.queryByText("右键")).not.toBeInTheDocument();
   });
 
+  it("renders right-click settings as clear user sections before advanced diagnostics", async () => {
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const settings = await screen.findByLabelText(/skfiy settings/i);
+    expect(within(settings).getByText("日常设置")).toBeInTheDocument();
+    expect(within(settings).getByLabelText("Background Agent 设置")).toBeInTheDocument();
+    expect(within(settings).getByLabelText("Computer Use 设置")).toBeInTheDocument();
+    expect(within(settings).getByText("诊断/高级")).toBeInTheDocument();
+    expect(within(settings).queryByText("偏好")).not.toBeInTheDocument();
+  });
+
   it("shows a user-mode dashboard summary before advanced diagnostics", async () => {
     render(<App />);
 
@@ -394,7 +407,7 @@ describe("App", () => {
     fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
 
     await waitFor(() => {
-      expect(screen.getByText("偏好")).toBeInTheDocument();
+      expect(screen.getByText("日常设置")).toBeInTheDocument();
     });
     expect(screen.queryByText("语音入口")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Audio provider")).not.toBeInTheDocument();
@@ -728,7 +741,7 @@ describe("App", () => {
     expect(screen.getByText("任务已停止.")).toBeInTheDocument();
   });
 
-  it("dismisses terminal task bubbles on a subsequent pet click", () => {
+  it("opens a fresh assistant input from a terminal task bubble click", () => {
     render(<App />);
 
     act(() => emitTaskEvent({ status: "cancelled", message: "Task stopped." }));
@@ -736,7 +749,7 @@ describe("App", () => {
 
     expect(screen.getByRole("status", { name: /task status/i })).toHaveTextContent("Idle");
     expect(screen.queryByText("Task stopped.")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/skfiy desktop pet/i)).not.toHaveClass("panel-open");
+    expect(screen.getByLabelText(/skfiy assistant input/i)).toBeInTheDocument();
   });
 
   it("does not move the pet window from a plain left click", () => {
@@ -774,7 +787,70 @@ describe("App", () => {
     await waitFor(() => {
       expect(api.runCommand).toHaveBeenCalledWith("打开 Ghostty 查看 pwd", { mode: "active" });
     });
-    expect(screen.queryByLabelText(/skfiy assistant input/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/skfiy assistant input/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("你发送给 skfiy")).toHaveTextContent("打开 Ghostty 查看 pwd");
+  });
+
+  it("keeps the conversation panel usable while waiting for the background agent", async () => {
+    const api = window.skfiy as DesktopApi;
+    let resolveRunCommand: (() => void) | undefined;
+    api.runCommand = vi.fn<DesktopApi["runCommand"]>().mockImplementation(
+      () => new Promise<void>((resolve) => {
+        resolveRunCommand = resolve;
+      })
+    );
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    fireEvent.change(screen.getByRole("textbox", { name: /ask skfiy/i }), {
+      target: { value: "你好" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送给 skfiy" }));
+
+    await waitFor(() => expect(api.runCommand).toHaveBeenCalledWith("你好", { mode: "active" }));
+    expect(screen.getByLabelText(/skfiy assistant input/i)).toBeInTheDocument();
+    expect(screen.getByText("Background Agent 正在回复...")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "发送给 skfiy" })).toBeDisabled();
+
+    act(() => resolveRunCommand?.());
+  });
+
+  it("shows the assistant reply in the same panel and keeps input ready for follow-up", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    fireEvent.change(screen.getByRole("textbox", { name: /ask skfiy/i }), {
+      target: { value: "你好" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送给 skfiy" }));
+
+    act(() => emitTaskEvent({
+      status: "completed",
+      message: "Codex: 你好，我在。"
+    }));
+
+    expect(screen.getByLabelText("skfiy 回复")).toHaveTextContent("你好，我在。");
+    expect(screen.getByRole("textbox", { name: /ask skfiy/i })).not.toBeDisabled();
+  });
+
+  it("shows background agent provider failures as an inline conversation error", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText(/skfiy codex-style pet/i));
+    fireEvent.change(screen.getByRole("textbox", { name: /ask skfiy/i }), {
+      target: { value: "你好" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送给 skfiy" }));
+
+    act(() => emitTaskEvent({
+      status: "failed",
+      message: "Assistant agent failed: codex exited with code 1"
+    }));
+
+    const reply = screen.getByLabelText("skfiy 回复");
+    expect(reply).toHaveAttribute("data-state", "error");
+    expect(reply).toHaveTextContent("Assistant agent failed: codex exited with code 1");
+    expect(screen.getByRole("textbox", { name: /ask skfiy/i })).not.toBeDisabled();
   });
 
   it("maps planned and running canonical statuses to non-idle pet animation", () => {
