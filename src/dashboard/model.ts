@@ -77,6 +77,18 @@ export interface DashboardChromeHostPolicySummary {
   tone: Tone;
 }
 
+export interface DashboardBrowserContextSummary {
+  state: string;
+  label: string;
+  tone: Tone;
+  source?: string;
+  url?: string;
+  title?: string;
+  observedAt?: string;
+  reason: string;
+  nextAction?: string;
+}
+
 export interface DashboardChromeControlState {
   label: string;
   host: string;
@@ -98,6 +110,7 @@ export interface DashboardChromeControlState {
   screenshotLane: string;
   tabDiscoveryLabel: string;
   tabDiscoveryReason?: string;
+  browserContext: DashboardBrowserContextSummary;
   hostPolicy: DashboardChromeHostPolicySummary;
 }
 
@@ -135,6 +148,7 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
   const activeTab = readRecord(pageControl?.activeTab);
   const capabilities = readRecord(pageControl?.capabilities);
   const contentScript = readRecord(pageControl?.contentScript);
+  const browserContext = readDashboardBrowserContextSummary(readRecord(extension?.browserContext), pageControl);
   const capabilityLabels = Object.entries(capabilities ?? {})
     .filter(([, value]) => value === true || typeof value === "string")
     .map(([key, value]) => typeof value === "string" ? `${key}: ${value}` : key);
@@ -200,8 +214,54 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
     screenshotLane,
     tabDiscoveryLabel: tabDiscovery.label,
     tabDiscoveryReason: tabDiscovery.reason,
+    browserContext,
     hostPolicy
   };
+}
+
+function readDashboardBrowserContextSummary(
+  browserContext: Record<string, unknown> | undefined,
+  pageControl: Record<string, unknown> | undefined
+): DashboardBrowserContextSummary {
+  const state = readString(browserContext?.state) ?? "missing";
+  const title = readString(browserContext?.title);
+  const url = readString(browserContext?.url);
+  const nextAction = readString(browserContext?.nextAction);
+  const reason = readString(browserContext?.reason)
+    ?? readString(pageControl?.reason)
+    ?? "Browser Context has not reported readiness.";
+
+  return {
+    state,
+    label: title ?? url ?? titleize(state),
+    tone: readBrowserContextTone(state),
+    source: readString(browserContext?.source),
+    url,
+    title,
+    observedAt: readString(browserContext?.observedAt),
+    reason,
+    nextAction
+  };
+}
+
+function readBrowserContextTone(state: string): Tone {
+  if (state === "ready") {
+    return "success";
+  }
+  if (state === "partial" || state === "sensitive-paused" || state === "stale" || state === "not-probed") {
+    return "warning";
+  }
+  if (
+    state.startsWith("blocked")
+    || state === "unavailable"
+    || state === "active_tab_unavailable"
+    || state === "content_script_not_loaded"
+    || state === "not_loaded"
+  ) {
+    return "danger";
+  }
+
+  return "neutral";
 }
 
 function readChromeExtensionId(

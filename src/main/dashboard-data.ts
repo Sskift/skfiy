@@ -33,6 +33,10 @@ import {
   type AssistantAgentProviderId,
   type AssistantAgentSettings
 } from "./assistant-agent.js";
+import {
+  createBrowserPageContextFromConnection,
+  normalizeBrowserPageContext
+} from "./browser-page-context.js";
 import { decidePlannerProviderRuntime } from "./planner-provider-runtime.js";
 import {
   readInitialPlannerProviderSettings,
@@ -214,9 +218,11 @@ export function createDashboardSnapshot({
   if (runtimeSnapshot) {
     runtimeHealth.runtimeSnapshot = runtimeSnapshot;
   }
+  const extensionEvidence = readRecord(runtimeHealth.extension) ?? {};
   runtimeHealth.extension = {
-    ...(readRecord(runtimeHealth.extension) ?? {}),
-    pageControl: readDashboardPageControlEvidence(runtimeHealth, smokeEvidence.artifacts)
+    ...sanitizeDashboardChromeExtensionStatus(extensionEvidence),
+    pageControl: readDashboardPageControlEvidence(runtimeHealth, smokeEvidence.artifacts),
+    browserContext: readDashboardBrowserContextEvidence(runtimeHealth, smokeEvidence.artifacts)
   };
 
   return {
@@ -2698,6 +2704,117 @@ function readDashboardPageControlEvidence(
     ?? createDashboardPageControlNotProbed();
 }
 
+function readDashboardBrowserContextEvidence(
+  runtimeHealth: Record<string, unknown>,
+  artifacts: Array<Record<string, unknown>>
+): Record<string, unknown> {
+  const runtimeContext = readDashboardBrowserContextFromRuntime(runtimeHealth);
+  if (runtimeContext) {
+    return runtimeContext;
+  }
+
+  const artifact = artifacts.find((candidate) => candidate.target === "chrome");
+  const artifactContext = readDashboardBrowserContextFromChromeArtifact(readRecord(artifact));
+  if (artifactContext) {
+    return artifactContext;
+  }
+
+  return createDashboardBrowserContextSummary(normalizeBrowserPageContext(undefined), "dashboard-empty")
+    ?? createDashboardBrowserContextMissingSummary("dashboard-empty");
+}
+
+function readDashboardBrowserContextFromRuntime(
+  runtimeHealth: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  const extension = readRecord(runtimeHealth.extension);
+  const connection = readRecord(extension?.connection);
+  const directContext = createDashboardBrowserContextSummary(
+    readRecord(extension?.browserContext) ?? readRecord(connection?.browserContext),
+    "runtime-health"
+  );
+  if (directContext) {
+    return directContext;
+  }
+
+  if (!extension && !connection) {
+    return undefined;
+  }
+
+  return createDashboardBrowserContextSummary(createBrowserPageContextFromConnection({
+    state: readNonEmptyStringValue(connection?.state)
+      ?? readNonEmptyStringValue(extension?.liveConnection)
+      ?? readNonEmptyStringValue(extension?.state),
+    observedAt: readNonEmptyStringValue(connection?.observedAt),
+    reason: readNonEmptyStringValue(connection?.reason) ?? readNonEmptyStringValue(extension?.reason),
+    pageControl: readRecord(extension?.pageControl) ?? readRecord(connection?.pageControl),
+    pageObservation: readRecord(extension?.pageObservation) ?? readRecord(connection?.pageObservation),
+    latestCommand: readRecord(extension?.latestCommand) ?? readRecord(connection?.latestCommand)
+  }), "runtime-health");
+}
+
+function readDashboardBrowserContextFromChromeArtifact(
+  artifact: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!artifact) {
+    return undefined;
+  }
+
+  return [
+    readRecord(artifact.browserContext),
+    readRecord(readRecord(artifact.extension)?.browserContext),
+    readRecord(readRecord(artifact.installedExtensionRun)?.browserContext),
+    readDashboardBrowserContextFromInstalledActionRun(readRecord(artifact.installedExtensionActionRun))
+  ].reduce<Record<string, unknown> | undefined>((summary, candidate) =>
+    summary ?? createDashboardBrowserContextSummary(candidate, "chrome-smoke"),
+  undefined);
+}
+
+function readDashboardBrowserContextFromInstalledActionRun(
+  run: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const observeRun = readRecord(run?.finalObserveRun) ?? readRecord(run?.observeRun);
+  const connection = readRecord(observeRun?.extensionConnection);
+  if (!connection) {
+    return undefined;
+  }
+
+  return createDashboardBrowserContextSummary(
+    createBrowserPageContextFromConnection(connection),
+    "chrome-smoke"
+  );
+}
+
+function createDashboardBrowserContextSummary(
+  raw: unknown,
+  source: string
+): Record<string, unknown> | undefined {
+  if (!readRecord(raw)) {
+    return undefined;
+  }
+
+  const context = normalizeBrowserPageContext(raw);
+  return {
+    schemaVersion: 1,
+    state: context.state,
+    source,
+    ...(context.url ? { url: context.url } : {}),
+    ...(context.title ? { title: context.title } : {}),
+    ...(context.observedAt ? { observedAt: context.observedAt } : {}),
+    ...(context.reason ? { reason: context.reason } : {}),
+    ...(context.nextAction ? { nextAction: context.nextAction } : {})
+  };
+}
+
+function createDashboardBrowserContextMissingSummary(source: string): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    state: "missing",
+    source,
+    reason: "Chrome page context has not been observed yet.",
+    nextAction: "Open an http or https page in Chrome and refresh the skfiy extension."
+  };
+}
+
 function readDashboardPageControlFromRuntime(
   runtimeHealth: Record<string, unknown>
 ): Record<string, unknown> | undefined {
@@ -2708,6 +2825,7 @@ function readDashboardPageControlFromRuntime(
 
   return readDashboardPageControlFromCandidates([
     readRecord(extension.pageControl),
+    readRecord(readRecord(extension.connection)?.pageControl),
     readDashboardPageControlFromDiagnostics(readRecord(extension.diagnostics)),
     readRecord(readRecord(extension.currentTab)?.pageControl),
     readRecord(readRecord(extension.session)?.pageControl)
@@ -3199,6 +3317,8 @@ function createWorkspaceChromeExtensionStatus(
     nativeHostState: nativeHost.state,
     ...(typeof nativeHost.manifestPath === "string" ? { manifestPath: nativeHost.manifestPath } : {}),
     ...(allowedOrigins.length > 0 ? { allowedOrigins } : {}),
+    ...(readRecord(connection?.pageControl) ? { pageControl: readRecord(connection?.pageControl) } : {}),
+    ...(readRecord(connection?.browserContext) ? { browserContext: readRecord(connection?.browserContext) } : {}),
     ...(connection && connection.state !== "unknown" ? { connection } : {}),
     ...(hostPolicy ? { hostPolicy } : {})
   };
@@ -3323,6 +3443,14 @@ function readWorkspaceChromeExtensionConnection({
 
   const ageSeconds = Math.max(0, Math.floor((generatedAtMs - observedAtMs) / 1000));
   const connected = ageSeconds <= CHROME_EXTENSION_CONNECTION_TTL_SECONDS;
+  const browserContext = createDashboardBrowserContextSummary(
+    createBrowserPageContextFromConnection({
+      ...heartbeat,
+      state: connected ? "connected" : "stale",
+      observedAt
+    }),
+    "runtime-heartbeat"
+  );
 
   return {
     state: connected ? "connected" : "stale",
@@ -3332,7 +3460,9 @@ function readWorkspaceChromeExtensionConnection({
     observedAt,
     ...(typeof heartbeat.launchOrigin === "string" ? { launchOrigin: heartbeat.launchOrigin } : {}),
     ...(typeof heartbeat.messageType === "string" ? { messageType: heartbeat.messageType } : {}),
-    ...(typeof heartbeat.requestId === "string" ? { requestId: heartbeat.requestId } : {})
+    ...(typeof heartbeat.requestId === "string" ? { requestId: heartbeat.requestId } : {}),
+    ...(readRecord(heartbeat.pageControl) ? { pageControl: readRecord(heartbeat.pageControl) } : {}),
+    ...(browserContext ? { browserContext } : {})
   };
 }
 
@@ -3767,6 +3897,39 @@ function createUnknownPermissions(): Record<string, string> {
     accessibility: "unknown",
     finderAutomation: "unknown"
   };
+}
+
+function sanitizeDashboardChromeExtensionStatus(
+  extension: Record<string, unknown>
+): Record<string, unknown> {
+  const {
+    pageObservation: _pageObservation,
+    latestCommand: _latestCommand,
+    connection,
+    ...safeExtension
+  } = extension;
+  const safeConnection = sanitizeDashboardChromeExtensionConnection(readRecord(connection));
+
+  return {
+    ...safeExtension,
+    ...(safeConnection ? { connection: safeConnection } : {})
+  };
+}
+
+function sanitizeDashboardChromeExtensionConnection(
+  connection: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!connection) {
+    return undefined;
+  }
+
+  const {
+    pageObservation: _pageObservation,
+    latestCommand: _latestCommand,
+    ...safeConnection
+  } = connection;
+
+  return safeConnection;
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {

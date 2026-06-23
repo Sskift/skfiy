@@ -57,6 +57,14 @@ const snapshot: DashboardSnapshot = {
           scroll: true,
           screenshot: "background_required"
         }
+      },
+      browserContext: {
+        state: "ready",
+        source: "runtime-health",
+        url: "http://127.0.0.1:52363/dashboard",
+        title: "skfiy Dashboard",
+        observedAt: "2026-06-22T07:59:58.000Z",
+        reason: "Current Chrome page context is ready."
       }
     },
     nativeHost: { state: "installed" },
@@ -233,6 +241,10 @@ describe("DashboardApp", () => {
     const browser = screen.getByRole("region", { name: "Browser" });
     expect(within(browser).getByRole("heading", { name: "Browser control" })).toBeInTheDocument();
     expect(within(browser).getByText("127.0.0.1:52363 tab 42")).toBeInTheDocument();
+    expect(within(browser).getByText("Browser Context")).toBeInTheDocument();
+    expect(within(browser).getByText("skfiy Dashboard")).toBeInTheDocument();
+    expect(within(browser).getByText("http://127.0.0.1:52363/dashboard")).toBeInTheDocument();
+    expect(within(browser).getByText("Current Chrome page context is ready.")).toBeInTheDocument();
     expect(within(browser).getByText("plcpkkhlcacihjfohlojdknnkademlno")).toBeInTheDocument();
     expect(within(browser).getByText("screenshot: background_required")).toBeInTheDocument();
     expect(within(browser).getByText("Using Chrome tab fallback")).toBeInTheDocument();

@@ -35,6 +35,10 @@ import {
 } from "./assistant-agent-settings.js";
 import { summarizeAssistantToolPlan } from "./assistant-tools.js";
 import {
+  createBrowserPageContextFromConnection,
+  type BrowserPageContext
+} from "./browser-page-context.js";
+import {
   createAssistantComputerUseExecutor,
   type AssistantComputerUseTerminalStatus,
   type AssistantComputerUseToolIdentity,
@@ -43,6 +47,7 @@ import {
 import { applyApprovedChromeTaskHostPolicy } from "./chrome-approval-policy.js";
 import { createChromeCdpClient } from "./chrome-cdp-client.js";
 import { readChromeCdpEndpoint } from "./chrome-cdp-settings.js";
+import { readChromeExtensionConnectionStatus } from "./chrome-native-host.js";
 import { createTmuxSupervisionClient } from "./tmux-supervision-client.js";
 import {
   createPlannerProviderSettingsStore,
@@ -506,10 +511,26 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, Math.max(min, max)));
 }
 
+async function readLatestBrowserPageContext(): Promise<BrowserPageContext> {
+  try {
+    const connection = await readChromeExtensionConnectionStatus({ homeDir: os.homedir() });
+    return createBrowserPageContextFromConnection(connection);
+  } catch (error) {
+    return createBrowserPageContextFromConnection({
+      state: "unavailable",
+      reason: error instanceof Error
+        ? error.message
+        : "Chrome extension diagnostics could not be read.",
+      nextAction: "Pet chat will continue without Browser Context."
+    });
+  }
+}
+
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
   try {
     return await runAssistantAgentTurn(input, {
-      settings: assistantAgentSettingsStore.get()
+      settings: assistantAgentSettingsStore.get(),
+      browserPageContext: await readLatestBrowserPageContext()
     });
   } catch (error) {
     if (error instanceof AssistantAgentTurnRuntimeError) {

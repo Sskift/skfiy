@@ -250,6 +250,23 @@ extension has a user-granted capture path or the packaged desktop screenshot
 fallback is proven on an unlocked display, screenshot can remain blocked while
 DOM page control is usable.
 
+## Pet Agent Page Context
+
+The pet's Background Agent can receive bounded Browser Context from the Chrome
+extension when the current tab is an `http` or `https` page and pageControl has
+observed it through the Native Messaging bridge.
+
+Browser Context readiness is separate from both pet chat and screenshot
+readiness. The skfiy host policy must allow the current host, and Chrome's
+optional host permission must be granted for that site before the extension can
+collect current-tab DOM text. Screenshot capture can still be blocked while DOM
+observation and page actions are ready.
+
+When Browser Context is ready, the agent prompt receives the current page URL,
+title, observed timestamp, state, and a bounded visible-text excerpt. When it is
+blocked, stale, missing, or unavailable, pet chat continues without page text and
+the dashboard reports the typed state, blocker reason, and next action.
+
 For machine probes, the background worker and content script both respond to the
 read-only `skfiy.page_control.health` message. The response includes the
 page-control protocol name, manifest/permission model, `content-script.js`

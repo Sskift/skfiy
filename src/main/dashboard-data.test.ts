@@ -226,6 +226,68 @@ describe("dashboard snapshot data", () => {
     expect(JSON.stringify(snapshot)).not.toContain("token=");
   });
 
+  it("adds ready Browser Context summary without exposing page text", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-23T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: createPageControlStatus({
+        extension: {
+          state: "connected",
+          pageObservation: {
+            url: "https://example.test/form",
+            title: "Example Form",
+            visibleText: "token=page-secret should not be exposed",
+            observedAt: "2026-06-23T00:00:00.000Z",
+            pageControl: {
+              state: "ready"
+            }
+          }
+        }
+      })
+    });
+
+    expect(snapshot.runtimeHealth.extension).toMatchObject({
+      browserContext: {
+        schemaVersion: 1,
+        state: "ready",
+        source: "runtime-health",
+        url: "https://example.test/form",
+        title: "Example Form",
+        observedAt: "2026-06-23T00:00:00.000Z"
+      }
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("visibleText");
+    expect(JSON.stringify(snapshot)).not.toContain("page-secret");
+    expect(JSON.stringify(snapshot)).not.toContain("token=");
+  });
+
+  it("adds blocked Browser Context summary from pageControl blockers", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-23T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: createPageControlStatus({
+        extension: {
+          state: "connected",
+          pageControl: {
+            state: "blocked_by_chrome_host_permission",
+            reason: "Chrome host permission missing.",
+            nextAction: "Grant site access."
+          }
+        }
+      })
+    });
+
+    expect(snapshot.runtimeHealth.extension).toMatchObject({
+      browserContext: {
+        schemaVersion: 1,
+        state: "blocked_by_chrome_host_permission",
+        source: "runtime-health",
+        reason: "Chrome host permission missing.",
+        nextAction: "Grant site access."
+      }
+    });
+  });
+
   it("composes runtime, permission, replay, smoke, and long-horizon panels from read-only inputs", () => {
     const snapshot = createDashboardSnapshot({
       generatedAt: "2026-06-20T00:00:00.000Z",
@@ -313,6 +375,13 @@ describe("dashboard snapshot data", () => {
             reason: "Chrome pageControl readiness has not been probed yet.",
             capabilities: {},
             nextAction: "Probe pageControl readiness from Chrome extension diagnostics."
+          },
+          browserContext: {
+            schemaVersion: 1,
+            state: "missing",
+            source: "runtime-health",
+            reason: "Chrome page context has not been observed yet.",
+            nextAction: "Open an http or https page in Chrome and refresh the skfiy extension."
           }
         },
         nativeHost: {

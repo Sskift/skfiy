@@ -2,6 +2,10 @@ import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import { createAssistantChatReply } from "./assistant-chat.js";
+import {
+  createBrowserPageContextPromptBlock,
+  type BrowserPageContext
+} from "./browser-page-context.js";
 import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
 
 export type AssistantAgentMode = "local" | "codex" | "claude-code";
@@ -55,6 +59,7 @@ export type AssistantAgentExecutableResolver = (command: string) => Promise<stri
 
 export interface RunAssistantAgentTurnInput {
   settings: AssistantAgentSettings;
+  browserPageContext?: BrowserPageContext;
   runProcess?: AssistantAgentProcessRunner;
   now?: () => Date;
   createTurnId?: () => string;
@@ -176,9 +181,10 @@ export async function readAssistantAgentProviderStates(
 
 export function buildAssistantAgentInvocation(
   settings: AssistantAgentSettings,
-  userInput: string
+  userInput: string,
+  browserPageContext?: BrowserPageContext
 ): AssistantAgentInvocation | null {
-  const prompt = createAssistantAgentPrompt(userInput);
+  const prompt = createAssistantAgentPrompt(userInput, browserPageContext);
 
   if (settings.mode === "codex") {
     return {
@@ -235,13 +241,14 @@ export async function runAssistantAgentTurn(
     runProcess = runAssistantAgentProcess,
     now = () => new Date(),
     createTurnId = createAssistantAgentTurnId,
-    signal
+    signal,
+    browserPageContext
   }: RunAssistantAgentTurnInput
 ): Promise<AssistantAgentTurnResult> {
   const id = createTurnId();
   const createdAt = now().toISOString();
   const route = selectCommandRoute(userInput);
-  const invocation = buildAssistantAgentInvocation(settings, userInput);
+  const invocation = buildAssistantAgentInvocation(settings, userInput, browserPageContext);
   const providerLabel = invocation?.label ?? "Local";
   const toolCalls = createAssistantAgentPlannedToolCalls({
     turnId: id,
@@ -489,7 +496,7 @@ async function resolveAssistantAgentExecutable(command: string): Promise<string>
   return resolvedPath;
 }
 
-function createAssistantAgentPrompt(userInput: string): string {
+function createAssistantAgentPrompt(userInput: string, browserPageContext?: BrowserPageContext): string {
   return [
     "You are the background agent for skfiy, an agent-first macOS desktop pet.",
     "Answer the user's conversational request concisely in Chinese.",
@@ -497,6 +504,7 @@ function createAssistantAgentPrompt(userInput: string): string {
     "Do not execute commands, edit files, or control apps directly from this provider call.",
     "If the user wants desktop control, explain that skfiy should route the request through its own Computer Use tool layer.",
     "",
+    ...(browserPageContext ? [createBrowserPageContextPromptBlock(browserPageContext), ""] : []),
     `User: ${userInput.trim()}`
   ].join("\n");
 }

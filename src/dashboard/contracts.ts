@@ -45,6 +45,33 @@ export interface DashboardAssistantProviderStatus {
   lastError?: string;
 }
 
+export type DashboardBrowserContextState =
+  | "ready"
+  | "partial"
+  | "blocked"
+  | "blocked_by_chrome_host_permission"
+  | "blocked_by_host_policy"
+  | "active_tab_unavailable"
+  | "content_script_not_loaded"
+  | "not_loaded"
+  | "sensitive-paused"
+  | "not-probed"
+  | "missing"
+  | "stale"
+  | "unavailable"
+  | string;
+
+export interface DashboardBrowserContextStatus {
+  schemaVersion?: number;
+  state: DashboardBrowserContextState;
+  source?: string;
+  url?: string;
+  title?: string;
+  observedAt?: string;
+  reason?: string;
+  nextAction?: string;
+}
+
 export interface DashboardSnapshot {
   schemaVersion: number;
   generatedAt: string;

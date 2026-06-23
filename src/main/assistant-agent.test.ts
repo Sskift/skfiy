@@ -152,6 +152,29 @@ describe("assistant agent provider", () => {
     });
   });
 
+  it("includes bounded browser page context in CLI provider prompts", () => {
+    const invocation = buildAssistantAgentInvocation({
+      mode: "codex",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      cwd: "/tmp/skfiy",
+      timeoutMs: 45_000
+    }, "summarize this page", {
+      state: "ready",
+      url: "https://example.test/form",
+      title: "Example Form",
+      visibleText: "Name Email Submit",
+      observedAt: "2026-06-23T00:00:00.000Z"
+    });
+
+    const prompt = invocation?.args.at(-1) ?? "";
+    expect(prompt).toContain("Current Chrome page");
+    expect(prompt).toContain("https://example.test/form");
+    expect(prompt).toContain("User: summarize this page");
+  });
+
   it("builds a no-tools Claude Code print invocation for pet chat", () => {
     expect(buildAssistantAgentInvocation({
       mode: "claude-code",

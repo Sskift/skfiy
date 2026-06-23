@@ -457,6 +457,12 @@ function DashboardContent({
                 <strong>{chromeControl.extensionId ?? "unknown"}</strong>
                 <span>Active tab</span>
                 <strong>{chromeControl.activeTabLabel}</strong>
+                <span>Browser Context</span>
+                <StatusChip tone={chromeControl.browserContext.tone}>{chromeControl.browserContext.state}</StatusChip>
+                <span>Page title</span>
+                <strong>{chromeControl.browserContext.title ?? "unknown"}</strong>
+                <span>Page URL</span>
+                <strong>{chromeControl.browserContext.url ?? "unknown"}</strong>
                 <span>Chrome</span>
                 <strong>{chromeControl.liveConnection}</strong>
                 <span>Native host</span>
@@ -471,6 +477,10 @@ function DashboardContent({
                 <StatusChip tone={chromeControl.hostPolicy.tone}>{chromeControl.hostPolicy.state}</StatusChip>
               </div>
               <p className="skfiy-dashboard-muted-message">{chromeControl.reason}</p>
+              <p className="skfiy-dashboard-muted-message">{chromeControl.browserContext.reason}</p>
+              {chromeControl.browserContext.nextAction ? (
+                <p className="skfiy-dashboard-muted-message">{chromeControl.browserContext.nextAction}</p>
+              ) : null}
               {chromeControl.nextAction ? (
                 <p className="skfiy-dashboard-muted-message">{chromeControl.nextAction}</p>
               ) : null}
