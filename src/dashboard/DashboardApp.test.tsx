@@ -218,7 +218,7 @@ describe("DashboardApp", () => {
     const assistantHealth = within(provider).getByRole("region", { name: "Assistant provider health" });
     expect(within(assistantHealth).getByText("selected codex")).toBeInTheDocument();
     expect(within(assistantHealth).getByText("timeout 45000ms")).toBeInTheDocument();
-    expect(within(assistantHealth).getByRole("heading", { name: "Local" })).toBeInTheDocument();
+    expect(within(assistantHealth).getByRole("heading", { name: "Built-in" })).toBeInTheDocument();
     expect(within(assistantHealth).getByRole("heading", { name: "Codex" })).toBeInTheDocument();
     expect(within(assistantHealth).getByRole("heading", { name: "Claude Code" })).toBeInTheDocument();
     expect(within(assistantHealth).getAllByText("readiness ready").length).toBeGreaterThanOrEqual(2);
@@ -600,7 +600,7 @@ function createProviderSettingsPayload(planner: {
           {
             provider: "assistant",
             id: "local",
-            label: "Local",
+            label: "Built-in",
             selected: false,
             configured: true,
             readiness: "ready",

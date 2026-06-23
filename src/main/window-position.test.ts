@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculatePetWindowOffsetForMode,
   calculatePetWindowBounds,
   movePetAnchorByDelta,
   readWindowPositionOverride,
-  resizePetWindowBoundsKeepingBottom
+  resizePetWindowBoundsKeepingBottom,
+  resizePetWindowBoundsKeepingPetAnchor
 } from "./window-position";
 
 describe("calculatePetWindowBounds", () => {
@@ -37,6 +39,46 @@ describe("calculatePetWindowBounds", () => {
       y: 764,
       width: 320,
       height: 360
+    });
+  });
+
+  it("uses the compact pet offset when shrinking from an input bubble to drag mode", () => {
+    const anchor = { x: 420, y: 520 };
+    const petSize = { width: 90, height: 66 };
+
+    expect(
+      calculatePetWindowOffsetForMode({
+        mode: "expanded",
+        windowSize: { width: 320, height: 500 },
+        petSize
+      })
+    ).toEqual({ x: 1, y: 433 });
+
+    expect(
+      calculatePetWindowOffsetForMode({
+        mode: "compact",
+        windowSize: { width: 90, height: 66 },
+        petSize
+      })
+    ).toEqual({ x: 1, y: 1 });
+
+    expect(
+      resizePetWindowBoundsKeepingPetAnchor({
+        anchor,
+        nextSize: { width: 90, height: 66 },
+        nextOffset: { x: 1, y: 1 },
+        displays: [
+          {
+            bounds: { x: 0, y: 0, width: 1440, height: 900 },
+            workArea: { x: 0, y: 25, width: 1440, height: 875 }
+          }
+        ]
+      })
+    ).toEqual({
+      x: 419,
+      y: 519,
+      width: 90,
+      height: 66
     });
   });
 

@@ -436,7 +436,7 @@ describe("dashboard loopback HTTP response helper", () => {
         {
           provider: "assistant",
           id: "local",
-          label: "Local",
+          label: "Built-in",
           selected: false,
           configured: true,
           readiness: "ready",

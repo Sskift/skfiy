@@ -52,7 +52,7 @@ function createAssistantAgentFixture(mode: AssistantAgentMode): AssistantAgentSe
       {
         provider: "assistant",
         id: "local",
-        label: "Local",
+        label: "Built-in",
         selected: mode === "local",
         configured: true,
         executableSource: "built-in",

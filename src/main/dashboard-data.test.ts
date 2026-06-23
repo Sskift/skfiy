@@ -95,7 +95,7 @@ describe("dashboard snapshot data", () => {
           {
             provider: "assistant",
             id: "local",
-            label: "Local",
+            label: "Built-in",
             selected: false,
             configured: true,
             readiness: "ready",
@@ -181,7 +181,7 @@ describe("dashboard snapshot data", () => {
           {
             provider: "assistant",
             id: "local",
-            label: "Local",
+            label: "Built-in",
             selected: false,
             configured: true,
             readiness: "ready",

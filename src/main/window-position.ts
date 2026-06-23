@@ -32,6 +32,22 @@ export interface PetAnchorMoveOptions {
   displays: readonly DisplayLike[];
 }
 
+export type PetWindowOffsetMode = "compact" | "expanded";
+
+export interface CalculatePetWindowOffsetForModeOptions {
+  mode: PetWindowOffsetMode;
+  windowSize: Size;
+  petSize: Size;
+  margin?: number;
+}
+
+export interface ResizePetWindowBoundsKeepingPetAnchorOptions {
+  anchor: Point;
+  nextSize: Size;
+  nextOffset: Point;
+  displays: readonly DisplayLike[];
+}
+
 export function resizePetWindowBoundsKeepingBottom(
   currentBounds: PetWindowBounds,
   nextSize: Size
@@ -41,6 +57,35 @@ export function resizePetWindowBoundsKeepingBottom(
     y: currentBounds.y + currentBounds.height - nextSize.height,
     ...nextSize
   };
+}
+
+export function calculatePetWindowOffsetForMode({
+  mode,
+  windowSize,
+  petSize,
+  margin = 1
+}: CalculatePetWindowOffsetForModeOptions): Point {
+  if (mode === "expanded") {
+    return {
+      x: margin,
+      y: clamp(windowSize.height - petSize.height - margin, margin, windowSize.height)
+    };
+  }
+
+  return { x: margin, y: margin };
+}
+
+export function resizePetWindowBoundsKeepingPetAnchor({
+  anchor,
+  nextSize,
+  nextOffset,
+  displays
+}: ResizePetWindowBoundsKeepingPetAnchorOptions): PetWindowBounds {
+  return clampWindowBoundsToNearestDisplay({
+    x: Math.round(anchor.x - nextOffset.x),
+    y: Math.round(anchor.y - nextOffset.y),
+    ...nextSize
+  }, displays);
 }
 
 export function calculatePetWindowBounds({
@@ -147,6 +192,28 @@ function findNearestDisplay(
 
 function readDisplayBounds(display: DisplayLike | undefined): WorkArea | undefined {
   return display?.bounds ?? display?.workArea;
+}
+
+function clampWindowBoundsToNearestDisplay(
+  bounds: PetWindowBounds,
+  displays: readonly DisplayLike[]
+): PetWindowBounds {
+  const center = {
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height / 2
+  };
+  const display = findDisplayContainingPoint(displays, center) ?? findNearestDisplay(displays, center);
+  const area = readDisplayBounds(display);
+
+  if (!area) {
+    return bounds;
+  }
+
+  return {
+    ...bounds,
+    x: Math.round(clamp(bounds.x, area.x, area.x + area.width - bounds.width)),
+    y: Math.round(clamp(bounds.y, area.y, area.y + area.height - bounds.height))
+  };
 }
 
 function clamp(value: number, min: number, max: number): number {

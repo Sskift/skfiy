@@ -87,10 +87,12 @@ import {
   STOP_TURN_ACCELERATOR
 } from "./stop-turn-hotkey.js";
 import {
+  calculatePetWindowOffsetForMode,
   calculatePetWindowBounds,
   movePetAnchorByDelta,
   readWindowPositionOverride,
   resizePetWindowBoundsKeepingBottom,
+  resizePetWindowBoundsKeepingPetAnchor,
   type PetWindowBounds,
   type Point,
   type Size
@@ -176,7 +178,7 @@ const assistantComputerUseExecutor = createAssistantComputerUseExecutor({
 });
 let mainWindow: BrowserWindow | null = null;
 let currentPetAnchor: Point | null = null;
-let currentPetWindowOffset: Point | null = null;
+let currentPetSize: Size | null = null;
 let currentTaskId = 0;
 let screenshotSerial = 0;
 let activeTaskController: AbortController | null = null;
@@ -1268,11 +1270,17 @@ function setPetWindowMode(window: BrowserWindow, mode: PetWindowMode) {
     return;
   }
 
-  if (currentPetAnchor && currentPetWindowOffset) {
-    window.setBounds(clampWindowBoundsToNearestDisplay({
-      x: Math.round(currentPetAnchor.x - currentPetWindowOffset.x),
-      y: Math.round(currentPetAnchor.y - currentPetWindowOffset.y),
-      ...nextSize
+  if (currentPetAnchor && currentPetSize) {
+    const nextOffset = calculatePetWindowOffsetForMode({
+      mode,
+      windowSize: nextSize,
+      petSize: currentPetSize
+    });
+    window.setBounds(resizePetWindowBoundsKeepingPetAnchor({
+      anchor: currentPetAnchor,
+      nextSize,
+      nextOffset,
+      displays: screen.getAllDisplays()
     }));
     return;
   }
@@ -1308,9 +1316,9 @@ ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown, vis
       displays: screen.getAllDisplays()
     });
     currentPetAnchor = nextAnchor;
-    currentPetWindowOffset = {
-      x: visibleRect.x,
-      y: visibleRect.y
+    currentPetSize = {
+      width: visibleRect.width,
+      height: visibleRect.height
     };
 
     window.setBounds({

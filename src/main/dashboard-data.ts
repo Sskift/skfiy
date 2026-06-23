@@ -387,7 +387,7 @@ function createDashboardAssistantProviderStates(
     {
       provider: "assistant",
       id: "local",
-      label: "Local",
+      label: "Built-in",
       selected: settings.mode === "local",
       configured: true,
       readiness: "ready",
@@ -467,7 +467,7 @@ function readAssistantProviderLabel(mode: AssistantAgentSettings["mode"]): strin
     return "Claude Code";
   }
 
-  return "Local";
+  return "Built-in";
 }
 
 function summarizeDashboardPlannerProvider(

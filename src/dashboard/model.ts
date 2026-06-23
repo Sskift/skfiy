@@ -614,7 +614,7 @@ export function readProviderSummaries(snapshot: DashboardSnapshot): DashboardPro
     snapshot.providers?.assistant ?? {
       provider: "assistant",
       mode: "local",
-      label: "Local",
+      label: "Built-in",
       health: "unknown",
       detail: "Provider settings are not present in this snapshot."
     },

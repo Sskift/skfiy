@@ -1,5 +1,8 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { promisify } from "node:util";
 import { createAssistantChatReply } from "./assistant-chat.js";
 import {
@@ -39,7 +42,7 @@ export interface AssistantAgentProcessResult {
 export interface AssistantAgentProviderState {
   provider: "assistant";
   id: AssistantAgentProviderId;
-  label: "Local" | "Codex" | "Claude Code";
+  label: "Built-in" | "Codex" | "Claude Code";
   selected: boolean;
   configured: boolean;
   executablePath?: string;
@@ -91,7 +94,7 @@ export interface AssistantAgentTurnResult {
   id: string;
   createdAt: string;
   status: AssistantAgentTurnStatus;
-  providerLabel: "Local" | "Codex" | "Claude Code";
+  providerLabel: "Built-in" | "Codex" | "Claude Code";
   message: string;
   error?: AssistantAgentTurnError | undefined;
   route: CommandRoute;
@@ -111,6 +114,8 @@ export class AssistantAgentTurnRuntimeError extends Error {
 
 const DEFAULT_ASSISTANT_AGENT_TIMEOUT_MS = 45_000;
 const READINESS_PROBE_TIMEOUT_MS = 5_000;
+const BUILT_IN_ASSISTANT_AGENT_LABEL = "Built-in";
+const CLAUDE_CODE_DISALLOWED_TOOLS = "Bash,Edit,MultiEdit,Write,NotebookEdit,WebFetch,WebSearch,Task";
 const execFileAsync = promisify(execFile);
 
 export function readInitialAssistantAgentSettings(
@@ -154,7 +159,7 @@ export async function readAssistantAgentProviderStates(
     {
       provider: "assistant",
       id: "local",
-      label: "Local",
+      label: BUILT_IN_ASSISTANT_AGENT_LABEL,
       selected: settings.mode === "local",
       configured: true,
       executableSource: "built-in",
@@ -199,8 +204,6 @@ export function buildAssistantAgentInvocation(
         settings.cwd,
         "--skip-git-repo-check",
         "--ephemeral",
-        "--ignore-user-config",
-        "--ignore-rules",
         "--color",
         "never",
         prompt
@@ -218,11 +221,10 @@ export function buildAssistantAgentInvocation(
         "text",
         "--permission-mode",
         "dontAsk",
-        "--tools",
-        "",
+        "--disallowedTools",
+        CLAUDE_CODE_DISALLOWED_TOOLS,
         "--safe-mode",
         "--no-chrome",
-        "--strict-mcp-config",
         "--disable-slash-commands",
         "--no-session-persistence",
         prompt
@@ -249,7 +251,7 @@ export async function runAssistantAgentTurn(
   const createdAt = now().toISOString();
   const route = selectCommandRoute(userInput);
   const invocation = buildAssistantAgentInvocation(settings, userInput, browserPageContext);
-  const providerLabel = invocation?.label ?? "Local";
+  const providerLabel = invocation?.label ?? BUILT_IN_ASSISTANT_AGENT_LABEL;
   const toolCalls = createAssistantAgentPlannedToolCalls({
     turnId: id,
     createdAt,
@@ -276,7 +278,7 @@ export async function runAssistantAgentTurn(
       id,
       createdAt,
       status: "completed",
-      providerLabel: "Local",
+      providerLabel: BUILT_IN_ASSISTANT_AGENT_LABEL,
       message: createAssistantChatReply(userInput),
       route,
       toolCalls,
@@ -352,7 +354,8 @@ async function runAssistantAgentProcess(
   args: string[],
   options: { cwd: string; timeoutMs: number; signal?: AbortSignal | undefined }
 ): Promise<AssistantAgentProcessResult> {
-  const result = await execFileAsync(command, args, {
+  const resolvedCommand = await resolveAssistantAgentExecutable(command).catch(() => command);
+  const result = await execFileAsync(resolvedCommand, args, {
     cwd: options.cwd,
     timeout: options.timeoutMs,
     signal: options.signal,
@@ -483,17 +486,56 @@ async function readCliAssistantAgentProviderState({
 }
 
 async function resolveAssistantAgentExecutable(command: string): Promise<string> {
-  const result = await execFileAsync("/usr/bin/env", ["which", command], {
-    timeout: READINESS_PROBE_TIMEOUT_MS,
-    maxBuffer: 64 * 1024,
-    encoding: "utf8"
-  });
-  const resolvedPath = result.stdout.trim().split(/\r?\n/u)[0];
-  if (!resolvedPath) {
-    throw new Error(`${command} was not found on PATH.`);
+  const configuredCommand = readOptionalString(command);
+
+  if (!configuredCommand) {
+    throw new Error("Assistant executable is not configured.");
   }
 
-  return resolvedPath;
+  if (isPathLikeCommand(configuredCommand)) {
+    if (existsSync(configuredCommand)) {
+      return configuredCommand;
+    }
+    throw new Error(`${configuredCommand} was not found.`);
+  }
+
+  try {
+    const result = await execFileAsync("/usr/bin/env", ["which", configuredCommand], {
+      timeout: READINESS_PROBE_TIMEOUT_MS,
+      maxBuffer: 64 * 1024,
+      encoding: "utf8"
+    });
+    const resolvedPath = result.stdout.trim().split(/\r?\n/u)[0];
+    if (resolvedPath) {
+      return resolvedPath;
+    }
+  } catch {
+    // GUI-launched macOS apps often miss Homebrew paths; fall back below.
+  }
+
+  const fallbackPath = resolveCommonMacCliPath(configuredCommand);
+  if (fallbackPath) {
+    return fallbackPath;
+  }
+
+  throw new Error(`${configuredCommand} was not found on PATH or common macOS CLI locations.`);
+}
+
+function isPathLikeCommand(command: string): boolean {
+  return path.isAbsolute(command) || command.includes("/");
+}
+
+function resolveCommonMacCliPath(command: string): string | undefined {
+  const candidateDirs = [
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    path.join(os.homedir(), ".local", "bin"),
+    path.join(os.homedir(), "bin")
+  ];
+
+  return candidateDirs
+    .map((directory) => path.join(directory, command))
+    .find((candidate) => existsSync(candidate));
 }
 
 function createAssistantAgentPrompt(userInput: string, browserPageContext?: BrowserPageContext): string {

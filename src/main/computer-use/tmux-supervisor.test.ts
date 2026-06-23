@@ -375,7 +375,7 @@ describe("money-run supervision smoke script", () => {
   it("accepts default approval bypass when the product path reaches tmux supervision", async () => {
     const { stdout } = await runMoneyRunModuleExpression(`
       const events = [
-        { status: "observing", message: "Local planned 1 Computer Use tool call for money-run supervision." },
+        { status: "observing", message: "Built-in planned 1 Computer Use tool call for money-run supervision." },
         { status: "executing", message: "Risk medium: tmux supervision reads recent pane output but does not mutate the session." },
         { status: "observing", message: "Reading tmux session money-run with read-only probes." },
         {

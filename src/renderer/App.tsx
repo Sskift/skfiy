@@ -94,7 +94,7 @@ export interface AssistantAgentSettings {
 export interface AssistantAgentProviderState {
   provider: "assistant";
   id: AssistantAgentMode;
-  label: "Local" | "Codex" | "Claude Code";
+  label: "Built-in" | "Codex" | "Claude Code";
   selected: boolean;
   configured: boolean;
   executablePath?: string;
@@ -453,7 +453,7 @@ const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
 ];
 
 const ASSISTANT_AGENT_OPTIONS: Array<{ mode: AssistantAgentMode; label: string; aria: string }> = [
-  { mode: "local", label: "Local", aria: "选择 Local background agent" },
+  { mode: "local", label: "Built-in", aria: "选择内置 Background Agent" },
   { mode: "codex", label: "Codex", aria: "选择 Codex background agent" },
   { mode: "claude-code", label: "Claude Code", aria: "选择 Claude Code background agent" }
 ];
@@ -497,7 +497,7 @@ const DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE: AssistantAgentSettingsResponse 
     {
       provider: "assistant",
       id: "local",
-      label: "Local",
+      label: "Built-in",
       selected: true,
       configured: true,
       executableSource: "built-in",
@@ -638,6 +638,16 @@ function readAssistantAgentProviderDetail(
   response: AssistantAgentSettingsResponse,
   provider: AssistantAgentProviderState
 ): string {
+  if (provider.id === "local") {
+    return [
+      `${provider.label} · ${readAssistantAgentReadinessLabel(provider.readiness)}`,
+      "内置兜底回复",
+      "不调用 Codex/Claude",
+      `cwd ${response.settings.cwd || "default"}`,
+      `timeout ${Math.round(response.settings.timeoutMs / 1000)}s`
+    ].join(" · ");
+  }
+
   const executable = provider.executablePath ?? "built-in";
   return [
     `${provider.label} · ${readAssistantAgentReadinessLabel(provider.readiness)}`,

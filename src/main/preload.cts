@@ -124,7 +124,7 @@ interface AssistantAgentSettings {
 interface AssistantAgentProviderState {
   provider: "assistant";
   id: AssistantAgentProviderId;
-  label: "Local" | "Codex" | "Claude Code";
+  label: "Built-in" | "Codex" | "Claude Code";
   selected: boolean;
   configured: boolean;
   executablePath?: string;
@@ -614,7 +614,7 @@ function isAssistantAgentProviderState(value: unknown): value is AssistantAgentP
   return (
     state.provider === "assistant"
     && isAssistantAgentMode(state.id)
-    && (state.label === "Local" || state.label === "Codex" || state.label === "Claude Code")
+    && (state.label === "Built-in" || state.label === "Codex" || state.label === "Claude Code")
     && typeof state.selected === "boolean"
     && typeof state.configured === "boolean"
     && (
@@ -1163,7 +1163,7 @@ function createDefaultAssistantAgentSettingsResponse(): AssistantAgentSettingsRe
       {
         provider: "assistant",
         id: "local",
-        label: "Local",
+        label: "Built-in",
         selected: true,
         configured: true,
         executableSource: "built-in",

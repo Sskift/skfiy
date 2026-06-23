@@ -591,7 +591,7 @@ function summarizeAssistantAgentSettings({
       ? "Codex"
       : settings.mode === "claude-code"
         ? "Claude Code"
-        : "Local",
+        : "Built-in",
     health: readiness === "ready" ? "available" : "unavailable",
     configured,
     readiness,

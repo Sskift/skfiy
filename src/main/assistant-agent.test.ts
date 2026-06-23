@@ -56,7 +56,7 @@ describe("assistant agent provider", () => {
       {
         provider: "assistant",
         id: "local",
-        label: "Local",
+        label: "Built-in",
         selected: false,
         configured: true,
         executableSource: "built-in",
@@ -122,7 +122,7 @@ describe("assistant agent provider", () => {
   });
 
   it("builds a locked-down Codex exec invocation for pet chat", () => {
-    expect(buildAssistantAgentInvocation({
+    const invocation = buildAssistantAgentInvocation({
       mode: "codex",
       codexBinary: "/opt/homebrew/bin/codex",
       codexBinarySource: "env",
@@ -130,7 +130,9 @@ describe("assistant agent provider", () => {
       claudeCodeBinarySource: "default",
       cwd: "/tmp/skfiy",
       timeoutMs: 45_000
-    }, "hello")).toMatchObject({
+    }, "hello");
+
+    expect(invocation).toMatchObject({
       command: "/opt/homebrew/bin/codex",
       args: [
         "exec",
@@ -142,14 +144,14 @@ describe("assistant agent provider", () => {
         "/tmp/skfiy",
         "--skip-git-repo-check",
         "--ephemeral",
-        "--ignore-user-config",
-        "--ignore-rules",
         "--color",
         "never",
         expect.stringContaining("hello")
       ],
       label: "Codex"
     });
+    expect(invocation?.args).not.toContain("--ignore-user-config");
+    expect(invocation?.args).not.toContain("--ignore-rules");
   });
 
   it("includes bounded browser page context in CLI provider prompts", () => {
@@ -175,8 +177,8 @@ describe("assistant agent provider", () => {
     expect(prompt).toContain("User: summarize this page");
   });
 
-  it("builds a no-tools Claude Code print invocation for pet chat", () => {
-    expect(buildAssistantAgentInvocation({
+  it("builds a Claude Code print invocation with valid safety flags for pet chat", () => {
+    const invocation = buildAssistantAgentInvocation({
       mode: "claude-code",
       codexBinary: "codex",
       codexBinarySource: "default",
@@ -184,7 +186,9 @@ describe("assistant agent provider", () => {
       claudeCodeBinarySource: "env",
       cwd: "/tmp/skfiy",
       timeoutMs: 45_000
-    }, "你好")).toMatchObject({
+    }, "你好");
+
+    expect(invocation).toMatchObject({
       command: "/opt/homebrew/bin/claude",
       args: [
         "--print",
@@ -192,17 +196,18 @@ describe("assistant agent provider", () => {
         "text",
         "--permission-mode",
         "dontAsk",
-        "--tools",
-        "",
+        "--disallowedTools",
+        "Bash,Edit,MultiEdit,Write,NotebookEdit,WebFetch,WebSearch,Task",
         "--safe-mode",
         "--no-chrome",
-        "--strict-mcp-config",
         "--disable-slash-commands",
         "--no-session-persistence",
         expect.stringContaining("你好")
       ],
       label: "Claude Code"
     });
+    expect(invocation?.args).not.toContain("--tools");
+    expect(invocation?.args).not.toContain("--strict-mcp-config");
   });
 
   it("runs the configured provider and trims its response", async () => {
@@ -243,7 +248,7 @@ describe("assistant agent provider", () => {
     });
   });
 
-  it("returns a structured local chat turn while preserving legacy message fields", async () => {
+  it("returns a structured built-in chat turn while preserving legacy message fields", async () => {
     await expect(runAssistantAgentTurn("hello", {
       settings: baseSettings,
       now: fixedNow,
@@ -252,7 +257,7 @@ describe("assistant agent provider", () => {
       id: "turn-chat",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Local",
+      providerLabel: "Built-in",
       message: "你好，我在。你可以直接说要我观察或操作哪个应用。",
       route: {
         kind: "chat",
@@ -276,7 +281,7 @@ describe("assistant agent provider", () => {
       id: "turn-desktop",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Local",
+      providerLabel: "Built-in",
       route: {
         kind: "chrome",
         bundleId: "com.google.Chrome"
@@ -314,7 +319,7 @@ describe("assistant agent provider", () => {
       id: "turn-confirmation",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Local",
+      providerLabel: "Built-in",
       route: {
         kind: "needs_confirmation",
         reason: "Route policy requires confirmation before continuing with Ghostty.",
@@ -354,7 +359,7 @@ describe("assistant agent provider", () => {
       id: "turn-denied",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Local",
+      providerLabel: "Built-in",
       route: {
         kind: "denied",
         reason: "User denied this desktop control request.",
@@ -379,7 +384,7 @@ describe("assistant agent provider", () => {
       id: "turn-blocked",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Local",
+      providerLabel: "Built-in",
       route: {
         kind: "blocked",
         reason: "Route policy blocks destructive or sensitive terminal commands before Computer Use.",
