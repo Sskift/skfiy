@@ -88,11 +88,6 @@ textarea:focus-visible {
   text-transform: uppercase;
 }
 
-.capsule-open .status-orb {
-  opacity: 0;
-  pointer-events: none;
-}
-
 .skfiy-pet {
   -webkit-app-region: no-drag;
   position: absolute;
@@ -125,11 +120,6 @@ textarea:focus-visible {
 
 .skfiy-pet:active {
   cursor: grabbing;
-}
-
-.pet-stage.panel-open .skfiy-pet {
-  top: 16px;
-  bottom: auto;
 }
 
 .pet-sprite-frame {
@@ -192,19 +182,6 @@ textarea:focus-visible {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(142, 232, 255, 0.34) transparent;
-}
-
-.assistant-bubble::after {
-  position: absolute;
-  left: calc(50% - 7px);
-  top: -8px;
-  width: 14px;
-  height: 14px;
-  border-top: 1px solid rgba(238, 247, 255, 0.18);
-  border-left: 1px solid rgba(238, 247, 255, 0.18);
-  background: rgba(30, 39, 51, 0.9);
-  content: "";
-  transform: rotate(45deg);
 }
 
 .assistant-bubble p {

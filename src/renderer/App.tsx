@@ -7,7 +7,6 @@ import {
   History,
   Play,
   RefreshCw,
-  RotateCcw,
   ShieldCheck,
   ShieldQuestion,
   SlidersHorizontal
@@ -1010,10 +1009,6 @@ function UserDashboardPanel({
             </button>
           </>
         ) : null}
-        <button type="button" aria-label="撤销最近动作" disabled>
-          <RotateCcw size={13} aria-hidden="true" />
-          <span>撤销</span>
-        </button>
       </div>
 
       <div className="dashboard-runtime-strip" aria-label="运行偏好">
@@ -1613,7 +1608,6 @@ export default function App() {
           ) : assistantPanelOpen ? (
             <div className="agent-status" aria-label="skfiy agent status">
               <strong>agent</strong>
-              <span>Computer Use 是 agent 可调用工具</span>
             </div>
           ) : task.status === "approval_required" ? (
             <>
