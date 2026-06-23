@@ -42,6 +42,8 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("collectDashboardScreenshotEvidence");
     expect(source).toContain("knowledgeGraphEvidence");
     expect(source).toContain("dashboard-knowledge-graph");
+    expect(source).toContain("Vault backlinks");
+    expect(source).toContain("backlinkCount");
     expect(source).toContain("seedPersonalMemoryFixture");
     expect(source).toContain("exercisePersonalMemoryApi");
     expect(source).toContain("personalMemoryApi");
@@ -380,6 +382,7 @@ describe("dashboard product smoke script", () => {
       cliPath: "/repo/dist/skfiy",
       runnerHasTmux: false,
       productPath: PRODUCT_PATH,
+      artifactPath: "/repo/.skfiy-smoke/dashboard.json",
       command: ["/repo/dist/skfiy", "dashboard", "--no-open", "--port", "0", "--json"],
       cliOutput: {
         command: "dashboard",
@@ -668,6 +671,33 @@ describe("dashboard product smoke script", () => {
       shellResponse: {
         status: 200,
         body: '<!doctype html><main data-dashboard-root><span data-snapshot-state>Loading snapshot</span><div aria-label="skfiy user dashboard"><section data-user-panel="home"></section><section data-user-panel="approvals"></section><section data-user-panel="apps-sites"></section></div><details><summary>Advanced Diagnostics</summary><section data-panel-body="operator-readiness"></section><section data-panel-body="long-horizon-supervision"></section></details><a href="/descriptor.json"></a><a href="/snapshot.json"></a><script>new EventSource("/events"); fetch("/snapshot.json", { cache: "no-store" }); "/api/chrome-host-policy"; function renderUserDashboard(snapshot){} function readUserNextAction(snapshot){} function renderAppPolicyPanel(snapshot){} function renderOperatorReadinessPanel(snapshot){} function renderLongHorizonPanel(){} function renderAlertsPanel(snapshot){} function groupAlerts(alerts){} function createAlertBand(group){ const marker = "data-alert-groups"; return marker; }</script></main><title>skfiy Dashboard</title>'
+      },
+      knowledgeGraphEvidence: {
+        productPath: "dist/skfiy dashboard -> Electron screenshot -> Knowledge graph",
+        dashboardUrl: "http://127.0.0.1:51234/",
+        screenshotPath: "/repo/.skfiy-smoke/dashboard-knowledge-graph.png",
+        screenshotBytes: 1024,
+        regionFound: true,
+        nodeCount: 6,
+        linkCount: 5,
+        backlinkCount: 5,
+        fallbackTextOverlap: false,
+        nodeTexts: [
+          "User preferencesmemoryUser prefers concise Chinese updates.",
+          "Latest sessionsessionCodex: hello",
+          "Codexprovidersready",
+          "Browser Contextbrowserdashboard-smoke.example",
+          "Computer Usecomputer-useblocked"
+        ],
+        linkTexts: [
+          "injects promptUser preferences -> Codex",
+          "observed inBrowser Context -> Latest session"
+        ],
+        backlinkTexts: [
+          "User preferencesinjects promptCodex",
+          "Browser Contextobserved inLatest session"
+        ],
+        result: "passed"
       },
       chromeHostPolicyApi: {
         productPath: "dist/skfiy -> dashboard /api/chrome-host-policy -> chrome-host-policy.json",
@@ -963,6 +993,14 @@ describe("dashboard product smoke script", () => {
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        backlinkCount: 0,
+        backlinkTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
       shellResponse: {
         status: 200,
         body: '<!doctype html><html lang="en"><head><title>skfiy dashboard</title><script type="module" crossorigin src="./assets/dashboard-test.js"></script></head><body><div id="dashboard-root"></div></body></html>'
@@ -997,6 +1035,7 @@ describe("dashboard product smoke script", () => {
           "Latest session",
           "Browser Context",
           "injects prompt",
+          "Vault backlinks",
           "Chrome control actions",
           "Chrome host policy controls",
           "Observe current tab",
@@ -1032,6 +1071,7 @@ describe("dashboard product smoke script", () => {
           "Latest session",
           "Browser Context",
           "injects prompt",
+          "Vault backlinks",
           "Chrome control actions",
           "Chrome host policy controls",
           "Observe current tab",

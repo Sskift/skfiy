@@ -23,6 +23,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Latest session",
   "Browser Context",
   "injects prompt",
+  "Vault backlinks",
   "Chrome control actions",
   "Chrome host policy controls",
   "Observe current tab",
@@ -221,7 +222,36 @@ export function classifyDashboardSmokeEvidence(evidence) {
     return "failed";
   }
 
+  if (
+    evidence.artifactPath
+    && !hasDashboardKnowledgeGraphEvidence(evidence.knowledgeGraphEvidence)
+  ) {
+    return "failed";
+  }
+
   return "passed";
+}
+
+function hasDashboardKnowledgeGraphEvidence(evidence) {
+  return evidence?.productPath === "dist/skfiy dashboard -> Electron screenshot -> Knowledge graph"
+    && evidence?.result === "passed"
+    && evidence?.regionFound === true
+    && Number.isFinite(evidence?.screenshotBytes)
+    && evidence.screenshotBytes > 0
+    && Number.isInteger(evidence?.nodeCount)
+    && evidence.nodeCount >= 5
+    && Number.isInteger(evidence?.linkCount)
+    && evidence.linkCount >= 2
+    && Number.isInteger(evidence?.backlinkCount)
+    && evidence.backlinkCount >= 2
+    && evidence?.fallbackTextOverlap === false
+    && Array.isArray(evidence?.nodeTexts)
+    && Array.isArray(evidence?.linkTexts)
+    && Array.isArray(evidence?.backlinkTexts)
+    && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
+    && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in"))
+    && typeof evidence?.screenshotPath === "string"
+    && evidence.screenshotPath.endsWith("-knowledge-graph.png");
 }
 
 function hasDashboardLauncherContract(cliOutput) {

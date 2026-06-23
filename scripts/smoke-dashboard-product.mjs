@@ -355,6 +355,7 @@ async function main() {
       region?.scrollIntoView({ block: "center", inline: "nearest" });
       const nodeItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph nodes"] li'));
       const linkItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph links"] li'));
+      const backlinkItems = Array.from(document.querySelectorAll('[aria-label="Vault backlinks"] li'));
       const rects = nodeItems.map((item) => {
         const rect = item.getBoundingClientRect();
         return {
@@ -380,9 +381,11 @@ async function main() {
         regionFound: Boolean(region),
         nodeCount: nodeItems.length,
         linkCount: linkItems.length,
+        backlinkCount: backlinkItems.length,
         fallbackTextOverlap,
         nodeTexts: nodeItems.map((item) => item.textContent),
-        linkTexts: linkItems.map((item) => item.textContent)
+        linkTexts: linkItems.map((item) => item.textContent),
+        backlinkTexts: backlinkItems.map((item) => item.textContent)
       };
     })()
   \`);
@@ -398,7 +401,7 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.backlinkCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }

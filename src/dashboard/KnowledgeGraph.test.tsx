@@ -25,4 +25,30 @@ describe("KnowledgeGraph", () => {
     const fallback = screen.getByRole("list", { name: "Knowledge graph nodes" });
     expect(within(fallback).getByText("Computer Use")).toBeInTheDocument();
   });
+
+  it("renders vault backlinks that make graph relationships readable", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success" },
+        { id: "provider:codex", label: "Codex", kind: "provider", tone: "success" },
+        { id: "browser:context", label: "Browser Context", kind: "browser", tone: "warning" },
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral" }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:codex", label: "injects prompt" },
+        { from: "browser:context", to: "session:latest", label: "observed in" }
+      ]}
+    />);
+
+    const backlinks = screen.getByRole("list", { name: "Vault backlinks" });
+    const items = within(backlinks).getAllByRole("listitem");
+
+    expect(items).toHaveLength(2);
+    expect(within(backlinks).getByText("User preferences")).toBeInTheDocument();
+    expect(within(backlinks).getByText("injects prompt")).toBeInTheDocument();
+    expect(within(backlinks).getByText("Codex")).toBeInTheDocument();
+    expect(within(backlinks).getByText("Browser Context")).toBeInTheDocument();
+    expect(within(backlinks).getByText("observed in")).toBeInTheDocument();
+    expect(within(backlinks).getByText("Latest session")).toBeInTheDocument();
+  });
 });

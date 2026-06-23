@@ -48,6 +48,11 @@ const ALERT_POSITIONS: GraphPoint[] = [
 export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
   const positions = createGraphPositions(nodes);
   const visibleEdges = edges.filter((edge) => positions.has(edge.from) && positions.has(edge.to));
+  const backlinks = visibleEdges.map((edge) => ({
+    ...edge,
+    fromLabel: readNodeLabel(edge.from, nodes),
+    toLabel: readNodeLabel(edge.to, nodes)
+  }));
 
   return (
     <section
@@ -111,12 +116,24 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
           </ul>
         </div>
         <div>
+          <h3>Vault backlinks</h3>
+          <ul aria-label="Vault backlinks">
+            {backlinks.map((backlink) => (
+              <li key={`${backlink.from}-${backlink.to}-${backlink.label}`}>
+                <strong>{backlink.fromLabel}</strong>
+                <span>{backlink.label}</span>
+                <small>{backlink.toLabel}</small>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
           <h3>Links</h3>
           <ul aria-label="Knowledge graph links">
-            {visibleEdges.map((edge) => (
-              <li key={`${edge.from}-${edge.to}-${edge.label}`}>
-                <strong>{edge.label}</strong>
-                <span>{`${readNodeLabel(edge.from, nodes)} -> ${readNodeLabel(edge.to, nodes)}`}</span>
+            {backlinks.map((backlink) => (
+              <li key={`${backlink.from}-${backlink.to}-${backlink.label}`}>
+                <strong>{backlink.label}</strong>
+                <span>{`${backlink.fromLabel} -> ${backlink.toLabel}`}</span>
               </li>
             ))}
           </ul>
