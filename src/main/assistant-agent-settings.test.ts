@@ -5,12 +5,12 @@ import {
 } from "./assistant-agent-settings";
 
 describe("assistant agent settings store", () => {
-  it("defaults to local and accepts codex or claude-code", () => {
+  it("defaults to codex and accepts only Codex or Claude Code", () => {
     const store = createAssistantAgentSettingsStore(
       readInitialAssistantAgentSettingsFromConfig({}, { cwd: "/repo" })
     );
 
-    expect(store.get().mode).toBe("local");
+    expect(store.get().mode).toBe("codex");
     expect(store.set({ mode: "codex" }).mode).toBe("codex");
     expect(store.set({ mode: "claude-code" }).mode).toBe("claude-code");
   });
@@ -20,7 +20,8 @@ describe("assistant agent settings store", () => {
       readInitialAssistantAgentSettingsFromConfig({}, { cwd: "/repo" })
     );
 
-    expect(store.set({ mode: "remote-agent" }).mode).toBe("local");
+    expect(store.set({ mode: "remote-agent" }).mode).toBe("codex");
+    expect(store.set({ mode: "local" }).mode).toBe("codex");
   });
 
   it("keeps env-provided binary paths, cwd, and timeout while switching modes", () => {

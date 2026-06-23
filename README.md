@@ -204,8 +204,8 @@ The pet opens the background agent. The agent can answer, clarify, refuse, or
 ask skfiy to run a desktop-control intent. Computer Use is not a competing
 mode; it is the permissioned tool layer the agent calls for app control.
 
-By default the background agent uses a small local fallback so the pet can reply
-without requiring any external CLI session. For real agent-backed dogfood, set:
+By default the background agent uses Codex through `codex exec`. Configure the
+provider explicitly when dogfooding another CLI:
 
 - `SKFIY_ASSISTANT_AGENT=codex` to route pet chat through `codex exec`.
 - `SKFIY_ASSISTANT_AGENT=claude-code` to route pet chat through `claude --print`.
@@ -216,10 +216,10 @@ without requiring any external CLI session. For real agent-backed dogfood, set:
 - `SKFIY_ASSISTANT_AGENT_TIMEOUT_MS=45000` to tune the bounded response wait.
 
 Both CLI providers are invoked as bounded, non-interactive background answerers:
-Codex runs with a read-only sandbox and no approval prompts; Claude Code runs in
-print mode with tools disabled. They must not directly execute desktop actions
-from the pet chat path. Explicit app-control intents are still admitted by
-skfiy, checked against app policy, and executed by skfiy's Computer Use
+Codex runs with a read-only sandbox and `approval_policy="never"`; Claude Code
+runs in print mode with tools disabled. They must not directly execute desktop
+actions from the pet chat path. Explicit app-control intents are still admitted
+by skfiy, checked against app policy, and executed by skfiy's Computer Use
 orchestrators.
 
 ## Safety Model

@@ -57,7 +57,7 @@ export type PermissionSettingsTarget =
   | "accessibility";
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 export type AppPolicy = "allow" | "ask" | "deny";
-export type AssistantAgentMode = "local" | "codex" | "claude-code";
+export type AssistantAgentMode = "codex" | "claude-code";
 export type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
 export type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
@@ -94,11 +94,11 @@ export interface AssistantAgentSettings {
 export interface AssistantAgentProviderState {
   provider: "assistant";
   id: AssistantAgentMode;
-  label: "Built-in" | "Codex" | "Claude Code";
+  label: "Codex" | "Claude Code";
   selected: boolean;
   configured: boolean;
   executablePath?: string;
-  executableSource: "built-in" | "default" | "env";
+  executableSource: "default" | "env";
   resolvedExecutablePath?: string;
   readiness: AssistantAgentProviderReadiness;
   lastError?: string;
@@ -453,7 +453,6 @@ const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
 ];
 
 const ASSISTANT_AGENT_OPTIONS: Array<{ mode: AssistantAgentMode; label: string; aria: string }> = [
-  { mode: "local", label: "Built-in", aria: "选择内置 Background Agent" },
   { mode: "codex", label: "Codex", aria: "选择 Codex background agent" },
   { mode: "claude-code", label: "Claude Code", aria: "选择 Claude Code background agent" }
 ];
@@ -485,7 +484,7 @@ const DEFAULT_APP_POLICY_SETTINGS: AppPolicySettings = {
 
 const DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE: AssistantAgentSettingsResponse = {
   settings: {
-    mode: "local",
+    mode: "codex",
     codexBinary: "codex",
     codexBinarySource: "default",
     claudeCodeBinary: "claude",
@@ -496,18 +495,9 @@ const DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE: AssistantAgentSettingsResponse 
   providers: [
     {
       provider: "assistant",
-      id: "local",
-      label: "Built-in",
-      selected: true,
-      configured: true,
-      executableSource: "built-in",
-      readiness: "ready"
-    },
-    {
-      provider: "assistant",
       id: "codex",
       label: "Codex",
-      selected: false,
+      selected: true,
       configured: true,
       executablePath: "codex",
       executableSource: "default",
@@ -638,17 +628,7 @@ function readAssistantAgentProviderDetail(
   response: AssistantAgentSettingsResponse,
   provider: AssistantAgentProviderState
 ): string {
-  if (provider.id === "local") {
-    return [
-      `${provider.label} · ${readAssistantAgentReadinessLabel(provider.readiness)}`,
-      "内置兜底回复",
-      "不调用 Codex/Claude",
-      `cwd ${response.settings.cwd || "default"}`,
-      `timeout ${Math.round(response.settings.timeoutMs / 1000)}s`
-    ].join(" · ");
-  }
-
-  const executable = provider.executablePath ?? "built-in";
+  const executable = provider.executablePath ?? "not configured";
   return [
     `${provider.label} · ${readAssistantAgentReadinessLabel(provider.readiness)}`,
     `binary ${executable}`,

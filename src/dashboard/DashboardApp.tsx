@@ -720,7 +720,7 @@ function AssistantProviderStateItem({
       </div>
       <div className="skfiy-dashboard-key-value">
         <span>Binary</span>
-        <strong>{provider.binaryPath ?? "built-in"}</strong>
+        <strong>{provider.binaryPath ?? "not configured"}</strong>
         {resolvedBinaryPath ? (
           <>
             <span>Resolved</span>

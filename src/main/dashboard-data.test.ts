@@ -94,15 +94,6 @@ describe("dashboard snapshot data", () => {
         providers: [
           {
             provider: "assistant",
-            id: "local",
-            label: "Built-in",
-            selected: false,
-            configured: true,
-            readiness: "ready",
-            binarySource: "built-in"
-          },
-          {
-            provider: "assistant",
             id: "codex",
             label: "Codex",
             selected: true,
@@ -178,15 +169,6 @@ describe("dashboard snapshot data", () => {
         timeoutMs: 45_000,
         lastHealthAt: "2026-06-20T00:00:00.000Z",
         providers: [
-          {
-            provider: "assistant",
-            id: "local",
-            label: "Built-in",
-            selected: false,
-            configured: true,
-            readiness: "ready",
-            binarySource: "built-in"
-          },
           {
             provider: "assistant",
             id: "codex",

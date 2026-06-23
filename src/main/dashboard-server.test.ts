@@ -435,15 +435,6 @@ describe("dashboard loopback HTTP response helper", () => {
       expect(initialPayload.providers.assistant.providers).toEqual([
         {
           provider: "assistant",
-          id: "local",
-          label: "Built-in",
-          selected: false,
-          configured: true,
-          readiness: "ready",
-          binarySource: "built-in"
-        },
-        {
-          provider: "assistant",
           id: "codex",
           label: "Codex",
           selected: true,

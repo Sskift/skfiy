@@ -22,10 +22,10 @@ type PermissionSettingsTarget =
   | "accessibility";
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 type AppPolicy = "allow" | "ask" | "deny";
-type AssistantAgentMode = "local" | "codex" | "claude-code";
+type AssistantAgentMode = "codex" | "claude-code";
 type AssistantAgentProviderId = AssistantAgentMode;
 type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
-type AssistantAgentExecutableSource = "default" | "env" | "built-in";
+type AssistantAgentExecutableSource = "default" | "env";
 type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 type RiskLevel = "low" | "medium" | "high" | "blocked";
 type TurnTranscriptOutcome =
@@ -124,7 +124,7 @@ interface AssistantAgentSettings {
 interface AssistantAgentProviderState {
   provider: "assistant";
   id: AssistantAgentProviderId;
-  label: "Built-in" | "Codex" | "Claude Code";
+  label: "Codex" | "Claude Code";
   selected: boolean;
   configured: boolean;
   executablePath?: string;
@@ -614,7 +614,7 @@ function isAssistantAgentProviderState(value: unknown): value is AssistantAgentP
   return (
     state.provider === "assistant"
     && isAssistantAgentMode(state.id)
-    && (state.label === "Built-in" || state.label === "Codex" || state.label === "Claude Code")
+    && (state.label === "Codex" || state.label === "Claude Code")
     && typeof state.selected === "boolean"
     && typeof state.configured === "boolean"
     && (
@@ -635,7 +635,7 @@ function isAssistantAgentProviderState(value: unknown): value is AssistantAgentP
 }
 
 function isAssistantAgentMode(value: unknown): value is AssistantAgentMode {
-  return value === "local" || value === "codex" || value === "claude-code";
+  return value === "codex" || value === "claude-code";
 }
 
 function isAssistantAgentCliBinarySource(value: unknown): value is "default" | "env" {
@@ -643,7 +643,7 @@ function isAssistantAgentCliBinarySource(value: unknown): value is "default" | "
 }
 
 function isAssistantAgentExecutableSource(value: unknown): value is AssistantAgentExecutableSource {
-  return value === "built-in" || isAssistantAgentCliBinarySource(value);
+  return isAssistantAgentCliBinarySource(value);
 }
 
 function isAssistantAgentProviderReadiness(value: unknown): value is AssistantAgentProviderReadiness {
@@ -1148,7 +1148,7 @@ function createDefaultPlannerProviderSettings(): PlannerProviderSettings {
 
 function createDefaultAssistantAgentSettingsResponse(): AssistantAgentSettingsResponse {
   const settings: AssistantAgentSettings = {
-    mode: "local",
+    mode: "codex",
     codexBinary: "codex",
     codexBinarySource: "default",
     claudeCodeBinary: "claude",
@@ -1162,18 +1162,9 @@ function createDefaultAssistantAgentSettingsResponse(): AssistantAgentSettingsRe
     providers: [
       {
         provider: "assistant",
-        id: "local",
-        label: "Built-in",
-        selected: true,
-        configured: true,
-        executableSource: "built-in",
-        readiness: "ready"
-      },
-      {
-        provider: "assistant",
         id: "codex",
         label: "Codex",
-        selected: false,
+        selected: true,
         configured: true,
         executablePath: "codex",
         executableSource: "default",

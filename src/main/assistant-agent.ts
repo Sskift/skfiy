@@ -1,20 +1,19 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { createAssistantChatReply } from "./assistant-chat.js";
 import {
   createBrowserPageContextPromptBlock,
   type BrowserPageContext
 } from "./browser-page-context.js";
 import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
 
-export type AssistantAgentMode = "local" | "codex" | "claude-code";
+export type AssistantAgentMode = "codex" | "claude-code";
 export type AssistantAgentProviderId = AssistantAgentMode;
 export type AssistantAgentCliBinarySource = "default" | "env";
-export type AssistantAgentExecutableSource = AssistantAgentCliBinarySource | "built-in";
+export type AssistantAgentExecutableSource = AssistantAgentCliBinarySource;
 export type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
 export type AssistantAgentTurnStatus = "completed" | "failed" | "cancelled";
 
@@ -42,7 +41,7 @@ export interface AssistantAgentProcessResult {
 export interface AssistantAgentProviderState {
   provider: "assistant";
   id: AssistantAgentProviderId;
-  label: "Built-in" | "Codex" | "Claude Code";
+  label: "Codex" | "Claude Code";
   selected: boolean;
   configured: boolean;
   executablePath?: string;
@@ -94,7 +93,7 @@ export interface AssistantAgentTurnResult {
   id: string;
   createdAt: string;
   status: AssistantAgentTurnStatus;
-  providerLabel: "Built-in" | "Codex" | "Claude Code";
+  providerLabel: "Codex" | "Claude Code";
   message: string;
   error?: AssistantAgentTurnError | undefined;
   route: CommandRoute;
@@ -114,7 +113,6 @@ export class AssistantAgentTurnRuntimeError extends Error {
 
 const DEFAULT_ASSISTANT_AGENT_TIMEOUT_MS = 45_000;
 const READINESS_PROBE_TIMEOUT_MS = 5_000;
-const BUILT_IN_ASSISTANT_AGENT_LABEL = "Built-in";
 const CLAUDE_CODE_DISALLOWED_TOOLS = "Bash,Edit,MultiEdit,Write,NotebookEdit,WebFetch,WebSearch,Task";
 const execFileAsync = promisify(execFile);
 
@@ -156,15 +154,6 @@ export async function readAssistantAgentProviderStates(
   const resolveExecutable = options.resolveExecutable ?? resolveAssistantAgentExecutable;
 
   return [
-    {
-      provider: "assistant",
-      id: "local",
-      label: BUILT_IN_ASSISTANT_AGENT_LABEL,
-      selected: settings.mode === "local",
-      configured: true,
-      executableSource: "built-in",
-      readiness: "ready"
-    },
     await readCliAssistantAgentProviderState({
       id: "codex",
       label: "Codex",
@@ -188,7 +177,7 @@ export function buildAssistantAgentInvocation(
   settings: AssistantAgentSettings,
   userInput: string,
   browserPageContext?: BrowserPageContext
-): AssistantAgentInvocation | null {
+): AssistantAgentInvocation {
   const prompt = createAssistantAgentPrompt(userInput, browserPageContext);
 
   if (settings.mode === "codex") {
@@ -196,10 +185,10 @@ export function buildAssistantAgentInvocation(
       command: settings.codexBinary,
       args: [
         "exec",
+        "--config",
+        "approval_policy=\"never\"",
         "--sandbox",
         "read-only",
-        "--ask-for-approval",
-        "never",
         "--cd",
         settings.cwd,
         "--skip-git-repo-check",
@@ -212,28 +201,24 @@ export function buildAssistantAgentInvocation(
     };
   }
 
-  if (settings.mode === "claude-code") {
-    return {
-      command: settings.claudeCodeBinary,
-      args: [
-        "--print",
-        "--output-format",
-        "text",
-        "--permission-mode",
-        "dontAsk",
-        "--disallowedTools",
-        CLAUDE_CODE_DISALLOWED_TOOLS,
-        "--safe-mode",
-        "--no-chrome",
-        "--disable-slash-commands",
-        "--no-session-persistence",
-        prompt
-      ],
-      label: "Claude Code"
-    };
-  }
-
-  return null;
+  return {
+    command: settings.claudeCodeBinary,
+    args: [
+      "--print",
+      "--output-format",
+      "text",
+      "--permission-mode",
+      "dontAsk",
+      "--disallowedTools",
+      CLAUDE_CODE_DISALLOWED_TOOLS,
+      "--safe-mode",
+      "--no-chrome",
+      "--disable-slash-commands",
+      "--no-session-persistence",
+      prompt
+    ],
+    label: "Claude Code"
+  };
 }
 
 export async function runAssistantAgentTurn(
@@ -251,7 +236,7 @@ export async function runAssistantAgentTurn(
   const createdAt = now().toISOString();
   const route = selectCommandRoute(userInput);
   const invocation = buildAssistantAgentInvocation(settings, userInput, browserPageContext);
-  const providerLabel = invocation?.label ?? BUILT_IN_ASSISTANT_AGENT_LABEL;
+  const providerLabel = invocation.label;
   const toolCalls = createAssistantAgentPlannedToolCalls({
     turnId: id,
     createdAt,
@@ -271,19 +256,6 @@ export async function runAssistantAgentTurn(
       toolCalls,
       cancellation: readAssistantAgentCancellation(signal)
     });
-  }
-
-  if (!invocation) {
-    return {
-      id,
-      createdAt,
-      status: "completed",
-      providerLabel: BUILT_IN_ASSISTANT_AGENT_LABEL,
-      message: createAssistantChatReply(userInput),
-      route,
-      toolCalls,
-      cancellation: { requested: false }
-    };
   }
 
   let result: AssistantAgentProcessResult;
@@ -349,24 +321,92 @@ export async function runAssistantAgentTurn(
   };
 }
 
-async function runAssistantAgentProcess(
+export async function runAssistantAgentProcess(
   command: string,
   args: string[],
   options: { cwd: string; timeoutMs: number; signal?: AbortSignal | undefined }
 ): Promise<AssistantAgentProcessResult> {
   const resolvedCommand = await resolveAssistantAgentExecutable(command).catch(() => command);
-  const result = await execFileAsync(resolvedCommand, args, {
-    cwd: options.cwd,
-    timeout: options.timeoutMs,
-    signal: options.signal,
-    maxBuffer: 1024 * 1024,
-    encoding: "utf8"
-  });
+  return spawnAssistantAgentProcess(resolvedCommand, args, options);
+}
 
-  return {
-    stdout: result.stdout,
-    stderr: result.stderr
-  };
+function spawnAssistantAgentProcess(
+  command: string,
+  args: string[],
+  options: { cwd: string; timeoutMs: number; signal?: AbortSignal | undefined }
+): Promise<AssistantAgentProcessResult> {
+  return new Promise((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(readAbortError(options.signal));
+      return;
+    }
+
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      options.signal?.removeEventListener("abort", onAbort);
+    };
+    const succeed = (result: AssistantAgentProcessResult) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+    const fail = (error: Error) => {
+      if (settled) {
+        return;
+      }
+      child.kill();
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => {
+      fail(readAbortError(options.signal));
+    };
+    const timeout = setTimeout(() => {
+      fail(new Error(`Command timed out after ${options.timeoutMs}ms: ${formatCommand(command, args)}`));
+    }, options.timeoutMs);
+
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+      if (stdout.length > 1024 * 1024) {
+        fail(new Error("Assistant agent stdout exceeded 1048576 bytes."));
+      }
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+      if (stderr.length > 1024 * 1024) {
+        fail(new Error("Assistant agent stderr exceeded 1048576 bytes."));
+      }
+    });
+    child.on("error", (error) => {
+      fail(error);
+    });
+    child.on("close", (code, signal) => {
+      if (settled) {
+        return;
+      }
+      if (code === 0) {
+        succeed({ stdout, stderr });
+        return;
+      }
+
+      const reason = signal ? `signal ${signal}` : `exit code ${code ?? "unknown"}`;
+      const stderrSummary = stderr.trim() ? `\n${stderr.trim()}` : "";
+      fail(new Error(`Command failed with ${reason}: ${formatCommand(command, args)}${stderrSummary}`));
+    });
+  });
 }
 
 function createAssistantAgentTurnId(): string {
@@ -426,6 +466,17 @@ function readAssistantAgentCancellation(
 
 function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function readAbortError(signal: AbortSignal | undefined): Error {
+  if (signal?.reason instanceof Error) {
+    return signal.reason;
+  }
+  return new Error(typeof signal?.reason === "string" ? signal.reason : "Assistant agent process was aborted.");
+}
+
+function formatCommand(command: string, args: string[]): string {
+  return [command, ...args].join(" ");
 }
 
 async function readCliAssistantAgentProviderState({
@@ -552,15 +603,11 @@ function createAssistantAgentPrompt(userInput: string, browserPageContext?: Brow
 }
 
 function readAssistantAgentMode(value: unknown): AssistantAgentMode {
-  if (value === "codex") {
-    return "codex";
-  }
-
   if (value === "claude-code" || value === "claudecode" || value === "claude") {
     return "claude-code";
   }
 
-  return "local";
+  return "codex";
 }
 
 function readOptionalString(value: unknown): string | undefined {

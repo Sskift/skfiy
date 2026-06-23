@@ -34,13 +34,13 @@ export interface DashboardProviderSummary {
 
 export interface DashboardAssistantProviderStatus {
   provider?: "assistant" | string;
-  id: "local" | "codex" | "claude-code" | string;
+  id: "codex" | "claude-code" | string;
   label: string;
   selected: boolean;
   configured: boolean;
   readiness: "ready" | "unconfigured" | "unavailable" | "unknown" | string;
   binaryPath?: string;
-  binarySource: "built-in" | "default" | "env" | string;
+  binarySource: "default" | "env" | string;
   resolvedBinaryPath?: string;
   lastError?: string;
 }
@@ -138,7 +138,6 @@ export type DashboardPlannerProviderMode =
   | "disabled";
 
 export type DashboardAssistantAgentMode =
-  | "local"
   | "codex"
   | "claude-code";
 

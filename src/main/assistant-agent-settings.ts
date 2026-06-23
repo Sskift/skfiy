@@ -40,5 +40,5 @@ export function createAssistantAgentSettingsStore(initialSettings: AssistantAgen
 }
 
 export function isAssistantAgentMode(value: unknown): value is AssistantAgentMode {
-  return value === "local" || value === "codex" || value === "claude-code";
+  return value === "codex" || value === "claude-code";
 }

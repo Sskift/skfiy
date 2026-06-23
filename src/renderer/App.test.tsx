@@ -51,15 +51,6 @@ function createAssistantAgentFixture(mode: AssistantAgentMode): AssistantAgentSe
     providers: [
       {
         provider: "assistant",
-        id: "local",
-        label: "Built-in",
-        selected: mode === "local",
-        configured: true,
-        executableSource: "built-in",
-        readiness: "ready"
-      },
-      {
-        provider: "assistant",
         id: "codex",
         label: "Codex",
         selected: mode === "codex",
@@ -156,10 +147,10 @@ beforeEach(() => {
     })),
     getAssistantAgentSettings: vi
       .fn<DesktopApi["getAssistantAgentSettings"]>()
-      .mockResolvedValue(createAssistantAgentFixture("local")),
+      .mockResolvedValue(createAssistantAgentFixture("codex")),
     setAssistantAgentSettings: vi
       .fn<DesktopApi["setAssistantAgentSettings"]>()
-      .mockImplementation(async (update) => createAssistantAgentFixture(update.mode ?? "local")),
+      .mockImplementation(async (update) => createAssistantAgentFixture(update.mode ?? "codex")),
     getPlannerProviderSettings: vi
       .fn<DesktopApi["getPlannerProviderSettings"]>()
       .mockResolvedValue(plannerProviderSettings),
@@ -475,7 +466,7 @@ describe("App", () => {
     const api = window.skfiy as DesktopApi;
     api.getAssistantAgentSettings = vi
       .fn<DesktopApi["getAssistantAgentSettings"]>()
-      .mockResolvedValue(createAssistantAgentFixture("local"));
+      .mockResolvedValue(createAssistantAgentFixture("codex"));
 
     render(<App />);
 

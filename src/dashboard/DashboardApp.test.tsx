@@ -218,10 +218,9 @@ describe("DashboardApp", () => {
     const assistantHealth = within(provider).getByRole("region", { name: "Assistant provider health" });
     expect(within(assistantHealth).getByText("selected codex")).toBeInTheDocument();
     expect(within(assistantHealth).getByText("timeout 45000ms")).toBeInTheDocument();
-    expect(within(assistantHealth).getByRole("heading", { name: "Built-in" })).toBeInTheDocument();
     expect(within(assistantHealth).getByRole("heading", { name: "Codex" })).toBeInTheDocument();
     expect(within(assistantHealth).getByRole("heading", { name: "Claude Code" })).toBeInTheDocument();
-    expect(within(assistantHealth).getAllByText("readiness ready").length).toBeGreaterThanOrEqual(2);
+    expect(within(assistantHealth).getAllByText("readiness ready").length).toBeGreaterThanOrEqual(1);
     expect(within(assistantHealth).getByText("/opt/homebrew/bin/codex")).toBeInTheDocument();
     expect(within(assistantHealth).getByText("source env")).toBeInTheDocument();
     expect(within(assistantHealth).getByText("readiness unavailable")).toBeInTheDocument();
@@ -597,15 +596,6 @@ function createProviderSettingsPayload(planner: {
         timeoutMs: 45_000,
         lastHealthAt: "2026-06-22T08:00:01.000Z",
         providers: [
-          {
-            provider: "assistant",
-            id: "local",
-            label: "Built-in",
-            selected: false,
-            configured: true,
-            readiness: "ready",
-            binarySource: "built-in"
-          },
           {
             provider: "assistant",
             id: "codex",

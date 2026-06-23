@@ -11,7 +11,7 @@ describe("assistant tool bridge", () => {
       id: "turn-1",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Built-in",
+      providerLabel: "Codex",
       message: "Planning Chrome control.",
       route: {
         kind: "chrome",
@@ -39,14 +39,14 @@ describe("assistant tool bridge", () => {
     };
 
     expect(summarizeAssistantToolPlan(turn)).toEqual({
-      providerLabel: "Built-in",
+      providerLabel: "Codex",
       turnId: "turn-1",
       route: {
         kind: "chrome",
         bundleId: "com.google.Chrome"
       },
       plannedToolCount: 1,
-      message: "Built-in planned 1 Computer Use tool call for Chrome."
+      message: "Codex planned 1 Computer Use tool call for Chrome."
     });
   });
 
@@ -55,7 +55,7 @@ describe("assistant tool bridge", () => {
       id: "turn-chat",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Built-in",
+      providerLabel: "Codex",
       message: "你好",
       route: {
         kind: "chat",

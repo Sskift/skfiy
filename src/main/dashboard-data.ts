@@ -384,15 +384,6 @@ function createDashboardAssistantProviderStates(
   settings: AssistantAgentSettings
 ): Array<Record<string, unknown>> {
   return [
-    {
-      provider: "assistant",
-      id: "local",
-      label: "Built-in",
-      selected: settings.mode === "local",
-      configured: true,
-      readiness: "ready",
-      binarySource: "built-in"
-    },
     createDashboardAssistantCliProviderState({
       settings,
       id: "codex",
@@ -467,7 +458,7 @@ function readAssistantProviderLabel(mode: AssistantAgentSettings["mode"]): strin
     return "Claude Code";
   }
 
-  return "Built-in";
+  return "Codex";
 }
 
 function summarizeDashboardPlannerProvider(

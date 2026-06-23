@@ -3,12 +3,13 @@ import {
   buildAssistantAgentInvocation,
   readAssistantAgentProviderStates,
   readInitialAssistantAgentSettings,
+  runAssistantAgentProcess,
   runAssistantAgentTurn
 } from "./assistant-agent";
 
 describe("assistant agent provider", () => {
   const baseSettings = {
-    mode: "local" as const,
+    mode: "codex" as const,
     codexBinary: "codex",
     codexBinarySource: "default" as const,
     claudeCodeBinary: "claude",
@@ -18,9 +19,9 @@ describe("assistant agent provider", () => {
   };
   const fixedNow = () => new Date("2026-06-22T10:00:00.000Z");
 
-  it("defaults the pet background agent to the local fallback", () => {
+  it("defaults the pet background agent to Codex", () => {
     expect(readInitialAssistantAgentSettings({})).toEqual({
-      mode: "local",
+      mode: "codex",
       codexBinary: "codex",
       codexBinarySource: "default",
       claudeCodeBinary: "claude",
@@ -41,6 +42,12 @@ describe("assistant agent provider", () => {
     });
   });
 
+  it.each(["local", "built-in", ""])("does not keep legacy %s as an assistant agent provider", (value) => {
+    expect(readInitialAssistantAgentSettings({ SKFIY_ASSISTANT_AGENT: value })).toMatchObject({
+      mode: "codex"
+    });
+  });
+
   it("normalizes provider state with executable source and readiness", async () => {
     const settings = readInitialAssistantAgentSettings({
       SKFIY_ASSISTANT_AGENT: "claude-code",
@@ -53,15 +60,6 @@ describe("assistant agent provider", () => {
     });
 
     expect(states).toEqual([
-      {
-        provider: "assistant",
-        id: "local",
-        label: "Built-in",
-        selected: false,
-        configured: true,
-        executableSource: "built-in",
-        readiness: "ready"
-      },
       {
         provider: "assistant",
         id: "codex",
@@ -136,10 +134,10 @@ describe("assistant agent provider", () => {
       command: "/opt/homebrew/bin/codex",
       args: [
         "exec",
+        "--config",
+        "approval_policy=\"never\"",
         "--sandbox",
         "read-only",
-        "--ask-for-approval",
-        "never",
         "--cd",
         "/tmp/skfiy",
         "--skip-git-repo-check",
@@ -152,6 +150,20 @@ describe("assistant agent provider", () => {
     });
     expect(invocation?.args).not.toContain("--ignore-user-config");
     expect(invocation?.args).not.toContain("--ignore-rules");
+    expect(invocation?.args).not.toContain("--ask-for-approval");
+  });
+
+  it("runs CLI providers with stdin closed so prompt arguments are not shadowed", async () => {
+    await expect(runAssistantAgentProcess("/bin/sh", [
+      "-c",
+      "if read line; then printf got-stdin; else printf no-stdin; fi"
+    ], {
+      cwd: "/tmp",
+      timeoutMs: 1_000
+    })).resolves.toEqual({
+      stdout: "no-stdin",
+      stderr: ""
+    });
   });
 
   it("includes bounded browser page context in CLI provider prompts", () => {
@@ -248,40 +260,20 @@ describe("assistant agent provider", () => {
     });
   });
 
-  it("returns a structured built-in chat turn while preserving legacy message fields", async () => {
-    await expect(runAssistantAgentTurn("hello", {
-      settings: baseSettings,
-      now: fixedNow,
-      createTurnId: () => "turn-chat"
-    })).resolves.toEqual({
-      id: "turn-chat",
-      createdAt: "2026-06-22T10:00:00.000Z",
-      status: "completed",
-      providerLabel: "Built-in",
-      message: "你好，我在。你可以直接说要我观察或操作哪个应用。",
-      route: {
-        kind: "chat",
-        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
-      },
-      toolCalls: [],
-      cancellation: {
-        requested: false
-      }
-    });
-  });
-
   it("records planned Computer Use evidence for desktop-control requests without running tools", async () => {
     const command = "打开 Chrome 测试页面 file:///tmp/skfiy-chrome.html 并提取正文";
+    const runProcess = vi.fn(async () => ({ stdout: "agent reply", stderr: "" }));
 
     await expect(runAssistantAgentTurn(command, {
       settings: baseSettings,
+      runProcess,
       now: fixedNow,
       createTurnId: () => "turn-desktop"
     })).resolves.toMatchObject({
       id: "turn-desktop",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Built-in",
+      providerLabel: "Codex",
       route: {
         kind: "chrome",
         bundleId: "com.google.Chrome"
@@ -310,16 +302,18 @@ describe("assistant agent provider", () => {
 
   it("records route-level confirmation turns while planning the confirmed target route", async () => {
     const command = "在 Ghostty 执行 pwd，先等我确认";
+    const runProcess = vi.fn(async () => ({ stdout: "agent reply", stderr: "" }));
 
     await expect(runAssistantAgentTurn(command, {
       settings: baseSettings,
+      runProcess,
       now: fixedNow,
       createTurnId: () => "turn-confirmation"
     })).resolves.toMatchObject({
       id: "turn-confirmation",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Built-in",
+      providerLabel: "Codex",
       route: {
         kind: "needs_confirmation",
         reason: "Route policy requires confirmation before continuing with Ghostty.",
@@ -351,15 +345,18 @@ describe("assistant agent provider", () => {
   });
 
   it("records route-level denial turns without planning Computer Use", async () => {
+    const runProcess = vi.fn(async () => ({ stdout: "agent reply", stderr: "" }));
+
     await expect(runAssistantAgentTurn("不要在 Ghostty 执行 pwd", {
       settings: baseSettings,
+      runProcess,
       now: fixedNow,
       createTurnId: () => "turn-denied"
     })).resolves.toMatchObject({
       id: "turn-denied",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Built-in",
+      providerLabel: "Codex",
       route: {
         kind: "denied",
         reason: "User denied this desktop control request.",
@@ -376,15 +373,18 @@ describe("assistant agent provider", () => {
   });
 
   it("records route-level blocked turns without planning Computer Use", async () => {
+    const runProcess = vi.fn(async () => ({ stdout: "agent reply", stderr: "" }));
+
     await expect(runAssistantAgentTurn("在 Ghostty 执行 rm -rf ~/Desktop", {
       settings: baseSettings,
+      runProcess,
       now: fixedNow,
       createTurnId: () => "turn-blocked"
     })).resolves.toMatchObject({
       id: "turn-blocked",
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
-      providerLabel: "Built-in",
+      providerLabel: "Codex",
       route: {
         kind: "blocked",
         reason: "Route policy blocks destructive or sensitive terminal commands before Computer Use.",
