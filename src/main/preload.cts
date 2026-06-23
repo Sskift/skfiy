@@ -22,7 +22,7 @@ type PermissionSettingsTarget =
   | "accessibility";
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 type AppPolicy = "allow" | "ask" | "deny";
-type AssistantAgentMode = "codex" | "claude-code";
+type AssistantAgentMode = "codex" | "claude-code" | "hermes";
 type AssistantAgentProviderId = AssistantAgentMode;
 type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
 type AssistantAgentExecutableSource = "default" | "env";
@@ -117,6 +117,8 @@ interface AssistantAgentSettings {
   codexBinarySource: "default" | "env";
   claudeCodeBinary: string;
   claudeCodeBinarySource: "default" | "env";
+  hermesBinary: string;
+  hermesBinarySource: "default" | "env";
   cwd: string;
   timeoutMs: number;
 }
@@ -124,7 +126,7 @@ interface AssistantAgentSettings {
 interface AssistantAgentProviderState {
   provider: "assistant";
   id: AssistantAgentProviderId;
-  label: "Codex" | "Claude Code";
+  label: "Codex" | "Claude Code" | "Hermes";
   selected: boolean;
   configured: boolean;
   executablePath?: string;
@@ -598,6 +600,8 @@ function isAssistantAgentSettings(value: unknown): value is AssistantAgentSettin
     && isAssistantAgentCliBinarySource(settings.codexBinarySource)
     && typeof settings.claudeCodeBinary === "string"
     && isAssistantAgentCliBinarySource(settings.claudeCodeBinarySource)
+    && typeof settings.hermesBinary === "string"
+    && isAssistantAgentCliBinarySource(settings.hermesBinarySource)
     && typeof settings.cwd === "string"
     && typeof settings.timeoutMs === "number"
     && Number.isFinite(settings.timeoutMs)
@@ -614,7 +618,7 @@ function isAssistantAgentProviderState(value: unknown): value is AssistantAgentP
   return (
     state.provider === "assistant"
     && isAssistantAgentMode(state.id)
-    && (state.label === "Codex" || state.label === "Claude Code")
+    && (state.label === "Codex" || state.label === "Claude Code" || state.label === "Hermes")
     && typeof state.selected === "boolean"
     && typeof state.configured === "boolean"
     && (
@@ -635,7 +639,7 @@ function isAssistantAgentProviderState(value: unknown): value is AssistantAgentP
 }
 
 function isAssistantAgentMode(value: unknown): value is AssistantAgentMode {
-  return value === "codex" || value === "claude-code";
+  return value === "codex" || value === "claude-code" || value === "hermes";
 }
 
 function isAssistantAgentCliBinarySource(value: unknown): value is "default" | "env" {
@@ -1153,6 +1157,8 @@ function createDefaultAssistantAgentSettingsResponse(): AssistantAgentSettingsRe
     codexBinarySource: "default",
     claudeCodeBinary: "claude",
     claudeCodeBinarySource: "default",
+    hermesBinary: "hermes",
+    hermesBinarySource: "default",
     cwd: "",
     timeoutMs: 45_000
   };
@@ -1177,6 +1183,16 @@ function createDefaultAssistantAgentSettingsResponse(): AssistantAgentSettingsRe
         selected: false,
         configured: true,
         executablePath: "claude",
+        executableSource: "default",
+        readiness: "unavailable"
+      },
+      {
+        provider: "assistant",
+        id: "hermes",
+        label: "Hermes",
+        selected: false,
+        configured: true,
+        executablePath: "hermes",
         executableSource: "default",
         readiness: "unavailable"
       }

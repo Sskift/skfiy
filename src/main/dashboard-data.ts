@@ -118,6 +118,7 @@ export interface DashboardProviderEnv {
   SKFIY_ASSISTANT_AGENT?: string;
   SKFIY_CODEX_BIN?: string;
   SKFIY_CLAUDE_CODE_BIN?: string;
+  SKFIY_HERMES_BIN?: string;
   SKFIY_ASSISTANT_AGENT_CWD?: string;
   SKFIY_ASSISTANT_AGENT_TIMEOUT_MS?: string;
   SKFIY_PLANNER_MODE?: string;
@@ -399,6 +400,14 @@ function createDashboardAssistantProviderStates(
       binaryPath: settings.claudeCodeBinary,
       binarySource: settings.claudeCodeBinarySource,
       envName: "SKFIY_CLAUDE_CODE_BIN"
+    }),
+    createDashboardAssistantCliProviderState({
+      settings,
+      id: "hermes",
+      label: "Hermes",
+      binaryPath: settings.hermesBinary,
+      binarySource: settings.hermesBinarySource,
+      envName: "SKFIY_HERMES_BIN"
     })
   ];
 }
@@ -412,7 +421,7 @@ function createDashboardAssistantCliProviderState({
   settings
 }: {
   settings: AssistantAgentSettings;
-  id: Exclude<AssistantAgentProviderId, "local">;
+  id: AssistantAgentProviderId;
   label: string;
   binaryPath: string;
   binarySource: string;
@@ -456,6 +465,9 @@ function readAssistantProviderLabel(mode: AssistantAgentSettings["mode"]): strin
   }
   if (mode === "claude-code") {
     return "Claude Code";
+  }
+  if (mode === "hermes") {
+    return "Hermes";
   }
 
   return "Codex";

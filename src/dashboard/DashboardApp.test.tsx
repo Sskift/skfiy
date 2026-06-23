@@ -220,6 +220,7 @@ describe("DashboardApp", () => {
     expect(within(assistantHealth).getByText("timeout 45000ms")).toBeInTheDocument();
     expect(within(assistantHealth).getByRole("heading", { name: "Codex" })).toBeInTheDocument();
     expect(within(assistantHealth).getByRole("heading", { name: "Claude Code" })).toBeInTheDocument();
+    expect(within(assistantHealth).getByRole("heading", { name: "Hermes" })).toBeInTheDocument();
     expect(within(assistantHealth).getAllByText("readiness ready").length).toBeGreaterThanOrEqual(1);
     expect(within(assistantHealth).getByText("/opt/homebrew/bin/codex")).toBeInTheDocument();
     expect(within(assistantHealth).getByText("source env")).toBeInTheDocument();
@@ -617,6 +618,16 @@ function createProviderSettingsPayload(planner: {
             binaryPath: "missing-claude",
             binarySource: "default",
             lastError: "missing-claude not found"
+          },
+          {
+            provider: "assistant",
+            id: "hermes",
+            label: "Hermes",
+            selected: false,
+            configured: true,
+            readiness: "ready",
+            binaryPath: "/Users/tester/.local/bin/hermes",
+            binarySource: "default"
           }
         ]
       },

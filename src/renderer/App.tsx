@@ -57,7 +57,7 @@ export type PermissionSettingsTarget =
   | "accessibility";
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 export type AppPolicy = "allow" | "ask" | "deny";
-export type AssistantAgentMode = "codex" | "claude-code";
+export type AssistantAgentMode = "codex" | "claude-code" | "hermes";
 export type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
 export type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
@@ -87,6 +87,8 @@ export interface AssistantAgentSettings {
   codexBinarySource: "default" | "env";
   claudeCodeBinary: string;
   claudeCodeBinarySource: "default" | "env";
+  hermesBinary: string;
+  hermesBinarySource: "default" | "env";
   cwd: string;
   timeoutMs: number;
 }
@@ -94,7 +96,7 @@ export interface AssistantAgentSettings {
 export interface AssistantAgentProviderState {
   provider: "assistant";
   id: AssistantAgentMode;
-  label: "Codex" | "Claude Code";
+  label: "Codex" | "Claude Code" | "Hermes";
   selected: boolean;
   configured: boolean;
   executablePath?: string;
@@ -460,7 +462,8 @@ const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
 
 const ASSISTANT_AGENT_OPTIONS: Array<{ mode: AssistantAgentMode; label: string; aria: string }> = [
   { mode: "codex", label: "Codex", aria: "选择 Codex background agent" },
-  { mode: "claude-code", label: "Claude Code", aria: "选择 Claude Code background agent" }
+  { mode: "claude-code", label: "Claude Code", aria: "选择 Claude Code background agent" },
+  { mode: "hermes", label: "Hermes", aria: "选择 Hermes background agent" }
 ];
 
 const PLANNER_PROVIDER_OPTIONS: Array<{ mode: PlannerProviderMode; label: string; aria: string }> = [
@@ -495,6 +498,8 @@ const DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE: AssistantAgentSettingsResponse 
     codexBinarySource: "default",
     claudeCodeBinary: "claude",
     claudeCodeBinarySource: "default",
+    hermesBinary: "hermes",
+    hermesBinarySource: "default",
     cwd: "",
     timeoutMs: 45_000
   },
@@ -516,6 +521,16 @@ const DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE: AssistantAgentSettingsResponse 
       selected: false,
       configured: true,
       executablePath: "claude",
+      executableSource: "default",
+      readiness: "unavailable"
+    },
+    {
+      provider: "assistant",
+      id: "hermes",
+      label: "Hermes",
+      selected: false,
+      configured: true,
+      executablePath: "hermes",
       executableSource: "default",
       readiness: "unavailable"
     }
@@ -897,7 +912,7 @@ function isAssistantConversationReplyEvent(
 function readAssistantConversationReply(message: string | undefined, status: TaskStatus): string {
   const fallback = status === "failed" ? "Background Agent 暂时不可用." : STATUS_COPY.completed.message;
   const text = message?.trim() || fallback;
-  return text.replace(/^(?:Codex|Claude Code):\s*/u, "").trim() || fallback;
+  return text.replace(/^(?:Codex|Claude Code|Hermes):\s*/u, "").trim() || fallback;
 }
 
 function getDashboardStatusCopy(task: TaskView): {

@@ -67,6 +67,8 @@ describe("dashboard snapshot data", () => {
           codexBinarySource: "env",
           claudeCodeBinary: "claude",
           claudeCodeBinarySource: "default",
+          hermesBinary: "hermes",
+          hermesBinarySource: "default",
           cwd: "/repo?token=assistant-secret",
           timeoutMs: 45_000
         },
@@ -111,6 +113,16 @@ describe("dashboard snapshot data", () => {
             readiness: "ready",
             binaryPath: "claude",
             binarySource: "default"
+          },
+          {
+            provider: "assistant",
+            id: "hermes",
+            label: "Hermes",
+            selected: false,
+            configured: true,
+            readiness: "ready",
+            binaryPath: "hermes",
+            binarySource: "default"
           }
         ]
       },
@@ -138,6 +150,7 @@ describe("dashboard snapshot data", () => {
       env: {
         SKFIY_ASSISTANT_AGENT: "claude",
         SKFIY_CLAUDE_CODE_BIN: "/private/bin/claude-secret",
+        SKFIY_HERMES_BIN: "/private/bin/hermes-secret",
         SKFIY_ASSISTANT_AGENT_CWD: "/repo?token=assistant-secret",
         SKFIY_PLANNER_MODE: "external-cua",
         SKFIY_EXTERNAL_CUA_ENDPOINT: "https://cua.example.test/plan?token=planner-secret",
@@ -187,6 +200,16 @@ describe("dashboard snapshot data", () => {
             configured: true,
             readiness: "ready",
             binaryPath: "configured via SKFIY_CLAUDE_CODE_BIN",
+            binarySource: "env"
+          },
+          {
+            provider: "assistant",
+            id: "hermes",
+            label: "Hermes",
+            selected: false,
+            configured: true,
+            readiness: "ready",
+            binaryPath: "configured via SKFIY_HERMES_BIN",
             binarySource: "env"
           }
         ]

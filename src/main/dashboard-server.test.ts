@@ -404,6 +404,8 @@ describe("dashboard loopback HTTP response helper", () => {
         codexBinarySource: "env",
         claudeCodeBinary: "missing-claude",
         claudeCodeBinarySource: "default",
+        hermesBinary: "hermes",
+        hermesBinarySource: "default",
         cwd: "/repo?token=assistant-secret",
         timeoutMs: 12_000
       },
@@ -454,6 +456,17 @@ describe("dashboard loopback HTTP response helper", () => {
           binaryPath: "missing-claude",
           binarySource: "default",
           lastError: "missing-claude not found"
+        },
+        {
+          provider: "assistant",
+          id: "hermes",
+          label: "Hermes",
+          selected: false,
+          configured: true,
+          readiness: "unavailable",
+          binaryPath: "hermes",
+          binarySource: "default",
+          lastError: "hermes not found"
         }
       ]);
       expect(initialPayload.providers.planner.mode).toBe("local-deterministic");

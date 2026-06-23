@@ -10,7 +10,7 @@ import {
 } from "./browser-page-context.js";
 import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
 
-export type AssistantAgentMode = "codex" | "claude-code";
+export type AssistantAgentMode = "codex" | "claude-code" | "hermes";
 export type AssistantAgentProviderId = AssistantAgentMode;
 export type AssistantAgentCliBinarySource = "default" | "env";
 export type AssistantAgentExecutableSource = AssistantAgentCliBinarySource;
@@ -23,6 +23,8 @@ export interface AssistantAgentSettings {
   codexBinarySource: AssistantAgentCliBinarySource;
   claudeCodeBinary: string;
   claudeCodeBinarySource: AssistantAgentCliBinarySource;
+  hermesBinary: string;
+  hermesBinarySource: AssistantAgentCliBinarySource;
   cwd: string;
   timeoutMs: number;
 }
@@ -30,7 +32,7 @@ export interface AssistantAgentSettings {
 export interface AssistantAgentInvocation {
   command: string;
   args: string[];
-  label: "Codex" | "Claude Code";
+  label: "Codex" | "Claude Code" | "Hermes";
 }
 
 export interface AssistantAgentProcessResult {
@@ -41,7 +43,7 @@ export interface AssistantAgentProcessResult {
 export interface AssistantAgentProviderState {
   provider: "assistant";
   id: AssistantAgentProviderId;
-  label: "Codex" | "Claude Code";
+  label: "Codex" | "Claude Code" | "Hermes";
   selected: boolean;
   configured: boolean;
   executablePath?: string;
@@ -93,7 +95,7 @@ export interface AssistantAgentTurnResult {
   id: string;
   createdAt: string;
   status: AssistantAgentTurnStatus;
-  providerLabel: "Codex" | "Claude Code";
+  providerLabel: "Codex" | "Claude Code" | "Hermes";
   message: string;
   error?: AssistantAgentTurnError | undefined;
   route: CommandRoute;
@@ -121,6 +123,7 @@ export function readInitialAssistantAgentSettings(
     SKFIY_ASSISTANT_AGENT?: string;
     SKFIY_CODEX_BIN?: string;
     SKFIY_CLAUDE_CODE_BIN?: string;
+    SKFIY_HERMES_BIN?: string;
     SKFIY_ASSISTANT_AGENT_CWD?: string;
     SKFIY_ASSISTANT_AGENT_TIMEOUT_MS?: string;
   },
@@ -128,6 +131,7 @@ export function readInitialAssistantAgentSettings(
 ): AssistantAgentSettings {
   const configuredCodexBinary = readOptionalString(env.SKFIY_CODEX_BIN);
   const configuredClaudeCodeBinary = readOptionalString(env.SKFIY_CLAUDE_CODE_BIN);
+  const configuredHermesBinary = readOptionalString(env.SKFIY_HERMES_BIN);
 
   return {
     mode: readAssistantAgentMode(env.SKFIY_ASSISTANT_AGENT),
@@ -135,6 +139,8 @@ export function readInitialAssistantAgentSettings(
     codexBinarySource: configuredCodexBinary ? "env" : "default",
     claudeCodeBinary: configuredClaudeCodeBinary ?? "claude",
     claudeCodeBinarySource: configuredClaudeCodeBinary ? "env" : "default",
+    hermesBinary: configuredHermesBinary ?? "hermes",
+    hermesBinarySource: configuredHermesBinary ? "env" : "default",
     cwd: readOptionalString(env.SKFIY_ASSISTANT_AGENT_CWD) ?? defaults.cwd ?? process.cwd(),
     timeoutMs: readPositiveInteger(env.SKFIY_ASSISTANT_AGENT_TIMEOUT_MS)
       ?? DEFAULT_ASSISTANT_AGENT_TIMEOUT_MS
@@ -169,6 +175,14 @@ export async function readAssistantAgentProviderStates(
       executablePath: settings.claudeCodeBinary,
       executableSource: settings.claudeCodeBinarySource,
       resolveExecutable
+    }),
+    await readCliAssistantAgentProviderState({
+      id: "hermes",
+      label: "Hermes",
+      selected: settings.mode === "hermes",
+      executablePath: settings.hermesBinary,
+      executableSource: settings.hermesBinarySource,
+      resolveExecutable
     })
   ];
 }
@@ -198,6 +212,26 @@ export function buildAssistantAgentInvocation(
         prompt
       ],
       label: "Codex"
+    };
+  }
+
+  if (settings.mode === "hermes") {
+    return {
+      command: settings.hermesBinary,
+      args: [
+        "chat",
+        "--query",
+        prompt,
+        "--quiet",
+        "--max-turns",
+        "1",
+        "--toolsets",
+        "safe",
+        "--ignore-rules",
+        "--source",
+        "skfiy-pet-chat"
+      ],
+      label: "Hermes"
     };
   }
 
@@ -487,8 +521,8 @@ async function readCliAssistantAgentProviderState({
   executableSource,
   resolveExecutable
 }: {
-  id: "codex" | "claude-code";
-  label: "Codex" | "Claude Code";
+  id: AssistantAgentProviderId;
+  label: "Codex" | "Claude Code" | "Hermes";
   selected: boolean;
   executablePath: string;
   executableSource: AssistantAgentCliBinarySource;
@@ -606,6 +640,10 @@ function createAssistantAgentPrompt(userInput: string, browserPageContext?: Brow
 }
 
 function readAssistantAgentMode(value: unknown): AssistantAgentMode {
+  if (value === "hermes") {
+    return "hermes";
+  }
+
   if (value === "claude-code" || value === "claudecode" || value === "claude") {
     return "claude-code";
   }

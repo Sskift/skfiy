@@ -14,6 +14,8 @@ describe("assistant agent provider", () => {
     codexBinarySource: "default" as const,
     claudeCodeBinary: "claude",
     claudeCodeBinarySource: "default" as const,
+    hermesBinary: "hermes",
+    hermesBinarySource: "default" as const,
     cwd: "/tmp/skfiy",
     timeoutMs: 45_000
   };
@@ -26,6 +28,8 @@ describe("assistant agent provider", () => {
       codexBinarySource: "default",
       claudeCodeBinary: "claude",
       claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
       cwd: process.cwd(),
       timeoutMs: 45_000
     });
@@ -35,7 +39,8 @@ describe("assistant agent provider", () => {
     ["codex", "codex"],
     ["claude-code", "claude-code"],
     ["claudecode", "claude-code"],
-    ["claude", "claude-code"]
+    ["claude", "claude-code"],
+    ["hermes", "hermes"]
   ])("reads %s as an assistant agent provider", (value, mode) => {
     expect(readInitialAssistantAgentSettings({ SKFIY_ASSISTANT_AGENT: value })).toMatchObject({
       mode
@@ -52,7 +57,8 @@ describe("assistant agent provider", () => {
     const settings = readInitialAssistantAgentSettings({
       SKFIY_ASSISTANT_AGENT: "claude-code",
       SKFIY_CODEX_BIN: " /opt/homebrew/bin/codex ",
-      SKFIY_CLAUDE_CODE_BIN: " /opt/homebrew/bin/claude "
+      SKFIY_CLAUDE_CODE_BIN: " /opt/homebrew/bin/claude ",
+      SKFIY_HERMES_BIN: " /Users/bytedance/.local/bin/hermes "
     }, { cwd: "/tmp/skfiy" });
 
     const states = await readAssistantAgentProviderStates(settings, {
@@ -81,8 +87,38 @@ describe("assistant agent provider", () => {
         executableSource: "env",
         resolvedExecutablePath: "/opt/homebrew/bin/claude:resolved",
         readiness: "ready"
+      },
+      {
+        provider: "assistant",
+        id: "hermes",
+        label: "Hermes",
+        selected: false,
+        configured: true,
+        executablePath: "/Users/bytedance/.local/bin/hermes",
+        executableSource: "env",
+        resolvedExecutablePath: "/Users/bytedance/.local/bin/hermes:resolved",
+        readiness: "ready"
       }
     ]);
+  });
+
+  it("lists Hermes as a Background Agent provider with readiness", async () => {
+    const settings = readInitialAssistantAgentSettings({
+      SKFIY_ASSISTANT_AGENT: "hermes",
+      SKFIY_HERMES_BIN: "/Users/bytedance/.local/bin/hermes"
+    });
+
+    const states = await readAssistantAgentProviderStates(settings, {
+      resolveExecutable: async (command) => `${command}:resolved`
+    });
+
+    expect(states.find((state) => state.id === "hermes")).toMatchObject({
+      id: "hermes",
+      label: "Hermes",
+      selected: true,
+      readiness: "ready",
+      executablePath: "/Users/bytedance/.local/bin/hermes"
+    });
   });
 
   it("reports unconfigured and unavailable CLI providers with last errors", async () => {
@@ -92,6 +128,8 @@ describe("assistant agent provider", () => {
       codexBinarySource: "env",
       claudeCodeBinary: "missing-claude",
       claudeCodeBinarySource: "default",
+      hermesBinary: "missing-hermes",
+      hermesBinarySource: "default",
       cwd: "/tmp/skfiy",
       timeoutMs: 45_000
     }, {
@@ -117,6 +155,15 @@ describe("assistant agent provider", () => {
       readiness: "unavailable",
       lastError: "missing-claude not found"
     });
+    expect(states.find((state) => state.id === "hermes")).toMatchObject({
+      id: "hermes",
+      selected: false,
+      configured: true,
+      executablePath: "missing-hermes",
+      executableSource: "default",
+      readiness: "unavailable",
+      lastError: "missing-hermes not found"
+    });
   });
 
   it("builds a locked-down Codex exec invocation for pet chat", () => {
@@ -126,6 +173,8 @@ describe("assistant agent provider", () => {
       codexBinarySource: "env",
       claudeCodeBinary: "claude",
       claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
       cwd: "/tmp/skfiy",
       timeoutMs: 45_000
     }, "hello");
@@ -173,6 +222,8 @@ describe("assistant agent provider", () => {
       codexBinarySource: "default",
       claudeCodeBinary: "claude",
       claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
       cwd: "/tmp/skfiy",
       timeoutMs: 45_000
     }, "summarize this page", {
@@ -196,6 +247,8 @@ describe("assistant agent provider", () => {
       codexBinarySource: "default",
       claudeCodeBinary: "claude",
       claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
       cwd: "/tmp/skfiy",
       timeoutMs: 45_000
     }, "你是谁");
@@ -213,6 +266,8 @@ describe("assistant agent provider", () => {
       codexBinarySource: "default",
       claudeCodeBinary: "claude",
       claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
       cwd: "/tmp/skfiy",
       timeoutMs: 45_000
     }, "你好");
@@ -230,6 +285,8 @@ describe("assistant agent provider", () => {
       codexBinarySource: "default",
       claudeCodeBinary: "/opt/homebrew/bin/claude",
       claudeCodeBinarySource: "env",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
       cwd: "/tmp/skfiy",
       timeoutMs: 45_000
     }, "你好");
@@ -256,6 +313,41 @@ describe("assistant agent provider", () => {
     expect(invocation?.args).not.toContain("--strict-mcp-config");
   });
 
+  it("builds a bounded Hermes chat invocation for pet chat", () => {
+    const invocation = buildAssistantAgentInvocation({
+      mode: "hermes",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      hermesBinary: "/Users/bytedance/.local/bin/hermes",
+      hermesBinarySource: "env",
+      cwd: "/tmp/skfiy",
+      timeoutMs: 45_000
+    }, "你是谁");
+
+    expect(invocation).toMatchObject({
+      command: "/Users/bytedance/.local/bin/hermes",
+      args: [
+        "chat",
+        "--query",
+        expect.stringContaining("You are skfiy"),
+        "--quiet",
+        "--max-turns",
+        "1",
+        "--toolsets",
+        "safe",
+        "--ignore-rules",
+        "--source",
+        "skfiy-pet-chat"
+      ],
+      label: "Hermes"
+    });
+    expect(invocation.args.join(" ")).toContain("User: 你是谁");
+    expect(invocation.args).not.toContain("--oneshot");
+    expect(invocation.args).not.toContain("--yolo");
+  });
+
   it("runs the configured provider and trims its response", async () => {
     const runProcess = vi.fn(async () => ({ stdout: "  agent reply\n", stderr: "" }));
 
@@ -266,6 +358,8 @@ describe("assistant agent provider", () => {
         codexBinarySource: "default",
         claudeCodeBinary: "claude",
         claudeCodeBinarySource: "default",
+        hermesBinary: "hermes",
+        hermesBinarySource: "default",
         cwd: "/tmp/skfiy",
         timeoutMs: 45_000
       },

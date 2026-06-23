@@ -34,7 +34,7 @@ export interface DashboardProviderSummary {
 
 export interface DashboardAssistantProviderStatus {
   provider?: "assistant" | string;
-  id: "codex" | "claude-code" | string;
+  id: "codex" | "claude-code" | "hermes" | string;
   label: string;
   selected: boolean;
   configured: boolean;
@@ -139,7 +139,8 @@ export type DashboardPlannerProviderMode =
 
 export type DashboardAssistantAgentMode =
   | "codex"
-  | "claude-code";
+  | "claude-code"
+  | "hermes";
 
 export interface DashboardProviderSettingsPlanner {
   provider?: "planner" | string;
