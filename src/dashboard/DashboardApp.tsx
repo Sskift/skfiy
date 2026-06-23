@@ -41,6 +41,8 @@ import type {
   DashboardChromeHostPolicyResponse,
   DashboardPlannerProviderMode,
   DashboardPlannerProviderSettingsUpdate,
+  DashboardAssistantProviderStatus,
+  DashboardProviderSettingsAssistant,
   DashboardProviderSettingsPlanner,
   DashboardProviderSettingsResponse,
   DashboardProviderSummary,
@@ -49,6 +51,7 @@ import type {
 import {
   readAlertMessages,
   readAppReadinessLanes,
+  readCapabilitySummaries,
   readChromeControlState,
   readComputerUseReadiness,
   readDogfoodSummary,
@@ -59,6 +62,7 @@ import {
   readSnapshotState,
   readUnsupportedSmokeEvidence,
   type DashboardAppReadinessLane,
+  type DashboardCapabilitySummary,
   type DashboardChromeControlState,
   type Tone
 } from "./model";
@@ -80,9 +84,10 @@ export interface DashboardAppProps {
 
 const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: Home },
-  { id: "connections", label: "Connections", icon: Bot },
+  { id: "provider", label: "Provider", icon: Bot },
+  { id: "computer-use", label: "Computer Use", icon: MonitorCog },
   { id: "browser", label: "Browser", icon: Chrome },
-  { id: "activity", label: "Activity", icon: Activity },
+  { id: "dogfood", label: "Dogfood", icon: Activity },
   { id: "next-action", label: "Next action", icon: ArrowRight }
 ] as const;
 
@@ -286,6 +291,7 @@ function DashboardContent({
 }) {
   const stateItems = useMemo(() => readSnapshotState(snapshot), [snapshot]);
   const readiness = useMemo(() => readReadinessSummary(snapshot), [snapshot]);
+  const capabilities = useMemo(() => readCapabilitySummaries(snapshot), [snapshot]);
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
   const appReadiness = useMemo(() => readAppReadinessLanes(snapshot), [snapshot]);
@@ -329,6 +335,11 @@ function DashboardContent({
             </div>
           </div>
         </div>
+        <div className="skfiy-dashboard-grid skfiy-dashboard-grid--four">
+          {capabilities.map((capability) => (
+            <CapabilityCard key={capability.id} capability={capability} />
+          ))}
+        </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--three">
           {stateItems.map((item) => (
             <MetricCard key={item.label} item={item} />
@@ -337,20 +348,25 @@ function DashboardContent({
       </section>
 
       <section
-        id="connections"
+        id="provider"
         className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
-        aria-labelledby="connections-title"
+        aria-labelledby="provider-title"
       >
         <div className="skfiy-dashboard-section-heading">
           <div>
             <span>Connection</span>
-            <h2 id="connections-title">Agent connection</h2>
+            <h2 id="provider-title">Provider</h2>
           </div>
         </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
           {providers.map((provider) => (
             <ProviderCard key={`${provider.mode}-${provider.label}`} provider={provider} />
           ))}
+          <AssistantProviderSettingsPanel
+            assistant={providerSettings?.providers.assistant}
+            error={providerSettingsError}
+            isLoading={isProviderSettingsLoading}
+          />
           <PlannerProviderSettingsForm
             settings={providerSettings}
             error={providerSettingsError}
@@ -363,17 +379,68 @@ function DashboardContent({
       </section>
 
       <section
+        id="computer-use"
+        className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
+        aria-labelledby="computer-use-title"
+      >
+        <div className="skfiy-dashboard-section-heading">
+          <div>
+            <span>Readiness</span>
+            <h2 id="computer-use-title">Computer Use</h2>
+          </div>
+        </div>
+        <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
+          <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
+            <Card.Header className="skfiy-dashboard-card-header">
+              <div>
+                <Card.Description>Desktop control</Card.Description>
+                <Card.Title>Computer use</Card.Title>
+              </div>
+              <MonitorCog size={18} aria-hidden="true" />
+            </Card.Header>
+            <Card.Content className="skfiy-dashboard-card-content">
+              <StatusRow
+                icon={<MousePointer2 size={16} aria-hidden="true" />}
+                label="Desktop session"
+                tone={computerUse.desktop.tone}
+                value={computerUse.desktop.value}
+                detail={computerUse.desktop.detail}
+              />
+              <div className="skfiy-dashboard-permission-grid" aria-label="Computer use permissions">
+                {computerUse.permissions.map((permission) => (
+                  <StatusRow
+                    key={permission.label}
+                    label={permission.label}
+                    tone={permission.tone}
+                    value={permission.value}
+                  />
+                ))}
+              </div>
+            </Card.Content>
+          </Card.Root>
+          {appReadiness.map((lane) => (
+            <AppReadinessCard key={lane.id} lane={lane} />
+          ))}
+          {unsupportedSmoke ? (
+            <div className="skfiy-dashboard-inline-list skfiy-dashboard-grid-note">
+              <StatusChip tone="warning">{unsupportedSmoke}</StatusChip>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section
         id="browser"
         className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
         aria-labelledby="browser-title"
       >
         <div className="skfiy-dashboard-section-heading">
           <div>
-            <span>Readiness</span>
-            <h2 id="browser-title">Browser and computer readiness</h2>
+            <span>Bridge</span>
+            <h2 id="browser-title">Browser</h2>
           </div>
         </div>
-        <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
+        <div className="skfiy-dashboard-grid skfiy-dashboard-grid--main">
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
               <div>
@@ -449,54 +516,18 @@ function DashboardContent({
               />
             </Card.Content>
           </Card.Root>
-          <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
-            <Card.Header className="skfiy-dashboard-card-header">
-              <div>
-                <Card.Description>Desktop control</Card.Description>
-                <Card.Title>Computer use</Card.Title>
-              </div>
-              <MonitorCog size={18} aria-hidden="true" />
-            </Card.Header>
-            <Card.Content className="skfiy-dashboard-card-content">
-              <StatusRow
-                icon={<MousePointer2 size={16} aria-hidden="true" />}
-                label="Desktop session"
-                tone={computerUse.desktop.tone}
-                value={computerUse.desktop.value}
-                detail={computerUse.desktop.detail}
-              />
-              <div className="skfiy-dashboard-permission-grid" aria-label="Computer use permissions">
-                {computerUse.permissions.map((permission) => (
-                  <StatusRow
-                    key={permission.label}
-                    label={permission.label}
-                    tone={permission.tone}
-                    value={permission.value}
-                  />
-                ))}
-              </div>
-            </Card.Content>
-          </Card.Root>
-          {appReadiness.map((lane) => (
-            <AppReadinessCard key={lane.id} lane={lane} />
-          ))}
-          {unsupportedSmoke ? (
-            <div className="skfiy-dashboard-inline-list skfiy-dashboard-grid-note">
-              <StatusChip tone="warning">{unsupportedSmoke}</StatusChip>
-            </div>
-          ) : null}
         </div>
       </section>
 
       <section
-        id="activity"
+        id="dogfood"
         className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
-        aria-labelledby="activity-title"
+        aria-label="Dogfood"
       >
         <div className="skfiy-dashboard-section-heading">
           <div>
-            <span>Activity</span>
-            <h2 id="activity-title">Recent activity</h2>
+            <span>Release</span>
+            <h2>Dogfood and release</h2>
           </div>
         </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
@@ -530,7 +561,7 @@ function DashboardContent({
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
               <div>
-                <Card.Title>Dogfood and replay</Card.Title>
+                <Card.Title>Release gate</Card.Title>
                 <Card.Description>Release drift and cohort status</Card.Description>
               </div>
               <Activity size={18} aria-hidden="true" />
@@ -578,6 +609,110 @@ function DashboardContent({
           </Card.Content>
         </Card.Root>
       </section>
+    </div>
+  );
+}
+
+function AssistantProviderSettingsPanel({
+  assistant,
+  error,
+  isLoading
+}: {
+  assistant: DashboardProviderSettingsAssistant | undefined;
+  error: string | null;
+  isLoading: boolean;
+}) {
+  const providers = assistant?.providers ?? [];
+
+  return (
+    <Card.Root
+      aria-label="Assistant provider health"
+      className="skfiy-dashboard-card skfiy-dashboard-assistant-provider-card"
+      role="region"
+      variant="secondary"
+    >
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>Assistant settings</Card.Description>
+          <Card.Title>Assistant providers</Card.Title>
+        </div>
+        <Bot size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <div className="skfiy-dashboard-inline-list" aria-label="Assistant provider settings status">
+          <StatusChip tone={readHealthTone(assistant?.health ?? "unknown")}>
+            {assistant?.health ?? (isLoading ? "loading settings" : "unknown")}
+          </StatusChip>
+          <StatusChip tone={assistant?.selectedProvider ? "success" : "warning"}>
+            selected {assistant?.selectedProvider ?? "unknown"}
+          </StatusChip>
+          <StatusChip tone="neutral">timeout {assistant?.timeoutMs ?? 0}ms</StatusChip>
+          <StatusChip tone="neutral">last health {formatGeneratedAt(assistant?.lastHealthAt ?? "")}</StatusChip>
+        </div>
+        {providers.length > 0 ? (
+          <div className="skfiy-dashboard-assistant-provider-list">
+            {providers.map((provider) => (
+              <AssistantProviderStateItem key={provider.id} provider={provider} />
+            ))}
+          </div>
+        ) : (
+          <div className="skfiy-dashboard-empty">
+            {isLoading ? "Loading assistant provider health." : "Assistant provider health has not been reported."}
+          </div>
+        )}
+        {error && !assistant ? (
+          <div className="skfiy-dashboard-error skfiy-dashboard-provider-form-message" role="alert">
+            <TriangleAlert size={16} aria-hidden="true" />
+            {error}
+          </div>
+        ) : null}
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function AssistantProviderStateItem({
+  provider
+}: {
+  provider: DashboardAssistantProviderStatus;
+}) {
+  const resolvedBinaryPath = provider.resolvedBinaryPath && provider.resolvedBinaryPath !== provider.binaryPath
+    ? provider.resolvedBinaryPath
+    : undefined;
+
+  return (
+    <div className="skfiy-dashboard-assistant-provider-item">
+      <div className="skfiy-dashboard-assistant-provider-heading">
+        <div>
+          <h3>{provider.label}</h3>
+          <span>{provider.id}</span>
+        </div>
+        <StatusChip tone={provider.selected ? "success" : "neutral"}>
+          {provider.selected ? "selected" : "standby"}
+        </StatusChip>
+      </div>
+      <div className="skfiy-dashboard-inline-list">
+        <StatusChip tone={readAssistantReadinessTone(provider.readiness)}>
+          readiness {provider.readiness}
+        </StatusChip>
+        <StatusChip tone={provider.configured ? "success" : "warning"}>
+          {provider.configured ? "configured" : "unconfigured"}
+        </StatusChip>
+        <StatusChip tone="neutral">source {provider.binarySource}</StatusChip>
+      </div>
+      <div className="skfiy-dashboard-key-value">
+        <span>Binary</span>
+        <strong>{provider.binaryPath ?? "built-in"}</strong>
+        {resolvedBinaryPath ? (
+          <>
+            <span>Resolved</span>
+            <strong>{resolvedBinaryPath}</strong>
+          </>
+        ) : null}
+      </div>
+      {provider.lastError ? (
+        <p className="skfiy-dashboard-muted-message">{provider.lastError}</p>
+      ) : null}
     </div>
   );
 }
@@ -1139,6 +1274,20 @@ function ActivityCount({ label, value }: { label: string; value?: number }) {
   );
 }
 
+function CapabilityCard({ capability }: { capability: DashboardCapabilitySummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-capability-card" variant="tertiary">
+      <Card.Content className="skfiy-dashboard-card-content">
+        <div className="skfiy-dashboard-capability-card-heading">
+          <h3>{capability.title}</h3>
+          <StatusChip tone={capability.tone}>{capability.value}</StatusChip>
+        </div>
+        <p>{capability.detail}</p>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
 function MetricCard({ item }: { item: { label: string; value: string; tone: Tone } }) {
   return (
     <Card.Root className="skfiy-dashboard-card skfiy-dashboard-metric" variant="tertiary">
@@ -1221,6 +1370,17 @@ function readHealthTone(health: string): Tone {
     return "success";
   }
   if (health === "unavailable") {
+    return "danger";
+  }
+
+  return "warning";
+}
+
+function readAssistantReadinessTone(readiness: string): Tone {
+  if (readiness === "ready") {
+    return "success";
+  }
+  if (readiness === "unavailable" || readiness === "unconfigured") {
     return "danger";
   }
 

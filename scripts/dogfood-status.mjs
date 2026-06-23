@@ -374,7 +374,8 @@ async function createMissingTrackingIssueStatus({
     },
     testerAssignments: [],
     nextActions: [
-      "Provide --tracking-issue-url or --tracking-issue-file before collecting dogfood reports."
+      "Provide --tracking-issue-url or --tracking-issue-file before collecting dogfood reports.",
+      ...createCurrentHeadRefreshNextActions(manifestChecks.currentHead)
     ]
   };
 
@@ -416,13 +417,7 @@ export function createDogfoodStatusMarkdown(status) {
     `Generated: ${status.generatedAt}`,
     `Manifest: ${status.manifestPath}`,
     `Commit: ${status.manifest.commitSha ?? "unknown"}`,
-    ...(status.manifest.checks.currentHead
-      ? [
-        `Current HEAD: ${status.manifest.checks.currentHead.expected}`,
-        `Alpha is current HEAD: ${status.manifest.checks.currentHead.ok ? "yes" : "no"}`,
-        `Alpha app code current: ${readCurrentHeadAppCodeLabel(status.manifest.checks.currentHead)}`
-      ]
-      : []),
+    ...formatCurrentHeadMarkdown(status.manifest.checks.currentHead),
     `Required evidence current: ${status.manifest.checks.requiredEvidence?.ok ? "yes" : "no"}`,
     ...(status.manifest.checks.requiredEvidence?.missing?.length > 0
       ? status.manifest.checks.requiredEvidence.missing.map((evidence) => `Missing required evidence: ${evidence}`)
@@ -1023,7 +1018,8 @@ async function readManifestChecks(manifest, options, io) {
       }
     }
     checks.currentHead = {
-      ...currentHead
+      ...currentHead,
+      ...readCurrentHeadRefreshPlan(currentHead)
     };
   }
 
@@ -1223,6 +1219,106 @@ function readCurrentHeadAppCodeLabel(currentHead) {
   return "unknown";
 }
 
+function formatCurrentHeadMarkdown(currentHead) {
+  if (!currentHead) {
+    return [];
+  }
+
+  const lines = [
+    `Current HEAD: ${currentHead.expected}`,
+    `Alpha is current HEAD: ${currentHead.ok ? "yes" : "no"}`,
+    `Alpha app code current: ${readCurrentHeadAppCodeLabel(currentHead)}`
+  ];
+
+  if (Array.isArray(currentHead.appRelevantChangedFiles) && currentHead.appRelevantChangedFiles.length > 0) {
+    lines.push(`Current-head app changes: ${currentHead.appRelevantChangedFiles.join(", ")}`);
+  }
+  if (Array.isArray(currentHead.refreshSmokeCommands) && currentHead.refreshSmokeCommands.length > 0) {
+    for (const command of currentHead.refreshSmokeCommands) {
+      lines.push(`Current-head smoke command: ${command}`);
+    }
+  }
+  if (typeof currentHead.alphaArtifactCommand === "string" && currentHead.alphaArtifactCommand.length > 0) {
+    lines.push(`Current-head alpha command: ${currentHead.alphaArtifactCommand}`);
+  }
+
+  return lines;
+}
+
+function readCurrentHeadRefreshPlan(currentHead) {
+  const shortSha = readShortSha(currentHead.expected);
+  if (!shortSha) {
+    return {};
+  }
+
+  const plan = {
+    shortSha
+  };
+  if (!shouldRecommendCurrentHeadRefresh(currentHead)) {
+    return plan;
+  }
+
+  const refreshSmokeArtifactPaths = createCurrentHeadSmokeArtifactPaths(shortSha);
+  return {
+    ...plan,
+    refreshSmokeArtifactPaths,
+    refreshSmokeCommands: createCurrentHeadSmokeRefreshCommands(refreshSmokeArtifactPaths),
+    alphaArtifactCommand: createCurrentHeadAlphaArtifactCommand(refreshSmokeArtifactPaths)
+  };
+}
+
+function shouldRecommendCurrentHeadRefresh(currentHead) {
+  return currentHead
+    && currentHead.ok !== true
+    && (currentHead.required === true || currentHead.appCodeOk !== true);
+}
+
+function readShortSha(sha) {
+  return typeof sha === "string" && sha.trim().length > 0
+    ? sha.trim().slice(0, 7)
+    : "";
+}
+
+function createCurrentHeadSmokeArtifactPaths(shortSha) {
+  return {
+    ui: `.skfiy-smoke/ui-${shortSha}.json`,
+    ghostty: `.skfiy-smoke/ghostty-${shortSha}.json`,
+    chrome: `.skfiy-smoke/chrome-${shortSha}.json`,
+    finder: `.skfiy-smoke/finder-${shortSha}.json`,
+    dashboard: `.skfiy-smoke/dashboard-${shortSha}.json`,
+    moneyRun: `.skfiy-smoke/money-run-${shortSha}.json`
+  };
+}
+
+function createCurrentHeadSmokeRefreshCommands(paths) {
+  return [
+    `npm run smoke:ui -- --app dist/skfiy.app --require-passed --output ${paths.ui}`,
+    `npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output ${paths.ghostty}`,
+    `npm run smoke:chrome -- --app dist/skfiy.app --extension-chrome-app "Chromium" --extension-id <chrome-extension-id> --require-passed --output ${paths.chrome}`,
+    `npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output ${paths.finder}`,
+    `npm run smoke:dashboard -- --cli dist/skfiy --extension-chrome-app "Chromium" --extension-id <chrome-extension-id> --require-passed --output ${paths.dashboard}`,
+    `npm run smoke:money-run -- --app dist/skfiy.app --session money-run --json-output ${paths.moneyRun}`
+  ];
+}
+
+function createCurrentHeadAlphaArtifactCommand(paths) {
+  return [
+    "npm run alpha:artifact --",
+    "--ui-smoke-artifact",
+    paths.ui,
+    "--smoke-artifact",
+    paths.ghostty,
+    "--chrome-smoke-artifact",
+    paths.chrome,
+    "--finder-smoke-artifact",
+    paths.finder,
+    "--dashboard-smoke-artifact",
+    paths.dashboard,
+    "--money-run-smoke-artifact",
+    paths.moneyRun
+  ].join(" ");
+}
+
 function readReleaseEvidenceLabel(releaseEvidence) {
   if (!releaseEvidence || releaseEvidence.available !== true) {
     return "unavailable";
@@ -1280,6 +1376,7 @@ function createNextActions({
   }
   if (freshAlphaAction) {
     actions.push(freshAlphaAction);
+    actions.push(...createCurrentHeadRefreshNextActions(manifestChecks.currentHead));
   }
   if (missingRequiredReports > 0) {
     actions.push(`Collect at least 3 accepted real tester report issue URLs in ${trackingIssueTarget}.`);
@@ -1377,6 +1474,27 @@ function readFreshAlphaBeforeTesterAssignmentAction(currentHead) {
   return currentHead.required === true
     ? "Regenerate the alpha artifact so manifest commitSha matches the current HEAD."
     : "Publish a fresh alpha artifact from the current HEAD before assigning new dogfood testers, or intentionally keep testing the older selected alpha.";
+}
+
+function createCurrentHeadRefreshNextActions(currentHead) {
+  if (!shouldRecommendCurrentHeadRefresh(currentHead) || !Array.isArray(currentHead.refreshSmokeCommands)) {
+    return [];
+  }
+
+  const shortSha = currentHead.shortSha || readShortSha(currentHead.expected);
+  const changes = Array.isArray(currentHead.appRelevantChangedFiles) && currentHead.appRelevantChangedFiles.length > 0
+    ? ` App-relevant changes: ${currentHead.appRelevantChangedFiles.join(", ")}.`
+    : "";
+  const actions = [
+    `Rerun current-head product smokes for ${shortSha} before publishing the replacement alpha.${changes}`,
+    ...currentHead.refreshSmokeCommands.map((command) => `Run ${command}.`)
+  ];
+
+  if (typeof currentHead.alphaArtifactCommand === "string" && currentHead.alphaArtifactCommand.length > 0) {
+    actions.push(`Run ${currentHead.alphaArtifactCommand} after those current-head smoke artifacts pass.`);
+  }
+
+  return actions;
 }
 
 function isNonBlockingPermissionEvidence(evidence) {

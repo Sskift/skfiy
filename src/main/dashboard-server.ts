@@ -41,6 +41,9 @@ import {
 } from "./runtime-snapshot.js";
 import {
   readInitialAssistantAgentSettings,
+  readAssistantAgentProviderStates,
+  type AssistantAgentExecutableResolver,
+  type AssistantAgentProviderState,
   type AssistantAgentSettings
 } from "./assistant-agent.js";
 import {
@@ -71,6 +74,7 @@ export interface DashboardHttpResponseOptions extends DashboardDescriptorInput {
   chromeControlActivityStore?: DashboardChromeControlActivityStore;
   chromeControlActivityIo?: DashboardChromeControlActivityIo;
   assistantAgentSettings?: AssistantAgentSettings;
+  assistantExecutableResolver?: AssistantAgentExecutableResolver;
   plannerProviderSettingsStore?: DashboardPlannerProviderSettingsStore;
   workspaceIo?: DashboardWorkspaceIo;
   createDescriptor?: (input: DashboardDescriptorInput) => DashboardDescriptor;
@@ -332,7 +336,7 @@ async function handleDashboardServerRequest({
 
   if (url.pathname === "/api/provider-settings") {
     const body = requestMethod === "POST" ? await readRequestBody(request) : "";
-    const dashboardResponse = createDashboardProviderSettingsResponse({
+    const dashboardResponse = await createDashboardProviderSettingsResponse({
       method: request.method,
       url: requestUrl,
       body
@@ -487,6 +491,7 @@ function createDescriptorFromOptions(
     chromeControlActivityStore: _chromeControlActivityStore,
     chromeControlActivityIo: _chromeControlActivityIo,
     assistantAgentSettings: _assistantAgentSettings,
+    assistantExecutableResolver: _assistantExecutableResolver,
     plannerProviderSettingsStore: _plannerProviderSettingsStore,
     workspaceIo: _workspaceIo,
     ...descriptorInput
@@ -495,10 +500,10 @@ function createDescriptorFromOptions(
   return createDescriptor(descriptorInput);
 }
 
-export function createDashboardProviderSettingsResponse(
+export async function createDashboardProviderSettingsResponse(
   request: DashboardHttpRequest,
   options: DashboardHttpResponseOptions = {}
-): DashboardHttpResponse {
+): Promise<DashboardHttpResponse> {
   const method = (request.method ?? "GET").toUpperCase();
   const generatedAt = new Date().toISOString();
 
@@ -510,6 +515,9 @@ export function createDashboardProviderSettingsResponse(
 
   const assistantSettings = options.assistantAgentSettings
     ?? readInitialAssistantAgentSettings(process.env, { cwd: options.rootDir });
+  const assistantProviderStates = await readAssistantAgentProviderStates(assistantSettings, {
+    resolveExecutable: options.assistantExecutableResolver
+  });
   const plannerStore = options.plannerProviderSettingsStore
     ?? createPlannerProviderSettingsStore(readInitialPlannerProviderSettings(process.env));
 
@@ -538,7 +546,11 @@ export function createDashboardProviderSettingsResponse(
     executesSystemMutation: false,
     result: method === "POST" ? "configured" : "ok",
     providers: {
-      assistant: summarizeAssistantAgentSettings(assistantSettings),
+      assistant: summarizeAssistantAgentSettings({
+        generatedAt,
+        settings: assistantSettings,
+        states: assistantProviderStates
+      }),
       planner: summarizeDashboardPlannerProviderSettings(plannerStore.get())
     }
   }, method === "HEAD" ? "" : undefined);
@@ -560,7 +572,18 @@ function readDashboardPlannerProviderUpdate(
   };
 }
 
-function summarizeAssistantAgentSettings(settings: AssistantAgentSettings): Record<string, unknown> {
+function summarizeAssistantAgentSettings({
+  generatedAt,
+  settings,
+  states
+}: {
+  generatedAt: string;
+  settings: AssistantAgentSettings;
+  states: AssistantAgentProviderState[];
+}): Record<string, unknown> {
+  const selectedProvider = states.find((state) => state.selected);
+  const configured = selectedProvider?.configured === true;
+  const readiness = selectedProvider?.readiness ?? "unknown";
   return {
     provider: "assistant",
     mode: settings.mode,
@@ -569,12 +592,53 @@ function summarizeAssistantAgentSettings(settings: AssistantAgentSettings): Reco
       : settings.mode === "claude-code"
         ? "Claude Code"
         : "Local",
-    health: "available",
-    codexBinary: settings.codexBinary,
-    claudeCodeBinary: settings.claudeCodeBinary,
-    cwd: settings.cwd,
-    timeoutMs: settings.timeoutMs
+    health: readiness === "ready" ? "available" : "unavailable",
+    configured,
+    readiness,
+    selectedProvider: settings.mode,
+    timeoutMs: settings.timeoutMs,
+    lastHealthAt: generatedAt,
+    providers: states.map(summarizeAssistantProviderState),
+    ...(selectedProvider?.lastError ? { lastError: selectedProvider.lastError } : {})
   };
+}
+
+function summarizeAssistantProviderState(
+  state: AssistantAgentProviderState
+): Record<string, unknown> {
+  return {
+    provider: state.provider,
+    id: state.id,
+    label: state.label,
+    selected: state.selected,
+    configured: state.configured,
+    readiness: state.readiness,
+    binarySource: state.executableSource,
+    ...(state.executablePath
+      ? { binaryPath: summarizeAssistantExecutablePath(state.executablePath, state.executableSource, state.id) }
+      : {}),
+    ...(state.resolvedExecutablePath ? { resolvedBinaryPath: state.resolvedExecutablePath } : {}),
+    ...(state.lastError ? { lastError: state.lastError } : {})
+  };
+}
+
+function summarizeAssistantExecutablePath(
+  executablePath: string,
+  executableSource: string,
+  providerId: AssistantAgentProviderState["id"]
+): string {
+  const trimmed = executablePath.trim();
+  if (executableSource === "env" && shouldRedactAssistantExecutablePath(trimmed)) {
+    return providerId === "claude-code"
+      ? "configured via SKFIY_CLAUDE_CODE_BIN"
+      : "configured via SKFIY_CODEX_BIN";
+  }
+
+  return trimmed;
+}
+
+function shouldRedactAssistantExecutablePath(value: string): boolean {
+  return /secret|token=|apikey|api_key|password/i.test(value);
 }
 
 function summarizeDashboardPlannerProviderSettings(

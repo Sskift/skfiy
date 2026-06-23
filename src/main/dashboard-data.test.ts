@@ -85,7 +85,43 @@ describe("dashboard snapshot data", () => {
         mode: "codex",
         label: "Codex",
         health: "available",
-        detail: "Codex assistant is selected."
+        detail: "Codex assistant is selected.",
+        configured: true,
+        readiness: "ready",
+        selectedProvider: "codex",
+        timeoutMs: 45_000,
+        lastHealthAt: "2026-06-20T00:00:00.000Z",
+        providers: [
+          {
+            provider: "assistant",
+            id: "local",
+            label: "Local",
+            selected: false,
+            configured: true,
+            readiness: "ready",
+            binarySource: "built-in"
+          },
+          {
+            provider: "assistant",
+            id: "codex",
+            label: "Codex",
+            selected: true,
+            configured: true,
+            readiness: "ready",
+            binaryPath: "configured via SKFIY_CODEX_BIN",
+            binarySource: "env"
+          },
+          {
+            provider: "assistant",
+            id: "claude-code",
+            label: "Claude Code",
+            selected: false,
+            configured: true,
+            readiness: "ready",
+            binaryPath: "claude",
+            binarySource: "default"
+          }
+        ]
       },
       planner: {
         provider: "planner",
@@ -135,7 +171,43 @@ describe("dashboard snapshot data", () => {
         mode: "claude-code",
         label: "Claude Code",
         health: "available",
-        detail: "Claude Code assistant is selected."
+        detail: "Claude Code assistant is selected.",
+        configured: true,
+        readiness: "ready",
+        selectedProvider: "claude-code",
+        timeoutMs: 45_000,
+        lastHealthAt: "2026-06-20T00:00:00.000Z",
+        providers: [
+          {
+            provider: "assistant",
+            id: "local",
+            label: "Local",
+            selected: false,
+            configured: true,
+            readiness: "ready",
+            binarySource: "built-in"
+          },
+          {
+            provider: "assistant",
+            id: "codex",
+            label: "Codex",
+            selected: false,
+            configured: true,
+            readiness: "ready",
+            binaryPath: "codex",
+            binarySource: "default"
+          },
+          {
+            provider: "assistant",
+            id: "claude-code",
+            label: "Claude Code",
+            selected: true,
+            configured: true,
+            readiness: "ready",
+            binaryPath: "configured via SKFIY_CLAUDE_CODE_BIN",
+            binarySource: "env"
+          }
+        ]
       },
       planner: {
         provider: "planner",

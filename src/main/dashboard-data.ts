@@ -30,6 +30,7 @@ import {
 } from "./runtime-snapshot.js";
 import {
   readInitialAssistantAgentSettings,
+  type AssistantAgentProviderId,
   type AssistantAgentSettings
 } from "./assistant-agent.js";
 import { decidePlannerProviderRuntime } from "./planner-provider-runtime.js";
@@ -236,7 +237,7 @@ export function createDashboardSnapshot({
     },
     dogfoodRelease: cloneRecord(dogfoodRelease),
     longHorizon: cloneRecord(longHorizon),
-    ...(providerSettings ? { providers: createDashboardProviderSummaries(providerSettings) } : {}),
+    ...(providerSettings ? { providers: createDashboardProviderSummaries(providerSettings, generatedAt) } : {}),
     alerts: createDashboardAlerts({
       permissions,
       runtimeHealth,
@@ -329,14 +330,15 @@ function readWorkspaceProviderSettings(
 }
 
 function createDashboardProviderSummaries(
-  providerSettings: DashboardProviderSettingsInput
+  providerSettings: DashboardProviderSettingsInput,
+  generatedAt: string
 ): {
   assistant?: Record<string, unknown>;
   planner?: Record<string, unknown>;
 } {
   return {
     ...(providerSettings.assistant
-      ? { assistant: summarizeDashboardAssistantProvider(providerSettings.assistant) }
+      ? { assistant: summarizeDashboardAssistantProvider(providerSettings.assistant, generatedAt) }
       : {}),
     ...(providerSettings.planner
       ? { planner: summarizeDashboardPlannerProvider(providerSettings.planner) }
@@ -345,22 +347,110 @@ function createDashboardProviderSummaries(
 }
 
 function summarizeDashboardAssistantProvider(
-  settings: AssistantAgentSettings
+  settings: AssistantAgentSettings,
+  generatedAt: string
 ): Record<string, unknown> {
   const label = readAssistantProviderLabel(settings.mode);
-  const configured = settings.mode === "local"
-    || (settings.mode === "codex" && settings.codexBinary.trim().length > 0)
-    || (settings.mode === "claude-code" && settings.claudeCodeBinary.trim().length > 0);
+  const providers = createDashboardAssistantProviderStates(settings);
+  const selectedProvider = providers.find((provider) => provider.selected);
+  const configured = selectedProvider?.configured === true;
+  const readiness = selectedProvider?.readiness ?? "unknown";
 
   return {
     provider: "assistant",
     mode: settings.mode,
     label,
     health: configured ? "available" : "unavailable",
+    configured,
+    readiness,
+    selectedProvider: settings.mode,
+    timeoutMs: settings.timeoutMs,
+    lastHealthAt: generatedAt,
     detail: configured
       ? `${label} assistant is selected.`
-      : `${label} assistant executable is not configured.`
+      : `${label} assistant executable is not configured.`,
+    providers,
+    ...(selectedProvider?.lastError ? { lastError: selectedProvider.lastError } : {})
   };
+}
+
+function createDashboardAssistantProviderStates(
+  settings: AssistantAgentSettings
+): Array<Record<string, unknown>> {
+  return [
+    {
+      provider: "assistant",
+      id: "local",
+      label: "Local",
+      selected: settings.mode === "local",
+      configured: true,
+      readiness: "ready",
+      binarySource: "built-in"
+    },
+    createDashboardAssistantCliProviderState({
+      settings,
+      id: "codex",
+      label: "Codex",
+      binaryPath: settings.codexBinary,
+      binarySource: settings.codexBinarySource,
+      envName: "SKFIY_CODEX_BIN"
+    }),
+    createDashboardAssistantCliProviderState({
+      settings,
+      id: "claude-code",
+      label: "Claude Code",
+      binaryPath: settings.claudeCodeBinary,
+      binarySource: settings.claudeCodeBinarySource,
+      envName: "SKFIY_CLAUDE_CODE_BIN"
+    })
+  ];
+}
+
+function createDashboardAssistantCliProviderState({
+  binaryPath,
+  binarySource,
+  envName,
+  id,
+  label,
+  settings
+}: {
+  settings: AssistantAgentSettings;
+  id: Exclude<AssistantAgentProviderId, "local">;
+  label: string;
+  binaryPath: string;
+  binarySource: string;
+  envName: string;
+}): Record<string, unknown> {
+  const configured = binaryPath.trim().length > 0;
+
+  return {
+    provider: "assistant",
+    id,
+    label,
+    selected: settings.mode === id,
+    configured,
+    readiness: configured ? "ready" : "unconfigured",
+    binaryPath: configured ? summarizeAssistantBinaryPath(binaryPath, binarySource, envName) : undefined,
+    binarySource,
+    ...(configured ? {} : { lastError: `${label} executable is not configured.` })
+  };
+}
+
+function summarizeAssistantBinaryPath(
+  binaryPath: string,
+  binarySource: string,
+  envName: string
+): string {
+  const trimmed = binaryPath.trim();
+  if (binarySource === "env" && shouldRedactAssistantBinaryPath(trimmed)) {
+    return `configured via ${envName}`;
+  }
+
+  return trimmed;
+}
+
+function shouldRedactAssistantBinaryPath(value: string): boolean {
+  return /secret|token=|apikey|api_key|password/i.test(value);
 }
 
 function readAssistantProviderLabel(mode: AssistantAgentSettings["mode"]): string {

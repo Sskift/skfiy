@@ -41,6 +41,14 @@ export interface DashboardDogfoodSummary {
   tone: Tone;
 }
 
+export interface DashboardCapabilitySummary {
+  id: "provider" | "computer-use" | "browser" | "dogfood";
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+}
+
 export interface DashboardRecentActivity {
   latestMessage: string;
   turnState: string;
@@ -524,6 +532,80 @@ export function readProviderSummaries(snapshot: DashboardSnapshot): DashboardPro
       detail: "Provider settings are not present in this snapshot."
     }
   ];
+}
+
+export function readCapabilitySummaries(snapshot: DashboardSnapshot): DashboardCapabilitySummary[] {
+  const providers = readProviderSummaries(snapshot);
+  const assistant = providers.find((provider) => provider.provider === "assistant") ?? providers[0];
+  const planner = providers.find((provider) => provider.provider === "planner") ?? providers[1];
+  const computerUse = readComputerUseReadiness(snapshot);
+  const chromeControl = readChromeControlState(snapshot);
+  const dogfood = readDogfoodSummary(snapshot);
+
+  return [
+    {
+      id: "provider",
+      title: "Agent/provider",
+      value: readProviderCapabilityValue(assistant, planner),
+      detail: readProviderCapabilityDetail(assistant, planner),
+      tone: readProviderCapabilityTone(assistant, planner)
+    },
+    {
+      id: "computer-use",
+      title: "Computer Use",
+      value: computerUse.desktop.value,
+      detail: computerUse.desktop.detail,
+      tone: computerUse.desktop.tone
+    },
+    {
+      id: "browser",
+      title: "Browser bridge",
+      value: chromeControl.label,
+      detail: chromeControl.activeTabLabel,
+      tone: chromeControl.tone
+    },
+    {
+      id: "dogfood",
+      title: "Dogfood/release",
+      value: dogfood.releaseDriftState,
+      detail: dogfood.detail,
+      tone: dogfood.tone
+    }
+  ];
+}
+
+function readProviderCapabilityValue(
+  assistant: DashboardProviderSummary | undefined,
+  planner: DashboardProviderSummary | undefined
+): string {
+  const assistantLabel = assistant?.label ?? "assistant";
+  const plannerLabel = planner?.label ?? "planner";
+  return `${assistantLabel} / ${plannerLabel}`;
+}
+
+function readProviderCapabilityDetail(
+  assistant: DashboardProviderSummary | undefined,
+  planner: DashboardProviderSummary | undefined
+): string {
+  return [
+    assistant?.health ? `assistant ${assistant.health}` : "assistant unknown",
+    planner?.health ? `planner ${planner.health}` : "planner unknown"
+  ].join(", ");
+}
+
+function readProviderCapabilityTone(
+  assistant: DashboardProviderSummary | undefined,
+  planner: DashboardProviderSummary | undefined
+): Tone {
+  const health = [assistant?.health, planner?.health];
+  if (health.some((value) => value === "unavailable")) {
+    return "danger";
+  }
+  if (health.every((value) => value === "available")) {
+    return "success";
+  }
+
+  return "warning";
 }
 
 function createAppReadinessLane(

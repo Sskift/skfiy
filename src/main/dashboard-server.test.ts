@@ -396,15 +396,75 @@ describe("dashboard loopback HTTP response helper", () => {
   });
 
   it("serves and updates redacted provider settings for the dashboard", async () => {
-    const server = await startDashboardServer({ rootDir: process.cwd() });
+    const server = await startDashboardServer({
+      rootDir: process.cwd(),
+      assistantAgentSettings: {
+        mode: "codex",
+        codexBinary: "codex",
+        codexBinarySource: "env",
+        claudeCodeBinary: "missing-claude",
+        claudeCodeBinarySource: "default",
+        cwd: "/repo?token=assistant-secret",
+        timeoutMs: 12_000
+      },
+      assistantExecutableResolver: async (command) => {
+        if (command === "codex") {
+          return "/opt/homebrew/bin/codex";
+        }
+        throw new Error(`${command} not found`);
+      }
+    });
     try {
       const initial = await readUrl(`${server.url}api/provider-settings`);
       expect(initial.status).toBe(200);
       expect(initial.headers["content-type"]).toBe("application/json; charset=utf-8");
       expect(initial.body).not.toContain("sk-secret");
+      expect(initial.body).not.toContain("assistant-secret");
+      expect(initial.body).not.toContain("token=");
 
       const initialPayload = JSON.parse(initial.body);
-      expect(initialPayload.providers.assistant.label).toBeTruthy();
+      expect(initialPayload.providers.assistant).toMatchObject({
+        provider: "assistant",
+        mode: "codex",
+        label: "Codex",
+        health: "available",
+        selectedProvider: "codex",
+        timeoutMs: 12_000
+      });
+      expect(initialPayload.providers.assistant.lastHealthAt).toEqual(expect.any(String));
+      expect(initialPayload.providers.assistant.providers).toEqual([
+        {
+          provider: "assistant",
+          id: "local",
+          label: "Local",
+          selected: false,
+          configured: true,
+          readiness: "ready",
+          binarySource: "built-in"
+        },
+        {
+          provider: "assistant",
+          id: "codex",
+          label: "Codex",
+          selected: true,
+          configured: true,
+          readiness: "ready",
+          binaryPath: "codex",
+          binarySource: "env",
+          resolvedBinaryPath: "/opt/homebrew/bin/codex"
+        },
+        {
+          provider: "assistant",
+          id: "claude-code",
+          label: "Claude Code",
+          selected: false,
+          configured: true,
+          readiness: "unavailable",
+          binaryPath: "missing-claude",
+          binarySource: "default",
+          lastError: "missing-claude not found"
+        }
+      ]);
       expect(initialPayload.providers.planner.mode).toBe("local-deterministic");
 
       const configured = await requestUrl(`${server.url}api/provider-settings`, {

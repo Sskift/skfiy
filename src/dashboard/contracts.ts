@@ -24,6 +24,24 @@ export interface DashboardProviderSummary {
   externalEndpoint?: string;
   externalApiKeyConfigured?: boolean;
   timeoutMs?: number;
+  selectedProvider?: string;
+  configured?: boolean;
+  readiness?: string;
+  lastHealthAt?: string;
+  lastError?: string;
+  providers?: DashboardAssistantProviderStatus[];
+}
+
+export interface DashboardAssistantProviderStatus {
+  provider?: "assistant" | string;
+  id: "local" | "codex" | "claude-code" | string;
+  label: string;
+  selected: boolean;
+  configured: boolean;
+  readiness: "ready" | "unconfigured" | "unavailable" | "unknown" | string;
+  binaryPath?: string;
+  binarySource: "built-in" | "default" | "env" | string;
+  resolvedBinaryPath?: string;
   lastError?: string;
 }
 
@@ -103,6 +121,16 @@ export interface DashboardProviderSettingsPlanner {
   externalApiKeyConfigured: boolean;
 }
 
+export interface DashboardProviderSettingsAssistant extends DashboardProviderSummary {
+  provider?: "assistant" | string;
+  selectedProvider: string;
+  configured: boolean;
+  readiness: string;
+  timeoutMs: number;
+  lastHealthAt: string;
+  providers: DashboardAssistantProviderStatus[];
+}
+
 export interface DashboardProviderSettingsResponse {
   schemaVersion: number;
   command: string;
@@ -112,7 +140,7 @@ export interface DashboardProviderSettingsResponse {
   executesSystemMutation: boolean;
   result: string;
   providers: {
-    assistant?: Record<string, unknown>;
+    assistant?: DashboardProviderSettingsAssistant;
     planner: DashboardProviderSettingsPlanner;
   };
 }

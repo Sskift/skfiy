@@ -165,7 +165,15 @@ describe("DashboardApp", () => {
   });
 
   it("renders a user-control dashboard from the skfiy snapshot contract", async () => {
-    render(<DashboardApp loadSnapshot={vi.fn(async () => snapshot)} />);
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => snapshot)}
+    />);
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { level: 1, name: "skfiy" })).toBeInTheDocument();
@@ -173,47 +181,67 @@ describe("DashboardApp", () => {
 
     const navigation = screen.getByRole("navigation", { name: "skfiy dashboard navigation" });
     expect(within(navigation).getByRole("link", { name: "Overview" })).toBeInTheDocument();
-    expect(within(navigation).getByRole("link", { name: "Connections" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Provider" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Computer Use" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Browser" })).toBeInTheDocument();
-    expect(within(navigation).getByRole("link", { name: "Activity" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Dogfood" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Next action" })).toBeInTheDocument();
 
     expect(screen.getByRole("heading", { name: "skfiy control plane" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Overview" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Agent connection" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Browser and computer readiness" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Recent activity" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Provider" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Computer Use" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Browser" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Dogfood" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Next action" })).toBeInTheDocument();
 
-    const readiness = screen.getByRole("region", { name: "Browser and computer readiness" });
-    expect(within(readiness).getByRole("heading", { name: "Browser control" })).toBeInTheDocument();
-    expect(within(readiness).getByRole("heading", { name: "Computer use" })).toBeInTheDocument();
-    expect(within(readiness).getByRole("heading", { name: "Chrome readiness" })).toBeInTheDocument();
-    expect(within(readiness).getByRole("heading", { name: "Finder readiness" })).toBeInTheDocument();
-    expect(within(readiness).getByRole("heading", { name: "Ghostty readiness" })).toBeInTheDocument();
-    expect(within(readiness).getByText("Chrome Native Messaging host manifest is not installed.")).toBeInTheDocument();
-    expect(within(readiness).getByText("Finder Automation has not been proven because desktop preflight is blocked.")).toBeInTheDocument();
-    expect(within(readiness).getByText("No fresh Ghostty smoke artifact has been recorded.")).toBeInTheDocument();
-    expect(within(readiness).getByText("ignored unsupported smoke: voice")).toBeInTheDocument();
-    expect(within(readiness).getByText("127.0.0.1:52363 tab 42")).toBeInTheDocument();
-    expect(within(readiness).getByText("plcpkkhlcacihjfohlojdknnkademlno")).toBeInTheDocument();
-    expect(within(readiness).getByText("screenshot: background_required")).toBeInTheDocument();
-    expect(within(readiness).getByText("Using Chrome tab fallback")).toBeInTheDocument();
-    expect(within(readiness).getByText("allow:always:127.0.0.1")).toBeInTheDocument();
-    expect(within(readiness).getByText("Screen Recording")).toBeInTheDocument();
+    const overview = screen.getByRole("region", { name: "Overview" });
+    expect(within(overview).getByRole("heading", { name: "Agent/provider" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Computer Use" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Browser bridge" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Dogfood/release" })).toBeInTheDocument();
 
-    const connections = screen.getByRole("region", { name: "Agent connection" });
-    expect(within(connections).getByText("Codex")).toBeInTheDocument();
-    expect(within(connections).getByText("assistant · codex")).toBeInTheDocument();
-    expect(within(connections).getByText("OpenAI CUA")).toBeInTheDocument();
-    expect(within(connections).getByText("planner · external-cua")).toBeInTheDocument();
-    expect(within(connections).getByText("External CUA endpoint and API key are configured.")).toBeInTheDocument();
-    expect(within(connections).getByText("api key configured")).toBeInTheDocument();
+    const provider = screen.getByRole("region", { name: "Provider" });
+    expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();
+    expect(within(provider).getByText("planner · external-cua")).toBeInTheDocument();
+    expect(within(provider).getByText("External CUA endpoint and API key are configured.")).toBeInTheDocument();
+    expect(within(provider).getAllByText("api key configured").length).toBeGreaterThan(0);
 
-    const activity = screen.getByRole("region", { name: "Recent activity" });
-    expect(within(activity).getByRole("heading", { name: "Dogfood and replay" })).toBeInTheDocument();
-    expect(within(activity).getByText("release behind-head")).toBeInTheDocument();
-    expect(within(activity).getByText("cohort 1/1")).toBeInTheDocument();
+    const assistantHealth = within(provider).getByRole("region", { name: "Assistant provider health" });
+    expect(within(assistantHealth).getByText("selected codex")).toBeInTheDocument();
+    expect(within(assistantHealth).getByText("timeout 45000ms")).toBeInTheDocument();
+    expect(within(assistantHealth).getByRole("heading", { name: "Local" })).toBeInTheDocument();
+    expect(within(assistantHealth).getByRole("heading", { name: "Codex" })).toBeInTheDocument();
+    expect(within(assistantHealth).getByRole("heading", { name: "Claude Code" })).toBeInTheDocument();
+    expect(within(assistantHealth).getAllByText("readiness ready").length).toBeGreaterThanOrEqual(2);
+    expect(within(assistantHealth).getByText("/opt/homebrew/bin/codex")).toBeInTheDocument();
+    expect(within(assistantHealth).getByText("source env")).toBeInTheDocument();
+    expect(within(assistantHealth).getByText("readiness unavailable")).toBeInTheDocument();
+    expect(within(assistantHealth).getByText("missing-claude not found")).toBeInTheDocument();
+
+    const computerUse = screen.getByRole("region", { name: "Computer Use" });
+    expect(within(computerUse).getByRole("heading", { name: "Computer use" })).toBeInTheDocument();
+    expect(within(computerUse).getByRole("heading", { name: "Chrome readiness" })).toBeInTheDocument();
+    expect(within(computerUse).getByRole("heading", { name: "Finder readiness" })).toBeInTheDocument();
+    expect(within(computerUse).getByRole("heading", { name: "Ghostty readiness" })).toBeInTheDocument();
+    expect(within(computerUse).getByText("Chrome Native Messaging host manifest is not installed.")).toBeInTheDocument();
+    expect(within(computerUse).getByText("Finder Automation has not been proven because desktop preflight is blocked.")).toBeInTheDocument();
+    expect(within(computerUse).getByText("No fresh Ghostty smoke artifact has been recorded.")).toBeInTheDocument();
+    expect(within(computerUse).getByText("ignored unsupported smoke: voice")).toBeInTheDocument();
+    expect(within(computerUse).getByText("Screen Recording")).toBeInTheDocument();
+
+    const browser = screen.getByRole("region", { name: "Browser" });
+    expect(within(browser).getByRole("heading", { name: "Browser control" })).toBeInTheDocument();
+    expect(within(browser).getByText("127.0.0.1:52363 tab 42")).toBeInTheDocument();
+    expect(within(browser).getByText("plcpkkhlcacihjfohlojdknnkademlno")).toBeInTheDocument();
+    expect(within(browser).getByText("screenshot: background_required")).toBeInTheDocument();
+    expect(within(browser).getByText("Using Chrome tab fallback")).toBeInTheDocument();
+    expect(within(browser).getByText("allow:always:127.0.0.1")).toBeInTheDocument();
+
+    const dogfood = screen.getByRole("region", { name: "Dogfood" });
+    expect(within(dogfood).getByRole("heading", { name: "Dogfood and release" })).toBeInTheDocument();
+    expect(within(dogfood).getByText("release behind-head")).toBeInTheDocument();
+    expect(within(dogfood).getByText("cohort 1/1")).toBeInTheDocument();
 
     const nextAction = screen.getByRole("region", { name: "Next action" });
     expect(within(nextAction).getByRole("heading", { name: "Grant Screen Recording" })).toBeInTheDocument();
@@ -502,7 +530,45 @@ function createProviderSettingsPayload(planner: {
         provider: "assistant",
         mode: "codex",
         label: "Codex",
-        health: "available"
+        health: "available",
+        configured: true,
+        readiness: "ready",
+        selectedProvider: "codex",
+        timeoutMs: 45_000,
+        lastHealthAt: "2026-06-22T08:00:01.000Z",
+        providers: [
+          {
+            provider: "assistant",
+            id: "local",
+            label: "Local",
+            selected: false,
+            configured: true,
+            readiness: "ready",
+            binarySource: "built-in"
+          },
+          {
+            provider: "assistant",
+            id: "codex",
+            label: "Codex",
+            selected: true,
+            configured: true,
+            readiness: "ready",
+            binaryPath: "/opt/homebrew/bin/codex",
+            binarySource: "env",
+            resolvedBinaryPath: "/opt/homebrew/bin/codex"
+          },
+          {
+            provider: "assistant",
+            id: "claude-code",
+            label: "Claude Code",
+            selected: false,
+            configured: true,
+            readiness: "unavailable",
+            binaryPath: "missing-claude",
+            binarySource: "default",
+            lastError: "missing-claude not found"
+          }
+        ]
       },
       planner: {
         provider: "planner",

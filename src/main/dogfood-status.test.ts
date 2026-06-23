@@ -919,6 +919,98 @@ describe("dogfood status reporter", () => {
     expect(io.textFiles[summaryPath]).toContain("Alpha is current HEAD: no");
   });
 
+  it("emits current-head smoke and alpha refresh commands when app code changed after the alpha commit", async () => {
+    const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
+      createDogfoodStatus: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const dashboardSmokePath = "/repo/.skfiy-smoke/dashboard.json";
+    const moneyRunSmokePath = "/repo/.skfiy-smoke/money-run.json";
+    const io = {
+      ...createMemoryIo({
+        [manifestPath]: createManifest({
+          uiSmokePath,
+          ghosttySmokePath,
+          chromeSmokePath,
+          finderSmokePath,
+          dashboardSmokePath,
+          moneyRunSmokePath,
+        }),
+        [uiSmokePath]: createSmokeArtifact(uiSmokePath, "passed"),
+        [ghosttySmokePath]: createSmokeArtifact(ghosttySmokePath, "blocked"),
+        [chromeSmokePath]: createSmokeArtifact(chromeSmokePath, "passed"),
+        [finderSmokePath]: createSmokeArtifact(finderSmokePath, "blocked"),
+        [dashboardSmokePath]: createSmokeArtifact(dashboardSmokePath, "passed"),
+        [moneyRunSmokePath]: createSmokeArtifact(moneyRunSmokePath, "passed"),
+      }, {
+        [trackingIssueUrl]: {
+          body: createTrackingIssueBody([]),
+          labels: ["skfiy", "dogfood"]
+        }
+      }),
+      async readCurrentHead() {
+        return "feedbeefcafe";
+      },
+      async readChangedFilesBetween(base: string, head: string) {
+        return base === "abc123" && head === "feedbeefcafe"
+          ? [
+            "src/main/assistant-agent.ts",
+            "src/dashboard/DashboardApp.tsx",
+            "docs/research/2026-06-22-agent-computer-use-long-plan.md"
+          ]
+          : [];
+      }
+    };
+
+    const status = await createDogfoodStatus({
+      manifestPath,
+      trackingIssueUrl,
+      summaryPath,
+      now: () => "2026-06-16T12:00:00.000Z"
+    }, io);
+
+    expect(status).toMatchObject({
+      manifest: {
+        checks: {
+          currentHead: {
+            expected: "feedbeefcafe",
+            actual: "abc123",
+            ok: false,
+            appCodeOk: false,
+            shortSha: "feedbee",
+            appRelevantChangedFiles: [
+              "src/main/assistant-agent.ts",
+              "src/dashboard/DashboardApp.tsx"
+            ],
+            refreshSmokeArtifactPaths: {
+              chrome: ".skfiy-smoke/chrome-feedbee.json",
+              dashboard: ".skfiy-smoke/dashboard-feedbee.json",
+              moneyRun: ".skfiy-smoke/money-run-feedbee.json"
+            },
+            refreshSmokeCommands: expect.arrayContaining([
+              "npm run smoke:chrome -- --app dist/skfiy.app --extension-chrome-app \"Chromium\" --extension-id <chrome-extension-id> --require-passed --output .skfiy-smoke/chrome-feedbee.json",
+              "npm run smoke:dashboard -- --cli dist/skfiy --extension-chrome-app \"Chromium\" --extension-id <chrome-extension-id> --require-passed --output .skfiy-smoke/dashboard-feedbee.json",
+              "npm run smoke:money-run -- --app dist/skfiy.app --session money-run --json-output .skfiy-smoke/money-run-feedbee.json"
+            ]),
+            alphaArtifactCommand: "npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-feedbee.json --smoke-artifact .skfiy-smoke/ghostty-feedbee.json --chrome-smoke-artifact .skfiy-smoke/chrome-feedbee.json --finder-smoke-artifact .skfiy-smoke/finder-feedbee.json --dashboard-smoke-artifact .skfiy-smoke/dashboard-feedbee.json --money-run-smoke-artifact .skfiy-smoke/money-run-feedbee.json"
+          }
+        }
+      },
+      nextActions: expect.arrayContaining([
+        "Rerun current-head product smokes for feedbee before publishing the replacement alpha. App-relevant changes: src/main/assistant-agent.ts, src/dashboard/DashboardApp.tsx.",
+        "Run npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-feedbee.json --smoke-artifact .skfiy-smoke/ghostty-feedbee.json --chrome-smoke-artifact .skfiy-smoke/chrome-feedbee.json --finder-smoke-artifact .skfiy-smoke/finder-feedbee.json --dashboard-smoke-artifact .skfiy-smoke/dashboard-feedbee.json --money-run-smoke-artifact .skfiy-smoke/money-run-feedbee.json after those current-head smoke artifacts pass."
+      ])
+    });
+    expect(io.textFiles[summaryPath]).toContain("Current-head app changes: src/main/assistant-agent.ts, src/dashboard/DashboardApp.tsx");
+    expect(io.textFiles[summaryPath]).toContain("Current-head alpha command: npm run alpha:artifact");
+  });
+
   it("does not ask for a fresh alpha when only non-app-build inputs changed after the alpha commit", async () => {
     const { createDogfoodStatus } = await import(pathToFileURL(modulePath).href) as {
       createDogfoodStatus: (
