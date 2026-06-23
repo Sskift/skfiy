@@ -197,6 +197,15 @@ describe("CLI product smoke script", () => {
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
+      providerPromptContract: {
+        ...createPassingProviderPromptContract(),
+        providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "hermes"
+          ? { ...provider, sessionRecallBeforeBrowserContext: false }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
       personalMemoryFallbackContract: undefined
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
@@ -422,6 +431,9 @@ function createPassingProviderPromptContract() {
         commandBasename: "codex",
         skfiyIdentityBeforeUser: true,
         memoryBeforeBrowserContext: true,
+        sessionRecallAfterMemory: true,
+        sessionRecallBeforeBrowserContext: true,
+        sessionRecallRedactsToken: true,
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
         providerBoundaryPresent: true,
@@ -435,6 +447,9 @@ function createPassingProviderPromptContract() {
         commandBasename: "claude",
         skfiyIdentityBeforeUser: true,
         memoryBeforeBrowserContext: true,
+        sessionRecallAfterMemory: true,
+        sessionRecallBeforeBrowserContext: true,
+        sessionRecallRedactsToken: true,
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
         providerBoundaryPresent: true,
@@ -448,6 +463,9 @@ function createPassingProviderPromptContract() {
         commandBasename: "hermes",
         skfiyIdentityBeforeUser: true,
         memoryBeforeBrowserContext: true,
+        sessionRecallAfterMemory: true,
+        sessionRecallBeforeBrowserContext: true,
+        sessionRecallRedactsToken: true,
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
         providerBoundaryPresent: true,

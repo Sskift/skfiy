@@ -1155,10 +1155,20 @@ Expected:
 
 ```bash
 npm run smoke:ui -- --output .skfiy-smoke/ui-product.json
+npm run smoke:cli -- --profile basic --output .skfiy-smoke/cli-product-basic.json
 npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json
 ./dist/skfiy status --json
 ./dist/skfiy chrome extension-info --json
 ```
+
+CLI smoke must collect `providerPromptContract.result === "passed"` evidence for Codex, Claude Code, and Hermes:
+
+- skfiy identity appears before the real user input,
+- personal memory appears before recalled sessions,
+- recalled similar sessions appear before Browser Context,
+- Browser Context appears before the real user input,
+- recalled sessions redact token-like text,
+- provider invocations do not use dangerous flags such as Hermes `--oneshot` or `--yolo`.
 
 Dashboard smoke now seeds an isolated personal memory fixture and must collect `personalMemoryApi.result === "passed"` evidence:
 
@@ -1179,7 +1189,7 @@ If a smoke is blocked by local macOS permissions or Chrome environment, record t
 - Selecting Codex changes the next background agent provider.
 - Pet settings show Hermes as a Background Agent Provider and its invocation does not use Hermes `--oneshot` or `--yolo`.
 - Repeated agent conversations can write durable user preferences to local personal memory.
-- Background Agent prompts include skfiy identity, personal memory, and Browser Context in that order before the real user input.
+- Background Agent prompts include skfiy identity, personal memory, recalled sessions, and Browser Context in that order before the real user input.
 - Dashboard shows personal memory and session recall in an Obsidian-inspired knowledge graph/canvas surface.
 - Panic stop and `stopTurnBehavior` still surface `Task stopped` evidence.
 - Chrome extension state says whether page context is ready, blocked, stale, or missing.

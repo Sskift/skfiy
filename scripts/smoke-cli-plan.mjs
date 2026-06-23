@@ -447,6 +447,9 @@ function hasProviderContract(providers, expected) {
     && provider?.commandBasename === expected.commandBasename
     && provider?.skfiyIdentityBeforeUser === true
     && provider?.memoryBeforeBrowserContext === true
+    && provider?.sessionRecallAfterMemory === true
+    && provider?.sessionRecallBeforeBrowserContext === true
+    && provider?.sessionRecallRedactsToken === true
     && provider?.browserContextBeforeUser === true
     && provider?.providerIdentityInternalized === true
     && provider?.providerBoundaryPresent === true

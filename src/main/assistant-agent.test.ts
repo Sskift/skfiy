@@ -308,6 +308,34 @@ describe("assistant agent provider", () => {
     expect(prompt.indexOf("<skfiy-recalled-memory>")).toBeLessThan(prompt.indexOf("User: summarize this page"));
   });
 
+  it("injects recalled sessions after personal memory and before Browser Context", () => {
+    const invocation = buildAssistantAgentInvocation(baseSettings, "继续 dashboard 的视觉方向", {
+      state: "ready",
+      url: "https://example.test",
+      title: "Example",
+      visibleText: "Example text",
+      observedAt: "2026-06-23T00:00:00.000Z"
+    }, {
+      userEntries: ["User prefers concise Chinese progress updates."],
+      agentEntries: []
+    }, [
+      {
+        turnId: "turn-obsidian",
+        createdAt: "2026-06-23T10:05:00.000Z",
+        userInput: "我想要 Obsidian 风格 dashboard",
+        assistantReply: "我会偏知识图谱和深色画布。",
+        providerLabel: "Hermes"
+      }
+    ]);
+
+    const prompt = invocation.args.at(-1) ?? "";
+    expect(prompt).toContain("<skfiy-recalled-sessions>");
+    expect(prompt).toContain("我想要 Obsidian 风格 dashboard");
+    expect(prompt.indexOf("<skfiy-recalled-memory>")).toBeLessThan(prompt.indexOf("<skfiy-recalled-sessions>"));
+    expect(prompt.indexOf("<skfiy-recalled-sessions>")).toBeLessThan(prompt.indexOf("Current Chrome page"));
+    expect(prompt.indexOf("<skfiy-recalled-sessions>")).toBeLessThan(prompt.indexOf("User: 继续 dashboard 的视觉方向"));
+  });
+
   it("uses the same skfiy identity prompt for Claude Code backend calls", () => {
     const invocation = buildAssistantAgentInvocation({
       mode: "claude-code",

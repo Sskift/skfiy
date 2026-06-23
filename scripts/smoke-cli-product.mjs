@@ -106,6 +106,19 @@ async function collectProviderPromptContract() {
     userEntries: ["User prefers concise Chinese progress updates."],
     agentEntries: ["For provider calls, preserve skfiy identity and Computer Use boundaries."]
   };
+  const recalledSessions = [
+    {
+      turnId: "provider-contract-recall",
+      createdAt: "2026-06-23T00:05:00.000Z",
+      userInput: "我喜欢 Obsidian 风格 dashboard，token sk-provider-contract-secret-123456 不要泄漏",
+      assistantReply: "我会使用知识图谱、backlinks 和深色画布。",
+      providerLabel: "Hermes",
+      browserContext: {
+        url: "https://example.test/skfiy-provider-contract",
+        title: "skfiy provider contract"
+      }
+    }
+  ];
   const userInput = "你是谁，并总结当前页面。";
   const providers = [
     createProviderPromptContract(buildAssistantAgentInvocation, {
@@ -118,7 +131,7 @@ async function collectProviderPromptContract() {
       hermesBinarySource: "default",
       cwd: ROOT_DIR,
       timeoutMs: 45_000
-    }, userInput, browserPageContext, personalMemory),
+    }, userInput, browserPageContext, personalMemory, recalledSessions),
     createProviderPromptContract(buildAssistantAgentInvocation, {
       mode: "claude-code",
       codexBinary: "codex",
@@ -129,7 +142,7 @@ async function collectProviderPromptContract() {
       hermesBinarySource: "default",
       cwd: ROOT_DIR,
       timeoutMs: 45_000
-    }, userInput, browserPageContext, personalMemory),
+    }, userInput, browserPageContext, personalMemory, recalledSessions),
     createProviderPromptContract(buildAssistantAgentInvocation, {
       mode: "hermes",
       codexBinary: "codex",
@@ -140,14 +153,17 @@ async function collectProviderPromptContract() {
       hermesBinarySource: "default",
       cwd: ROOT_DIR,
       timeoutMs: 45_000
-    }, userInput, browserPageContext, personalMemory)
+    }, userInput, browserPageContext, personalMemory, recalledSessions)
   ];
   const tokenLeakDetected = hasTokenLeak(providers.map((provider) => JSON.stringify(provider)));
   const passed = providers.length === 3
     && providers.every((provider) => (
       provider.skfiyIdentityBeforeUser
       && provider.memoryBeforeBrowserContext
+      && provider.sessionRecallAfterMemory
+      && provider.sessionRecallBeforeBrowserContext
       && provider.browserContextBeforeUser
+      && provider.sessionRecallRedactsToken
       && provider.providerBoundaryPresent
       && provider.rejectsDirectDesktopControl
       && provider.dangerousFlagsAbsent
@@ -231,13 +247,21 @@ function createProviderPromptContract(
   settings,
   userInput,
   browserPageContext,
-  personalMemory
+  personalMemory,
+  recalledSessions
 ) {
-  const invocation = buildAssistantAgentInvocation(settings, userInput, browserPageContext, personalMemory);
+  const invocation = buildAssistantAgentInvocation(
+    settings,
+    userInput,
+    browserPageContext,
+    personalMemory,
+    recalledSessions
+  );
   const prompt = readInvocationPrompt(invocation);
   const argsText = invocation.args.join("\n");
   const skfiyIndex = prompt.indexOf("You are skfiy");
   const memoryIndex = prompt.indexOf("<skfiy-recalled-memory>");
+  const sessionRecallIndex = prompt.indexOf("<skfiy-recalled-sessions>");
   const browserContextIndex = prompt.indexOf("Current Chrome page");
   const userIndex = prompt.indexOf(`User: ${userInput}`);
   const providerIdentityInternalized = prompt.includes("The speaking assistant identity for this conversation is skfiy.")
@@ -257,6 +281,9 @@ function createProviderPromptContract(
     promptLength: prompt.length,
     skfiyIdentityBeforeUser: skfiyIndex >= 0 && userIndex > skfiyIndex,
     memoryBeforeBrowserContext: memoryIndex >= 0 && browserContextIndex > memoryIndex,
+    sessionRecallAfterMemory: sessionRecallIndex >= 0 && sessionRecallIndex > memoryIndex,
+    sessionRecallBeforeBrowserContext: sessionRecallIndex >= 0 && browserContextIndex > sessionRecallIndex,
+    sessionRecallRedactsToken: prompt.includes("token [redacted]") && !prompt.includes("sk-provider-contract-secret"),
     browserContextBeforeUser: browserContextIndex >= 0 && userIndex > browserContextIndex,
     providerIdentityInternalized,
     providerBoundaryPresent,

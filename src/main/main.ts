@@ -42,7 +42,10 @@ import {
   createPersonalMemoryReviewPrompt,
   parsePersonalMemoryReview
 } from "./personal-memory-review.js";
-import { createSessionMemoryStore } from "./session-memory.js";
+import {
+  createSessionMemoryStore,
+  searchSessionMemory
+} from "./session-memory.js";
 import { summarizeAssistantToolPlan } from "./assistant-tools.js";
 import {
   createBrowserPageContextFromConnection,
@@ -549,12 +552,14 @@ async function readLatestBrowserPageContext(): Promise<BrowserPageContext> {
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
   const browserPageContext = await readLatestBrowserPageContext();
   const personalMemory = personalMemoryStore.read();
+  const recalledSessions = searchSessionMemory(sessionMemoryStore.readAll(), input, 3);
 
   try {
     const turn = await runAssistantAgentTurn(input, {
       settings: assistantAgentSettingsStore.get(),
       browserPageContext,
-      personalMemory
+      personalMemory,
+      recalledSessions
     });
     if (turn.status === "completed") {
       schedulePersonalMemoryPostTurnReview(input, turn, browserPageContext);

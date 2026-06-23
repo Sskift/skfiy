@@ -12,6 +12,10 @@ import {
   createPersonalMemoryPromptBlock,
   type PersonalMemorySnapshot
 } from "./personal-memory.js";
+import {
+  createSessionMemoryPromptBlock,
+  type SessionMemoryRecord
+} from "./session-memory.js";
 import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
 
 export type AssistantAgentMode = "codex" | "claude-code" | "hermes";
@@ -69,6 +73,7 @@ export interface RunAssistantAgentTurnInput {
   settings: AssistantAgentSettings;
   browserPageContext?: BrowserPageContext;
   personalMemory?: PersonalMemorySnapshot;
+  recalledSessions?: SessionMemoryRecord[];
   runProcess?: AssistantAgentProcessRunner;
   now?: () => Date;
   createTurnId?: () => string;
@@ -196,9 +201,10 @@ export function buildAssistantAgentInvocation(
   settings: AssistantAgentSettings,
   userInput: string,
   browserPageContext?: BrowserPageContext,
-  personalMemory?: PersonalMemorySnapshot
+  personalMemory?: PersonalMemorySnapshot,
+  recalledSessions?: SessionMemoryRecord[]
 ): AssistantAgentInvocation {
-  const prompt = createAssistantAgentPrompt(userInput, browserPageContext, personalMemory);
+  const prompt = createAssistantAgentPrompt(userInput, browserPageContext, personalMemory, recalledSessions);
 
   if (settings.mode === "codex") {
     return {
@@ -270,13 +276,20 @@ export async function runAssistantAgentTurn(
     createTurnId = createAssistantAgentTurnId,
     signal,
     browserPageContext,
-    personalMemory
+    personalMemory,
+    recalledSessions
   }: RunAssistantAgentTurnInput
 ): Promise<AssistantAgentTurnResult> {
   const id = createTurnId();
   const createdAt = now().toISOString();
   const route = selectCommandRoute(userInput);
-  const invocation = buildAssistantAgentInvocation(settings, userInput, browserPageContext, personalMemory);
+  const invocation = buildAssistantAgentInvocation(
+    settings,
+    userInput,
+    browserPageContext,
+    personalMemory,
+    recalledSessions
+  );
   const providerLabel = invocation.label;
   const toolCalls = createAssistantAgentPlannedToolCalls({
     turnId: id,
@@ -633,10 +646,14 @@ function resolveCommonMacCliPath(command: string): string | undefined {
 function createAssistantAgentPrompt(
   userInput: string,
   browserPageContext?: BrowserPageContext,
-  personalMemory?: PersonalMemorySnapshot
+  personalMemory?: PersonalMemorySnapshot,
+  recalledSessions?: SessionMemoryRecord[]
 ): string {
   const personalMemoryBlock = personalMemory
     ? createPersonalMemoryPromptBlock(personalMemory)
+    : "";
+  const recalledSessionsBlock = recalledSessions
+    ? createSessionMemoryPromptBlock(recalledSessions)
     : "";
 
   return [
@@ -653,6 +670,7 @@ function createAssistantAgentPrompt(
     "If the user wants desktop control, explain that skfiy should route the request through its own Computer Use tool layer.",
     "",
     ...(personalMemoryBlock ? [personalMemoryBlock, ""] : []),
+    ...(recalledSessionsBlock ? [recalledSessionsBlock, ""] : []),
     ...(browserPageContext ? [createBrowserPageContextPromptBlock(browserPageContext), ""] : []),
     `User: ${userInput.trim()}`
   ].join("\n");
