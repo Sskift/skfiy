@@ -444,6 +444,53 @@ describe("DashboardApp", () => {
     expect(providerSettingsReads).toHaveLength(2);
   });
 
+  it("forgets a personal memory entry from dashboard controls and refreshes the snapshot", async () => {
+    let currentSnapshot = snapshot;
+    const loadSnapshot = vi.fn(async () => currentSnapshot);
+    const loadProviderSettings = vi.fn(async () => createProviderSettingsPayload({
+      mode: "external-cua",
+      externalProviderLabel: "OpenAI CUA",
+      externalEndpoint: "https://cua.example.test/plan",
+      externalApiKeyConfigured: true
+    }));
+    const runPersonalMemoryAction = vi.fn(async (request: unknown) => {
+      expect(request).toEqual({
+        action: "forget",
+        target: "user",
+        content: "User prefers concise Chinese updates."
+      });
+      currentSnapshot = {
+        ...snapshot,
+        personalMemory: {
+          ...snapshot.personalMemory!,
+          userEntryCount: 0,
+          recentUserEntries: []
+        }
+      };
+      return { result: "forgotten" };
+    });
+
+    render(<DashboardApp
+      loadProviderSettings={loadProviderSettings}
+      loadSnapshot={loadSnapshot}
+      runPersonalMemoryAction={runPersonalMemoryAction}
+    />);
+
+    const memory = await screen.findByRole("region", { name: "Memory" });
+    fireEvent.click(within(memory).getByRole("button", {
+      name: "Forget memory: User prefers concise Chinese updates."
+    }));
+
+    await waitFor(() => {
+      expect(runPersonalMemoryAction).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(within(memory).queryByText("User prefers concise Chinese updates.")).not.toBeInTheDocument();
+    });
+    expect(within(memory).getByText("Memory forgotten")).toBeInTheDocument();
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
+  });
+
   it("launches Chrome control actions from the React browser section and refreshes the snapshot", async () => {
     const actionRequests: unknown[] = [];
     const loadSnapshot = vi.fn(async () => snapshot);

@@ -47,6 +47,12 @@ import {
   type AssistantAgentSettings
 } from "./assistant-agent.js";
 import {
+  createPersonalMemoryStore,
+  createSkfiyApplicationSupportPath,
+  type PersonalMemoryIo,
+  type PersonalMemoryTarget
+} from "./personal-memory.js";
+import {
   createPlannerProviderSettingsStore,
   readInitialPlannerProviderSettings,
   summarizePlannerProviderSettings,
@@ -350,6 +356,22 @@ async function handleDashboardServerRequest({
     return;
   }
 
+  if (url.pathname === "/api/personal-memory") {
+    const body = requestMethod === "POST" ? await readRequestBody(request) : "";
+    const dashboardResponse = await createDashboardPersonalMemoryResponse({
+      method: request.method,
+      url: requestUrl,
+      body
+    }, {
+      ...options,
+      port: readServerPort(server)
+    });
+
+    response.writeHead(dashboardResponse.status, dashboardResponse.headers);
+    response.end(dashboardResponse.body);
+    return;
+  }
+
   const builtDashboardResponse = await createBuiltDashboardHttpResponse({
     method: requestMethod,
     url,
@@ -591,7 +613,7 @@ function summarizeAssistantAgentSettings({
       ? "Codex"
       : settings.mode === "claude-code"
         ? "Claude Code"
-        : "Codex",
+        : "Hermes",
     health: readiness === "ready" ? "available" : "unavailable",
     configured,
     readiness,
@@ -629,9 +651,13 @@ function summarizeAssistantExecutablePath(
 ): string {
   const trimmed = executablePath.trim();
   if (executableSource === "env" && shouldRedactAssistantExecutablePath(trimmed)) {
-    return providerId === "claude-code"
-      ? "configured via SKFIY_CLAUDE_CODE_BIN"
-      : "configured via SKFIY_CODEX_BIN";
+    if (providerId === "claude-code") {
+      return "configured via SKFIY_CLAUDE_CODE_BIN";
+    }
+    if (providerId === "hermes") {
+      return "configured via SKFIY_HERMES_BIN";
+    }
+    return "configured via SKFIY_CODEX_BIN";
   }
 
   return trimmed;
@@ -680,6 +706,156 @@ function createDashboardProviderSettingsErrorResponse({
       message
     }
   }, undefined, 400);
+}
+
+export async function createDashboardPersonalMemoryResponse(
+  request: DashboardHttpRequest,
+  options: DashboardHttpResponseOptions = {}
+): Promise<DashboardHttpResponse> {
+  const method = (request.method ?? "GET").toUpperCase();
+  const generatedAt = new Date().toISOString();
+
+  if (method !== "POST") {
+    return textResponse(405, "Method Not Allowed\n", {
+      allow: "POST"
+    });
+  }
+
+  const homeDir = options.homeDir ?? options.workspaceIo?.homeDir?.() ?? process.env.HOME ?? "";
+  if (!homeDir) {
+    return createDashboardPersonalMemoryErrorResponse({
+      generatedAt,
+      code: "home-dir-required",
+      message: "Home directory is required to locate personal memory."
+    }, 503);
+  }
+
+  const body = parseJsonObject(request.body ?? "");
+  if (!body.ok) {
+    return createDashboardPersonalMemoryErrorResponse({
+      generatedAt,
+      code: "invalid-json",
+      message: body.error
+    });
+  }
+
+  const action = normalizeDashboardPersonalMemoryAction(body.value.action);
+  if (!action) {
+    return createDashboardPersonalMemoryErrorResponse({
+      generatedAt,
+      code: "unknown-action",
+      message: "Personal memory action must be forget."
+    });
+  }
+
+  const target = normalizeDashboardPersonalMemoryTarget(body.value.target);
+  if (!target) {
+    return createDashboardPersonalMemoryErrorResponse({
+      generatedAt,
+      code: "target-required",
+      message: "Personal memory forget requires target user or agent."
+    });
+  }
+
+  const content = normalizeOptionalNonEmptyString(body.value.content);
+  if (!content) {
+    return createDashboardPersonalMemoryErrorResponse({
+      generatedAt,
+      code: "content-required",
+      message: "Personal memory forget requires exact memory content."
+    });
+  }
+
+  const memoryIo = createDashboardPersonalMemoryIo(options.workspaceIo);
+  if (memoryIo === "readonly") {
+    return createDashboardPersonalMemoryErrorResponse({
+      generatedAt,
+      code: "memory-store-readonly",
+      message: "Personal memory store is not writable from this dashboard server."
+    }, 503);
+  }
+
+  const store = createPersonalMemoryStore({
+    baseDir: createSkfiyApplicationSupportPath(homeDir),
+    ...(memoryIo ? { io: memoryIo } : {})
+  });
+  const result = store.applyOperations([
+    {
+      action: "remove",
+      target,
+      content
+    }
+  ]);
+  const snapshot = store.read();
+
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard personal memory",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: true,
+    executesSystemMutation: true,
+    result: result.applied > 0 ? "forgotten" : "not-found",
+    applied: result.applied,
+    ignored: result.ignored,
+    blocked: result.blocked.length,
+    personalMemory: {
+      userEntryCount: snapshot.userEntries.length,
+      agentEntryCount: snapshot.agentEntries.length,
+      ...(snapshot.latestUpdatedAt ? { latestUpdatedAt: snapshot.latestUpdatedAt } : {})
+    }
+  });
+}
+
+function normalizeDashboardPersonalMemoryAction(value: unknown): "forget" | undefined {
+  return value === "forget" ? "forget" : undefined;
+}
+
+function normalizeDashboardPersonalMemoryTarget(value: unknown): PersonalMemoryTarget | undefined {
+  return value === "user" || value === "agent" ? value : undefined;
+}
+
+function createDashboardPersonalMemoryIo(
+  workspaceIo: DashboardWorkspaceIo | undefined
+): PersonalMemoryIo | "readonly" | undefined {
+  if (!workspaceIo) {
+    return undefined;
+  }
+  if (!workspaceIo.writeFile) {
+    return "readonly";
+  }
+
+  return {
+    exists: workspaceIo.exists,
+    mkdir: () => undefined,
+    readFile: workspaceIo.readFile,
+    stat: workspaceIo.stat,
+    writeFile: workspaceIo.writeFile
+  };
+}
+
+function createDashboardPersonalMemoryErrorResponse({
+  generatedAt,
+  code,
+  message
+}: {
+  generatedAt: string;
+  code: string;
+  message: string;
+}, status = 400): DashboardHttpResponse {
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard personal memory",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: false,
+    executesSystemMutation: false,
+    result: "error",
+    error: {
+      code,
+      message
+    }
+  }, undefined, status);
 }
 
 export async function createDashboardChromeHostPolicyResponse(

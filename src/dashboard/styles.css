@@ -335,6 +335,51 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.skfiy-dashboard-memory-list ul {
+  gap: 8px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.skfiy-dashboard-memory-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 8px 8px 10px;
+  border-radius: 8px;
+  background: #f4f4f5;
+}
+
+.skfiy-dashboard-memory-list li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.skfiy-dashboard-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  color: #52525b;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.skfiy-dashboard-icon-button:hover {
+  color: #b91c1c;
+  border-color: #fecdd3;
+  background: #fff1f2;
+}
+
+.skfiy-dashboard-icon-button:disabled {
+  cursor: progress;
+  opacity: 0.55;
+}
+
 .skfiy-dashboard-section--graph {
   padding: 14px 0 2px;
 }

@@ -20,7 +20,7 @@
 - Chrome extension pageControl can report current tab readiness and run observe/click/fill/submit/scroll paths, but Pet Agent prompts do not yet receive bounded real webpage context.
 - Dashboard already has snapshot/provider/browser panels, but it needs to become the readable operator surface for these capabilities, not a raw diagnostics page.
 - Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clone `5ecf3bf` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop.
-- Personalization gap: skfiy has no durable user preference store, no post-turn memory review, no session search, and no user-visible way to inspect or remove remembered preferences.
+- Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, and Dashboard visibility; Task 9 adds user-visible removal for incorrect remembered preferences. End-to-end validation remains required.
 - Obsidian-inspired dashboard gap: Dashboard is still a control plane. It should gain a knowledge surface that shows remembered preferences, sessions, skills, Browser Context, and Computer Use evidence as linked local-first nodes with a local graph/canvas feel.
 
 ## File Ownership Map
@@ -1070,7 +1070,56 @@ git commit -m "feat: add knowledge graph dashboard"
 
 ---
 
-## Task 9: End-To-End Product Validation
+## Task 9: Personal Memory Management Controls
+
+**Files:**
+- Modify: `src/main/dashboard-server.ts`
+- Modify: `src/main/dashboard-server.test.ts`
+- Modify: `src/dashboard/api.ts`
+- Modify: `src/dashboard/contracts.ts`
+- Modify: `src/dashboard/DashboardApp.tsx`
+- Modify: `src/dashboard/DashboardApp.test.tsx`
+- Modify: `src/dashboard/styles.css`
+
+- [x] **Step 1: Write dashboard memory management tests**
+
+Add tests proving:
+
+- `/api/personal-memory` can forget one exact `user` or `agent` memory entry.
+- The response never echoes sensitive memory content such as token-like text.
+- Unsupported actions such as `add` are rejected.
+- React Dashboard renders a Forget control for memory entries, calls the narrow action request, refreshes the snapshot, and removes the forgotten entry from the visible list.
+
+- [x] **Step 2: Implement narrow forget API**
+
+In `src/main/dashboard-server.ts`:
+
+- Add `POST /api/personal-memory`.
+- Accept only `{ action: "forget", target: "user" | "agent", content: string }`.
+- Reuse `createPersonalMemoryStore(...).applyOperations([{ action: "remove", ... }])`.
+- Return counts and status only; do not echo raw memory content.
+- Keep this as local file mutation only. Do not allow dashboard-driven `add` or arbitrary memory replacement.
+
+- [x] **Step 3: Add Dashboard controls**
+
+In `src/dashboard/DashboardApp.tsx`:
+
+- Add Forget icon buttons beside each visible user preference and agent operating note.
+- Send the narrow action through `postPersonalMemoryAction`.
+- Refresh the snapshot after a successful action.
+- Show concise success/error feedback inside the Personal memory card.
+
+- [x] **Step 4: Focused verification**
+
+Run:
+
+```bash
+npx vitest run src/main/dashboard-server.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot
+```
+
+Expected: focused tests pass.
+
+## Task 10: End-To-End Product Validation
 
 **Files:**
 - Modify only when tests reveal real defects.

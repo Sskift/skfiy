@@ -20,6 +20,7 @@ import {
   Send,
   ShieldCheck,
   Terminal,
+  Trash2,
   Type as TypeIcon,
   TriangleAlert
 } from "lucide-react";
@@ -32,6 +33,7 @@ import {
   fetchProviderSettings,
   postChromeControlAction,
   postChromeHostPolicyAction,
+  postPersonalMemoryAction,
   postPlannerProviderSettings
 } from "./api";
 import type {
@@ -39,6 +41,8 @@ import type {
   DashboardChromeHostPolicyAction,
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
+  DashboardPersonalMemoryActionRequest,
+  DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemorySummary,
   DashboardPlannerProviderMode,
   DashboardPlannerProviderSettingsUpdate,
@@ -81,6 +85,9 @@ export interface DashboardAppProps {
   runChromeControlAction?: (
     request: DashboardChromeControlActionRequest
   ) => Promise<Record<string, unknown>>;
+  runPersonalMemoryAction?: (
+    request: DashboardPersonalMemoryActionRequest
+  ) => Promise<DashboardPersonalMemoryActionResponse>;
   saveChromeHostPolicyAction?: (
     request: DashboardChromeHostPolicyActionRequest
   ) => Promise<DashboardChromeHostPolicyResponse>;
@@ -133,6 +140,7 @@ export function DashboardApp({
   loadSnapshot = fetchDashboardSnapshot,
   loadProviderSettings = fetchProviderSettings,
   runChromeControlAction = postChromeControlAction,
+  runPersonalMemoryAction = postPersonalMemoryAction,
   saveChromeHostPolicyAction = postChromeHostPolicyAction,
   savePlannerProviderSettings = postPlannerProviderSettings
 }: DashboardAppProps) {
@@ -141,6 +149,9 @@ export function DashboardApp({
   const [error, setError] = useState<string | null>(null);
   const [providerSettingsError, setProviderSettingsError] = useState<string | null>(null);
   const [providerSettingsNotice, setProviderSettingsNotice] = useState<string | null>(null);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
+  const [memoryNotice, setMemoryNotice] = useState<string | null>(null);
+  const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSavingProviderSettings, setIsSavingProviderSettings] = useState(false);
 
@@ -168,6 +179,23 @@ export function DashboardApp({
     setProviderSettingsNotice(null);
     setIsRefreshing(false);
   }, [loadProviderSettings, loadSnapshot]);
+
+  const submitPersonalMemoryAction = useCallback(async (
+    request: DashboardPersonalMemoryActionRequest
+  ) => {
+    setIsSavingMemory(true);
+    setMemoryError(null);
+    setMemoryNotice(null);
+    try {
+      const response = await runPersonalMemoryAction(request);
+      await refresh();
+      setMemoryNotice(response.result === "not-found" ? "Memory was already absent" : "Memory forgotten");
+    } catch (submitError) {
+      setMemoryError(readErrorMessage(submitError));
+    } finally {
+      setIsSavingMemory(false);
+    }
+  }, [refresh, runPersonalMemoryAction]);
 
   const submitPlannerProviderSettings = useCallback(async (
     update: DashboardPlannerProviderSettingsUpdate
@@ -253,8 +281,12 @@ export function DashboardApp({
             providerSettingsNotice={providerSettingsNotice}
             isProviderSettingsLoading={isRefreshing && !providerSettings}
             isProviderSettingsSaving={isSavingProviderSettings}
+            isMemorySaving={isSavingMemory}
+            memoryError={memoryError}
+            memoryNotice={memoryNotice}
             onLoadChromeHostPolicy={loadChromeHostPolicy}
             onRefresh={refresh}
+            onRunPersonalMemoryAction={submitPersonalMemoryAction}
             onRunChromeControlAction={runChromeControlAction}
             onSaveChromeHostPolicyAction={saveChromeHostPolicyAction}
             onSubmitPlannerProviderSettings={submitPlannerProviderSettings}
@@ -274,8 +306,12 @@ function DashboardContent({
   providerSettingsNotice,
   isProviderSettingsLoading,
   isProviderSettingsSaving,
+  isMemorySaving,
+  memoryError,
+  memoryNotice,
   onLoadChromeHostPolicy,
   onRefresh,
+  onRunPersonalMemoryAction,
   onRunChromeControlAction,
   onSaveChromeHostPolicyAction,
   onSubmitPlannerProviderSettings
@@ -286,8 +322,14 @@ function DashboardContent({
   providerSettingsNotice: string | null;
   isProviderSettingsLoading: boolean;
   isProviderSettingsSaving: boolean;
+  isMemorySaving: boolean;
+  memoryError: string | null;
+  memoryNotice: string | null;
   onLoadChromeHostPolicy: () => Promise<DashboardChromeHostPolicyResponse>;
   onRefresh: () => Promise<void>;
+  onRunPersonalMemoryAction: (
+    request: DashboardPersonalMemoryActionRequest
+  ) => Promise<void>;
   onRunChromeControlAction: (
     request: DashboardChromeControlActionRequest
   ) => Promise<Record<string, unknown>>;
@@ -401,7 +443,13 @@ function DashboardContent({
             <h2 id="memory-title">Memory</h2>
           </div>
         </div>
-        <PersonalMemoryPanel memory={snapshot.personalMemory} />
+        <PersonalMemoryPanel
+          error={memoryError}
+          isSaving={isMemorySaving}
+          memory={snapshot.personalMemory}
+          notice={memoryNotice}
+          onForget={onRunPersonalMemoryAction}
+        />
       </section>
 
       <section
@@ -666,9 +714,17 @@ function DashboardContent({
 }
 
 function PersonalMemoryPanel({
-  memory
+  error,
+  isSaving,
+  memory,
+  notice,
+  onForget
 }: {
+  error: string | null;
+  isSaving: boolean;
   memory: DashboardPersonalMemorySummary | undefined;
+  notice: string | null;
+  onForget: (request: DashboardPersonalMemoryActionRequest) => Promise<void>;
 }) {
   const userEntries = memory?.recentUserEntries ?? [];
   const agentEntries = memory?.recentAgentEntries ?? [];
@@ -699,28 +755,61 @@ function PersonalMemoryPanel({
           <StatusChip tone="neutral">updated {formatGeneratedAt(memory?.latestUpdatedAt ?? "")}</StatusChip>
         </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
-          <MemoryEntryList title="User preferences" entries={userEntries} />
-          <MemoryEntryList title="Agent operating notes" entries={agentEntries} />
+          <MemoryEntryList
+            entries={userEntries}
+            isSaving={isSaving}
+            onForget={(entry) => onForget({ action: "forget", target: "user", content: entry })}
+            title="User preferences"
+          />
+          <MemoryEntryList
+            entries={agentEntries}
+            isSaving={isSaving}
+            onForget={(entry) => onForget({ action: "forget", target: "agent", content: entry })}
+            title="Agent operating notes"
+          />
         </div>
+        <p
+          aria-live="polite"
+          className="skfiy-dashboard-control-feedback"
+          data-tone={error ? "danger" : notice ? "success" : "neutral"}
+        >
+          {error ?? notice ?? ""}
+        </p>
       </Card.Content>
     </Card.Root>
   );
 }
 
 function MemoryEntryList({
-  title,
-  entries
+  entries,
+  isSaving,
+  onForget,
+  title
 }: {
-  title: string;
   entries: string[];
+  isSaving: boolean;
+  onForget: (entry: string) => Promise<void>;
+  title: string;
 }) {
   return (
-    <div className="skfiy-dashboard-key-value-list">
+    <div className="skfiy-dashboard-key-value-list skfiy-dashboard-memory-list">
       <h3>{title}</h3>
       {entries.length > 0 ? (
         <ul>
           {entries.map((entry) => (
-            <li key={entry}>{entry}</li>
+            <li key={entry}>
+              <span>{entry}</span>
+              <button
+                aria-label={`Forget memory: ${entry}`}
+                className="skfiy-dashboard-icon-button"
+                disabled={isSaving}
+                onClick={() => void onForget(entry)}
+                title="Forget memory"
+                type="button"
+              >
+                <Trash2 size={14} aria-hidden="true" />
+              </button>
+            </li>
           ))}
         </ul>
       ) : (

@@ -112,6 +112,36 @@ export interface DashboardPersonalMemorySessionSummary {
   browserUrl?: string;
 }
 
+export type DashboardPersonalMemoryTarget = "user" | "agent";
+
+export interface DashboardPersonalMemoryActionRequest {
+  action: "forget";
+  target: DashboardPersonalMemoryTarget;
+  content: string;
+}
+
+export interface DashboardPersonalMemoryActionResponse {
+  schemaVersion?: number;
+  command?: string;
+  generatedAt?: string;
+  source?: string;
+  plannedMutation?: boolean;
+  executesSystemMutation?: boolean;
+  result?: "forgotten" | "not-found" | "error" | string;
+  applied?: number;
+  ignored?: number;
+  blocked?: number;
+  personalMemory?: {
+    userEntryCount: number;
+    agentEntryCount: number;
+    latestUpdatedAt?: string;
+  };
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
 export type DashboardKnowledgeGraphNodeKind =
   | "memory"
   | "session"

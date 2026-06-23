@@ -2,6 +2,8 @@ import type {
   DashboardChromeControlActionRequest,
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
+  DashboardPersonalMemoryActionRequest,
+  DashboardPersonalMemoryActionResponse,
   DashboardPlannerProviderSettingsUpdate,
   DashboardProviderSettingsResponse,
   DashboardSnapshot
@@ -100,6 +102,25 @@ export async function postPlannerProviderSettings(
   }
 
   return payload as unknown as DashboardProviderSettingsResponse;
+}
+
+export async function postPersonalMemoryAction(
+  request: DashboardPersonalMemoryActionRequest
+): Promise<DashboardPersonalMemoryActionResponse> {
+  const response = await fetch("/api/personal-memory", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(request)
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Personal memory update failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardPersonalMemoryActionResponse;
 }
 
 function readDashboardApiError(payload: Record<string, unknown>): string | undefined {

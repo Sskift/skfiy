@@ -526,6 +526,40 @@ describe("dashboard loopback HTTP response helper", () => {
     }
   });
 
+  it("labels Hermes as the selected Background Agent provider in dashboard settings", async () => {
+    const server = await startDashboardServer({
+      port: 0,
+      rootDir: "/repo",
+      assistantAgentSettings: {
+        mode: "hermes",
+        codexBinary: "codex",
+        codexBinarySource: "default",
+        claudeCodeBinary: "claude",
+        claudeCodeBinarySource: "default",
+        hermesBinary: "hermes",
+        hermesBinarySource: "default",
+        cwd: "/repo",
+        timeoutMs: 12_000
+      },
+      assistantExecutableResolver: async (command) => `${command}:resolved`
+    });
+
+    try {
+      const response = await readUrl(`${server.url}api/provider-settings`);
+      const payload = JSON.parse(response.body);
+
+      expect(response.status).toBe(200);
+      expect(payload.providers.assistant).toMatchObject({
+        provider: "assistant",
+        mode: "hermes",
+        label: "Hermes",
+        selectedProvider: "hermes"
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
   it("renders one-click Chrome control launchers for actionable pages", async () => {
     const cleanup = await renderDashboardHtmlWithSnapshot(createChromeControlDashboardSnapshot({
       extension: {
@@ -1700,6 +1734,91 @@ describe("dashboard loopback HTTP response helper", () => {
       expect(blockResponse.body).not.toContain("token=");
       expect(askResponse.body).not.toContain("token=");
       expect(resetResponse.body).not.toContain("token=");
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  it("lets dashboard forget a precise personal memory entry without echoing sensitive content", async () => {
+    const userMemoryPath = "/Users/tester/Library/Application Support/skfiy/memory/USER.md";
+    const agentMemoryPath = "/Users/tester/Library/Application Support/skfiy/memory/AGENT.md";
+    const files: Record<string, string> = {
+      [userMemoryPath]: [
+        "User prefers concise Chinese updates.",
+        "---",
+        "User token=secret should be removable without echo."
+      ].join("\n"),
+      [agentMemoryPath]: "Keep dashboard panels dense.\n"
+    };
+    const workspaceIo = {
+      exists: (targetPath: string) => Object.hasOwn(files, targetPath),
+      readFile: (targetPath: string) => files[targetPath] ?? "",
+      writeFile: (targetPath: string, content: string) => {
+        files[targetPath] = content;
+      },
+      readdir: () => [],
+      stat: (targetPath: string) => ({
+        mtimeMs: Object.hasOwn(files, targetPath) ? Date.parse("2026-06-23T10:00:00.000Z") : 0
+      }),
+      homeDir: () => "/Users/tester",
+      pid: () => 4242,
+      uptimeSeconds: () => 17,
+      tmux: () => ({
+        status: 1,
+        stdout: "",
+        stderr: "tmux session was not found."
+      })
+    };
+    const dashboard = await startDashboardServer({
+      port: 0,
+      homeDir: "/Users/tester",
+      workspaceIo
+    });
+
+    try {
+      const response = await requestUrl(`${dashboard.url}api/personal-memory`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "forget",
+          target: "user",
+          content: "User token=secret should be removable without echo."
+        })
+      });
+
+      expect(response.status).toBe(200);
+      expect(JSON.parse(response.body)).toMatchObject({
+        command: "dashboard personal memory",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "forgotten",
+        applied: 1,
+        personalMemory: {
+          userEntryCount: 1,
+          agentEntryCount: 1
+        }
+      });
+      expect(files[userMemoryPath]).toContain("User prefers concise Chinese updates.");
+      expect(files[userMemoryPath]).not.toContain("token=secret");
+      expect(response.body).not.toContain("token=secret");
+
+      const rejected = await requestUrl(`${dashboard.url}api/personal-memory`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "add",
+          target: "user",
+          content: "User prefers unbounded dashboard writes."
+        })
+      });
+
+      expect(rejected.status).toBe(400);
+      expect(JSON.parse(rejected.body)).toMatchObject({
+        command: "dashboard personal memory",
+        result: "error",
+        error: {
+          code: "unknown-action"
+        }
+      });
     } finally {
       await dashboard.close();
     }
