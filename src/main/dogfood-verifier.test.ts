@@ -489,7 +489,7 @@ describe("dogfood artifact verifier", () => {
     source: "renderer-escape-key-product-path",
     command: "mkdir skfiy-stop-smoke",
     beforeStatus: "approval_required",
-    afterStatus: "idle",
+    afterStatus: "cancelled",
     afterMessage: "Task stopped."
   });
   const createUiSmokeArtifact = (artifactPath: string) => ({

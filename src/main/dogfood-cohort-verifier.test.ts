@@ -776,7 +776,7 @@ describe("dogfood cohort verifier", () => {
         behaviorResult: "passed",
         behaviorSource: "renderer-escape-key-product-path",
         behaviorBeforeStatus: "approval_required",
-        behaviorAfterStatus: "idle",
+        behaviorAfterStatus: "cancelled",
         behaviorAfterMessage: "Task stopped.",
         verifiedBy: "dogfood:report"
       }

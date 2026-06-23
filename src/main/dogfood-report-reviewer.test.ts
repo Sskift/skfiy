@@ -373,7 +373,7 @@ describe("dogfood report reviewer", () => {
         source: "renderer-escape-key-product-path",
         command: "mkdir skfiy-stop-smoke",
         beforeStatus: "approval_required",
-        afterStatus: "idle",
+        afterStatus: "cancelled",
         afterMessage: "Task stopped."
       }
     };
@@ -466,7 +466,7 @@ describe("dogfood report reviewer", () => {
       "behaviorSource: renderer-escape-key-product-path",
       "behaviorCommand: mkdir skfiy-stop-smoke",
       "behaviorBeforeStatus: approval_required",
-      "behaviorAfterStatus: idle",
+      "behaviorAfterStatus: cancelled",
       "behaviorAfterMessage: Task stopped."
     ];
   }

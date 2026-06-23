@@ -596,12 +596,12 @@ async function exerciseStopTurnBehavior() {
 
     const after = await waitForTaskEvent(
       events,
-      (event) => event.status === "idle" && typeof event.message === "string"
+      (event) => event.status === "cancelled" && typeof event.message === "string"
         && event.message.includes("Task stopped")
     );
 
     return {
-      result: before?.status === "approval_required" && after?.status === "idle" ? "passed" : "failed",
+      result: before?.status === "approval_required" && after?.status === "cancelled" ? "passed" : "failed",
       source: "renderer-escape-key-product-path",
       command,
       beforeStatus: before?.status ?? "missing",

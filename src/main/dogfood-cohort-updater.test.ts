@@ -247,7 +247,7 @@ describe("dogfood cohort updater", () => {
         behaviorResult: "passed",
         behaviorSource: "renderer-escape-key-product-path",
         behaviorBeforeStatus: "approval_required",
-        behaviorAfterStatus: "idle",
+        behaviorAfterStatus: "cancelled",
         behaviorAfterMessage: "Task stopped.",
         verifiedBy: "dogfood:report"
       }
@@ -1573,7 +1573,7 @@ describe("dogfood cohort updater", () => {
       "behaviorResult: passed",
       "behaviorSource: renderer-escape-key-product-path",
       "behaviorBeforeStatus: approval_required",
-      "behaviorAfterStatus: idle",
+      "behaviorAfterStatus: cancelled",
       "behaviorAfterMessage: Task stopped."
     ];
   }
@@ -1660,7 +1660,7 @@ describe("dogfood cohort updater", () => {
         source: "renderer-escape-key-product-path",
         command: "mkdir skfiy-stop-smoke",
         beforeStatus: "approval_required",
-        afterStatus: "idle",
+        afterStatus: "cancelled",
         afterMessage: "Task stopped."
       }
     };

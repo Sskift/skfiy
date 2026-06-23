@@ -472,8 +472,8 @@ function validateIssueStopTurnEvidence(issue, smokeArtifacts) {
   if (behaviorBeforeStatus !== "approval_required" || behavior.beforeStatus !== "approval_required") {
     throw new Error("Issue panic stop behaviorBeforeStatus must be approval_required and match the smoke artifact.");
   }
-  if (behaviorAfterStatus !== "idle" || behavior.afterStatus !== "idle") {
-    throw new Error("Issue panic stop behaviorAfterStatus must be idle and match the smoke artifact.");
+  if (behaviorAfterStatus !== "cancelled" || behavior.afterStatus !== "cancelled") {
+    throw new Error("Issue panic stop behaviorAfterStatus must be cancelled and match the smoke artifact.");
   }
   if (behaviorAfterMessage !== behavior.afterMessage || !behaviorAfterMessage.includes("Task stopped")) {
     throw new Error("Issue panic stop behaviorAfterMessage must match the smoke artifact stopTurnBehavior.");

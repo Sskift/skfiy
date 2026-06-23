@@ -2415,8 +2415,8 @@ function validateIssuePanicStopEvidence(body) {
   if (behaviorBeforeStatus !== "approval_required") {
     reasons.push("panic stop behaviorBeforeStatus must be approval_required");
   }
-  if (behaviorAfterStatus !== "idle") {
-    reasons.push("panic stop behaviorAfterStatus must be idle");
+  if (behaviorAfterStatus !== "cancelled") {
+    reasons.push("panic stop behaviorAfterStatus must be cancelled");
   }
   if (!behaviorAfterMessage || !behaviorAfterMessage.includes("Task stopped")) {
     reasons.push("panic stop behaviorAfterMessage must include Task stopped");

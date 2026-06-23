@@ -214,7 +214,7 @@ function hasStopTurnBehaviorEvidence(value) {
     && typeof value.command === "string"
     && value.command.trim().length > 0
     && value.beforeStatus === "approval_required"
-    && value.afterStatus === "idle"
+    && value.afterStatus === "cancelled"
     && typeof value.afterMessage === "string"
     && value.afterMessage.includes("Task stopped");
 }

@@ -526,7 +526,7 @@ function createSmokeArtifact(artifactPath: string, result: string) {
       source: "renderer-escape-key-product-path",
       command: "mkdir skfiy-stop-smoke",
       beforeStatus: "approval_required",
-      afterStatus: "idle",
+      afterStatus: "cancelled",
       afterMessage: "Task stopped."
     }
   };
@@ -560,7 +560,7 @@ function createPanicStopEvidenceLines() {
       "behaviorSource: renderer-escape-key-product-path",
       "behaviorCommand: mkdir skfiy-stop-smoke",
       "behaviorBeforeStatus: approval_required",
-      "behaviorAfterStatus: idle",
+      "behaviorAfterStatus: cancelled",
       "behaviorAfterMessage: Task stopped."
     ];
   }

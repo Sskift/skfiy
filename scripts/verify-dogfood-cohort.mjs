@@ -519,7 +519,7 @@ function hasRequiredStopTurnEvidence(value) {
     && value.behaviorResult === "passed"
     && value.behaviorSource === "renderer-escape-key-product-path"
     && value.behaviorBeforeStatus === "approval_required"
-    && value.behaviorAfterStatus === "idle"
+    && value.behaviorAfterStatus === "cancelled"
     && typeof value.behaviorAfterMessage === "string"
     && value.behaviorAfterMessage.includes("Task stopped")
     && value.verifiedBy === "dogfood:report";

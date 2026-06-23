@@ -213,7 +213,7 @@ describe("dogfood issue draft generator", () => {
     expect(body).toContain("behaviorResult: passed");
     expect(body).toContain("behaviorSource: renderer-escape-key-product-path");
     expect(body).toContain("behaviorBeforeStatus: approval_required");
-    expect(body).toContain("behaviorAfterStatus: idle");
+    expect(body).toContain("behaviorAfterStatus: cancelled");
     expect(body).toContain("behaviorAfterMessage: Task stopped.");
   });
 
@@ -436,7 +436,7 @@ describe("dogfood issue draft generator", () => {
         source: "renderer-escape-key-product-path",
         command: "mkdir skfiy-stop-smoke",
         beforeStatus: "approval_required",
-        afterStatus: "idle",
+        afterStatus: "cancelled",
         afterMessage: "Task stopped."
       },
       ...overrides

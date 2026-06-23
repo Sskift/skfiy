@@ -446,7 +446,7 @@ function createReportIssue({
       "behaviorSource: renderer-escape-key-product-path",
       "behaviorCommand: mkdir skfiy-stop-smoke",
       "behaviorBeforeStatus: approval_required",
-      "behaviorAfterStatus: idle",
+      "behaviorAfterStatus: cancelled",
       "behaviorAfterMessage: Task stopped."
     ].join("\n")
   };

@@ -93,7 +93,7 @@ describe("packaged UI product smoke script", () => {
         source: "renderer-escape-key-product-path",
         command: "在 Ghostty 执行 mkdir skfiy-stop-smoke",
         beforeStatus: "approval_required",
-        afterStatus: "idle",
+        afterStatus: "cancelled",
         afterMessage: "Task stopped."
       }
     };
@@ -178,6 +178,8 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("stopTurnBehavior");
     expect(source).toContain("exerciseStopTurnBehavior.toString()");
     expect(source).toContain("new KeyboardEvent(\"keydown\"");
+    expect(source).toContain("event.status === \"cancelled\"");
+    expect(source).toContain("after?.status === \"cancelled\"");
     expect(source).toContain("Page.captureScreenshot");
     expect(source).toContain("rendererScreenshot");
     expect(source).toContain("layoutDiagnostics");

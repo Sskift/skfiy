@@ -580,7 +580,7 @@ function verifyUiSmoke(artifact, expectedPath, options, checks) {
     checks,
     "ui.stopTurnBehavior",
     hasStopTurnBehaviorEvidence(artifact.stopTurnBehavior),
-    "UI smoke must prove stop-turn behavior by returning an approval_required task to idle"
+    "UI smoke must prove stop-turn behavior by returning an approval_required task to cancelled"
   );
 
   if (artifact.result === "passed") {
@@ -1315,7 +1315,7 @@ function hasStopTurnBehaviorEvidence(value) {
     && typeof value.command === "string"
     && value.command.trim().length > 0
     && value.beforeStatus === "approval_required"
-    && value.afterStatus === "idle"
+    && value.afterStatus === "cancelled"
     && typeof value.afterMessage === "string"
     && value.afterMessage.includes("Task stopped");
 }
