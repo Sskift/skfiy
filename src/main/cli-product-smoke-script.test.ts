@@ -23,6 +23,7 @@ describe("CLI product smoke script", () => {
     expect(source).toContain("acquireSmokeLock");
     expect(source).toContain("launchLongRunningCommand");
     expect(source).toContain("collectProviderPromptContract");
+    expect(source).toContain("collectPersonalMemoryFallbackContract");
   });
 
   it("parses CLI smoke options for a repeatable binary product run", async () => {
@@ -128,6 +129,7 @@ describe("CLI product smoke script", () => {
       profile: "full",
       commands: CLI_COMMAND_MATRIX.map((command) => createPassingCommandEvidence(command)),
       providerPromptContract: createPassingProviderPromptContract(),
+      personalMemoryFallbackContract: createPassingPersonalMemoryFallbackContract(),
       result: "passed"
     };
     const basicEvidence = {
@@ -183,6 +185,10 @@ describe("CLI product smoke script", () => {
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
       providerPromptContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      personalMemoryFallbackContract: undefined
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
@@ -438,5 +444,25 @@ function createPassingProviderPromptContract() {
         dangerousFlagsAbsent: true
       }
     ]
+  };
+}
+
+function createPassingPersonalMemoryFallbackContract() {
+  return {
+    productPath: "dist/main/personal-memory-review.js -> createFallbackPersonalMemoryOperations -> local memory fallback contract",
+    result: "passed",
+    tokenLeakDetected: false,
+    explicitPreference: {
+      operationCount: 1,
+      operations: [
+        { action: "add", target: "user", content: "User prefers concise Chinese progress updates." }
+      ]
+    },
+    oneOffRequest: {
+      operationCount: 0
+    },
+    duplicatePreference: {
+      operationCount: 0
+    }
   };
 }

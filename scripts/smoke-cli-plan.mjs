@@ -141,6 +141,7 @@ export function classifyCliSmokeEvidence(evidence) {
     || !Array.isArray(evidence.commands)
     || evidence.commands.length !== expectedMatrix.length
     || !hasProviderPromptContractEvidence(evidence.providerPromptContract)
+    || !hasPersonalMemoryFallbackContractEvidence(evidence.personalMemoryFallbackContract)
   ) {
     return "failed";
   }
@@ -451,6 +452,22 @@ function hasProviderContract(providers, expected) {
     && provider?.rejectsDirectDesktopControl === true
     && provider?.dangerousFlagsAbsent === true
     && provider?.[expected.requiredSafetyField] === true;
+}
+
+function hasPersonalMemoryFallbackContractEvidence(contract) {
+  const explicitOperations = contract?.explicitPreference?.operations;
+
+  return contract?.productPath === "dist/main/personal-memory-review.js -> createFallbackPersonalMemoryOperations -> local memory fallback contract"
+    && contract?.result === "passed"
+    && contract?.tokenLeakDetected === false
+    && contract?.explicitPreference?.operationCount === 1
+    && Array.isArray(explicitOperations)
+    && explicitOperations.length === 1
+    && explicitOperations[0]?.action === "add"
+    && explicitOperations[0]?.target === "user"
+    && explicitOperations[0]?.content === "User prefers concise Chinese progress updates."
+    && contract?.oneOffRequest?.operationCount === 0
+    && contract?.duplicatePreference?.operationCount === 0;
 }
 
 function hasTokenLeak(parts) {

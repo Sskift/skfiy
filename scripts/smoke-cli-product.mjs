@@ -39,6 +39,7 @@ async function main() {
     artifactPath: options.outputPath,
     commands: [],
     providerPromptContract: undefined,
+    personalMemoryFallbackContract: undefined,
     result: "not-run"
   };
   let smokeLock;
@@ -47,6 +48,7 @@ async function main() {
     assertCliSmokeReady(options);
     await prepareIsolatedHome(options);
     evidence.providerPromptContract = await collectProviderPromptContract();
+    evidence.personalMemoryFallbackContract = await collectPersonalMemoryFallbackContract();
     smokeLock = await acquireSmokeLock({
       rootDir: ROOT_DIR,
       scriptName: "smoke:cli"
@@ -163,6 +165,64 @@ async function collectProviderPromptContract() {
     providers,
     tokenLeakDetected,
     result: passed ? "passed" : "failed"
+  };
+}
+
+async function collectPersonalMemoryFallbackContract() {
+  const modulePath = path.join(ROOT_DIR, "dist", "main", "personal-memory-review.js");
+  const productPath = "dist/main/personal-memory-review.js -> createFallbackPersonalMemoryOperations -> local memory fallback contract";
+  const { createFallbackPersonalMemoryOperations } = await import(pathToFileURL(modulePath).href);
+  const expectedContent = "User prefers concise Chinese progress updates.";
+  const explicitPreferenceOperations = createFallbackPersonalMemoryOperations({
+    userInput: "以后进度更新短一点，中文就好",
+    assistantReply: "好的，我会更简洁。",
+    existingMemory: { userEntries: [], agentEntries: [] }
+  });
+  const oneOffRequestOperations = createFallbackPersonalMemoryOperations({
+    userInput: "现在打开 Chrome 并总结这个网页",
+    assistantReply: "好的。",
+    existingMemory: { userEntries: [], agentEntries: [] }
+  });
+  const duplicatePreferenceOperations = createFallbackPersonalMemoryOperations({
+    userInput: "以后进度更新短一点，中文就好",
+    assistantReply: "好的，我会更简洁。",
+    existingMemory: { userEntries: [expectedContent], agentEntries: [] }
+  });
+  const explicitPreference = summarizeMemoryFallbackOperations(explicitPreferenceOperations);
+  const oneOffRequest = summarizeMemoryFallbackOperations(oneOffRequestOperations);
+  const duplicatePreference = summarizeMemoryFallbackOperations(duplicatePreferenceOperations);
+  const tokenLeakDetected = hasTokenLeak([
+    JSON.stringify(explicitPreference),
+    JSON.stringify(oneOffRequest),
+    JSON.stringify(duplicatePreference)
+  ]);
+  const passed = explicitPreference.operationCount === 1
+    && explicitPreference.operations[0]?.action === "add"
+    && explicitPreference.operations[0]?.target === "user"
+    && explicitPreference.operations[0]?.content === expectedContent
+    && oneOffRequest.operationCount === 0
+    && duplicatePreference.operationCount === 0
+    && !tokenLeakDetected;
+
+  return {
+    productPath,
+    modulePath,
+    explicitPreference,
+    oneOffRequest,
+    duplicatePreference,
+    tokenLeakDetected,
+    result: passed ? "passed" : "failed"
+  };
+}
+
+function summarizeMemoryFallbackOperations(operations) {
+  return {
+    operationCount: operations.length,
+    operations: operations.map((operation) => ({
+      action: operation.action,
+      target: operation.target,
+      content: operation.content
+    }))
   };
 }
 
