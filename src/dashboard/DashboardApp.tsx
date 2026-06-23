@@ -768,6 +768,7 @@ function PersonalMemoryPanel({
             title="Agent operating notes"
           />
         </div>
+        <RecentSessionRecallList sessions={memory?.recentSessions ?? []} />
         <p
           aria-live="polite"
           className="skfiy-dashboard-control-feedback"
@@ -777,6 +778,34 @@ function PersonalMemoryPanel({
         </p>
       </Card.Content>
     </Card.Root>
+  );
+}
+
+function RecentSessionRecallList({
+  sessions
+}: {
+  sessions: NonNullable<DashboardPersonalMemorySummary["recentSessions"]>;
+}) {
+  return (
+    <div className="skfiy-dashboard-key-value-list skfiy-dashboard-session-recall-list">
+      <h3>Recent session recall</h3>
+      {sessions.length > 0 ? (
+        <ul aria-label="Recent session recall">
+          {sessions.map((session) => {
+            const browserLabel = session.browserTitle ?? session.browserUrl;
+            return (
+              <li key={`${session.createdAt}-${session.providerLabel}-${session.userInput}`}>
+                <span>{browserLabel ? `${session.providerLabel} · ${browserLabel}` : session.providerLabel}</span>
+                <small>{formatGeneratedAt(session.createdAt)}</small>
+                <strong>{session.userInput}</strong>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="skfiy-dashboard-empty">No recalled sessions have been indexed yet.</p>
+      )}
+    </div>
   );
 }
 

@@ -355,6 +355,7 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     io
   });
   const latestSession = sessions.at(-1);
+  const recentSessions = sessions.slice(-3).reverse();
 
   return {
     userEntryCount: personalMemory.userEntries.length,
@@ -363,7 +364,10 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     ...(personalMemory.latestUpdatedAt ? { latestUpdatedAt: personalMemory.latestUpdatedAt } : {}),
     recentUserEntries: personalMemory.userEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
     recentAgentEntries: personalMemory.agentEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
-    ...(latestSession ? { latestSession: createDashboardLatestSessionSummary(latestSession) } : {})
+    ...(latestSession ? { latestSession: createDashboardSessionSummary(latestSession) } : {}),
+    ...(recentSessions.length > 0
+      ? { recentSessions: recentSessions.map(createDashboardSessionSummary) }
+      : {})
   };
 }
 
@@ -508,7 +512,7 @@ function sanitizeDashboardMemoryEntry(value: string): string {
   return value;
 }
 
-function createDashboardLatestSessionSummary(session: SessionMemoryRecord): Record<string, unknown> {
+function createDashboardSessionSummary(session: SessionMemoryRecord): Record<string, unknown> {
   return {
     createdAt: session.createdAt,
     providerLabel: sanitizeDashboardMemoryEntry(session.providerLabel),

@@ -210,15 +210,28 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
   }
 
   if (personalMemory && personalMemory.sessionCount > 0) {
-    pushNode(nodes, {
-      id: "session:latest",
-      label: "Latest session",
-      kind: "session",
-      tone: "neutral",
-      detail: personalMemory.latestSession
-        ? `${personalMemory.latestSession.providerLabel}: ${personalMemory.latestSession.userInput}`
-        : `${personalMemory.sessionCount} remembered sessions`
-    });
+    const sessions = readRecentMemorySessions(personalMemory);
+    if (sessions.length > 0) {
+      sessions.forEach((session, index) => {
+        const nodeId = index === 0 ? "session:latest" : `session:recent-${index + 1}`;
+        pushNode(nodes, {
+          id: nodeId,
+          label: index === 0 ? "Latest session" : `Recent session ${index + 1}`,
+          kind: "session",
+          tone: "neutral",
+          detail: createSessionNodeDetail(session)
+        });
+        pushEdge(edges, { from: providerId, to: nodeId, label: "answered" });
+      });
+    } else {
+      pushNode(nodes, {
+        id: "session:latest",
+        label: "Latest session",
+        kind: "session",
+        tone: "neutral",
+        detail: `${personalMemory.sessionCount} remembered sessions`
+      });
+    }
   }
 
   if (personalMemory && (
@@ -249,9 +262,11 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       tone: browserContext.tone,
       detail: browserContext.title ?? browserContext.url ?? browserContext.reason
     });
-    if (nodes.some((node) => node.id === "session:latest")) {
-      pushEdge(edges, { from: "browser:context", to: "session:latest", label: "observed in" });
-    }
+    nodes
+      .filter((node) => node.kind === "session")
+      .forEach((node) => {
+        pushEdge(edges, { from: "browser:context", to: node.id, label: "observed in" });
+      });
   }
 
   snapshot.alerts.slice(0, 5).forEach((alert, index) => {
@@ -278,6 +293,29 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       && nodes.some((node) => node.id === edge.to)
     ))
   };
+}
+
+function readRecentMemorySessions(
+  personalMemory: NonNullable<DashboardSnapshot["personalMemory"]>
+) {
+  if (Array.isArray(personalMemory.recentSessions) && personalMemory.recentSessions.length > 0) {
+    return personalMemory.recentSessions.slice(0, 3);
+  }
+
+  return personalMemory.latestSession ? [personalMemory.latestSession] : [];
+}
+
+function createSessionNodeDetail(
+  session: NonNullable<DashboardSnapshot["personalMemory"]>["latestSession"]
+): string {
+  if (!session) {
+    return "remembered session";
+  }
+
+  const browserLabel = session.browserTitle ?? session.browserUrl;
+  return browserLabel
+    ? `${session.providerLabel}: ${session.userInput} · ${browserLabel}`
+    : `${session.providerLabel}: ${session.userInput}`;
 }
 
 export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusItem[] {

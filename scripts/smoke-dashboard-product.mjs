@@ -382,6 +382,7 @@ async function main() {
         nodeCount: nodeItems.length,
         linkCount: linkItems.length,
         backlinkCount: backlinkItems.length,
+        sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
         fallbackTextOverlap,
         nodeTexts: nodeItems.map((item) => item.textContent),
         linkTexts: linkItems.map((item) => item.textContent),
@@ -401,7 +402,7 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.backlinkCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.backlinkCount >= 2 && dom.sessionNodeCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }
@@ -530,18 +531,29 @@ async function seedPersonalMemoryFixture(homeDir) {
   const userMemoryPath = path.join(memoryDir, "USER.md");
   const agentMemoryPath = path.join(memoryDir, "AGENT.md");
   const sessionMemoryPath = path.join(memoryDir, "sessions.jsonl");
-  const session = {
-    schemaVersion: 1,
-    turnId: "dashboard-smoke-memory-turn",
-    createdAt: new Date().toISOString(),
-    userInput: "Summarize the current dashboard state.",
-    assistantReply: "The dashboard is showing local memory and runtime readiness.",
-    providerLabel: "Codex",
-    browserContext: {
-      title: "skfiy Dashboard",
-      url: "http://127.0.0.1/dashboard"
+  const now = new Date();
+  const sessions = [
+    {
+      schemaVersion: 1,
+      turnId: "dashboard-smoke-hermes-memory-turn",
+      createdAt: new Date(now.getTime() - 60_000).toISOString(),
+      userInput: "以后进度更新短一点",
+      assistantReply: "我会用更短的中文更新。",
+      providerLabel: "Hermes"
+    },
+    {
+      schemaVersion: 1,
+      turnId: "dashboard-smoke-memory-turn",
+      createdAt: now.toISOString(),
+      userInput: "Summarize the current dashboard state.",
+      assistantReply: "The dashboard is showing local memory and runtime readiness.",
+      providerLabel: "Codex",
+      browserContext: {
+        title: "skfiy Dashboard",
+        url: "http://127.0.0.1/dashboard"
+      }
     }
-  };
+  ];
 
   await mkdir(memoryDir, { recursive: true });
   await writeFile(userMemoryPath, [
@@ -551,7 +563,7 @@ async function seedPersonalMemoryFixture(homeDir) {
     ""
   ].join("\n"), "utf8");
   await writeFile(agentMemoryPath, `${DASHBOARD_MEMORY_AGENT_ENTRY}\n`, "utf8");
-  await writeFile(sessionMemoryPath, `${JSON.stringify(session)}\n`, "utf8");
+  await writeFile(sessionMemoryPath, `${sessions.map((session) => JSON.stringify(session)).join("\n")}\n`, "utf8");
 
   return {
     productPath: "smoke:dashboard -> isolated HOME -> personal memory files",
@@ -560,7 +572,7 @@ async function seedPersonalMemoryFixture(homeDir) {
     sessionMemoryPath,
     seededUserEntries: 2,
     seededAgentEntries: 1,
-    seededSessionEntries: 1
+    seededSessionEntries: sessions.length
   };
 }
 

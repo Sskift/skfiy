@@ -24,6 +24,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Browser Context",
   "injects prompt",
   "Vault backlinks",
+  "Recent session recall",
   "Chrome control actions",
   "Chrome host policy controls",
   "Observe current tab",
@@ -244,6 +245,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.linkCount >= 2
     && Number.isInteger(evidence?.backlinkCount)
     && evidence.backlinkCount >= 2
+    && Number.isInteger(evidence?.sessionNodeCount)
+    && evidence.sessionNodeCount >= 2
     && evidence?.fallbackTextOverlap === false
     && Array.isArray(evidence?.nodeTexts)
     && Array.isArray(evidence?.linkTexts)

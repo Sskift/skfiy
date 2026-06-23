@@ -9,13 +9,16 @@ describe("dashboard product smoke script", () => {
       readFileSync(path.join(process.cwd(), "package.json"), "utf8")
     ) as { scripts?: Record<string, string> };
     const sourcePath = path.join(process.cwd(), "scripts/smoke-dashboard-product.mjs");
+    const planSourcePath = path.join(process.cwd(), "scripts/smoke-dashboard-plan.mjs");
 
     expect(existsSync(sourcePath)).toBe(true);
+    expect(existsSync(planSourcePath)).toBe(true);
     expect(packageJson.scripts).toMatchObject({
       "smoke:dashboard": "node scripts/smoke-dashboard-product.mjs"
     });
 
     const source = readFileSync(sourcePath, "utf8");
+    const planSource = readFileSync(planSourcePath, "utf8");
 
     expect(source).toContain("acquireSmokeLock");
     expect(source).toContain("createDefaultDashboardSmokeOptions");
@@ -44,6 +47,8 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("dashboard-knowledge-graph");
     expect(source).toContain("Vault backlinks");
     expect(source).toContain("backlinkCount");
+    expect(planSource).toContain("Recent session recall");
+    expect(source).toContain("sessionNodeCount");
     expect(source).toContain("seedPersonalMemoryFixture");
     expect(source).toContain("exercisePersonalMemoryApi");
     expect(source).toContain("personalMemoryApi");
@@ -681,6 +686,7 @@ describe("dashboard product smoke script", () => {
         nodeCount: 6,
         linkCount: 5,
         backlinkCount: 5,
+        sessionNodeCount: 2,
         fallbackTextOverlap: false,
         nodeTexts: [
           "User preferencesmemoryUser prefers concise Chinese updates.",
@@ -1001,6 +1007,13 @@ describe("dashboard product smoke script", () => {
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        sessionNodeCount: 1
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
       shellResponse: {
         status: 200,
         body: '<!doctype html><html lang="en"><head><title>skfiy dashboard</title><script type="module" crossorigin src="./assets/dashboard-test.js"></script></head><body><div id="dashboard-root"></div></body></html>'
@@ -1036,6 +1049,7 @@ describe("dashboard product smoke script", () => {
           "Browser Context",
           "injects prompt",
           "Vault backlinks",
+          "Recent session recall",
           "Chrome control actions",
           "Chrome host policy controls",
           "Observe current tab",
@@ -1072,6 +1086,7 @@ describe("dashboard product smoke script", () => {
           "Browser Context",
           "injects prompt",
           "Vault backlinks",
+          "Recent session recall",
           "Chrome control actions",
           "Chrome host policy controls",
           "Observe current tab",

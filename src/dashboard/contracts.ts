@@ -102,6 +102,7 @@ export interface DashboardPersonalMemorySummary {
   recentUserEntries: string[];
   recentAgentEntries: string[];
   latestSession?: DashboardPersonalMemorySessionSummary;
+  recentSessions?: DashboardPersonalMemorySessionSummary[];
 }
 
 export interface DashboardPersonalMemorySessionSummary {

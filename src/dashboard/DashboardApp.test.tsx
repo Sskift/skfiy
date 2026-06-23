@@ -171,7 +171,20 @@ const snapshot: DashboardSnapshot = {
     sessionCount: 2,
     latestUpdatedAt: "2026-06-23T10:00:00.000Z",
     recentUserEntries: ["User prefers concise Chinese updates."],
-    recentAgentEntries: ["For dashboard work, prefer dense Obsidian-like knowledge surfaces."]
+    recentAgentEntries: ["For dashboard work, prefer dense Obsidian-like knowledge surfaces."],
+    recentSessions: [
+      {
+        createdAt: "2026-06-23T10:00:00.000Z",
+        providerLabel: "Codex",
+        userInput: "Summarize current dashboard state.",
+        browserTitle: "skfiy Dashboard"
+      },
+      {
+        createdAt: "2026-06-23T09:55:00.000Z",
+        providerLabel: "Hermes",
+        userInput: "以后进度更新短一点"
+      }
+    ]
   }
 };
 
@@ -244,10 +257,16 @@ describe("DashboardApp", () => {
     expect(within(memory).getByText("User prefers concise Chinese updates.")).toBeInTheDocument();
     expect(within(memory).getByText("For dashboard work, prefer dense Obsidian-like knowledge surfaces.")).toBeInTheDocument();
     expect(within(memory).getByText("sessions 2")).toBeInTheDocument();
+    expect(within(memory).getByRole("heading", { name: "Recent session recall" })).toBeInTheDocument();
+    expect(within(memory).getByText("Codex · skfiy Dashboard")).toBeInTheDocument();
+    expect(within(memory).getByText("Summarize current dashboard state.")).toBeInTheDocument();
+    expect(within(memory).getByText("Hermes")).toBeInTheDocument();
+    expect(within(memory).getByText("以后进度更新短一点")).toBeInTheDocument();
 
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("User preferences").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Latest session").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("Recent session 2").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Codex").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Browser Context").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Computer Use").length).toBeGreaterThan(0);

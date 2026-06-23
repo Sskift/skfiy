@@ -153,6 +153,13 @@ describe("dashboard snapshot data", () => {
       ].join("\n"),
       "/Users/tester/Library/Application Support/skfiy/memory/sessions.jsonl": [
         JSON.stringify({
+          turnId: "turn-0",
+          createdAt: "2026-06-23T09:55:00.000Z",
+          userInput: "以后进度更新短一点",
+          assistantReply: "会用更短的中文更新。",
+          providerLabel: "Hermes"
+        }),
+        JSON.stringify({
           turnId: "turn-1",
           createdAt: "2026-06-23T10:00:00.000Z",
           userInput: "喜欢 Obsidian dashboard token=secret",
@@ -182,7 +189,7 @@ describe("dashboard snapshot data", () => {
     expect(snapshot.personalMemory).toEqual({
       userEntryCount: 2,
       agentEntryCount: 1,
-      sessionCount: 1,
+      sessionCount: 2,
       latestUpdatedAt: "2026-06-23T10:00:00.000Z",
       recentUserEntries: [
         "User prefers concise Chinese updates.",
@@ -197,7 +204,21 @@ describe("dashboard snapshot data", () => {
         userInput: "[redacted sensitive memory]",
         browserTitle: "Obsidian help",
         browserUrl: "https://obsidian.md"
-      }
+      },
+      recentSessions: [
+        {
+          createdAt: "2026-06-23T10:00:00.000Z",
+          providerLabel: "Codex",
+          userInput: "[redacted sensitive memory]",
+          browserTitle: "Obsidian help",
+          browserUrl: "https://obsidian.md"
+        },
+        {
+          createdAt: "2026-06-23T09:55:00.000Z",
+          providerLabel: "Hermes",
+          userInput: "以后进度更新短一点"
+        }
+      ]
     });
     expect(JSON.stringify(snapshot.personalMemory)).not.toContain("token=secret");
   });
