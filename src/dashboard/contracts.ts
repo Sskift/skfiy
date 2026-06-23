@@ -101,6 +101,44 @@ export interface DashboardPersonalMemorySummary {
   latestUpdatedAt?: string;
   recentUserEntries: string[];
   recentAgentEntries: string[];
+  latestSession?: DashboardPersonalMemorySessionSummary;
+}
+
+export interface DashboardPersonalMemorySessionSummary {
+  createdAt: string;
+  userInput: string;
+  providerLabel: string;
+  browserTitle?: string;
+  browserUrl?: string;
+}
+
+export type DashboardKnowledgeGraphNodeKind =
+  | "memory"
+  | "session"
+  | "provider"
+  | "browser"
+  | "computer-use"
+  | "skill"
+  | "turn"
+  | "alert";
+
+export interface DashboardKnowledgeGraphNode {
+  id: string;
+  label: string;
+  kind: DashboardKnowledgeGraphNodeKind;
+  tone: "success" | "warning" | "danger" | "neutral";
+  detail?: string;
+}
+
+export interface DashboardKnowledgeGraphEdge {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export interface DashboardKnowledgeGraph {
+  nodes: DashboardKnowledgeGraphNode[];
+  edges: DashboardKnowledgeGraphEdge[];
 }
 
 export interface DashboardChromeControlActionRequest {

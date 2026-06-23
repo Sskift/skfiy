@@ -56,6 +56,7 @@ import {
   readChromeControlState,
   readComputerUseReadiness,
   readDogfoodSummary,
+  readKnowledgeGraph,
   readLatestTaskSignal,
   readNextAction,
   readProviderSummaries,
@@ -71,6 +72,7 @@ import {
   type DashboardRuntimeEvidenceSummary,
   type Tone
 } from "./model";
+import { KnowledgeGraph } from "./KnowledgeGraph";
 
 export interface DashboardAppProps {
   loadChromeHostPolicy?: () => Promise<DashboardChromeHostPolicyResponse>;
@@ -91,6 +93,7 @@ const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: Home },
   { id: "provider", label: "Provider", icon: Bot },
   { id: "memory", label: "Memory", icon: History },
+  { id: "knowledge-graph", label: "Graph", icon: Gauge },
   { id: "computer-use", label: "Computer Use", icon: MonitorCog },
   { id: "browser", label: "Browser", icon: Chrome },
   { id: "activity", label: "Activity", icon: Activity },
@@ -309,6 +312,7 @@ function DashboardContent({
   const dogfood = useMemo(() => readDogfoodSummary(snapshot), [snapshot]);
   const nextAction = useMemo(() => readNextAction(snapshot), [snapshot]);
   const alerts = useMemo(() => readAlertMessages(snapshot), [snapshot]);
+  const knowledgeGraph = useMemo(() => readKnowledgeGraph(snapshot), [snapshot]);
 
   return (
     <div className="skfiy-dashboard-content">
@@ -398,6 +402,20 @@ function DashboardContent({
           </div>
         </div>
         <PersonalMemoryPanel memory={snapshot.personalMemory} />
+      </section>
+
+      <section
+        id="knowledge-graph"
+        className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main skfiy-dashboard-section--graph"
+      >
+        <div className="skfiy-dashboard-section-heading">
+          <div>
+            <span>Vault map</span>
+            <h2>Knowledge graph</h2>
+          </div>
+          <StatusChip tone="neutral">{knowledgeGraph.nodes.length} nodes</StatusChip>
+        </div>
+        <KnowledgeGraph nodes={knowledgeGraph.nodes} edges={knowledgeGraph.edges} />
       </section>
 
       <section

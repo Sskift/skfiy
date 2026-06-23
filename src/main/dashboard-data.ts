@@ -37,7 +37,10 @@ import {
   createSkfiyApplicationSupportPath,
   readPersonalMemorySnapshot
 } from "./personal-memory.js";
-import { readSessionMemoryRecords } from "./session-memory.js";
+import {
+  readSessionMemoryRecords,
+  type SessionMemoryRecord
+} from "./session-memory.js";
 import {
   createBrowserPageContextFromConnection,
   normalizeBrowserPageContext
@@ -347,18 +350,20 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     baseDir,
     io
   });
-  const sessionCount = readSessionMemoryRecords({
+  const sessions = readSessionMemoryRecords({
     baseDir,
     io
-  }).length;
+  });
+  const latestSession = sessions.at(-1);
 
   return {
     userEntryCount: personalMemory.userEntries.length,
     agentEntryCount: personalMemory.agentEntries.length,
-    sessionCount,
+    sessionCount: sessions.length,
     ...(personalMemory.latestUpdatedAt ? { latestUpdatedAt: personalMemory.latestUpdatedAt } : {}),
     recentUserEntries: personalMemory.userEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
-    recentAgentEntries: personalMemory.agentEntries.slice(-5).map(sanitizeDashboardMemoryEntry)
+    recentAgentEntries: personalMemory.agentEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
+    ...(latestSession ? { latestSession: createDashboardLatestSessionSummary(latestSession) } : {})
   };
 }
 
@@ -501,6 +506,20 @@ function sanitizeDashboardMemoryEntry(value: string): string {
   }
 
   return value;
+}
+
+function createDashboardLatestSessionSummary(session: SessionMemoryRecord): Record<string, unknown> {
+  return {
+    createdAt: session.createdAt,
+    providerLabel: sanitizeDashboardMemoryEntry(session.providerLabel),
+    userInput: sanitizeDashboardMemoryEntry(session.userInput),
+    ...(session.browserContext?.title
+      ? { browserTitle: sanitizeDashboardMemoryEntry(session.browserContext.title) }
+      : {}),
+    ...(session.browserContext?.url
+      ? { browserUrl: sanitizeDashboardMemoryEntry(session.browserContext.url) }
+      : {})
+  };
 }
 
 function readAssistantProviderLabel(mode: AssistantAgentSettings["mode"]): string {

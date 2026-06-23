@@ -968,7 +968,7 @@ git commit -m "feat: add personalized memory for pet agent"
 - Modify: `scripts/smoke-dashboard-product.mjs`
 - Modify: `src/main/dashboard-smoke-script.test.ts`
 
-- [ ] **Step 1: Write graph view-model tests**
+- [x] **Step 1: Write graph view-model tests**
 
 Add tests in `src/dashboard/KnowledgeGraph.test.tsx`:
 
@@ -1000,7 +1000,7 @@ describe("KnowledgeGraph", () => {
 });
 ```
 
-- [ ] **Step 2: Implement graph/canvas component**
+- [x] **Step 2: Implement graph/canvas component**
 
 Create `src/dashboard/KnowledgeGraph.tsx`:
 
@@ -1010,7 +1010,7 @@ Create `src/dashboard/KnowledgeGraph.tsx`:
 - Include compact list fallback below the graph for accessibility.
 - Avoid runtime physics dependencies for the first version; deterministic layout keeps smoke evidence stable.
 
-- [ ] **Step 3: Build graph data from snapshot**
+- [x] **Step 3: Build graph data from snapshot**
 
 In `src/dashboard/model.ts`:
 
@@ -1022,7 +1022,7 @@ In `src/dashboard/model.ts`:
 
 In `src/main/dashboard-data.ts`, include enough `personalMemory` and session summary fields for the graph.
 
-- [ ] **Step 4: Apply Obsidian-inspired visual language**
+- [x] **Step 4: Apply Obsidian-inspired visual language**
 
 In `src/dashboard/styles.css`:
 
@@ -1041,7 +1041,7 @@ Visual cues to borrow from Obsidian:
 - command/control rail,
 - canvas panning/zoom affordance in spirit, but not necessarily full infinite canvas in v1.
 
-- [ ] **Step 5: Dashboard smoke evidence**
+- [x] **Step 5: Dashboard smoke evidence**
 
 Update `scripts/smoke-dashboard-product.mjs` and `src/main/dashboard-smoke-script.test.ts` so product smoke asserts:
 
@@ -1050,7 +1050,7 @@ Update `scripts/smoke-dashboard-product.mjs` and `src/main/dashboard-smoke-scrip
 - no overlapping text is detected in the graph fallback list,
 - screenshot evidence is saved when an output path is provided.
 
-- [ ] **Step 6: Verification and commit**
+- [x] **Step 6: Verification and commit**
 
 Run:
 

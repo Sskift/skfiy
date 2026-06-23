@@ -38,6 +38,10 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("missingAfterTurnRuntimeSnapshot");
     expect(source).toContain("runtime-turn-marker.json");
     expect(source).toContain("operatorReadiness");
+    expect(source).toContain("Knowledge graph");
+    expect(source).toContain("collectDashboardScreenshotEvidence");
+    expect(source).toContain("knowledgeGraphEvidence");
+    expect(source).toContain("dashboard-knowledge-graph");
     expect(source).toContain("exerciseChromeControlActionApi");
     expect(source).toContain("dashboardChromeControlActionApi");
     expect(source).toContain("collectRealHomeChromeControlActionEvidence");
@@ -906,6 +910,11 @@ describe("dashboard product smoke script", () => {
           "Runtime evidence",
           "Assistant providers",
           "Provider settings",
+          "Knowledge graph",
+          "User preferences",
+          "Latest session",
+          "Browser Context",
+          "injects prompt",
           "Chrome control actions",
           "Chrome host policy controls",
           "Observe current tab",
@@ -935,6 +944,11 @@ describe("dashboard product smoke script", () => {
           "Runtime evidence",
           "Assistant providers",
           "Provider settings",
+          "Knowledge graph",
+          "User preferences",
+          "Latest session",
+          "Browser Context",
+          "injects prompt",
           "Chrome control actions",
           "Chrome host policy controls",
           "Observe current tab",

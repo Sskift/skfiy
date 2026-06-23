@@ -155,9 +155,13 @@ describe("dashboard snapshot data", () => {
         JSON.stringify({
           turnId: "turn-1",
           createdAt: "2026-06-23T10:00:00.000Z",
-          userInput: "喜欢 Obsidian dashboard",
+          userInput: "喜欢 Obsidian dashboard token=secret",
           assistantReply: "会保留这个偏好。",
-          providerLabel: "Codex"
+          providerLabel: "Codex",
+          browserContext: {
+            title: "Obsidian help",
+            url: "https://obsidian.md"
+          }
         })
       ].join("\n")
     };
@@ -186,7 +190,14 @@ describe("dashboard snapshot data", () => {
       ],
       recentAgentEntries: [
         "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
-      ]
+      ],
+      latestSession: {
+        createdAt: "2026-06-23T10:00:00.000Z",
+        providerLabel: "Codex",
+        userInput: "[redacted sensitive memory]",
+        browserTitle: "Obsidian help",
+        browserUrl: "https://obsidian.md"
+      }
     });
     expect(JSON.stringify(snapshot.personalMemory)).not.toContain("token=secret");
   });

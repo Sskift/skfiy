@@ -56,6 +56,7 @@ async function main() {
     eventsResponse: undefined,
     shellResponse: undefined,
     reactContentEvidence: undefined,
+    knowledgeGraphEvidence: undefined,
     chromeHostPolicyApi: undefined,
     dashboardChromeControlActionApi: undefined,
     dashboardStatusAutoDiscovery: undefined,
@@ -107,6 +108,11 @@ async function main() {
       shellBody: evidence.shellResponse?.body,
       timeoutMs: options.timeoutMs
     });
+    evidence.knowledgeGraphEvidence = await collectDashboardScreenshotEvidence({
+      dashboardUrl: launched.cliOutput.url,
+      outputPath: options.outputPath,
+      timeoutMs: options.timeoutMs
+    });
     evidence.chromeHostPolicyApi = await exerciseChromeHostPolicyApi({
       dashboardUrl: launched.cliOutput.url,
       timeoutMs: options.timeoutMs
@@ -131,6 +137,7 @@ async function main() {
       JSON.stringify(evidence.snapshotResponse),
       JSON.stringify(evidence.eventsResponse),
       JSON.stringify(evidence.reactContentEvidence),
+      JSON.stringify(evidence.knowledgeGraphEvidence),
       JSON.stringify(evidence.chromeHostPolicyApi),
       JSON.stringify(evidence.dashboardChromeControlActionApi),
       JSON.stringify(evidence.dashboardStatusAutoDiscovery),
@@ -211,6 +218,266 @@ async function collectReactDashboardContentEvidence({
       !foundMarkers.includes(marker)
     )
   };
+}
+
+async function collectDashboardScreenshotEvidence({
+  dashboardUrl,
+  outputPath,
+  timeoutMs
+}) {
+  const productPath = "dist/skfiy dashboard -> Electron screenshot -> Knowledge graph";
+  if (!outputPath) {
+    return {
+      productPath,
+      dashboardUrl,
+      result: "skipped",
+      reason: "No output path was provided, so no screenshot path could be derived."
+    };
+  }
+
+  const electronPath = path.join(ROOT_DIR, "node_modules", ".bin", "electron");
+  const screenshotPath = path.join(
+    path.dirname(outputPath),
+    `${path.basename(outputPath, path.extname(outputPath))}-knowledge-graph.png`
+  );
+  if (!existsSync(electronPath)) {
+    return {
+      productPath,
+      dashboardUrl,
+      screenshotPath,
+      result: "skipped",
+      reason: "Electron binary is not installed."
+    };
+  }
+
+  const tempDir = await mkdtemp(path.join(tmpdir(), "skfiy-dashboard-knowledge-graph-"));
+  const probePath = path.join(tempDir, "capture-dashboard-knowledge-graph.cjs");
+
+  try {
+    await mkdir(path.dirname(screenshotPath), { recursive: true });
+    await writeFile(probePath, createDashboardScreenshotProbeSource({
+      dashboardUrl,
+      screenshotPath,
+      timeoutMs
+    }), "utf8");
+    return await runElectronDashboardScreenshotProbe({
+      electronPath,
+      probePath,
+      timeoutMs
+    });
+  } catch (error) {
+    return {
+      productPath,
+      dashboardUrl,
+      screenshotPath,
+      result: "error",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+function createDashboardScreenshotProbeSource({
+  dashboardUrl,
+  screenshotPath,
+  timeoutMs
+}) {
+  return `
+const fs = require("node:fs/promises");
+const { app, BrowserWindow } = require("electron");
+
+const dashboardUrl = ${JSON.stringify(dashboardUrl)};
+const screenshotPath = ${JSON.stringify(screenshotPath)};
+const timeoutMs = ${JSON.stringify(timeoutMs)};
+const productPath = "dist/skfiy dashboard -> Electron screenshot -> Knowledge graph";
+
+app.commandLine.appendSwitch("disable-gpu");
+
+async function main() {
+  const timeout = setTimeout(() => {
+    console.log(JSON.stringify({
+      productPath,
+      dashboardUrl,
+      screenshotPath,
+      result: "error",
+      error: "Timed out capturing dashboard knowledge graph."
+    }));
+    app.exit(2);
+  }, timeoutMs);
+
+  await app.whenReady();
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 900,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+  await win.loadURL(dashboardUrl);
+  await win.webContents.executeJavaScript(\`
+    new Promise((resolve) => {
+      const startedAt = Date.now();
+      const check = () => {
+        if (document.querySelector('[aria-label="Knowledge graph"]')) {
+          resolve(true);
+          return;
+        }
+        if (Date.now() - startedAt > \${timeoutMs}) {
+          resolve(false);
+          return;
+        }
+        setTimeout(check, 50);
+      };
+      check();
+    })
+  \`);
+
+  const dom = await win.webContents.executeJavaScript(\`
+    (() => {
+      const region = document.querySelector('[aria-label="Knowledge graph"]');
+      region?.scrollIntoView({ block: "center", inline: "nearest" });
+      const nodeItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph nodes"] li'));
+      const linkItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph links"] li'));
+      const rects = nodeItems.map((item) => {
+        const rect = item.getBoundingClientRect();
+        return {
+          text: item.textContent,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height
+        };
+      });
+      let fallbackTextOverlap = false;
+      for (let left = 0; left < rects.length; left += 1) {
+        for (let right = left + 1; right < rects.length; right += 1) {
+          const a = rects[left];
+          const b = rects[right];
+          fallbackTextOverlap = fallbackTextOverlap
+            || (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top);
+        }
+      }
+      return {
+        regionFound: Boolean(region),
+        nodeCount: nodeItems.length,
+        linkCount: linkItems.length,
+        fallbackTextOverlap,
+        nodeTexts: nodeItems.map((item) => item.textContent),
+        linkTexts: linkItems.map((item) => item.textContent)
+      };
+    })()
+  \`);
+  await new Promise((resolve) => setTimeout(resolve, 120));
+
+  const image = await win.webContents.capturePage();
+  const png = image.toPNG();
+  await fs.writeFile(screenshotPath, png);
+  clearTimeout(timeout);
+  console.log(JSON.stringify({
+    productPath,
+    dashboardUrl,
+    screenshotPath,
+    screenshotBytes: png.length,
+    ...dom,
+    result: dom.regionFound && dom.nodeCount >= 5 && !dom.fallbackTextOverlap ? "passed" : "failed"
+  }));
+  app.quit();
+}
+
+main().catch((error) => {
+  console.log(JSON.stringify({
+    productPath,
+    dashboardUrl,
+    screenshotPath,
+    result: "error",
+    error: error instanceof Error ? error.message : String(error)
+  }));
+  app.exit(1);
+});
+`;
+}
+
+function runElectronDashboardScreenshotProbe({
+  electronPath,
+  probePath,
+  timeoutMs
+}) {
+  return new Promise((resolve) => {
+    const child = spawn(electronPath, [probePath], {
+      cwd: ROOT_DIR,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        child.kill("SIGTERM");
+        resolve({
+          productPath: "dist/skfiy dashboard -> Electron screenshot -> Knowledge graph",
+          probePath,
+          result: "error",
+          stderr,
+          error: `Timed out after ${timeoutMs}ms.`
+        });
+      }
+    }, timeoutMs + 1_000);
+    const settle = (payload) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        resolve(payload);
+      }
+    };
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", (error) => {
+      settle({
+        productPath: "dist/skfiy dashboard -> Electron screenshot -> Knowledge graph",
+        probePath,
+        result: "error",
+        stderr,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    });
+    child.once("exit", (code, signal) => {
+      const lastLine = stdout.trim().split(/\r?\n/u).filter(Boolean).at(-1);
+      try {
+        settle({
+          ...JSON.parse(lastLine ?? "{}"),
+          probePath,
+          stderr,
+          exitCode: code,
+          signal
+        });
+      } catch (error) {
+        settle({
+          productPath: "dist/skfiy dashboard -> Electron screenshot -> Knowledge graph",
+          probePath,
+          result: "error",
+          stdout,
+          stderr,
+          exitCode: code,
+          signal,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+  });
 }
 
 function readReactDashboardAssetPath(shellBody) {

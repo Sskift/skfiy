@@ -199,6 +199,7 @@ describe("DashboardApp", () => {
     expect(within(navigation).getByRole("link", { name: "Overview" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Provider" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Memory" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Graph" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Computer Use" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Browser" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Activity" })).toBeInTheDocument();
@@ -208,6 +209,7 @@ describe("DashboardApp", () => {
     expect(screen.getByRole("region", { name: "Overview" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Provider" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Memory" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Knowledge graph" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Computer Use" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Browser" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Activity" })).toBeInTheDocument();
@@ -242,6 +244,14 @@ describe("DashboardApp", () => {
     expect(within(memory).getByText("User prefers concise Chinese updates.")).toBeInTheDocument();
     expect(within(memory).getByText("For dashboard work, prefer dense Obsidian-like knowledge surfaces.")).toBeInTheDocument();
     expect(within(memory).getByText("sessions 2")).toBeInTheDocument();
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText("User preferences").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("Latest session").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("Codex").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("Browser Context").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("Computer Use").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("injects prompt").length).toBeGreaterThan(0);
 
     const computerUse = screen.getByRole("region", { name: "Computer Use" });
     expect(within(computerUse).getByRole("heading", { name: "Computer use" })).toBeInTheDocument();

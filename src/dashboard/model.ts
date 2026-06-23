@@ -1,4 +1,10 @@
-import type { DashboardProviderSummary, DashboardSnapshot } from "./contracts";
+import type {
+  DashboardKnowledgeGraph,
+  DashboardKnowledgeGraphEdge,
+  DashboardKnowledgeGraphNode,
+  DashboardProviderSummary,
+  DashboardSnapshot
+} from "./contracts";
 
 export type Tone = "success" | "warning" | "danger" | "neutral";
 
@@ -134,6 +140,144 @@ export interface DashboardChromeControlState {
   tabDiscoveryReason?: string;
   browserContext: DashboardBrowserContextSummary;
   hostPolicy: DashboardChromeHostPolicySummary;
+}
+
+export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowledgeGraph {
+  const nodes: DashboardKnowledgeGraphNode[] = [];
+  const edges: DashboardKnowledgeGraphEdge[] = [];
+  const assistant = readAssistantProviderView(snapshot);
+  const assistantProvider = readProviderSummaries(snapshot)
+    .find((provider) => provider.provider === "assistant");
+  const providerId = `provider:${sanitizeNodeId(assistantProvider?.mode ?? assistant.value)}`;
+  const personalMemory = snapshot.personalMemory;
+  const browserContext = readBrowserContextSummary(snapshot);
+  const computerUse = readComputerUseReadiness(snapshot);
+  const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
+
+  pushNode(nodes, {
+    id: providerId,
+    label: assistant.value,
+    kind: "provider",
+    tone: assistant.tone,
+    detail: assistant.detail
+  });
+
+  pushNode(nodes, {
+    id: "computer-use",
+    label: "Computer Use",
+    kind: "computer-use",
+    tone: computerUse.desktop.tone,
+    detail: computerUse.desktop.detail
+  });
+
+  if (currentTurnState !== "idle" || readString(snapshot.currentTurn.command)) {
+    pushNode(nodes, {
+      id: "turn:current",
+      label: "Current turn",
+      kind: "turn",
+      tone: readLatestTaskSignal(snapshot).tone,
+      detail: readString(snapshot.currentTurn.command) ?? readLatestMessage(snapshot)
+    });
+    pushEdge(edges, {
+      from: "computer-use",
+      to: "turn:current",
+      label: snapshot.currentTurn.approvalRequired === true || currentTurnState.includes("approval")
+        ? "requires approval"
+        : "routes action"
+    });
+  }
+
+  if (personalMemory && (personalMemory.userEntryCount > 0 || personalMemory.recentUserEntries.length > 0)) {
+    pushNode(nodes, {
+      id: "memory:user",
+      label: "User preferences",
+      kind: "memory",
+      tone: "success",
+      detail: createMemoryNodeDetail(personalMemory.userEntryCount, personalMemory.recentUserEntries[0])
+    });
+    pushEdge(edges, { from: "memory:user", to: providerId, label: "injects prompt" });
+  }
+
+  if (personalMemory && (personalMemory.agentEntryCount > 0 || personalMemory.recentAgentEntries.length > 0)) {
+    pushNode(nodes, {
+      id: "memory:agent",
+      label: "Agent operating notes",
+      kind: "memory",
+      tone: "success",
+      detail: createMemoryNodeDetail(personalMemory.agentEntryCount, personalMemory.recentAgentEntries[0])
+    });
+    pushEdge(edges, { from: "memory:agent", to: providerId, label: "guides behavior" });
+  }
+
+  if (personalMemory && personalMemory.sessionCount > 0) {
+    pushNode(nodes, {
+      id: "session:latest",
+      label: "Latest session",
+      kind: "session",
+      tone: "neutral",
+      detail: personalMemory.latestSession
+        ? `${personalMemory.latestSession.providerLabel}: ${personalMemory.latestSession.userInput}`
+        : `${personalMemory.sessionCount} remembered sessions`
+    });
+  }
+
+  if (personalMemory && (
+    personalMemory.userEntryCount > 0
+    || personalMemory.agentEntryCount > 0
+    || personalMemory.sessionCount > 0
+  )) {
+    pushNode(nodes, {
+      id: "skill:memory-review",
+      label: "Memory review",
+      kind: "skill",
+      tone: "neutral",
+      detail: "Post-turn personalization distills durable notes."
+    });
+    if (nodes.some((node) => node.id === "memory:user")) {
+      pushEdge(edges, { from: "skill:memory-review", to: "memory:user", label: "distills" });
+    }
+    if (nodes.some((node) => node.id === "memory:agent")) {
+      pushEdge(edges, { from: "skill:memory-review", to: "memory:agent", label: "distills" });
+    }
+  }
+
+  if (browserContext.state !== "missing") {
+    pushNode(nodes, {
+      id: "browser:context",
+      label: "Browser Context",
+      kind: "browser",
+      tone: browserContext.tone,
+      detail: browserContext.title ?? browserContext.url ?? browserContext.reason
+    });
+    if (nodes.some((node) => node.id === "session:latest")) {
+      pushEdge(edges, { from: "browser:context", to: "session:latest", label: "observed in" });
+    }
+  }
+
+  snapshot.alerts.slice(0, 5).forEach((alert, index) => {
+    const code = readString(alert.code) ?? `alert-${index + 1}`;
+    const alertId = `alert:${sanitizeNodeId(code)}`;
+    pushNode(nodes, {
+      id: alertId,
+      label: titleize(code),
+      kind: "alert",
+      tone: readAlertTone(alert),
+      detail: readString(alert.message) ?? "Review dashboard alert."
+    });
+    pushEdge(edges, {
+      from: alertId,
+      to: readAlertGraphTarget(code, alert, providerId),
+      label: "blocked by"
+    });
+  });
+
+  return {
+    nodes,
+    edges: edges.filter((edge) => (
+      nodes.some((node) => node.id === edge.from)
+      && nodes.some((node) => node.id === edge.to)
+    ))
+  };
 }
 
 export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusItem[] {
@@ -947,6 +1091,56 @@ function createPermissionStatus(label: string, value: unknown): DashboardStatusI
     value: state.replaceAll("-", " "),
     tone: state === "granted" ? "success" : state === "denied" ? "danger" : "warning"
   };
+}
+
+function pushNode(nodes: DashboardKnowledgeGraphNode[], node: DashboardKnowledgeGraphNode): void {
+  if (!nodes.some((existing) => existing.id === node.id)) {
+    nodes.push(node);
+  }
+}
+
+function pushEdge(edges: DashboardKnowledgeGraphEdge[], edge: DashboardKnowledgeGraphEdge): void {
+  if (!edges.some((existing) => (
+    existing.from === edge.from
+    && existing.to === edge.to
+    && existing.label === edge.label
+  ))) {
+    edges.push(edge);
+  }
+}
+
+function createMemoryNodeDetail(count: number, sample: string | undefined): string {
+  return sample ? `${count} entries · ${sample}` : `${count} entries`;
+}
+
+function sanitizeNodeId(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9:-]+/gu, "-")
+    .replace(/^-+|-+$/gu, "")
+    || "unknown";
+}
+
+function readAlertGraphTarget(
+  code: string,
+  alert: Record<string, unknown>,
+  providerId: string
+): string {
+  const haystack = [
+    code,
+    readString(alert.message),
+    readString(alert.nextAction)
+  ].join(" ").toLocaleLowerCase();
+
+  if (/chrome|browser|extension|page-control/u.test(haystack)) {
+    return "browser:context";
+  }
+  if (/provider|assistant|codex|claude|hermes/u.test(haystack)) {
+    return providerId;
+  }
+
+  return "computer-use";
 }
 
 function readAlertTone(alert: Record<string, unknown>): Tone {
