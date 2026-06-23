@@ -53,6 +53,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
     fromLabel: readNodeLabel(edge.from, nodes),
     toLabel: readNodeLabel(edge.to, nodes)
   }));
+  const vaultNotes = createVaultNotes(nodes, backlinks);
 
   return (
     <section
@@ -116,6 +117,26 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
           </ul>
         </div>
         <div>
+          <h3>Vault notes</h3>
+          <ul aria-label="Vault notes" className="skfiy-vault-notes">
+            {vaultNotes.map((note) => (
+              <li key={note.id} data-kind={note.kind}>
+                <strong>{note.fileName}</strong>
+                <span>{note.kind}</span>
+                <small>{note.detail}</small>
+                <small>{`Backlinks ${note.relations.length}`}</small>
+                {note.relations.length > 0 ? (
+                  <div aria-label={`${note.fileName} links`}>
+                    {note.relations.slice(0, 3).map((relation) => (
+                      <em key={`${note.id}-${relation}`}>{relation}</em>
+                    ))}
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
           <h3>Vault backlinks</h3>
           <ul aria-label="Vault backlinks">
             {backlinks.map((backlink) => (
@@ -141,6 +162,35 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
       </div>
     </section>
   );
+}
+
+interface VaultNote {
+  id: string;
+  fileName: string;
+  kind: DashboardKnowledgeGraphNode["kind"];
+  detail: string;
+  relations: string[];
+}
+
+function createVaultNotes(
+  nodes: DashboardKnowledgeGraphNode[],
+  edges: Array<DashboardKnowledgeGraphEdge & { fromLabel: string; toLabel: string }>
+): VaultNote[] {
+  return nodes.map((node) => {
+    const relations = edges
+      .filter((edge) => edge.from === node.id || edge.to === node.id)
+      .map((edge) => edge.from === node.id
+        ? `${edge.label} -> ${edge.toLabel}`
+        : `${edge.fromLabel} -> ${edge.label}`);
+
+    return {
+      id: node.id,
+      fileName: `${node.label}.md`,
+      kind: node.kind,
+      detail: node.detail ?? "Local runtime note",
+      relations
+    };
+  });
 }
 
 function createGraphPositions(nodes: DashboardKnowledgeGraphNode[]): Map<string, GraphPoint> {

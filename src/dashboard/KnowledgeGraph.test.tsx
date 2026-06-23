@@ -51,4 +51,27 @@ describe("KnowledgeGraph", () => {
     expect(within(backlinks).getByText("observed in")).toBeInTheDocument();
     expect(within(backlinks).getByText("Latest session")).toBeInTheDocument();
   });
+
+  it("renders Obsidian-style vault notes for graph nodes", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries · short Chinese updates" },
+        { id: "provider:codex", label: "Codex", kind: "provider", tone: "success", detail: "Codex assistant is selected." },
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral", detail: "Codex: summarize dashboard" }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:codex", label: "injects prompt" },
+        { from: "provider:codex", to: "session:latest", label: "answered" }
+      ]}
+    />);
+
+    const notes = screen.getByRole("list", { name: "Vault notes" });
+
+    expect(within(notes).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(notes).getByText("User preferences.md")).toBeInTheDocument();
+    expect(within(notes).getByText("Codex.md")).toBeInTheDocument();
+    expect(within(notes).getByText("Latest session.md")).toBeInTheDocument();
+    expect(within(notes).getByText("injects prompt -> Codex")).toBeInTheDocument();
+    expect(within(notes).getAllByText(/Backlinks /u).length).toBeGreaterThan(0);
+  });
 });

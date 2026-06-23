@@ -271,6 +271,9 @@ describe("DashboardApp", () => {
     expect(within(graph).getAllByText("Browser Context").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Computer Use").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("injects prompt").length).toBeGreaterThan(0);
+    expect(within(graph).getByRole("list", { name: "Vault notes" })).toBeInTheDocument();
+    expect(within(graph).getByText("User preferences.md")).toBeInTheDocument();
+    expect(within(graph).getByText("Recent session 2.md")).toBeInTheDocument();
 
     const computerUse = screen.getByRole("region", { name: "Computer Use" });
     expect(within(computerUse).getByRole("heading", { name: "Computer use" })).toBeInTheDocument();

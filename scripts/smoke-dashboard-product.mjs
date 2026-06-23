@@ -355,6 +355,7 @@ async function main() {
       region?.scrollIntoView({ block: "center", inline: "nearest" });
       const nodeItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph nodes"] li'));
       const linkItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph links"] li'));
+      const vaultNoteItems = Array.from(document.querySelectorAll('[aria-label="Vault notes"] li'));
       const backlinkItems = Array.from(document.querySelectorAll('[aria-label="Vault backlinks"] li'));
       const rects = nodeItems.map((item) => {
         const rect = item.getBoundingClientRect();
@@ -381,11 +382,13 @@ async function main() {
         regionFound: Boolean(region),
         nodeCount: nodeItems.length,
         linkCount: linkItems.length,
+        vaultNoteCount: vaultNoteItems.length,
         backlinkCount: backlinkItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
         fallbackTextOverlap,
         nodeTexts: nodeItems.map((item) => item.textContent),
         linkTexts: linkItems.map((item) => item.textContent),
+        vaultNoteTexts: vaultNoteItems.map((item) => item.textContent),
         backlinkTexts: backlinkItems.map((item) => item.textContent)
       };
     })()
@@ -402,7 +405,7 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.backlinkCount >= 2 && dom.sessionNodeCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.backlinkCount >= 2 && dom.sessionNodeCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }

@@ -23,6 +23,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Latest session",
   "Browser Context",
   "injects prompt",
+  "Vault notes",
   "Vault backlinks",
   "Recent session recall",
   "Chrome control actions",
@@ -243,6 +244,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.nodeCount >= 5
     && Number.isInteger(evidence?.linkCount)
     && evidence.linkCount >= 2
+    && Number.isInteger(evidence?.vaultNoteCount)
+    && evidence.vaultNoteCount >= 3
     && Number.isInteger(evidence?.backlinkCount)
     && evidence.backlinkCount >= 2
     && Number.isInteger(evidence?.sessionNodeCount)
@@ -250,7 +253,10 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence?.fallbackTextOverlap === false
     && Array.isArray(evidence?.nodeTexts)
     && Array.isArray(evidence?.linkTexts)
+    && Array.isArray(evidence?.vaultNoteTexts)
     && Array.isArray(evidence?.backlinkTexts)
+    && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes(".md"))
+    && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Backlinks"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in"))
     && typeof evidence?.screenshotPath === "string"
