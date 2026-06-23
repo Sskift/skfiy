@@ -23,6 +23,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Latest session",
   "Browser Context",
   "injects prompt",
+  "recalls context",
   "Vault notes",
   "Vault backlinks",
   "Recent session recall",
@@ -258,6 +259,7 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes(".md"))
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Backlinks"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
+    && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("recalls context"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in"))
     && typeof evidence?.screenshotPath === "string"
     && evidence.screenshotPath.endsWith("-knowledge-graph.png");

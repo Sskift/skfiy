@@ -222,6 +222,7 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
           detail: createSessionNodeDetail(session)
         });
         pushEdge(edges, { from: providerId, to: nodeId, label: "answered" });
+        pushEdge(edges, { from: nodeId, to: providerId, label: "recalls context" });
       });
     } else {
       pushNode(nodes, {

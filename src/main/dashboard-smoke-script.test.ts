@@ -700,15 +700,17 @@ describe("dashboard product smoke script", () => {
         ],
         linkTexts: [
           "injects promptUser preferences -> Codex",
+          "recalls contextLatest session -> Codex",
           "observed inBrowser Context -> Latest session"
         ],
         backlinkTexts: [
           "User preferencesinjects promptCodex",
+          "Latest sessionrecalls contextCodex",
           "Browser Contextobserved inLatest session"
         ],
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 1injects prompt -> Codex",
-          "Latest session.mdsessionBacklinks 1Browser Context -> observed in"
+          "Latest session.mdsessionBacklinks 2recalls context -> CodexBrowser Context -> observed in"
         ],
         result: "passed"
       },
@@ -1062,6 +1064,7 @@ describe("dashboard product smoke script", () => {
           "Latest session",
           "Browser Context",
           "injects prompt",
+          "recalls context",
           "Vault notes",
           "Vault backlinks",
           "Recent session recall",
@@ -1100,6 +1103,7 @@ describe("dashboard product smoke script", () => {
           "Latest session",
           "Browser Context",
           "injects prompt",
+          "recalls context",
           "Vault notes",
           "Vault backlinks",
           "Recent session recall",
