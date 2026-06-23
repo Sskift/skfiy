@@ -6,7 +6,7 @@ Latest local alpha evidence recorded during this cleanup: `7666314`
 
 This document is the supervisor-facing convergence checklist for the active
 agent and Computer Use work. It does not replace
-`docs/research/2026-06-22-agent-computer-use-long-plan.md`; it turns that plan
+`docs/superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md`; it turns that plan
 into grouped ownership, QA/SRE gates, and real-scenario acceptance evidence.
 
 ## Supervisor Workflow
@@ -28,8 +28,9 @@ into grouped ownership, QA/SRE gates, and real-scenario acceptance evidence.
 4. Do not mark a feature ready because unit tests pass alone. A feature is ready
    only when its product-path smoke or equivalent real scenario is either
    passing or explicitly blocked by a manual macOS authorization/preflight state.
-5. Keep `docs/superpowers/plans/` empty except for short-lived executable
-   handoffs. Fold durable decisions back into the long plan or canonical docs.
+5. Keep exactly one active plan under `docs/superpowers/plans/`. Fold durable
+   decisions back into that plan or canonical docs so stale handoffs do not
+   compete with current direction.
 
 ## Product Boundary
 

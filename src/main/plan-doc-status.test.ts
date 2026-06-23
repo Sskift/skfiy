@@ -17,11 +17,12 @@ interface LatestAlphaEvidence {
   };
 }
 
-const longPlanPath = path.join(
+const activePlanPath = path.join(
   process.cwd(),
   "docs",
-  "research",
-  "2026-06-22-agent-computer-use-long-plan.md"
+  "superpowers",
+  "plans",
+  "2026-06-23-pet-agent-browser-dashboard.md"
 );
 
 function readLatestAlphaEvidence(): LatestAlphaEvidence {
@@ -34,13 +35,13 @@ function readLatestAlphaEvidence(): LatestAlphaEvidence {
 }
 
 describe("implementation plan status docs", () => {
-  it("keeps no stale executable implementation plan in repo docs", () => {
+  it("keeps exactly one active implementation plan in repo docs", () => {
     const planDir = path.join(process.cwd(), "docs", "superpowers", "plans");
     const activePlanFiles = existsSync(planDir)
       ? readdirSync(planDir).filter((entry) => entry.endsWith(".md"))
       : [];
 
-    expect(activePlanFiles).toEqual([]);
+    expect(activePlanFiles).toEqual(["2026-06-23-pet-agent-browser-dashboard.md"]);
   });
 
   it("documents the current local packaged-app evidence in README instead of plan archives", () => {
@@ -73,8 +74,8 @@ describe("implementation plan status docs", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
     const internalAlpha = readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8");
-    const longPlan = readFileSync(longPlanPath, "utf8");
-    const combined = [readme, workflow, internalAlpha, longPlan].join("\n");
+    const activePlan = readFileSync(activePlanPath, "utf8");
+    const combined = [readme, workflow, internalAlpha, activePlan].join("\n");
 
     expect(combined).toContain("agent-first");
     expect(combined).toContain("Computer Use is a tool capability");
@@ -102,46 +103,39 @@ describe("implementation plan status docs", () => {
     expect(readiness).not.toContain("app-agnostic observe any visible app");
   });
 
-  it("keeps the long plan focused on agent providers, dashboard, extension, CLI, and long-horizon testing", () => {
-    const longPlan = readFileSync(longPlanPath, "utf8");
+  it("keeps the active plan focused on pet usability, agent providers, browser context, and dashboard", () => {
+    const activePlan = readFileSync(activePlanPath, "utf8");
 
-    expect(longPlan).toContain("# skfiy Agent and Computer Use Implementation Plan");
-    expect(longPlan).toContain("For agentic workers");
-    expect(longPlan).toContain("Agent provider");
-    expect(longPlan).toContain("Codex");
-    expect(longPlan).toContain("Claude Code");
-    expect(longPlan).toContain("Computer Use");
-    expect(longPlan).toContain("Chrome extension");
-    expect(longPlan).toContain("dashboard");
-    expect(longPlan).toContain("HeroUI");
-    expect(longPlan).toContain("binary");
-    expect(longPlan).toContain("CLI");
-    expect(longPlan).toContain("money-run");
-    expect(longPlan).toContain("Workstream A: Dashboard UX");
-    expect(longPlan).toContain("Workstream B: Agent Provider Foundation");
-    expect(longPlan).toContain("Workstream C: Pet and Conversation Surface");
-    expect(longPlan).toContain("Workstream D: Computer Use as Agent Tool");
-    expect(longPlan).toContain("Workstream E: Chromium and Chrome Extension Control");
-    expect(longPlan).toContain("Workstream F: Binary, CLI, and Release Path");
-    expect(longPlan).toContain("Workstream G: Real Scenario Dogfood and Long-horizon Supervision");
-    expect(longPlan).toContain("Workstream H: Documentation and Plan Hygiene");
-    expect(longPlan).toContain("docs/superpowers/plans/");
-    expect(longPlan).toContain("input-method integration");
-    expect(longPlan).not.toContain("smoke:voice");
-    expect(longPlan).not.toContain("native-macos voice");
+    expect(activePlan).toContain("# Pet Agent Browser Dashboard Implementation Plan");
+    expect(activePlan).toContain("For agentic workers");
+    expect(activePlan).toContain("Pet Visual Cleanup And Stable Click Behavior");
+    expect(activePlan).toContain("Screen-Aligned Pet Drag Bounds");
+    expect(activePlan).toContain("Background Agent Provider Selection In Pet Settings");
+    expect(activePlan).toContain("Chrome Extension Page Context For Background Agent");
+    expect(activePlan).toContain("Dashboard MVP Polish And Useful Runtime Visibility");
+    expect(activePlan).toContain("End-To-End Product Validation");
+    expect(activePlan).toContain("Codex");
+    expect(activePlan).toContain("Claude Code");
+    expect(activePlan).toContain("Computer Use");
+    expect(activePlan).toContain("Chrome extension");
+    expect(activePlan).toContain("Dashboard");
+    expect(activePlan).toContain("dist/skfiy.app");
+    expect(activePlan).toContain("dist/skfiy");
+    expect(activePlan).not.toContain("smoke:voice");
+    expect(activePlan).not.toContain("native-macos voice");
   });
 
   it("documents panic stop behavior evidence in alpha and report instructions", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
     const alphaBuild = readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8");
-    const longPlan = readFileSync(longPlanPath, "utf8");
+    const activePlan = readFileSync(activePlanPath, "utf8");
     const issueTemplate = readFileSync(
       path.join(process.cwd(), ".github", "ISSUE_TEMPLATE", "skfiy-dogfood.yml"),
       "utf8"
     );
 
-    const combined = [readme, workflow, alphaBuild, longPlan, issueTemplate].join("\n");
+    const combined = [readme, workflow, alphaBuild, activePlan, issueTemplate].join("\n");
 
     expect(combined).toContain("stopTurnBehavior");
     expect(combined).toContain("Task stopped");

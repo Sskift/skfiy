@@ -417,17 +417,18 @@ describe("dogfood tester assignment packet", () => {
       path.join(process.cwd(), "docs", "development-workflow.md"),
       "utf8"
     );
-    const longPlan = readFileSync(
+    const activePlan = readFileSync(
       path.join(
         process.cwd(),
         "docs",
-        "research",
-        "2026-06-22-agent-computer-use-long-plan.md"
+        "superpowers",
+        "plans",
+        "2026-06-23-pet-agent-browser-dashboard.md"
       ),
       "utf8"
     );
 
-    const combined = [readme, workflow, longPlan].join("\n");
+    const combined = [readme, workflow, activePlan].join("\n");
 
     expect(combined).toContain("npm run dogfood:assignments -- \\");
     expect(combined).toContain("--output .skfiy-dogfood/assignments/");

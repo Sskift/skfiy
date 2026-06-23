@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the pet renderer thin and make the Electron main process own OS/window/provider state. Represent the pet's position as a visible pet anchor in display coordinates, not as a large transparent window position. Treat Background Agent, Computer Use planner, Chrome page context, and Dashboard as separate capability surfaces with explicit typed contracts between main, preload, renderer, dashboard, and extension code.
 
-**Tech Stack:** Electron, TypeScript, React 19, Vite, Vitest, macOS packaged app/helper, Chrome MV3 extension, Native Messaging, local loopback Dashboard.
+**Tech Stack:** Electron, TypeScript, React 19, Vite, Vitest, HeroUI components, macOS packaged app/helper, Chrome MV3 extension, Native Messaging, local loopback Dashboard.
 
 ---
 
@@ -683,6 +683,7 @@ If a smoke is blocked by local macOS permissions or Chrome environment, record t
 - Pet drag respects visible screen bounds at all four edges.
 - Pet settings show Background Agent Provider choices.
 - Selecting Codex changes the next background agent provider.
+- Panic stop and `stopTurnBehavior` still surface `Task stopped` evidence.
 - Chrome extension state says whether page context is ready, blocked, stale, or missing.
 - Pet agent can answer using current webpage context when extension pageControl is ready.
 - Dashboard is visually clean and shows assistant, Computer Use, Chrome, current turn, latest blocker, and recent runtime evidence.

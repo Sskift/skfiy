@@ -461,19 +461,20 @@ describe("mac release signing and notarization scripts", () => {
     const internalAlpha = await import("node:fs").then(({ readFileSync }) =>
       readFileSync(path.join(process.cwd(), "docs", "internal-alpha-build.md"), "utf8")
     );
-    const longPlan = await import("node:fs").then(({ readFileSync }) =>
+    const activePlan = await import("node:fs").then(({ readFileSync }) =>
       readFileSync(
         path.join(
           process.cwd(),
           "docs",
-          "research",
-          "2026-06-22-agent-computer-use-long-plan.md"
+          "superpowers",
+          "plans",
+          "2026-06-23-pet-agent-browser-dashboard.md"
         ),
         "utf8"
       )
     );
 
-    const combined = [workflow, internalAlpha, longPlan].join("\n");
+    const combined = [workflow, internalAlpha, activePlan].join("\n");
 
     expect(combined).toContain("npm run release:mac:check -- --json-output .skfiy-release/mac-release-check.json");
     expect(combined).toContain("machine-readable JSON");

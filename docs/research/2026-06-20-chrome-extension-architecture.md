@@ -55,8 +55,8 @@ Sources:
 
 - OpenAI Codex manual, `Codex Chrome extension`, fetched 2026-06-20 from
   `https://developers.openai.com/codex/app/chrome-extension`.
-- Local long plan:
-  `docs/research/2026-06-22-agent-computer-use-long-plan.md`.
+- Active implementation plan:
+  `docs/superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md`.
 
 ## skfiy Responsibilities
 

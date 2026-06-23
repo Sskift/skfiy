@@ -18,9 +18,9 @@ research notes as dated context unless they contain a still-open product gap.
   workstream ownership, real-scenario acceptance, and QA/SRE gate.
 - `release-evidence/latest-alpha.json`: latest published alpha pointer used by
   dashboard and dogfood readiness checks.
-- `research/2026-06-22-agent-computer-use-long-plan.md`: the single active
-  long-range implementation plan for dashboard, Agent provider, Computer Use,
-  Chromium extension, binary/CLI, release, and money-run dogfood work.
+- `superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md`: the single
+  active implementation plan for Pet usability, Background Agent provider
+  selection, Chrome browser context, Dashboard visibility, and validation.
 
 ## Reference Docs
 
@@ -29,9 +29,9 @@ research notes as dated context unless they contain a still-open product gap.
 - `research/`: dated research, architecture notes, and implementation logs.
   Most files are archival, not active task lists. The dated long plan above is
   the one exception while these workstreams are still open.
-- `superpowers/plans/`: optional executable implementation plans for active
-  agentic work. Delete or fold them back into the canonical long plan once that
-  slice lands, so stale task handoffs do not compete with current direction.
+- `superpowers/plans/`: active implementation plans for agentic work. Keep
+  exactly one active plan unless the project owner explicitly asks for a
+  temporary split.
 
 ## Local Artifact Hygiene
 
