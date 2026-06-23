@@ -785,7 +785,7 @@ git commit -m "feat: add bounded hermes background agent"
 - Modify: `src/dashboard/DashboardApp.tsx`
 - Modify: `src/dashboard/DashboardApp.test.tsx`
 
-- [ ] **Step 1: Write memory store tests**
+- [x] **Step 1: Write memory store tests**
 
 Create `src/main/personal-memory.test.ts`:
 
@@ -836,7 +836,7 @@ describe("personal memory store", () => {
 
 Use a small local `createMemoryIo(files)` helper in the test that implements `exists`, `readFile`, `writeFile`, and `mkdir`.
 
-- [ ] **Step 2: Implement local memory files**
+- [x] **Step 2: Implement local memory files**
 
 Create `src/main/personal-memory.ts`:
 
@@ -846,7 +846,7 @@ Create `src/main/personal-memory.ts`:
 - Expose `createPersonalMemoryPromptBlock(snapshot)` that wraps memory in a fenced block labelled as recalled context, not new user input.
 - Reject entries containing direct prompt-injection phrases such as `ignore previous instructions`, `reveal secrets`, `system prompt`, or `developer message`.
 
-- [ ] **Step 3: Write post-turn review tests**
+- [x] **Step 3: Write post-turn review tests**
 
 Create `src/main/personal-memory-review.test.ts`:
 
@@ -876,7 +876,7 @@ describe("personal memory review", () => {
 });
 ```
 
-- [ ] **Step 4: Implement bounded review after assistant turns**
+- [x] **Step 4: Implement bounded review after assistant turns**
 
 Create `src/main/personal-memory-review.ts`:
 
@@ -892,7 +892,7 @@ In `src/main/main.ts`:
 - Emit a task event or dashboard-only marker when memory changed.
 - Do not block the visible assistant response on memory review completion.
 
-- [ ] **Step 5: Add session recall index**
+- [x] **Step 5: Add session recall index**
 
 Create `src/main/session-memory.ts`:
 
@@ -902,7 +902,7 @@ Create `src/main/session-memory.ts`:
 
 Add tests in `src/main/session-memory.test.ts` for append and search.
 
-- [ ] **Step 6: Inject memory into Background Agent prompts**
+- [x] **Step 6: Inject memory into Background Agent prompts**
 
 In `src/main/assistant-agent.ts`:
 
@@ -912,7 +912,7 @@ In `src/main/assistant-agent.ts`:
 
 Add tests in `src/main/assistant-agent.test.ts` asserting memory appears before `User:` and after the skfiy identity block.
 
-- [ ] **Step 7: Dashboard memory visibility**
+- [x] **Step 7: Dashboard memory visibility**
 
 In `src/main/dashboard-data.ts`, add a `personalMemory` snapshot:
 
@@ -935,7 +935,7 @@ In `src/dashboard/DashboardApp.tsx`, add a `Memory` section that shows:
 
 Do not show raw hidden files or token-like values.
 
-- [ ] **Step 8: Verification and commit**
+- [x] **Step 8: Verification and commit**
 
 Run:
 

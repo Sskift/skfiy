@@ -259,6 +259,27 @@ describe("assistant agent provider", () => {
     expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("User: 你是谁"));
   });
 
+  it("injects personal memory after skfiy identity and before Browser Context", () => {
+    const invocation = buildAssistantAgentInvocation(baseSettings, "summarize this page", {
+      state: "ready",
+      url: "https://example.test",
+      title: "Example",
+      visibleText: "Example text",
+      observedAt: "2026-06-23T00:00:00.000Z"
+    }, {
+      userEntries: ["User prefers concise Chinese progress updates."],
+      agentEntries: ["For skfiy UI work, verify packaged app smoke evidence."]
+    });
+
+    const prompt = invocation.args.at(-1) ?? "";
+    expect(prompt).toContain("User preferences");
+    expect(prompt).toContain("User prefers concise Chinese progress updates.");
+    expect(prompt).toContain("Agent operating notes");
+    expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("<skfiy-recalled-memory>"));
+    expect(prompt.indexOf("<skfiy-recalled-memory>")).toBeLessThan(prompt.indexOf("Current Chrome page"));
+    expect(prompt.indexOf("<skfiy-recalled-memory>")).toBeLessThan(prompt.indexOf("User: summarize this page"));
+  });
+
   it("uses the same skfiy identity prompt for Claude Code backend calls", () => {
     const invocation = buildAssistantAgentInvocation({
       mode: "claude-code",

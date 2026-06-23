@@ -87,10 +87,20 @@ export interface DashboardSnapshot {
   dogfoodRelease: Record<string, unknown>;
   longHorizon: Record<string, unknown>;
   alerts: Array<Record<string, unknown>>;
+  personalMemory?: DashboardPersonalMemorySummary;
   providers?: {
     assistant?: DashboardProviderSummary;
     planner?: DashboardProviderSummary;
   };
+}
+
+export interface DashboardPersonalMemorySummary {
+  userEntryCount: number;
+  agentEntryCount: number;
+  sessionCount: number;
+  latestUpdatedAt?: string;
+  recentUserEntries: string[];
+  recentAgentEntries: string[];
 }
 
 export interface DashboardChromeControlActionRequest {

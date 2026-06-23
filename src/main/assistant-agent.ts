@@ -8,6 +8,10 @@ import {
   createBrowserPageContextPromptBlock,
   type BrowserPageContext
 } from "./browser-page-context.js";
+import {
+  createPersonalMemoryPromptBlock,
+  type PersonalMemorySnapshot
+} from "./personal-memory.js";
 import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
 
 export type AssistantAgentMode = "codex" | "claude-code" | "hermes";
@@ -64,6 +68,7 @@ export type AssistantAgentExecutableResolver = (command: string) => Promise<stri
 export interface RunAssistantAgentTurnInput {
   settings: AssistantAgentSettings;
   browserPageContext?: BrowserPageContext;
+  personalMemory?: PersonalMemorySnapshot;
   runProcess?: AssistantAgentProcessRunner;
   now?: () => Date;
   createTurnId?: () => string;
@@ -190,9 +195,10 @@ export async function readAssistantAgentProviderStates(
 export function buildAssistantAgentInvocation(
   settings: AssistantAgentSettings,
   userInput: string,
-  browserPageContext?: BrowserPageContext
+  browserPageContext?: BrowserPageContext,
+  personalMemory?: PersonalMemorySnapshot
 ): AssistantAgentInvocation {
-  const prompt = createAssistantAgentPrompt(userInput, browserPageContext);
+  const prompt = createAssistantAgentPrompt(userInput, browserPageContext, personalMemory);
 
   if (settings.mode === "codex") {
     return {
@@ -263,13 +269,14 @@ export async function runAssistantAgentTurn(
     now = () => new Date(),
     createTurnId = createAssistantAgentTurnId,
     signal,
-    browserPageContext
+    browserPageContext,
+    personalMemory
   }: RunAssistantAgentTurnInput
 ): Promise<AssistantAgentTurnResult> {
   const id = createTurnId();
   const createdAt = now().toISOString();
   const route = selectCommandRoute(userInput);
-  const invocation = buildAssistantAgentInvocation(settings, userInput, browserPageContext);
+  const invocation = buildAssistantAgentInvocation(settings, userInput, browserPageContext, personalMemory);
   const providerLabel = invocation.label;
   const toolCalls = createAssistantAgentPlannedToolCalls({
     turnId: id,
@@ -623,7 +630,15 @@ function resolveCommonMacCliPath(command: string): string | undefined {
     .find((candidate) => existsSync(candidate));
 }
 
-function createAssistantAgentPrompt(userInput: string, browserPageContext?: BrowserPageContext): string {
+function createAssistantAgentPrompt(
+  userInput: string,
+  browserPageContext?: BrowserPageContext,
+  personalMemory?: PersonalMemorySnapshot
+): string {
+  const personalMemoryBlock = personalMemory
+    ? createPersonalMemoryPromptBlock(personalMemory)
+    : "";
+
   return [
     "You are skfiy, an agent-first macOS desktop pet.",
     "Codex, Claude Code, and Hermes are only backend providers used to run this turn.",
@@ -634,6 +649,7 @@ function createAssistantAgentPrompt(userInput: string, browserPageContext?: Brow
     "Do not execute commands, edit files, or control apps directly from this provider call.",
     "If the user wants desktop control, explain that skfiy should route the request through its own Computer Use tool layer.",
     "",
+    ...(personalMemoryBlock ? [personalMemoryBlock, ""] : []),
     ...(browserPageContext ? [createBrowserPageContextPromptBlock(browserPageContext), ""] : []),
     `User: ${userInput.trim()}`
   ].join("\n");

@@ -164,6 +164,14 @@ const snapshot: DashboardSnapshot = {
       endpointConfigured: true,
       externalApiKeyConfigured: true
     }
+  },
+  personalMemory: {
+    userEntryCount: 1,
+    agentEntryCount: 1,
+    sessionCount: 2,
+    latestUpdatedAt: "2026-06-23T10:00:00.000Z",
+    recentUserEntries: ["User prefers concise Chinese updates."],
+    recentAgentEntries: ["For dashboard work, prefer dense Obsidian-like knowledge surfaces."]
   }
 };
 
@@ -190,6 +198,7 @@ describe("DashboardApp", () => {
     const navigation = screen.getByRole("navigation", { name: "skfiy dashboard navigation" });
     expect(within(navigation).getByRole("link", { name: "Overview" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Provider" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Memory" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Computer Use" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Browser" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Activity" })).toBeInTheDocument();
@@ -198,6 +207,7 @@ describe("DashboardApp", () => {
     expect(screen.getByRole("heading", { name: "skfiy control plane" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Overview" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Provider" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Memory" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Computer Use" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Browser" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Activity" })).toBeInTheDocument();
@@ -226,6 +236,12 @@ describe("DashboardApp", () => {
     expect(within(assistantHealth).getByText("source env")).toBeInTheDocument();
     expect(within(assistantHealth).getByText("readiness unavailable")).toBeInTheDocument();
     expect(within(assistantHealth).getByText("missing-claude not found")).toBeInTheDocument();
+
+    const memory = screen.getByRole("region", { name: "Memory" });
+    expect(within(memory).getByRole("heading", { name: "Personal memory" })).toBeInTheDocument();
+    expect(within(memory).getByText("User prefers concise Chinese updates.")).toBeInTheDocument();
+    expect(within(memory).getByText("For dashboard work, prefer dense Obsidian-like knowledge surfaces.")).toBeInTheDocument();
+    expect(within(memory).getByText("sessions 2")).toBeInTheDocument();
 
     const computerUse = screen.getByRole("region", { name: "Computer Use" });
     expect(within(computerUse).getByRole("heading", { name: "Computer use" })).toBeInTheDocument();

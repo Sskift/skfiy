@@ -33,6 +33,15 @@ import {
   createAssistantAgentSettingsStore,
   readInitialAssistantAgentSettingsFromConfig
 } from "./assistant-agent-settings.js";
+import {
+  createPersonalMemoryStore,
+  createSkfiyApplicationSupportPath
+} from "./personal-memory.js";
+import {
+  createPersonalMemoryReviewPrompt,
+  parsePersonalMemoryReview
+} from "./personal-memory-review.js";
+import { createSessionMemoryStore } from "./session-memory.js";
 import { summarizeAssistantToolPlan } from "./assistant-tools.js";
 import {
   createBrowserPageContextFromConnection,
@@ -157,6 +166,8 @@ const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
 app.setName("skfiy");
 const COMPACT_WINDOW_SIZE: Size = { width: 90, height: 66 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
+const PERSONAL_MEMORY_REVIEW_TIMEOUT_MS = 15_000;
+const skfiyAppSupportDir = createSkfiyApplicationSupportPath(os.homedir());
 const appPolicySettingsStore = createAppPolicySettingsStore(readInitialAppPolicySettings());
 const chromeCdpEndpoint = readChromeCdpEndpoint({
   argv: process.argv,
@@ -168,6 +179,12 @@ const plannerProviderSettingsStore = createPlannerProviderSettingsStore(
 const assistantAgentSettingsStore = createAssistantAgentSettingsStore(
   readInitialAssistantAgentSettingsFromConfig(process.env, { cwd: process.cwd() })
 );
+const personalMemoryStore = createPersonalMemoryStore({
+  baseDir: skfiyAppSupportDir
+});
+const sessionMemoryStore = createSessionMemoryStore({
+  baseDir: skfiyAppSupportDir
+});
 const turnReplayStore = createTurnReplayStore({
   onReplayChanged: (replay) => {
     persistRuntimeSnapshot(replay);
@@ -529,11 +546,19 @@ async function readLatestBrowserPageContext(): Promise<BrowserPageContext> {
 }
 
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
+  const browserPageContext = await readLatestBrowserPageContext();
+  const personalMemory = personalMemoryStore.read();
+
   try {
-    return await runAssistantAgentTurn(input, {
+    const turn = await runAssistantAgentTurn(input, {
       settings: assistantAgentSettingsStore.get(),
-      browserPageContext: await readLatestBrowserPageContext()
+      browserPageContext,
+      personalMemory
     });
+    if (turn.status === "completed") {
+      schedulePersonalMemoryPostTurnReview(input, turn, browserPageContext);
+    }
+    return turn;
   } catch (error) {
     if (error instanceof AssistantAgentTurnRuntimeError) {
       return error.turn;
@@ -541,6 +566,53 @@ async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAge
 
     throw error;
   }
+}
+
+function schedulePersonalMemoryPostTurnReview(
+  userInput: string,
+  turn: AssistantAgentTurnResult,
+  browserPageContext: BrowserPageContext
+): void {
+  try {
+    sessionMemoryStore.append({
+      turnId: turn.id,
+      createdAt: turn.createdAt,
+      userInput,
+      assistantReply: turn.message,
+      providerLabel: turn.providerLabel,
+      ...((browserPageContext.url || browserPageContext.title) ? {
+        browserContext: {
+          ...(browserPageContext.url ? { url: browserPageContext.url } : {}),
+          ...(browserPageContext.title ? { title: browserPageContext.title } : {})
+        }
+      } : {})
+    });
+  } catch {
+    // Personalization is best-effort and must not interrupt the visible reply.
+  }
+
+  const existingMemory = personalMemoryStore.read();
+  const reviewPrompt = createPersonalMemoryReviewPrompt({
+    userInput,
+    assistantReply: turn.message,
+    existingMemory
+  });
+  const settings = assistantAgentSettingsStore.get();
+
+  void runAssistantAgentTurn(reviewPrompt, {
+    settings: {
+      ...settings,
+      timeoutMs: Math.min(settings.timeoutMs, PERSONAL_MEMORY_REVIEW_TIMEOUT_MS)
+    },
+    personalMemory: existingMemory
+  }).then((reviewTurn) => {
+    if (reviewTurn.status !== "completed") {
+      return;
+    }
+    personalMemoryStore.applyOperations(parsePersonalMemoryReview(reviewTurn.message));
+  }).catch(() => {
+    // Memory review is intentionally best-effort.
+  });
 }
 
 function createAssistantAgentTaskMessage(turn: AssistantAgentTurnResult): string {

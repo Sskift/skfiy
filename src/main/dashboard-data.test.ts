@@ -142,6 +142,55 @@ describe("dashboard snapshot data", () => {
     expect(JSON.stringify(snapshot)).not.toContain("token=");
   });
 
+  it("adds personal memory summaries from local memory files", () => {
+    const files: Record<string, string> = {
+      "/Users/tester/Library/Application Support/skfiy/memory/USER.md": [
+        "User prefers concise Chinese updates.",
+        "User's API token=secret should not be displayed."
+      ].join("\n---\n"),
+      "/Users/tester/Library/Application Support/skfiy/memory/AGENT.md": [
+        "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
+      ].join("\n"),
+      "/Users/tester/Library/Application Support/skfiy/memory/sessions.jsonl": [
+        JSON.stringify({
+          turnId: "turn-1",
+          createdAt: "2026-06-23T10:00:00.000Z",
+          userInput: "喜欢 Obsidian dashboard",
+          assistantReply: "会保留这个偏好。",
+          providerLabel: "Codex"
+        })
+      ].join("\n")
+    };
+
+    const snapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      generatedAt: "2026-06-23T10:10:00.000Z",
+      io: {
+        exists: (targetPath) => targetPath === "/repo/package.json" || targetPath in files,
+        readFile: (targetPath) => files[targetPath],
+        readdir: () => [],
+        stat: () => ({ mtimeMs: Date.parse("2026-06-23T10:00:00.000Z") }),
+        homeDir: () => "/Users/tester"
+      }
+    });
+
+    expect(snapshot.personalMemory).toEqual({
+      userEntryCount: 2,
+      agentEntryCount: 1,
+      sessionCount: 1,
+      latestUpdatedAt: "2026-06-23T10:00:00.000Z",
+      recentUserEntries: [
+        "User prefers concise Chinese updates.",
+        "[redacted sensitive memory]"
+      ],
+      recentAgentEntries: [
+        "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
+      ]
+    });
+    expect(JSON.stringify(snapshot.personalMemory)).not.toContain("token=secret");
+  });
+
   it("reads workspace provider settings from env without exposing raw env values", () => {
     const snapshot = createDashboardWorkspaceSnapshot({
       rootDir: "/repo",

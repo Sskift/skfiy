@@ -39,6 +39,7 @@ import type {
   DashboardChromeHostPolicyAction,
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
+  DashboardPersonalMemorySummary,
   DashboardPlannerProviderMode,
   DashboardPlannerProviderSettingsUpdate,
   DashboardAssistantProviderStatus,
@@ -89,6 +90,7 @@ export interface DashboardAppProps {
 const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: Home },
   { id: "provider", label: "Provider", icon: Bot },
+  { id: "memory", label: "Memory", icon: History },
   { id: "computer-use", label: "Computer Use", icon: MonitorCog },
   { id: "browser", label: "Browser", icon: Chrome },
   { id: "activity", label: "Activity", icon: Activity },
@@ -385,6 +387,20 @@ function DashboardContent({
       </section>
 
       <section
+        id="memory"
+        className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
+        aria-labelledby="memory-title"
+      >
+        <div className="skfiy-dashboard-section-heading">
+          <div>
+            <span>Local knowledge</span>
+            <h2 id="memory-title">Memory</h2>
+          </div>
+        </div>
+        <PersonalMemoryPanel memory={snapshot.personalMemory} />
+      </section>
+
+      <section
         id="computer-use"
         className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
         aria-labelledby="computer-use-title"
@@ -627,6 +643,71 @@ function DashboardContent({
           </Card.Content>
         </Card.Root>
       </section>
+    </div>
+  );
+}
+
+function PersonalMemoryPanel({
+  memory
+}: {
+  memory: DashboardPersonalMemorySummary | undefined;
+}) {
+  const userEntries = memory?.recentUserEntries ?? [];
+  const agentEntries = memory?.recentAgentEntries ?? [];
+
+  return (
+    <Card.Root
+      aria-label="Personal memory"
+      className="skfiy-dashboard-card"
+      role="region"
+      variant="secondary"
+    >
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>Personalization</Card.Description>
+          <Card.Title>Personal memory</Card.Title>
+        </div>
+        <History size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <div className="skfiy-dashboard-inline-list" aria-label="Personal memory status">
+          <StatusChip tone={memory ? "success" : "warning"}>
+            user entries {memory?.userEntryCount ?? 0}
+          </StatusChip>
+          <StatusChip tone={memory ? "success" : "warning"}>
+            agent notes {memory?.agentEntryCount ?? 0}
+          </StatusChip>
+          <StatusChip tone="neutral">sessions {memory?.sessionCount ?? 0}</StatusChip>
+          <StatusChip tone="neutral">updated {formatGeneratedAt(memory?.latestUpdatedAt ?? "")}</StatusChip>
+        </div>
+        <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
+          <MemoryEntryList title="User preferences" entries={userEntries} />
+          <MemoryEntryList title="Agent operating notes" entries={agentEntries} />
+        </div>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function MemoryEntryList({
+  title,
+  entries
+}: {
+  title: string;
+  entries: string[];
+}) {
+  return (
+    <div className="skfiy-dashboard-key-value-list">
+      <h3>{title}</h3>
+      {entries.length > 0 ? (
+        <ul>
+          {entries.map((entry) => (
+            <li key={entry}>{entry}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="skfiy-dashboard-empty">No durable memory has been recorded yet.</p>
+      )}
     </div>
   );
 }

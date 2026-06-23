@@ -34,6 +34,11 @@ import {
   type AssistantAgentSettings
 } from "./assistant-agent.js";
 import {
+  createSkfiyApplicationSupportPath,
+  readPersonalMemorySnapshot
+} from "./personal-memory.js";
+import { readSessionMemoryRecords } from "./session-memory.js";
+import {
   createBrowserPageContextFromConnection,
   normalizeBrowserPageContext
 } from "./browser-page-context.js";
@@ -107,6 +112,7 @@ export interface DashboardSnapshotInput {
   dogfoodRelease?: Record<string, unknown>;
   longHorizon?: Record<string, unknown>;
   providerSettings?: DashboardProviderSettingsInput;
+  personalMemory?: Record<string, unknown>;
 }
 
 export interface DashboardProviderSettingsInput {
@@ -174,6 +180,7 @@ export interface DashboardSnapshot {
   };
   dogfoodRelease: Record<string, unknown>;
   longHorizon: Record<string, unknown>;
+  personalMemory?: Record<string, unknown>;
   alerts: Array<Record<string, unknown>>;
   providers?: {
     assistant?: Record<string, unknown>;
@@ -190,7 +197,8 @@ export function createDashboardSnapshot({
   smokeEvidence = { artifacts: [] },
   dogfoodRelease = { state: "unknown" },
   longHorizon = { state: "unknown", session: "money-run" },
-  providerSettings
+  providerSettings,
+  personalMemory
 }: DashboardSnapshotInput): DashboardSnapshot {
   const permissions = readRecord(status.permissions) ?? createUnknownPermissions();
   const runtimeSnapshot = readRecord(status.runtimeSnapshot);
@@ -244,6 +252,7 @@ export function createDashboardSnapshot({
     },
     dogfoodRelease: cloneRecord(dogfoodRelease),
     longHorizon: cloneRecord(longHorizon),
+    ...(personalMemory ? { personalMemory: cloneRecord(personalMemory) } : {}),
     ...(providerSettings ? { providers: createDashboardProviderSummaries(providerSettings, generatedAt) } : {}),
     alerts: createDashboardAlerts({
       permissions,
@@ -320,10 +329,37 @@ export function createDashboardWorkspaceSnapshot({
     },
     dogfoodRelease: readWorkspaceDogfoodRelease(rootDir, io),
     longHorizon: readWorkspaceLongHorizon(io),
+    personalMemory: readWorkspacePersonalMemory(io),
     providerSettings: providerSettings ?? readWorkspaceProviderSettings(env, rootDir)
   });
 
   return snapshot;
+}
+
+function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, unknown> | undefined {
+  const homeDir = io.homeDir?.();
+  if (!homeDir) {
+    return undefined;
+  }
+
+  const baseDir = createSkfiyApplicationSupportPath(homeDir);
+  const personalMemory = readPersonalMemorySnapshot({
+    baseDir,
+    io
+  });
+  const sessionCount = readSessionMemoryRecords({
+    baseDir,
+    io
+  }).length;
+
+  return {
+    userEntryCount: personalMemory.userEntries.length,
+    agentEntryCount: personalMemory.agentEntries.length,
+    sessionCount,
+    ...(personalMemory.latestUpdatedAt ? { latestUpdatedAt: personalMemory.latestUpdatedAt } : {}),
+    recentUserEntries: personalMemory.userEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
+    recentAgentEntries: personalMemory.agentEntries.slice(-5).map(sanitizeDashboardMemoryEntry)
+  };
 }
 
 function readWorkspaceProviderSettings(
@@ -457,6 +493,14 @@ function summarizeAssistantBinaryPath(
 
 function shouldRedactAssistantBinaryPath(value: string): boolean {
   return /secret|token=|apikey|api_key|password/i.test(value);
+}
+
+function sanitizeDashboardMemoryEntry(value: string): string {
+  if (/secret|token=|apikey|api_key|password|bearer\s+|sk-[a-z0-9]/iu.test(value)) {
+    return "[redacted sensitive memory]";
+  }
+
+  return value;
 }
 
 function readAssistantProviderLabel(mode: AssistantAgentSettings["mode"]): string {
