@@ -206,6 +206,13 @@ export interface WindowBounds {
   height: number;
 }
 
+export interface VisiblePetRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface TaskEvent {
   status: TaskStatus;
   message?: string;
@@ -290,7 +297,7 @@ export interface DesktopApi {
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   getPetSkin: () => Promise<PetAtlasManifest | null>;
   getWindowBounds: () => Promise<WindowBounds | null>;
-  moveWindowBy: (deltaX: number, deltaY: number) => void;
+  moveWindowBy: (deltaX: number, deltaY: number, visibleRect?: VisiblePetRect) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onStopTurnHotkey: (callback: () => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
@@ -313,6 +320,7 @@ interface PetDragState {
   lastScreenX: number;
   lastScreenY: number;
   moved: boolean;
+  visibleRect: VisiblePetRect;
 }
 
 const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
@@ -724,6 +732,15 @@ function readDesktopSessionPermissionState(
   }
 
   return "unknown";
+}
+
+function readVisiblePetRect(rect: DOMRect): VisiblePetRect {
+  return {
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height
+  };
 }
 
 function canStopTurn(status: TaskStatus): boolean {
@@ -1350,7 +1367,8 @@ export default function App() {
       pointerId: event.pointerId,
       lastScreenX: event.screenX,
       lastScreenY: event.screenY,
-      moved: false
+      moved: false,
+      visibleRect: readVisiblePetRect(event.currentTarget.getBoundingClientRect())
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -1373,9 +1391,17 @@ export default function App() {
       pointerId: drag.pointerId,
       lastScreenX: event.screenX,
       lastScreenY: event.screenY,
-      moved: true
+      moved: true,
+      visibleRect: drag.visibleRect
     };
-    api.moveWindowBy(deltaX, deltaY);
+
+    if (!drag.moved) {
+      setDetailsOpen(false);
+      setPermissionOnboardingOpen(false);
+      setAssistantPanelOpen(false);
+    }
+
+    api.moveWindowBy(deltaX, deltaY, drag.visibleRect);
   }
 
   function stopPetDrag(event: ReactPointerEvent<HTMLDivElement>) {

@@ -126,8 +126,8 @@ beforeEach(() => {
     getWindowBounds: vi.fn<DesktopApi["getWindowBounds"]>().mockResolvedValue({
       x: 100,
       y: 100,
-      width: 320,
-      height: 224
+      width: 90,
+      height: 66
     }),
     moveWindowBy: vi.fn<DesktopApi["moveWindowBy"]>(),
     setWindowMode: vi.fn<DesktopApi["setWindowMode"]>(),
@@ -689,6 +689,18 @@ describe("App", () => {
     const pet = screen.getByLabelText(/skfiy codex-style pet/i);
     const api = window.skfiy as DesktopApi;
 
+    vi.spyOn(pet, "getBoundingClientRect").mockReturnValue({
+      x: 114,
+      y: 15,
+      left: 114,
+      top: 15,
+      width: 90,
+      height: 66,
+      right: 204,
+      bottom: 81,
+      toJSON: () => ({})
+    } as DOMRect);
+
     fireEvent.pointerDown(pet, { button: 0, pointerId: 7, screenX: 100, screenY: 100 });
     fireEvent.pointerMove(pet, { pointerId: 7, screenX: 112, screenY: 42 });
     fireEvent.pointerMove(pet, { pointerId: 7, screenX: 112, screenY: 12 });
@@ -696,9 +708,65 @@ describe("App", () => {
     fireEvent.click(pet);
 
     expect(pet).toHaveAttribute("data-drag-mode", "manual");
-    expect(api.moveWindowBy).toHaveBeenNthCalledWith(1, 12, -58);
-    expect(api.moveWindowBy).toHaveBeenNthCalledWith(2, 0, -30);
+    expect(api.moveWindowBy).toHaveBeenNthCalledWith(1, 12, -58, {
+      x: 114,
+      y: 15,
+      width: 90,
+      height: 66
+    });
+    expect(api.moveWindowBy).toHaveBeenNthCalledWith(2, 0, -30, {
+      x: 114,
+      y: 15,
+      width: 90,
+      height: 66
+    });
     expect(screen.queryByLabelText(/skfiy command capsule/i)).not.toBeInTheDocument();
+  });
+
+  it("sends the visible pet rect when dragging", () => {
+    render(<App />);
+
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    const api = window.skfiy as DesktopApi;
+
+    vi.spyOn(pet, "getBoundingClientRect").mockReturnValue({
+      x: 114,
+      y: 15,
+      left: 114,
+      top: 15,
+      width: 90,
+      height: 66,
+      right: 204,
+      bottom: 81,
+      toJSON: () => ({})
+    } as DOMRect);
+
+    fireEvent.pointerDown(pet, { button: 0, pointerId: 1, screenX: 200, screenY: 200 });
+    fireEvent.pointerMove(pet, { pointerId: 1, screenX: 210, screenY: 215 });
+
+    expect(api.moveWindowBy).toHaveBeenCalledWith(10, 15, {
+      x: 114,
+      y: 15,
+      width: 90,
+      height: 66
+    });
+  });
+
+  it("collapses transient panels when dragging starts", async () => {
+    render(<App />);
+
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    const api = window.skfiy as DesktopApi;
+
+    fireEvent.click(pet);
+    expect(screen.getByLabelText(/skfiy agent status/i)).toBeInTheDocument();
+
+    fireEvent.pointerDown(pet, { button: 0, pointerId: 2, screenX: 100, screenY: 100 });
+    fireEvent.pointerMove(pet, { pointerId: 2, screenX: 112, screenY: 110 });
+
+    expect(api.moveWindowBy).toHaveBeenCalled();
+    await waitFor(() => expect(api.setWindowMode).toHaveBeenLastCalledWith("compact"));
+    expect(screen.queryByLabelText(/skfiy agent status/i)).not.toBeInTheDocument();
   });
 
   it("uses a compact transparent window until an agent or task bubble is visible", async () => {

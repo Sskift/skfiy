@@ -92,9 +92,9 @@ async function main() {
 
       Object.assign(
         evidence,
-        await evaluateValue(
-          cdp,
-          createInspectPermissionOnboardingExpression(options.settleMs)
+      await evaluateValue(
+        cdp,
+        createInspectPermissionOnboardingExpression(options.settleMs)
         )
       );
       evidence.layoutDiagnostics = await evaluateValue(
@@ -243,9 +243,18 @@ function createInspectPermissionOnboardingExpression(settleMs) {
     "(() => {",
     inspectPermissionOnboardingExpression.toString(),
     exercisePetDrag.toString(),
+    exerciseVisiblePetEdgeChecks.toString(),
+    dragPetByDelta.toString(),
+    readVisiblePetDragSnapshot.toString(),
+    readRendererScreenBounds.toString(),
+    readFiniteMetric.toString(),
+    isVisibleEdgeAligned.toString(),
+    hasVisiblePetEdgeChecks.toString(),
     exerciseStopTurnBehavior.toString(),
     waitForTaskEvent.toString(),
     dispatchPetPointerEvent.toString(),
+    rectToPlainObject.toString(),
+    roundMetric.toString(),
     hasWindowBounds.toString(),
     `return inspectPermissionOnboardingExpression(${JSON.stringify(settleMs)});`,
     "})()"
@@ -493,6 +502,9 @@ async function exercisePetDrag(pet) {
       source: "renderer-pointer-events-window-bounds",
       beforeBounds: null,
       afterBounds: null,
+      beforeVisiblePet: null,
+      afterVisiblePet: null,
+      visibleEdgeChecks: [],
       moveEvents,
       totalDeltaX: 0,
       totalDeltaY: 0,
@@ -501,7 +513,8 @@ async function exercisePetDrag(pet) {
     };
   }
 
-  const beforeBounds = await skfiy.getWindowBounds();
+  const beforeSnapshot = await readVisiblePetDragSnapshot(pet, skfiy);
+  const beforeBounds = beforeSnapshot?.windowBounds ?? null;
 
   dispatchPetPointerEvent(pet, "pointerdown", { screenX: 100, screenY: 100, buttons: 1 });
   dispatchPetPointerEvent(pet, "pointermove", { screenX: 112, screenY: 42, buttons: 1 });
@@ -509,7 +522,9 @@ async function exercisePetDrag(pet) {
   dispatchPetPointerEvent(pet, "pointerup", { screenX: 112, screenY: 12, buttons: 0 });
   await new Promise((resolve) => window.setTimeout(resolve, 250));
 
-  const afterBounds = await skfiy.getWindowBounds();
+  const afterSnapshot = await readVisiblePetDragSnapshot(pet, skfiy);
+  const afterBounds = afterSnapshot?.windowBounds ?? null;
+  const visibleEdgeChecks = await exerciseVisiblePetEdgeChecks(pet, skfiy);
 
   pet.dispatchEvent(new MouseEvent("click", {
     bubbles: true,
@@ -528,6 +543,7 @@ async function exercisePetDrag(pet) {
   return {
     result: hasWindowBounds(beforeBounds)
       && hasWindowBounds(afterBounds)
+      && hasVisiblePetEdgeChecks(visibleEdgeChecks)
       && totalDeltaY < 0
       && suppressedClickAfterDrag
       ? "passed"
@@ -535,6 +551,9 @@ async function exercisePetDrag(pet) {
     source: "renderer-pointer-events-window-bounds",
     beforeBounds,
     afterBounds,
+    beforeVisiblePet: beforeSnapshot?.visiblePet ?? null,
+    afterVisiblePet: afterSnapshot?.visiblePet ?? null,
+    visibleEdgeChecks,
     moveEvents,
     totalDeltaX,
     totalDeltaY,
@@ -543,7 +562,163 @@ async function exercisePetDrag(pet) {
   };
 }
 
-function dispatchPetPointerEvent(pet, type, { screenX, screenY, buttons }) {
+async function exerciseVisiblePetEdgeChecks(pet, skfiy) {
+  const moves = [
+    { edge: "top", deltaX: 0, deltaY: -10_000 },
+    { edge: "left", deltaX: -10_000, deltaY: 0 },
+    { edge: "right", deltaX: 10_000, deltaY: 0 },
+    { edge: "bottom", deltaX: 0, deltaY: 10_000 }
+  ];
+  const checks = [];
+
+  for (const move of moves) {
+    await dragPetByDelta(pet, move.deltaX, move.deltaY);
+
+    const snapshot = await readVisiblePetDragSnapshot(pet, skfiy);
+    const passed = Boolean(snapshot) && isVisibleEdgeAligned(move.edge, snapshot);
+
+    checks.push({
+      edge: move.edge,
+      requestedDelta: { x: move.deltaX, y: move.deltaY },
+      passed,
+      tolerance: 2,
+      windowBounds: snapshot?.windowBounds ?? null,
+      petRect: snapshot?.petRect ?? null,
+      visiblePet: snapshot?.visiblePet ?? null,
+      displayBounds: snapshot?.screenBounds?.displayBounds ?? null,
+      usableBounds: snapshot?.screenBounds?.usableBounds ?? null
+    });
+  }
+
+  return checks;
+}
+
+async function dragPetByDelta(pet, deltaX, deltaY) {
+  const rect = pet.getBoundingClientRect();
+  const clientX = Math.max(1, Math.min(rect.width - 1, rect.width / 2));
+  const clientY = Math.max(1, Math.min(rect.height - 1, rect.height / 2));
+  const screenX = Math.round(window.screenX + rect.x + clientX);
+  const screenY = Math.round(window.screenY + rect.y + clientY);
+
+  dispatchPetPointerEvent(pet, "pointerdown", { screenX, screenY, clientX, clientY, buttons: 1 });
+  dispatchPetPointerEvent(pet, "pointermove", {
+    screenX: screenX + deltaX,
+    screenY: screenY + deltaY,
+    clientX,
+    clientY,
+    buttons: 1
+  });
+  dispatchPetPointerEvent(pet, "pointerup", {
+    screenX: screenX + deltaX,
+    screenY: screenY + deltaY,
+    clientX,
+    clientY,
+    buttons: 0
+  });
+  await new Promise((resolve) => window.setTimeout(resolve, 250));
+}
+
+async function readVisiblePetDragSnapshot(pet, skfiy) {
+  const windowBounds = await skfiy.getWindowBounds();
+
+  if (!hasWindowBounds(windowBounds)) {
+    return null;
+  }
+
+  const petRect = rectToPlainObject(pet.getBoundingClientRect());
+  const visiblePet = {
+    x: roundMetric(windowBounds.x + petRect.x),
+    y: roundMetric(windowBounds.y + petRect.y),
+    width: petRect.width,
+    height: petRect.height,
+    top: roundMetric(windowBounds.y + petRect.top),
+    right: roundMetric(windowBounds.x + petRect.right),
+    bottom: roundMetric(windowBounds.y + petRect.bottom),
+    left: roundMetric(windowBounds.x + petRect.left)
+  };
+
+  return {
+    windowBounds,
+    petRect,
+    visiblePet,
+    screenBounds: readRendererScreenBounds()
+  };
+}
+
+function readRendererScreenBounds() {
+  const usableLeft = readFiniteMetric(window.screen.availLeft, 0);
+  const usableTop = readFiniteMetric(window.screen.availTop, 0);
+  const usableWidth = readFiniteMetric(window.screen.availWidth, window.screen.width);
+  const usableHeight = readFiniteMetric(window.screen.availHeight, window.screen.height);
+  const displayLeft = usableLeft;
+  const displayTop = Math.min(usableTop, 0);
+  const displayWidth = readFiniteMetric(window.screen.width, usableWidth);
+  const displayHeight = readFiniteMetric(window.screen.height, usableHeight);
+
+  return {
+    displayBounds: {
+      x: displayLeft,
+      y: displayTop,
+      width: displayWidth,
+      height: displayHeight
+    },
+    usableBounds: {
+      x: usableLeft,
+      y: usableTop,
+      width: usableWidth,
+      height: usableHeight
+    }
+  };
+}
+
+function readFiniteMetric(value, fallback) {
+  return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function isVisibleEdgeAligned(edge, snapshot) {
+  const tolerance = 2;
+  const pet = snapshot.visiblePet;
+  const { displayBounds, usableBounds } = snapshot.screenBounds;
+  const displayRight = displayBounds.x + displayBounds.width;
+  const displayBottom = displayBounds.y + displayBounds.height;
+  const usableRight = usableBounds.x + usableBounds.width;
+  const usableBottom = usableBounds.y + usableBounds.height;
+  const near = (a, b) => Math.abs(a - b) <= tolerance;
+
+  switch (edge) {
+    case "top":
+      return pet.top >= displayBounds.y - tolerance
+        && (near(pet.top, displayBounds.y) || near(pet.top, usableBounds.y));
+    case "bottom":
+      return pet.bottom <= displayBottom + tolerance
+        && (near(pet.bottom, displayBottom) || near(pet.bottom, usableBottom));
+    case "left":
+      return pet.left >= displayBounds.x - tolerance
+        && (near(pet.left, displayBounds.x) || near(pet.left, usableBounds.x));
+    case "right":
+      return pet.right <= displayRight + tolerance
+        && (near(pet.right, displayRight) || near(pet.right, usableRight));
+    default:
+      return false;
+  }
+}
+
+function hasVisiblePetEdgeChecks(edgeChecks) {
+  const requiredEdges = ["top", "bottom", "left", "right"];
+
+  return Array.isArray(edgeChecks)
+    && requiredEdges.every((edge) =>
+      edgeChecks.some((check) =>
+        check?.edge === edge
+        && check.passed === true
+        && hasWindowBounds(check.visiblePet)
+        && hasWindowBounds(check.displayBounds)
+        && hasWindowBounds(check.usableBounds)
+      )
+    );
+}
+
+function dispatchPetPointerEvent(pet, type, { screenX, screenY, buttons, clientX = 48, clientY = 48 }) {
   pet.dispatchEvent(new PointerEvent(type, {
     bubbles: true,
     cancelable: true,
@@ -554,8 +729,8 @@ function dispatchPetPointerEvent(pet, type, { screenX, screenY, buttons }) {
     buttons,
     screenX,
     screenY,
-    clientX: 48,
-    clientY: 48
+    clientX,
+    clientY
   }));
 }
 

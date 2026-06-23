@@ -79,8 +79,11 @@ import {
 } from "./stop-turn-hotkey.js";
 import {
   calculatePetWindowBounds,
+  movePetAnchorByDelta,
   readWindowPositionOverride,
   resizePetWindowBoundsKeepingBottom,
+  type PetWindowBounds,
+  type Point,
   type Size
 } from "./window-position.js";
 import {
@@ -135,11 +138,13 @@ interface ObserveAppReplayRecord extends DesktopAppState {
   stage: "before" | "after";
 }
 
+interface VisiblePetRect extends Point, Size {}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
 app.setName("skfiy");
-const COMPACT_WINDOW_SIZE: Size = { width: 320, height: 224 };
+const COMPACT_WINDOW_SIZE: Size = { width: 90, height: 66 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
 const appPolicySettingsStore = createAppPolicySettingsStore(readInitialAppPolicySettings());
 const chromeCdpEndpoint = readChromeCdpEndpoint({
@@ -159,6 +164,8 @@ const assistantComputerUseExecutor = createAssistantComputerUseExecutor({
   replayStore: turnReplayStore
 });
 let mainWindow: BrowserWindow | null = null;
+let currentPetAnchor: Point | null = null;
+let currentPetWindowOffset: Point | null = null;
 let currentTaskId = 0;
 let screenshotSerial = 0;
 let activeTaskController: AbortController | null = null;
@@ -451,6 +458,46 @@ function readElectronMediaPermissionState(
 
 function readFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readVisiblePetRect(value: unknown): VisiblePetRect | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const rect = value as Partial<VisiblePetRect>;
+  const x = readFiniteNumber(rect.x);
+  const y = readFiniteNumber(rect.y);
+  const width = readFiniteNumber(rect.width);
+  const height = readFiniteNumber(rect.height);
+
+  if (x === undefined || y === undefined || width === undefined || height === undefined) {
+    return undefined;
+  }
+
+  if (width <= 0 || height <= 0) {
+    return undefined;
+  }
+
+  return { x, y, width, height };
+}
+
+function clampWindowBoundsToNearestDisplay(bounds: PetWindowBounds): PetWindowBounds {
+  const display = screen.getDisplayNearestPoint({
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height / 2
+  });
+  const displayBounds = display.bounds;
+
+  return {
+    ...bounds,
+    x: Math.round(clampNumber(bounds.x, displayBounds.x, displayBounds.x + displayBounds.width - bounds.width)),
+    y: Math.round(clampNumber(bounds.y, displayBounds.y, displayBounds.y + displayBounds.height - bounds.height))
+  };
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, Math.max(min, max)));
 }
 
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
@@ -1194,10 +1241,19 @@ function setPetWindowMode(window: BrowserWindow, mode: PetWindowMode) {
     return;
   }
 
+  if (currentPetAnchor && currentPetWindowOffset) {
+    window.setBounds(clampWindowBoundsToNearestDisplay({
+      x: Math.round(currentPetAnchor.x - currentPetWindowOffset.x),
+      y: Math.round(currentPetAnchor.y - currentPetWindowOffset.y),
+      ...nextSize
+    }));
+    return;
+  }
+
   window.setBounds(resizePetWindowBoundsKeepingBottom(currentBounds, nextSize));
 }
 
-ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown) => {
+ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown, visibleRectValue: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const x = readFiniteNumber(deltaX);
   const y = readFiniteNumber(deltaY);
@@ -1207,6 +1263,37 @@ ipcMain.on("skfiy:move-window-by", (event, deltaX: unknown, deltaY: unknown) => 
   }
 
   const bounds = window.getBounds();
+
+  const visibleRect = readVisiblePetRect(visibleRectValue);
+
+  if (visibleRect) {
+    const anchor = {
+      x: bounds.x + visibleRect.x,
+      y: bounds.y + visibleRect.y
+    };
+    const nextAnchor = movePetAnchorByDelta({
+      anchor,
+      delta: { x, y },
+      petSize: {
+        width: visibleRect.width,
+        height: visibleRect.height
+      },
+      displays: screen.getAllDisplays()
+    });
+    currentPetAnchor = nextAnchor;
+    currentPetWindowOffset = {
+      x: visibleRect.x,
+      y: visibleRect.y
+    };
+
+    window.setBounds({
+      ...bounds,
+      x: Math.round(nextAnchor.x - visibleRect.x),
+      y: Math.round(nextAnchor.y - visibleRect.y)
+    });
+    return;
+  }
+
   window.setPosition(Math.round(bounds.x + x), Math.round(bounds.y + y));
 });
 

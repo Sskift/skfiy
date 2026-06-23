@@ -12,6 +12,7 @@ export const REQUIRED_PERMISSION_SETTING_TARGETS = [
   { label: "屏幕录制", target: "screen-recording", buttonLabel: "打开屏幕录制设置" },
   { label: "辅助功能", target: "accessibility", buttonLabel: "打开辅助功能设置" }
 ];
+const REQUIRED_VISIBLE_PET_EDGE_CHECKS = ["top", "bottom", "left", "right"];
 
 export function createDefaultUiSmokeOptions(rootDir) {
   return {
@@ -196,6 +197,7 @@ function hasPetDragEvidence(petDrag) {
   return petDrag.source === "renderer-pointer-events-window-bounds"
     && hasWindowBounds(petDrag.beforeBounds)
     && hasWindowBounds(petDrag.afterBounds)
+    && hasVisiblePetEdgeChecks(petDrag.visibleEdgeChecks)
     && Array.isArray(petDrag.moveEvents)
     && petDrag.moveEvents.length > 0
     && Number.isFinite(petDrag.totalDeltaX)
@@ -203,6 +205,22 @@ function hasPetDragEvidence(petDrag) {
     && petDrag.totalDeltaY < 0
     && petDrag.upwardMovement === true
     && petDrag.suppressedClickAfterDrag === true;
+}
+
+function hasVisiblePetEdgeChecks(edgeChecks) {
+  if (!Array.isArray(edgeChecks)) {
+    return false;
+  }
+
+  return REQUIRED_VISIBLE_PET_EDGE_CHECKS.every((edge) =>
+    edgeChecks.some((check) =>
+      check?.edge === edge
+      && check.passed === true
+      && hasVisibleRectBounds(check.visiblePet)
+      && hasWindowBounds(check.displayBounds)
+      && hasWindowBounds(check.usableBounds)
+    )
+  );
 }
 
 function hasStopTurnBehaviorEvidence(value) {
@@ -226,4 +244,12 @@ function hasWindowBounds(bounds) {
     && Number.isFinite(bounds.y)
     && Number.isFinite(bounds.width)
     && Number.isFinite(bounds.height);
+}
+
+function hasVisibleRectBounds(bounds) {
+  return hasWindowBounds(bounds)
+    && Number.isFinite(bounds.top)
+    && Number.isFinite(bounds.right)
+    && Number.isFinite(bounds.bottom)
+    && Number.isFinite(bounds.left);
 }

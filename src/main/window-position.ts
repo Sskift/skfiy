@@ -11,6 +11,7 @@ export interface Size {
 export interface WorkArea extends Point, Size {}
 
 export interface DisplayLike {
+  bounds?: WorkArea;
   workArea: WorkArea;
 }
 
@@ -23,6 +24,13 @@ export interface CalculatePetWindowBoundsOptions {
 }
 
 export interface PetWindowBounds extends Point, Size {}
+
+export interface PetAnchorMoveOptions {
+  anchor: Point;
+  delta: Point;
+  petSize: Size;
+  displays: readonly DisplayLike[];
+}
 
 export function resizePetWindowBoundsKeepingBottom(
   currentBounds: PetWindowBounds,
@@ -59,6 +67,31 @@ export function calculatePetWindowBounds({
   };
 }
 
+export function movePetAnchorByDelta({
+  anchor,
+  delta,
+  petSize,
+  displays
+}: PetAnchorMoveOptions): Point {
+  const requestedAnchor = {
+    x: anchor.x + delta.x,
+    y: anchor.y + delta.y
+  };
+  const display = findDisplayContainingPoint(displays, requestedAnchor)
+    ?? findNearestDisplay(displays, requestedAnchor);
+  const area = readDisplayBounds(display) ?? {
+    x: 0,
+    y: 0,
+    width: petSize.width,
+    height: petSize.height
+  };
+
+  return {
+    x: clamp(requestedAnchor.x, area.x, area.x + area.width - petSize.width),
+    y: clamp(requestedAnchor.y, area.y, area.y + area.height - petSize.height)
+  };
+}
+
 export function readWindowPositionOverride(env: Record<string, string | undefined>): Point | undefined {
   const x = readFiniteEnvNumber(env.SKFIY_WINDOW_X);
   const y = readFiniteEnvNumber(env.SKFIY_WINDOW_Y);
@@ -70,12 +103,18 @@ function findDisplayContainingPoint(
   displays: readonly DisplayLike[],
   point: Point
 ): DisplayLike | undefined {
-  return displays.find(({ workArea }) => {
+  return displays.find((display) => {
+    const area = readDisplayBounds(display);
+
+    if (!area) {
+      return false;
+    }
+
     return (
-      point.x >= workArea.x
-      && point.x < workArea.x + workArea.width
-      && point.y >= workArea.y
-      && point.y < workArea.y + workArea.height
+      point.x >= area.x
+      && point.x < area.x + area.width
+      && point.y >= area.y
+      && point.y < area.y + area.height
     );
   });
 }
@@ -89,10 +128,29 @@ function findNearestDisplay(
       return display;
     }
 
-    return distanceToCenter(display.workArea, point) < distanceToCenter(nearest.workArea, point)
+    const displayArea = readDisplayBounds(display);
+    const nearestArea = readDisplayBounds(nearest);
+
+    if (!displayArea) {
+      return nearest;
+    }
+
+    if (!nearestArea) {
+      return display;
+    }
+
+    return distanceToCenter(displayArea, point) < distanceToCenter(nearestArea, point)
       ? display
       : nearest;
   }, undefined);
+}
+
+function readDisplayBounds(display: DisplayLike | undefined): WorkArea | undefined {
+  return display?.bounds ?? display?.workArea;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, Math.max(min, max)));
 }
 
 function distanceToCenter(workArea: WorkArea, point: Point): number {

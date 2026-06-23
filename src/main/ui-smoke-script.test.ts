@@ -69,6 +69,36 @@ describe("packaged UI product smoke script", () => {
         source: "renderer-pointer-events-window-bounds",
         beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
         afterBounds: { x: 1212, y: 732, width: 320, height: 224 },
+        visibleEdgeChecks: [
+          {
+            edge: "top",
+            passed: true,
+            visiblePet: { x: 1212, y: 0, width: 90, height: 66, top: 0, right: 1302, bottom: 66, left: 1212 },
+            displayBounds: { x: 0, y: 0, width: 1440, height: 900 },
+            usableBounds: { x: 0, y: 25, width: 1440, height: 875 }
+          },
+          {
+            edge: "bottom",
+            passed: true,
+            visiblePet: { x: 1212, y: 834, width: 90, height: 66, top: 834, right: 1302, bottom: 900, left: 1212 },
+            displayBounds: { x: 0, y: 0, width: 1440, height: 900 },
+            usableBounds: { x: 0, y: 25, width: 1440, height: 875 }
+          },
+          {
+            edge: "left",
+            passed: true,
+            visiblePet: { x: 0, y: 732, width: 90, height: 66, top: 732, right: 90, bottom: 798, left: 0 },
+            displayBounds: { x: 0, y: 0, width: 1440, height: 900 },
+            usableBounds: { x: 0, y: 25, width: 1440, height: 875 }
+          },
+          {
+            edge: "right",
+            passed: true,
+            visiblePet: { x: 1350, y: 732, width: 90, height: 66, top: 732, right: 1440, bottom: 798, left: 1350 },
+            displayBounds: { x: 0, y: 0, width: 1440, height: 900 },
+            usableBounds: { x: 0, y: 25, width: 1440, height: 875 }
+          }
+        ],
         moveEvents: [
           { deltaX: 12, deltaY: -58 },
           { deltaX: 0, deltaY: -30 }
@@ -109,6 +139,13 @@ describe("packaged UI product smoke script", () => {
     })).toBe("missing-pet-drag");
     expect(classifyUiSmokeEvidence({
       ...passedEvidence,
+      petDrag: {
+        ...(passedEvidence.petDrag as Record<string, unknown>),
+        visibleEdgeChecks: []
+      }
+    })).toBe("missing-pet-drag");
+    expect(classifyUiSmokeEvidence({
+      ...passedEvidence,
       stopTurnBehavior: undefined
     })).toBe("missing-stop-turn-behavior");
     expect(classifyUiSmokeEvidence({
@@ -118,6 +155,7 @@ describe("packaged UI product smoke script", () => {
         source: "renderer-pointer-events-window-bounds",
         beforeBounds: { x: 1200, y: 820, width: 320, height: 224 },
         afterBounds: { x: 1212, y: 844, width: 320, height: 224 },
+        visibleEdgeChecks: (passedEvidence.petDrag as { visibleEdgeChecks: unknown }).visibleEdgeChecks,
         moveEvents: [{ deltaX: 12, deltaY: 24 }],
         totalDeltaX: 12,
         totalDeltaY: 24,
@@ -174,6 +212,8 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("dispatchPetPointerEvent(pet, \"pointermove\"");
     expect(source).toContain("pet.dispatchEvent(new PointerEvent(type");
     expect(source).toContain("petDrag");
+    expect(source).toContain("visibleEdgeChecks");
+    expect(source).toContain("exerciseVisiblePetEdgeChecks.toString()");
     expect(source).toContain("suppressedClickAfterDrag");
     expect(source).toContain("stopTurnBehavior");
     expect(source).toContain("exerciseStopTurnBehavior.toString()");
@@ -190,6 +230,7 @@ describe("packaged UI product smoke script", () => {
     expect(source).toContain("roundMetric.toString()");
     expect(source).toContain("exercisePetDrag.toString()");
     expect(source).toContain("dispatchPetPointerEvent.toString()");
+    expect(source).toContain("hasVisiblePetEdgeChecks.toString()");
     expect(source).toContain("hasWindowBounds.toString()");
     expect(source).toContain("formatRuntimeExceptionDetails");
     expect(source).toContain("exceptionDetails.exception?.description");

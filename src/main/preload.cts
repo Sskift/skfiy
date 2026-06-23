@@ -261,6 +261,13 @@ interface WindowBounds {
   height: number;
 }
 
+interface VisiblePetRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface DesktopApi {
   runCommand: (command: string, options: { mode: ManualMode }) => Promise<void>;
   approveTask: () => Promise<void>;
@@ -282,7 +289,7 @@ interface DesktopApi {
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   getPetSkin: () => Promise<PetSkinManifest | null>;
   getWindowBounds: () => Promise<WindowBounds | null>;
-  moveWindowBy: (deltaX: number, deltaY: number) => void;
+  moveWindowBy: (deltaX: number, deltaY: number, visibleRect?: VisiblePetRect) => void;
   setWindowMode: (mode: PetWindowMode) => void;
   onStopTurnHotkey: (callback: () => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
@@ -408,8 +415,8 @@ const api: DesktopApi = {
     const payload = await ipcRenderer.invoke("skfiy:get-window-bounds");
     return isWindowBounds(payload) ? payload : null;
   },
-  moveWindowBy(deltaX, deltaY) {
-    ipcRenderer.send("skfiy:move-window-by", deltaX, deltaY);
+  moveWindowBy(deltaX, deltaY, visibleRect) {
+    ipcRenderer.send("skfiy:move-window-by", deltaX, deltaY, readVisiblePetRect(visibleRect));
   },
   setWindowMode(mode) {
     ipcRenderer.send("skfiy:set-window-mode", mode);
@@ -456,6 +463,36 @@ function isWindowBounds(value: unknown): value is WindowBounds {
     && typeof bounds.height === "number"
     && Number.isFinite(bounds.height)
   );
+}
+
+function readVisiblePetRect(value: unknown): VisiblePetRect | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const rect = value as Partial<VisiblePetRect>;
+
+  if (
+    typeof rect.x !== "number"
+    || !Number.isFinite(rect.x)
+    || typeof rect.y !== "number"
+    || !Number.isFinite(rect.y)
+    || typeof rect.width !== "number"
+    || !Number.isFinite(rect.width)
+    || rect.width <= 0
+    || typeof rect.height !== "number"
+    || !Number.isFinite(rect.height)
+    || rect.height <= 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height
+  };
 }
 
 function isAppPolicySettings(value: unknown): value is AppPolicySettings {
