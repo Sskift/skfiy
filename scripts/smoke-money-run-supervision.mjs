@@ -354,9 +354,11 @@ async function runMoneyRunProductSmoke(options) {
     probePlan: createTmuxProbePlan(options),
     events: [],
     tmuxSupervisionReport: undefined,
+    approvalMode: "unknown",
     permissions: undefined,
     runtimeStatus: undefined,
     startupWarnings: undefined,
+    turnReplay: undefined,
     result: "not-run"
   };
   let smokeLock;
@@ -385,28 +387,38 @@ async function runMoneyRunProductSmoke(options) {
         returnByValue: true
       });
       const startIndex = cdp.events.length;
-      await cdp.send("Runtime.evaluate", {
-        expression: `window.skfiy.runCommand(${JSON.stringify(options.command)}, { mode: "active" })`,
-        awaitPromise: true,
-        returnByValue: true
-      });
-      await waitForTaskStatus(cdp, options.timeoutMs, "approval_required");
-      await cdp.send("Runtime.evaluate", {
-        expression: "window.skfiy.approveTask()",
-        awaitPromise: true,
-        returnByValue: true
-      });
-      await waitForTerminalTaskEvent(cdp, options.timeoutMs);
+      try {
+        await cdp.send("Runtime.evaluate", {
+          expression: `window.skfiy.runCommand(${JSON.stringify(options.command)}, { mode: "active" })`,
+          awaitPromise: true,
+          returnByValue: true
+        });
 
-      evidence.events = cdp.events.slice(startIndex);
-      const tmuxSupervisionReport = readFinalTmuxSupervisionReport(evidence.events);
-      evidence.tmuxSupervisionReport = tmuxSupervisionReport
-        ? { ...tmuxSupervisionReport, mutatesSession: false }
-        : undefined;
-      evidence.permissions = await evaluateValue(cdp, "window.skfiy.getPermissions()");
-      evidence.runtimeStatus = await evaluateValue(cdp, "window.skfiy.getRuntimeStatus()");
-      evidence.startupWarnings = await evaluateValue(cdp, "window.skfiy.getStartupWarnings()");
-      evidence.result = classifyMoneyRunProductEvidence(evidence);
+        const gateStatus = await waitForApprovalOrTerminalTaskEvent(cdp, options.timeoutMs);
+        if (gateStatus === "approval_required") {
+          await cdp.send("Runtime.evaluate", {
+            expression: "window.skfiy.approveTask()",
+            awaitPromise: true,
+            returnByValue: true
+          });
+          await waitForTerminalTaskEvent(cdp, options.timeoutMs);
+        }
+
+        evidence.events = cdp.events.slice(startIndex);
+        const tmuxSupervisionReport = readFinalTmuxSupervisionReport(evidence.events);
+        evidence.tmuxSupervisionReport = tmuxSupervisionReport
+          ? { ...tmuxSupervisionReport, mutatesSession: false }
+          : undefined;
+        evidence.permissions = await evaluateValue(cdp, "window.skfiy.getPermissions()");
+        evidence.runtimeStatus = await evaluateValue(cdp, "window.skfiy.getRuntimeStatus()");
+        evidence.startupWarnings = await evaluateValue(cdp, "window.skfiy.getStartupWarnings()");
+        evidence.turnReplay = await evaluateValue(cdp, "window.skfiy.getTurnReplay()");
+        evidence.approvalMode = readMoneyRunApprovalMode(evidence.events, evidence.turnReplay);
+        evidence.result = classifyMoneyRunProductEvidence(evidence);
+      } catch (error) {
+        evidence.events = cdp.events.slice(startIndex);
+        throw error;
+      }
     } finally {
       cdp.close();
     }
@@ -570,17 +582,23 @@ function installEventSinkExpression() {
   })()`;
 }
 
-async function waitForTaskStatus(cdp, timeoutMs, status) {
+async function waitForApprovalOrTerminalTaskEvent(cdp, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    if (cdp.events.some((event) => event.status === status)) {
-      return;
+    const status = cdp.events.at(-1)?.status;
+    if (
+      status === "approval_required"
+      || status === "completed"
+      || status === "failed"
+      || status === "needs_confirmation"
+    ) {
+      return status;
     }
     await sleep(100);
   }
 
-  throw new Error(`Timed out waiting for task status ${status}.`);
+  throw new Error("Timed out waiting for money-run approval or terminal task status.");
 }
 
 async function waitForTerminalTaskEvent(cdp, timeoutMs) {
@@ -597,8 +615,32 @@ async function waitForTerminalTaskEvent(cdp, timeoutMs) {
   throw new Error("Timed out waiting for money-run supervision to finish.");
 }
 
-function classifyMoneyRunProductEvidence(evidence) {
-  if (!evidence.events.some((event) => event.status === "approval_required")) {
+export function readMoneyRunApprovalMode(events, turnReplay) {
+  if (events.some((event) => event.status === "approval_required")) {
+    return "manual";
+  }
+
+  const approvalDecisions = Array.isArray(turnReplay?.transcript?.actions)
+    ? turnReplay.transcript.actions
+    : [];
+  if (approvalDecisions.some((action) => (
+    action?.type === "approval_decision"
+    && action.route === "tmux_supervision"
+    && action.decision === "bypassed"
+  ))) {
+    return "bypassed";
+  }
+
+  return "unknown";
+}
+
+export function classifyMoneyRunProductEvidence(evidence) {
+  const approvalMode = evidence.approvalMode ?? readMoneyRunApprovalMode(
+    Array.isArray(evidence.events) ? evidence.events : [],
+    evidence.turnReplay
+  );
+
+  if (approvalMode === "unknown") {
     return "blocked";
   }
 

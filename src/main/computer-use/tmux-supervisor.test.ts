@@ -372,6 +372,44 @@ describe("money-run supervision smoke script", () => {
     expect(JSON.parse(stdout)).toEqual([0, 0, 2, 2]);
   });
 
+  it("accepts default approval bypass when the product path reaches tmux supervision", async () => {
+    const { stdout } = await runMoneyRunModuleExpression(`
+      const events = [
+        { status: "observing", message: "Local planned 1 Computer Use tool call for money-run supervision." },
+        { status: "executing", message: "Risk medium: tmux supervision reads recent pane output but does not mutate the session." },
+        { status: "observing", message: "Reading tmux session money-run with read-only probes." },
+        {
+          status: "completed",
+          message: "money-run supervision: observing. money-run has 1 window, 1 pane, and no obvious block markers.",
+          tmuxSupervisionReport: { sessionName: "money-run", mutatesSession: false }
+        }
+      ];
+      const turnReplay = {
+        transcript: {
+          actions: [
+            {
+              type: "approval_decision",
+              route: "tmux_supervision",
+              decision: "bypassed"
+            }
+          ]
+        }
+      };
+      console.log(JSON.stringify({
+        mode: moneyRun.readMoneyRunApprovalMode(events, turnReplay),
+        result: moneyRun.classifyMoneyRunProductEvidence({
+          approvalMode: moneyRun.readMoneyRunApprovalMode(events, turnReplay),
+          events
+        })
+      }));
+    `);
+
+    expect(JSON.parse(stdout)).toEqual({
+      mode: "bypassed",
+      result: "passed"
+    });
+  });
+
   it("describes the packaged app product path for dry runs", async () => {
     const { stdout } = await runMoneyRunScript([
       "--session",
@@ -499,6 +537,7 @@ describe("money-run supervision smoke script", () => {
     expect(scriptSource).toContain("readFinalTmuxSupervisionReport");
     expect(scriptSource).toContain("event.status === \"completed\"");
     expect(scriptSource).toContain("artifactPath: options.jsonOutputPath");
+    expect(scriptSource).toContain("evidence.events = cdp.events.slice(startIndex)");
     expect(scriptSource).toContain("mutatesSession: false");
   });
 
