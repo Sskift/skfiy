@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   PRODUCT_PATH,
   classifyCliSmokeEvidence,
@@ -37,6 +38,7 @@ async function main() {
     runnerHasTmux: Boolean(process.env.TMUX),
     artifactPath: options.outputPath,
     commands: [],
+    providerPromptContract: undefined,
     result: "not-run"
   };
   let smokeLock;
@@ -44,6 +46,7 @@ async function main() {
   try {
     assertCliSmokeReady(options);
     await prepareIsolatedHome(options);
+    evidence.providerPromptContract = await collectProviderPromptContract();
     smokeLock = await acquireSmokeLock({
       rootDir: ROOT_DIR,
       scriptName: "smoke:cli"
@@ -84,6 +87,154 @@ async function main() {
 
     process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
   }
+}
+
+async function collectProviderPromptContract() {
+  const modulePath = path.join(ROOT_DIR, "dist", "main", "assistant-agent.js");
+  const productPath = "dist/main/assistant-agent.js -> buildAssistantAgentInvocation -> provider prompt contract";
+  const { buildAssistantAgentInvocation } = await import(pathToFileURL(modulePath).href);
+  const browserPageContext = {
+    state: "ready",
+    url: "https://example.test/skfiy-provider-contract",
+    title: "skfiy provider contract",
+    visibleText: "Provider contract page with bounded browser context.",
+    observedAt: "2026-06-23T00:00:00.000Z"
+  };
+  const personalMemory = {
+    userEntries: ["User prefers concise Chinese progress updates."],
+    agentEntries: ["For provider calls, preserve skfiy identity and Computer Use boundaries."]
+  };
+  const userInput = "你是谁，并总结当前页面。";
+  const providers = [
+    createProviderPromptContract(buildAssistantAgentInvocation, {
+      mode: "codex",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
+      cwd: ROOT_DIR,
+      timeoutMs: 45_000
+    }, userInput, browserPageContext, personalMemory),
+    createProviderPromptContract(buildAssistantAgentInvocation, {
+      mode: "claude-code",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
+      cwd: ROOT_DIR,
+      timeoutMs: 45_000
+    }, userInput, browserPageContext, personalMemory),
+    createProviderPromptContract(buildAssistantAgentInvocation, {
+      mode: "hermes",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
+      cwd: ROOT_DIR,
+      timeoutMs: 45_000
+    }, userInput, browserPageContext, personalMemory)
+  ];
+  const tokenLeakDetected = hasTokenLeak(providers.map((provider) => JSON.stringify(provider)));
+  const passed = providers.length === 3
+    && providers.every((provider) => (
+      provider.skfiyIdentityBeforeUser
+      && provider.memoryBeforeBrowserContext
+      && provider.browserContextBeforeUser
+      && provider.providerBoundaryPresent
+      && provider.rejectsDirectDesktopControl
+      && provider.dangerousFlagsAbsent
+      && (
+        provider.usesReadOnlySandbox
+        || provider.disallowsMutatingTools
+        || provider.usesBoundedChatToolset
+      )
+    ))
+    && !tokenLeakDetected;
+
+  return {
+    productPath,
+    modulePath,
+    providers,
+    tokenLeakDetected,
+    result: passed ? "passed" : "failed"
+  };
+}
+
+function createProviderPromptContract(
+  buildAssistantAgentInvocation,
+  settings,
+  userInput,
+  browserPageContext,
+  personalMemory
+) {
+  const invocation = buildAssistantAgentInvocation(settings, userInput, browserPageContext, personalMemory);
+  const prompt = readInvocationPrompt(invocation);
+  const argsText = invocation.args.join("\n");
+  const skfiyIndex = prompt.indexOf("You are skfiy");
+  const memoryIndex = prompt.indexOf("<skfiy-recalled-memory>");
+  const browserContextIndex = prompt.indexOf("Current Chrome page");
+  const userIndex = prompt.indexOf(`User: ${userInput}`);
+  const providerBoundaryPresent = prompt.includes("Codex, Claude Code, and Hermes are only backend providers")
+    && prompt.includes("When asked who you are, answer as skfiy.")
+    && prompt.includes("Do not introduce yourself as Codex, Claude Code, Hermes")
+    && prompt.includes("Computer Use is a tool capability")
+    && prompt.includes("Do not execute commands, edit files, or control apps directly from this provider call.");
+
+  return {
+    mode: settings.mode,
+    label: invocation.label,
+    commandBasename: path.basename(invocation.command),
+    promptHash: createHash("sha256").update(prompt).digest("hex"),
+    promptLength: prompt.length,
+    skfiyIdentityBeforeUser: skfiyIndex >= 0 && userIndex > skfiyIndex,
+    memoryBeforeBrowserContext: memoryIndex >= 0 && browserContextIndex > memoryIndex,
+    browserContextBeforeUser: browserContextIndex >= 0 && userIndex > browserContextIndex,
+    providerBoundaryPresent,
+    usesReadOnlySandbox: settings.mode === "codex"
+      ? invocation.args.includes("--sandbox") && invocation.args.includes("read-only")
+      : undefined,
+    disallowsMutatingTools: settings.mode === "claude-code"
+      ? argsText.includes("--disallowedTools")
+        && argsText.includes("Bash,Edit,MultiEdit,Write,NotebookEdit,WebFetch,WebSearch,Task")
+        && argsText.includes("--permission-mode\ndontAsk")
+        && argsText.includes("--safe-mode")
+      : undefined,
+    usesBoundedChatToolset: settings.mode === "hermes"
+      ? invocation.args[0] === "chat"
+        && invocation.args.includes("--query")
+        && argsText.includes("--max-turns\n1")
+        && argsText.includes("--toolsets\nsafe")
+        && argsText.includes("--source\nskfiy-pet-chat")
+      : undefined,
+    rejectsDirectDesktopControl: prompt.includes("route the request through its own Computer Use tool layer"),
+    dangerousFlagsAbsent: !containsAny(invocation.args, [
+      "--oneshot",
+      "--yolo",
+      "--ask-for-approval",
+      "--tools",
+      "--strict-mcp-config",
+      "--ignore-user-config"
+    ])
+  };
+}
+
+function readInvocationPrompt(invocation) {
+  if (invocation.label === "Hermes") {
+    const queryIndex = invocation.args.indexOf("--query");
+    return queryIndex >= 0 ? invocation.args[queryIndex + 1] ?? "" : "";
+  }
+
+  return invocation.args.at(-1) ?? "";
+}
+
+function containsAny(values, candidates) {
+  return candidates.some((candidate) => values.includes(candidate));
 }
 
 function assertCliSmokeReady(options) {

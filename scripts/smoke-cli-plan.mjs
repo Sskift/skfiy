@@ -140,6 +140,7 @@ export function classifyCliSmokeEvidence(evidence) {
     || !isIsolatedHomeDir(evidence.isolatedHomeDir)
     || !Array.isArray(evidence.commands)
     || evidence.commands.length !== expectedMatrix.length
+    || !hasProviderPromptContractEvidence(evidence.providerPromptContract)
   ) {
     return "failed";
   }
@@ -405,6 +406,51 @@ function hasChromeExtensionConnectionEvidence(connection) {
     && connection.launchOrigin.startsWith("chrome-extension://")
     && typeof connection?.messageType === "string"
     && typeof connection?.requestId === "string";
+}
+
+function hasProviderPromptContractEvidence(contract) {
+  if (
+    contract?.productPath !== "dist/main/assistant-agent.js -> buildAssistantAgentInvocation -> provider prompt contract"
+    || contract?.result !== "passed"
+    || contract?.tokenLeakDetected !== false
+    || !Array.isArray(contract?.providers)
+    || contract.providers.length !== 3
+  ) {
+    return false;
+  }
+
+  return hasProviderContract(contract.providers, {
+    mode: "codex",
+    label: "Codex",
+    commandBasename: "codex",
+    requiredSafetyField: "usesReadOnlySandbox"
+  })
+    && hasProviderContract(contract.providers, {
+      mode: "claude-code",
+      label: "Claude Code",
+      commandBasename: "claude",
+      requiredSafetyField: "disallowsMutatingTools"
+    })
+    && hasProviderContract(contract.providers, {
+      mode: "hermes",
+      label: "Hermes",
+      commandBasename: "hermes",
+      requiredSafetyField: "usesBoundedChatToolset"
+    });
+}
+
+function hasProviderContract(providers, expected) {
+  const provider = providers.find((candidate) => candidate?.mode === expected.mode);
+
+  return provider?.label === expected.label
+    && provider?.commandBasename === expected.commandBasename
+    && provider?.skfiyIdentityBeforeUser === true
+    && provider?.memoryBeforeBrowserContext === true
+    && provider?.browserContextBeforeUser === true
+    && provider?.providerBoundaryPresent === true
+    && provider?.rejectsDirectDesktopControl === true
+    && provider?.dangerousFlagsAbsent === true
+    && provider?.[expected.requiredSafetyField] === true;
 }
 
 function hasTokenLeak(parts) {

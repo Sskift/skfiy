@@ -22,6 +22,7 @@ describe("CLI product smoke script", () => {
     expect(source).toContain("createCliSmokeCommandRuns");
     expect(source).toContain("acquireSmokeLock");
     expect(source).toContain("launchLongRunningCommand");
+    expect(source).toContain("collectProviderPromptContract");
   });
 
   it("parses CLI smoke options for a repeatable binary product run", async () => {
@@ -126,6 +127,7 @@ describe("CLI product smoke script", () => {
       productPath: PRODUCT_PATH,
       profile: "full",
       commands: CLI_COMMAND_MATRIX.map((command) => createPassingCommandEvidence(command)),
+      providerPromptContract: createPassingProviderPromptContract(),
       result: "passed"
     };
     const basicEvidence = {
@@ -178,6 +180,10 @@ describe("CLI product smoke script", () => {
           }
         : command)
     })).toBe("passed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      providerPromptContract: undefined
+    })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
       runnerHasTmux: true
@@ -387,4 +393,50 @@ function createPassingCommandEvidence(command: { id: string; args: string[] }) {
   }
 
   return base;
+}
+
+function createPassingProviderPromptContract() {
+  return {
+    productPath: "dist/main/assistant-agent.js -> buildAssistantAgentInvocation -> provider prompt contract",
+    result: "passed",
+    tokenLeakDetected: false,
+    providers: [
+      {
+        mode: "codex",
+        label: "Codex",
+        commandBasename: "codex",
+        skfiyIdentityBeforeUser: true,
+        memoryBeforeBrowserContext: true,
+        browserContextBeforeUser: true,
+        providerBoundaryPresent: true,
+        usesReadOnlySandbox: true,
+        rejectsDirectDesktopControl: true,
+        dangerousFlagsAbsent: true
+      },
+      {
+        mode: "claude-code",
+        label: "Claude Code",
+        commandBasename: "claude",
+        skfiyIdentityBeforeUser: true,
+        memoryBeforeBrowserContext: true,
+        browserContextBeforeUser: true,
+        providerBoundaryPresent: true,
+        disallowsMutatingTools: true,
+        rejectsDirectDesktopControl: true,
+        dangerousFlagsAbsent: true
+      },
+      {
+        mode: "hermes",
+        label: "Hermes",
+        commandBasename: "hermes",
+        skfiyIdentityBeforeUser: true,
+        memoryBeforeBrowserContext: true,
+        browserContextBeforeUser: true,
+        providerBoundaryPresent: true,
+        usesBoundedChatToolset: true,
+        rejectsDirectDesktopControl: true,
+        dangerousFlagsAbsent: true
+      }
+    ]
+  };
 }
