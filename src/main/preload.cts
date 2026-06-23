@@ -22,6 +22,10 @@ type PermissionSettingsTarget =
   | "accessibility";
 type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 type AppPolicy = "allow" | "ask" | "deny";
+type AssistantAgentMode = "local" | "codex" | "claude-code";
+type AssistantAgentProviderId = AssistantAgentMode;
+type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
+type AssistantAgentExecutableSource = "default" | "env" | "built-in";
 type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 type RiskLevel = "low" | "medium" | "high" | "blocked";
 type TurnTranscriptOutcome =
@@ -105,6 +109,34 @@ interface ControlledAppPolicyEntry {
 
 interface AppPolicySettings {
   apps: ControlledAppPolicyEntry[];
+}
+
+interface AssistantAgentSettings {
+  mode: AssistantAgentMode;
+  codexBinary: string;
+  codexBinarySource: "default" | "env";
+  claudeCodeBinary: string;
+  claudeCodeBinarySource: "default" | "env";
+  cwd: string;
+  timeoutMs: number;
+}
+
+interface AssistantAgentProviderState {
+  provider: "assistant";
+  id: AssistantAgentProviderId;
+  label: "Local" | "Codex" | "Claude Code";
+  selected: boolean;
+  configured: boolean;
+  executablePath?: string;
+  executableSource: AssistantAgentExecutableSource;
+  resolvedExecutablePath?: string;
+  readiness: AssistantAgentProviderReadiness;
+  lastError?: string;
+}
+
+interface AssistantAgentSettingsResponse {
+  settings: AssistantAgentSettings;
+  providers: AssistantAgentProviderState[];
 }
 
 interface PlannerProviderSettings {
@@ -281,6 +313,10 @@ interface DesktopApi {
   getStartupWarnings: () => Promise<StartupWarning[]>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
+  getAssistantAgentSettings: () => Promise<AssistantAgentSettingsResponse>;
+  setAssistantAgentSettings: (
+    update: Partial<Pick<AssistantAgentSettings, "mode">>
+  ) => Promise<AssistantAgentSettingsResponse>;
   getPlannerProviderSettings: () => Promise<PlannerProviderSettings>;
   setPlannerProviderSettings: (
     update: Partial<Pick<PlannerProviderSettings, "mode">>
@@ -372,6 +408,24 @@ const api: DesktopApi = {
       policy: isAppPolicy(update.policy) ? update.policy : undefined
     });
     return isAppPolicySettings(payload) ? payload : createDefaultAppPolicySettings();
+  },
+  async getAssistantAgentSettings() {
+    const payload = await ipcRenderer.invoke("skfiy:get-assistant-agent-settings");
+    return isAssistantAgentSettingsResponse(payload)
+      ? payload
+      : createDefaultAssistantAgentSettingsResponse();
+  },
+  async setAssistantAgentSettings(update) {
+    const mode =
+      update && typeof update === "object" && "mode" in update
+        ? update.mode
+        : undefined;
+    const payload = await ipcRenderer.invoke("skfiy:set-assistant-agent-settings", {
+      mode: isAssistantAgentMode(mode) ? mode : undefined
+    });
+    return isAssistantAgentSettingsResponse(payload)
+      ? payload
+      : createDefaultAssistantAgentSettingsResponse();
   },
   async getPlannerProviderSettings() {
     const payload = await ipcRenderer.invoke("skfiy:get-planner-provider-settings");
@@ -519,6 +573,81 @@ function isControlledAppPolicyEntry(value: unknown): value is ControlledAppPolic
 
 function isAppPolicy(value: unknown): value is AppPolicy {
   return value === "allow" || value === "ask" || value === "deny";
+}
+
+function isAssistantAgentSettingsResponse(value: unknown): value is AssistantAgentSettingsResponse {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const response = value as Partial<AssistantAgentSettingsResponse>;
+  return isAssistantAgentSettings(response.settings)
+    && Array.isArray(response.providers)
+    && response.providers.every(isAssistantAgentProviderState);
+}
+
+function isAssistantAgentSettings(value: unknown): value is AssistantAgentSettings {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const settings = value as Partial<AssistantAgentSettings>;
+  return (
+    isAssistantAgentMode(settings.mode)
+    && typeof settings.codexBinary === "string"
+    && isAssistantAgentCliBinarySource(settings.codexBinarySource)
+    && typeof settings.claudeCodeBinary === "string"
+    && isAssistantAgentCliBinarySource(settings.claudeCodeBinarySource)
+    && typeof settings.cwd === "string"
+    && typeof settings.timeoutMs === "number"
+    && Number.isFinite(settings.timeoutMs)
+    && settings.timeoutMs > 0
+  );
+}
+
+function isAssistantAgentProviderState(value: unknown): value is AssistantAgentProviderState {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const state = value as Partial<AssistantAgentProviderState>;
+  return (
+    state.provider === "assistant"
+    && isAssistantAgentMode(state.id)
+    && (state.label === "Local" || state.label === "Codex" || state.label === "Claude Code")
+    && typeof state.selected === "boolean"
+    && typeof state.configured === "boolean"
+    && (
+      state.executablePath === undefined
+      || typeof state.executablePath === "string"
+    )
+    && isAssistantAgentExecutableSource(state.executableSource)
+    && (
+      state.resolvedExecutablePath === undefined
+      || typeof state.resolvedExecutablePath === "string"
+    )
+    && isAssistantAgentProviderReadiness(state.readiness)
+    && (
+      state.lastError === undefined
+      || typeof state.lastError === "string"
+    )
+  );
+}
+
+function isAssistantAgentMode(value: unknown): value is AssistantAgentMode {
+  return value === "local" || value === "codex" || value === "claude-code";
+}
+
+function isAssistantAgentCliBinarySource(value: unknown): value is "default" | "env" {
+  return value === "default" || value === "env";
+}
+
+function isAssistantAgentExecutableSource(value: unknown): value is AssistantAgentExecutableSource {
+  return value === "built-in" || isAssistantAgentCliBinarySource(value);
+}
+
+function isAssistantAgentProviderReadiness(value: unknown): value is AssistantAgentProviderReadiness {
+  return value === "ready" || value === "unconfigured" || value === "unavailable";
 }
 
 function isPlannerProviderSettings(value: unknown): value is PlannerProviderSettings {
@@ -1014,6 +1143,53 @@ function createDefaultPlannerProviderSettings(): PlannerProviderSettings {
     externalProviderLabel: "External CUA",
     externalEndpoint: undefined,
     externalApiKeyConfigured: false
+  };
+}
+
+function createDefaultAssistantAgentSettingsResponse(): AssistantAgentSettingsResponse {
+  const settings: AssistantAgentSettings = {
+    mode: "local",
+    codexBinary: "codex",
+    codexBinarySource: "default",
+    claudeCodeBinary: "claude",
+    claudeCodeBinarySource: "default",
+    cwd: "",
+    timeoutMs: 45_000
+  };
+
+  return {
+    settings,
+    providers: [
+      {
+        provider: "assistant",
+        id: "local",
+        label: "Local",
+        selected: true,
+        configured: true,
+        executableSource: "built-in",
+        readiness: "ready"
+      },
+      {
+        provider: "assistant",
+        id: "codex",
+        label: "Codex",
+        selected: false,
+        configured: true,
+        executablePath: "codex",
+        executableSource: "default",
+        readiness: "unavailable"
+      },
+      {
+        provider: "assistant",
+        id: "claude-code",
+        label: "Claude Code",
+        selected: false,
+        configured: true,
+        executablePath: "claude",
+        executableSource: "default",
+        readiness: "unavailable"
+      }
+    ]
   };
 }
 

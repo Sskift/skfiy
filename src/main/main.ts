@@ -24,11 +24,15 @@ import {
 } from "./app-policy-settings.js";
 import {
   AssistantAgentTurnRuntimeError,
-  readInitialAssistantAgentSettings,
+  readAssistantAgentProviderStates,
   runAssistantAgentTurn,
   type AssistantAgentPlannedToolCall,
   type AssistantAgentTurnResult
 } from "./assistant-agent.js";
+import {
+  createAssistantAgentSettingsStore,
+  readInitialAssistantAgentSettingsFromConfig
+} from "./assistant-agent-settings.js";
 import { summarizeAssistantToolPlan } from "./assistant-tools.js";
 import {
   createAssistantComputerUseExecutor,
@@ -154,7 +158,9 @@ const chromeCdpEndpoint = readChromeCdpEndpoint({
 const plannerProviderSettingsStore = createPlannerProviderSettingsStore(
   readInitialPlannerProviderSettings(process.env)
 );
-const assistantAgentSettings = readInitialAssistantAgentSettings(process.env);
+const assistantAgentSettingsStore = createAssistantAgentSettingsStore(
+  readInitialAssistantAgentSettingsFromConfig(process.env, { cwd: process.cwd() })
+);
 const turnReplayStore = createTurnReplayStore({
   onReplayChanged: (replay) => {
     persistRuntimeSnapshot(replay);
@@ -503,7 +509,7 @@ function clampNumber(value: number, min: number, max: number): number {
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
   try {
     return await runAssistantAgentTurn(input, {
-      settings: assistantAgentSettings
+      settings: assistantAgentSettingsStore.get()
     });
   } catch (error) {
     if (error instanceof AssistantAgentTurnRuntimeError) {
@@ -1504,6 +1510,26 @@ ipcMain.handle("skfiy:set-planner-provider-settings", (_event, update: unknown) 
   return plannerProviderSettingsStore.set(
     update && typeof update === "object" ? update : {}
   );
+});
+
+ipcMain.handle("skfiy:get-assistant-agent-settings", async () => {
+  const settings = assistantAgentSettingsStore.get();
+
+  return {
+    settings,
+    providers: await readAssistantAgentProviderStates(settings)
+  };
+});
+
+ipcMain.handle("skfiy:set-assistant-agent-settings", async (_event, update: unknown) => {
+  const settings = assistantAgentSettingsStore.set(
+    update && typeof update === "object" ? update : {}
+  );
+
+  return {
+    settings,
+    providers: await readAssistantAgentProviderStates(settings)
+  };
 });
 
 ipcMain.handle("skfiy:get-turn-replay", () => {

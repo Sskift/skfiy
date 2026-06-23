@@ -110,6 +110,11 @@ export type DashboardPlannerProviderMode =
   | "external-cua"
   | "disabled";
 
+export type DashboardAssistantAgentMode =
+  | "local"
+  | "codex"
+  | "claude-code";
+
 export interface DashboardProviderSettingsPlanner {
   provider?: "planner" | string;
   mode: DashboardPlannerProviderMode;
@@ -123,7 +128,7 @@ export interface DashboardProviderSettingsPlanner {
 
 export interface DashboardProviderSettingsAssistant extends DashboardProviderSummary {
   provider?: "assistant" | string;
-  selectedProvider: string;
+  selectedProvider: DashboardAssistantAgentMode | string;
   configured: boolean;
   readiness: string;
   timeoutMs: number;
@@ -150,4 +155,8 @@ export interface DashboardPlannerProviderSettingsUpdate {
   externalProviderLabel?: string;
   externalEndpoint?: string;
   externalApiKey?: string;
+}
+
+export interface DashboardAssistantAgentSettingsUpdate {
+  mode?: DashboardAssistantAgentMode;
 }

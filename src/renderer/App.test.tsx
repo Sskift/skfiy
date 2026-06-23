@@ -4,6 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, {
   type AppPolicySettings,
+  type AssistantAgentMode,
+  type AssistantAgentSettingsResponse,
   type DesktopApi,
   type PlannerProviderSettings,
   type TaskEvent
@@ -34,6 +36,53 @@ const LOCAL_LUOXIAOHEI_SKIN = {
     review: { row: 0, frames: 1, frameMs: 135 }
   }
 } satisfies PetAtlasManifest;
+
+function createAssistantAgentFixture(mode: AssistantAgentMode): AssistantAgentSettingsResponse {
+  return {
+    settings: {
+      mode,
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      cwd: "/repo",
+      timeoutMs: 45_000
+    },
+    providers: [
+      {
+        provider: "assistant",
+        id: "local",
+        label: "Local",
+        selected: mode === "local",
+        configured: true,
+        executableSource: "built-in",
+        readiness: "ready"
+      },
+      {
+        provider: "assistant",
+        id: "codex",
+        label: "Codex",
+        selected: mode === "codex",
+        configured: true,
+        executablePath: "codex",
+        executableSource: "default",
+        resolvedExecutablePath: "/opt/homebrew/bin/codex",
+        readiness: "ready"
+      },
+      {
+        provider: "assistant",
+        id: "claude-code",
+        label: "Claude Code",
+        selected: mode === "claude-code",
+        configured: true,
+        executablePath: "claude",
+        executableSource: "default",
+        resolvedExecutablePath: "/opt/homebrew/bin/claude",
+        readiness: "ready"
+      }
+    ]
+  };
+}
 
 beforeEach(() => {
   emitTaskEvent = () => undefined;
@@ -105,6 +154,12 @@ beforeEach(() => {
           : entry
       )
     })),
+    getAssistantAgentSettings: vi
+      .fn<DesktopApi["getAssistantAgentSettings"]>()
+      .mockResolvedValue(createAssistantAgentFixture("local")),
+    setAssistantAgentSettings: vi
+      .fn<DesktopApi["setAssistantAgentSettings"]>()
+      .mockImplementation(async (update) => createAssistantAgentFixture(update.mode ?? "local")),
     getPlannerProviderSettings: vi
       .fn<DesktopApi["getPlannerProviderSettings"]>()
       .mockResolvedValue(plannerProviderSettings),
@@ -388,7 +443,7 @@ describe("App", () => {
     fireEvent.click(screen.getByText("诊断/高级"));
 
     await waitFor(() => {
-      expect(screen.getByText("规划模式")).toBeInTheDocument();
+      expect(screen.getByText("Computer Use Planner")).toBeInTheDocument();
     });
     expect(screen.getByText("本地确定性")).toBeInTheDocument();
     expect(screen.getByText("External CUA")).toBeInTheDocument();
@@ -403,6 +458,39 @@ describe("App", () => {
       expect(api.setPlannerProviderSettings).toHaveBeenCalledWith({ mode: "disabled" });
     });
     expect(screen.getByRole("button", { name: "选择关闭规划" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  it("shows background agent provider choices separately from Computer Use planner", async () => {
+    const api = window.skfiy as DesktopApi;
+    api.getAssistantAgentSettings = vi
+      .fn<DesktopApi["getAssistantAgentSettings"]>()
+      .mockResolvedValue(createAssistantAgentFixture("local"));
+
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    expect(await screen.findByText("Background Agent")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "选择 Codex background agent" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("诊断/高级"));
+    expect(screen.getByText("Computer Use Planner")).toBeInTheDocument();
+  });
+
+  it("selects Codex as the background agent provider", async () => {
+    const api = window.skfiy as DesktopApi;
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+    fireEvent.click(await screen.findByRole("button", { name: "选择 Codex background agent" }));
+
+    await waitFor(() => {
+      expect(api.setAssistantAgentSettings).toHaveBeenCalledWith({ mode: "codex" });
+    });
+    expect(screen.getByRole("button", { name: "选择 Codex background agent" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );

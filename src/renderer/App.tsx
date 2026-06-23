@@ -55,6 +55,8 @@ export type PermissionSettingsTarget =
   | "accessibility";
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 export type AppPolicy = "allow" | "ask" | "deny";
+export type AssistantAgentMode = "local" | "codex" | "claude-code";
+export type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
 export type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
 export type TurnTranscriptOutcome =
@@ -75,6 +77,34 @@ export interface ControlledAppPolicyEntry {
 
 export interface AppPolicySettings {
   apps: ControlledAppPolicyEntry[];
+}
+
+export interface AssistantAgentSettings {
+  mode: AssistantAgentMode;
+  codexBinary: string;
+  codexBinarySource: "default" | "env";
+  claudeCodeBinary: string;
+  claudeCodeBinarySource: "default" | "env";
+  cwd: string;
+  timeoutMs: number;
+}
+
+export interface AssistantAgentProviderState {
+  provider: "assistant";
+  id: AssistantAgentMode;
+  label: "Local" | "Codex" | "Claude Code";
+  selected: boolean;
+  configured: boolean;
+  executablePath?: string;
+  executableSource: "built-in" | "default" | "env";
+  resolvedExecutablePath?: string;
+  readiness: AssistantAgentProviderReadiness;
+  lastError?: string;
+}
+
+export interface AssistantAgentSettingsResponse {
+  settings: AssistantAgentSettings;
+  providers: AssistantAgentProviderState[];
 }
 
 export interface PlannerProviderSettings {
@@ -289,6 +319,10 @@ export interface DesktopApi {
   getStartupWarnings: () => Promise<StartupWarning[]>;
   getAppPolicySettings: () => Promise<AppPolicySettings>;
   setAppPolicy: (update: { bundleId: string; policy: AppPolicy }) => Promise<AppPolicySettings>;
+  getAssistantAgentSettings: () => Promise<AssistantAgentSettingsResponse>;
+  setAssistantAgentSettings: (
+    update: Partial<Pick<AssistantAgentSettings, "mode">>
+  ) => Promise<AssistantAgentSettingsResponse>;
   getPlannerProviderSettings: () => Promise<PlannerProviderSettings>;
   setPlannerProviderSettings: (
     update: Partial<Pick<PlannerProviderSettings, "mode">>
@@ -416,6 +450,12 @@ const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
   { policy: "deny", label: "拒绝" }
 ];
 
+const ASSISTANT_AGENT_OPTIONS: Array<{ mode: AssistantAgentMode; label: string; aria: string }> = [
+  { mode: "local", label: "Local", aria: "选择 Local background agent" },
+  { mode: "codex", label: "Codex", aria: "选择 Codex background agent" },
+  { mode: "claude-code", label: "Claude Code", aria: "选择 Claude Code background agent" }
+];
+
 const PLANNER_PROVIDER_OPTIONS: Array<{ mode: PlannerProviderMode; label: string; aria: string }> = [
   { mode: "local-deterministic", label: "本地确定性", aria: "选择本地确定性规划" },
   { mode: "external-cua", label: "External CUA", aria: "选择 External CUA 规划" },
@@ -438,6 +478,49 @@ const DEFAULT_APP_POLICY_SETTINGS: AppPolicySettings = {
     { name: "Ghostty", bundleId: "com.mitchellh.ghostty", policy: "allow" },
     { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" },
     { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
+  ]
+};
+
+const DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE: AssistantAgentSettingsResponse = {
+  settings: {
+    mode: "local",
+    codexBinary: "codex",
+    codexBinarySource: "default",
+    claudeCodeBinary: "claude",
+    claudeCodeBinarySource: "default",
+    cwd: "",
+    timeoutMs: 45_000
+  },
+  providers: [
+    {
+      provider: "assistant",
+      id: "local",
+      label: "Local",
+      selected: true,
+      configured: true,
+      executableSource: "built-in",
+      readiness: "ready"
+    },
+    {
+      provider: "assistant",
+      id: "codex",
+      label: "Codex",
+      selected: false,
+      configured: true,
+      executablePath: "codex",
+      executableSource: "default",
+      readiness: "unavailable"
+    },
+    {
+      provider: "assistant",
+      id: "claude-code",
+      label: "Claude Code",
+      selected: false,
+      configured: true,
+      executablePath: "claude",
+      executableSource: "default",
+      readiness: "unavailable"
+    }
   ]
 };
 
@@ -479,6 +562,22 @@ const fallbackApi: DesktopApi = {
         : entry
     )
   }),
+  getAssistantAgentSettings: async () => DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
+  setAssistantAgentSettings: async (update) => {
+    const mode = update.mode ?? DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.settings.mode;
+
+    return {
+      ...DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
+      settings: {
+        ...DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.settings,
+        mode
+      },
+      providers: DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.providers.map((provider) => ({
+        ...provider,
+        selected: provider.id === mode
+      }))
+    };
+  },
   getPlannerProviderSettings: async () => DEFAULT_PLANNER_PROVIDER_SETTINGS,
   setPlannerProviderSettings: async (update) => ({
     ...DEFAULT_PLANNER_PROVIDER_SETTINGS,
@@ -520,6 +619,30 @@ function readExternalCuaStatusLabel(settings: PlannerProviderSettings): string {
   }
 
   return "External CUA 未配置";
+}
+
+function readAssistantAgentReadinessLabel(readiness: AssistantAgentProviderReadiness): string {
+  if (readiness === "ready") {
+    return "ready";
+  }
+  if (readiness === "unconfigured") {
+    return "unconfigured";
+  }
+
+  return "unavailable";
+}
+
+function readAssistantAgentProviderDetail(
+  response: AssistantAgentSettingsResponse,
+  provider: AssistantAgentProviderState
+): string {
+  const executable = provider.executablePath ?? "built-in";
+  return [
+    `${provider.label} · ${readAssistantAgentReadinessLabel(provider.readiness)}`,
+    `binary ${executable}`,
+    `cwd ${response.settings.cwd || "default"}`,
+    `timeout ${Math.round(response.settings.timeoutMs / 1000)}s`
+  ].join(" · ");
 }
 
 function mergeReplayRecord(
@@ -1102,6 +1225,8 @@ export default function App() {
   const [appPolicySettings, setAppPolicySettings] = useState<AppPolicySettings>(
     DEFAULT_APP_POLICY_SETTINGS
   );
+  const [assistantAgentSettings, setAssistantAgentSettings] =
+    useState<AssistantAgentSettingsResponse>(DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE);
   const [plannerProviderSettings, setPlannerProviderSettings] =
     useState<PlannerProviderSettings>(DEFAULT_PLANNER_PROVIDER_SETTINGS);
   const [turnReplay, setTurnReplay] = useState<TurnReplay | null>(null);
@@ -1201,6 +1326,18 @@ export default function App() {
     };
   }, [api]);
 
+  const refreshAssistantAgentSettings = useCallback(async () => {
+    try {
+      setAssistantAgentSettings(await api.getAssistantAgentSettings());
+    } catch {
+      setAssistantAgentSettings(DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE);
+    }
+  }, [api]);
+
+  useEffect(() => {
+    void refreshAssistantAgentSettings();
+  }, [refreshAssistantAgentSettings]);
+
   const refreshPermissions = useCallback(async () => {
     setPermissionsLoading(true);
 
@@ -1230,16 +1367,18 @@ export default function App() {
   }, [api]);
 
   const refreshDashboardStatus = useCallback(() => {
+    void refreshAssistantAgentSettings();
     void refreshPermissions();
     void refreshTurnReplay();
-  }, [refreshPermissions, refreshTurnReplay]);
+  }, [refreshAssistantAgentSettings, refreshPermissions, refreshTurnReplay]);
 
   useEffect(() => {
     if (detailsOpen) {
+      void refreshAssistantAgentSettings();
       void refreshPermissions();
       void refreshTurnReplay();
     }
-  }, [detailsOpen, refreshPermissions, refreshTurnReplay]);
+  }, [detailsOpen, refreshAssistantAgentSettings, refreshPermissions, refreshTurnReplay]);
 
   const stopCurrentTurn = useCallback(async () => {
     if (canStopTurn(task.status)) {
@@ -1343,6 +1482,17 @@ export default function App() {
       setTask({
         status: "failed",
         message: "切换应用策略失败."
+      });
+    }
+  }
+
+  async function selectAssistantAgentMode(mode: AssistantAgentMode) {
+    try {
+      setAssistantAgentSettings(await api.setAssistantAgentSettings({ mode }));
+    } catch {
+      setTask({
+        status: "failed",
+        message: "切换 Background Agent 失败."
       });
     }
   }
@@ -1464,6 +1614,10 @@ export default function App() {
     || permissionOnboardingOpen
     || task.status !== "idle"
     || showStartupWarning;
+  const selectedAssistantAgentProvider =
+    assistantAgentSettings.providers.find((provider) => provider.selected)
+    ?? assistantAgentSettings.providers.find((provider) => provider.id === assistantAgentSettings.settings.mode)
+    ?? DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.providers[0];
   const permissionOnboardingRows = readMissingPermissionRows(permissions);
 
   useEffect(() => {
@@ -1509,6 +1663,32 @@ export default function App() {
                 turnReplay={turnReplay}
               />
               <p>偏好</p>
+              <div className="app-policy-panel" aria-label="Background Agent">
+                <div className="app-policy-heading">
+                  <strong>Background Agent</strong>
+                  <span>{selectedAssistantAgentProvider.label}</span>
+                </div>
+                <div className="provider-switch provider-switch-three" role="group" aria-label="Background Agent provider">
+                  {ASSISTANT_AGENT_OPTIONS.map((option) => (
+                    <button
+                      type="button"
+                      key={option.mode}
+                      aria-label={option.aria}
+                      aria-pressed={assistantAgentSettings.settings.mode === option.mode}
+                      onClick={() => void selectAssistantAgentMode(option.mode)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="provider-status-card" aria-label="Background Agent 状态">
+                  <strong>{readAssistantAgentReadinessLabel(selectedAssistantAgentProvider.readiness)}</strong>
+                  <p>{readAssistantAgentProviderDetail(assistantAgentSettings, selectedAssistantAgentProvider)}</p>
+                  {selectedAssistantAgentProvider.lastError ? (
+                    <p>{selectedAssistantAgentProvider.lastError}</p>
+                  ) : null}
+                </div>
+              </div>
               <div className="app-policy-panel" aria-label="应用策略">
                 <div className="app-policy-heading">
                   <strong>应用策略</strong>
@@ -1541,12 +1721,12 @@ export default function App() {
                     <SlidersHorizontal size={13} aria-hidden="true" />
                     诊断/高级
                   </span>
-                  <em>回放与规划</em>
+                  <em>回放与 Computer Use Planner</em>
                 </summary>
                 <div className="advanced-panel-body">
-                  <div className="app-policy-panel" aria-label="规划模式">
+                  <div className="app-policy-panel" aria-label="Computer Use Planner">
                     <div className="app-policy-heading">
-                      <strong>规划模式</strong>
+                      <strong>Computer Use Planner</strong>
                       <span>
                         {plannerProviderSettings.mode === "external-cua"
                           ? plannerProviderSettings.externalProviderLabel
