@@ -240,6 +240,9 @@ function createProviderPromptContract(
   const memoryIndex = prompt.indexOf("<skfiy-recalled-memory>");
   const browserContextIndex = prompt.indexOf("Current Chrome page");
   const userIndex = prompt.indexOf(`User: ${userInput}`);
+  const providerIdentityInternalized = prompt.includes("The speaking assistant identity for this conversation is skfiy.")
+    && prompt.includes("Treat Codex, Claude Code, and Hermes as internal backend implementation details.")
+    && prompt.includes("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
   const providerBoundaryPresent = prompt.includes("Codex, Claude Code, and Hermes are only backend providers")
     && prompt.includes("When asked who you are, answer as skfiy.")
     && prompt.includes("Do not introduce yourself as Codex, Claude Code, Hermes")
@@ -255,6 +258,7 @@ function createProviderPromptContract(
     skfiyIdentityBeforeUser: skfiyIndex >= 0 && userIndex > skfiyIndex,
     memoryBeforeBrowserContext: memoryIndex >= 0 && browserContextIndex > memoryIndex,
     browserContextBeforeUser: browserContextIndex >= 0 && userIndex > browserContextIndex,
+    providerIdentityInternalized,
     providerBoundaryPresent,
     usesReadOnlySandbox: settings.mode === "codex"
       ? invocation.args.includes("--sandbox") && invocation.args.includes("read-only")

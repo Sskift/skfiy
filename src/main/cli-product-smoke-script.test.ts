@@ -188,6 +188,15 @@ describe("CLI product smoke script", () => {
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
+      providerPromptContract: {
+        ...createPassingProviderPromptContract(),
+        providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "hermes"
+          ? { ...provider, providerIdentityInternalized: false }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
       personalMemoryFallbackContract: undefined
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
@@ -414,6 +423,7 @@ function createPassingProviderPromptContract() {
         skfiyIdentityBeforeUser: true,
         memoryBeforeBrowserContext: true,
         browserContextBeforeUser: true,
+        providerIdentityInternalized: true,
         providerBoundaryPresent: true,
         usesReadOnlySandbox: true,
         rejectsDirectDesktopControl: true,
@@ -426,6 +436,7 @@ function createPassingProviderPromptContract() {
         skfiyIdentityBeforeUser: true,
         memoryBeforeBrowserContext: true,
         browserContextBeforeUser: true,
+        providerIdentityInternalized: true,
         providerBoundaryPresent: true,
         disallowsMutatingTools: true,
         rejectsDirectDesktopControl: true,
@@ -438,6 +449,7 @@ function createPassingProviderPromptContract() {
         skfiyIdentityBeforeUser: true,
         memoryBeforeBrowserContext: true,
         browserContextBeforeUser: true,
+        providerIdentityInternalized: true,
         providerBoundaryPresent: true,
         usesBoundedChatToolset: true,
         rejectsDirectDesktopControl: true,

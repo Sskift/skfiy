@@ -448,6 +448,7 @@ function hasProviderContract(providers, expected) {
     && provider?.skfiyIdentityBeforeUser === true
     && provider?.memoryBeforeBrowserContext === true
     && provider?.browserContextBeforeUser === true
+    && provider?.providerIdentityInternalized === true
     && provider?.providerBoundaryPresent === true
     && provider?.rejectsDirectDesktopControl === true
     && provider?.dangerousFlagsAbsent === true

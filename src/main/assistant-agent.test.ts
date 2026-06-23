@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  type AssistantAgentProcessRunner,
   buildAssistantAgentInvocation,
   readAssistantAgentProviderStates,
   readInitialAssistantAgentSettings,
@@ -257,6 +258,33 @@ describe("assistant agent provider", () => {
     expect(prompt).toContain("You are skfiy");
     expect(prompt).toContain("Do not introduce yourself as Codex, Claude Code, Hermes");
     expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("User: 你是谁"));
+  });
+
+  it.each([
+    ["codex", "Codex"] as const,
+    ["claude-code", "Claude Code"] as const,
+    ["hermes", "Hermes"] as const
+  ])("injects skfiy-owned identity during real %s turns", async (mode, label) => {
+    const runProcess = vi.fn<AssistantAgentProcessRunner>()
+      .mockResolvedValue({ stdout: "我是 skfiy。", stderr: "" });
+
+    await runAssistantAgentTurn("你是谁", {
+      settings: {
+        ...baseSettings,
+        mode
+      },
+      runProcess,
+      now: fixedNow,
+      createTurnId: () => `turn-${mode}`
+    });
+
+    const args = runProcess.mock.calls[0]?.[1] ?? [];
+    const prompt = readProviderPrompt(label, args);
+
+    expect(prompt).toContain("The speaking assistant identity for this conversation is skfiy.");
+    expect(prompt).toContain("Treat Codex, Claude Code, and Hermes as internal backend implementation details.");
+    expect(prompt).toContain("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
+    expect(prompt.indexOf("The speaking assistant identity")).toBeLessThan(prompt.indexOf("User: 你是谁"));
   });
 
   it("injects personal memory after skfiy identity and before Browser Context", () => {
@@ -586,3 +614,12 @@ describe("assistant agent provider", () => {
     });
   });
 });
+
+function readProviderPrompt(label: "Codex" | "Claude Code" | "Hermes", args: string[]): string {
+  if (label === "Hermes") {
+    const queryIndex = args.indexOf("--query");
+    return queryIndex >= 0 ? args[queryIndex + 1] ?? "" : "";
+  }
+
+  return args.at(-1) ?? "";
+}
