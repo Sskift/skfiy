@@ -330,8 +330,46 @@ describe("money-run supervision smoke script", () => {
     const { stdout } = await runMoneyRunScript(["--help"]);
 
     expect(stdout).toContain("Product-path read-only supervision smoke for the money-run session.");
+    expect(stdout).toContain("--output <path>");
+    expect(stdout).toContain("--require-passed");
     expect(stdout).toContain("--direct-tmux");
     expect(stdout).toContain("This script does not create sessions, send keys, kill panes");
+  });
+
+  it("accepts release-gate output and require-passed flags", async () => {
+    const outputPath = path.resolve(".skfiy-smoke/money-run-current.json");
+    const { stdout } = await runMoneyRunScript([
+      "--app",
+      "dist/skfiy.app",
+      "--session",
+      "money-run",
+      "--require-passed",
+      "--output",
+      ".skfiy-smoke/money-run-current.json",
+      "--dry-run"
+    ]);
+    const dryRun = JSON.parse(stdout) as Record<string, unknown>;
+
+    expect(dryRun).toMatchObject({
+      appPath: path.resolve("dist/skfiy.app"),
+      artifactPath: outputPath,
+      sessionName: "money-run",
+      requirePassed: true
+    });
+  });
+
+  it("does not let direct tmux diagnostics satisfy require-passed", async () => {
+    const { stdout } = await runMoneyRunModuleExpression(`
+      const checks = [
+        moneyRun.readMoneyRunProcessExitCode({ result: "passed" }, { requirePassed: true }),
+        moneyRun.readMoneyRunProcessExitCode({ status: "observing" }, { requirePassed: false }),
+        moneyRun.readMoneyRunProcessExitCode({ status: "observing" }, { requirePassed: true }),
+        moneyRun.readMoneyRunProcessExitCode({ result: "needs_attention" }, { requirePassed: true })
+      ];
+      console.log(JSON.stringify(checks));
+    `);
+
+    expect(JSON.parse(stdout)).toEqual([0, 0, 2, 2]);
   });
 
   it("describes the packaged app product path for dry runs", async () => {
@@ -501,6 +539,24 @@ function runMoneyRunScript(args: string[]): Promise<{ stdout: string; stderr: st
   return execFileAsync(
     process.execPath,
     [path.join(process.cwd(), "scripts/smoke-money-run-supervision.mjs"), ...args],
+    { cwd: process.cwd() }
+  );
+}
+
+function runMoneyRunModuleExpression(expression: string): Promise<{ stdout: string; stderr: string }> {
+  const modulePath = path.join(process.cwd(), "scripts/smoke-money-run-supervision.mjs");
+
+  return execFileAsync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      [
+        "import { pathToFileURL } from 'node:url';",
+        `const moneyRun = await import(pathToFileURL(${JSON.stringify(modulePath)}).href);`,
+        expression
+      ].join("\n")
+    ],
     { cwd: process.cwd() }
   );
 }

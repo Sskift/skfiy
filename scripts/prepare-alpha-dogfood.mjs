@@ -623,7 +623,7 @@ function validateManifest(manifest) {
   if (
     typeof manifest.moneyRunSmokeArtifactPath !== "string"
     || manifest.moneyRunSmokeArtifactPath.trim().length === 0
-    || !evidence.includes("npm run smoke:money-run -- --json-output <path>")
+    || !evidence.includes("npm run smoke:money-run -- --require-passed --output <path>")
     || !evidence.includes("Long-horizon money-run supervision evidence")
   ) {
     throw new Error("alpha manifest must include moneyRunSmokeArtifactPath and long-horizon money-run evidence.");

@@ -6501,7 +6501,6 @@ function createSmokeScriptPath(target: SmokeTarget, rootDir: string): string {
 
 function createSmokeScriptArgs(target: SmokeTarget, argv: string[], rootDir: string): string[] {
   const args: string[] = [];
-  const outputArg = target === "money-run" ? "--json-output" : "--output";
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -6514,9 +6513,9 @@ function createSmokeScriptArgs(target: SmokeTarget, argv: string[], rootDir: str
       const value = argv[index + 1];
 
       if (value === undefined || value.startsWith("--")) {
-        args.push(outputArg);
+        args.push("--output");
       } else {
-        args.push(outputArg, path.isAbsolute(value) ? value : path.resolve(rootDir, value));
+        args.push("--output", path.isAbsolute(value) ? value : path.resolve(rootDir, value));
         index += 1;
       }
       continue;

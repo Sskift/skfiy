@@ -176,7 +176,7 @@ describe("alpha artifact packaging", () => {
         "npm run smoke:chrome -- --output <path>",
         "npm run smoke:finder -- --output <path>",
         "npm run smoke:dashboard -- --output <path>",
-        "npm run smoke:money-run -- --json-output <path>",
+        "npm run smoke:money-run -- --require-passed --output <path>",
         "skfiy status --json",
         "skfiy doctor",
         "skfiy dashboard --no-open --json",

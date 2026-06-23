@@ -29,6 +29,7 @@ export function createDefaultMoneyRunSupervisionOptions(rootDir = DEFAULT_ROOT_D
     tailLines: 120,
     jsonOutputPath: undefined,
     modulePath: path.join(rootDir, "dist/main/computer-use/tmux-supervisor.js"),
+    requirePassed: false,
     directTmux: false,
     dryRun: false,
     help: false
@@ -68,8 +69,12 @@ export function parseMoneyRunSupervisionArgs(argv, defaults) {
         index += 1;
         break;
       case "--json-output":
+      case "--output":
         options.jsonOutputPath = path.resolve(readValue(argv, index, arg));
         index += 1;
+        break;
+      case "--require-passed":
+        options.requirePassed = true;
         break;
       case "--module":
         options.modulePath = path.resolve(readValue(argv, index, arg));
@@ -140,7 +145,7 @@ export function createTmuxProbePlan(options) {
 
 export function createMoneyRunSupervisionHelpText(defaults) {
   return [
-    "Usage: npm run smoke:money-run -- [--session <name>] [--app <path>] [--tail-lines <count>] [--json-output <path>] [--direct-tmux] [--dry-run]",
+    "Usage: npm run smoke:money-run -- [--session <name>] [--app <path>] [--tail-lines <count>] [--output <path>] [--require-passed] [--direct-tmux] [--dry-run]",
     "",
     "Product-path read-only supervision smoke for the money-run session.",
     "By default it launches the compiled skfiy.app, sends the tmux supervision command through",
@@ -153,7 +158,9 @@ export function createMoneyRunSupervisionHelpText(defaults) {
     `  --timeout-ms <count>   timeout waiting for app/task events (default: ${defaults.timeoutMs})`,
     `  --settle-ms <count>    settle delay after renderer calls (default: ${defaults.settleMs})`,
     `  --tail-lines <count>   recent lines captured per pane (default: ${defaults.tailLines})`,
-    "  --json-output <path>   write the report JSON to a file instead of stdout only",
+    "  --output <path>        write the report JSON to a file instead of stdout only",
+    "  --json-output <path>   compatibility alias for --output",
+    "  --require-passed       exit non-zero unless the product-path smoke result is passed",
     `  --module <path>        compiled supervisor module (default: ${defaults.modulePath})`,
     "  --direct-tmux          run the old direct tmux diagnostic path without launching skfiy.app",
     "  --dry-run              print the product-path probe plan without launching skfiy.app",
@@ -174,6 +181,7 @@ export function createMoneyRunProductDryRun(options) {
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
     approvalRequired: true,
+    requirePassed: options.requirePassed === true,
     mutatesSession: false,
     probePlan: createTmuxProbePlan(options)
   };
@@ -341,6 +349,7 @@ async function runMoneyRunProductSmoke(options) {
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
     approvalRequired: true,
+    requirePassed: options.requirePassed === true,
     mutatesSession: false,
     probePlan: createTmuxProbePlan(options),
     events: [],
@@ -619,6 +628,14 @@ function classifyMoneyRunProductEvidence(evidence) {
   return "blocked";
 }
 
+export function readMoneyRunProcessExitCode(report, options = {}) {
+  if (options.requirePassed === true) {
+    return report?.result === "passed" ? 0 : 2;
+  }
+
+  return report?.status === "observing" || report?.result === "passed" ? 0 : 2;
+}
+
 async function readSkfiyProcesses() {
   const { stdout } = await execFileAsync("ps", ["-axo", "pid=,command="]);
   return stdout
@@ -666,7 +683,7 @@ async function main() {
     await writeJsonOutput(options.jsonOutputPath, report);
   }
 
-  process.exitCode = report.status === "observing" || report.result === "passed" ? 0 : 2;
+  process.exitCode = readMoneyRunProcessExitCode(report, options);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

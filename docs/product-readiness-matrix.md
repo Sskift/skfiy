@@ -197,7 +197,7 @@ npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output
 npm run smoke:chrome -- --app dist/skfiy.app --extension-chrome-app "Chromium" --extension-id <id> --require-passed --output .skfiy-smoke/chrome-<commit>.json
 npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-<commit>.json
 npm run smoke:dashboard -- --cli dist/skfiy --extension-chrome-app "Chromium" --extension-id <id> --require-passed --output .skfiy-smoke/dashboard-<commit>.json
-npm run smoke:money-run -- --app dist/skfiy.app --session money-run --json-output .skfiy-smoke/money-run-<commit>.json
+npm run smoke:money-run -- --app dist/skfiy.app --session money-run --require-passed --output .skfiy-smoke/money-run-<commit>.json
 ```
 
 If a smoke is skipped for manual authorization, record the exact blocker,

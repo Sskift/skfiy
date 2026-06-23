@@ -996,7 +996,7 @@ describe("dogfood status reporter", () => {
             refreshSmokeCommands: expect.arrayContaining([
               "npm run smoke:chrome -- --app dist/skfiy.app --extension-chrome-app \"Chromium\" --extension-id <chrome-extension-id> --require-passed --output .skfiy-smoke/chrome-feedbee.json",
               "npm run smoke:dashboard -- --cli dist/skfiy --extension-chrome-app \"Chromium\" --extension-id <chrome-extension-id> --require-passed --output .skfiy-smoke/dashboard-feedbee.json",
-              "npm run smoke:money-run -- --app dist/skfiy.app --session money-run --json-output .skfiy-smoke/money-run-feedbee.json"
+              "npm run smoke:money-run -- --app dist/skfiy.app --session money-run --require-passed --output .skfiy-smoke/money-run-feedbee.json"
             ]),
             alphaArtifactCommand: "npm run alpha:artifact -- --ui-smoke-artifact .skfiy-smoke/ui-feedbee.json --smoke-artifact .skfiy-smoke/ghostty-feedbee.json --chrome-smoke-artifact .skfiy-smoke/chrome-feedbee.json --finder-smoke-artifact .skfiy-smoke/finder-feedbee.json --dashboard-smoke-artifact .skfiy-smoke/dashboard-feedbee.json --money-run-smoke-artifact .skfiy-smoke/money-run-feedbee.json"
           }

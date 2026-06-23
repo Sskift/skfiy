@@ -47,7 +47,7 @@ npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-current.js
 The long-horizon supervision smoke remains optional but important before broader dogfood:
 
 ```bash
-npm run smoke:money-run -- --json-output .skfiy-smoke/money-run-current.json
+npm run smoke:money-run -- --require-passed --output .skfiy-smoke/money-run-current.json
 ```
 
 Use `--require-passed` only after `smoke:desktop-session` passes and Screen Recording plus Accessibility are granted to the same packaged app identity.

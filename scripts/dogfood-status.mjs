@@ -1297,7 +1297,7 @@ function createCurrentHeadSmokeRefreshCommands(paths) {
     `npm run smoke:chrome -- --app dist/skfiy.app --extension-chrome-app "Chromium" --extension-id <chrome-extension-id> --require-passed --output ${paths.chrome}`,
     `npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output ${paths.finder}`,
     `npm run smoke:dashboard -- --cli dist/skfiy --extension-chrome-app "Chromium" --extension-id <chrome-extension-id> --require-passed --output ${paths.dashboard}`,
-    `npm run smoke:money-run -- --app dist/skfiy.app --session money-run --json-output ${paths.moneyRun}`
+    `npm run smoke:money-run -- --app dist/skfiy.app --session money-run --require-passed --output ${paths.moneyRun}`
   ];
 }
 

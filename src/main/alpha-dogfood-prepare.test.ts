@@ -807,7 +807,7 @@ function createDownloadedManifest() {
       "npm run smoke:chrome -- --output <path>",
       "npm run smoke:finder -- --output <path>",
       "npm run smoke:dashboard -- --output <path>",
-      "npm run smoke:money-run -- --json-output <path>",
+      "npm run smoke:money-run -- --require-passed --output <path>",
       "Panic stop product-path behavior evidence",
       "Dashboard readiness and dogfood evidence",
       "Long-horizon money-run supervision evidence",

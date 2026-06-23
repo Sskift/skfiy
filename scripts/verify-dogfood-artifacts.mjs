@@ -198,7 +198,7 @@ export async function verifyDogfoodArtifacts(options, io = createDefaultIo()) {
       checks,
       "manifest.requiredDogfoodEvidence.moneyRun",
       Array.isArray(manifest?.requiredDogfoodEvidence)
-        && manifest.requiredDogfoodEvidence.includes("npm run smoke:money-run -- --json-output <path>"),
+        && manifest.requiredDogfoodEvidence.includes("npm run smoke:money-run -- --require-passed --output <path>"),
       "manifest must require money-run supervision smoke evidence"
     );
     check(

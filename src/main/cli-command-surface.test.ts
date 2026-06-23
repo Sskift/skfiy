@@ -1117,7 +1117,7 @@ describe("CLI command surface", () => {
         requirePassed: false,
         scriptPath: "/repo/scripts/smoke-money-run-supervision.mjs",
         scriptArgs: [
-          "--json-output",
+          "--output",
           "/repo/.skfiy-smoke/money-run.json"
         ]
       }
@@ -1149,7 +1149,7 @@ describe("CLI command surface", () => {
       outputPath: "/repo/.skfiy-smoke/money-run.json",
       scriptPath: "/repo/scripts/smoke-money-run-supervision.mjs",
       scriptArgs: [
-        "--json-output",
+        "--output",
         "/repo/.skfiy-smoke/money-run.json"
       ],
       result: "not-run",
