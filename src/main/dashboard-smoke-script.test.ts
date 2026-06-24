@@ -795,6 +795,23 @@ describe("dashboard product smoke script", () => {
           "Codexinjects promptoutgoing",
           "Pending user memoryawaits approvalincoming"
         ],
+        visualDesignContract: {
+          viewportWidth: 1280,
+          viewportHeight: 900,
+          shellUsesDarkGridBackground: true,
+          graphCanvasUsesGridBackground: true,
+          graphCanvasUsesDarkSurface: true,
+          vaultLensUsesDarkPanel: true,
+          focusedNotePanelUsesGradient: true,
+          notesPanelUsesGradient: true,
+          backlinksPanelUsesGradient: true,
+          learningLoopPanelUsesGradient: true,
+          graphUsesGradientLinks: true,
+          selectedNodeGlowVisible: true,
+          paletteHasMultipleAccentFamilies: true,
+          screenshotCoversDashboardShell: true,
+          screenshotCoversKnowledgeGraph: true
+        },
         result: "passed"
       },
       chromeHostPolicyApi: {
@@ -1230,6 +1247,26 @@ describe("dashboard product smoke script", () => {
         focusedNeighborhoodTexts: passedEvidence.knowledgeGraphEvidence.focusedNeighborhoodTexts.filter((text) => (
           !text.includes("Pending user memory")
         ))
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        visualDesignContract: {
+          ...passedEvidence.knowledgeGraphEvidence.visualDesignContract,
+          graphCanvasUsesGridBackground: false
+        }
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        visualDesignContract: {
+          ...passedEvidence.knowledgeGraphEvidence.visualDesignContract,
+          paletteHasMultipleAccentFamilies: false
+        }
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

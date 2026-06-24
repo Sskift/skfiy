@@ -330,8 +330,29 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("answered"))
     && (!hasBrowserContextNode
       || evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in")))
+    && hasDashboardKnowledgeGraphVisualDesignContract(evidence.visualDesignContract)
     && typeof evidence?.screenshotPath === "string"
     && evidence.screenshotPath.endsWith("-knowledge-graph.png");
+}
+
+function hasDashboardKnowledgeGraphVisualDesignContract(contract) {
+  return Number.isInteger(contract?.viewportWidth)
+    && contract.viewportWidth >= 1200
+    && Number.isInteger(contract?.viewportHeight)
+    && contract.viewportHeight >= 800
+    && contract?.shellUsesDarkGridBackground === true
+    && contract?.graphCanvasUsesGridBackground === true
+    && contract?.graphCanvasUsesDarkSurface === true
+    && contract?.vaultLensUsesDarkPanel === true
+    && contract?.focusedNotePanelUsesGradient === true
+    && contract?.notesPanelUsesGradient === true
+    && contract?.backlinksPanelUsesGradient === true
+    && contract?.learningLoopPanelUsesGradient === true
+    && contract?.graphUsesGradientLinks === true
+    && contract?.selectedNodeGlowVisible === true
+    && contract?.paletteHasMultipleAccentFamilies === true
+    && contract?.screenshotCoversDashboardShell === true
+    && contract?.screenshotCoversKnowledgeGraph === true;
 }
 
 function hasDashboardLauncherContract(cliOutput) {

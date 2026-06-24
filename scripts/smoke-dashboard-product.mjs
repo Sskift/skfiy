@@ -332,7 +332,7 @@ async function main() {
     }
   });
   await win.loadURL(dashboardUrl);
-  await win.webContents.executeJavaScript(\`
+  await executeProbeScript(win, "knowledge-graph-ready-wait", \`
     new Promise((resolve) => {
       const startedAt = Date.now();
       const check = () => {
@@ -350,8 +350,9 @@ async function main() {
     })
   \`);
 
-  const dom = await win.webContents.executeJavaScript(\`
+  const dom = await executeProbeScript(win, "knowledge-graph-dom-probe", \`
     (async () => {
+      try {
       const region = document.querySelector('[aria-label="Knowledge graph"]');
       region?.scrollIntoView({ block: "center", inline: "nearest" });
       const nodeItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph nodes"] li'));
@@ -372,6 +373,53 @@ async function main() {
       const focusedBacklinkItems = Array.from(document.querySelectorAll('[aria-label="Focused note backlinks"] li'));
       const focusedNeighborhoodItems = Array.from(document.querySelectorAll('[aria-label="Focused neighborhood"] li'));
       const learningLoopList = document.querySelector('[aria-label="Learning loop"]');
+      const shell = document.querySelector(".skfiy-dashboard-shell");
+      const graphCanvas = document.querySelector(".skfiy-knowledge-graph-canvas");
+      const vaultLens = document.querySelector(".skfiy-vault-lens");
+      const focusedNotePanel = document.querySelector(".skfiy-knowledge-panel--focus");
+      const notesPanel = document.querySelector(".skfiy-knowledge-panel--notes");
+      const backlinksPanel = document.querySelector(".skfiy-knowledge-panel--backlinks");
+      const learningLoopPanel = document.querySelector(".skfiy-knowledge-panel--loop");
+      const selectedNodeCircle = document.querySelector('.skfiy-graph-node[data-selected="true"] circle');
+      const graphGradient = document.querySelector("#skfiy-graph-link");
+      const graphEdgeLine = document.querySelector(".skfiy-graph-edge line");
+      const bodyStyle = getComputedStyle(document.body);
+      const graphCanvasStyle = graphCanvas ? getComputedStyle(graphCanvas) : null;
+      const vaultLensStyle = vaultLens ? getComputedStyle(vaultLens) : null;
+      const focusedNotePanelStyle = focusedNotePanel ? getComputedStyle(focusedNotePanel) : null;
+      const notesPanelStyle = notesPanel ? getComputedStyle(notesPanel) : null;
+      const backlinksPanelStyle = backlinksPanel ? getComputedStyle(backlinksPanel) : null;
+      const learningLoopPanelStyle = learningLoopPanel ? getComputedStyle(learningLoopPanel) : null;
+      const selectedNodeStyle = selectedNodeCircle ? getComputedStyle(selectedNodeCircle) : null;
+      const graphEdgeStyle = graphEdgeLine ? getComputedStyle(graphEdgeLine) : null;
+      const shellRect = shell?.getBoundingClientRect();
+      const regionRect = region?.getBoundingClientRect();
+      const nodeColorSignatures = new Set(Array.from(document.querySelectorAll(".skfiy-graph-node circle"))
+        .map((circle) => {
+          const style = getComputedStyle(circle);
+          return [style.fill, style.stroke].join("|");
+        }));
+      const visualDesignContract = {
+        shellUsesDarkGridBackground: hasGridBackground(bodyStyle),
+        graphCanvasUsesGridBackground: graphCanvasStyle ? hasGridBackground(graphCanvasStyle) : false,
+        graphCanvasUsesDarkSurface: graphCanvasStyle ? isDarkVisualSurface(graphCanvasStyle) : false,
+        vaultLensUsesDarkPanel: vaultLensStyle ? isDarkVisualSurface(vaultLensStyle) && hasGradientBackground(vaultLensStyle) : false,
+        focusedNotePanelUsesGradient: focusedNotePanelStyle ? hasGradientBackground(focusedNotePanelStyle) : false,
+        notesPanelUsesGradient: notesPanelStyle ? hasGradientBackground(notesPanelStyle) : false,
+        backlinksPanelUsesGradient: backlinksPanelStyle ? hasGradientBackground(backlinksPanelStyle) : false,
+        learningLoopPanelUsesGradient: learningLoopPanelStyle ? hasGradientBackground(learningLoopPanelStyle) : false,
+        graphUsesGradientLinks: Boolean(graphGradient) && (graphEdgeStyle?.stroke ?? "").includes("url"),
+        selectedNodeGlowVisible: Boolean(selectedNodeStyle) && (
+          selectedNodeStyle.filter !== "none"
+          || Number.parseFloat(selectedNodeStyle.strokeWidth) >= 3
+        ),
+        paletteHasMultipleAccentFamilies: nodeColorSignatures.size >= 5,
+        screenshotCoversDashboardShell: Boolean(shellRect) && shellRect.width >= 1000 && shellRect.height >= 800,
+        screenshotCoversKnowledgeGraph: Boolean(regionRect)
+          && regionRect.width >= 700
+          && regionRect.bottom > 0
+          && regionRect.top < window.innerHeight
+      };
       const rects = nodeItems.map((item) => {
         const rect = item.getBoundingClientRect();
         return {
@@ -420,6 +468,7 @@ async function main() {
         focusedBacklinkTexts: focusedBacklinkItems.map((item) => item.textContent),
         focusedNeighborhoodTexts: focusedNeighborhoodItems.map((item) => item.textContent),
         learningLoopTexts: learningLoopItems.map((item) => item.textContent),
+        visualDesignContract,
         personalSkillTexts: nodeItems
           .filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? ""))
           .map((item) => item.textContent),
@@ -453,13 +502,82 @@ async function main() {
         vaultSearchNodeTexts: vaultSearchNodeItems.map((item) => item.textContent),
         vaultSearchNoteTexts: vaultSearchNoteItems.map((item) => item.textContent)
       };
+
+      function hasGridBackground(style) {
+        return countOccurrences(style.backgroundImage, "linear-gradient") >= 2
+          && /[0-9]+px/u.test(style.backgroundSize);
+      }
+
+      function hasGradientBackground(style) {
+        return style.backgroundImage.includes("linear-gradient");
+      }
+
+      function isDarkVisualSurface(style) {
+        return readDarkestRgbChannelAverage([
+          style.backgroundColor,
+          style.backgroundImage
+        ].join(" ")) < 90;
+      }
+
+      function readDarkestRgbChannelAverage(value) {
+        const matches = [...value.matchAll(/rgba?[(]([0-9]+),[ ]*([0-9]+),[ ]*([0-9]+)/gu)];
+        if (matches.length === 0) {
+          return 255;
+        }
+        return Math.min(...matches.map((match) => (
+          (Number(match[1]) + Number(match[2]) + Number(match[3])) / 3
+        )));
+      }
+
+      function countOccurrences(value, needle) {
+        return value.split(needle).length - 1;
+      }
+      } catch (error) {
+        return {
+          result: "error",
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        };
+      }
     })()
   \`);
+  if (dom?.result === "error") {
+    clearTimeout(timeout);
+    console.log(JSON.stringify({
+      productPath,
+      dashboardUrl,
+      screenshotPath,
+      ...dom
+    }));
+    app.quit();
+    return;
+  }
   await new Promise((resolve) => setTimeout(resolve, 120));
 
   const image = await win.webContents.capturePage();
   const png = image.toPNG();
+  const screenshotSize = image.getSize();
   await fs.writeFile(screenshotPath, png);
+  const visualDesignContract = {
+    ...dom.visualDesignContract,
+    viewportWidth: screenshotSize.width,
+    viewportHeight: screenshotSize.height
+  };
+  const visualContractPassed = visualDesignContract.viewportWidth >= 1200
+    && visualDesignContract.viewportHeight >= 800
+    && visualDesignContract.shellUsesDarkGridBackground
+    && visualDesignContract.graphCanvasUsesGridBackground
+    && visualDesignContract.graphCanvasUsesDarkSurface
+    && visualDesignContract.vaultLensUsesDarkPanel
+    && visualDesignContract.focusedNotePanelUsesGradient
+    && visualDesignContract.notesPanelUsesGradient
+    && visualDesignContract.backlinksPanelUsesGradient
+    && visualDesignContract.learningLoopPanelUsesGradient
+    && visualDesignContract.graphUsesGradientLinks
+    && visualDesignContract.selectedNodeGlowVisible
+    && visualDesignContract.paletteHasMultipleAccentFamilies
+    && visualDesignContract.screenshotCoversDashboardShell
+    && visualDesignContract.screenshotCoversKnowledgeGraph;
   clearTimeout(timeout);
   console.log(JSON.stringify({
     productPath,
@@ -467,9 +585,46 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.vaultSearchInputFound && dom.vaultSearchNodeCount >= 2 && dom.vaultSearchNoteCount >= 2 && dom.vaultSearchSummary.includes("approval") && dom.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory")) && dom.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && !dom.fallbackTextOverlap ? "passed" : "failed"
+    visualDesignContract,
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.vaultSearchInputFound && dom.vaultSearchNodeCount >= 2 && dom.vaultSearchNoteCount >= 2 && dom.vaultSearchSummary.includes("approval") && dom.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory")) && dom.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && visualContractPassed && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
+}
+
+async function executeProbeScript(win, label, source) {
+  const debuggerSession = win.webContents.debugger;
+  const shouldDetach = !debuggerSession.isAttached();
+  try {
+    if (shouldDetach) {
+      debuggerSession.attach("1.3");
+    }
+    const result = await debuggerSession.sendCommand("Runtime.evaluate", {
+      expression: source,
+      awaitPromise: true,
+      returnByValue: true
+    });
+    if (result.exceptionDetails) {
+      throw new Error(formatProbeException(result.exceptionDetails));
+    }
+    return result.result?.value;
+  } catch (error) {
+    throw new Error(\`\${label}: \${error instanceof Error ? error.message : String(error)}\`);
+  } finally {
+    if (shouldDetach && debuggerSession.isAttached()) {
+      debuggerSession.detach();
+    }
+  }
+}
+
+function formatProbeException(details) {
+  const description = details.exception?.description
+    ?? details.exception?.value
+    ?? details.text
+    ?? "unknown probe exception";
+  const location = Number.isInteger(details.lineNumber)
+    ? \` at line \${details.lineNumber + 1}\${Number.isInteger(details.columnNumber) ? \`:\${details.columnNumber + 1}\` : ""}\`
+    : "";
+  return \`\${description}\${location}\`;
 }
 
 main().catch((error) => {
