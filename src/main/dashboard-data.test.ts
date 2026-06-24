@@ -151,6 +151,27 @@ describe("dashboard snapshot data", () => {
       "/Users/tester/Library/Application Support/skfiy/memory/AGENT.md": [
         "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
       ].join("\n"),
+      "/Users/tester/Library/Application Support/skfiy/memory/pending-memory-writes.json": JSON.stringify({
+        schemaVersion: 1,
+        writes: [
+          {
+            id: "pmw-safe",
+            createdAt: "2026-06-23T10:05:00.000Z",
+            source: "post-turn-review",
+            action: "add",
+            target: "user",
+            content: "User wants memory writes to be reviewable before they become durable."
+          },
+          {
+            id: "pmw-secret",
+            createdAt: "2026-06-23T10:06:00.000Z",
+            source: "post-turn-review",
+            action: "add",
+            target: "user",
+            content: "User token=secret should not be displayed."
+          }
+        ]
+      }),
       "/Users/tester/Library/Application Support/skfiy/memory/sessions.jsonl": [
         JSON.stringify({
           turnId: "turn-0",
@@ -209,6 +230,17 @@ describe("dashboard snapshot data", () => {
       ],
       recentAgentEntries: [
         "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
+      ],
+      pendingWriteCount: 1,
+      pendingWrites: [
+        {
+          id: "pmw-safe",
+          createdAt: "2026-06-23T10:05:00.000Z",
+          source: "post-turn-review",
+          action: "add",
+          target: "user",
+          content: "User wants memory writes to be reviewable before they become durable."
+        }
       ],
       latestSession: {
         createdAt: "2026-06-23T10:00:00.000Z",

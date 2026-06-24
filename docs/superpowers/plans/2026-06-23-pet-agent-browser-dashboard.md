@@ -1226,6 +1226,23 @@ npx vitest run src/main/dashboard-server.test.ts src/dashboard/DashboardApp.test
 
 Expected: focused tests pass.
 
+- [x] **Step 6: Add Hermes-style pending memory write review**
+
+In `src/main/personal-memory-pending.ts`, `src/main/main.ts`, `src/main/dashboard-data.ts`, `src/main/dashboard-server.ts`, and Dashboard frontend files:
+
+- Store staged memory write candidates in `${appSupport}/memory/pending-memory-writes.json`.
+- Block prompt-injection-shaped or token-like pending writes before they can be displayed for review.
+- Keep existing automatic durable memory writes as the default so repeated conversations still sediment preferences without extra setup.
+- Add `SKFIY_PERSONAL_MEMORY_WRITE_APPROVAL=true|1|on` so post-turn review can stage operations instead of writing durable memory immediately.
+- Show pending memory writes in the Dashboard Memory panel with approve/reject controls.
+- Allow Dashboard to approve or reject a staged write through the same narrow `/api/personal-memory` channel without enabling arbitrary Dashboard `add` requests.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/personal-memory-pending.test.ts src/main/personal-memory-main-wiring.test.ts src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot
+```
+
 ## Task 10: End-To-End Product Validation
 
 **Files:**

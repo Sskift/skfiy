@@ -35,8 +35,10 @@ import {
 } from "./assistant-agent-settings.js";
 import {
   createPersonalMemoryStore,
-  createSkfiyApplicationSupportPath
+  createSkfiyApplicationSupportPath,
+  type PersonalMemoryOperation
 } from "./personal-memory.js";
+import { createPendingPersonalMemoryStore } from "./personal-memory-pending.js";
 import { createPersonalSkillSettingsStore } from "./personal-skills.js";
 import {
   createFallbackPersonalMemoryOperations,
@@ -187,6 +189,10 @@ const assistantAgentSettingsStore = createAssistantAgentSettingsStore(
 const personalMemoryStore = createPersonalMemoryStore({
   baseDir: skfiyAppSupportDir
 });
+const pendingPersonalMemoryStore = createPendingPersonalMemoryStore({
+  baseDir: skfiyAppSupportDir
+});
+const personalMemoryWriteApprovalEnabled = isEnabledEnvFlag(process.env.SKFIY_PERSONAL_MEMORY_WRITE_APPROVAL);
 const personalSkillSettingsStore = createPersonalSkillSettingsStore({
   baseDir: skfiyAppSupportDir
 });
@@ -454,6 +460,26 @@ function readMode(value: unknown): ManualMode {
   return value === "quiet" || value === "active" ? value : "active";
 }
 
+function isEnabledEnvFlag(value: string | undefined): boolean {
+  return value === "1" || value === "true" || value === "on";
+}
+
+function applyOrStagePersonalMemoryOperations(
+  operations: PersonalMemoryOperation[],
+  {
+    source
+  }: {
+    source: "post-turn-review" | string;
+  }
+): void {
+  if (personalMemoryWriteApprovalEnabled) {
+    pendingPersonalMemoryStore.stageOperations(operations, { source });
+    return;
+  }
+
+  personalMemoryStore.applyOperations(operations);
+}
+
 function readPetWindowMode(value: unknown): PetWindowMode | undefined {
   return value === "compact" || value === "expanded" ? value : undefined;
 }
@@ -612,11 +638,13 @@ function schedulePersonalMemoryPostTurnReview(
   const settings = assistantAgentSettingsStore.get();
 
   const applyFallbackMemory = () => {
-    personalMemoryStore.applyOperations(createFallbackPersonalMemoryOperations({
+    applyOrStagePersonalMemoryOperations(createFallbackPersonalMemoryOperations({
       userInput,
       assistantReply: turn.message,
       existingMemory
-    }));
+    }), {
+      source: "post-turn-review"
+    });
   };
 
   void runAssistantAgentTurn(reviewPrompt, {
@@ -632,7 +660,9 @@ function schedulePersonalMemoryPostTurnReview(
     }
     const operations = parsePersonalMemoryReview(reviewTurn.message);
     if (operations.length > 0) {
-      personalMemoryStore.applyOperations(operations);
+      applyOrStagePersonalMemoryOperations(operations, {
+        source: "post-turn-review"
+      });
       return;
     }
     applyFallbackMemory();

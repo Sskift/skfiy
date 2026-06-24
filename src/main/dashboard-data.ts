@@ -38,6 +38,10 @@ import {
   readPersonalMemorySnapshot
 } from "./personal-memory.js";
 import {
+  readPendingPersonalMemoryWrites,
+  type PendingPersonalMemoryWrite
+} from "./personal-memory-pending.js";
+import {
   createPersonalSkillCards,
   readPersonalSkillSettings
 } from "./personal-skills.js";
@@ -354,6 +358,10 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     baseDir,
     io
   });
+  const pendingMemoryWrites = readPendingPersonalMemoryWrites({
+    baseDir,
+    io
+  });
   const sessions = readSessionMemoryRecords({
     baseDir,
     io
@@ -381,6 +389,12 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
       : {}),
     recentUserEntries: personalMemory.userEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
     recentAgentEntries: personalMemory.agentEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
+    ...(pendingMemoryWrites.length > 0
+      ? {
+        pendingWriteCount: pendingMemoryWrites.length,
+        pendingWrites: pendingMemoryWrites.slice(-5).reverse().map(createDashboardPendingMemoryWriteSummary)
+      }
+      : {}),
     ...(personalSkills.length > 0
       ? { personalSkills: personalSkills.map(createDashboardPersonalSkillSummary) }
       : {}),
@@ -542,6 +556,20 @@ function createDashboardSessionSummary(session: SessionMemoryRecord): Record<str
       : {}),
     ...(session.browserContext?.url
       ? { browserUrl: sanitizeDashboardMemoryEntry(session.browserContext.url) }
+      : {})
+  };
+}
+
+function createDashboardPendingMemoryWriteSummary(write: PendingPersonalMemoryWrite): Record<string, unknown> {
+  return {
+    id: write.id,
+    createdAt: write.createdAt,
+    source: sanitizeDashboardMemoryEntry(write.source),
+    action: write.action,
+    target: write.target,
+    content: sanitizeDashboardMemoryEntry(write.content),
+    ...(write.previousContent
+      ? { previousContent: sanitizeDashboardMemoryEntry(write.previousContent) }
       : {})
   };
 }

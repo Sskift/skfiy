@@ -14,5 +14,8 @@ describe("personal memory main-process wiring", () => {
     expect(scheduleBlock).toContain("if (operations.length > 0)");
     expect(scheduleBlock).toContain("applyFallbackMemory();");
     expect(scheduleBlock).toContain("}).catch(() => {");
+    expect(source).toContain("SKFIY_PERSONAL_MEMORY_WRITE_APPROVAL");
+    expect(scheduleBlock).toContain("applyOrStagePersonalMemoryOperations");
+    expect(scheduleBlock).toContain("source: \"post-turn-review\"");
   });
 });

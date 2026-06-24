@@ -102,10 +102,22 @@ export interface DashboardPersonalMemorySummary {
   usage?: DashboardPersonalMemoryUsage;
   recentUserEntries: string[];
   recentAgentEntries: string[];
+  pendingWriteCount?: number;
+  pendingWrites?: DashboardPendingPersonalMemoryWrite[];
   mutedPersonalSkillIds?: string[];
   personalSkills?: DashboardPersonalSkillCard[];
   latestSession?: DashboardPersonalMemorySessionSummary;
   recentSessions?: DashboardPersonalMemorySessionSummary[];
+}
+
+export interface DashboardPendingPersonalMemoryWrite {
+  id: string;
+  createdAt: string;
+  source: string;
+  action: "add" | "replace" | "remove" | string;
+  target: DashboardPersonalMemoryTarget;
+  content: string;
+  previousContent?: string;
 }
 
 export interface DashboardPersonalSkillCard {
@@ -140,9 +152,10 @@ export interface DashboardPersonalMemorySessionSummary {
 export type DashboardPersonalMemoryTarget = "user" | "agent";
 
 export interface DashboardPersonalMemoryActionRequest {
-  action: "forget";
-  target: DashboardPersonalMemoryTarget;
-  content: string;
+  action: "forget" | "approve-pending" | "reject-pending";
+  target?: DashboardPersonalMemoryTarget;
+  content?: string;
+  pendingId?: string;
 }
 
 export interface DashboardPersonalMemoryActionResponse {
@@ -152,10 +165,11 @@ export interface DashboardPersonalMemoryActionResponse {
   source?: string;
   plannedMutation?: boolean;
   executesSystemMutation?: boolean;
-  result?: "forgotten" | "not-found" | "error" | string;
+  result?: "forgotten" | "approved" | "rejected" | "not-found" | "error" | string;
   applied?: number;
   ignored?: number;
   blocked?: number;
+  pendingWriteCount?: number;
   personalMemory?: {
     userEntryCount: number;
     agentEntryCount: number;

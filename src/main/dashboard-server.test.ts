@@ -1836,6 +1836,102 @@ describe("dashboard loopback HTTP response helper", () => {
     }
   });
 
+  it("lets dashboard approve or reject staged personal memory writes", async () => {
+    const userMemoryPath = "/Users/tester/Library/Application Support/skfiy/memory/USER.md";
+    const pendingMemoryPath = "/Users/tester/Library/Application Support/skfiy/memory/pending-memory-writes.json";
+    const files: Record<string, string> = {
+      [userMemoryPath]: "User prefers concise Chinese updates.\n",
+      [pendingMemoryPath]: JSON.stringify({
+        schemaVersion: 1,
+        writes: [
+          {
+            id: "pmw-approve",
+            createdAt: "2026-06-24T05:00:00.000Z",
+            source: "post-turn-review",
+            action: "add",
+            target: "user",
+            content: "User wants memory writes reviewed before becoming durable."
+          },
+          {
+            id: "pmw-reject",
+            createdAt: "2026-06-24T05:01:00.000Z",
+            source: "post-turn-review",
+            action: "add",
+            target: "user",
+            content: "User no longer wants this candidate."
+          }
+        ]
+      })
+    };
+    const workspaceIo = {
+      exists: (targetPath: string) => Object.hasOwn(files, targetPath),
+      readFile: (targetPath: string) => files[targetPath] ?? "",
+      writeFile: (targetPath: string, content: string) => {
+        files[targetPath] = content;
+      },
+      readdir: () => [],
+      stat: (targetPath: string) => ({
+        mtimeMs: Object.hasOwn(files, targetPath) ? Date.parse("2026-06-24T05:00:00.000Z") : 0
+      }),
+      homeDir: () => "/Users/tester",
+      pid: () => 4242,
+      uptimeSeconds: () => 17,
+      tmux: () => ({
+        status: 1,
+        stdout: "",
+        stderr: "tmux session was not found."
+      })
+    };
+    const dashboard = await startDashboardServer({
+      port: 0,
+      homeDir: "/Users/tester",
+      workspaceIo
+    });
+
+    try {
+      const approved = await requestUrl(`${dashboard.url}api/personal-memory`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "approve-pending",
+          pendingId: "pmw-approve"
+        })
+      });
+
+      expect(approved.status).toBe(200);
+      expect(JSON.parse(approved.body)).toMatchObject({
+        command: "dashboard personal memory",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "approved",
+        applied: 1,
+        pendingWriteCount: 1
+      });
+      expect(files[userMemoryPath]).toContain("User wants memory writes reviewed before becoming durable.");
+      expect(files[pendingMemoryPath]).not.toContain("pmw-approve");
+
+      const rejected = await requestUrl(`${dashboard.url}api/personal-memory`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "reject-pending",
+          pendingId: "pmw-reject"
+        })
+      });
+
+      expect(rejected.status).toBe(200);
+      expect(JSON.parse(rejected.body)).toMatchObject({
+        result: "rejected",
+        pendingWriteCount: 0
+      });
+      expect(files[userMemoryPath]).not.toContain("User no longer wants this candidate.");
+      expect(files[pendingMemoryPath]).not.toContain("pmw-reject");
+      expect(approved.body).not.toContain("token=");
+      expect(rejected.body).not.toContain("token=");
+    } finally {
+      await dashboard.close();
+    }
+  });
+
   it("lets dashboard mute a distilled personal skill without rewriting memory", async () => {
     const userMemoryPath = "/Users/tester/Library/Application Support/skfiy/memory/USER.md";
     const personalSkillsPath = "/Users/tester/Library/Application Support/skfiy/memory/personal-skills.json";

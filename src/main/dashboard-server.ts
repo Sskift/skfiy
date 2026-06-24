@@ -53,6 +53,9 @@ import {
   type PersonalMemoryTarget
 } from "./personal-memory.js";
 import {
+  createPendingPersonalMemoryStore
+} from "./personal-memory-pending.js";
+import {
   createPersonalSkillSettingsStore,
   isPersonalSkillId,
   type PersonalSkillSettingsIo
@@ -765,7 +768,67 @@ export async function createDashboardPersonalMemoryResponse(
     return createDashboardPersonalMemoryErrorResponse({
       generatedAt,
       code: "unknown-action",
-      message: "Personal memory action must be forget."
+      message: "Personal memory action must be forget, approve-pending, or reject-pending."
+    });
+  }
+
+  const memoryIo = createDashboardPersonalMemoryIo(options.workspaceIo);
+  if (memoryIo === "readonly") {
+    return createDashboardPersonalMemoryErrorResponse({
+      generatedAt,
+      code: "memory-store-readonly",
+      message: "Personal memory store is not writable from this dashboard server."
+    }, 503);
+  }
+
+  const baseDir = createSkfiyApplicationSupportPath(homeDir);
+  const store = createPersonalMemoryStore({
+    baseDir,
+    ...(memoryIo ? { io: memoryIo } : {})
+  });
+  const pendingStore = createPendingPersonalMemoryStore({
+    baseDir,
+    ...(memoryIo ? { io: memoryIo } : {})
+  });
+
+  if (action === "approve-pending" || action === "reject-pending") {
+    const pendingId = normalizeOptionalNonEmptyString(body.value.pendingId);
+    if (!pendingId) {
+      return createDashboardPersonalMemoryErrorResponse({
+        generatedAt,
+        code: "pending-id-required",
+        message: "Personal memory pending action requires a pendingId."
+      });
+    }
+
+    const actionResult = action === "approve-pending"
+      ? pendingStore.approve(pendingId, store)
+      : pendingStore.reject(pendingId);
+    const snapshot = store.read();
+    const pendingWriteCount = pendingStore.read().length;
+
+    return jsonResponse({
+      schemaVersion: 1,
+      command: "dashboard personal memory",
+      generatedAt,
+      source: "dashboard",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: actionResult.result,
+      ...(actionResult.result === "approved"
+        ? {
+          applied: actionResult.applied,
+          ignored: actionResult.ignored,
+          blocked: actionResult.blocked
+        }
+        : {}),
+      pendingWriteCount,
+      personalMemory: {
+        userEntryCount: snapshot.userEntries.length,
+        agentEntryCount: snapshot.agentEntries.length,
+        ...(snapshot.usage ? { usage: snapshot.usage } : {}),
+        ...(snapshot.latestUpdatedAt ? { latestUpdatedAt: snapshot.latestUpdatedAt } : {})
+      }
     });
   }
 
@@ -787,19 +850,6 @@ export async function createDashboardPersonalMemoryResponse(
     });
   }
 
-  const memoryIo = createDashboardPersonalMemoryIo(options.workspaceIo);
-  if (memoryIo === "readonly") {
-    return createDashboardPersonalMemoryErrorResponse({
-      generatedAt,
-      code: "memory-store-readonly",
-      message: "Personal memory store is not writable from this dashboard server."
-    }, 503);
-  }
-
-  const store = createPersonalMemoryStore({
-    baseDir: createSkfiyApplicationSupportPath(homeDir),
-    ...(memoryIo ? { io: memoryIo } : {})
-  });
   const result = store.applyOperations([
     {
       action: "remove",
@@ -820,6 +870,7 @@ export async function createDashboardPersonalMemoryResponse(
     applied: result.applied,
     ignored: result.ignored,
     blocked: result.blocked.length,
+    pendingWriteCount: pendingStore.read().length,
     personalMemory: {
       userEntryCount: snapshot.userEntries.length,
       agentEntryCount: snapshot.agentEntries.length,
@@ -959,8 +1010,12 @@ function createDashboardPersonalSkillsErrorResponse({
   }, undefined, status);
 }
 
-function normalizeDashboardPersonalMemoryAction(value: unknown): "forget" | undefined {
-  return value === "forget" ? "forget" : undefined;
+function normalizeDashboardPersonalMemoryAction(
+  value: unknown
+): "forget" | "approve-pending" | "reject-pending" | undefined {
+  return value === "forget" || value === "approve-pending" || value === "reject-pending"
+    ? value
+    : undefined;
 }
 
 function normalizeDashboardPersonalMemoryTarget(value: unknown): PersonalMemoryTarget | undefined {

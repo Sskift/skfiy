@@ -188,6 +188,25 @@ const snapshot: DashboardSnapshot = {
     },
     recentUserEntries: ["User prefers concise Chinese updates."],
     recentAgentEntries: ["For dashboard work, prefer dense Obsidian-like knowledge surfaces."],
+    pendingWriteCount: 2,
+    pendingWrites: [
+      {
+        id: "pmw-approve",
+        createdAt: "2026-06-24T05:00:00.000Z",
+        source: "post-turn-review",
+        action: "add",
+        target: "user",
+        content: "User wants memory writes reviewed before becoming durable."
+      },
+      {
+        id: "pmw-reject",
+        createdAt: "2026-06-24T05:01:00.000Z",
+        source: "post-turn-review",
+        action: "add",
+        target: "agent",
+        content: "Use pending review before changing durable operating notes."
+      }
+    ],
     personalSkills: [
       {
         id: "communication-style",
@@ -299,6 +318,9 @@ describe("DashboardApp", () => {
     expect(within(memory).getByText("user budget 2% - 37/1,375 chars")).toBeInTheDocument();
     expect(within(memory).getByText("agent budget 3% - 66/2,200 chars")).toBeInTheDocument();
     expect(within(memory).getByText("sessions 2")).toBeInTheDocument();
+    expect(within(memory).getByText("pending writes 2")).toBeInTheDocument();
+    expect(within(memory).getByRole("heading", { name: "Pending memory writes" })).toBeInTheDocument();
+    expect(within(memory).getByText("User wants memory writes reviewed before becoming durable.")).toBeInTheDocument();
     expect(within(memory).getByRole("heading", { name: "Personal skill cards" })).toBeInTheDocument();
     expect(within(memory).getByText("Concise Chinese progress updates")).toBeInTheDocument();
     expect(within(memory).getByText("Obsidian-style knowledge dashboard")).toBeInTheDocument();
@@ -578,6 +600,79 @@ describe("DashboardApp", () => {
     });
     expect(within(memory).getByText("Memory forgotten")).toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("approves and rejects staged personal memory writes from dashboard controls", async () => {
+    let currentSnapshot = snapshot;
+    const loadSnapshot = vi.fn(async () => currentSnapshot);
+    const loadProviderSettings = vi.fn(async () => createProviderSettingsPayload({
+      mode: "external-cua",
+      externalProviderLabel: "OpenAI CUA",
+      externalEndpoint: "https://cua.example.test/plan",
+      externalApiKeyConfigured: true
+    }));
+    const runPersonalMemoryAction = vi.fn(async (request: unknown) => {
+      if ((request as { action?: string }).action === "approve-pending") {
+        expect(request).toEqual({
+          action: "approve-pending",
+          pendingId: "pmw-approve"
+        });
+        currentSnapshot = {
+          ...snapshot,
+          personalMemory: {
+            ...snapshot.personalMemory!,
+            pendingWriteCount: 1,
+            pendingWrites: snapshot.personalMemory!.pendingWrites!.filter((write) => (
+              write.id === "pmw-reject"
+            ))
+          }
+        };
+      }
+      if ((request as { action?: string }).action === "reject-pending") {
+        expect(request).toEqual({
+          action: "reject-pending",
+          pendingId: "pmw-reject"
+        });
+        currentSnapshot = {
+          ...snapshot,
+          personalMemory: {
+            ...snapshot.personalMemory!,
+            pendingWriteCount: 0,
+            pendingWrites: []
+          }
+        };
+      }
+      return { result: (request as { action?: string }).action === "approve-pending" ? "approved" : "rejected" };
+    });
+
+    render(<DashboardApp
+      loadProviderSettings={loadProviderSettings}
+      loadSnapshot={loadSnapshot}
+      runPersonalMemoryAction={runPersonalMemoryAction}
+    />);
+
+    const memory = await screen.findByRole("region", { name: "Memory" });
+    fireEvent.click(within(memory).getByRole("button", {
+      name: "Approve pending memory: User wants memory writes reviewed before becoming durable."
+    }));
+    await waitFor(() => {
+      expect(runPersonalMemoryAction).toHaveBeenCalledWith({
+        action: "approve-pending",
+        pendingId: "pmw-approve"
+      });
+    });
+    expect(within(memory).getByText("Pending memory approved")).toBeInTheDocument();
+
+    fireEvent.click(within(memory).getByRole("button", {
+      name: "Reject pending memory: Use pending review before changing durable operating notes."
+    }));
+    await waitFor(() => {
+      expect(runPersonalMemoryAction).toHaveBeenCalledWith({
+        action: "reject-pending",
+        pendingId: "pmw-reject"
+      });
+    });
+    expect(within(memory).getByText("Pending memory rejected")).toBeInTheDocument();
   });
 
   it("mutes a personal skill card from dashboard controls and refreshes the snapshot", async () => {

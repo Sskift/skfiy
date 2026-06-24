@@ -357,6 +357,60 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.skfiy-dashboard-pending-memory-list ul {
+  gap: 8px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.skfiy-dashboard-pending-memory-list li {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.52fr) max-content minmax(0, 1.5fr) max-content;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(202, 138, 4, 0.22);
+  border-radius: 8px;
+  background: #fffbeb;
+}
+
+.skfiy-dashboard-pending-memory-list li span,
+.skfiy-dashboard-pending-memory-list li small,
+.skfiy-dashboard-pending-memory-list li strong,
+.skfiy-dashboard-pending-memory-list li em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.skfiy-dashboard-pending-memory-list li span {
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 730;
+}
+
+.skfiy-dashboard-pending-memory-list li small {
+  color: #71717a;
+  font-size: 12px;
+}
+
+.skfiy-dashboard-pending-memory-list li strong {
+  color: #18181b;
+  font-weight: 700;
+}
+
+.skfiy-dashboard-pending-memory-list li em {
+  grid-column: 1 / -1;
+  color: #71717a;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.skfiy-dashboard-pending-memory-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .skfiy-dashboard-session-recall-list ul {
   gap: 8px;
   padding-left: 0;
@@ -1488,6 +1542,15 @@ a:focus-visible {
   .skfiy-dashboard-personal-skill-list > ul > li {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
+  }
+
+  .skfiy-dashboard-pending-memory-list li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+  }
+
+  .skfiy-dashboard-pending-memory-actions {
+    justify-content: flex-start;
   }
 
   .skfiy-vault-lens {

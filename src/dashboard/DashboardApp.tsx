@@ -46,6 +46,7 @@ import type {
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemorySummary,
+  DashboardPendingPersonalMemoryWrite,
   DashboardPersonalSkillActionRequest,
   DashboardPersonalSkillActionResponse,
   DashboardPersonalSkillCard,
@@ -199,7 +200,7 @@ export function DashboardApp({
     try {
       const response = await runPersonalMemoryAction(request);
       await refresh();
-      setMemoryNotice(response.result === "not-found" ? "Memory was already absent" : "Memory forgotten");
+      setMemoryNotice(readPersonalMemoryNotice(response.result));
     } catch (submitError) {
       setMemoryError(readErrorMessage(submitError));
     } finally {
@@ -325,6 +326,19 @@ export function DashboardApp({
       </main>
     </div>
   );
+}
+
+function readPersonalMemoryNotice(result: DashboardPersonalMemoryActionResponse["result"]): string {
+  if (result === "approved") {
+    return "Pending memory approved";
+  }
+  if (result === "rejected") {
+    return "Pending memory rejected";
+  }
+  if (result === "not-found") {
+    return "Memory was already absent";
+  }
+  return "Memory forgotten";
 }
 
 function DashboardContent({
@@ -763,6 +777,7 @@ function PersonalMemoryPanel({
 }) {
   const userEntries = memory?.recentUserEntries ?? [];
   const agentEntries = memory?.recentAgentEntries ?? [];
+  const pendingWrites = memory?.pendingWrites ?? [];
   const personalSkills = memory?.personalSkills ?? [];
 
   return (
@@ -788,6 +803,9 @@ function PersonalMemoryPanel({
             agent notes {memory?.agentEntryCount ?? 0}
           </StatusChip>
           <StatusChip tone="neutral">sessions {memory?.sessionCount ?? 0}</StatusChip>
+          <StatusChip tone={pendingWrites.length > 0 ? "warning" : "neutral"}>
+            pending writes {memory?.pendingWriteCount ?? pendingWrites.length}
+          </StatusChip>
           {memory?.usage?.user ? (
             <StatusChip tone={readMemoryUsageTone(memory.usage.user)}>
               user budget {formatMemoryUsage(memory.usage.user)}
@@ -814,6 +832,12 @@ function PersonalMemoryPanel({
             title="Agent operating notes"
           />
         </div>
+        <PendingMemoryWriteList
+          isSaving={isSaving}
+          onApprove={(write) => onForget({ action: "approve-pending", pendingId: write.id })}
+          onReject={(write) => onForget({ action: "reject-pending", pendingId: write.id })}
+          writes={pendingWrites}
+        />
         <PersonalSkillCardList
           isSaving={isSaving}
           onMute={(skill) => onMuteSkill({ action: "mute", skillId: skill.id })}
@@ -877,6 +901,60 @@ function PersonalSkillCardList({
         </ul>
       ) : (
         <p className="skfiy-dashboard-empty">No personal skills have been distilled yet.</p>
+      )}
+    </div>
+  );
+}
+
+function PendingMemoryWriteList({
+  isSaving,
+  onApprove,
+  onReject,
+  writes
+}: {
+  isSaving: boolean;
+  onApprove: (write: DashboardPendingPersonalMemoryWrite) => Promise<void>;
+  onReject: (write: DashboardPendingPersonalMemoryWrite) => Promise<void>;
+  writes: DashboardPendingPersonalMemoryWrite[];
+}) {
+  return (
+    <div className="skfiy-dashboard-key-value-list skfiy-dashboard-pending-memory-list">
+      <h3>Pending memory writes</h3>
+      {writes.length > 0 ? (
+        <ul aria-label="Pending memory writes">
+          {writes.map((write) => (
+            <li key={write.id}>
+              <span>{write.source} · {write.action} · {write.target}</span>
+              <small>{formatGeneratedAt(write.createdAt)}</small>
+              <strong>{write.content}</strong>
+              {write.previousContent ? <em>{write.previousContent}</em> : null}
+              <div className="skfiy-dashboard-pending-memory-actions">
+                <button
+                  aria-label={`Approve pending memory: ${write.content}`}
+                  className="skfiy-dashboard-icon-button"
+                  disabled={isSaving}
+                  onClick={() => void onApprove(write)}
+                  title="Approve pending memory"
+                  type="button"
+                >
+                  <CheckCircle2 size={14} aria-hidden="true" />
+                </button>
+                <button
+                  aria-label={`Reject pending memory: ${write.content}`}
+                  className="skfiy-dashboard-icon-button"
+                  disabled={isSaving}
+                  onClick={() => void onReject(write)}
+                  title="Reject pending memory"
+                  type="button"
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="skfiy-dashboard-empty">No memory writes are waiting for review.</p>
       )}
     </div>
   );
