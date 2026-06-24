@@ -37,6 +37,7 @@
 - `src/main/assistant-agent-settings.ts`: new persistent Background Agent settings store.
 - `src/main/personal-memory.ts`: new local-first user memory store inspired by Hermes' `MEMORY.md`/`USER.md` split.
 - `src/main/personal-memory-review.ts`: new bounded post-turn reviewer that proposes durable user preference updates.
+- `src/main/personalization-learning-loop.ts`: tested post-turn personalization coordinator that records sessions, runs review/fallback extraction, and applies or stages memory writes.
 - `src/main/session-memory.ts`: new local searchable chat/session event index for cross-session recall.
 - `src/main/browser-page-context.ts`: new bounded Chrome page context reader for agent prompts.
 - `src/main/chrome-extension-*.ts`: existing Chrome extension diagnostics and pageControl bridge.
@@ -1351,13 +1352,15 @@ If a smoke is blocked by local macOS permissions or Chrome environment, record t
 
 Validation evidence from 2026-06-24:
 
-- `git diff --check`, `npm run typecheck -- --pretty false`, and `npx vitest run --reporter=dot` exited 0. Vitest passed 108 files and 1022 tests; existing React `act(...)` warnings remained warnings only.
+- `git diff --check`, `npm run typecheck -- --pretty false`, and `npx vitest run --reporter=dot` exited 0. Vitest passed 109 files and 1025 tests; existing React `act(...)` warnings remained warnings only.
 - `npm run build` exited 0 and produced `dist/skfiy.app` plus `dist/skfiy`. Existing CSS minify warnings for `calc(100%-...)` remained build warnings only.
 - `.skfiy-smoke/ui-product.json` recorded `result: no-onboarding` because permissions were already granted; `assistantConversation`, `petDrag`, and `stopTurnBehavior` passed, and the real pet reply was `你好，我是 skfiy，很高兴见到你。`.
 - `.skfiy-smoke/cli-product-basic.json` recorded `result: passed` and `providerPromptContract.result: passed` for Codex, Claude Code, and Hermes. Claude Code uses the primary `--system-prompt` channel for the skfiy identity; Codex and Hermes receive the skfiy identity before user input in the bounded prompt/query. The contract also verifies memory, recalled sessions, Browser Context ordering, token redaction, Computer Use boundary text, and absence of dangerous Hermes/Codex flags such as `--oneshot` or `--yolo`.
+- The same CLI smoke recorded `personalMemoryFallbackContract.result: passed`, proving explicit preference extraction, explicit remember/forget, duplicate suppression, one-off request rejection, and token-like request blocking from the packaged build.
 - `.skfiy-smoke/dashboard-product.json` recorded `result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`.
 - `./dist/skfiy status --json` reported packaged app, CLI, and helper installed; Screen Recording and Accessibility granted; desktop session controllable. It also reported current Chrome pageControl as `blocked_by_host_policy` on `mew-test.bytedance.net` with missing optional Chrome host and capture permissions.
 - `./dist/skfiy chrome extension-info --json` reported the unpacked extension directory available, Chrome setup as `manual-required`, and extension id as `unknown-until-loaded`.
+- `npx vitest run src/main/personalization-learning-loop.test.ts src/main/personal-memory-main-wiring.test.ts src/main/personal-memory-review.test.ts src/main/personal-memory-pending.test.ts src/main/session-memory.test.ts src/main/assistant-agent.test.ts --reporter=dot` exited 0 on 2026-06-24. This adds behavior-level proof that a completed Background Agent turn records a session, runs bounded memory review, falls back to local durable preference extraction when review is empty/unavailable, and stages post-turn writes instead of mutating durable memory when approval review is enabled.
 
 Typed blockers after this validation:
 
@@ -1373,7 +1376,7 @@ Typed blockers after this validation:
 - [x] Pet settings show Background Agent Provider choices.
 - [x] Selecting Codex changes the next background agent provider.
 - [x] Pet settings show Hermes as a Background Agent Provider and its invocation does not use Hermes `--oneshot` or `--yolo`.
-- [ ] Repeated agent conversations can write durable user preferences to local personal memory. Dashboard isolated memory mutation passed; real repeated-conversation reviewer still needs dogfood evidence.
+- [ ] Repeated agent conversations can write durable user preferences to local personal memory. Behavior-level post-turn learning loop tests pass; real repeated-conversation dogfood evidence still pending.
 - [x] Background Agent prompts include skfiy identity, personal memory, recalled sessions, and Browser Context in that order before the real user input.
 - [x] Dashboard shows personal memory and session recall in an Obsidian-inspired knowledge graph/canvas surface.
 - [x] Panic stop and `stopTurnBehavior` still surface `Task stopped` evidence.

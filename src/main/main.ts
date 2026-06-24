@@ -35,16 +35,13 @@ import {
 } from "./assistant-agent-settings.js";
 import {
   createPersonalMemoryStore,
-  createSkfiyApplicationSupportPath,
-  type PersonalMemoryOperation
+  createSkfiyApplicationSupportPath
 } from "./personal-memory.js";
 import { createPendingPersonalMemoryStore } from "./personal-memory-pending.js";
 import { createPersonalSkillSettingsStore } from "./personal-skills.js";
 import {
-  createFallbackPersonalMemoryOperations,
-  createPersonalMemoryReviewPrompt,
-  parsePersonalMemoryReview
-} from "./personal-memory-review.js";
+  recordCompletedAssistantTurnForPersonalization
+} from "./personalization-learning-loop.js";
 import {
   createSessionMemoryStore,
   searchSessionMemory
@@ -464,22 +461,6 @@ function isEnabledEnvFlag(value: string | undefined): boolean {
   return value === "1" || value === "true" || value === "on";
 }
 
-function applyOrStagePersonalMemoryOperations(
-  operations: PersonalMemoryOperation[],
-  {
-    source
-  }: {
-    source: "post-turn-review" | string;
-  }
-): void {
-  if (personalMemoryWriteApprovalEnabled) {
-    pendingPersonalMemoryStore.stageOperations(operations, { source });
-    return;
-  }
-
-  personalMemoryStore.applyOperations(operations);
-}
-
 function readPetWindowMode(value: unknown): PetWindowMode | undefined {
   return value === "compact" || value === "expanded" ? value : undefined;
 }
@@ -611,64 +592,22 @@ function schedulePersonalMemoryPostTurnReview(
   turn: AssistantAgentTurnResult,
   browserPageContext: BrowserPageContext
 ): void {
-  try {
-    sessionMemoryStore.append({
-      turnId: turn.id,
-      createdAt: turn.createdAt,
-      userInput,
-      assistantReply: turn.message,
-      providerLabel: turn.providerLabel,
-      ...((browserPageContext.url || browserPageContext.title) ? {
-        browserContext: {
-          ...(browserPageContext.url ? { url: browserPageContext.url } : {}),
-          ...(browserPageContext.title ? { title: browserPageContext.title } : {})
-        }
-      } : {})
-    });
-  } catch {
-    // Personalization is best-effort and must not interrupt the visible reply.
-  }
-
-  const existingMemory = personalMemoryStore.read();
-  const reviewPrompt = createPersonalMemoryReviewPrompt({
-    userInput,
-    assistantReply: turn.message,
-    existingMemory
-  });
   const settings = assistantAgentSettingsStore.get();
-
-  const applyFallbackMemory = () => {
-    applyOrStagePersonalMemoryOperations(createFallbackPersonalMemoryOperations({
-      userInput,
-      assistantReply: turn.message,
-      existingMemory
-    }), {
-      source: "post-turn-review"
-    });
-  };
-
-  void runAssistantAgentTurn(reviewPrompt, {
-    settings: {
-      ...settings,
-      timeoutMs: Math.min(settings.timeoutMs, PERSONAL_MEMORY_REVIEW_TIMEOUT_MS)
-    },
-    personalMemory: existingMemory
-  }).then((reviewTurn) => {
-    if (reviewTurn.status !== "completed") {
-      applyFallbackMemory();
-      return;
-    }
-    const operations = parsePersonalMemoryReview(reviewTurn.message);
-    if (operations.length > 0) {
-      applyOrStagePersonalMemoryOperations(operations, {
-        source: "post-turn-review"
-      });
-      return;
-    }
-    applyFallbackMemory();
-  }).catch(() => {
-    applyFallbackMemory();
-    // Memory review is intentionally best-effort.
+  void recordCompletedAssistantTurnForPersonalization({
+    userInput,
+    turn,
+    browserPageContext,
+    memoryStore: personalMemoryStore,
+    pendingMemoryStore: pendingPersonalMemoryStore,
+    sessionMemoryStore,
+    memoryWriteApprovalEnabled: personalMemoryWriteApprovalEnabled,
+    runReviewTurn: (reviewPrompt, { personalMemory }) => runAssistantAgentTurn(reviewPrompt, {
+      settings: {
+        ...settings,
+        timeoutMs: Math.min(settings.timeoutMs, PERSONAL_MEMORY_REVIEW_TIMEOUT_MS)
+      },
+      personalMemory
+    })
   });
 }
 
