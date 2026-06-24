@@ -547,6 +547,105 @@ describe("Chrome extension popup policy sync status", () => {
     });
   });
 
+  it("requests host and visible-tab capture permissions in one user gesture when both are missing", async () => {
+    installPopupDocument();
+    const policy = createPolicy({
+      allowedHosts: ["example.com"]
+    });
+    const mock = createPopupChromeMock({
+      policy,
+      tab: { id: 9, url: "https://example.com/page" },
+      snapshot: {
+        syncStatus: {
+          state: "synced",
+          source: "native_host",
+          entryCount: 1,
+          nativeBridgeState: "connected"
+        },
+        diagnostics: {
+          extension: {
+            version: "0.0.16",
+            manifestVersion: 3
+          },
+          capabilities: {
+            activeTab: true,
+            scripting: true,
+            storage: true,
+            tabs: true,
+            downloads: true
+          },
+          nativeHost: {
+            name: "com.sskift.skfiy",
+            connectionState: "connected",
+            bridgeState: "connected",
+            syncState: "synced",
+            syncSource: "native_host",
+            policyState: "configured",
+            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            messageType: "skfiy.page.observe"
+          },
+          currentTab: {
+            state: "available",
+            host: "example.com",
+            origin: "https://example.com",
+            hostPolicy: {
+              decision: "allowed",
+              reason: "host_allowed"
+            },
+            chromeHostPermission: {
+              state: "missing",
+              reason: "chrome_host_permission_missing",
+              code: "chrome_host_permission_missing",
+              origin: "https://example.com",
+              host: "example.com",
+              origins: ["https://example.com/*"],
+              message: "Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run."
+            },
+            chromeCapturePermission: {
+              state: "missing",
+              reason: "chrome_capture_permission_missing",
+              code: "chrome_capture_permission_missing",
+              origins: ["<all_urls>"],
+              message: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture."
+            },
+            contentScript: {
+              state: "blocked_by_chrome_host_permission",
+              reason: "chrome_host_permission_missing"
+            },
+            pageControl: {
+              state: "blocked_by_chrome_host_permission",
+              capabilities: {
+                screenshot: false,
+                domActions: false
+              },
+              reason: "Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run."
+            }
+          }
+        }
+      }
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(document.getElementById("grant-site-access-button").hidden).toBe(false);
+      expect(document.getElementById("grant-site-access-button").textContent)
+        .toBe("Grant https://example.com/* + <all_urls>");
+    });
+
+    document.getElementById("grant-site-access-button").click();
+
+    await waitForAssertion(() => {
+      expect(mock.requestPermission).toHaveBeenCalledWith({
+        origins: ["https://example.com/*", "<all_urls>"]
+      });
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: HOST_POLICY_SYNC_REFRESH
+      }));
+    });
+  });
+
   it("renders page safety and sensitive pause diagnostics from the session", async () => {
     installPopupDocument();
     const policy = createPolicy({

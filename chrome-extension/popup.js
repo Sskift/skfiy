@@ -601,15 +601,14 @@ function applyGrantSiteAccessState(currentTab) {
   const captureOrigins = Array.isArray(chromeCapturePermission?.origins)
     ? chromeCapturePermission.origins.filter((origin) => typeof origin === "string" && origin.length > 0)
     : [];
-  pendingHostPermissionOrigins = chromeHostPermission?.state === "missing"
-    ? hostOrigins
-    : chromeCapturePermission?.state === "missing"
-      ? captureOrigins
-      : [];
+  pendingHostPermissionOrigins = [
+    ...(chromeHostPermission?.state === "missing" ? hostOrigins : []),
+    ...(chromeCapturePermission?.state === "missing" ? captureOrigins : [])
+  ].filter((origin, index, origins) => origins.indexOf(origin) === index);
   button.hidden = pendingHostPermissionOrigins.length === 0;
   button.disabled = false;
   if (pendingHostPermissionOrigins.length > 0) {
-    button.textContent = `Grant ${pendingHostPermissionOrigins[0]}`;
+    button.textContent = `Grant ${pendingHostPermissionOrigins.join(" + ")}`;
   } else {
     button.textContent = "Grant site access";
   }
