@@ -455,6 +455,7 @@ function hasProviderContract(providers, expected) {
     && provider?.providerBoundaryPresent === true
     && provider?.rejectsDirectDesktopControl === true
     && provider?.dangerousFlagsAbsent === true
+    && (expected.mode !== "claude-code" || provider?.usesSystemIdentityPrompt === true)
     && provider?.[expected.requiredSafetyField] === true;
 }
 

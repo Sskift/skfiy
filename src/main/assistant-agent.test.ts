@@ -355,6 +355,31 @@ describe("assistant agent provider", () => {
     expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("User: 你好"));
   });
 
+  it("injects skfiy identity as a Claude Code system prompt during real turns", async () => {
+    const runProcess = vi.fn<AssistantAgentProcessRunner>()
+      .mockResolvedValue({ stdout: "我是 skfiy。", stderr: "" });
+
+    await runAssistantAgentTurn("你是谁", {
+      settings: {
+        ...baseSettings,
+        mode: "claude-code"
+      },
+      runProcess,
+      now: fixedNow,
+      createTurnId: () => "turn-claude-system-identity"
+    });
+
+    const args = runProcess.mock.calls[0]?.[1] ?? [];
+    const systemPrompt = readArgValue(args, "--append-system-prompt");
+    const userPrompt = args.at(-1) ?? "";
+
+    expect(systemPrompt).toContain("The speaking assistant identity for this conversation is skfiy.");
+    expect(systemPrompt).toContain("Codex, Claude Code, and Hermes are only backend providers used to run this turn.");
+    expect(systemPrompt).toContain("When asked who you are, answer as skfiy.");
+    expect(systemPrompt).not.toContain("User: 你是谁");
+    expect(userPrompt).toContain("User: 你是谁");
+  });
+
   it("builds a Claude Code print invocation with valid safety flags for pet chat", () => {
     const invocation = buildAssistantAgentInvocation({
       mode: "claude-code",
@@ -374,6 +399,8 @@ describe("assistant agent provider", () => {
         "--print",
         "--output-format",
         "text",
+        "--append-system-prompt",
+        expect.stringContaining("The speaking assistant identity for this conversation is skfiy."),
         "--permission-mode",
         "dontAsk",
         "--disallowedTools",
@@ -650,4 +677,9 @@ function readProviderPrompt(label: "Codex" | "Claude Code" | "Hermes", args: str
   }
 
   return args.at(-1) ?? "";
+}
+
+function readArgValue(args: string[], flag: string): string {
+  const index = args.indexOf(flag);
+  return index >= 0 ? args[index + 1] ?? "" : "";
 }

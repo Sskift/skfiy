@@ -167,6 +167,7 @@ async function collectProviderPromptContract() {
       && provider.providerBoundaryPresent
       && provider.rejectsDirectDesktopControl
       && provider.dangerousFlagsAbsent
+      && (provider.mode !== "claude-code" || provider.usesSystemIdentityPrompt)
       && (
         provider.usesReadOnlySandbox
         || provider.disallowsMutatingTools
@@ -286,6 +287,7 @@ function createProviderPromptContract(
     recalledSessions
   );
   const prompt = readInvocationPrompt(invocation);
+  const systemPrompt = readInvocationSystemPrompt(invocation);
   const argsText = invocation.args.join("\n");
   const skfiyIndex = prompt.indexOf("You are skfiy");
   const memoryIndex = prompt.indexOf("<skfiy-recalled-memory>");
@@ -315,6 +317,12 @@ function createProviderPromptContract(
     browserContextBeforeUser: browserContextIndex >= 0 && userIndex > browserContextIndex,
     providerIdentityInternalized,
     providerBoundaryPresent,
+    usesSystemIdentityPrompt: settings.mode === "claude-code"
+      ? systemPrompt.includes("The speaking assistant identity for this conversation is skfiy.")
+        && systemPrompt.includes("Codex, Claude Code, and Hermes are only backend providers used to run this turn.")
+        && systemPrompt.includes("When asked who you are, answer as skfiy.")
+        && !systemPrompt.includes(`User: ${userInput}`)
+      : undefined,
     usesReadOnlySandbox: settings.mode === "codex"
       ? invocation.args.includes("--sandbox") && invocation.args.includes("read-only")
       : undefined,
@@ -350,6 +358,11 @@ function readInvocationPrompt(invocation) {
   }
 
   return invocation.args.at(-1) ?? "";
+}
+
+function readInvocationSystemPrompt(invocation) {
+  const systemPromptIndex = invocation.args.indexOf("--append-system-prompt");
+  return systemPromptIndex >= 0 ? invocation.args[systemPromptIndex + 1] ?? "" : "";
 }
 
 function containsAny(values, candidates) {

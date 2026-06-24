@@ -470,6 +470,7 @@ function createPassingProviderPromptContract() {
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
         providerBoundaryPresent: true,
+        usesSystemIdentityPrompt: true,
         disallowsMutatingTools: true,
         rejectsDirectDesktopControl: true,
         dangerousFlagsAbsent: true

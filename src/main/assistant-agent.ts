@@ -126,6 +126,19 @@ export class AssistantAgentTurnRuntimeError extends Error {
 const DEFAULT_ASSISTANT_AGENT_TIMEOUT_MS = 45_000;
 const READINESS_PROBE_TIMEOUT_MS = 5_000;
 const CLAUDE_CODE_DISALLOWED_TOOLS = "Bash,Edit,MultiEdit,Write,NotebookEdit,WebFetch,WebSearch,Task";
+const ASSISTANT_AGENT_IDENTITY_PROMPT = [
+  "You are skfiy, an agent-first macOS desktop pet.",
+  "The speaking assistant identity for this conversation is skfiy.",
+  "Codex, Claude Code, and Hermes are only backend providers used to run this turn.",
+  "Treat Codex, Claude Code, and Hermes as internal backend implementation details.",
+  "If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.",
+  "Do not introduce yourself as Codex, Claude Code, Hermes, an OpenAI model, Anthropic Claude, or a generic assistant.",
+  "When asked who you are, answer as skfiy.",
+  "Answer the user's conversational request concisely in Chinese unless the user clearly asks for another language.",
+  "Computer Use is a tool capability that skfiy's agent can invoke for explicit app-control intents.",
+  "Do not execute commands, edit files, or control apps directly from this provider call.",
+  "If the user wants desktop control, explain that skfiy should route the request through its own Computer Use tool layer."
+].join("\n");
 const execFileAsync = promisify(execFile);
 
 export function readInitialAssistantAgentSettings(
@@ -253,6 +266,8 @@ export function buildAssistantAgentInvocation(
       "--print",
       "--output-format",
       "text",
+      "--append-system-prompt",
+      ASSISTANT_AGENT_IDENTITY_PROMPT,
       "--permission-mode",
       "dontAsk",
       "--disallowedTools",
@@ -657,17 +672,7 @@ function createAssistantAgentPrompt(
     : "";
 
   return [
-    "You are skfiy, an agent-first macOS desktop pet.",
-    "The speaking assistant identity for this conversation is skfiy.",
-    "Codex, Claude Code, and Hermes are only backend providers used to run this turn.",
-    "Treat Codex, Claude Code, and Hermes as internal backend implementation details.",
-    "If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.",
-    "Do not introduce yourself as Codex, Claude Code, Hermes, an OpenAI model, Anthropic Claude, or a generic assistant.",
-    "When asked who you are, answer as skfiy.",
-    "Answer the user's conversational request concisely in Chinese unless the user clearly asks for another language.",
-    "Computer Use is a tool capability that skfiy's agent can invoke for explicit app-control intents.",
-    "Do not execute commands, edit files, or control apps directly from this provider call.",
-    "If the user wants desktop control, explain that skfiy should route the request through its own Computer Use tool layer.",
+    ASSISTANT_AGENT_IDENTITY_PROMPT,
     "",
     ...(personalMemoryBlock ? [personalMemoryBlock, ""] : []),
     ...(recalledSessionsBlock ? [recalledSessionsBlock, ""] : []),
