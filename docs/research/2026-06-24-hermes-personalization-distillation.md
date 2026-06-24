@@ -42,6 +42,7 @@ Newly distilled in this pass:
 - Prompt rendering now sanitizes manually polluted memory entries before they enter `<skfiy-recalled-memory>`.
 - The raw memory snapshot remains visible so Dashboard can still show and forget the original entry.
 - The provider prompt receives a blocked placeholder instead of unsafe memory content, matching Hermes' load-time prompt safety pattern.
+- The Dashboard focused note now shows a `Prompt provenance` trail that walks from session evidence through memory review or pending approval into durable prompt sources and then to the selected Background Agent. This keeps the Hermes-style learning loop visible as an auditable chain rather than only a static graph.
 
 ## Deliberate Non-Imports
 

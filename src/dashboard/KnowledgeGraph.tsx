@@ -89,6 +89,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
   const selectedNote = vaultNotes.find((note) => note.id === selectedNodeId) ?? vaultNotes[0] ?? null;
   const selectedId = selectedNote?.id ?? null;
   const focusedNeighborhood = createFocusedNeighborhood(selectedId, nodes, edges);
+  const promptProvenanceTrails = createPromptProvenanceTrails(selectedId, nodes, edges);
   const summary = normalizedSearchQuery.length > 0
     ? `Showing ${filteredNodes.length} of ${nodes.length} notes for ${normalizedSearchQuery}`
     : `Showing ${filteredNodes.length} of ${nodes.length} notes`;
@@ -259,6 +260,18 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
               ) : (
                 <p>No backlinks yet.</p>
               )}
+              {promptProvenanceTrails.length > 0 ? (
+                <>
+                  <strong>Prompt provenance</strong>
+                  <ul aria-label="Prompt provenance" className="skfiy-prompt-provenance">
+                    {promptProvenanceTrails.map((trail) => (
+                      <li key={`${selectedNote.id}-${trail}`}>
+                        <span>{trail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
               {focusedNeighborhood.length > 0 ? (
                 <>
                   <strong>Focused neighborhood</strong>
@@ -683,6 +696,172 @@ interface FocusedNeighbor {
   label: string;
   relation: string;
   direction: "incoming" | "outgoing";
+}
+
+interface GraphTrail {
+  nodes: string[];
+  labels: string[];
+}
+
+function createPromptProvenanceTrails(
+  selectedId: string | null,
+  nodes: DashboardKnowledgeGraphNode[],
+  edges: DashboardKnowledgeGraphEdge[]
+): string[] {
+  if (!selectedId) {
+    return [];
+  }
+
+  const providerIds = new Set(nodes
+    .filter((node) => node.kind === "provider")
+    .map((node) => node.id));
+  const upstreamTrails = createBackwardTrails(selectedId, nodes, edges, 3);
+  const downstreamTrails = createForwardProviderTrails(selectedId, providerIds, edges, 4);
+  const incoming = upstreamTrails.length > 0 ? upstreamTrails : [{ nodes: [selectedId], labels: [] }];
+  const outgoing = downstreamTrails.length > 0 ? downstreamTrails : [{ nodes: [selectedId], labels: [] }];
+  const labelsById = new Map(nodes.map((node) => [node.id, node.label]));
+  const trails: string[] = [];
+
+  for (const sourceTrail of incoming) {
+    for (const providerTrail of outgoing) {
+      if (
+        sourceTrail.nodes[sourceTrail.nodes.length - 1] !== selectedId
+        || providerTrail.nodes[0] !== selectedId
+      ) {
+        continue;
+      }
+
+      const combinedTrail = {
+        nodes: [...sourceTrail.nodes, ...providerTrail.nodes.slice(1)],
+        labels: [...sourceTrail.labels, ...providerTrail.labels]
+      };
+      if (combinedTrail.labels.length === 0) {
+        continue;
+      }
+
+      trails.push(formatGraphTrail(combinedTrail, labelsById));
+    }
+  }
+
+  return Array.from(new Set(trails)).slice(0, 6);
+}
+
+function createBackwardTrails(
+  targetId: string,
+  nodes: DashboardKnowledgeGraphNode[],
+  edges: DashboardKnowledgeGraphEdge[],
+  maxDepth: number
+): GraphTrail[] {
+  const trails: GraphTrail[] = [];
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+
+  const walk = (
+    currentId: string,
+    pathNodes: string[],
+    pathLabels: string[],
+    visited: Set<string>,
+    depth: number
+  ) => {
+    const incomingEdges = edges.filter((edge) => edge.to === currentId && !visited.has(edge.from));
+    if (
+      incomingEdges.length === 0
+      || depth >= maxDepth
+      || (pathLabels.length > 0 && isPromptProvenanceRoot(currentId, nodeById))
+    ) {
+      if (pathLabels.length > 0) {
+        trails.push({
+          nodes: pathNodes.slice().reverse(),
+          labels: pathLabels.slice().reverse()
+        });
+      }
+      return;
+    }
+
+    incomingEdges.forEach((edge) => {
+      walk(
+        edge.from,
+        [...pathNodes, edge.from],
+        [...pathLabels, edge.label],
+        new Set([...visited, edge.from]),
+        depth + 1
+      );
+    });
+  };
+
+  walk(targetId, [targetId], [], new Set([targetId]), 0);
+
+  return trails;
+}
+
+function isPromptProvenanceRoot(
+  nodeId: string,
+  nodeById: Map<string, DashboardKnowledgeGraphNode>
+): boolean {
+  if (nodeId.startsWith("memory:pending:")) {
+    return true;
+  }
+
+  const kind = nodeById.get(nodeId)?.kind;
+  return kind === "session"
+    || kind === "browser"
+    || kind === "turn"
+    || kind === "alert"
+    || kind === "provider";
+}
+
+function createForwardProviderTrails(
+  startId: string,
+  providerIds: Set<string>,
+  edges: DashboardKnowledgeGraphEdge[],
+  maxDepth: number
+): GraphTrail[] {
+  const trails: GraphTrail[] = [];
+
+  const walk = (
+    currentId: string,
+    pathNodes: string[],
+    pathLabels: string[],
+    visited: Set<string>,
+    depth: number
+  ) => {
+    if (pathLabels.length > 0 && providerIds.has(currentId)) {
+      trails.push({ nodes: pathNodes, labels: pathLabels });
+      return;
+    }
+    if (depth >= maxDepth) {
+      return;
+    }
+
+    edges
+      .filter((edge) => edge.from === currentId && !visited.has(edge.to))
+      .forEach((edge) => {
+        walk(
+          edge.to,
+          [...pathNodes, edge.to],
+          [...pathLabels, edge.label],
+          new Set([...visited, edge.to]),
+          depth + 1
+        );
+      });
+  };
+
+  walk(startId, [startId], [], new Set([startId]), 0);
+
+  return trails;
+}
+
+function formatGraphTrail(
+  trail: GraphTrail,
+  labelsById: Map<string, string>
+): string {
+  const parts: string[] = [];
+  trail.labels.forEach((label, index) => {
+    parts.push(labelsById.get(trail.nodes[index]) ?? trail.nodes[index]);
+    parts.push(label);
+  });
+  parts.push(labelsById.get(trail.nodes[trail.nodes.length - 1]) ?? trail.nodes[trail.nodes.length - 1]);
+
+  return parts.join(" -> ");
 }
 
 function createFocusedNeighborhood(

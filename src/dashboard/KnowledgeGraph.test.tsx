@@ -316,6 +316,38 @@ describe("KnowledgeGraph", () => {
     ]);
   });
 
+  it("shows prompt provenance trails for the focused note", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral", detail: "Hermes: remember dashboard taste" },
+        { id: "skill:memory-review", label: "Memory review", kind: "skill", tone: "neutral", detail: "Post-turn personalization distills durable notes." },
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries" },
+        { id: "memory:pending:pmw-review-style", label: "Pending user memory", kind: "memory", tone: "warning", detail: "awaiting approval" },
+        { id: "provider:hermes", label: "Hermes", kind: "provider", tone: "success", detail: "Hermes assistant is selected." }
+      ]}
+      edges={[
+        { from: "session:latest", to: "skill:memory-review", label: "teaches" },
+        { from: "skill:memory-review", to: "memory:user", label: "distills" },
+        { from: "memory:pending:pmw-review-style", to: "memory:user", label: "awaits approval" },
+        { from: "memory:user", to: "provider:hermes", label: "injects prompt" },
+        { from: "provider:hermes", to: "session:latest", label: "answered" }
+      ]}
+    />);
+
+    fireEvent.click(within(screen.getByRole("list", { name: "Vault notes" }))
+      .getByRole("button", { name: "Open note User preferences.md" }));
+
+    const provenance = screen.getByRole("list", { name: "Prompt provenance" });
+
+    expect(within(provenance).getByText(
+      "Latest session -> teaches -> Memory review -> distills -> User preferences -> injects prompt -> Hermes"
+    )).toBeInTheDocument();
+    expect(within(provenance).getByText(
+      "Pending user memory -> awaits approval -> User preferences -> injects prompt -> Hermes"
+    )).toBeInTheDocument();
+    expect(within(provenance).queryByText(/Hermes -> answered -> Latest session/u)).not.toBeInTheDocument();
+  });
+
   it("keeps Browser Context visible in the ledger when no page context is available", () => {
     render(<KnowledgeGraph
       nodes={[

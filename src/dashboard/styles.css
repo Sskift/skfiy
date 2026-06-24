@@ -1153,6 +1153,20 @@ a:focus-visible {
   background: #faf5ff;
 }
 
+.skfiy-knowledge-panel--focus .skfiy-prompt-provenance li {
+  border-color: rgba(20, 184, 166, 0.22);
+  border-left: 3px solid #14b8a6;
+  background:
+    linear-gradient(135deg, rgba(240, 253, 250, 0.95), rgba(239, 246, 255, 0.95)),
+    #f8fafc;
+}
+
+.skfiy-knowledge-panel--focus .skfiy-prompt-provenance span {
+  color: #134e4a;
+  font-weight: 680;
+  line-height: 1.4;
+}
+
 .skfiy-dashboard-provider-form {
   display: grid;
   gap: 12px;

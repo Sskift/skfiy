@@ -284,6 +284,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.promptStackCount >= 5
     && Number.isInteger(evidence?.promptSourceLedgerCount)
     && evidence.promptSourceLedgerCount >= 5
+    && Number.isInteger(evidence?.promptProvenanceCount)
+    && evidence.promptProvenanceCount >= 1
     && Number.isInteger(evidence?.sessionNodeCount)
     && evidence.sessionNodeCount >= 2
     && Number.isInteger(evidence?.personalSkillNodeCount)
@@ -310,6 +312,7 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Array.isArray(evidence?.learningLoopTexts)
     && Array.isArray(evidence?.promptStackTexts)
     && Array.isArray(evidence?.promptSourceLedgerTexts)
+    && Array.isArray(evidence?.promptProvenanceTexts)
     && Array.isArray(evidence?.personalSkillTexts)
     && Array.isArray(evidence?.workingProfileTexts)
     && evidence.vaultLensTexts.some((text) => typeof text === "string" && text.includes("All"))
@@ -358,6 +361,14 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("review gated"))
     && evidence.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Browser Context"))
     && evidence.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Background Agent"))
+    && evidence.promptProvenanceTexts.some((text) => typeof text === "string" && text.includes("teaches"))
+    && evidence.promptProvenanceTexts.some((text) => typeof text === "string" && text.includes("distills"))
+    && evidence.promptProvenanceTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
+    && evidence.promptProvenanceTexts.some((text) => typeof text === "string" && (
+      text.includes("Codex")
+      || text.includes("Hermes")
+      || text.includes("Claude Code")
+    ))
     && (!hasBrowserContextNode
       || evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in")))
     && hasDashboardKnowledgeGraphVisualDesignContract(evidence.visualDesignContract)

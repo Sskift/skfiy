@@ -374,6 +374,7 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 60));
       const focusedBacklinkItems = Array.from(document.querySelectorAll('[aria-label="Focused note backlinks"] li'));
       const focusedNeighborhoodItems = Array.from(document.querySelectorAll('[aria-label="Focused neighborhood"] li'));
+      const promptProvenanceItems = Array.from(document.querySelectorAll('[aria-label="Prompt provenance"] li'));
       const learningLoopList = document.querySelector('[aria-label="Learning loop"]');
       const shell = document.querySelector(".skfiy-dashboard-shell");
       const graphCanvas = document.querySelector(".skfiy-knowledge-graph-canvas");
@@ -466,6 +467,7 @@ async function main() {
         learningLoopCount: learningLoopItems.length,
         promptStackCount: promptStackItems.length,
         promptSourceLedgerCount: promptSourceLedgerItems.length,
+        promptProvenanceCount: promptProvenanceItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
         personalSkillNodeCount: nodeItems.filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? "")).length,
         workingProfileNodeCount: nodeItems.filter((item) => /Working profile/i.test(item.textContent ?? "")).length,
@@ -483,6 +485,7 @@ async function main() {
         learningLoopTexts: learningLoopItems.map((item) => item.textContent),
         promptStackTexts: promptStackItems.map((item) => item.textContent),
         promptSourceLedgerTexts: promptSourceLedgerItems.map((item) => item.textContent),
+        promptProvenanceTexts: promptProvenanceItems.map((item) => item.textContent),
         visualDesignContract,
         personalSkillTexts: nodeItems
           .filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? ""))
@@ -600,6 +603,45 @@ async function main() {
     && visualDesignContract.paletteHasMultipleAccentFamilies
     && visualDesignContract.screenshotCoversDashboardShell
     && visualDesignContract.screenshotCoversKnowledgeGraph;
+  const domContractPassed = dom.regionFound
+    && dom.nodeCount >= 5
+    && dom.vaultNoteCount >= 3
+    && dom.focusedNoteFound
+    && /\\.md$/u.test(dom.focusedNoteTitle)
+    && dom.focusedBacklinkCount >= 1
+    && dom.vaultLensCount >= 4
+    && dom.focusedNeighborhoodCount >= 1
+    && dom.backlinkCount >= 2
+    && dom.learningLoopCount >= 4
+    && dom.promptStackCount >= 5
+    && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Working profile"))
+    && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Background Agent"))
+    && dom.promptSourceLedgerCount >= 5
+    && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Memory"))
+    && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Pending memory"))
+    && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("review gated"))
+    && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Browser Context"))
+    && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Background Agent"))
+    && dom.promptProvenanceCount >= 1
+    && dom.promptProvenanceTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
+    && dom.promptProvenanceTexts.some((text) => typeof text === "string" && text.includes("Codex"))
+    && dom.sessionNodeCount >= 2
+    && dom.personalSkillNodeCount >= 2
+    && dom.workingProfileNodeCount >= 1
+    && dom.workingProfileLinkCount >= 2
+    && dom.workingProfileNoteCount >= 1
+    && dom.pendingMemoryNodeCount >= 1
+    && dom.pendingMemoryLinkCount >= 2
+    && dom.vaultSearchInputFound
+    && dom.vaultSearchNodeCount >= 2
+    && dom.vaultSearchNoteCount >= 2
+    && dom.vaultSearchSummary.includes("approval")
+    && dom.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory"))
+    && dom.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md"))
+    && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt"))
+    && dom.linkTexts.some((text) => typeof text === "string" && text.includes("travels with prompt"))
+    && visualContractPassed
+    && !dom.fallbackTextOverlap;
   clearTimeout(timeout);
   console.log(JSON.stringify({
     productPath,
@@ -608,7 +650,7 @@ async function main() {
     screenshotBytes: png.length,
     ...dom,
     visualDesignContract,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.promptStackCount >= 5 && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Working profile")) && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Background Agent")) && dom.promptSourceLedgerCount >= 5 && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Memory")) && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Pending memory")) && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("review gated")) && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Browser Context")) && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Background Agent")) && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.workingProfileNodeCount >= 1 && dom.workingProfileLinkCount >= 2 && dom.workingProfileNoteCount >= 1 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.vaultSearchInputFound && dom.vaultSearchNodeCount >= 2 && dom.vaultSearchNoteCount >= 2 && dom.vaultSearchSummary.includes("approval") && dom.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory")) && dom.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("travels with prompt")) && visualContractPassed && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: domContractPassed ? "passed" : "failed"
   }));
   app.quit();
 }

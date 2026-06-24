@@ -1273,6 +1273,21 @@ Focused verification:
 npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 16: Show focused prompt provenance trails**
+
+In `src/dashboard/KnowledgeGraph.tsx`, `src/dashboard/styles.css`, `scripts/smoke-dashboard-product.mjs`, `scripts/smoke-dashboard-plan.mjs`, and `src/main/dashboard-smoke-script.test.ts`:
+
+- Add a `Prompt provenance` list inside the focused vault note so an operator can audit why a memory, skill, pending write, session, or profile node is relevant to the next provider prompt.
+- Derive provenance from graph edges by walking upstream evidence into the selected note and downstream prompt paths to the selected Background Agent; do not duplicate dashboard snapshot state.
+- Include pending review-gated memory trails so the graph distinguishes `awaits approval` from active durable prompt injection.
+- Extend Dashboard smoke evidence with `promptProvenanceCount` and `promptProvenanceTexts`; the product smoke cannot pass if the focused note lacks a provenance path containing `teaches`, `distills`, `injects prompt`, and a provider label.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls

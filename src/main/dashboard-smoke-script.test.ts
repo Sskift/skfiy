@@ -76,6 +76,9 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("promptSourceLedgerCount");
     expect(source).toContain("promptSourceLedgerTexts");
     expect(source).toContain("promptSourceLedgerPanelUsesGradient");
+    expect(source).toContain("Prompt provenance");
+    expect(source).toContain("promptProvenanceCount");
+    expect(source).toContain("promptProvenanceTexts");
     expect(source).toContain("Working profile");
     expect(source).toContain("seedPersonalMemoryFixture");
     expect(source).toContain("exercisePersonalMemoryApi");
@@ -742,6 +745,7 @@ describe("dashboard product smoke script", () => {
         learningLoopCount: 4,
         promptStackCount: 6,
         promptSourceLedgerCount: 7,
+        promptProvenanceCount: 2,
         sessionNodeCount: 2,
         personalSkillNodeCount: 2,
         workingProfileNodeCount: 1,
@@ -803,6 +807,10 @@ describe("dashboard product smoke script", () => {
           "Working profileprompt-safe portableWorking profile",
           "Browser Contextblocked or gatedBrowser Context",
           "Background AgentreadyCodex"
+        ],
+        promptProvenanceTexts: [
+          "Latest session -> teaches -> Memory review -> distills -> User preferences -> injects prompt -> Codex",
+          "Pending user memory -> awaits approval -> User preferences -> injects prompt -> Codex"
         ],
         personalSkillTexts: [
           "Concise Chinese progress updatesskillcommunication",
@@ -1224,6 +1232,7 @@ describe("dashboard product smoke script", () => {
         backlinkCount: 6,
         learningLoopCount: 4,
         promptStackCount: 5,
+        promptProvenanceCount: 1,
         personalSkillNodeCount: 2,
         workingProfileNodeCount: 1,
         workingProfileLinkCount: 3,
@@ -1273,6 +1282,9 @@ describe("dashboard product smoke script", () => {
           "3Personal skillsConcise Chinese progress updates, Obsidian-style knowledge dashboard",
           "4Working profileWorking profile",
           "5Background AgentCodex"
+        ],
+        promptProvenanceTexts: [
+          "Latest session -> teaches -> Memory review -> distills -> User preferences -> injects prompt -> Codex"
         ],
         personalSkillTexts: [
           "Concise Chinese progress updatesskillcommunication",
@@ -1369,6 +1381,14 @@ describe("dashboard product smoke script", () => {
         ...passedEvidence.knowledgeGraphEvidence,
         promptSourceLedgerCount: 0,
         promptSourceLedgerTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        promptProvenanceCount: 0,
+        promptProvenanceTexts: []
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
