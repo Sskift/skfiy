@@ -222,6 +222,30 @@ describe("KnowledgeGraph", () => {
     }
   });
 
+  it("keeps vault relation keys unique when two notes share the same label", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      render(<KnowledgeGraph
+        nodes={[
+          { id: "memory:evolution", label: "Memory evolution", kind: "memory", tone: "warning", detail: "2 learning receipts" },
+          { id: "memory:journal:first", label: "Learning receipt", kind: "memory", tone: "success", detail: "first receipt" },
+          { id: "memory:journal:second", label: "Learning receipt", kind: "memory", tone: "warning", detail: "second receipt" }
+        ]}
+        edges={[
+          { from: "memory:evolution", to: "memory:journal:first", label: "orders receipt" },
+          { from: "memory:evolution", to: "memory:journal:second", label: "orders receipt" }
+        ]}
+      />);
+
+      expect(consoleError.mock.calls.some((call) => (
+        call.some((part) => String(part).includes("Encountered two children with the same key"))
+      ))).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("renders a readable learning loop when memory review closes the personalization cycle", () => {
     render(<KnowledgeGraph
       nodes={[

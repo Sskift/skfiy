@@ -1446,6 +1446,21 @@ Focused verification:
 npx vitest run src/main/personal-memory-journal.test.ts src/main/personalization-learning-loop.test.ts src/main/personal-memory-main-wiring.test.ts src/main/dashboard-data.test.ts src/dashboard/DashboardApp.test.tsx src/dashboard/model.test.ts src/main/dashboard-smoke-script.test.ts src/main/cli-product-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 10: Show memory evolution as a traceable timeline**
+
+In `src/dashboard/DashboardApp.tsx`, `src/dashboard/KnowledgeGraph.tsx`, `src/dashboard/model.ts`, `scripts/smoke-dashboard-product.mjs`, and `scripts/smoke-dashboard-plan.mjs`:
+
+- Derive a readable `Memory evolution` timeline from the newest learning receipts so the Dashboard shows how a remembered habit changed across turns, providers, and pending approval stages.
+- Add a `Memory evolution` node to the Obsidian-inspired Knowledge graph, linked from memory review and out to the individual `Learning receipt` nodes with ordered receipt edges.
+- Keep duplicate-label receipt relations stable in the vault note UI so repeated `Learning receipt` notes do not produce React key warnings.
+- Extend Dashboard product smoke so packaged screenshot DOM evidence must include the evolution node, timeline links, and ordered receipt links.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/dashboard/DashboardApp.test.tsx src/dashboard/model.test.ts src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ## Task 10: End-To-End Product Validation
 
 **Files:**
@@ -1530,6 +1545,7 @@ Validation evidence from 2026-06-24:
 - `.skfiy-smoke/cli-memory-journal.json` recorded `result: passed`, `providerPromptContract.result: passed`, `realTurnIdentityContract.result: passed`, and `postTurnPersonalizationContract.result: passed`; the post-turn evidence includes `memoryJournalStage/source/providerLabel` for Codex durable review, Hermes local fallback, and Claude Code pending approval writes.
 - `.skfiy-smoke/dashboard-product.json` recorded `result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`. Dashboard screenshot evidence now also records `knowledgeGraphEvidence.visualDesignContract` with a 2560x1632 viewport, dark grid shell/canvas, dark vault lens, gradient focus/notes/backlinks/learning-loop panels, gradient graph links, selected node glow, multiple accent families, and screenshot coverage for both the dashboard shell and Knowledge graph.
 - `.skfiy-smoke/dashboard-memory-journal.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`, with 2 `Learning receipt` nodes and 3 receipt links in the graph DOM evidence plus screenshot evidence at `.skfiy-smoke/dashboard-memory-journal-knowledge-graph.png`.
+- `.skfiy-smoke/dashboard-memory-evolution.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`, with 1 `Memory evolution` node, 3 timeline/order links, 2 `Learning receipt` nodes, 3 receipt links, and screenshot evidence at `.skfiy-smoke/dashboard-memory-evolution-knowledge-graph.png`.
 - `.skfiy-smoke/dashboard-prompt-stack.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-prompt-stack-knowledge-graph.png` shows the Obsidian-inspired `Prompt stack` above the graph canvas with memory, recalled sessions, personal skills, Working profile, and selected Background Agent ordering visible.
 - `.skfiy-smoke/ghostty-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24 and captured a non-empty Ghostty before screenshot, but the run ended `needs-user-confirmation` with `Verification failed (before): Target app is not running or has no observable windows.` This replaces the older sleep/loginwindow blocker with a fresh Ghostty initialization/verification blocker.
 - `.skfiy-smoke/finder-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24, but the run ended `error` with `Finder runCommand timed out after 8000ms` and no Finder observation. This replaces the older sleep/loginwindow blocker with a fresh Finder renderer-command timeout blocker.

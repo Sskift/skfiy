@@ -289,6 +289,17 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       pushEdge(edges, { from: pendingId, to: targetId, label: "awaits approval" });
     });
 
+    if (memoryJournal.length > 0) {
+      pushNode(nodes, {
+        id: "memory:evolution",
+        label: "Memory evolution",
+        kind: "memory",
+        tone: memoryJournal.some((entry) => entry.stage === "pending") ? "warning" : "success",
+        detail: createMemoryEvolutionNodeDetail(memoryJournal)
+      });
+      pushEdge(edges, { from: "skill:memory-review", to: "memory:evolution", label: "records timeline" });
+    }
+
     memoryJournal.forEach((entry) => {
       const journalId = `memory:journal:${sanitizeNodeId(entry.id)}`;
       const targetId = entry.target === "agent" ? "memory:agent" : "memory:user";
@@ -300,6 +311,7 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
         detail: createMemoryJournalNodeDetail(entry)
       });
       pushEdge(edges, { from: "skill:memory-review", to: journalId, label: "records receipt" });
+      pushEdge(edges, { from: "memory:evolution", to: journalId, label: "orders receipt" });
       pushEdge(edges, {
         from: journalId,
         to: targetId,
@@ -1299,6 +1311,13 @@ function createMemoryJournalNodeDetail(entry: DashboardPersonalMemoryJournalEntr
       ? "remove"
       : "add";
   return `${entry.stage} · ${action} ${entry.target} · ${entry.content} · learned from ${entry.providerLabel} turn ${entry.turnId}`;
+}
+
+function createMemoryEvolutionNodeDetail(entries: DashboardPersonalMemoryJournalEntry[]): string {
+  const providerCount = new Set(entries
+    .map((entry) => entry.providerLabel.trim())
+    .filter(Boolean)).size;
+  return `${entries.length} ${entries.length === 1 ? "learning receipt" : "learning receipts"} across ${providerCount} ${providerCount === 1 ? "provider" : "providers"}`;
 }
 
 function formatInteger(value: number): string {

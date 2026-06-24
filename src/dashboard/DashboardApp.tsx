@@ -845,6 +845,7 @@ function PersonalMemoryPanel({
           skills={personalSkills}
         />
         <WorkingProfilePanel profile={memory?.workingProfile} />
+        <MemoryEvolutionTrail entries={memoryJournal} />
         <MemoryJournalList entries={memoryJournal} />
         <RecentSessionRecallList sessions={memory?.recentSessions ?? []} />
         <p
@@ -901,6 +902,44 @@ function WorkingProfilePanel({
       ) : null}
     </div>
   );
+}
+
+function MemoryEvolutionTrail({
+  entries
+}: {
+  entries: NonNullable<DashboardPersonalMemorySummary["memoryJournal"]>;
+}) {
+  return (
+    <div className="skfiy-dashboard-key-value-list skfiy-dashboard-memory-evolution">
+      <h3>Memory evolution</h3>
+      {entries.length > 0 ? (
+        <ol aria-label="Memory evolution trail">
+          {entries.map((entry) => (
+            <li data-stage={entry.stage} key={`evolution-${entry.id}`}>
+              <span>Turn {entry.turnId} · {entry.providerLabel} · {entry.stage}</span>
+              <strong>{formatMemoryEvolutionAction(entry)}</strong>
+              {entry.previousContent ? <em>from {entry.previousContent}</em> : null}
+              <em>to {entry.content}</em>
+              <small>learned after: {entry.userInput}</small>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="skfiy-dashboard-empty">No memory evolution has been recorded yet.</p>
+      )}
+    </div>
+  );
+}
+
+function formatMemoryEvolutionAction(
+  entry: NonNullable<DashboardPersonalMemorySummary["memoryJournal"]>[number]
+): string {
+  const action = entry.action === "replace"
+    ? "replace"
+    : entry.action === "remove"
+      ? "remove"
+      : "add";
+  return `${action} ${entry.target} memory`;
 }
 
 function MemoryJournalList({

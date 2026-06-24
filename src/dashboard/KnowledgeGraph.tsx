@@ -251,8 +251,8 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
               <strong>{`Backlinks ${selectedNote.relations.length}`}</strong>
               {selectedNote.relations.length > 0 ? (
                 <ul aria-label="Focused note backlinks">
-                  {selectedNote.relations.map((relation) => (
-                    <li key={`${selectedNote.id}-${relation}`}>
+                  {selectedNote.relations.map((relation, index) => (
+                    <li key={`${selectedNote.id}-${relation}-${index}`}>
                       <span>{relation}</span>
                     </li>
                   ))}
@@ -310,8 +310,8 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
                 </button>
                 {note.relations.length > 0 ? (
                   <span className="skfiy-vault-note-links" aria-label={`${note.fileName} links`}>
-                    {note.relations.slice(0, 3).map((relation) => (
-                      <em key={`${note.id}-${relation}`}>{relation}</em>
+                    {note.relations.slice(0, 3).map((relation, index) => (
+                      <em key={`${note.id}-${relation}-${index}`}>{relation}</em>
                     ))}
                   </span>
                 ) : null}

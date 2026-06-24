@@ -486,7 +486,9 @@ async function main() {
         workingProfileNodeCount: nodeItems.filter((item) => /Working profile/i.test(item.textContent ?? "")).length,
         workingProfileLinkCount: linkItems.filter((item) => /shapes profile|summarizes habit|travels with prompt/i.test(item.textContent ?? "")).length,
         workingProfileNoteCount: vaultNoteItems.filter((item) => /Working profile\.md/i.test(item.textContent ?? "")).length,
-        memoryJournalNodeCount: nodeItems.filter((item) => /Learning receipt/i.test(item.textContent ?? "")).length,
+        memoryEvolutionNodeCount: nodeItems.filter((item) => /Memory evolution/i.test(item.textContent ?? "")).length,
+        memoryEvolutionLinkCount: linkItems.filter((item) => /records timeline|orders receipt/i.test(item.textContent ?? "")).length,
+        memoryJournalNodeCount: nodeItems.filter((item) => /^Learning receipt/i.test(item.textContent ?? "")).length,
         memoryJournalLinkCount: linkItems.filter((item) => /records receipt|updates memory/i.test(item.textContent ?? "")).length,
         pendingMemoryNodeCount: nodeItems.filter((item) => /Pending user memory|Pending agent memory/i.test(item.textContent ?? "")).length,
         pendingMemoryLinkCount: linkItems.filter((item) => /stages|awaits approval/i.test(item.textContent ?? "")).length,
@@ -649,12 +651,17 @@ async function main() {
     && dom.workingProfileNodeCount >= 1
     && dom.workingProfileLinkCount >= 2
     && dom.workingProfileNoteCount >= 1
+    && dom.memoryEvolutionNodeCount >= 1
+    && dom.memoryEvolutionLinkCount >= 3
     && dom.memoryJournalNodeCount >= 2
     && dom.memoryJournalLinkCount >= 3
     && dom.pendingMemoryNodeCount >= 2
     && dom.pendingMemoryLinkCount >= 4
+    && dom.nodeTexts.some((text) => typeof text === "string" && text.includes("Memory evolution"))
     && dom.nodeTexts.some((text) => typeof text === "string" && text.includes("Learning receipt"))
     && dom.nodeTexts.some((text) => typeof text === "string" && text.includes("learned from Hermes turn"))
+    && dom.linkTexts.some((text) => typeof text === "string" && text.includes("records timeline"))
+    && dom.linkTexts.some((text) => typeof text === "string" && text.includes("orders receipt"))
     && dom.linkTexts.some((text) => typeof text === "string" && text.includes("records receipt"))
     && dom.linkTexts.some((text) => typeof text === "string" && text.includes("updates memory"))
     && dom.nodeTexts.some((text) => typeof text === "string" && text.includes("replace · from User prefers concise Chinese updates. -> User prefers concise Chinese-first progress updates with verification evidence."))

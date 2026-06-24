@@ -30,6 +30,12 @@ describe("readKnowledgeGraph", () => {
         label: "Working profile"
       }),
       expect.objectContaining({
+        id: "memory:evolution",
+        kind: "memory",
+        label: "Memory evolution",
+        detail: "2 learning receipts across 2 providers"
+      }),
+      expect.objectContaining({
         id: "memory:journal:pmj-20260623t120500000z-1",
         kind: "memory",
         label: "Learning receipt",
@@ -56,6 +62,16 @@ describe("readKnowledgeGraph", () => {
         from: "skill:memory-review",
         to: "memory:journal:pmj-20260623t120500000z-1",
         label: "records receipt"
+      }),
+      expect.objectContaining({
+        from: "skill:memory-review",
+        to: "memory:evolution",
+        label: "records timeline"
+      }),
+      expect.objectContaining({
+        from: "memory:evolution",
+        to: "memory:journal:pmj-20260623t120500000z-1",
+        label: "orders receipt"
       }),
       expect.objectContaining({
         from: "memory:journal:pmj-20260623t120500000z-1",

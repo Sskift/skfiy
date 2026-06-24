@@ -451,6 +451,90 @@ a:focus-visible {
   gap: 6px;
 }
 
+.skfiy-dashboard-memory-evolution {
+  border-color: rgba(124, 58, 237, 0.18);
+  background:
+    linear-gradient(135deg, rgba(245, 243, 255, 0.88), rgba(236, 253, 245, 0.72)),
+    #fafafa;
+}
+
+.skfiy-dashboard-memory-evolution ol {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.skfiy-dashboard-memory-evolution ol::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #7c3aed, #059669);
+}
+
+.skfiy-dashboard-memory-evolution li {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(110px, 0.45fr) minmax(0, 1fr);
+  gap: 5px 10px;
+  min-width: 0;
+  padding: 9px 10px 9px 24px;
+  border: 1px solid rgba(124, 58, 237, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.skfiy-dashboard-memory-evolution li::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 4px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.22);
+}
+
+.skfiy-dashboard-memory-evolution li[data-stage="pending"]::before {
+  background: #ca8a04;
+  box-shadow: 0 0 0 2px rgba(202, 138, 4, 0.22);
+}
+
+.skfiy-dashboard-memory-evolution li span,
+.skfiy-dashboard-memory-evolution li small,
+.skfiy-dashboard-memory-evolution li strong,
+.skfiy-dashboard-memory-evolution li em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.skfiy-dashboard-memory-evolution li span {
+  color: #5b21b6;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.skfiy-dashboard-memory-evolution li strong {
+  color: #18181b;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.skfiy-dashboard-memory-evolution li em,
+.skfiy-dashboard-memory-evolution li small {
+  color: #52525b;
+  font-size: 12px;
+  font-style: normal;
+}
+
 .skfiy-dashboard-memory-journal ul {
   gap: 8px;
   padding-left: 0;

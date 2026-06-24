@@ -383,6 +383,15 @@ describe("DashboardApp", () => {
     expect(within(dashboardEvidence).getByText(
       "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
     )).toBeInTheDocument();
+    expect(within(memory).getByRole("heading", { name: "Memory evolution" })).toBeInTheDocument();
+    const memoryEvolution = within(memory).getByRole("list", { name: "Memory evolution trail" });
+    expect(within(memoryEvolution).getByText("Turn turn-2 · Hermes · pending")).toBeInTheDocument();
+    expect(within(memoryEvolution).getByText("replace user memory")).toBeInTheDocument();
+    expect(within(memoryEvolution).getByText("from User prefers concise Chinese updates.")).toBeInTheDocument();
+    expect(within(memoryEvolution).getByText(
+      "to User prefers concise Chinese-first progress updates with verification evidence."
+    )).toBeInTheDocument();
+    expect(within(memoryEvolution).getByText("learned after: 以后带验证证据")).toBeInTheDocument();
     expect(within(memory).getByRole("heading", { name: "Recent session recall" })).toBeInTheDocument();
     expect(within(memory).getByText("Codex · skfiy Dashboard")).toBeInTheDocument();
     expect(within(memory).getByText("Summarize current dashboard state.")).toBeInTheDocument();
