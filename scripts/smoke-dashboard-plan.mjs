@@ -273,6 +273,10 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.sessionNodeCount >= 2
     && Number.isInteger(evidence?.personalSkillNodeCount)
     && evidence.personalSkillNodeCount >= 2
+    && Number.isInteger(evidence?.pendingMemoryNodeCount)
+    && evidence.pendingMemoryNodeCount >= 1
+    && Number.isInteger(evidence?.pendingMemoryLinkCount)
+    && evidence.pendingMemoryLinkCount >= 2
     && evidence?.fallbackTextOverlap === false
     && Array.isArray(evidence?.nodeTexts)
     && Array.isArray(evidence?.linkTexts)
@@ -288,14 +292,20 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Backlinks"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Concise Chinese progress updates"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Obsidian-style knowledge dashboard"))
+    && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("recalls context"))
+    && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("awaits approval"))
     && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt"))
+    && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("stages"))
+    && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("awaits approval"))
+    && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Pending user memory.md"))
     && evidence.focusedNeighborhoodTexts.some((text) => typeof text === "string" && (
       text.includes("injects prompt")
       || text.includes("guides prompt")
       || text.includes("distills")
       || text.includes("recalls context")
+      || text.includes("awaits approval")
     ))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("teaches"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("distills"))

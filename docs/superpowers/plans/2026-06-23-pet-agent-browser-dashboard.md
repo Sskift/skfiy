@@ -1148,6 +1148,21 @@ Focused verification:
 npx vitest run src/dashboard/DashboardApp.test.tsx --reporter=dot
 ```
 
+- [x] **Step 11: Connect pending memory review to the knowledge graph**
+
+In `src/dashboard/model.ts`, `src/dashboard/model.test.ts`, and Dashboard smoke files:
+
+- Represent staged personal memory writes as warning-tone graph notes, not only as a Memory panel list.
+- Connect `Memory review -> stages -> Pending user/agent memory -> awaits approval -> User preferences/Agent operating notes`.
+- Keep pending writes separate from durable prompt-injected memory so the graph does not imply an unapproved candidate is already active.
+- Seed pending memory review data in Dashboard smoke and require screenshot evidence for the pending graph node and approval links.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/model.test.ts src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls

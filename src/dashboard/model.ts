@@ -2,6 +2,7 @@ import type {
   DashboardKnowledgeGraph,
   DashboardKnowledgeGraphEdge,
   DashboardKnowledgeGraphNode,
+  DashboardPendingPersonalMemoryWrite,
   DashboardPersonalMemoryUsageBucket,
   DashboardProviderSummary,
   DashboardSnapshot
@@ -151,6 +152,7 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
     .find((provider) => provider.provider === "assistant");
   const providerId = `provider:${sanitizeNodeId(assistantProvider?.mode ?? assistant.value)}`;
   const personalMemory = snapshot.personalMemory;
+  const pendingMemoryWrites = personalMemory?.pendingWrites ?? [];
   const browserContext = readBrowserContextSummary(snapshot);
   const computerUse = readComputerUseReadiness(snapshot);
   const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
@@ -248,6 +250,7 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
     personalMemory.userEntryCount > 0
     || personalMemory.agentEntryCount > 0
     || personalMemory.sessionCount > 0
+    || pendingMemoryWrites.length > 0
   )) {
     pushNode(nodes, {
       id: "skill:memory-review",
@@ -267,6 +270,20 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       .forEach((node) => {
         pushEdge(edges, { from: node.id, to: "skill:memory-review", label: "teaches" });
       });
+
+    pendingMemoryWrites.forEach((write) => {
+      const pendingId = `memory:pending:${sanitizeNodeId(write.id)}`;
+      const targetId = write.target === "agent" ? "memory:agent" : "memory:user";
+      pushNode(nodes, {
+        id: pendingId,
+        label: write.target === "agent" ? "Pending agent memory" : "Pending user memory",
+        kind: "memory",
+        tone: "warning",
+        detail: createPendingMemoryNodeDetail(write)
+      });
+      pushEdge(edges, { from: "skill:memory-review", to: pendingId, label: "stages" });
+      pushEdge(edges, { from: pendingId, to: targetId, label: "awaits approval" });
+    });
   }
 
   for (const skill of personalMemory?.personalSkills ?? []) {
@@ -1195,6 +1212,17 @@ function createMemoryNodeDetail(
     : undefined;
   const countLabel = usageLabel ? `${count} entries · ${usageLabel}` : `${count} entries`;
   return sample ? `${countLabel} · ${sample}` : countLabel;
+}
+
+function createPendingMemoryNodeDetail(
+  write: DashboardPendingPersonalMemoryWrite
+): string {
+  const action = write.action === "replace"
+    ? "replace"
+    : write.action === "remove"
+      ? "remove"
+      : "add";
+  return `${action} · ${write.content}`;
 }
 
 function formatInteger(value: number): string {

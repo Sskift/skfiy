@@ -350,8 +350,11 @@ describe("DashboardApp", () => {
     expect(within(graph).getAllByText("Computer Use").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Concise Chinese progress updates").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Obsidian-style knowledge dashboard").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("Pending user memory").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("injects prompt").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("guides prompt").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("stages").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("awaits approval").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("recalls context").length).toBeGreaterThan(0);
     expect(within(graph).getByRole("list", { name: "Vault notes" })).toBeInTheDocument();
     expect(within(graph).getByText("User preferences.md")).toBeInTheDocument();

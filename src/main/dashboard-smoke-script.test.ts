@@ -70,6 +70,9 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("personalMemoryApi");
     expect(source).toContain("/api/personal-memory");
     expect(source).toContain("/api/personal-skills");
+    expect(source).toContain("pending-memory-writes.json");
+    expect(source).toContain("Pending user memory");
+    expect(source).toContain("awaits approval");
     expect(source).toContain("personalMemory.usage");
     expect(source).toContain("exerciseChromeControlActionApi");
     expect(source).toContain("dashboardChromeControlActionApi");
@@ -701,24 +704,27 @@ describe("dashboard product smoke script", () => {
         screenshotPath: "/repo/.skfiy-smoke/dashboard-knowledge-graph.png",
         screenshotBytes: 1024,
         regionFound: true,
-        nodeCount: 7,
-        linkCount: 7,
-        vaultNoteCount: 6,
+        nodeCount: 8,
+        linkCount: 9,
+        vaultNoteCount: 7,
         focusedNoteFound: true,
         focusedNoteTitle: "User preferences.md",
-        focusedBacklinkCount: 1,
+        focusedBacklinkCount: 2,
         vaultLensCount: 7,
-        vaultLensSummary: "Showing 7 of 7 notes",
-        focusedNeighborhoodCount: 1,
-        backlinkCount: 5,
+        vaultLensSummary: "Showing 8 of 8 notes",
+        focusedNeighborhoodCount: 2,
+        backlinkCount: 7,
         learningLoopCount: 4,
         sessionNodeCount: 2,
         personalSkillNodeCount: 2,
+        pendingMemoryNodeCount: 1,
+        pendingMemoryLinkCount: 2,
         fallbackTextOverlap: false,
         nodeTexts: [
           "User preferencesmemoryUser prefers concise Chinese updates.",
           "Concise Chinese progress updatesskillcommunication",
           "Obsidian-style knowledge dashboardskilldashboard",
+          "Pending user memorymemoryadd · User wants memory writes reviewed before becoming durable.",
           "Latest sessionsessionCodex: hello",
           "Codexprovidersready",
           "Browser Contextbrowserdashboard-smoke.example",
@@ -728,11 +734,15 @@ describe("dashboard product smoke script", () => {
           "injects promptUser preferences -> Codex",
           "guides promptConcise Chinese progress updates -> Codex",
           "guides promptObsidian-style knowledge dashboard -> Codex",
+          "stagesMemory review -> Pending user memory",
+          "awaits approvalPending user memory -> User preferences",
           "recalls contextLatest session -> Codex",
           "observed inBrowser Context -> Latest session"
         ],
         backlinkTexts: [
           "User preferencesinjects promptCodex",
+          "Pending user memoryawaits approvalUser preferences",
+          "Memory reviewstagesPending user memory",
           "Latest sessionrecalls contextCodex",
           "Browser Contextobserved inLatest session"
         ],
@@ -747,8 +757,8 @@ describe("dashboard product smoke script", () => {
           "Obsidian-style knowledge dashboardskilldashboard"
         ],
         vaultLensTexts: [
-          "All 7",
-          "Memory 1",
+          "All 8",
+          "Memory 2",
           "Skill 2",
           "Session 1",
           "Provider 1",
@@ -756,14 +766,17 @@ describe("dashboard product smoke script", () => {
           "Computer Use 1"
         ],
         vaultNoteTexts: [
-          "User preferences.mdmemoryBacklinks 1injects prompt -> Codex",
+          "User preferences.mdmemoryBacklinks 2injects prompt -> CodexPending user memory -> awaits approval",
+          "Pending user memory.mdmemoryBacklinks 2Memory review -> stagesawaits approval -> User preferences",
           "Latest session.mdsessionBacklinks 2recalls context -> CodexBrowser Context -> observed in"
         ],
         focusedBacklinkTexts: [
-          "injects prompt -> Codex"
+          "injects prompt -> Codex",
+          "Pending user memory -> awaits approval"
         ],
         focusedNeighborhoodTexts: [
-          "Codexinjects promptoutgoing"
+          "Codexinjects promptoutgoing",
+          "Pending user memoryawaits approvalincoming"
         ],
         result: "passed"
       },
@@ -1129,15 +1142,18 @@ describe("dashboard product smoke script", () => {
       ...passedEvidence,
       knowledgeGraphEvidence: {
         ...passedEvidence.knowledgeGraphEvidence,
-        nodeCount: 7,
-        linkCount: 6,
-        backlinkCount: 4,
+        nodeCount: 8,
+        linkCount: 8,
+        backlinkCount: 6,
         learningLoopCount: 4,
         personalSkillNodeCount: 2,
+        pendingMemoryNodeCount: 1,
+        pendingMemoryLinkCount: 2,
         nodeTexts: [
           "User preferencesmemoryUser prefers concise Chinese updates.",
           "Concise Chinese progress updatesskillcommunication",
           "Obsidian-style knowledge dashboardskilldashboard",
+          "Pending user memorymemoryadd · User wants memory writes reviewed before becoming durable.",
           "Latest sessionsessionCodex: hello",
           "Codexprovidersready",
           "Computer Usecomputer-useblocked",
@@ -1148,12 +1164,16 @@ describe("dashboard product smoke script", () => {
           "guides promptConcise Chinese progress updates -> Codex",
           "guides promptObsidian-style knowledge dashboard -> Codex",
           "recalls contextLatest session -> Codex",
-          "distillsMemory review -> User preferences"
+          "distillsMemory review -> User preferences",
+          "stagesMemory review -> Pending user memory",
+          "awaits approvalPending user memory -> User preferences"
         ],
         backlinkTexts: [
           "User preferencesinjects promptCodex",
           "Latest sessionrecalls contextCodex",
-          "Memory reviewdistillsUser preferences"
+          "Memory reviewdistillsUser preferences",
+          "Memory reviewstagesPending user memory",
+          "Pending user memoryawaits approvalUser preferences"
         ],
         learningLoopTexts: [
           "Latest session -> teaches -> Memory review",
@@ -1167,14 +1187,33 @@ describe("dashboard product smoke script", () => {
         ],
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 2injects prompt -> CodexMemory review -> distills",
+          "Pending user memory.mdmemoryBacklinks 2Memory review -> stagesawaits approval -> User preferences",
           "Latest session.mdsessionBacklinks 1recalls context -> Codex",
           "Memory review.mdskillBacklinks 1distills -> User preferences"
+        ],
+        focusedNeighborhoodTexts: [
+          "Codexinjects promptoutgoing",
+          "Pending user memoryawaits approvalincoming"
         ]
       }
     })).toBe("passed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       personalMemoryApi: undefined
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        nodeTexts: passedEvidence.knowledgeGraphEvidence.nodeTexts.filter((text) => !text.includes("Pending user memory")),
+        linkTexts: passedEvidence.knowledgeGraphEvidence.linkTexts.filter((text) => (
+          !text.includes("stages") && !text.includes("awaits approval")
+        )),
+        vaultNoteTexts: passedEvidence.knowledgeGraphEvidence.vaultNoteTexts.filter((text) => !text.includes("Pending user memory")),
+        focusedNeighborhoodTexts: passedEvidence.knowledgeGraphEvidence.focusedNeighborhoodTexts.filter((text) => (
+          !text.includes("Pending user memory")
+        ))
+      }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,

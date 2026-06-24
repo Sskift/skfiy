@@ -31,6 +31,7 @@ const DASHBOARD_CHROME_CONTROL_SMOKE_ACTIONS = [
 const DASHBOARD_MEMORY_SAFE_ENTRY = "User prefers concise Chinese updates.";
 const DASHBOARD_MEMORY_SENSITIVE_ENTRY = "User token=secret should be removable without echo.";
 const DASHBOARD_MEMORY_AGENT_ENTRY = "For dashboard work, prefer dense Obsidian-like knowledge surfaces.";
+const DASHBOARD_MEMORY_PENDING_ENTRY = "User wants memory writes reviewed before becoming durable.";
 
 async function main() {
   const defaults = createDefaultDashboardSmokeOptions(ROOT_DIR);
@@ -408,6 +409,8 @@ async function main() {
         learningLoopCount: learningLoopItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
         personalSkillNodeCount: nodeItems.filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? "")).length,
+        pendingMemoryNodeCount: nodeItems.filter((item) => /Pending user memory|Pending agent memory/i.test(item.textContent ?? "")).length,
+        pendingMemoryLinkCount: linkItems.filter((item) => /stages|awaits approval/i.test(item.textContent ?? "")).length,
         fallbackTextOverlap,
         nodeTexts: nodeItems.map((item) => item.textContent),
         linkTexts: linkItems.map((item) => item.textContent),
@@ -435,7 +438,7 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }
@@ -565,6 +568,7 @@ async function seedPersonalMemoryFixture(homeDir) {
   const agentMemoryPath = path.join(memoryDir, "AGENT.md");
   const sessionMemoryPath = path.join(memoryDir, "sessions.jsonl");
   const personalSkillSettingsPath = path.join(memoryDir, "personal-skills.json");
+  const pendingMemoryPath = path.join(memoryDir, "pending-memory-writes.json");
   const now = new Date();
   const sessions = [
     {
@@ -598,6 +602,19 @@ async function seedPersonalMemoryFixture(homeDir) {
   ].join("\n"), "utf8");
   await writeFile(agentMemoryPath, `${DASHBOARD_MEMORY_AGENT_ENTRY}\n`, "utf8");
   await writeFile(sessionMemoryPath, `${sessions.map((session) => JSON.stringify(session)).join("\n")}\n`, "utf8");
+  await writeFile(pendingMemoryPath, `${JSON.stringify({
+    schemaVersion: 1,
+    writes: [
+      {
+        id: "pmw-dashboard-smoke-review",
+        createdAt: now.toISOString(),
+        source: "post-turn-review",
+        action: "add",
+        target: "user",
+        content: DASHBOARD_MEMORY_PENDING_ENTRY
+      }
+    ]
+  }, null, 2)}\n`, "utf8");
 
   return {
     productPath: "smoke:dashboard -> isolated HOME -> personal memory files",
@@ -605,9 +622,11 @@ async function seedPersonalMemoryFixture(homeDir) {
     agentMemoryPath,
     sessionMemoryPath,
     personalSkillSettingsPath,
+    pendingMemoryPath,
     seededUserEntries: 2,
     seededAgentEntries: 1,
-    seededSessionEntries: sessions.length
+    seededSessionEntries: sessions.length,
+    seededPendingWrites: 1
   };
 }
 

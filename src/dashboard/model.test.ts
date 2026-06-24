@@ -24,11 +24,19 @@ describe("readKnowledgeGraph", () => {
         kind: "skill",
         label: "Obsidian-style knowledge dashboard"
       }),
+      expect.objectContaining({
+        id: "memory:pending:pmw-review-style",
+        kind: "memory",
+        label: "Pending user memory",
+        tone: "warning"
+      }),
       expect.objectContaining({ id: "alert:screen-recording-missing", kind: "alert" })
     ]));
     expect(graph.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ from: "memory:user", to: "provider:codex", label: "injects prompt" }),
       expect.objectContaining({ from: "memory:agent", to: "provider:codex", label: "guides behavior" }),
+      expect.objectContaining({ from: "skill:memory-review", to: "memory:pending:pmw-review-style", label: "stages" }),
+      expect.objectContaining({ from: "memory:pending:pmw-review-style", to: "memory:user", label: "awaits approval" }),
       expect.objectContaining({ from: "memory:user", to: "skill:communication-style", label: "distills skill" }),
       expect.objectContaining({ from: "skill:communication-style", to: "provider:codex", label: "guides prompt" }),
       expect.objectContaining({ from: "skill:dashboard-knowledge-surface", to: "provider:codex", label: "guides prompt" }),
@@ -93,6 +101,17 @@ function createSnapshot(): DashboardSnapshot {
       sessionCount: 3,
       recentUserEntries: ["User prefers concise Chinese updates."],
       recentAgentEntries: ["Prefer Obsidian-like dashboard surfaces."],
+      pendingWriteCount: 1,
+      pendingWrites: [
+        {
+          id: "pmw-review-style",
+          createdAt: "2026-06-24T05:00:00.000Z",
+          source: "post-turn-review",
+          action: "add",
+          target: "user",
+          content: "User wants memory writes reviewed before becoming durable."
+        }
+      ],
       personalSkills: [
         {
           id: "communication-style",
