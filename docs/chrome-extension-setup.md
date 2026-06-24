@@ -102,14 +102,15 @@ extension origin in `allowed_origins`.
 
 ## Confirm The Bridge
 
-Open the extension popup and click **Refresh host policy** or
-**Check heartbeat**. Both actions send a Native Messaging request through the
-installed host and update the heartbeat evidence. The useful fields are:
+Open the extension popup and click **Refresh host policy** to sync local policy,
+or **Observe current page** to collect the current tab and send Browser Context
+evidence through the installed Native Messaging host. The useful fields are:
 
 - `Connection`: should move to `Synced with skfiy app`.
 - `Bridge`: should be `Connected`.
 - `Launch origin`: should be `chrome-extension://<extension-id>/`.
-- `Heartbeat`: should move to `Connected ...` after the native host responds.
+- `Heartbeat`: should move to `Connected ...` after the native host responds,
+  or stay diagnostic-only while the page observation itself is accepted.
 - `Native policy`: should be `Default`, `Configured`, or `Invalid`.
 - `Policy sync`: should be `Synced`.
 - `Last error`: should stay hidden.

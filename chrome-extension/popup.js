@@ -793,6 +793,7 @@ async function observeCurrentPageFromWake() {
       entryCount: 0,
       updatedAt: new Date().toISOString(),
       nativeBridgeState: snapshot?.result === "accepted" ? "connected" : "unavailable",
+      nativeLaunchOrigin: snapshot?.syncStatus?.nativeLaunchOrigin ?? snapshot?.launchOrigin,
       nativeMessageType: MESSAGE_TYPES.PAGE_OBSERVE,
       lastError: snapshot?.reason ?? snapshot?.error ?? null,
       error: snapshot?.reason ?? snapshot?.error ?? null
@@ -1139,7 +1140,7 @@ document.getElementById("grant-site-access-button").addEventListener("click", ()
 });
 
 document.getElementById("heartbeat-button").addEventListener("click", () => {
-  void checkHeartbeat();
+  void observeCurrentPageFromWake();
 });
 
 document.getElementById("dev-reload-button").addEventListener("click", () => {

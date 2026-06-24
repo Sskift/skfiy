@@ -877,59 +877,40 @@ describe("Chrome extension popup policy sync status", () => {
     });
   });
 
-  it("lets the user trigger a native heartbeat from the popup", async () => {
+  it("lets the user observe the current page from the popup and send Browser Context evidence", async () => {
     installPopupDocument();
     const policy = createPolicy();
+    const sentMessages = [];
     const mock = createPopupChromeMock({
       policy,
       onSendMessage: (message) => {
-        if (message.type === NATIVE_HEARTBEAT) {
+        sentMessages.push(message);
+        if (message.type === PAGE_OBSERVE) {
           return {
-            type: "skfiy.native.heartbeat_result",
+            type: "skfiy.page.observe_result",
             schemaVersion: 1,
-            requestId: "popup-heartbeat",
-            policy,
+            requestId: message.requestId,
+            snapshot: {
+              url: "https://example.com/page",
+              title: "Example page",
+              visibleText: "Current page text for skfiy.",
+              observedAt: "2026-06-24T12:00:00.000Z"
+            }
+          };
+        }
+
+        if (message.type === NATIVE_MESSAGE) {
+          return {
+            result: "accepted",
+            schemaVersion: 1,
+            requestId: message.requestId,
             syncStatus: {
-              schemaVersion: 1,
               state: "synced",
               source: "native_host",
-              updatedAt: "2026-06-21T08:00:00.000Z",
-              completedAt: "2026-06-21T08:00:00.000Z",
               entryCount: 0,
               nativeBridgeState: "connected",
               nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-              nativeMessageType: "skfiy.host_policy.request",
-              nativeResponseType: "skfiy.native.response",
-              nativeResponseResult: "accepted",
-              lastError: null,
-              error: null
-            },
-            diagnostics: {
-              schemaVersion: 1,
-              capabilities: {
-                nativeMessaging: true
-              },
-              nativeHost: {
-                name: "com.sskift.skfiy",
-                connectionState: "connected",
-                bridgeState: "connected",
-                syncState: "synced",
-                launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-                lastError: null
-              },
-              devReload: {
-                schemaVersion: 1,
-                state: "idle",
-                reloadAvailable: true,
-                heartbeat: {
-                  state: "connected",
-                  completedAt: "2026-06-21T08:00:00.000Z",
-                  launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-                  messageType: "skfiy.host_policy.request",
-                  responseResult: "accepted",
-                  lastError: null
-                }
-              }
+              nativeMessageType: PAGE_OBSERVE
             }
           };
         }
@@ -977,11 +958,30 @@ describe("Chrome extension popup policy sync status", () => {
     document.getElementById("heartbeat-button").click();
 
     await waitForAssertion(() => {
-      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
-        type: NATIVE_HEARTBEAT,
-        schemaVersion: 1
-      }));
-      expect(document.getElementById("native-heartbeat").textContent).toContain("Connected");
+      expect(sentMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: PAGE_OBSERVE,
+          schemaVersion: 1,
+          payload: expect.objectContaining({
+            mode: "current_page",
+            include: ["title", "url", "visible_text", "forms", "interactive_elements"],
+            source: "popup_observe"
+          })
+        }),
+        expect.objectContaining({
+          type: NATIVE_MESSAGE,
+          schemaVersion: 1,
+          payload: expect.objectContaining({
+            type: PAGE_OBSERVE,
+            payload: expect.objectContaining({
+              pageObservation: expect.objectContaining({
+                title: "Example page",
+                visibleText: "Current page text for skfiy."
+              })
+            })
+          })
+        })
+      ]));
       expect(document.getElementById("native-bridge-state").textContent).toBe("Connected");
       expect(document.getElementById("native-launch-origin").textContent)
         .toBe("chrome-extension://abcdefghijklmnopabcdefghijklmnop/");
