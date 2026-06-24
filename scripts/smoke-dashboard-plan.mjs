@@ -25,6 +25,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "injects prompt",
   "recalls context",
   "Vault lens",
+  "Vault search",
   "Vault notes",
   "Focused note",
   "Focused neighborhood",
@@ -263,6 +264,14 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.vaultLensCount >= 4
     && typeof evidence?.vaultLensSummary === "string"
     && evidence.vaultLensSummary.includes("Showing")
+    && evidence?.vaultSearchInputFound === true
+    && evidence?.vaultSearchQuery === "approval"
+    && typeof evidence?.vaultSearchSummary === "string"
+    && evidence.vaultSearchSummary.includes("approval")
+    && Number.isInteger(evidence?.vaultSearchNodeCount)
+    && evidence.vaultSearchNodeCount >= 2
+    && Number.isInteger(evidence?.vaultSearchNoteCount)
+    && evidence.vaultSearchNoteCount >= 2
     && Number.isInteger(evidence?.focusedNeighborhoodCount)
     && evidence.focusedNeighborhoodCount >= 1
     && Number.isInteger(evidence?.backlinkCount)
@@ -282,6 +291,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Array.isArray(evidence?.linkTexts)
     && Array.isArray(evidence?.vaultNoteTexts)
     && Array.isArray(evidence?.vaultLensTexts)
+    && Array.isArray(evidence?.vaultSearchNodeTexts)
+    && Array.isArray(evidence?.vaultSearchNoteTexts)
     && Array.isArray(evidence?.backlinkTexts)
     && Array.isArray(evidence?.focusedNeighborhoodTexts)
     && Array.isArray(evidence?.learningLoopTexts)
@@ -290,6 +301,12 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.vaultLensTexts.some((text) => typeof text === "string" && text.includes("Skill"))
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes(".md"))
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Backlinks"))
+    && evidence.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory"))
+    && evidence.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("User preferences"))
+    && evidence.vaultSearchNodeTexts.every((text) => typeof text === "string" && !text.includes("Latest session"))
+    && evidence.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("Pending user memory.md"))
+    && evidence.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md"))
+    && evidence.vaultSearchNoteTexts.every((text) => typeof text === "string" && !text.includes("Latest session.md"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Concise Chinese progress updates"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Obsidian-style knowledge dashboard"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory"))

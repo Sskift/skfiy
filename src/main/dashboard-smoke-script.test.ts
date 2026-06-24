@@ -50,6 +50,10 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("focusedBacklinkCount");
     expect(source).toContain("Vault lens");
     expect(source).toContain("vaultLensCount");
+    expect(source).toContain("Vault search");
+    expect(source).toContain("vaultSearchQuery");
+    expect(source).toContain("vaultSearchSummary");
+    expect(source).toContain("vaultSearchNodeTexts");
     expect(source).toContain("Focused neighborhood");
     expect(source).toContain("focusedNeighborhoodCount");
     expect(planSource).toContain("Learning loop");
@@ -712,6 +716,19 @@ describe("dashboard product smoke script", () => {
         focusedBacklinkCount: 2,
         vaultLensCount: 7,
         vaultLensSummary: "Showing 8 of 8 notes",
+        vaultSearchQuery: "approval",
+        vaultSearchInputFound: true,
+        vaultSearchSummary: "Showing 2 of 8 notes for approval",
+        vaultSearchNodeCount: 2,
+        vaultSearchNoteCount: 2,
+        vaultSearchNodeTexts: [
+          "User preferencesmemoryUser prefers concise Chinese updates.",
+          "Pending user memorymemoryadd · User wants memory writes reviewed before becoming durable."
+        ],
+        vaultSearchNoteTexts: [
+          "User preferences.mdmemoryBacklinks 2injects prompt -> CodexPending user memory -> awaits approval",
+          "Pending user memory.mdmemoryBacklinks 2Memory review -> stagesawaits approval -> User preferences"
+        ],
         focusedNeighborhoodCount: 2,
         backlinkCount: 7,
         learningLoopCount: 4,
@@ -1265,6 +1282,16 @@ describe("dashboard product smoke script", () => {
       ...passedEvidence,
       knowledgeGraphEvidence: {
         ...passedEvidence.knowledgeGraphEvidence,
+        vaultSearchNodeCount: 0,
+        vaultSearchNoteCount: 0,
+        vaultSearchNodeTexts: [],
+        vaultSearchNoteTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
         focusedNeighborhoodCount: 0,
         focusedNeighborhoodTexts: []
       }
@@ -1307,6 +1334,7 @@ describe("dashboard product smoke script", () => {
           "injects prompt",
           "recalls context",
           "Vault lens",
+          "Vault search",
           "Vault notes",
           "Focused note",
           "Focused neighborhood",
@@ -1350,6 +1378,7 @@ describe("dashboard product smoke script", () => {
           "injects prompt",
           "recalls context",
           "Vault lens",
+          "Vault search",
           "Vault notes",
           "Focused note",
           "Focused neighborhood",

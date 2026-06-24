@@ -361,6 +361,7 @@ async function main() {
       const learningLoopItems = Array.from(document.querySelectorAll('[aria-label="Learning loop"] li'));
       const lensButtons = Array.from(document.querySelectorAll('[aria-label="Vault lens"] button'));
       const lensSummary = document.querySelector('[aria-label="Vault lens summary"]');
+      const vaultSearchInput = document.querySelector('[aria-label="Vault search"]');
       const focusedButton = document.querySelector('[aria-label="Vault notes"] button[aria-label="Open note User preferences.md"]')
         ?? document.querySelector('[aria-label="Vault notes"] button[aria-label^="Open note"]');
       focusedButton?.click();
@@ -394,7 +395,7 @@ async function main() {
       }
       learningLoopList?.scrollIntoView({ block: "center", inline: "nearest" });
       await new Promise((resolve) => setTimeout(resolve, 80));
-      return {
+      const baseEvidence = {
         regionFound: Boolean(region),
         nodeCount: nodeItems.length,
         linkCount: linkItems.length,
@@ -424,6 +425,34 @@ async function main() {
           .map((item) => item.textContent),
         backlinkTexts: backlinkItems.map((item) => item.textContent)
       };
+
+      const vaultSearchQuery = "approval";
+      if (vaultSearchInput instanceof HTMLInputElement) {
+        const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        vaultSearchInput.focus();
+        valueSetter?.call(vaultSearchInput, vaultSearchQuery);
+        vaultSearchInput.dispatchEvent(new InputEvent("input", {
+          bubbles: true,
+          data: vaultSearchQuery,
+          inputType: "insertText"
+        }));
+        vaultSearchInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      const vaultSearchNodeItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph nodes"] li'));
+      const vaultSearchNoteItems = Array.from(document.querySelectorAll('[aria-label="Vault notes"] li'));
+      const vaultSearchSummary = document.querySelector('[aria-label="Vault lens summary"]');
+
+      return {
+        ...baseEvidence,
+        vaultSearchQuery,
+        vaultSearchInputFound: Boolean(vaultSearchInput),
+        vaultSearchSummary: vaultSearchSummary?.textContent ?? "",
+        vaultSearchNodeCount: vaultSearchNodeItems.length,
+        vaultSearchNoteCount: vaultSearchNoteItems.length,
+        vaultSearchNodeTexts: vaultSearchNodeItems.map((item) => item.textContent),
+        vaultSearchNoteTexts: vaultSearchNoteItems.map((item) => item.textContent)
+      };
     })()
   \`);
   await new Promise((resolve) => setTimeout(resolve, 120));
@@ -438,7 +467,7 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.vaultSearchInputFound && dom.vaultSearchNodeCount >= 2 && dom.vaultSearchNoteCount >= 2 && dom.vaultSearchSummary.includes("approval") && dom.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory")) && dom.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }

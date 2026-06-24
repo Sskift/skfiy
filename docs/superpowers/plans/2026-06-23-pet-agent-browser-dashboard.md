@@ -1177,6 +1177,20 @@ Focused verification:
 npx vitest run src/dashboard/KnowledgeGraph.test.tsx --reporter=dot
 ```
 
+- [x] **Step 13: Require vault search in Dashboard smoke evidence**
+
+In `scripts/smoke-dashboard-product.mjs`, `scripts/smoke-dashboard-plan.mjs`, and `src/main/dashboard-smoke-script.test.ts`:
+
+- Make the Electron screenshot probe type `approval` into `Vault search`.
+- Require the filtered graph nodes and vault notes to keep both `Pending user memory` and `User preferences` through backlink text.
+- Include `Vault search` in React asset markers so smoke catches accidental removal from the Dashboard bundle.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls
