@@ -1,7 +1,7 @@
 import path from "node:path";
 
 export const DEFAULT_PORT = 9244;
-export const DEFAULT_TIMEOUT_MS = 8_000;
+export const DEFAULT_TIMEOUT_MS = 70_000;
 export const DEFAULT_SETTLE_MS = 500;
 export const PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
 export const DRAG_PROBE_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";

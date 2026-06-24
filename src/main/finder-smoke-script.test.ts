@@ -86,11 +86,13 @@ describe("Finder product smoke script", () => {
       PRODUCT_PATH,
       createDefaultFinderSmokeOptions,
       createHelpText,
+      DEFAULT_TIMEOUT_MS,
       parseFinderSmokeArgs
     } = await import(pathToFileURL(modulePath).href) as {
       DRAG_PROBE_PRODUCT_PATH: string;
       ITEM_DRAG_DROP_PRODUCT_PATH: string;
       PRODUCT_PATH: string;
+      DEFAULT_TIMEOUT_MS: number;
       createDefaultFinderSmokeOptions: (rootDir: string) => Record<string, unknown>;
       createHelpText: (defaults: Record<string, unknown>) => string;
       parseFinderSmokeArgs: (
@@ -104,6 +106,10 @@ describe("Finder product smoke script", () => {
       .toBe("renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder");
     expect(ITEM_DRAG_DROP_PRODUCT_PATH)
       .toBe("renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder");
+    expect(DEFAULT_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+    expect(createDefaultFinderSmokeOptions("/repo")).toMatchObject({
+      timeoutMs: DEFAULT_TIMEOUT_MS
+    });
     expect(parseFinderSmokeArgs(
       ["--output", ".skfiy-smoke/finder.json"],
       createDefaultFinderSmokeOptions("/repo")
