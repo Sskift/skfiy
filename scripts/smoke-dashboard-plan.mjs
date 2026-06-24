@@ -32,6 +32,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Vault backlinks",
   "Learning loop",
   "Prompt stack",
+  "Prompt source ledger",
   "Recent session recall",
   "Chrome control actions",
   "Chrome host policy controls",
@@ -281,6 +282,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.learningLoopCount >= 4
     && Number.isInteger(evidence?.promptStackCount)
     && evidence.promptStackCount >= 5
+    && Number.isInteger(evidence?.promptSourceLedgerCount)
+    && evidence.promptSourceLedgerCount >= 5
     && Number.isInteger(evidence?.sessionNodeCount)
     && evidence.sessionNodeCount >= 2
     && Number.isInteger(evidence?.personalSkillNodeCount)
@@ -306,6 +309,7 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Array.isArray(evidence?.focusedNeighborhoodTexts)
     && Array.isArray(evidence?.learningLoopTexts)
     && Array.isArray(evidence?.promptStackTexts)
+    && Array.isArray(evidence?.promptSourceLedgerTexts)
     && Array.isArray(evidence?.personalSkillTexts)
     && Array.isArray(evidence?.workingProfileTexts)
     && evidence.vaultLensTexts.some((text) => typeof text === "string" && text.includes("All"))
@@ -349,6 +353,11 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Personal skills"))
     && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Working profile"))
     && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Background Agent"))
+    && evidence.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Memory"))
+    && evidence.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Pending memory"))
+    && evidence.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("review gated"))
+    && evidence.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Browser Context"))
+    && evidence.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Background Agent"))
     && (!hasBrowserContextNode
       || evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in")))
     && hasDashboardKnowledgeGraphVisualDesignContract(evidence.visualDesignContract)
@@ -370,6 +379,7 @@ function hasDashboardKnowledgeGraphVisualDesignContract(contract) {
     && contract?.backlinksPanelUsesGradient === true
     && contract?.learningLoopPanelUsesGradient === true
     && contract?.promptStackPanelUsesGradient === true
+    && contract?.promptSourceLedgerPanelUsesGradient === true
     && contract?.graphUsesGradientLinks === true
     && contract?.selectedNodeGlowVisible === true
     && contract?.paletteHasMultipleAccentFamilies === true

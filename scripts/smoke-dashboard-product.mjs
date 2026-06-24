@@ -361,6 +361,7 @@ async function main() {
       const backlinkItems = Array.from(document.querySelectorAll('[aria-label="Vault backlinks"] li'));
       const learningLoopItems = Array.from(document.querySelectorAll('[aria-label="Learning loop"] li'));
       const promptStackItems = Array.from(document.querySelectorAll('[aria-label="Prompt stack"] li'));
+      const promptSourceLedgerItems = Array.from(document.querySelectorAll('[aria-label="Prompt source ledger"] li'));
       const lensButtons = Array.from(document.querySelectorAll('[aria-label="Vault lens"] button'));
       const lensSummary = document.querySelector('[aria-label="Vault lens summary"]');
       const vaultSearchInput = document.querySelector('[aria-label="Vault search"]');
@@ -382,6 +383,7 @@ async function main() {
       const backlinksPanel = document.querySelector(".skfiy-knowledge-panel--backlinks");
       const learningLoopPanel = document.querySelector(".skfiy-knowledge-panel--loop");
       const promptStackPanel = document.querySelector(".skfiy-knowledge-panel--prompt-stack");
+      const promptSourceLedgerPanel = document.querySelector(".skfiy-knowledge-panel--source-ledger");
       const selectedNodeCircle = document.querySelector('.skfiy-graph-node[data-selected="true"] circle');
       const graphGradient = document.querySelector("#skfiy-graph-link");
       const graphEdgeLine = document.querySelector(".skfiy-graph-edge line");
@@ -393,6 +395,7 @@ async function main() {
       const backlinksPanelStyle = backlinksPanel ? getComputedStyle(backlinksPanel) : null;
       const learningLoopPanelStyle = learningLoopPanel ? getComputedStyle(learningLoopPanel) : null;
       const promptStackPanelStyle = promptStackPanel ? getComputedStyle(promptStackPanel) : null;
+      const promptSourceLedgerPanelStyle = promptSourceLedgerPanel ? getComputedStyle(promptSourceLedgerPanel) : null;
       const selectedNodeStyle = selectedNodeCircle ? getComputedStyle(selectedNodeCircle) : null;
       const graphEdgeStyle = graphEdgeLine ? getComputedStyle(graphEdgeLine) : null;
       const shellRect = shell?.getBoundingClientRect();
@@ -412,6 +415,7 @@ async function main() {
         backlinksPanelUsesGradient: backlinksPanelStyle ? hasGradientBackground(backlinksPanelStyle) : false,
         learningLoopPanelUsesGradient: learningLoopPanelStyle ? hasGradientBackground(learningLoopPanelStyle) : false,
         promptStackPanelUsesGradient: promptStackPanelStyle ? hasGradientBackground(promptStackPanelStyle) && isDarkVisualSurface(promptStackPanelStyle) : false,
+        promptSourceLedgerPanelUsesGradient: promptSourceLedgerPanelStyle ? hasGradientBackground(promptSourceLedgerPanelStyle) && isDarkVisualSurface(promptSourceLedgerPanelStyle) : false,
         graphUsesGradientLinks: Boolean(graphGradient) && (graphEdgeStyle?.stroke ?? "").includes("url"),
         selectedNodeGlowVisible: Boolean(selectedNodeStyle) && (
           selectedNodeStyle.filter !== "none"
@@ -461,6 +465,7 @@ async function main() {
         backlinkCount: backlinkItems.length,
         learningLoopCount: learningLoopItems.length,
         promptStackCount: promptStackItems.length,
+        promptSourceLedgerCount: promptSourceLedgerItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
         personalSkillNodeCount: nodeItems.filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? "")).length,
         workingProfileNodeCount: nodeItems.filter((item) => /Working profile/i.test(item.textContent ?? "")).length,
@@ -477,6 +482,7 @@ async function main() {
         focusedNeighborhoodTexts: focusedNeighborhoodItems.map((item) => item.textContent),
         learningLoopTexts: learningLoopItems.map((item) => item.textContent),
         promptStackTexts: promptStackItems.map((item) => item.textContent),
+        promptSourceLedgerTexts: promptSourceLedgerItems.map((item) => item.textContent),
         visualDesignContract,
         personalSkillTexts: nodeItems
           .filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? ""))
@@ -588,6 +594,7 @@ async function main() {
     && visualDesignContract.backlinksPanelUsesGradient
     && visualDesignContract.learningLoopPanelUsesGradient
     && visualDesignContract.promptStackPanelUsesGradient
+    && visualDesignContract.promptSourceLedgerPanelUsesGradient
     && visualDesignContract.graphUsesGradientLinks
     && visualDesignContract.selectedNodeGlowVisible
     && visualDesignContract.paletteHasMultipleAccentFamilies
@@ -601,7 +608,7 @@ async function main() {
     screenshotBytes: png.length,
     ...dom,
     visualDesignContract,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.promptStackCount >= 5 && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Working profile")) && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Background Agent")) && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.workingProfileNodeCount >= 1 && dom.workingProfileLinkCount >= 2 && dom.workingProfileNoteCount >= 1 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.vaultSearchInputFound && dom.vaultSearchNodeCount >= 2 && dom.vaultSearchNoteCount >= 2 && dom.vaultSearchSummary.includes("approval") && dom.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory")) && dom.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("travels with prompt")) && visualContractPassed && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.promptStackCount >= 5 && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Working profile")) && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Background Agent")) && dom.promptSourceLedgerCount >= 5 && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Memory")) && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Pending memory")) && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("review gated")) && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Browser Context")) && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Background Agent")) && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.workingProfileNodeCount >= 1 && dom.workingProfileLinkCount >= 2 && dom.workingProfileNoteCount >= 1 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.vaultSearchInputFound && dom.vaultSearchNodeCount >= 2 && dom.vaultSearchNoteCount >= 2 && dom.vaultSearchSummary.includes("approval") && dom.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory")) && dom.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("travels with prompt")) && visualContractPassed && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }

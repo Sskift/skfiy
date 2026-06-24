@@ -72,6 +72,10 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("Prompt stack");
     expect(source).toContain("promptStackCount");
     expect(source).toContain("promptStackTexts");
+    expect(source).toContain("Prompt source ledger");
+    expect(source).toContain("promptSourceLedgerCount");
+    expect(source).toContain("promptSourceLedgerTexts");
+    expect(source).toContain("promptSourceLedgerPanelUsesGradient");
     expect(source).toContain("Working profile");
     expect(source).toContain("seedPersonalMemoryFixture");
     expect(source).toContain("exercisePersonalMemoryApi");
@@ -737,6 +741,7 @@ describe("dashboard product smoke script", () => {
         backlinkCount: 7,
         learningLoopCount: 4,
         promptStackCount: 6,
+        promptSourceLedgerCount: 7,
         sessionNodeCount: 2,
         personalSkillNodeCount: 2,
         workingProfileNodeCount: 1,
@@ -790,6 +795,15 @@ describe("dashboard product smoke script", () => {
           "5Browser ContextBrowser Context",
           "6Background AgentCodex"
         ],
+        promptSourceLedgerTexts: [
+          "Memoryprompt-safe durableUser preferences, Agent operating notes",
+          "Pending memoryreview gatedPending user memory",
+          "Recalled sessionsprompt-safe recallLatest session",
+          "Personal skillsprompt-safe distilledConcise Chinese progress updates, Obsidian-style knowledge dashboard",
+          "Working profileprompt-safe portableWorking profile",
+          "Browser Contextblocked or gatedBrowser Context",
+          "Background AgentreadyCodex"
+        ],
         personalSkillTexts: [
           "Concise Chinese progress updatesskillcommunication",
           "Obsidian-style knowledge dashboardskilldashboard"
@@ -834,6 +848,7 @@ describe("dashboard product smoke script", () => {
           backlinksPanelUsesGradient: true,
           learningLoopPanelUsesGradient: true,
           promptStackPanelUsesGradient: true,
+          promptSourceLedgerPanelUsesGradient: true,
           graphUsesGradientLinks: true,
           selectedNodeGlowVisible: true,
           paletteHasMultipleAccentFamilies: true,
@@ -1352,6 +1367,14 @@ describe("dashboard product smoke script", () => {
       ...passedEvidence,
       knowledgeGraphEvidence: {
         ...passedEvidence.knowledgeGraphEvidence,
+        promptSourceLedgerCount: 0,
+        promptSourceLedgerTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
         backlinkCount: 0,
         backlinkTexts: []
       }
@@ -1449,6 +1472,7 @@ describe("dashboard product smoke script", () => {
           "Vault backlinks",
           "Learning loop",
           "Prompt stack",
+          "Prompt source ledger",
           "Recent session recall",
           "Chrome control actions",
           "Chrome host policy controls",
@@ -1494,6 +1518,7 @@ describe("dashboard product smoke script", () => {
           "Vault backlinks",
           "Learning loop",
           "Prompt stack",
+          "Prompt source ledger",
           "Recent session recall",
           "Chrome control actions",
           "Chrome host policy controls",

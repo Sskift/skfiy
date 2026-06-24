@@ -84,6 +84,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
     nodes
   );
   const promptStackSteps = createPromptStackSteps(nodes, edges);
+  const promptSourceLedgerEntries = createPromptSourceLedgerEntries(nodes, edges);
   const vaultNotes = createVaultNotes(filteredNodes, backlinks);
   const selectedNote = vaultNotes.find((note) => note.id === selectedNodeId) ?? vaultNotes[0] ?? null;
   const selectedId = selectedNote?.id ?? null;
@@ -141,6 +142,18 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
             </li>
           ))}
         </ol>
+      </div>
+      <div className="skfiy-knowledge-panel skfiy-knowledge-panel--source-ledger">
+        <h3>Prompt source ledger</h3>
+        <ul aria-label="Prompt source ledger">
+          {promptSourceLedgerEntries.map((entry) => (
+            <li key={entry.stage} data-status={entry.statusTone}>
+              <strong>{entry.stage}</strong>
+              <span>{entry.status}</span>
+              <small>{entry.items.join(", ")}</small>
+            </li>
+          ))}
+        </ul>
       </div>
       <div className="skfiy-knowledge-graph-canvas">
         <svg viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`} aria-label="Knowledge graph canvas">
@@ -340,6 +353,13 @@ interface PromptStackStep {
   items: string[];
 }
 
+interface PromptSourceLedgerEntry {
+  stage: string;
+  status: string;
+  statusTone: "ready" | "pending" | "blocked";
+  items: string[];
+}
+
 function createPromptStackSteps(
   nodes: DashboardKnowledgeGraphNode[],
   edges: DashboardKnowledgeGraphEdge[]
@@ -421,6 +441,146 @@ function pushPromptStackStep(
   if (items.length > 0) {
     steps.push({ stage, items });
   }
+}
+
+function createPromptSourceLedgerEntries(
+  nodes: DashboardKnowledgeGraphNode[],
+  edges: DashboardKnowledgeGraphEdge[]
+): PromptSourceLedgerEntry[] {
+  const provider = nodes.find((node) => node.kind === "provider");
+  const providerId = provider?.id;
+  const promptProviderEdges = providerId
+    ? edges.filter((edge) => edge.to === providerId)
+    : edges;
+  const entries: PromptSourceLedgerEntry[] = [];
+  const durableMemoryLabels = readPromptSourceLabels({
+    nodes,
+    edges: promptProviderEdges,
+    labels: new Set(["injects prompt", "guides behavior"]),
+    matchesNode: (node) => node.kind === "memory"
+      && node.id !== "profile:working"
+      && !node.id.startsWith("memory:pending:")
+  });
+  const pendingMemoryLabels = nodes
+    .filter((node) => node.kind === "memory" && node.id.startsWith("memory:pending:"))
+    .map((node) => node.label);
+  const sessionLabels = readPromptSourceLabels({
+    nodes,
+    edges: promptProviderEdges,
+    labels: new Set(["recalls context"]),
+    matchesNode: (node) => node.kind === "session"
+  });
+  const skillLabels = readPromptSourceLabels({
+    nodes,
+    edges: promptProviderEdges,
+    labels: new Set(["guides prompt"]),
+    matchesNode: (node) => node.kind === "skill"
+  });
+  const workingProfileLabels = readPromptSourceLabels({
+    nodes,
+    edges: promptProviderEdges,
+    labels: new Set(["travels with prompt"]),
+    matchesNode: (node) => node.id === "profile:working"
+  });
+  const browserNodes = nodes.filter((node) => node.kind === "browser");
+  const browserLabels = browserNodes.map((node) => node.label);
+
+  pushPromptSourceLedgerEntry(entries, {
+    stage: "Memory",
+    status: "prompt-safe durable",
+    statusTone: "ready",
+    items: durableMemoryLabels
+  });
+  pushPromptSourceLedgerEntry(entries, {
+    stage: "Pending memory",
+    status: "review gated",
+    statusTone: "pending",
+    items: pendingMemoryLabels
+  });
+  pushPromptSourceLedgerEntry(entries, {
+    stage: "Recalled sessions",
+    status: "prompt-safe recall",
+    statusTone: "ready",
+    items: sessionLabels
+  });
+  pushPromptSourceLedgerEntry(entries, {
+    stage: "Personal skills",
+    status: "prompt-safe distilled",
+    statusTone: "ready",
+    items: skillLabels
+  });
+  pushPromptSourceLedgerEntry(entries, {
+    stage: "Working profile",
+    status: "prompt-safe portable",
+    statusTone: "ready",
+    items: workingProfileLabels
+  });
+  pushPromptSourceLedgerEntry(entries, {
+    stage: "Browser Context",
+    status: browserNodes.length > 0 ? readWorstStatus(browserNodes) : "unavailable",
+    statusTone: browserNodes.length > 0 ? readWorstStatusTone(browserNodes) : "blocked",
+    items: browserLabels.length > 0 ? browserLabels : ["No current page context"]
+  });
+  pushPromptSourceLedgerEntry(entries, {
+    stage: "Background Agent",
+    status: provider ? readNodeReadinessStatus(provider) : "missing",
+    statusTone: provider ? readNodeReadinessTone(provider) : "blocked",
+    items: provider ? [provider.label] : []
+  });
+
+  return entries;
+}
+
+function pushPromptSourceLedgerEntry(
+  entries: PromptSourceLedgerEntry[],
+  entry: PromptSourceLedgerEntry
+): void {
+  if (entry.items.length > 0) {
+    entries.push(entry);
+  }
+}
+
+function readWorstStatus(nodes: DashboardKnowledgeGraphNode[]): string {
+  if (nodes.some((node) => node.tone === "danger")) {
+    return "blocked";
+  }
+  if (nodes.some((node) => node.tone === "warning")) {
+    return "blocked or gated";
+  }
+  if (nodes.some((node) => node.tone === "success")) {
+    return "ready";
+  }
+  return "observed";
+}
+
+function readWorstStatusTone(nodes: DashboardKnowledgeGraphNode[]): PromptSourceLedgerEntry["statusTone"] {
+  if (nodes.some((node) => node.tone === "danger" || node.tone === "warning")) {
+    return "blocked";
+  }
+  return "ready";
+}
+
+function readNodeReadinessStatus(node: DashboardKnowledgeGraphNode): string {
+  if (node.tone === "success") {
+    return "ready";
+  }
+  if (node.tone === "warning") {
+    return "needs attention";
+  }
+  if (node.tone === "danger") {
+    return "blocked";
+  }
+  return "available";
+}
+
+function readNodeReadinessTone(node: DashboardKnowledgeGraphNode): PromptSourceLedgerEntry["statusTone"] {
+  if (node.tone === "danger") {
+    return "blocked";
+  }
+  if (node.tone === "warning") {
+    return "pending";
+  }
+  return "ready";
 }
 
 function createLearningLoopSteps(

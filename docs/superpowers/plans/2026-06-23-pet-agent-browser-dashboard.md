@@ -1224,6 +1224,20 @@ Focused verification:
 npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 15: Show prompt source ledger status**
+
+In `src/dashboard/KnowledgeGraph.tsx`, `src/dashboard/styles.css`, `scripts/smoke-dashboard-product.mjs`, `scripts/smoke-dashboard-plan.mjs`, and `src/main/dashboard-smoke-script.test.ts`:
+
+- Render a `Prompt source ledger` panel beside the Obsidian-inspired graph surface so the operator can see which local personalization sources are durable prompt-safe inputs, which pending memory writes are still review-gated, and whether Browser Context or the selected Background Agent is ready or blocked.
+- Derive ledger entries from graph nodes and edges instead of duplicating dashboard state: durable memory from `injects prompt` / `guides behavior`, pending memory from `memory:pending:*`, sessions from `recalls context`, skills from `guides prompt`, Working profile from `travels with prompt`, and provider/browser readiness from node tones.
+- Extend Dashboard smoke evidence with `promptSourceLedgerCount`, `promptSourceLedgerTexts`, and `promptSourceLedgerPanelUsesGradient`; the product smoke cannot pass if the ledger is absent or omits Memory, Pending memory, Browser Context, or Background Agent status.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls

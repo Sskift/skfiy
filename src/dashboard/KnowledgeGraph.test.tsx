@@ -278,4 +278,59 @@ describe("KnowledgeGraph", () => {
       "6Background AgentHermes"
     ]);
   });
+
+  it("renders a prompt source ledger with durable, pending, and provider readiness states", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries" },
+        { id: "memory:agent", label: "Agent operating notes", kind: "memory", tone: "success", detail: "1 entry" },
+        { id: "memory:pending:pmw-review-style", label: "Pending user memory", kind: "memory", tone: "warning", detail: "awaiting approval" },
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral", detail: "Codex: summarize dashboard" },
+        { id: "skill:communication-style", label: "Concise Chinese progress updates", kind: "skill", tone: "success", detail: "communication habit" },
+        { id: "profile:working", label: "Working profile", kind: "memory", tone: "success", detail: "Portable skfiy working profile" },
+        { id: "browser:context", label: "Browser Context", kind: "browser", tone: "warning", detail: "Host policy blocked" },
+        { id: "provider:hermes", label: "Hermes", kind: "provider", tone: "success", detail: "Hermes assistant is selected." }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:hermes", label: "injects prompt" },
+        { from: "memory:agent", to: "provider:hermes", label: "guides behavior" },
+        { from: "memory:pending:pmw-review-style", to: "memory:user", label: "awaits approval" },
+        { from: "session:latest", to: "provider:hermes", label: "recalls context" },
+        { from: "skill:communication-style", to: "provider:hermes", label: "guides prompt" },
+        { from: "profile:working", to: "provider:hermes", label: "travels with prompt" },
+        { from: "browser:context", to: "session:latest", label: "observed in" }
+      ]}
+    />);
+
+    const ledger = screen.getByRole("list", { name: "Prompt source ledger" });
+    const entries = within(ledger).getAllByRole("listitem");
+
+    expect(entries.map((entry) => entry.textContent)).toEqual([
+      "Memoryprompt-safe durableUser preferences, Agent operating notes",
+      "Pending memoryreview gatedPending user memory",
+      "Recalled sessionsprompt-safe recallLatest session",
+      "Personal skillsprompt-safe distilledConcise Chinese progress updates",
+      "Working profileprompt-safe portableWorking profile",
+      "Browser Contextblocked or gatedBrowser Context",
+      "Background AgentreadyHermes"
+    ]);
+  });
+
+  it("keeps Browser Context visible in the ledger when no page context is available", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries" },
+        { id: "provider:codex", label: "Codex", kind: "provider", tone: "success", detail: "Codex assistant is selected." }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:codex", label: "injects prompt" }
+      ]}
+    />);
+
+    const ledger = screen.getByRole("list", { name: "Prompt source ledger" });
+
+    expect(within(ledger).getByText("Browser Context")).toBeInTheDocument();
+    expect(within(ledger).getByText("unavailable")).toBeInTheDocument();
+    expect(within(ledger).getByText("No current page context")).toBeInTheDocument();
+  });
 });
