@@ -650,12 +650,24 @@ function hasPostTurnPersonalizationContractEvidence(contract) {
     && contract.durableReviewWrite.durableUserEntries.includes("User prefers dense Obsidian-like dashboard surfaces.")
     && contract?.durableReviewWrite?.reviewPromptIncludesDurableInstruction === true
     && contract?.durableReviewWrite?.reviewPromptReceivesExistingMemory === true
+    && contract?.durableReviewWrite?.memoryJournalEntryCount === 1
+    && contract?.durableReviewWrite?.memoryJournalStage === "durable"
+    && contract?.durableReviewWrite?.memoryJournalSource === "post-turn-review"
+    && contract?.durableReviewWrite?.memoryJournalProviderLabel === "Codex"
     && Array.isArray(contract?.fallbackWrite?.durableUserEntries)
     && contract.fallbackWrite.durableUserEntries.includes("User prefers concise Chinese progress updates.")
+    && contract?.fallbackWrite?.memoryJournalEntryCount === 1
+    && contract?.fallbackWrite?.memoryJournalStage === "durable"
+    && contract?.fallbackWrite?.memoryJournalSource === "local-fallback"
+    && contract?.fallbackWrite?.memoryJournalProviderLabel === "Hermes"
     && contract?.stagedWhenApprovalEnabled?.durableUserEntryCount === 0
     && contract?.stagedWhenApprovalEnabled?.pendingWriteCount === 1
     && contract?.stagedWhenApprovalEnabled?.pendingSource === "post-turn-review"
-    && contract?.stagedWhenApprovalEnabled?.pendingContent === "User prefers dense Obsidian-like knowledge surfaces for dashboard work.";
+    && contract?.stagedWhenApprovalEnabled?.pendingContent === "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+    && contract?.stagedWhenApprovalEnabled?.memoryJournalEntryCount === 1
+    && contract?.stagedWhenApprovalEnabled?.memoryJournalStage === "pending"
+    && contract?.stagedWhenApprovalEnabled?.memoryJournalSource === "post-turn-review"
+    && contract?.stagedWhenApprovalEnabled?.memoryJournalProviderLabel === "Claude Code";
 }
 
 function hasTokenLeak(parts) {

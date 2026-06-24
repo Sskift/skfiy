@@ -3,6 +3,7 @@ import type {
   DashboardKnowledgeGraphEdge,
   DashboardKnowledgeGraphNode,
   DashboardPendingPersonalMemoryWrite,
+  DashboardPersonalMemoryJournalEntry,
   DashboardPersonalMemoryUsageBucket,
   DashboardProviderSummary,
   DashboardSnapshot
@@ -153,6 +154,7 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
   const providerId = `provider:${sanitizeNodeId(assistantProvider?.mode ?? assistant.value)}`;
   const personalMemory = snapshot.personalMemory;
   const pendingMemoryWrites = personalMemory?.pendingWrites ?? [];
+  const memoryJournal = personalMemory?.memoryJournal ?? [];
   const workingProfile = personalMemory?.workingProfile;
   const browserContext = readBrowserContextSummary(snapshot);
   const computerUse = readComputerUseReadiness(snapshot);
@@ -252,6 +254,7 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
     || personalMemory.agentEntryCount > 0
     || personalMemory.sessionCount > 0
     || pendingMemoryWrites.length > 0
+    || memoryJournal.length > 0
   )) {
     pushNode(nodes, {
       id: "skill:memory-review",
@@ -284,6 +287,24 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       });
       pushEdge(edges, { from: "skill:memory-review", to: pendingId, label: "stages" });
       pushEdge(edges, { from: pendingId, to: targetId, label: "awaits approval" });
+    });
+
+    memoryJournal.forEach((entry) => {
+      const journalId = `memory:journal:${sanitizeNodeId(entry.id)}`;
+      const targetId = entry.target === "agent" ? "memory:agent" : "memory:user";
+      pushNode(nodes, {
+        id: journalId,
+        label: "Learning receipt",
+        kind: "memory",
+        tone: entry.stage === "pending" ? "warning" : "success",
+        detail: createMemoryJournalNodeDetail(entry)
+      });
+      pushEdge(edges, { from: "skill:memory-review", to: journalId, label: "records receipt" });
+      pushEdge(edges, {
+        from: journalId,
+        to: targetId,
+        label: entry.stage === "pending" ? "awaits approval" : "updates memory"
+      });
     });
   }
 
@@ -1269,6 +1290,15 @@ function createPendingMemoryNodeDetail(
     return `${action} · from ${write.previousContent} -> ${write.content}`;
   }
   return `${action} · ${write.content}`;
+}
+
+function createMemoryJournalNodeDetail(entry: DashboardPersonalMemoryJournalEntry): string {
+  const action = entry.action === "replace"
+    ? "replace"
+    : entry.action === "remove"
+      ? "remove"
+      : "add";
+  return `${entry.stage} · ${action} ${entry.target} · ${entry.content} · learned from ${entry.providerLabel} turn ${entry.turnId}`;
 }
 
 function formatInteger(value: number): string {

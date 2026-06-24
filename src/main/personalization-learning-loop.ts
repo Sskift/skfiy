@@ -7,6 +7,10 @@ import type {
   PersonalMemoryOperation,
   PersonalMemorySnapshot
 } from "./personal-memory.js";
+import type {
+  PersonalMemoryJournalContext,
+  PersonalMemoryJournalEntry
+} from "./personal-memory-journal.js";
 import {
   createFallbackPersonalMemoryOperations,
   createPersonalMemoryReviewPrompt,
@@ -31,6 +35,13 @@ export interface PersonalizationPendingMemoryStore {
   ) => PendingPersonalMemoryStageResult;
 }
 
+export interface PersonalizationMemoryJournalStore {
+  appendOperations: (
+    operations: PersonalMemoryOperation[],
+    context: PersonalMemoryJournalContext
+  ) => PersonalMemoryJournalEntry[];
+}
+
 export interface PersonalizationSessionMemoryStore {
   append: (record: SessionMemoryRecord) => void;
 }
@@ -45,6 +56,7 @@ export interface RecordCompletedAssistantTurnForPersonalizationOptions {
   turn: AssistantAgentTurnResult;
   browserPageContext: BrowserPageContext;
   memoryStore: PersonalizationMemoryStore;
+  memoryJournalStore?: PersonalizationMemoryJournalStore;
   sessionMemoryStore: PersonalizationSessionMemoryStore;
   runReviewTurn: PersonalizationReviewRunner;
   memoryWriteApprovalEnabled?: boolean;
@@ -56,6 +68,7 @@ export async function recordCompletedAssistantTurnForPersonalization({
   turn,
   browserPageContext,
   memoryStore,
+  memoryJournalStore,
   sessionMemoryStore,
   runReviewTurn,
   memoryWriteApprovalEnabled = false,
@@ -74,19 +87,31 @@ export async function recordCompletedAssistantTurnForPersonalization({
     assistantReply: turn.message,
     existingMemory
   });
-  const applyOrStage = (operations: PersonalMemoryOperation[]) => {
-    applyOrStagePersonalMemoryOperations(operations, {
+  const applyOrStage = (
+    operations: PersonalMemoryOperation[],
+    source: PersonalMemoryJournalContext["source"]
+  ) => {
+    const result = applyOrStagePersonalMemoryOperations(operations, {
       memoryStore,
       pendingMemoryStore,
       memoryWriteApprovalEnabled
     });
+    if (result.changed) {
+      memoryJournalStore?.appendOperations(operations, {
+        providerLabel: turn.providerLabel,
+        source,
+        stage: result.stage,
+        turnId: turn.id,
+        userInput
+      });
+    }
   };
   const applyFallbackMemory = () => {
     applyOrStage(createFallbackPersonalMemoryOperations({
       userInput,
       assistantReply: turn.message,
       existingMemory
-    }));
+    }), "local-fallback");
   };
 
   try {
@@ -100,7 +125,7 @@ export async function recordCompletedAssistantTurnForPersonalization({
 
     const operations = parsePersonalMemoryReview(reviewTurn.message);
     if (operations.length > 0) {
-      applyOrStage(operations);
+      applyOrStage(operations, "post-turn-review");
       return;
     }
 
@@ -151,15 +176,16 @@ function applyOrStagePersonalMemoryOperations(
     pendingMemoryStore?: PersonalizationPendingMemoryStore;
     memoryWriteApprovalEnabled: boolean;
   }
-): void {
+): { changed: boolean; stage: "durable" | "pending" } {
   if (operations.length === 0) {
-    return;
+    return { changed: false, stage: memoryWriteApprovalEnabled && pendingMemoryStore ? "pending" : "durable" };
   }
 
   if (memoryWriteApprovalEnabled && pendingMemoryStore) {
-    pendingMemoryStore.stageOperations(operations, { source: "post-turn-review" });
-    return;
+    const result = pendingMemoryStore.stageOperations(operations, { source: "post-turn-review" });
+    return { changed: result.staged > 0, stage: "pending" };
   }
 
-  memoryStore.applyOperations(operations);
+  const result = memoryStore.applyOperations(operations);
+  return { changed: result.applied > 0, stage: "durable" };
 }

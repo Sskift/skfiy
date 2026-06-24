@@ -46,6 +46,7 @@ Newly distilled in this pass:
 - The Dashboard Prompt source ledger now carries Hermes-style memory pressure evidence: USER/AGENT memory usage changes the graph node tone and surfaces `memory pressure warning` / usage counts before memory silently crowds out prompt-safe context.
 - Unsafe manual memory entries remain removable through the count-only Dashboard memory API even though they are blocked from provider prompts, preserving the Hermes-style "memory is editable local state" UX without letting polluted text travel back through agent prompts or API responses.
 - Pending memory review now preserves Hermes-style `replace` semantics in the operator surface: Dashboard shows `Previous` / `Proposed` revisions, and the Knowledge graph node spells out `replace · from ... -> ...` while the candidate is still review-gated.
+- Post-turn learning now writes append-only memory journal receipts for durable and pending operations. Each receipt records the source, stage, provider label, turn id, action, target, and replacement provenance, then appears in both the Dashboard Memory panel and Obsidian-like graph so skfiy can explain why a habit was learned instead of only showing the final memory state.
 
 ## Deliberate Non-Imports
 

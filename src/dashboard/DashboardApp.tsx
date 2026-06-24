@@ -779,6 +779,7 @@ function PersonalMemoryPanel({
   const agentEntries = memory?.recentAgentEntries ?? [];
   const pendingWrites = memory?.pendingWrites ?? [];
   const personalSkills = memory?.personalSkills ?? [];
+  const memoryJournal = memory?.memoryJournal ?? [];
 
   return (
     <Card.Root
@@ -844,6 +845,7 @@ function PersonalMemoryPanel({
           skills={personalSkills}
         />
         <WorkingProfilePanel profile={memory?.workingProfile} />
+        <MemoryJournalList entries={memoryJournal} />
         <RecentSessionRecallList sessions={memory?.recentSessions ?? []} />
         <p
           aria-live="polite"
@@ -899,6 +901,44 @@ function WorkingProfilePanel({
       ) : null}
     </div>
   );
+}
+
+function MemoryJournalList({
+  entries
+}: {
+  entries: NonNullable<DashboardPersonalMemorySummary["memoryJournal"]>;
+}) {
+  return (
+    <div className="skfiy-dashboard-key-value-list skfiy-dashboard-memory-journal">
+      <h3>Memory journal</h3>
+      {entries.length > 0 ? (
+        <ul aria-label="Memory journal">
+          {entries.map((entry) => (
+            <li key={entry.id}>
+              <span>{entry.providerLabel} · {entry.stage} · {formatMemoryJournalAction(entry)}</span>
+              <small>{formatGeneratedAt(entry.createdAt)} · {entry.source}</small>
+              <strong>{entry.content}</strong>
+              {entry.previousContent ? <em>previous: {entry.previousContent}</em> : null}
+              <small>learned from: {entry.userInput}</small>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="skfiy-dashboard-empty">No learning receipts have been recorded yet.</p>
+      )}
+    </div>
+  );
+}
+
+function formatMemoryJournalAction(
+  entry: NonNullable<DashboardPersonalMemorySummary["memoryJournal"]>[number]
+): string {
+  const action = entry.action === "replace"
+    ? "replace"
+    : entry.action === "remove"
+      ? "remove"
+      : "add";
+  return `${action} ${entry.target}`;
 }
 
 function PersonalSkillCardList({

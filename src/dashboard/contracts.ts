@@ -107,6 +107,7 @@ export interface DashboardPersonalMemorySummary {
   mutedPersonalSkillIds?: string[];
   personalSkills?: DashboardPersonalSkillCard[];
   workingProfile?: DashboardWorkingProfile;
+  memoryJournal?: DashboardPersonalMemoryJournalEntry[];
   latestSession?: DashboardPersonalMemorySessionSummary;
   recentSessions?: DashboardPersonalMemorySessionSummary[];
 }
@@ -127,6 +128,20 @@ export interface DashboardPendingPersonalMemoryWrite {
   id: string;
   createdAt: string;
   source: string;
+  action: "add" | "replace" | "remove" | string;
+  target: DashboardPersonalMemoryTarget;
+  content: string;
+  previousContent?: string;
+}
+
+export interface DashboardPersonalMemoryJournalEntry {
+  id: string;
+  createdAt: string;
+  source: string;
+  stage: "durable" | "pending" | string;
+  turnId: string;
+  providerLabel: string;
+  userInput: string;
   action: "add" | "replace" | "remove" | string;
   target: DashboardPersonalMemoryTarget;
   content: string;

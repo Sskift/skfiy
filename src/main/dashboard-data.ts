@@ -38,6 +38,10 @@ import {
   readPersonalMemorySnapshot
 } from "./personal-memory.js";
 import {
+  readPersonalMemoryJournalEntries,
+  type PersonalMemoryJournalEntry
+} from "./personal-memory-journal.js";
+import {
   readPendingPersonalMemoryWrites,
   type PendingPersonalMemoryWrite
 } from "./personal-memory-pending.js";
@@ -363,6 +367,10 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     baseDir,
     io
   });
+  const memoryJournal = readPersonalMemoryJournalEntries({
+    baseDir,
+    io
+  });
   const sessions = readSessionMemoryRecords({
     baseDir,
     io
@@ -405,6 +413,9 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
       ? { personalSkills: personalSkills.map(createDashboardPersonalSkillSummary) }
       : {}),
     ...(workingProfile ? { workingProfile: createDashboardWorkingProfileSummary(workingProfile) } : {}),
+    ...(memoryJournal.length > 0
+      ? { memoryJournal: memoryJournal.slice(-5).reverse().map(createDashboardMemoryJournalSummary) }
+      : {}),
     ...(latestSession ? { latestSession: createDashboardSessionSummary(latestSession) } : {}),
     ...(recentSessions.length > 0
       ? { recentSessions: recentSessions.map(createDashboardSessionSummary) }
@@ -577,6 +588,24 @@ function createDashboardPendingMemoryWriteSummary(write: PendingPersonalMemoryWr
     content: sanitizeDashboardMemoryEntry(write.content),
     ...(write.previousContent
       ? { previousContent: sanitizeDashboardMemoryEntry(write.previousContent) }
+      : {})
+  };
+}
+
+function createDashboardMemoryJournalSummary(entry: PersonalMemoryJournalEntry): Record<string, unknown> {
+  return {
+    id: entry.id,
+    createdAt: entry.createdAt,
+    source: sanitizeDashboardMemoryEntry(entry.source),
+    stage: entry.stage,
+    turnId: sanitizeDashboardMemoryEntry(entry.turnId),
+    providerLabel: sanitizeDashboardMemoryEntry(entry.providerLabel),
+    userInput: sanitizeDashboardMemoryEntry(entry.userInput),
+    action: entry.action,
+    target: entry.target,
+    content: sanitizeDashboardMemoryEntry(entry.content),
+    ...(entry.previousContent
+      ? { previousContent: sanitizeDashboardMemoryEntry(entry.previousContent) }
       : {})
   };
 }

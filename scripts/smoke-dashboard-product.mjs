@@ -486,6 +486,8 @@ async function main() {
         workingProfileNodeCount: nodeItems.filter((item) => /Working profile/i.test(item.textContent ?? "")).length,
         workingProfileLinkCount: linkItems.filter((item) => /shapes profile|summarizes habit|travels with prompt/i.test(item.textContent ?? "")).length,
         workingProfileNoteCount: vaultNoteItems.filter((item) => /Working profile\.md/i.test(item.textContent ?? "")).length,
+        memoryJournalNodeCount: nodeItems.filter((item) => /Learning receipt/i.test(item.textContent ?? "")).length,
+        memoryJournalLinkCount: linkItems.filter((item) => /records receipt|updates memory/i.test(item.textContent ?? "")).length,
         pendingMemoryNodeCount: nodeItems.filter((item) => /Pending user memory|Pending agent memory/i.test(item.textContent ?? "")).length,
         pendingMemoryLinkCount: linkItems.filter((item) => /stages|awaits approval/i.test(item.textContent ?? "")).length,
         fallbackTextOverlap,
@@ -647,8 +649,14 @@ async function main() {
     && dom.workingProfileNodeCount >= 1
     && dom.workingProfileLinkCount >= 2
     && dom.workingProfileNoteCount >= 1
+    && dom.memoryJournalNodeCount >= 2
+    && dom.memoryJournalLinkCount >= 3
     && dom.pendingMemoryNodeCount >= 2
     && dom.pendingMemoryLinkCount >= 4
+    && dom.nodeTexts.some((text) => typeof text === "string" && text.includes("Learning receipt"))
+    && dom.nodeTexts.some((text) => typeof text === "string" && text.includes("learned from Hermes turn"))
+    && dom.linkTexts.some((text) => typeof text === "string" && text.includes("records receipt"))
+    && dom.linkTexts.some((text) => typeof text === "string" && text.includes("updates memory"))
     && dom.nodeTexts.some((text) => typeof text === "string" && text.includes("replace · from User prefers concise Chinese updates. -> User prefers concise Chinese-first progress updates with verification evidence."))
     && dom.vaultSearchInputFound
     && dom.vaultSearchNodeCount >= 2
@@ -835,6 +843,7 @@ async function seedPersonalMemoryFixture(homeDir) {
   const sessionMemoryPath = path.join(memoryDir, "sessions.jsonl");
   const personalSkillSettingsPath = path.join(memoryDir, "personal-skills.json");
   const pendingMemoryPath = path.join(memoryDir, "pending-memory-writes.json");
+  const memoryJournalPath = path.join(memoryDir, "memory-journal.jsonl");
   const now = new Date();
   const sessions = [
     {
@@ -874,6 +883,33 @@ async function seedPersonalMemoryFixture(homeDir) {
   ].join("\n"), "utf8");
   await writeFile(agentMemoryPath, `${DASHBOARD_MEMORY_AGENT_ENTRY}\n`, "utf8");
   await writeFile(sessionMemoryPath, `${sessions.map((session) => JSON.stringify(session)).join("\n")}\n`, "utf8");
+  await writeFile(memoryJournalPath, `${[
+    {
+      id: "pmj-dashboard-smoke-durable",
+      createdAt: now.toISOString(),
+      source: "post-turn-review",
+      stage: "durable",
+      turnId: "dashboard-smoke-memory-turn",
+      providerLabel: "Codex",
+      userInput: "Summarize the current dashboard state.",
+      action: "add",
+      target: "user",
+      content: DASHBOARD_MEMORY_SAFE_ENTRY
+    },
+    {
+      id: "pmj-dashboard-smoke-pending",
+      createdAt: now.toISOString(),
+      source: "post-turn-review",
+      stage: "pending",
+      turnId: "dashboard-smoke-hermes-memory-turn",
+      providerLabel: "Hermes",
+      userInput: "以后进度更新短一点",
+      action: "replace",
+      target: "user",
+      previousContent: DASHBOARD_MEMORY_SAFE_ENTRY,
+      content: DASHBOARD_MEMORY_PENDING_REPLACEMENT_ENTRY
+    }
+  ].map((entry) => JSON.stringify(entry)).join("\n")}\n`, "utf8");
   await writeFile(pendingMemoryPath, `${JSON.stringify({
     schemaVersion: 1,
     writes: [
@@ -904,9 +940,11 @@ async function seedPersonalMemoryFixture(homeDir) {
     sessionMemoryPath,
     personalSkillSettingsPath,
     pendingMemoryPath,
+    memoryJournalPath,
     seededUserEntries: 5,
     seededAgentEntries: 1,
     seededSessionEntries: sessions.length,
+    seededMemoryJournalEntries: 2,
     seededPendingWrites: 2
   };
 }

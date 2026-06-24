@@ -10,7 +10,9 @@ describe("personal memory main-process wiring", () => {
 
     expect(scheduleIndex).toBeGreaterThan(-1);
     expect(source).toContain("recordCompletedAssistantTurnForPersonalization");
+    expect(source).toContain("createPersonalMemoryJournalStore");
     expect(scheduleBlock).toContain("memoryStore: personalMemoryStore");
+    expect(scheduleBlock).toContain("memoryJournalStore: personalMemoryJournalStore");
     expect(scheduleBlock).toContain("pendingMemoryStore: pendingPersonalMemoryStore");
     expect(scheduleBlock).toContain("sessionMemoryStore");
     expect(scheduleBlock).toContain("memoryWriteApprovalEnabled: personalMemoryWriteApprovalEnabled");

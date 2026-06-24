@@ -30,6 +30,12 @@ describe("readKnowledgeGraph", () => {
         label: "Working profile"
       }),
       expect.objectContaining({
+        id: "memory:journal:pmj-20260623t120500000z-1",
+        kind: "memory",
+        label: "Learning receipt",
+        detail: "pending · replace user · User prefers concise Chinese-first progress updates with verification evidence. · learned from Hermes turn turn-2"
+      }),
+      expect.objectContaining({
         id: "memory:pending:pmw-review-style",
         kind: "memory",
         label: "Pending user memory",
@@ -46,6 +52,16 @@ describe("readKnowledgeGraph", () => {
       expect.objectContaining({ from: "memory:user", to: "profile:working", label: "shapes profile" }),
       expect.objectContaining({ from: "profile:working", to: "provider:codex", label: "travels with prompt" }),
       expect.objectContaining({ from: "skill:dashboard-knowledge-surface", to: "profile:working", label: "summarizes habit" }),
+      expect.objectContaining({
+        from: "skill:memory-review",
+        to: "memory:journal:pmj-20260623t120500000z-1",
+        label: "records receipt"
+      }),
+      expect.objectContaining({
+        from: "memory:journal:pmj-20260623t120500000z-1",
+        to: "memory:user",
+        label: "awaits approval"
+      }),
       expect.objectContaining({ from: "skill:communication-style", to: "provider:codex", label: "guides prompt" }),
       expect.objectContaining({ from: "skill:dashboard-knowledge-surface", to: "provider:codex", label: "guides prompt" }),
       expect.objectContaining({ from: "browser:context", to: "session:latest", label: "observed in" }),
@@ -230,6 +246,33 @@ function createSnapshot(): DashboardSnapshot {
           createdAt: "2026-06-23T11:55:00.000Z",
           providerLabel: "Hermes",
           userInput: "remember concise updates"
+        }
+      ],
+      memoryJournal: [
+        {
+          id: "pmj-20260623T120000000Z-1",
+          createdAt: "2026-06-23T12:00:00.000Z",
+          source: "post-turn-review",
+          stage: "durable",
+          turnId: "turn-1",
+          providerLabel: "Codex",
+          userInput: "summarize dashboard",
+          action: "add",
+          target: "user",
+          content: "User prefers concise Chinese updates."
+        },
+        {
+          id: "pmj-20260623T120500000Z-1",
+          createdAt: "2026-06-23T12:05:00.000Z",
+          source: "post-turn-review",
+          stage: "pending",
+          turnId: "turn-2",
+          providerLabel: "Hermes",
+          userInput: "bring verification evidence",
+          action: "replace",
+          target: "user",
+          previousContent: "User prefers concise Chinese updates.",
+          content: "User prefers concise Chinese-first progress updates with verification evidence."
         }
       ]
     },

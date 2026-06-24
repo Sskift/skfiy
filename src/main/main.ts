@@ -37,6 +37,7 @@ import {
   createPersonalMemoryStore,
   createSkfiyApplicationSupportPath
 } from "./personal-memory.js";
+import { createPersonalMemoryJournalStore } from "./personal-memory-journal.js";
 import { createPendingPersonalMemoryStore } from "./personal-memory-pending.js";
 import { createPersonalSkillSettingsStore } from "./personal-skills.js";
 import {
@@ -184,6 +185,9 @@ const assistantAgentSettingsStore = createAssistantAgentSettingsStore(
   readInitialAssistantAgentSettingsFromConfig(process.env, { cwd: process.cwd() })
 );
 const personalMemoryStore = createPersonalMemoryStore({
+  baseDir: skfiyAppSupportDir
+});
+const personalMemoryJournalStore = createPersonalMemoryJournalStore({
   baseDir: skfiyAppSupportDir
 });
 const pendingPersonalMemoryStore = createPendingPersonalMemoryStore({
@@ -598,6 +602,7 @@ function schedulePersonalMemoryPostTurnReview(
     turn,
     browserPageContext,
     memoryStore: personalMemoryStore,
+    memoryJournalStore: personalMemoryJournalStore,
     pendingMemoryStore: pendingPersonalMemoryStore,
     sessionMemoryStore,
     memoryWriteApprovalEnabled: personalMemoryWriteApprovalEnabled,

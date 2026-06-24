@@ -828,27 +828,32 @@ async function collectPostTurnPersonalizationContract() {
     { recordCompletedAssistantTurnForPersonalization },
     { createPersonalMemoryStore },
     { createPendingPersonalMemoryStore },
-    { createSessionMemoryStore }
+    { createSessionMemoryStore },
+    { createPersonalMemoryJournalStore }
   ] = await Promise.all([
     import(pathToFileURL(modulePath).href),
     import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "personal-memory.js")).href),
     import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "personal-memory-pending.js")).href),
-    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "session-memory.js")).href)
+    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "session-memory.js")).href),
+    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "personal-memory-journal.js")).href)
   ]);
   const durableReviewWrite = await collectDurableReviewWrite({
     recordCompletedAssistantTurnForPersonalization,
     createPersonalMemoryStore,
+    createPersonalMemoryJournalStore,
     createSessionMemoryStore
   });
   const fallbackWrite = await collectFallbackWrite({
     recordCompletedAssistantTurnForPersonalization,
     createPersonalMemoryStore,
+    createPersonalMemoryJournalStore,
     createSessionMemoryStore
   });
   const stagedWhenApprovalEnabled = await collectStagedWhenApprovalEnabled({
     recordCompletedAssistantTurnForPersonalization,
     createPersonalMemoryStore,
     createPendingPersonalMemoryStore,
+    createPersonalMemoryJournalStore,
     createSessionMemoryStore
   });
   const tokenLeakDetected = hasTokenLeak([
@@ -860,11 +865,23 @@ async function collectPostTurnPersonalizationContract() {
     && durableReviewWrite.durableUserEntries.includes("User prefers dense Obsidian-like dashboard surfaces.")
     && durableReviewWrite.reviewPromptIncludesDurableInstruction
     && durableReviewWrite.reviewPromptReceivesExistingMemory
+    && durableReviewWrite.memoryJournalEntryCount === 1
+    && durableReviewWrite.memoryJournalStage === "durable"
+    && durableReviewWrite.memoryJournalSource === "post-turn-review"
+    && durableReviewWrite.memoryJournalProviderLabel === "Codex"
     && fallbackWrite.durableUserEntries.includes("User prefers concise Chinese progress updates.")
+    && fallbackWrite.memoryJournalEntryCount === 1
+    && fallbackWrite.memoryJournalStage === "durable"
+    && fallbackWrite.memoryJournalSource === "local-fallback"
+    && fallbackWrite.memoryJournalProviderLabel === "Hermes"
     && stagedWhenApprovalEnabled.durableUserEntryCount === 0
     && stagedWhenApprovalEnabled.pendingWriteCount === 1
     && stagedWhenApprovalEnabled.pendingSource === "post-turn-review"
     && stagedWhenApprovalEnabled.pendingContent === "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+    && stagedWhenApprovalEnabled.memoryJournalEntryCount === 1
+    && stagedWhenApprovalEnabled.memoryJournalStage === "pending"
+    && stagedWhenApprovalEnabled.memoryJournalSource === "post-turn-review"
+    && stagedWhenApprovalEnabled.memoryJournalProviderLabel === "Claude Code"
     && !tokenLeakDetected;
 
   return {
@@ -881,6 +898,7 @@ async function collectPostTurnPersonalizationContract() {
 async function collectDurableReviewWrite({
   recordCompletedAssistantTurnForPersonalization,
   createPersonalMemoryStore,
+  createPersonalMemoryJournalStore,
   createSessionMemoryStore
 }) {
   const files = new Map();
@@ -891,6 +909,11 @@ async function collectDurableReviewWrite({
   const sessionMemoryStore = createSessionMemoryStore({
     baseDir: "/tmp/skfiy-cli-post-turn-contract",
     io: createSessionIo(files)
+  });
+  const memoryJournalStore = createPersonalMemoryJournalStore({
+    baseDir: "/tmp/skfiy-cli-post-turn-contract",
+    io: createJournalIo(files),
+    now: () => new Date("2026-06-24T07:31:00.000Z")
   });
   let reviewPrompt = "";
   let reviewPersonalMemory;
@@ -904,6 +927,7 @@ async function collectDurableReviewWrite({
       title: "Dashboard brief"
     },
     memoryStore,
+    memoryJournalStore,
     sessionMemoryStore,
     runReviewTurn: async (prompt, { personalMemory }) => {
       reviewPrompt = prompt;
@@ -915,19 +939,26 @@ async function collectDurableReviewWrite({
       );
     }
   });
+  const journalEntries = memoryJournalStore.read();
 
   return {
     sessionCount: sessionMemoryStore.readAll().length,
     durableUserEntries: memoryStore.read().userEntries,
     reviewPromptIncludesDurableInstruction: reviewPrompt.includes("durable user preferences"),
     reviewPromptReceivesExistingMemory: Array.isArray(reviewPersonalMemory?.userEntries)
-      && Array.isArray(reviewPersonalMemory?.agentEntries)
+      && Array.isArray(reviewPersonalMemory?.agentEntries),
+    memoryJournalEntryCount: journalEntries.length,
+    memoryJournalStage: journalEntries[0]?.stage,
+    memoryJournalSource: journalEntries[0]?.source,
+    memoryJournalProviderLabel: journalEntries[0]?.providerLabel,
+    memoryJournalTurnId: journalEntries[0]?.turnId
   };
 }
 
 async function collectFallbackWrite({
   recordCompletedAssistantTurnForPersonalization,
   createPersonalMemoryStore,
+  createPersonalMemoryJournalStore,
   createSessionMemoryStore
 }) {
   const files = new Map();
@@ -939,6 +970,11 @@ async function collectFallbackWrite({
     baseDir: "/tmp/skfiy-cli-fallback-contract",
     io: createSessionIo(files)
   });
+  const memoryJournalStore = createPersonalMemoryJournalStore({
+    baseDir: "/tmp/skfiy-cli-fallback-contract",
+    io: createJournalIo(files),
+    now: () => new Date("2026-06-24T07:32:00.000Z")
+  });
 
   await recordCompletedAssistantTurnForPersonalization({
     userInput: "以后进度更新短一点，中文就好",
@@ -948,12 +984,19 @@ async function collectFallbackWrite({
       reason: "no browser context"
     },
     memoryStore,
+    memoryJournalStore,
     sessionMemoryStore,
     runReviewTurn: async () => createCompletedTurn("turn-memory-review", "Hermes", `{"operations":[]}`)
   });
+  const journalEntries = memoryJournalStore.read();
 
   return {
-    durableUserEntries: memoryStore.read().userEntries
+    durableUserEntries: memoryStore.read().userEntries,
+    memoryJournalEntryCount: journalEntries.length,
+    memoryJournalStage: journalEntries[0]?.stage,
+    memoryJournalSource: journalEntries[0]?.source,
+    memoryJournalProviderLabel: journalEntries[0]?.providerLabel,
+    memoryJournalTurnId: journalEntries[0]?.turnId
   };
 }
 
@@ -961,6 +1004,7 @@ async function collectStagedWhenApprovalEnabled({
   recordCompletedAssistantTurnForPersonalization,
   createPersonalMemoryStore,
   createPendingPersonalMemoryStore,
+  createPersonalMemoryJournalStore,
   createSessionMemoryStore
 }) {
   const files = new Map();
@@ -977,6 +1021,11 @@ async function collectStagedWhenApprovalEnabled({
     baseDir: "/tmp/skfiy-cli-staged-contract",
     io: createSessionIo(files)
   });
+  const memoryJournalStore = createPersonalMemoryJournalStore({
+    baseDir: "/tmp/skfiy-cli-staged-contract",
+    io: createJournalIo(files),
+    now: () => new Date("2026-06-24T07:33:00.000Z")
+  });
 
   await recordCompletedAssistantTurnForPersonalization({
     userInput: "以后 dashboard 默认做 Obsidian 那种密集知识图谱。",
@@ -986,6 +1035,7 @@ async function collectStagedWhenApprovalEnabled({
     },
     memoryStore,
     pendingMemoryStore,
+    memoryJournalStore,
     sessionMemoryStore,
     memoryWriteApprovalEnabled: true,
     runReviewTurn: async () => createCompletedTurn(
@@ -996,12 +1046,18 @@ async function collectStagedWhenApprovalEnabled({
   });
 
   const pendingWrites = pendingMemoryStore.read();
+  const journalEntries = memoryJournalStore.read();
 
   return {
     durableUserEntryCount: memoryStore.read().userEntries.length,
     pendingWriteCount: pendingWrites.length,
     pendingSource: pendingWrites[0]?.source,
-    pendingContent: pendingWrites[0]?.content
+    pendingContent: pendingWrites[0]?.content,
+    memoryJournalEntryCount: journalEntries.length,
+    memoryJournalStage: journalEntries[0]?.stage,
+    memoryJournalSource: journalEntries[0]?.source,
+    memoryJournalProviderLabel: journalEntries[0]?.providerLabel,
+    memoryJournalTurnId: journalEntries[0]?.turnId
   };
 }
 
@@ -1054,6 +1110,17 @@ function createFixedLengthMemoryEntry(label) {
 }
 
 function createPendingIo(files) {
+  return {
+    exists: (targetPath) => files.has(targetPath),
+    mkdir: () => undefined,
+    readFile: (targetPath) => files.get(targetPath) ?? "",
+    writeFile: (targetPath, content) => {
+      files.set(targetPath, content);
+    }
+  };
+}
+
+function createJournalIo(files) {
   return {
     exists: (targetPath) => files.has(targetPath),
     mkdir: () => undefined,

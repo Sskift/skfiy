@@ -392,6 +392,16 @@ describe("CLI product smoke script", () => {
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
+      postTurnPersonalizationContract: {
+        ...createPassingPostTurnPersonalizationContract(),
+        fallbackWrite: {
+          ...createPassingPostTurnPersonalizationContract().fallbackWrite,
+          memoryJournalSource: "post-turn-review"
+        }
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
       runnerHasTmux: true
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
@@ -876,16 +886,28 @@ function createPassingPostTurnPersonalizationContract() {
       sessionCount: 1,
       durableUserEntries: ["User prefers dense Obsidian-like dashboard surfaces."],
       reviewPromptIncludesDurableInstruction: true,
-      reviewPromptReceivesExistingMemory: true
+      reviewPromptReceivesExistingMemory: true,
+      memoryJournalEntryCount: 1,
+      memoryJournalStage: "durable",
+      memoryJournalSource: "post-turn-review",
+      memoryJournalProviderLabel: "Codex"
     },
     fallbackWrite: {
-      durableUserEntries: ["User prefers concise Chinese progress updates."]
+      durableUserEntries: ["User prefers concise Chinese progress updates."],
+      memoryJournalEntryCount: 1,
+      memoryJournalStage: "durable",
+      memoryJournalSource: "local-fallback",
+      memoryJournalProviderLabel: "Hermes"
     },
     stagedWhenApprovalEnabled: {
       durableUserEntryCount: 0,
       pendingWriteCount: 1,
       pendingSource: "post-turn-review",
-      pendingContent: "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+      pendingContent: "User prefers dense Obsidian-like knowledge surfaces for dashboard work.",
+      memoryJournalEntryCount: 1,
+      memoryJournalStage: "pending",
+      memoryJournalSource: "post-turn-review",
+      memoryJournalProviderLabel: "Claude Code"
     }
   };
 }

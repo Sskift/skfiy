@@ -21,7 +21,7 @@
 - Chrome extension pageControl can report current tab readiness and run observe/click/fill/submit/scroll paths, but Pet Agent prompts do not yet receive bounded real webpage context.
 - Dashboard already has snapshot/provider/browser panels, but it needs to become the readable operator surface for these capabilities, not a raw diagnostics page.
 - Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clones `5ecf3bf` / `3c75e11` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop. Current notes: `docs/research/2026-06-24-hermes-personalization-distillation.md`.
-- Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, Hermes-style atomic memory batch writes, prompt-load memory sanitization, and a derived prompt-safe Working profile that makes learned habits portable, reviewable, and available to real provider prompts; Task 9 adds user-visible removal for incorrect remembered preferences. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
+- Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, Hermes-style atomic memory batch writes, prompt-load memory sanitization, and a derived prompt-safe Working profile that makes learned habits portable, reviewable, and available to real provider prompts; Task 9 adds user-visible removal for incorrect remembered preferences plus append-only learning receipts for durable and pending memory changes. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
 - Personalization hardening: unsafe manually polluted memory is still blocked from provider prompts, but Dashboard/store removal must remain able to forget the exact polluted entry so users can correct bad sediment instead of getting stuck with an invisible prompt-safe placeholder.
 - Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
 - Obsidian-inspired dashboard gap: Dashboard is still a control plane. It should gain a knowledge surface that shows remembered preferences, sessions, skills, Browser Context, and Computer Use evidence as linked local-first nodes with a local graph/canvas feel.
@@ -1429,6 +1429,23 @@ Focused verification:
 npx vitest run src/dashboard/model.test.ts src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 9: Record append-only memory learning receipts**
+
+In `src/main/personal-memory-journal.ts`, `src/main/personalization-learning-loop.ts`, `src/main/dashboard-data.ts`, `src/dashboard/DashboardApp.tsx`, `src/dashboard/model.ts`, `scripts/smoke-cli-product.mjs`, and `scripts/smoke-dashboard-product.mjs`:
+
+- Record each durable or pending memory mutation as a JSONL learning receipt with source, stage, provider label, turn id, user input, action, target, content, and previous content for replacements.
+- Wire the journal into the real post-turn coordinator so Codex, Claude Code, and Hermes-backed interactions leave auditable memory provenance.
+- Surface the newest receipts in the Dashboard Memory panel without exposing token-like content.
+- Render receipts in the Obsidian-inspired graph as `Learning receipt` nodes linked from memory review to the affected user or agent memory target.
+- Extend packaged CLI smoke so durable review writes, local fallback writes, and approval-gated pending writes must each produce the expected journal source/stage/provider evidence.
+- Extend Dashboard smoke so the graph screenshot DOM must include receipt nodes and receipt links.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/personal-memory-journal.test.ts src/main/personalization-learning-loop.test.ts src/main/personal-memory-main-wiring.test.ts src/main/dashboard-data.test.ts src/dashboard/DashboardApp.test.tsx src/dashboard/model.test.ts src/main/dashboard-smoke-script.test.ts src/main/cli-product-smoke-script.test.ts --reporter=dot
+```
+
 ## Task 10: End-To-End Product Validation
 
 **Files:**
@@ -1509,8 +1526,10 @@ Validation evidence from 2026-06-24:
 - The same CLI smoke now records `repeatedConversationLearningContract.result: passed`, proving a packaged two-turn flow can use Codex for the first visible turn, persist Obsidian-style dashboard preferences and a session through `recordCompletedAssistantTurnForPersonalization`, then use Hermes for the next turn with personal memory, recalled session history, the distilled Obsidian dashboard skill, and the Working profile injected before the real `User:` request.
 - The same CLI smoke recorded `personalMemoryFallbackContract.result: passed`, proving explicit preference extraction, explicit remember/forget, duplicate suppression, one-off request rejection, and token-like request blocking from the packaged build.
 - The same CLI smoke now records `personalMemoryAtomicBatchContract.result: passed`, proving over-budget and unsafe memory operation batches abort without partial durable writes while remove+add batches are accepted against the final budget.
-- The same CLI smoke now records `postTurnPersonalizationContract.result: passed` from `dist/main/personalization-learning-loop.js`, proving the packaged post-turn coordinator records a session, writes durable reviewed memory, falls back to local preference extraction, and stages writes instead of mutating durable memory when approval review is enabled.
+- The same CLI smoke now records `postTurnPersonalizationContract.result: passed` from `dist/main/personalization-learning-loop.js`, proving the packaged post-turn coordinator records a session, writes durable reviewed memory, falls back to local preference extraction, stages writes instead of mutating durable memory when approval review is enabled, and creates memory journal receipts for durable review, local fallback, and pending approval paths.
+- `.skfiy-smoke/cli-memory-journal.json` recorded `result: passed`, `providerPromptContract.result: passed`, `realTurnIdentityContract.result: passed`, and `postTurnPersonalizationContract.result: passed`; the post-turn evidence includes `memoryJournalStage/source/providerLabel` for Codex durable review, Hermes local fallback, and Claude Code pending approval writes.
 - `.skfiy-smoke/dashboard-product.json` recorded `result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`. Dashboard screenshot evidence now also records `knowledgeGraphEvidence.visualDesignContract` with a 2560x1632 viewport, dark grid shell/canvas, dark vault lens, gradient focus/notes/backlinks/learning-loop panels, gradient graph links, selected node glow, multiple accent families, and screenshot coverage for both the dashboard shell and Knowledge graph.
+- `.skfiy-smoke/dashboard-memory-journal.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`, with 2 `Learning receipt` nodes and 3 receipt links in the graph DOM evidence plus screenshot evidence at `.skfiy-smoke/dashboard-memory-journal-knowledge-graph.png`.
 - `.skfiy-smoke/dashboard-prompt-stack.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-prompt-stack-knowledge-graph.png` shows the Obsidian-inspired `Prompt stack` above the graph canvas with memory, recalled sessions, personal skills, Working profile, and selected Background Agent ordering visible.
 - `.skfiy-smoke/ghostty-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24 and captured a non-empty Ghostty before screenshot, but the run ended `needs-user-confirmation` with `Verification failed (before): Target app is not running or has no observable windows.` This replaces the older sleep/loginwindow blocker with a fresh Ghostty initialization/verification blocker.
 - `.skfiy-smoke/finder-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24, but the run ended `error` with `Finder runCommand timed out after 8000ms` and no Finder observation. This replaces the older sleep/loginwindow blocker with a fresh Finder renderer-command timeout blocker.

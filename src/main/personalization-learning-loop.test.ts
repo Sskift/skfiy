@@ -5,6 +5,10 @@ import {
   type PersonalMemoryIo
 } from "./personal-memory";
 import {
+  createPersonalMemoryJournalStore,
+  type PersonalMemoryJournalIo
+} from "./personal-memory-journal";
+import {
   createPendingPersonalMemoryStore,
   type PendingPersonalMemoryIo
 } from "./personal-memory-pending";
@@ -27,6 +31,11 @@ describe("personalization learning loop", () => {
       baseDir: "/tmp/skfiy",
       io: createSessionIo(files)
     });
+    const memoryJournalStore = createPersonalMemoryJournalStore({
+      baseDir: "/tmp/skfiy",
+      io: createJournalIo(files),
+      now: () => new Date("2026-06-24T07:05:00.000Z")
+    });
     const runReviewTurn = vi.fn().mockResolvedValue(createCompletedTurn(
       "memory-review",
       "Hermes",
@@ -42,6 +51,7 @@ describe("personalization learning loop", () => {
         title: "Dashboard brief"
       },
       memoryStore,
+      memoryJournalStore,
       sessionMemoryStore: sessionStore,
       runReviewTurn
     });
@@ -69,6 +79,17 @@ describe("personalization learning loop", () => {
     expect(memoryStore.read().userEntries).toEqual([
       "User prefers dense Obsidian-like dashboard surfaces."
     ]);
+    expect(memoryJournalStore.read()).toEqual([
+      expect.objectContaining({
+        action: "add",
+        content: "User prefers dense Obsidian-like dashboard surfaces.",
+        providerLabel: "Codex",
+        source: "post-turn-review",
+        stage: "durable",
+        turnId: "turn-1",
+        userInput: "以后 dashboard 要有 Obsidian 那种视觉冲击。"
+      })
+    ]);
   });
 
   it("uses the local fallback when provider review returns no durable operation", async () => {
@@ -81,18 +102,34 @@ describe("personalization learning loop", () => {
       baseDir: "/tmp/skfiy",
       io: createSessionIo(files)
     });
+    const memoryJournalStore = createPersonalMemoryJournalStore({
+      baseDir: "/tmp/skfiy",
+      io: createJournalIo(files),
+      now: () => new Date("2026-06-24T07:10:00.000Z")
+    });
 
     await recordCompletedAssistantTurnForPersonalization({
       userInput: "以后进度更新短一点，中文就好",
       turn: createCompletedTurn("turn-1", "Hermes", "好的，我会更简洁。"),
       browserPageContext: { state: "blocked", reason: "no browser context" },
       memoryStore,
+      memoryJournalStore,
       sessionMemoryStore: sessionStore,
       runReviewTurn: async () => createCompletedTurn("memory-review", "Hermes", `{"operations":[]}`)
     });
 
     expect(memoryStore.read().userEntries).toEqual([
       "User prefers concise Chinese progress updates."
+    ]);
+    expect(memoryJournalStore.read()).toEqual([
+      expect.objectContaining({
+        action: "add",
+        content: "User prefers concise Chinese progress updates.",
+        providerLabel: "Hermes",
+        source: "local-fallback",
+        stage: "durable",
+        turnId: "turn-1"
+      })
     ]);
   });
 
@@ -107,6 +144,11 @@ describe("personalization learning loop", () => {
       io: createPendingIo(files),
       now: () => new Date("2026-06-24T07:30:00.000Z")
     });
+    const memoryJournalStore = createPersonalMemoryJournalStore({
+      baseDir: "/tmp/skfiy",
+      io: createJournalIo(files),
+      now: () => new Date("2026-06-24T07:31:00.000Z")
+    });
     const sessionStore = createSessionMemoryStore({
       baseDir: "/tmp/skfiy",
       io: createSessionIo(files)
@@ -117,6 +159,7 @@ describe("personalization learning loop", () => {
       turn: createCompletedTurn("turn-1", "Claude Code", "我会记下这个方向。"),
       browserPageContext: { state: "unavailable" },
       memoryStore,
+      memoryJournalStore,
       pendingMemoryStore,
       sessionMemoryStore: sessionStore,
       memoryWriteApprovalEnabled: true,
@@ -135,6 +178,16 @@ describe("personalization learning loop", () => {
         action: "add",
         target: "user",
         content: "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+      })
+    ]);
+    expect(memoryJournalStore.read()).toEqual([
+      expect.objectContaining({
+        action: "add",
+        content: "User prefers dense Obsidian-like knowledge surfaces for dashboard work.",
+        providerLabel: "Claude Code",
+        source: "post-turn-review",
+        stage: "pending",
+        turnId: "turn-1"
       })
     ]);
   });
@@ -173,6 +226,17 @@ function createMemoryIo(files: Map<string, string>): PersonalMemoryIo {
 }
 
 function createPendingIo(files: Map<string, string>): PendingPersonalMemoryIo {
+  return {
+    exists: (targetPath) => files.has(targetPath),
+    mkdir: () => undefined,
+    readFile: (targetPath) => files.get(targetPath) ?? "",
+    writeFile: (targetPath, content) => {
+      files.set(targetPath, content);
+    }
+  };
+}
+
+function createJournalIo(files: Map<string, string>): PersonalMemoryJournalIo {
   return {
     exists: (targetPath) => files.has(targetPath),
     mkdir: () => undefined,

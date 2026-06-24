@@ -296,6 +296,10 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.workingProfileLinkCount >= 2
     && Number.isInteger(evidence?.workingProfileNoteCount)
     && evidence.workingProfileNoteCount >= 1
+    && Number.isInteger(evidence?.memoryJournalNodeCount)
+    && evidence.memoryJournalNodeCount >= 2
+    && Number.isInteger(evidence?.memoryJournalLinkCount)
+    && evidence.memoryJournalLinkCount >= 3
     && Number.isInteger(evidence?.pendingMemoryNodeCount)
     && evidence.pendingMemoryNodeCount >= 2
     && Number.isInteger(evidence?.pendingMemoryLinkCount)
@@ -329,8 +333,12 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Concise Chinese progress updates"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Obsidian-style knowledge dashboard"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Working profile"))
+    && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Learning receipt"))
+    && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("learned from Hermes turn"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("replace · from User prefers concise Chinese updates. -> User prefers concise Chinese-first progress updates with verification evidence."))
+    && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("records receipt"))
+    && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("updates memory"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("recalls context"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("awaits approval"))
