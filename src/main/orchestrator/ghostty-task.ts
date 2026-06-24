@@ -495,7 +495,96 @@ export async function* runGhosttyCommandTask(
       }
 
       const retryBeforeRecovery = decideAppRecovery(before, createGhosttyRecoveryTarget(session.pid));
-      if (retryBeforeRecovery.type !== "continue") {
+      if (retryBeforeRecovery.type === "recover") {
+        yield {
+          type: "recovery_attempted",
+          stage: "before",
+          action: retryBeforeRecovery.action,
+          reason: retryBeforeRecovery.reason
+        };
+
+        if (retryBeforeRecovery.action === "open") {
+          session = await openGhosttySession(client);
+          sessionInitialized = false;
+          yield {
+            type: "session_opened",
+            appName: GHOSTTY_APP_NAME,
+            title: session.title,
+            pid: session.pid
+          };
+
+          if (isAborted(options.signal)) {
+            return;
+          }
+        }
+
+        const retryActivationFailure = await activateGhosttySession(client, session, options.signal);
+        if (retryActivationFailure) {
+          yield {
+            type: "verification_failed",
+            stage: "before",
+            reason: retryActivationFailure
+          };
+          return;
+        }
+
+        if (retryBeforeRecovery.action === "open") {
+          yield {
+            type: "app_activated",
+            appName: GHOSTTY_APP_NAME,
+            bundleId: session.bundleId,
+            pid: session.pid
+          };
+
+          const retryOpenInitFailure = await initializeGhosttySession(client, options.signal);
+          if (retryOpenInitFailure) {
+            yield {
+              type: "verification_failed",
+              stage: "before",
+              reason: retryOpenInitFailure
+            };
+            return;
+          }
+        }
+
+        if (isAborted(options.signal)) {
+          return;
+        }
+
+        const recoveredRetryReadyResult = await observeAppUntilMarker(
+          client,
+          session.bundleId,
+          createScreenshotPath("before", options),
+          options.signal,
+          OBSERVE_RETRY_WAIT_MS,
+          session.pid,
+          SKFIY_GHOSTTY_READY_MARKER,
+          SHELL_READY_OBSERVE_ATTEMPTS
+        );
+        before = recoveredRetryReadyResult.observation;
+
+        if (!recoveredRetryReadyResult.markerObserved) {
+          yield {
+            type: "verification_failed",
+            stage: "initialize",
+            reason: "Ghostty shell ready marker was not observed."
+          };
+          return;
+        }
+
+        const recoveredRetryBeforeRecovery = decideAppRecovery(
+          before,
+          createGhosttyRecoveryTarget(session.pid)
+        );
+        if (recoveredRetryBeforeRecovery.type !== "continue") {
+          yield {
+            type: "verification_failed",
+            stage: "before",
+            reason: recoveredRetryBeforeRecovery.reason
+          };
+          return;
+        }
+      } else if (retryBeforeRecovery.type !== "continue") {
         yield {
           type: "verification_failed",
           stage: "before",
