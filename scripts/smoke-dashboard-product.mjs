@@ -373,6 +373,7 @@ async function main() {
       const backlinkItems = Array.from(document.querySelectorAll('[aria-label="Vault backlinks"] li'));
       const learningLoopItems = Array.from(document.querySelectorAll('[aria-label="Learning loop"] li'));
       const promptStackItems = Array.from(document.querySelectorAll('[aria-label="Prompt stack"] li'));
+      const promptStackTierItems = Array.from(document.querySelectorAll(".skfiy-prompt-stack-tier"));
       const promptSourceLedgerItems = Array.from(document.querySelectorAll('[aria-label="Prompt source ledger"] li'));
       const memoryPressureLedgerItems = promptSourceLedgerItems.filter((item) => /memory pressure/i.test(item.textContent ?? ""));
       const lensButtons = Array.from(document.querySelectorAll('[aria-label="Vault lens"] button'));
@@ -479,6 +480,7 @@ async function main() {
         backlinkCount: backlinkItems.length,
         learningLoopCount: learningLoopItems.length,
         promptStackCount: promptStackItems.length,
+        promptStackTierCount: promptStackTierItems.length,
         promptSourceLedgerCount: promptSourceLedgerItems.length,
         promptProvenanceCount: promptProvenanceItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
@@ -501,6 +503,7 @@ async function main() {
         focusedNeighborhoodTexts: focusedNeighborhoodItems.map((item) => item.textContent),
         learningLoopTexts: learningLoopItems.map((item) => item.textContent),
         promptStackTexts: promptStackItems.map((item) => item.textContent),
+        promptStackTierTexts: promptStackTierItems.map((item) => item.textContent),
         promptSourceLedgerTexts: promptSourceLedgerItems.map((item) => item.textContent),
         memoryPressureLedgerTexts: memoryPressureLedgerItems.map((item) => item.textContent),
         promptProvenanceTexts: promptProvenanceItems.map((item) => item.textContent),
@@ -632,8 +635,18 @@ async function main() {
     && dom.backlinkCount >= 2
     && dom.learningLoopCount >= 4
     && dom.promptStackCount >= 5
+    && Number.isInteger(dom.promptStackTierCount)
+    && dom.promptStackTierCount === dom.promptStackCount
+    && Array.isArray(dom.promptStackTierTexts)
     && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Working profile"))
     && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Background Agent"))
+    && dom.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("volatile local memory"))
+    && dom.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("volatile session recall"))
+    && dom.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("stable learned habits"))
+    && dom.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("volatile portable profile"))
+    && (!dom.nodeTexts.some((text) => typeof text === "string" && text.includes("Browser Context"))
+      || dom.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("live browser overlay")))
+    && dom.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("runtime provider"))
     && dom.promptSourceLedgerCount >= 5
     && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Memory"))
     && Array.isArray(dom.memoryPressureLedgerTexts)

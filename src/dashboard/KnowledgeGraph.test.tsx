@@ -294,12 +294,12 @@ describe("KnowledgeGraph", () => {
     const steps = within(promptStack).getAllByRole("listitem");
 
     expect(steps.map((step) => step.textContent)).toEqual([
-      "1MemoryUser preferences, Agent operating notes",
-      "2Recalled sessionsLatest session",
-      "3Personal skillsConcise Chinese progress updates",
-      "4Working profileWorking profile",
-      "5Browser ContextBrowser Context",
-      "6Background AgentHermes"
+      "1Memoryvolatile local memoryUser preferences, Agent operating notes",
+      "2Recalled sessionsvolatile session recallLatest session",
+      "3Personal skillsstable learned habitsConcise Chinese progress updates",
+      "4Working profilevolatile portable profileWorking profile",
+      "5Browser Contextlive browser overlayBrowser Context",
+      "6Background Agentruntime providerHermes"
     ]);
   });
 

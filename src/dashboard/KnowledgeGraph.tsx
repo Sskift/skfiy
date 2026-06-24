@@ -139,6 +139,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
             <li key={step.stage}>
               <strong>{index + 1}</strong>
               <span>{step.stage}</span>
+              <em className="skfiy-prompt-stack-tier">{step.tier}</em>
               <small>{step.items.join(", ")}</small>
             </li>
           ))}
@@ -363,6 +364,7 @@ const LEARNING_LOOP_EDGE_ORDER = new Map([
 
 interface PromptStackStep {
   stage: string;
+  tier: string;
   items: string[];
 }
 
@@ -413,12 +415,12 @@ function createPromptStackSteps(
     .filter((node) => node.kind === "browser")
     .map((node) => node.label);
 
-  pushPromptStackStep(steps, "Memory", memoryLabels);
-  pushPromptStackStep(steps, "Recalled sessions", sessionLabels);
-  pushPromptStackStep(steps, "Personal skills", skillLabels);
-  pushPromptStackStep(steps, "Working profile", workingProfileLabels);
-  pushPromptStackStep(steps, "Browser Context", browserLabels);
-  pushPromptStackStep(steps, "Background Agent", provider ? [provider.label] : []);
+  pushPromptStackStep(steps, "Memory", "volatile local memory", memoryLabels);
+  pushPromptStackStep(steps, "Recalled sessions", "volatile session recall", sessionLabels);
+  pushPromptStackStep(steps, "Personal skills", "stable learned habits", skillLabels);
+  pushPromptStackStep(steps, "Working profile", "volatile portable profile", workingProfileLabels);
+  pushPromptStackStep(steps, "Browser Context", "live browser overlay", browserLabels);
+  pushPromptStackStep(steps, "Background Agent", "runtime provider", provider ? [provider.label] : []);
 
   return steps;
 }
@@ -449,10 +451,11 @@ function readPromptSourceLabels({
 function pushPromptStackStep(
   steps: PromptStackStep[],
   stage: string,
+  tier: string,
   items: string[]
 ): void {
   if (items.length > 0) {
-    steps.push({ stage, items });
+    steps.push({ stage, tier, items });
   }
 }
 

@@ -282,6 +282,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.learningLoopCount >= 4
     && Number.isInteger(evidence?.promptStackCount)
     && evidence.promptStackCount >= 5
+    && Number.isInteger(evidence?.promptStackTierCount)
+    && evidence.promptStackTierCount === evidence.promptStackCount
     && Number.isInteger(evidence?.promptSourceLedgerCount)
     && evidence.promptSourceLedgerCount >= 5
     && Number.isInteger(evidence?.promptProvenanceCount)
@@ -319,6 +321,7 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Array.isArray(evidence?.focusedNeighborhoodTexts)
     && Array.isArray(evidence?.learningLoopTexts)
     && Array.isArray(evidence?.promptStackTexts)
+    && Array.isArray(evidence?.promptStackTierTexts)
     && Array.isArray(evidence?.promptSourceLedgerTexts)
     && Array.isArray(evidence?.memoryPressureLedgerTexts)
     && Array.isArray(evidence?.promptProvenanceTexts)
@@ -373,6 +376,13 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Personal skills"))
     && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Working profile"))
     && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Background Agent"))
+    && evidence.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("volatile local memory"))
+    && evidence.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("volatile session recall"))
+    && evidence.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("stable learned habits"))
+    && evidence.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("volatile portable profile"))
+    && (!hasBrowserContextNode
+      || evidence.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("live browser overlay")))
+    && evidence.promptStackTierTexts.some((text) => typeof text === "string" && text.includes("runtime provider"))
     && evidence.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Memory"))
     && evidence.memoryPressureLedgerTexts.some((text) => typeof text === "string" && text.includes("memory pressure warning"))
     && evidence.memoryPressureLedgerTexts.some((text) => typeof text === "string" && text.includes("User preferences"))

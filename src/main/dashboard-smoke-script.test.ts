@@ -748,6 +748,15 @@ describe("dashboard product smoke script", () => {
         backlinkCount: 7,
         learningLoopCount: 4,
         promptStackCount: 6,
+        promptStackTierCount: 6,
+        promptStackTierTexts: [
+          "volatile local memory",
+          "volatile session recall",
+          "stable learned habits",
+          "volatile portable profile",
+          "live browser overlay",
+          "runtime provider"
+        ],
         promptSourceLedgerCount: 7,
         promptProvenanceCount: 2,
         sessionNodeCount: 2,
@@ -812,12 +821,12 @@ describe("dashboard product smoke script", () => {
           "Codex -> answered -> Latest session"
         ],
         promptStackTexts: [
-          "1MemoryUser preferences, Agent operating notes",
-          "2Recalled sessionsLatest session",
-          "3Personal skillsConcise Chinese progress updates, Obsidian-style knowledge dashboard",
-          "4Working profileWorking profile",
-          "5Browser ContextBrowser Context",
-          "6Background AgentCodex"
+          "1Memoryvolatile local memoryUser preferences, Agent operating notes",
+          "2Recalled sessionsvolatile session recallLatest session",
+          "3Personal skillsstable learned habitsConcise Chinese progress updates, Obsidian-style knowledge dashboard",
+          "4Working profilevolatile portable profileWorking profile",
+          "5Browser Contextlive browser overlayBrowser Context",
+          "6Background Agentruntime providerCodex"
         ],
         promptSourceLedgerTexts: [
           "Memorymemory pressure warningUser preferences 88% - 1,210/1,375 chars, Agent operating notes 14% - 320/2,200 chars",
@@ -1272,6 +1281,14 @@ describe("dashboard product smoke script", () => {
         backlinkCount: 6,
         learningLoopCount: 4,
         promptStackCount: 5,
+        promptStackTierCount: 5,
+        promptStackTierTexts: [
+          "volatile local memory",
+          "volatile session recall",
+          "stable learned habits",
+          "volatile portable profile",
+          "runtime provider"
+        ],
         promptProvenanceCount: 1,
         personalSkillNodeCount: 2,
         workingProfileNodeCount: 1,
@@ -1333,11 +1350,11 @@ describe("dashboard product smoke script", () => {
           "Codex -> answered -> Latest session"
         ],
         promptStackTexts: [
-          "1MemoryUser preferences",
-          "2Recalled sessionsLatest session",
-          "3Personal skillsConcise Chinese progress updates, Obsidian-style knowledge dashboard",
-          "4Working profileWorking profile",
-          "5Background AgentCodex"
+          "1Memoryvolatile local memoryUser preferences",
+          "2Recalled sessionsvolatile session recallLatest session",
+          "3Personal skillsstable learned habitsConcise Chinese progress updates, Obsidian-style knowledge dashboard",
+          "4Working profilevolatile portable profileWorking profile",
+          "5Background Agentruntime providerCodex"
         ],
         promptProvenanceTexts: [
           "Latest session -> teaches -> Memory review -> distills -> User preferences -> injects prompt -> Codex"
@@ -1428,7 +1445,18 @@ describe("dashboard product smoke script", () => {
       knowledgeGraphEvidence: {
         ...passedEvidence.knowledgeGraphEvidence,
         promptStackCount: 0,
+        promptStackTierCount: 0,
+        promptStackTierTexts: [],
         promptStackTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        promptStackTierTexts: passedEvidence.knowledgeGraphEvidence.promptStackTierTexts.filter((text) => (
+          text !== "live browser overlay"
+        ))
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

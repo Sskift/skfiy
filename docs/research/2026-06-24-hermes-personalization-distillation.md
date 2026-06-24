@@ -48,6 +48,7 @@ Newly distilled in this pass:
 - Pending memory review now preserves Hermes-style `replace` semantics in the operator surface: Dashboard shows `Previous` / `Proposed` revisions, and the Knowledge graph node spells out `replace · from ... -> ...` while the candidate is still review-gated.
 - Post-turn learning now writes append-only memory journal receipts for durable and pending operations. Each receipt records the source, stage, provider label, turn id, action, target, and replacement provenance, then appears in both the Dashboard Memory panel and Obsidian-like graph so skfiy can explain why a habit was learned instead of only showing the final memory state.
 - The receipt stream now also renders as a `Memory evolution` timeline and graph node. This turns repeated chat personalization into an Obsidian-style trace: memory review records the timeline, the timeline orders individual receipts, and each receipt points back to the affected user or agent memory.
+- The Dashboard `Prompt stack` now exposes Hermes-style prompt tiers instead of only a flat order: local memory/session/profile are volatile personalization layers, personal skills are stable learned habits, Browser Context is a live overlay, and the selected Background Agent is the runtime provider boundary.
 
 ## Deliberate Non-Imports
 
