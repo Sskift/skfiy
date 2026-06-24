@@ -53,11 +53,31 @@ export function createFallbackPersonalMemoryOperations({
   const normalized = normalizeReviewText(userInput);
   const operations: PersonalMemoryOperation[] = [];
 
+  if (containsSecretLikeText(normalized)) {
+    return operations;
+  }
+
   if (isExplicitFuturePreference(normalized) && prefersConciseChineseProgress(normalized)) {
     pushUniqueUserMemory(
       operations,
       existingMemory.userEntries,
       "User prefers concise Chinese progress updates."
+    );
+  }
+
+  if (isExplicitFuturePreference(normalized) && prefersObsidianDashboardSurfaces(normalized)) {
+    pushUniqueUserMemory(
+      operations,
+      existingMemory.userEntries,
+      "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+    );
+  }
+
+  if (isExplicitFuturePreference(normalized) && dislikesMarketingStyleDashboard(normalized)) {
+    pushUniqueUserMemory(
+      operations,
+      existingMemory.userEntries,
+      "User dislikes marketing-style hero/card-heavy dashboard layouts."
     );
   }
 
@@ -144,4 +164,25 @@ function prefersConciseChineseProgress(value: string): boolean {
   const mentionsConcise = /短一点|简短|简洁|短些|concise|short|brief/u.test(value);
 
   return mentionsChinese && mentionsProgress && mentionsConcise;
+}
+
+function prefersObsidianDashboardSurfaces(value: string): boolean {
+  const mentionsDashboard = /dashboard|仪表盘|控制台|面板|operator surface/u.test(value);
+  const mentionsObsidian = /obsidian|知识图谱|knowledge graph|backlink|backlinks|vault|canvas|画布/u.test(value);
+  const mentionsDensity = /密集|dense|视觉冲击|graph|图谱|local-first|本地优先/u.test(value);
+
+  return mentionsDashboard && mentionsObsidian && mentionsDensity;
+}
+
+function dislikesMarketingStyleDashboard(value: string): boolean {
+  const expressesNegative = /不要|别|不喜欢|讨厌|avoid|dislike|do not|don't|no /u.test(value);
+  const mentionsMarketingLayout = /营销|marketing|hero|landing|大卡片|card-heavy|decorative card|浮夸/u.test(value);
+  const mentionsProductSurface = /dashboard|仪表盘|控制台|页面|界面|ui|surface|layout|布局/u.test(value);
+
+  return expressesNegative && mentionsMarketingLayout && mentionsProductSurface;
+}
+
+function containsSecretLikeText(value: string): boolean {
+  return /\bsk-[a-z0-9._~+/=-]{10,}\b/iu.test(value)
+    || /\b(?:api[_\s-]?key|token|secret|password|credential|密钥|令牌|密码)\b.{0,12}(?:是|is|=|:)?\s*[a-z0-9._~+/=-]{8,}/iu.test(value);
 }

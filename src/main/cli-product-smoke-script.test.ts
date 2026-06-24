@@ -155,6 +155,23 @@ describe("CLI product smoke script", () => {
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
+      personalMemoryFallbackContract: {
+        ...createPassingPersonalMemoryFallbackContract(),
+        dashboardStylePreference: { operationCount: 0, operations: [] }
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      personalMemoryFallbackContract: {
+        ...createPassingPersonalMemoryFallbackContract(),
+        secretLikeRequest: {
+          operationCount: 1,
+          operations: [{ action: "add", target: "user", content: "User token=secret" }]
+        }
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
       commands: passedEvidence.commands.map((command) => command.id === "chrome-status"
         ? {
             ...command,
@@ -487,6 +504,16 @@ function createPassingPersonalMemoryFallbackContract() {
       operations: [
         { action: "add", target: "user", content: "User prefers concise Chinese progress updates." }
       ]
+    },
+    dashboardStylePreference: {
+      operationCount: 2,
+      operations: [
+        { action: "add", target: "user", content: "User prefers dense Obsidian-like knowledge surfaces for dashboard work." },
+        { action: "add", target: "user", content: "User dislikes marketing-style hero/card-heavy dashboard layouts." }
+      ]
+    },
+    secretLikeRequest: {
+      operationCount: 0
     },
     oneOffRequest: {
       operationCount: 0

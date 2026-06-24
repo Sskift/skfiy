@@ -46,6 +46,25 @@ describe("personal memory review", () => {
     ]);
   });
 
+  it("extracts durable dashboard style preferences locally when provider review is unavailable", () => {
+    expect(createFallbackPersonalMemoryOperations({
+      userInput: "以后 dashboard 默认做 Obsidian 那种密集知识图谱，不要营销大卡片。",
+      assistantReply: "记住了，我会按更密集的知识面板来做。",
+      existingMemory: { userEntries: [], agentEntries: [] }
+    })).toEqual([
+      { action: "add", target: "user", content: "User prefers dense Obsidian-like knowledge surfaces for dashboard work." },
+      { action: "add", target: "user", content: "User dislikes marketing-style hero/card-heavy dashboard layouts." }
+    ]);
+  });
+
+  it("does not save local fallback memory from token-like explicit requests", () => {
+    expect(createFallbackPersonalMemoryOperations({
+      userInput: "记住我的 API token 是 sk-secret1234567890",
+      assistantReply: "我不能保存密钥。",
+      existingMemory: { userEntries: [], agentEntries: [] }
+    })).toEqual([]);
+  });
+
   it("does not turn one-off requests into local fallback memory", () => {
     expect(createFallbackPersonalMemoryOperations({
       userInput: "现在打开 Chrome 并总结这个网页",

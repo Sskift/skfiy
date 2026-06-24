@@ -460,6 +460,7 @@ function hasProviderContract(providers, expected) {
 
 function hasPersonalMemoryFallbackContractEvidence(contract) {
   const explicitOperations = contract?.explicitPreference?.operations;
+  const dashboardStyleOperations = contract?.dashboardStylePreference?.operations;
 
   return contract?.productPath === "dist/main/personal-memory-review.js -> createFallbackPersonalMemoryOperations -> local memory fallback contract"
     && contract?.result === "passed"
@@ -470,6 +471,19 @@ function hasPersonalMemoryFallbackContractEvidence(contract) {
     && explicitOperations[0]?.action === "add"
     && explicitOperations[0]?.target === "user"
     && explicitOperations[0]?.content === "User prefers concise Chinese progress updates."
+    && contract?.dashboardStylePreference?.operationCount === 2
+    && Array.isArray(dashboardStyleOperations)
+    && dashboardStyleOperations.some((operation) => (
+      operation?.action === "add"
+      && operation?.target === "user"
+      && operation?.content === "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+    ))
+    && dashboardStyleOperations.some((operation) => (
+      operation?.action === "add"
+      && operation?.target === "user"
+      && operation?.content === "User dislikes marketing-style hero/card-heavy dashboard layouts."
+    ))
+    && contract?.secretLikeRequest?.operationCount === 0
     && contract?.oneOffRequest?.operationCount === 0
     && contract?.duplicatePreference?.operationCount === 0;
 }

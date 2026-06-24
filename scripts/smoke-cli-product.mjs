@@ -199,6 +199,16 @@ async function collectPersonalMemoryFallbackContract() {
     assistantReply: "好的。",
     existingMemory: { userEntries: [], agentEntries: [] }
   });
+  const dashboardStylePreferenceOperations = createFallbackPersonalMemoryOperations({
+    userInput: "以后 dashboard 默认做 Obsidian 那种密集知识图谱，不要营销大卡片。",
+    assistantReply: "记住了，我会按更密集的知识面板来做。",
+    existingMemory: { userEntries: [], agentEntries: [] }
+  });
+  const secretLikeRequestOperations = createFallbackPersonalMemoryOperations({
+    userInput: "记住我的 API token 是 sk-provider-contract-secret-123456",
+    assistantReply: "我不能保存密钥。",
+    existingMemory: { userEntries: [], agentEntries: [] }
+  });
   const duplicatePreferenceOperations = createFallbackPersonalMemoryOperations({
     userInput: "以后进度更新短一点，中文就好",
     assistantReply: "好的，我会更简洁。",
@@ -206,16 +216,32 @@ async function collectPersonalMemoryFallbackContract() {
   });
   const explicitPreference = summarizeMemoryFallbackOperations(explicitPreferenceOperations);
   const oneOffRequest = summarizeMemoryFallbackOperations(oneOffRequestOperations);
+  const dashboardStylePreference = summarizeMemoryFallbackOperations(dashboardStylePreferenceOperations);
+  const secretLikeRequest = summarizeMemoryFallbackOperations(secretLikeRequestOperations);
   const duplicatePreference = summarizeMemoryFallbackOperations(duplicatePreferenceOperations);
   const tokenLeakDetected = hasTokenLeak([
     JSON.stringify(explicitPreference),
     JSON.stringify(oneOffRequest),
+    JSON.stringify(dashboardStylePreference),
+    JSON.stringify(secretLikeRequest),
     JSON.stringify(duplicatePreference)
   ]);
   const passed = explicitPreference.operationCount === 1
     && explicitPreference.operations[0]?.action === "add"
     && explicitPreference.operations[0]?.target === "user"
     && explicitPreference.operations[0]?.content === expectedContent
+    && dashboardStylePreference.operationCount === 2
+    && dashboardStylePreference.operations.some((operation) => (
+      operation.action === "add"
+      && operation.target === "user"
+      && operation.content === "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+    ))
+    && dashboardStylePreference.operations.some((operation) => (
+      operation.action === "add"
+      && operation.target === "user"
+      && operation.content === "User dislikes marketing-style hero/card-heavy dashboard layouts."
+    ))
+    && secretLikeRequest.operationCount === 0
     && oneOffRequest.operationCount === 0
     && duplicatePreference.operationCount === 0
     && !tokenLeakDetected;
@@ -224,6 +250,8 @@ async function collectPersonalMemoryFallbackContract() {
     productPath,
     modulePath,
     explicitPreference,
+    dashboardStylePreference,
+    secretLikeRequest,
     oneOffRequest,
     duplicatePreference,
     tokenLeakDetected,
