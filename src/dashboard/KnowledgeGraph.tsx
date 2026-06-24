@@ -57,24 +57,39 @@ const ALERT_POSITIONS: GraphPoint[] = [
 export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(() => nodes[0]?.id ?? null);
   const [activeLens, setActiveLens] = useState<VaultLensKind>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const normalizedSearchQuery = normalizeVaultSearchQuery(searchQuery);
   const lensOptions = createVaultLensOptions(nodes);
-  const filteredNodes = activeLens === "all"
+  const lensFilteredNodes = activeLens === "all"
     ? nodes
     : nodes.filter((node) => node.kind === activeLens);
+  const lensFilteredNodeIds = new Set(lensFilteredNodes.map((node) => node.id));
+  const lensRelationEdges = edges.filter((edge) => (
+    lensFilteredNodeIds.has(edge.from) || lensFilteredNodeIds.has(edge.to)
+  ));
+  const lensBacklinks = createReadableBacklinks(lensRelationEdges, nodes);
+  const lensVaultNotes = createVaultNotes(lensFilteredNodes, lensBacklinks);
+  const matchingVaultNotes = normalizedSearchQuery.length > 0
+    ? lensVaultNotes.filter((note) => matchesVaultSearch(note, normalizedSearchQuery))
+    : lensVaultNotes;
+  const matchingNodeIds = new Set(matchingVaultNotes.map((note) => note.id));
+  const filteredNodes = lensFilteredNodes.filter((node) => matchingNodeIds.has(node.id));
   const filteredNodeIds = new Set(filteredNodes.map((node) => node.id));
   const positions = createGraphPositions(filteredNodes);
   const visibleEdges = edges.filter((edge) => positions.has(edge.from) && positions.has(edge.to));
   const relationEdges = edges.filter((edge) => filteredNodeIds.has(edge.from) || filteredNodeIds.has(edge.to));
-  const backlinks = relationEdges.map((edge) => ({
-    ...edge,
-    fromLabel: readNodeLabel(edge.from, nodes),
-    toLabel: readNodeLabel(edge.to, nodes)
-  }));
-  const learningLoopSteps = createLearningLoopSteps(activeLens === "all" ? visibleEdges : relationEdges, nodes);
+  const backlinks = createReadableBacklinks(relationEdges, nodes);
+  const learningLoopSteps = createLearningLoopSteps(
+    activeLens === "all" && normalizedSearchQuery.length === 0 ? visibleEdges : relationEdges,
+    nodes
+  );
   const vaultNotes = createVaultNotes(filteredNodes, backlinks);
   const selectedNote = vaultNotes.find((note) => note.id === selectedNodeId) ?? vaultNotes[0] ?? null;
   const selectedId = selectedNote?.id ?? null;
   const focusedNeighborhood = createFocusedNeighborhood(selectedId, nodes, edges);
+  const summary = normalizedSearchQuery.length > 0
+    ? `Showing ${filteredNodes.length} of ${nodes.length} notes for ${normalizedSearchQuery}`
+    : `Showing ${filteredNodes.length} of ${nodes.length} notes`;
   const setLens = (kind: VaultLensKind) => {
     setActiveLens(kind);
     setSelectedNodeId(kind === "all"
@@ -101,8 +116,17 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
             </button>
           ))}
         </div>
+        <label className="skfiy-vault-search">
+          <span>Vault search</span>
+          <input
+            aria-label="Vault search"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.currentTarget.value)}
+          />
+        </label>
         <p role="status" aria-label="Vault lens summary">
-          {`Showing ${filteredNodes.length} of ${nodes.length} notes`}
+          {summary}
         </p>
       </div>
       <div className="skfiy-knowledge-graph-canvas">
@@ -348,6 +372,17 @@ interface VaultNote {
   relations: string[];
 }
 
+function createReadableBacklinks(
+  edges: DashboardKnowledgeGraphEdge[],
+  nodes: DashboardKnowledgeGraphNode[]
+): Array<DashboardKnowledgeGraphEdge & { fromLabel: string; toLabel: string }> {
+  return edges.map((edge) => ({
+    ...edge,
+    fromLabel: readNodeLabel(edge.from, nodes),
+    toLabel: readNodeLabel(edge.to, nodes)
+  }));
+}
+
 function createVaultNotes(
   nodes: DashboardKnowledgeGraphNode[],
   edges: Array<DashboardKnowledgeGraphEdge & { fromLabel: string; toLabel: string }>
@@ -367,6 +402,19 @@ function createVaultNotes(
       relations
     };
   });
+}
+
+function matchesVaultSearch(note: VaultNote, query: string): boolean {
+  return normalizeVaultSearchQuery([
+    note.fileName,
+    note.kind,
+    note.detail,
+    ...note.relations
+  ].join(" ")).includes(query);
+}
+
+function normalizeVaultSearchQuery(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 interface FocusedNeighbor {

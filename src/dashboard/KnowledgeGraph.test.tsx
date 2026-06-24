@@ -137,6 +137,43 @@ describe("KnowledgeGraph", () => {
     expect(within(focusedNote).getByText("guides prompt -> Codex")).toBeInTheDocument();
   });
 
+  it("searches vault notes across detail and backlinks", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries" },
+        { id: "memory:pending:pmw-review-style", label: "Pending user memory", kind: "memory", tone: "warning", detail: "add · User wants memory writes reviewed before becoming durable." },
+        { id: "provider:codex", label: "Codex", kind: "provider", tone: "success", detail: "Codex selected" },
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral", detail: "Codex: summarize dashboard" }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:codex", label: "injects prompt" },
+        { from: "memory:pending:pmw-review-style", to: "memory:user", label: "awaits approval" },
+        { from: "provider:codex", to: "session:latest", label: "answered" }
+      ]}
+    />);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Vault search" }), {
+      target: { value: "approval" }
+    });
+
+    expect(screen.getByRole("status", { name: "Vault lens summary" }))
+      .toHaveTextContent("Showing 2 of 4 notes for approval");
+
+    const nodes = screen.getByRole("list", { name: "Knowledge graph nodes" });
+    expect(within(nodes).getByText("User preferences")).toBeInTheDocument();
+    expect(within(nodes).getByText("Pending user memory")).toBeInTheDocument();
+    expect(within(nodes).queryByText("Codex")).not.toBeInTheDocument();
+
+    const notes = screen.getByRole("list", { name: "Vault notes" });
+    expect(within(notes).getByText("User preferences.md")).toBeInTheDocument();
+    expect(within(notes).getByText("Pending user memory.md")).toBeInTheDocument();
+    expect(within(notes).queryByText("Latest session.md")).not.toBeInTheDocument();
+
+    const focusedNote = screen.getByRole("region", { name: "Focused note" });
+    expect(within(focusedNote).getByRole("heading", { name: "User preferences.md" })).toBeInTheDocument();
+    expect(within(focusedNote).getByText("Pending user memory -> awaits approval")).toBeInTheDocument();
+  });
+
   it("shows a focused neighborhood for the selected vault note", () => {
     render(<KnowledgeGraph
       nodes={[

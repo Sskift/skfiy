@@ -1163,6 +1163,20 @@ Focused verification:
 npx vitest run src/dashboard/model.test.ts src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 12: Add vault search across note text and backlinks**
+
+In `src/dashboard/KnowledgeGraph.tsx`, `src/dashboard/KnowledgeGraph.test.tsx`, and `src/dashboard/styles.css`:
+
+- Add a `Vault search` input that filters the currently selected lens by note filename, kind, detail, and backlink text.
+- Keep cross-kind backlinks visible for matched notes so searching relation text still surfaces the connected note.
+- Preserve graph, note list, and focused note selection behavior when search removes the previously selected note.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/KnowledgeGraph.test.tsx --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls

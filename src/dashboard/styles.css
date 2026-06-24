@@ -549,7 +549,7 @@ a:focus-visible {
 
 .skfiy-vault-lens {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 260px) max-content;
   gap: 10px;
   align-items: center;
   min-width: 0;
@@ -591,6 +591,39 @@ a:focus-visible {
 .skfiy-vault-lens-controls button:focus-visible {
   outline: 2px solid #22d3ee;
   outline-offset: 2px;
+}
+
+.skfiy-vault-search {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.skfiy-vault-search span {
+  color: #a1a1aa;
+  font-size: 11px;
+  font-weight: 740;
+  line-height: 1.2;
+}
+
+.skfiy-vault-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  color: #f8fafc;
+  background: rgba(9, 9, 11, 0.68);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.skfiy-vault-search input:focus-visible {
+  border-color: rgba(34, 211, 238, 0.72);
+  outline: 2px solid rgba(34, 211, 238, 0.45);
+  outline-offset: 1px;
 }
 
 .skfiy-vault-lens p {
