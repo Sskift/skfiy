@@ -578,9 +578,9 @@ describe("DashboardApp", () => {
     expect(within(checklist).getByText("Grant visible-tab capture")).toBeInTheDocument();
     expect(within(checklist).getByText("<all_urls>")).toBeInTheDocument();
     expect(within(checklist).getByText("Open skfiy Chrome popup")).toBeInTheDocument();
-    expect(within(checklist).getByText("Click Grant https://bytedance.larkoffice.com/* + <all_urls>.")).toBeInTheDocument();
+    expect(within(checklist).getByText("Click Grant https://bytedance.larkoffice.com/* + <all_urls> and observe.")).toBeInTheDocument();
     expect(within(checklist).getByText("Observe current page")).toBeInTheDocument();
-    expect(within(checklist).getByText("After granting access, click Observe current page in the popup.")).toBeInTheDocument();
+    expect(within(checklist).getByText("The popup observes the page automatically after access is granted.")).toBeInTheDocument();
   });
 
   it("shows a Finder Automation access checklist when Finder smoke exposes the macOS permission blocker", async () => {

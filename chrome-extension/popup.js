@@ -608,7 +608,7 @@ function applyGrantSiteAccessState(currentTab) {
   button.hidden = pendingHostPermissionOrigins.length === 0;
   button.disabled = false;
   if (pendingHostPermissionOrigins.length > 0) {
-    button.textContent = `Grant ${pendingHostPermissionOrigins.join(" + ")}`;
+    button.textContent = `Grant ${pendingHostPermissionOrigins.join(" + ")} and observe`;
   } else {
     button.textContent = "Grant site access";
   }
@@ -749,7 +749,7 @@ async function checkHeartbeat() {
   }
 }
 
-async function observeCurrentPageFromWake() {
+async function observeCurrentPageFromWake(source = "popup_observe") {
   const targetTabId = readTargetTabId();
   const wakeRequestId = readWakeParam("skfiyRequestId");
   const observeRequestId = wakeRequestId || `popup-observe-${Date.now()}`;
@@ -763,7 +763,7 @@ async function observeCurrentPageFromWake() {
       payload: {
         mode: "current_page",
         include: ["title", "url", "visible_text", "forms", "interactive_elements"],
-        source: "popup_observe"
+        source
       },
       ...(Number.isInteger(targetTabId) ? { tabId: targetTabId } : {})
     });
@@ -781,7 +781,7 @@ async function observeCurrentPageFromWake() {
         payload: {
           mode: "current_page",
           include: ["title", "url", "visible_text", "forms", "interactive_elements"],
-          source: "popup_observe",
+          source,
           ...(Number.isInteger(targetTabId) ? { targetTabId } : {}),
           ...(pageObservation ? { pageObservation } : {})
         }
@@ -1124,6 +1124,7 @@ async function grantSiteAccess() {
     }
     button.textContent = "Access granted";
     await refreshHostPolicy();
+    await observeCurrentPageFromWake("popup_grant_observe");
   } catch (error) {
     button.textContent = error instanceof Error ? error.message : "Unable to request access";
   } finally {

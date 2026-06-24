@@ -619,7 +619,7 @@ function readBrowserContextAccessSteps(
     steps.push({
       id: "open-skfiy-chrome-popup",
       label: "Open skfiy Chrome popup",
-      detail: `Click Grant ${chromePopupGrantOrigins.join(" + ")}.`,
+      detail: `Click Grant ${chromePopupGrantOrigins.join(" + ")} and observe.`,
       tone: "warning"
     });
   }
@@ -628,7 +628,7 @@ function readBrowserContextAccessSteps(
     steps.push({
       id: "observe-current-page",
       label: "Observe current page",
-      detail: "After granting access, click Observe current page in the popup.",
+      detail: "The popup observes the page automatically after access is granted.",
       tone: "neutral"
     });
   }

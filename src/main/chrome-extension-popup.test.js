@@ -424,7 +424,7 @@ describe("Chrome extension popup policy sync status", () => {
         .toBe("Specified native messaging host not found.");
       expect(document.getElementById("grant-site-access-button").hidden).toBe(false);
       expect(document.getElementById("grant-site-access-button").textContent)
-        .toBe("Grant https://example.com/*");
+        .toBe("Grant https://example.com/* and observe");
     });
 
     document.getElementById("grant-site-access-button").click();
@@ -530,7 +530,7 @@ describe("Chrome extension popup policy sync status", () => {
     await waitForAssertion(() => {
       expect(document.getElementById("grant-site-access-button").hidden).toBe(false);
       expect(document.getElementById("grant-site-access-button").textContent)
-        .toBe("Grant <all_urls>");
+        .toBe("Grant <all_urls> and observe");
       expect(document.getElementById("page-action-summary").textContent)
         .toBe("Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture.");
     });
@@ -547,81 +547,117 @@ describe("Chrome extension popup policy sync status", () => {
     });
   });
 
-  it("requests host and visible-tab capture permissions in one user gesture when both are missing", async () => {
+  it("requests host and visible-tab capture permissions in one user gesture and observes after access is granted", async () => {
     installPopupDocument();
     const policy = createPolicy({
       allowedHosts: ["example.com"]
     });
+    const sentMessages = [];
+    const baseSnapshot = {
+      syncStatus: {
+        state: "synced",
+        source: "native_host",
+        entryCount: 1,
+        nativeBridgeState: "connected",
+        nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"
+      },
+      diagnostics: {
+        extension: {
+          version: "0.0.16",
+          manifestVersion: 3
+        },
+        capabilities: {
+          activeTab: true,
+          scripting: true,
+          storage: true,
+          tabs: true,
+          downloads: true
+        },
+        nativeHost: {
+          name: "com.sskift.skfiy",
+          connectionState: "connected",
+          bridgeState: "connected",
+          syncState: "synced",
+          syncSource: "native_host",
+          policyState: "configured",
+          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          messageType: "skfiy.page.observe"
+        },
+        currentTab: {
+          state: "available",
+          host: "example.com",
+          origin: "https://example.com",
+          hostPolicy: {
+            decision: "allowed",
+            reason: "host_allowed"
+          },
+          chromeHostPermission: {
+            state: "missing",
+            reason: "chrome_host_permission_missing",
+            code: "chrome_host_permission_missing",
+            origin: "https://example.com",
+            host: "example.com",
+            origins: ["https://example.com/*"],
+            message: "Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run."
+          },
+          chromeCapturePermission: {
+            state: "missing",
+            reason: "chrome_capture_permission_missing",
+            code: "chrome_capture_permission_missing",
+            origins: ["<all_urls>"],
+            message: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture."
+          },
+          contentScript: {
+            state: "blocked_by_chrome_host_permission",
+            reason: "chrome_host_permission_missing"
+          },
+          pageControl: {
+            state: "blocked_by_chrome_host_permission",
+            capabilities: {
+              screenshot: false,
+              domActions: false
+            },
+            reason: "Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run."
+          }
+        }
+      }
+    };
     const mock = createPopupChromeMock({
       policy,
       tab: { id: 9, url: "https://example.com/page" },
-      snapshot: {
-        syncStatus: {
-          state: "synced",
-          source: "native_host",
-          entryCount: 1,
-          nativeBridgeState: "connected"
-        },
-        diagnostics: {
-          extension: {
-            version: "0.0.16",
-            manifestVersion: 3
-          },
-          capabilities: {
-            activeTab: true,
-            scripting: true,
-            storage: true,
-            tabs: true,
-            downloads: true
-          },
-          nativeHost: {
-            name: "com.sskift.skfiy",
-            connectionState: "connected",
-            bridgeState: "connected",
-            syncState: "synced",
-            syncSource: "native_host",
-            policyState: "configured",
-            launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-            messageType: "skfiy.page.observe"
-          },
-          currentTab: {
-            state: "available",
-            host: "example.com",
-            origin: "https://example.com",
-            hostPolicy: {
-              decision: "allowed",
-              reason: "host_allowed"
-            },
-            chromeHostPermission: {
-              state: "missing",
-              reason: "chrome_host_permission_missing",
-              code: "chrome_host_permission_missing",
-              origin: "https://example.com",
-              host: "example.com",
-              origins: ["https://example.com/*"],
-              message: "Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run."
-            },
-            chromeCapturePermission: {
-              state: "missing",
-              reason: "chrome_capture_permission_missing",
-              code: "chrome_capture_permission_missing",
-              origins: ["<all_urls>"],
-              message: "Chrome visible-tab capture requires <all_urls> permission or an activeTab user gesture."
-            },
-            contentScript: {
-              state: "blocked_by_chrome_host_permission",
-              reason: "chrome_host_permission_missing"
-            },
-            pageControl: {
-              state: "blocked_by_chrome_host_permission",
-              capabilities: {
-                screenshot: false,
-                domActions: false
-              },
-              reason: "Missing optional Chrome host permission for https://example.com/*. Grant site access before page diagnostics or actions can run."
+      onSendMessage: (message) => {
+        sentMessages.push(message);
+        if (message.type === PAGE_OBSERVE) {
+          return {
+            type: "skfiy.page.observe_result",
+            schemaVersion: 1,
+            requestId: message.requestId,
+            snapshot: {
+              url: "https://example.com/page",
+              title: "Example page",
+              visibleText: "Current page text for skfiy.",
+              observedAt: "2026-06-24T12:00:00.000Z"
             }
-          }
+          };
         }
+
+        if (message.type === NATIVE_MESSAGE) {
+          return {
+            result: "accepted",
+            schemaVersion: 1,
+            requestId: message.requestId,
+            syncStatus: {
+              state: "synced",
+              source: "native_host",
+              entryCount: 0,
+              nativeBridgeState: "connected",
+              nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+              nativeMessageType: PAGE_OBSERVE
+            }
+          };
+        }
+
+        return baseSnapshot;
       }
     });
     globalThis.chrome = mock.chrome;
@@ -631,7 +667,7 @@ describe("Chrome extension popup policy sync status", () => {
     await waitForAssertion(() => {
       expect(document.getElementById("grant-site-access-button").hidden).toBe(false);
       expect(document.getElementById("grant-site-access-button").textContent)
-        .toBe("Grant https://example.com/* + <all_urls>");
+        .toBe("Grant https://example.com/* + <all_urls> and observe");
     });
 
     document.getElementById("grant-site-access-button").click();
@@ -643,6 +679,31 @@ describe("Chrome extension popup policy sync status", () => {
       expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
         type: HOST_POLICY_SYNC_REFRESH
       }));
+      expect(sentMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: PAGE_OBSERVE,
+          schemaVersion: 1,
+          payload: expect.objectContaining({
+            mode: "current_page",
+            source: "popup_grant_observe"
+          })
+        }),
+        expect.objectContaining({
+          type: NATIVE_MESSAGE,
+          schemaVersion: 1,
+          payload: expect.objectContaining({
+            type: PAGE_OBSERVE,
+            payload: expect.objectContaining({
+              source: "popup_grant_observe",
+              pageObservation: expect.objectContaining({
+                title: "Example page",
+                visibleText: "Current page text for skfiy."
+              })
+            })
+          })
+        })
+      ]));
+      expect(document.getElementById("native-bridge-state").textContent).toBe("Connected");
     });
   });
 

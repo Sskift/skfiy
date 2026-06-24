@@ -230,12 +230,13 @@ temporary policy entry:
 ```
 
 If `Host permission` says `Missing optional Chrome host permission`, open the
-skfiy extension popup on the current tab and click **Grant site access**. When
-both the current origin and visible-tab capture are missing, the popup requests
-the site origin and `<all_urls>` capture permission in the same Chrome user
-gesture, then refreshes policy diagnostics. On `chrome://`, `file://`, extension
-pages, or other non-HTTP pages, host permission can be `Not required for this
-page`, but structured page actions may still be unavailable.
+skfiy extension popup on the current tab and click **Grant ... and observe**.
+When both the current origin and visible-tab capture are missing, the popup
+requests the site origin and `<all_urls>` capture permission in the same Chrome
+user gesture, refreshes policy diagnostics, then observes the page and forwards
+Browser Context evidence through Native Messaging. On `chrome://`, `file://`,
+extension pages, or other non-HTTP pages, host permission can be `Not required
+for this page`, but structured page actions may still be unavailable.
 
 If screenshot readiness says Chrome capture permission is missing, the expected
 interim command result is:

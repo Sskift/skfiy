@@ -244,13 +244,13 @@ describe("readChromeControlState", () => {
       {
         id: "open-skfiy-chrome-popup",
         label: "Open skfiy Chrome popup",
-        detail: "Click Grant https://mew.bytedance.net/* + <all_urls>.",
+        detail: "Click Grant https://mew.bytedance.net/* + <all_urls> and observe.",
         tone: "warning"
       },
       {
         id: "observe-current-page",
         label: "Observe current page",
-        detail: "After granting access, click Observe current page in the popup.",
+        detail: "The popup observes the page automatically after access is granted.",
         tone: "neutral"
       }
     ]));
