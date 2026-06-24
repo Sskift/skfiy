@@ -29,6 +29,16 @@ const DASHBOARD_CHROME_CONTROL_SMOKE_ACTIONS = [
   { action: "scroll", dy: 600 }
 ];
 const DASHBOARD_MEMORY_SAFE_ENTRY = "User prefers concise Chinese updates.";
+const DASHBOARD_MEMORY_PRESSURE_ENTRY_A = [
+  "User wants skfiy dashboard work to preserve a dense Obsidian vault feeling with linked notes, prompt provenance, memory review traces, browser context evidence, and provider boundaries visible together.",
+  "They prefer compact operational surfaces over landing-page style layouts, and expect each durable preference to remain inspectable before it shapes future provider prompts.",
+  "When space gets tight, skfiy should show pressure clearly instead of silently dropping useful taste, workflow, or verification habits."
+].join(" ");
+const DASHBOARD_MEMORY_PRESSURE_ENTRY_B = [
+  "User expects personalization to accumulate across repeated agent conversations without becoming hidden magic.",
+  "Dashboard memory should show what skfiy learned, why it was learned, whether it is pending approval or prompt-safe, and how close the local memory file is to its budget before pruning or review is needed.",
+  "The operator view should make review, forget, approve, and prompt-source decisions feel local-first and auditable."
+].join(" ");
 const DASHBOARD_MEMORY_SENSITIVE_ENTRY = "User token=secret should be removable without echo.";
 const DASHBOARD_MEMORY_AGENT_ENTRY = "For dashboard work, prefer dense Obsidian-like knowledge surfaces.";
 const DASHBOARD_MEMORY_PENDING_ENTRY = "User wants memory writes reviewed before becoming durable.";
@@ -362,6 +372,7 @@ async function main() {
       const learningLoopItems = Array.from(document.querySelectorAll('[aria-label="Learning loop"] li'));
       const promptStackItems = Array.from(document.querySelectorAll('[aria-label="Prompt stack"] li'));
       const promptSourceLedgerItems = Array.from(document.querySelectorAll('[aria-label="Prompt source ledger"] li'));
+      const memoryPressureLedgerItems = promptSourceLedgerItems.filter((item) => /memory pressure/i.test(item.textContent ?? ""));
       const lensButtons = Array.from(document.querySelectorAll('[aria-label="Vault lens"] button'));
       const lensSummary = document.querySelector('[aria-label="Vault lens summary"]');
       const vaultSearchInput = document.querySelector('[aria-label="Vault search"]');
@@ -485,6 +496,7 @@ async function main() {
         learningLoopTexts: learningLoopItems.map((item) => item.textContent),
         promptStackTexts: promptStackItems.map((item) => item.textContent),
         promptSourceLedgerTexts: promptSourceLedgerItems.map((item) => item.textContent),
+        memoryPressureLedgerTexts: memoryPressureLedgerItems.map((item) => item.textContent),
         promptProvenanceTexts: promptProvenanceItems.map((item) => item.textContent),
         visualDesignContract,
         personalSkillTexts: nodeItems
@@ -618,6 +630,9 @@ async function main() {
     && dom.promptStackTexts.some((text) => typeof text === "string" && text.includes("Background Agent"))
     && dom.promptSourceLedgerCount >= 5
     && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Memory"))
+    && Array.isArray(dom.memoryPressureLedgerTexts)
+    && dom.memoryPressureLedgerTexts.some((text) => typeof text === "string" && text.includes("memory pressure warning"))
+    && dom.memoryPressureLedgerTexts.some((text) => typeof text === "string" && text.includes("User preferences"))
     && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Pending memory"))
     && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("review gated"))
     && dom.promptSourceLedgerTexts.some((text) => typeof text === "string" && text.includes("Browser Context"))
@@ -845,6 +860,10 @@ async function seedPersonalMemoryFixture(homeDir) {
   await writeFile(userMemoryPath, [
     DASHBOARD_MEMORY_SAFE_ENTRY,
     "---",
+    DASHBOARD_MEMORY_PRESSURE_ENTRY_A,
+    "---",
+    DASHBOARD_MEMORY_PRESSURE_ENTRY_B,
+    "---",
     DASHBOARD_MEMORY_SENSITIVE_ENTRY,
     ""
   ].join("\n"), "utf8");
@@ -871,7 +890,7 @@ async function seedPersonalMemoryFixture(homeDir) {
     sessionMemoryPath,
     personalSkillSettingsPath,
     pendingMemoryPath,
-    seededUserEntries: 2,
+    seededUserEntries: 4,
     seededAgentEntries: 1,
     seededSessionEntries: sessions.length,
     seededPendingWrites: 1

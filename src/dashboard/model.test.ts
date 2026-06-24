@@ -57,6 +57,40 @@ describe("readKnowledgeGraph", () => {
       expect.objectContaining({ from: "alert:screen-recording-missing", to: "computer-use", label: "blocked by" })
     ]));
   });
+
+  it("surfaces high memory pressure as a warning graph node", () => {
+    const graph = readKnowledgeGraph({
+      ...createSnapshot(),
+      personalMemory: {
+        ...createSnapshot().personalMemory!,
+        usage: {
+          user: {
+            usedChars: 1_210,
+            limitChars: 1_375,
+            percent: 88
+          },
+          agent: {
+            usedChars: 320,
+            limitChars: 2_200,
+            percent: 14
+          }
+        }
+      }
+    });
+
+    expect(graph.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "memory:user",
+        tone: "warning",
+        detail: expect.stringContaining("88% - 1,210/1,375 chars")
+      }),
+      expect.objectContaining({
+        id: "memory:agent",
+        tone: "success",
+        detail: expect.stringContaining("14% - 320/2,200 chars")
+      })
+    ]));
+  });
 });
 
 function createSnapshot(): DashboardSnapshot {

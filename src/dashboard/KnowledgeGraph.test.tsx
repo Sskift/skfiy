@@ -316,6 +316,40 @@ describe("KnowledgeGraph", () => {
     ]);
   });
 
+  it("shows memory pressure in the prompt source ledger", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        {
+          id: "memory:user",
+          label: "User preferences",
+          kind: "memory",
+          tone: "warning",
+          detail: "4 entries · 88% - 1,210/1,375 chars · User prefers concise Chinese updates."
+        },
+        {
+          id: "memory:agent",
+          label: "Agent operating notes",
+          kind: "memory",
+          tone: "success",
+          detail: "1 entries · 14% - 320/2,200 chars · Verify packaged smoke evidence."
+        },
+        { id: "provider:hermes", label: "Hermes", kind: "provider", tone: "success", detail: "Hermes assistant is selected." }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:hermes", label: "injects prompt" },
+        { from: "memory:agent", to: "provider:hermes", label: "guides behavior" }
+      ]}
+    />);
+
+    const ledger = screen.getByRole("list", { name: "Prompt source ledger" });
+    const memoryEntry = within(ledger).getByText("Memory").closest("li");
+
+    expect(memoryEntry).toHaveAttribute("data-status", "pending");
+    expect(memoryEntry).toHaveTextContent("memory pressure warning");
+    expect(memoryEntry).toHaveTextContent("User preferences 88% - 1,210/1,375 chars");
+    expect(memoryEntry).toHaveTextContent("Agent operating notes 14% - 320/2,200 chars");
+  });
+
   it("shows prompt provenance trails for the focused note", () => {
     render(<KnowledgeGraph
       nodes={[

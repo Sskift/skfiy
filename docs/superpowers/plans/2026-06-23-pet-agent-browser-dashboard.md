@@ -1288,6 +1288,21 @@ Focused verification:
 npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 17: Surface memory pressure in prompt-source ledger**
+
+In `src/dashboard/model.ts`, `src/dashboard/KnowledgeGraph.tsx`, `scripts/smoke-dashboard-product.mjs`, `scripts/smoke-dashboard-plan.mjs`, and dashboard smoke tests:
+
+- Derive memory node tone from USER/AGENT memory usage so near-limit memory appears as warning and full memory appears blocked.
+- Show `memory pressure warning` or `memory pressure full` in the `Prompt source ledger` instead of treating all durable memory as simply ready.
+- Include USER/AGENT usage percentages and character counts in ledger items, matching the Hermes pattern of showing capacity in the prompt memory header.
+- Seed Dashboard smoke with enough safe USER memory to exercise warning-level pressure and require `memoryPressureLedgerTexts` evidence in the product smoke classifier.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/model.test.ts src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls

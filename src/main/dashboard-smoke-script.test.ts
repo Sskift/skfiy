@@ -76,6 +76,8 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("promptSourceLedgerCount");
     expect(source).toContain("promptSourceLedgerTexts");
     expect(source).toContain("promptSourceLedgerPanelUsesGradient");
+    expect(source).toContain("memoryPressureLedgerTexts");
+    expect(source).toContain("memory pressure warning");
     expect(source).toContain("Prompt provenance");
     expect(source).toContain("promptProvenanceCount");
     expect(source).toContain("promptProvenanceTexts");
@@ -800,13 +802,16 @@ describe("dashboard product smoke script", () => {
           "6Background AgentCodex"
         ],
         promptSourceLedgerTexts: [
-          "Memoryprompt-safe durableUser preferences, Agent operating notes",
+          "Memorymemory pressure warningUser preferences 88% - 1,210/1,375 chars, Agent operating notes 14% - 320/2,200 chars",
           "Pending memoryreview gatedPending user memory",
           "Recalled sessionsprompt-safe recallLatest session",
           "Personal skillsprompt-safe distilledConcise Chinese progress updates, Obsidian-style knowledge dashboard",
           "Working profileprompt-safe portableWorking profile",
           "Browser Contextblocked or gatedBrowser Context",
           "Background AgentreadyCodex"
+        ],
+        memoryPressureLedgerTexts: [
+          "Memorymemory pressure warningUser preferences 88% - 1,210/1,375 chars, Agent operating notes 14% - 320/2,200 chars"
         ],
         promptProvenanceTexts: [
           "Latest session -> teaches -> Memory review -> distills -> User preferences -> injects prompt -> Codex",
@@ -1380,7 +1385,15 @@ describe("dashboard product smoke script", () => {
       knowledgeGraphEvidence: {
         ...passedEvidence.knowledgeGraphEvidence,
         promptSourceLedgerCount: 0,
+        memoryPressureLedgerTexts: [],
         promptSourceLedgerTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        memoryPressureLedgerTexts: []
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

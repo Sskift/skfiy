@@ -466,7 +466,7 @@ function createPromptSourceLedgerEntries(
     ? edges.filter((edge) => edge.to === providerId)
     : edges;
   const entries: PromptSourceLedgerEntry[] = [];
-  const durableMemoryLabels = readPromptSourceLabels({
+  const durableMemoryNodes = readPromptSourceNodes({
     nodes,
     edges: promptProviderEdges,
     labels: new Set(["injects prompt", "guides behavior"]),
@@ -500,9 +500,9 @@ function createPromptSourceLedgerEntries(
 
   pushPromptSourceLedgerEntry(entries, {
     stage: "Memory",
-    status: "prompt-safe durable",
-    statusTone: "ready",
-    items: durableMemoryLabels
+    status: readMemoryLedgerStatus(durableMemoryNodes),
+    statusTone: readMemoryLedgerTone(durableMemoryNodes),
+    items: durableMemoryNodes.map(formatMemoryLedgerItem)
   });
   pushPromptSourceLedgerEntry(entries, {
     stage: "Pending memory",
@@ -551,6 +551,57 @@ function pushPromptSourceLedgerEntry(
   if (entry.items.length > 0) {
     entries.push(entry);
   }
+}
+
+function readPromptSourceNodes({
+  edges,
+  labels,
+  matchesNode,
+  nodes
+}: {
+  nodes: DashboardKnowledgeGraphNode[];
+  edges: DashboardKnowledgeGraphEdge[];
+  labels: Set<string>;
+  matchesNode: (node: DashboardKnowledgeGraphNode) => boolean;
+}): DashboardKnowledgeGraphNode[] {
+  const nodeIndex = new Map(nodes.map((node, index) => [node.id, index]));
+  const matchingNodeIds = new Set(edges
+    .filter((edge) => labels.has(edge.label))
+    .map((edge) => edge.from));
+
+  return nodes
+    .filter((node) => matchingNodeIds.has(node.id) && matchesNode(node))
+    .slice()
+    .sort((left, right) => (nodeIndex.get(left.id) ?? 0) - (nodeIndex.get(right.id) ?? 0));
+}
+
+function readMemoryLedgerStatus(nodes: DashboardKnowledgeGraphNode[]): string {
+  if (nodes.some((node) => node.tone === "danger")) {
+    return "memory pressure full";
+  }
+  if (nodes.some((node) => node.tone === "warning")) {
+    return "memory pressure warning";
+  }
+  return "prompt-safe durable";
+}
+
+function readMemoryLedgerTone(nodes: DashboardKnowledgeGraphNode[]): PromptSourceLedgerEntry["statusTone"] {
+  if (nodes.some((node) => node.tone === "danger")) {
+    return "blocked";
+  }
+  if (nodes.some((node) => node.tone === "warning")) {
+    return "pending";
+  }
+  return "ready";
+}
+
+function formatMemoryLedgerItem(node: DashboardKnowledgeGraphNode): string {
+  const usageLabel = readMemoryUsageLabel(node.detail);
+  return usageLabel ? `${node.label} ${usageLabel}` : node.label;
+}
+
+function readMemoryUsageLabel(detail: string | undefined): string | undefined {
+  return detail?.match(/\b\d+% - [\d,]+\/[\d,]+ chars\b/u)?.[0];
 }
 
 function readWorstStatus(nodes: DashboardKnowledgeGraphNode[]): string {

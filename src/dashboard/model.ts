@@ -196,7 +196,7 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       id: "memory:user",
       label: "User preferences",
       kind: "memory",
-      tone: "success",
+      tone: readMemoryUsageTone(personalMemory.usage?.user),
       detail: createMemoryNodeDetail(
         personalMemory.userEntryCount,
         personalMemory.recentUserEntries[0],
@@ -211,7 +211,7 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       id: "memory:agent",
       label: "Agent operating notes",
       kind: "memory",
-      tone: "success",
+      tone: readMemoryUsageTone(personalMemory.usage?.agent),
       detail: createMemoryNodeDetail(
         personalMemory.agentEntryCount,
         personalMemory.recentAgentEntries[0],
@@ -1240,6 +1240,21 @@ function createMemoryNodeDetail(
     : undefined;
   const countLabel = usageLabel ? `${count} entries · ${usageLabel}` : `${count} entries`;
   return sample ? `${countLabel} · ${sample}` : countLabel;
+}
+
+function readMemoryUsageTone(
+  usage: DashboardPersonalMemoryUsageBucket | undefined
+): Tone {
+  if (!usage) {
+    return "success";
+  }
+  if (usage.percent >= 95) {
+    return "danger";
+  }
+  if (usage.percent >= 75) {
+    return "warning";
+  }
+  return "success";
 }
 
 function createPendingMemoryNodeDetail(
