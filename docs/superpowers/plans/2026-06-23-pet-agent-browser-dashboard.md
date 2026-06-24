@@ -1292,7 +1292,7 @@ npx vitest run src/main/personal-memory-pending.test.ts src/main/personal-memory
 - Modify only when tests reveal real defects.
 - Create smoke artifacts under `.skfiy-smoke/` when commands support `--output`.
 
-- [ ] **Step 1: Run full unit and type gates**
+- [x] **Step 1: Run full unit and type gates**
 
 ```bash
 git diff --check
@@ -1306,7 +1306,7 @@ Expected:
 - Typecheck exits 0.
 - Vitest exits 0.
 
-- [ ] **Step 2: Build packaged app**
+- [x] **Step 2: Build packaged app**
 
 ```bash
 npm run build
@@ -1318,7 +1318,7 @@ Expected:
 - `dist/skfiy` exists.
 - Known pre-existing CSS `calc(100%-...)` warnings can be recorded but must not be introduced by new code.
 
-- [ ] **Step 3: Run product smoke gates**
+- [x] **Step 3: Run product smoke gates**
 
 ```bash
 npm run smoke:ui -- --output .skfiy-smoke/ui-product.json
@@ -1349,21 +1349,37 @@ Dashboard smoke now seeds an isolated personal memory fixture and must collect `
 
 If a smoke is blocked by local macOS permissions or Chrome environment, record the typed blocker and do not call the feature complete until the blocker is either resolved or explicitly accepted by the project owner.
 
+Validation evidence from 2026-06-24:
+
+- `git diff --check`, `npm run typecheck -- --pretty false`, and `npx vitest run --reporter=dot` exited 0. Vitest passed 108 files and 1022 tests; existing React `act(...)` warnings remained warnings only.
+- `npm run build` exited 0 and produced `dist/skfiy.app` plus `dist/skfiy`. Existing CSS minify warnings for `calc(100%-...)` remained build warnings only.
+- `.skfiy-smoke/ui-product.json` recorded `result: no-onboarding` because permissions were already granted; `assistantConversation`, `petDrag`, and `stopTurnBehavior` passed, and the real pet reply was `你好，我是 skfiy，很高兴见到你。`.
+- `.skfiy-smoke/cli-product-basic.json` recorded `result: passed` and `providerPromptContract.result: passed` for Codex, Claude Code, and Hermes. Claude Code uses the primary `--system-prompt` channel for the skfiy identity; Codex and Hermes receive the skfiy identity before user input in the bounded prompt/query. The contract also verifies memory, recalled sessions, Browser Context ordering, token redaction, Computer Use boundary text, and absence of dangerous Hermes/Codex flags such as `--oneshot` or `--yolo`.
+- `.skfiy-smoke/dashboard-product.json` recorded `result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`.
+- `./dist/skfiy status --json` reported packaged app, CLI, and helper installed; Screen Recording and Accessibility granted; desktop session controllable. It also reported current Chrome pageControl as `blocked_by_host_policy` on `mew-test.bytedance.net` with missing optional Chrome host and capture permissions.
+- `./dist/skfiy chrome extension-info --json` reported the unpacked extension directory available, Chrome setup as `manual-required`, and extension id as `unknown-until-loaded`.
+
+Typed blockers after this validation:
+
+- `chrome-page-control-not-ready`: the Chrome extension exists and the bridge has recent live connection evidence, but current page diagnostics/actions are blocked by host policy plus missing optional Chrome host/capture permissions. Do not call webpage-context answering feature complete until a real extension id is loaded, native host status is verified, host policy allows the target host, and optional Chrome permissions are granted.
+- `finder-ghostty-smoke-stale`: Dashboard readiness still sees stale Finder/Ghostty smoke artifacts whose last blockers were desktop preflight sleep/loginwindow. Rerun those app-specific smokes on an awake, unlocked desktop before claiming those app workflows freshly proven.
+- `release-artifact-older-than-head`: latest published alpha is older than current `main`; publish a fresh alpha after product acceptance.
+
 - [ ] **Step 6: Manual acceptance checklist**
 
-- Pet has no diamond marker.
-- Pet click does not move the pet.
-- Pet drag respects visible screen bounds at all four edges.
-- Pet settings show Background Agent Provider choices.
-- Selecting Codex changes the next background agent provider.
-- Pet settings show Hermes as a Background Agent Provider and its invocation does not use Hermes `--oneshot` or `--yolo`.
-- Repeated agent conversations can write durable user preferences to local personal memory.
-- Background Agent prompts include skfiy identity, personal memory, recalled sessions, and Browser Context in that order before the real user input.
-- Dashboard shows personal memory and session recall in an Obsidian-inspired knowledge graph/canvas surface.
-- Panic stop and `stopTurnBehavior` still surface `Task stopped` evidence.
-- Chrome extension state says whether page context is ready, blocked, stale, or missing.
-- Pet agent can answer using current webpage context when extension pageControl is ready.
-- Dashboard is visually clean and shows assistant, Computer Use, Chrome, current turn, latest blocker, and recent runtime evidence.
+- [x] Pet has no diamond marker.
+- [x] Pet click does not move the pet.
+- [x] Pet drag respects visible screen bounds at all four edges.
+- [x] Pet settings show Background Agent Provider choices.
+- [x] Selecting Codex changes the next background agent provider.
+- [x] Pet settings show Hermes as a Background Agent Provider and its invocation does not use Hermes `--oneshot` or `--yolo`.
+- [ ] Repeated agent conversations can write durable user preferences to local personal memory. Dashboard isolated memory mutation passed; real repeated-conversation reviewer still needs dogfood evidence.
+- [x] Background Agent prompts include skfiy identity, personal memory, recalled sessions, and Browser Context in that order before the real user input.
+- [x] Dashboard shows personal memory and session recall in an Obsidian-inspired knowledge graph/canvas surface.
+- [x] Panic stop and `stopTurnBehavior` still surface `Task stopped` evidence.
+- [x] Chrome extension state says whether page context is ready, blocked, stale, or missing.
+- [ ] Pet agent can answer using current webpage context when extension pageControl is ready. Blocked by `chrome-page-control-not-ready`.
+- [ ] Dashboard is visually clean and shows assistant, Computer Use, Chrome, current turn, latest blocker, and recent runtime evidence. Product smoke passed; final visual acceptance remains pending.
 
 - [ ] **Step 7: Final commit or PR**
 
