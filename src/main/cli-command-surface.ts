@@ -4127,9 +4127,10 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
   };
 
   if (!helperExists) {
-    const nativeHost = await readNativeHostStatusForStatus(input);
     const extensionConnection = await readChromeExtensionConnectionForStatus(input);
-    const hostPolicy = await readChromeHostPolicyForStatus(input);
+    const effectiveInput = createStatusReaderInputWithInferredChromeExtensionIds(input, extensionConnection);
+    const nativeHost = await readNativeHostStatusForStatus(effectiveInput);
+    const hostPolicy = await readChromeHostPolicyForStatus(effectiveInput);
     const [dashboard, moneyRun] = await Promise.all([
       readDashboardStatus(input.dashboardUrl, input.homeDir),
       readMoneyRunStatusForStatus()
@@ -4155,9 +4156,10 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
     helperPath: input.helperPath
   });
 
-  const nativeHost = await readNativeHostStatusForStatus(input);
   const extensionConnection = await readChromeExtensionConnectionForStatus(input);
-  const hostPolicy = await readChromeHostPolicyForStatus(input);
+  const effectiveInput = createStatusReaderInputWithInferredChromeExtensionIds(input, extensionConnection);
+  const nativeHost = await readNativeHostStatusForStatus(effectiveInput);
+  const hostPolicy = await readChromeHostPolicyForStatus(effectiveInput);
   const [permissions, desktopSession, dashboard, moneyRun] = await Promise.all([
     readPermissionStatesForStatus(desktopHelper),
     readDesktopSessionForStatus(desktopHelper),
@@ -4225,6 +4227,38 @@ async function readDesktopSessionForStatus(
       reason: readErrorMessage(error)
     };
   }
+}
+
+function createStatusReaderInputWithInferredChromeExtensionIds(
+  input: StatusReaderInput,
+  extensionConnection: ChromeExtensionConnectionStatus | undefined
+): StatusReaderInput {
+  if (input.extensionIds.length > 0) {
+    return input;
+  }
+
+  const extensionIds = readChromeExtensionIdsFromConnection(extensionConnection);
+
+  return extensionIds.length > 0
+    ? { ...input, extensionIds }
+    : input;
+}
+
+function readChromeExtensionIdsFromConnection(
+  extensionConnection: ChromeExtensionConnectionStatus | undefined
+): string[] {
+  const candidates = [
+    extensionConnection?.launchOrigin,
+    extensionConnection?.latestCommand?.launchOrigin
+  ];
+
+  return dedupeStrings(candidates.map(readChromeExtensionIdFromLaunchOrigin).filter(Boolean));
+}
+
+function readChromeExtensionIdFromLaunchOrigin(launchOrigin: string | undefined): string {
+  const match = launchOrigin?.match(/^chrome-extension:\/\/([a-p]{32})\/$/);
+
+  return match?.[1] ?? "";
 }
 
 async function readNativeHostStatusForStatus(

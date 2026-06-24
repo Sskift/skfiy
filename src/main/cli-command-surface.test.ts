@@ -2010,6 +2010,90 @@ describe("CLI command surface", () => {
     expect(stderr).toEqual([]);
   });
 
+  it("infers the Chrome extension id from the latest heartbeat when status is run without an explicit id", async () => {
+    const rootDir = createTempRoot();
+    const homeDir = createTempRoot();
+    const extensionId = "abcdefghijklmnopabcdefghijklmnop";
+    const cliShimPath = path.join(rootDir, "dist", "skfiy");
+    const manifestPath = path.join(
+      homeDir,
+      "Library",
+      "Application Support",
+      "Google",
+      "Chrome",
+      "NativeMessagingHosts",
+      "com.sskift.skfiy.json"
+    );
+    const heartbeatPath = path.join(
+      homeDir,
+      "Library",
+      "Application Support",
+      "skfiy",
+      "chrome-extension-connection.json"
+    );
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+
+    try {
+      mkdirSync(path.dirname(cliShimPath), { recursive: true });
+      writeFileSync(cliShimPath, "#!/usr/bin/env node\n");
+      mkdirSync(path.dirname(manifestPath), { recursive: true });
+      writeFileSync(manifestPath, `${JSON.stringify({
+        name: "com.sskift.skfiy",
+        description: "skfiy desktop Computer Use bridge",
+        path: cliShimPath,
+        type: "stdio",
+        allowed_origins: [`chrome-extension://${extensionId}/`]
+      }, null, 2)}\n`);
+      mkdirSync(path.dirname(heartbeatPath), { recursive: true });
+      writeFileSync(heartbeatPath, `${JSON.stringify({
+        schemaVersion: 1,
+        hostName: "com.sskift.skfiy",
+        observedAt: "2026-06-20T00:00:00.000Z",
+        launchOrigin: `chrome-extension://${extensionId}/`,
+        messageType: "skfiy.page.observe",
+        requestId: "page-control-health-tab_updated-1"
+      }, null, 2)}\n`);
+
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir,
+        homeDir,
+        generatedAt: "2026-06-20T00:00:10.000Z",
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const output = JSON.parse(stdout.join(""));
+
+      expect(output.nativeHost).toMatchObject({
+        state: "installed",
+        manifestPath,
+        cliShimPath,
+        extensionIds: [extensionId],
+        allowedOrigins: [`chrome-extension://${extensionId}/`]
+      });
+      expect(output.extension).toMatchObject({
+        nativeHostState: "installed",
+        connection: {
+          launchOrigin: `chrome-extension://${extensionId}/`
+        },
+        pageControl: {
+          nextAction: expect.stringContaining(`--extension-id ${extensionId}`)
+        }
+      });
+      expect(output.readiness.checks.extension).toMatchObject({
+        nativeHostState: "installed",
+        extensionIds: [extensionId]
+      });
+      expect(JSON.stringify(output)).not.toContain("--extension-id <extension-id>");
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
   it("summarizes runtime snapshot and dashboard smoke evidence in JSON and text status", async () => {
     const rootDir = createTempRoot();
     const homeDir = path.join(rootDir, "home");
