@@ -285,6 +285,7 @@ describe("assistant agent provider", () => {
     expect(prompt).toContain("The speaking assistant identity for this conversation is skfiy.");
     expect(prompt).toContain("Treat Codex, Claude Code, and Hermes as internal backend implementation details.");
     expect(prompt).toContain("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
+    expect(prompt).toContain("Speak from skfiy's first-person perspective");
     if (label === "Claude Code") {
       expect(userPrompt).not.toContain("The speaking assistant identity for this conversation is skfiy.");
       expect(userPrompt).toContain("User: 你是谁");
@@ -443,6 +444,7 @@ describe("assistant agent provider", () => {
 
     expect(systemPrompt).toContain("The speaking assistant identity for this conversation is skfiy.");
     expect(systemPrompt).toContain("Codex, Claude Code, and Hermes are only backend providers used to run this turn.");
+    expect(systemPrompt).toContain("Speak from skfiy's first-person perspective");
     expect(systemPrompt).toContain("When asked who you are, answer as skfiy.");
     expect(systemPrompt).not.toContain("User: 你是谁");
     expect(args).not.toContain("--append-system-prompt");

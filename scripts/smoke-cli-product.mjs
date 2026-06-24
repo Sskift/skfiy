@@ -322,7 +322,8 @@ function createProviderPromptContract(
   const userIndex = prompt.indexOf(`User: ${userInput}`);
   const providerIdentityInternalized = identityPrompt.includes("The speaking assistant identity for this conversation is skfiy.")
     && identityPrompt.includes("Treat Codex, Claude Code, and Hermes as internal backend implementation details.")
-    && identityPrompt.includes("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
+    && identityPrompt.includes("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.")
+    && identityPrompt.includes("Speak from skfiy's first-person perspective");
   const providerBoundaryPresent = identityPrompt.includes("Codex, Claude Code, and Hermes are only backend providers")
     && identityPrompt.includes("When asked who you are, answer as skfiy.")
     && identityPrompt.includes("Do not introduce yourself as Codex, Claude Code, Hermes")
@@ -350,6 +351,7 @@ function createProviderPromptContract(
     usesSystemIdentityPrompt: settings.mode === "claude-code"
       ? systemPrompt.includes("The speaking assistant identity for this conversation is skfiy.")
         && systemPrompt.includes("Codex, Claude Code, and Hermes are only backend providers used to run this turn.")
+        && systemPrompt.includes("Speak from skfiy's first-person perspective")
         && systemPrompt.includes("When asked who you are, answer as skfiy.")
         && !systemPrompt.includes(`User: ${userInput}`)
       : undefined,
