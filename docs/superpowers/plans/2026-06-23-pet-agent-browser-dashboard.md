@@ -1120,6 +1120,20 @@ Focused verification:
 npx vitest run src/main/personal-skills.test.ts src/main/assistant-agent.test.ts src/main/dashboard-data.test.ts src/dashboard/model.test.ts src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 9: Add vault lens and focused neighborhood**
+
+In `src/dashboard/KnowledgeGraph.tsx`, `src/dashboard/styles.css`, `scripts/smoke-dashboard-product.mjs`, and `scripts/smoke-dashboard-plan.mjs`:
+
+- Add a `Vault lens` toolbar that filters the graph and vault notes by node kind while preserving the selected note's cross-kind backlinks.
+- Add a `Focused neighborhood` list so the selected note shows adjacent nodes and relation direction, making session/memory/skill/provider links explorable instead of static.
+- Extend dashboard smoke evidence so screenshot probes must collect `vaultLensCount`, `vaultLensTexts`, `focusedNeighborhoodCount`, and `focusedNeighborhoodTexts`.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls

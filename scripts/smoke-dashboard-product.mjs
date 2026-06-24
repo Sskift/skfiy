@@ -358,6 +358,8 @@ async function main() {
       const vaultNoteItems = Array.from(document.querySelectorAll('[aria-label="Vault notes"] li'));
       const backlinkItems = Array.from(document.querySelectorAll('[aria-label="Vault backlinks"] li'));
       const learningLoopItems = Array.from(document.querySelectorAll('[aria-label="Learning loop"] li'));
+      const lensButtons = Array.from(document.querySelectorAll('[aria-label="Vault lens"] button'));
+      const lensSummary = document.querySelector('[aria-label="Vault lens summary"]');
       const focusedButton = document.querySelector('[aria-label="Vault notes"] button[aria-label="Open note User preferences.md"]')
         ?? document.querySelector('[aria-label="Vault notes"] button[aria-label^="Open note"]');
       focusedButton?.click();
@@ -366,6 +368,7 @@ async function main() {
       focusedNote?.scrollIntoView({ block: "center", inline: "nearest" });
       await new Promise((resolve) => setTimeout(resolve, 60));
       const focusedBacklinkItems = Array.from(document.querySelectorAll('[aria-label="Focused note backlinks"] li'));
+      const focusedNeighborhoodItems = Array.from(document.querySelectorAll('[aria-label="Focused neighborhood"] li'));
       const learningLoopList = document.querySelector('[aria-label="Learning loop"]');
       const rects = nodeItems.map((item) => {
         const rect = item.getBoundingClientRect();
@@ -398,6 +401,9 @@ async function main() {
         focusedNoteFound: Boolean(focusedNote),
         focusedNoteTitle: focusedNote?.querySelector("h4")?.textContent ?? "",
         focusedBacklinkCount: focusedBacklinkItems.length,
+        vaultLensCount: lensButtons.length,
+        vaultLensSummary: lensSummary?.textContent ?? "",
+        focusedNeighborhoodCount: focusedNeighborhoodItems.length,
         backlinkCount: backlinkItems.length,
         learningLoopCount: learningLoopItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
@@ -406,7 +412,9 @@ async function main() {
         nodeTexts: nodeItems.map((item) => item.textContent),
         linkTexts: linkItems.map((item) => item.textContent),
         vaultNoteTexts: vaultNoteItems.map((item) => item.textContent),
+        vaultLensTexts: lensButtons.map((item) => item.textContent),
         focusedBacklinkTexts: focusedBacklinkItems.map((item) => item.textContent),
+        focusedNeighborhoodTexts: focusedNeighborhoodItems.map((item) => item.textContent),
         learningLoopTexts: learningLoopItems.map((item) => item.textContent),
         personalSkillTexts: nodeItems
           .filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? ""))
@@ -427,7 +435,7 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }

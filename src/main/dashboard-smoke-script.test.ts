@@ -48,6 +48,10 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("vaultNoteCount");
     expect(source).toContain("focusedNoteFound");
     expect(source).toContain("focusedBacklinkCount");
+    expect(source).toContain("Vault lens");
+    expect(source).toContain("vaultLensCount");
+    expect(source).toContain("Focused neighborhood");
+    expect(source).toContain("focusedNeighborhoodCount");
     expect(planSource).toContain("Learning loop");
     expect(source).toContain("learningLoopCount");
     expect(source).toContain("learningLoopTexts");
@@ -703,6 +707,9 @@ describe("dashboard product smoke script", () => {
         focusedNoteFound: true,
         focusedNoteTitle: "User preferences.md",
         focusedBacklinkCount: 1,
+        vaultLensCount: 7,
+        vaultLensSummary: "Showing 7 of 7 notes",
+        focusedNeighborhoodCount: 1,
         backlinkCount: 5,
         learningLoopCount: 4,
         sessionNodeCount: 2,
@@ -739,12 +746,24 @@ describe("dashboard product smoke script", () => {
           "Concise Chinese progress updatesskillcommunication",
           "Obsidian-style knowledge dashboardskilldashboard"
         ],
+        vaultLensTexts: [
+          "All 7",
+          "Memory 1",
+          "Skill 2",
+          "Session 1",
+          "Provider 1",
+          "Browser 1",
+          "Computer Use 1"
+        ],
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 1injects prompt -> Codex",
           "Latest session.mdsessionBacklinks 2recalls context -> CodexBrowser Context -> observed in"
         ],
         focusedBacklinkTexts: [
           "injects prompt -> Codex"
+        ],
+        focusedNeighborhoodTexts: [
+          "Codexinjects promptoutgoing"
         ],
         result: "passed"
       },
@@ -1197,6 +1216,22 @@ describe("dashboard product smoke script", () => {
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        vaultLensCount: 0,
+        vaultLensTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        focusedNeighborhoodCount: 0,
+        focusedNeighborhoodTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
       shellResponse: {
         status: 200,
         body: '<!doctype html><html lang="en"><head><title>skfiy dashboard</title><script type="module" crossorigin src="./assets/dashboard-test.js"></script></head><body><div id="dashboard-root"></div></body></html>'
@@ -1232,8 +1267,10 @@ describe("dashboard product smoke script", () => {
           "Browser Context",
           "injects prompt",
           "recalls context",
+          "Vault lens",
           "Vault notes",
           "Focused note",
+          "Focused neighborhood",
           "Vault backlinks",
           "Learning loop",
           "Recent session recall",
@@ -1273,8 +1310,10 @@ describe("dashboard product smoke script", () => {
           "Browser Context",
           "injects prompt",
           "recalls context",
+          "Vault lens",
           "Vault notes",
           "Focused note",
+          "Focused neighborhood",
           "Vault backlinks",
           "Learning loop",
           "Recent session recall",

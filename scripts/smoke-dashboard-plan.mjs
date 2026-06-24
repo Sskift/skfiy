@@ -24,8 +24,10 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Browser Context",
   "injects prompt",
   "recalls context",
+  "Vault lens",
   "Vault notes",
   "Focused note",
+  "Focused neighborhood",
   "Vault backlinks",
   "Learning loop",
   "Recent session recall",
@@ -257,6 +259,12 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.focusedNoteTitle.endsWith(".md")
     && Number.isInteger(evidence?.focusedBacklinkCount)
     && evidence.focusedBacklinkCount >= 1
+    && Number.isInteger(evidence?.vaultLensCount)
+    && evidence.vaultLensCount >= 4
+    && typeof evidence?.vaultLensSummary === "string"
+    && evidence.vaultLensSummary.includes("Showing")
+    && Number.isInteger(evidence?.focusedNeighborhoodCount)
+    && evidence.focusedNeighborhoodCount >= 1
     && Number.isInteger(evidence?.backlinkCount)
     && evidence.backlinkCount >= 2
     && Number.isInteger(evidence?.learningLoopCount)
@@ -269,9 +277,13 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Array.isArray(evidence?.nodeTexts)
     && Array.isArray(evidence?.linkTexts)
     && Array.isArray(evidence?.vaultNoteTexts)
+    && Array.isArray(evidence?.vaultLensTexts)
     && Array.isArray(evidence?.backlinkTexts)
+    && Array.isArray(evidence?.focusedNeighborhoodTexts)
     && Array.isArray(evidence?.learningLoopTexts)
     && Array.isArray(evidence?.personalSkillTexts)
+    && evidence.vaultLensTexts.some((text) => typeof text === "string" && text.includes("All"))
+    && evidence.vaultLensTexts.some((text) => typeof text === "string" && text.includes("Skill"))
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes(".md"))
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Backlinks"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Concise Chinese progress updates"))
@@ -279,6 +291,12 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("recalls context"))
     && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt"))
+    && evidence.focusedNeighborhoodTexts.some((text) => typeof text === "string" && (
+      text.includes("injects prompt")
+      || text.includes("guides prompt")
+      || text.includes("distills")
+      || text.includes("recalls context")
+    ))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("teaches"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("distills"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))

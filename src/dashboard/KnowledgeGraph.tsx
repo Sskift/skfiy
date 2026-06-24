@@ -14,6 +14,14 @@ interface GraphPoint {
   y: number;
 }
 
+type VaultLensKind = DashboardKnowledgeGraphNode["kind"] | "all";
+
+interface VaultLensOption {
+  kind: VaultLensKind;
+  label: string;
+  count: number;
+}
+
 const GRAPH_WIDTH = 760;
 const GRAPH_HEIGHT = 430;
 const KIND_ANCHORS: Record<DashboardKnowledgeGraphNode["kind"], GraphPoint> = {
@@ -48,17 +56,31 @@ const ALERT_POSITIONS: GraphPoint[] = [
 
 export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(() => nodes[0]?.id ?? null);
-  const positions = createGraphPositions(nodes);
+  const [activeLens, setActiveLens] = useState<VaultLensKind>("all");
+  const lensOptions = createVaultLensOptions(nodes);
+  const filteredNodes = activeLens === "all"
+    ? nodes
+    : nodes.filter((node) => node.kind === activeLens);
+  const filteredNodeIds = new Set(filteredNodes.map((node) => node.id));
+  const positions = createGraphPositions(filteredNodes);
   const visibleEdges = edges.filter((edge) => positions.has(edge.from) && positions.has(edge.to));
-  const backlinks = visibleEdges.map((edge) => ({
+  const relationEdges = edges.filter((edge) => filteredNodeIds.has(edge.from) || filteredNodeIds.has(edge.to));
+  const backlinks = relationEdges.map((edge) => ({
     ...edge,
     fromLabel: readNodeLabel(edge.from, nodes),
     toLabel: readNodeLabel(edge.to, nodes)
   }));
-  const learningLoopSteps = createLearningLoopSteps(visibleEdges, nodes);
-  const vaultNotes = createVaultNotes(nodes, backlinks);
+  const learningLoopSteps = createLearningLoopSteps(activeLens === "all" ? visibleEdges : relationEdges, nodes);
+  const vaultNotes = createVaultNotes(filteredNodes, backlinks);
   const selectedNote = vaultNotes.find((note) => note.id === selectedNodeId) ?? vaultNotes[0] ?? null;
   const selectedId = selectedNote?.id ?? null;
+  const focusedNeighborhood = createFocusedNeighborhood(selectedId, nodes, edges);
+  const setLens = (kind: VaultLensKind) => {
+    setActiveLens(kind);
+    setSelectedNodeId(kind === "all"
+      ? nodes[0]?.id ?? null
+      : nodes.find((node) => node.kind === kind)?.id ?? null);
+  };
 
   return (
     <section
@@ -66,6 +88,23 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
       className="skfiy-knowledge-graph"
       role="region"
     >
+      <div className="skfiy-vault-lens">
+        <div className="skfiy-vault-lens-controls" role="toolbar" aria-label="Vault lens">
+          {lensOptions.map((option) => (
+            <button
+              key={option.kind}
+              type="button"
+              aria-pressed={activeLens === option.kind}
+              onClick={() => setLens(option.kind)}
+            >
+              {`${option.label} ${option.count}`}
+            </button>
+          ))}
+        </div>
+        <p role="status" aria-label="Vault lens summary">
+          {`Showing ${filteredNodes.length} of ${nodes.length} notes`}
+        </p>
+      </div>
       <div className="skfiy-knowledge-graph-canvas">
         <svg viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`} aria-label="Knowledge graph canvas">
           <defs>
@@ -91,7 +130,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
               </g>
             );
           })}
-          {nodes.map((node) => {
+          {filteredNodes.map((node) => {
             const point = positions.get(node.id) as GraphPoint;
             const radius = NODE_RADIUS[node.kind];
 
@@ -126,7 +165,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
         <div className="skfiy-knowledge-panel skfiy-knowledge-panel--nodes">
           <h3>Nodes</h3>
           <ul aria-label="Knowledge graph nodes">
-            {nodes.map((node) => (
+            {filteredNodes.map((node) => (
               <li key={node.id}>
                 <strong>{node.label}</strong>
                 <span>{node.kind}</span>
@@ -170,6 +209,20 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
               ) : (
                 <p>No backlinks yet.</p>
               )}
+              {focusedNeighborhood.length > 0 ? (
+                <>
+                  <strong>Focused neighborhood</strong>
+                  <ul aria-label="Focused neighborhood" className="skfiy-focused-neighborhood">
+                    {focusedNeighborhood.map((neighbor, index) => (
+                      <li key={`${selectedNote.id}-${neighbor.id}-${neighbor.direction}-${neighbor.relation}-${index}`}>
+                        <strong>{neighbor.label}</strong>
+                        <span>{neighbor.relation}</span>
+                        <small>{neighbor.direction}</small>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
             </article>
           ) : (
             <p>No vault notes yet.</p>
@@ -263,6 +316,30 @@ function createLearningLoopSteps(
     .map((edge) => `${readNodeLabel(edge.from, nodes)} -> ${edge.label} -> ${readNodeLabel(edge.to, nodes)}`);
 }
 
+function createVaultLensOptions(nodes: DashboardKnowledgeGraphNode[]): VaultLensOption[] {
+  const countByKind = new Map<DashboardKnowledgeGraphNode["kind"], number>();
+  nodes.forEach((node) => {
+    countByKind.set(node.kind, (countByKind.get(node.kind) ?? 0) + 1);
+  });
+
+  return [
+    { kind: "all", label: "All", count: nodes.length },
+    ...Array.from(countByKind.entries()).map(([kind, count]) => ({
+      kind,
+      label: formatLensLabel(kind),
+      count
+    }))
+  ];
+}
+
+function formatLensLabel(kind: DashboardKnowledgeGraphNode["kind"]): string {
+  if (kind === "computer-use") {
+    return "Computer Use";
+  }
+
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
+}
+
 interface VaultNote {
   id: string;
   fileName: string;
@@ -290,6 +367,36 @@ function createVaultNotes(
       relations
     };
   });
+}
+
+interface FocusedNeighbor {
+  id: string;
+  label: string;
+  relation: string;
+  direction: "incoming" | "outgoing";
+}
+
+function createFocusedNeighborhood(
+  selectedId: string | null,
+  nodes: DashboardKnowledgeGraphNode[],
+  edges: DashboardKnowledgeGraphEdge[]
+): FocusedNeighbor[] {
+  if (!selectedId) {
+    return [];
+  }
+
+  return edges
+    .filter((edge) => edge.from === selectedId || edge.to === selectedId)
+    .map((edge) => {
+      const direction = edge.to === selectedId ? "incoming" : "outgoing";
+      const neighborId = direction === "incoming" ? edge.from : edge.to;
+      return {
+        id: neighborId,
+        label: readNodeLabel(neighborId, nodes),
+        relation: edge.label,
+        direction
+      };
+    });
 }
 
 function createGraphPositions(nodes: DashboardKnowledgeGraphNode[]): Map<string, GraphPoint> {
