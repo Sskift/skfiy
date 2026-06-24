@@ -290,6 +290,11 @@ describe("DashboardApp", () => {
     expect(within(graph).getByRole("list", { name: "Vault notes" })).toBeInTheDocument();
     expect(within(graph).getByText("User preferences.md")).toBeInTheDocument();
     expect(within(graph).getByText("Recent session 2.md")).toBeInTheDocument();
+    fireEvent.click(within(graph).getByRole("button", { name: "Open note User preferences.md" }));
+    const focusedNote = within(graph).getByRole("region", { name: "Focused note" });
+    expect(within(focusedNote).getByRole("heading", { name: "User preferences.md" })).toBeInTheDocument();
+    expect(within(focusedNote).getByText(/2% - 37\/1,375 chars/u)).toBeInTheDocument();
+    expect(within(focusedNote).getByText("injects prompt -> Codex")).toBeInTheDocument();
 
     const computerUse = screen.getByRole("region", { name: "Computer Use" });
     expect(within(computerUse).getByRole("heading", { name: "Computer use" })).toBeInTheDocument();

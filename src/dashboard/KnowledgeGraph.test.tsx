@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { KnowledgeGraph } from "./KnowledgeGraph";
 
@@ -73,5 +73,32 @@ describe("KnowledgeGraph", () => {
     expect(within(notes).getByText("Latest session.md")).toBeInTheDocument();
     expect(within(notes).getByText("injects prompt -> Codex")).toBeInTheDocument();
     expect(within(notes).getAllByText(/Backlinks /u).length).toBeGreaterThan(0);
+  });
+
+  it("focuses a selected vault note with backlinks and detail", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries · short Chinese updates" },
+        { id: "provider:codex", label: "Codex", kind: "provider", tone: "success", detail: "Codex assistant is selected." },
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral", detail: "Codex: summarize dashboard" }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:codex", label: "injects prompt" },
+        { from: "provider:codex", to: "session:latest", label: "answered" }
+      ]}
+    />);
+
+    fireEvent.click(within(screen.getByRole("list", { name: "Vault notes" }))
+      .getByRole("button", { name: "Open note Codex.md" }));
+
+    const focusedNote = screen.getByRole("region", { name: "Focused note" });
+    expect(within(focusedNote).getByRole("heading", { name: "Codex.md" })).toBeInTheDocument();
+    expect(within(focusedNote).getByText("provider")).toBeInTheDocument();
+    expect(within(focusedNote).getByText("Codex assistant is selected.")).toBeInTheDocument();
+    expect(within(focusedNote).getByText("Backlinks 2")).toBeInTheDocument();
+
+    const backlinks = within(focusedNote).getByRole("list", { name: "Focused note backlinks" });
+    expect(within(backlinks).getByText("User preferences -> injects prompt")).toBeInTheDocument();
+    expect(within(backlinks).getByText("answered -> Latest session")).toBeInTheDocument();
   });
 });

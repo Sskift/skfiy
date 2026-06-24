@@ -46,7 +46,10 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("knowledgeGraphEvidence");
     expect(source).toContain("dashboard-knowledge-graph");
     expect(source).toContain("vaultNoteCount");
+    expect(source).toContain("focusedNoteFound");
+    expect(source).toContain("focusedBacklinkCount");
     expect(planSource).toContain("Vault notes");
+    expect(planSource).toContain("Focused note");
     expect(source).toContain("Vault backlinks");
     expect(source).toContain("backlinkCount");
     expect(planSource).toContain("Recent session recall");
@@ -689,6 +692,9 @@ describe("dashboard product smoke script", () => {
         nodeCount: 6,
         linkCount: 5,
         vaultNoteCount: 6,
+        focusedNoteFound: true,
+        focusedNoteTitle: "User preferences.md",
+        focusedBacklinkCount: 1,
         backlinkCount: 5,
         sessionNodeCount: 2,
         fallbackTextOverlap: false,
@@ -712,6 +718,9 @@ describe("dashboard product smoke script", () => {
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 1injects prompt -> Codex",
           "Latest session.mdsessionBacklinks 2recalls context -> CodexBrowser Context -> observed in"
+        ],
+        focusedBacklinkTexts: [
+          "injects prompt -> Codex"
         ],
         result: "passed"
       },
@@ -1086,6 +1095,14 @@ describe("dashboard product smoke script", () => {
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        focusedNoteFound: false,
+        focusedBacklinkCount: 0
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
       shellResponse: {
         status: 200,
         body: '<!doctype html><html lang="en"><head><title>skfiy dashboard</title><script type="module" crossorigin src="./assets/dashboard-test.js"></script></head><body><div id="dashboard-root"></div></body></html>'
@@ -1122,6 +1139,7 @@ describe("dashboard product smoke script", () => {
           "injects prompt",
           "recalls context",
           "Vault notes",
+          "Focused note",
           "Vault backlinks",
           "Recent session recall",
           "Chrome control actions",
@@ -1161,6 +1179,7 @@ describe("dashboard product smoke script", () => {
           "injects prompt",
           "recalls context",
           "Vault notes",
+          "Focused note",
           "Vault backlinks",
           "Recent session recall",
           "Chrome control actions",

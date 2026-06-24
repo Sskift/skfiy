@@ -2,6 +2,7 @@ import type {
   DashboardKnowledgeGraphEdge,
   DashboardKnowledgeGraphNode
 } from "./contracts";
+import { useState } from "react";
 
 export interface KnowledgeGraphProps {
   nodes: DashboardKnowledgeGraphNode[];
@@ -46,6 +47,7 @@ const ALERT_POSITIONS: GraphPoint[] = [
 ];
 
 export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(() => nodes[0]?.id ?? null);
   const positions = createGraphPositions(nodes);
   const visibleEdges = edges.filter((edge) => positions.has(edge.from) && positions.has(edge.to));
   const backlinks = visibleEdges.map((edge) => ({
@@ -54,6 +56,8 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
     toLabel: readNodeLabel(edge.to, nodes)
   }));
   const vaultNotes = createVaultNotes(nodes, backlinks);
+  const selectedNote = vaultNotes.find((note) => note.id === selectedNodeId) ?? vaultNotes[0] ?? null;
+  const selectedId = selectedNote?.id ?? null;
 
   return (
     <section
@@ -61,8 +65,8 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
       className="skfiy-knowledge-graph"
       role="region"
     >
-      <div className="skfiy-knowledge-graph-canvas" aria-hidden="true">
-        <svg viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`} role="img">
+      <div className="skfiy-knowledge-graph-canvas">
+        <svg viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`} aria-label="Knowledge graph canvas">
           <defs>
             <linearGradient id="skfiy-graph-link" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.82" />
@@ -75,7 +79,10 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
             const label = midpoint(from, to);
 
             return (
-              <g key={`${edge.from}-${edge.to}-${edge.label}`} className="skfiy-graph-edge">
+              <g
+                key={`${edge.from}-${edge.to}-${edge.label}`}
+                className={`skfiy-graph-edge${isSelectedEdge(edge, selectedId) ? " is-selected" : ""}`}
+              >
                 <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
                 {edge.label === "blocked by" ? null : (
                   <text x={label.x} y={label.y}>{edge.label}</text>
@@ -92,8 +99,19 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
                 key={node.id}
                 className="skfiy-graph-node"
                 data-kind={node.kind}
+                data-selected={selectedId === node.id ? "true" : undefined}
                 data-tone={node.tone}
+                role="button"
+                tabIndex={0}
                 transform={`translate(${point.x} ${point.y})`}
+                aria-label={`Focus note ${node.label}`}
+                onClick={() => setSelectedNodeId(node.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedNodeId(node.id);
+                  }
+                }}
               >
                 <circle r={radius} />
                 <text className="skfiy-graph-node-label" y="-3">{formatCanvasLabel(node.label)}</text>
@@ -104,7 +122,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
         </svg>
       </div>
       <div className="skfiy-knowledge-graph-fallback">
-        <div>
+        <div className="skfiy-knowledge-panel skfiy-knowledge-panel--nodes">
           <h3>Nodes</h3>
           <ul aria-label="Knowledge graph nodes">
             {nodes.map((node) => (
@@ -116,27 +134,61 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
             ))}
           </ul>
         </div>
-        <div>
+        <div className="skfiy-knowledge-panel skfiy-knowledge-panel--focus" aria-label="Focused note" role="region">
+          <h3>Focused note</h3>
+          {selectedNote ? (
+            <article>
+              <div className="skfiy-vault-focus-heading">
+                <h4>{selectedNote.fileName}</h4>
+                <span>{selectedNote.kind}</span>
+              </div>
+              <p>{selectedNote.detail}</p>
+              <strong>{`Backlinks ${selectedNote.relations.length}`}</strong>
+              {selectedNote.relations.length > 0 ? (
+                <ul aria-label="Focused note backlinks">
+                  {selectedNote.relations.map((relation) => (
+                    <li key={`${selectedNote.id}-${relation}`}>
+                      <span>{relation}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No backlinks yet.</p>
+              )}
+            </article>
+          ) : (
+            <p>No vault notes yet.</p>
+          )}
+        </div>
+        <div className="skfiy-knowledge-panel skfiy-knowledge-panel--notes">
           <h3>Vault notes</h3>
           <ul aria-label="Vault notes" className="skfiy-vault-notes">
             {vaultNotes.map((note) => (
-              <li key={note.id} data-kind={note.kind}>
-                <strong>{note.fileName}</strong>
-                <span>{note.kind}</span>
-                <small>{note.detail}</small>
-                <small>{`Backlinks ${note.relations.length}`}</small>
+              <li key={note.id} data-kind={note.kind} data-selected={selectedId === note.id ? "true" : undefined}>
+                <button
+                  type="button"
+                  className="skfiy-vault-note-button"
+                  aria-label={`Open note ${note.fileName}`}
+                  aria-pressed={selectedId === note.id}
+                  onClick={() => setSelectedNodeId(note.id)}
+                >
+                  <strong>{note.fileName}</strong>
+                  <span>{note.kind}</span>
+                  <small>{note.detail}</small>
+                  <small>{`Backlinks ${note.relations.length}`}</small>
+                </button>
                 {note.relations.length > 0 ? (
-                  <div aria-label={`${note.fileName} links`}>
+                  <span className="skfiy-vault-note-links" aria-label={`${note.fileName} links`}>
                     {note.relations.slice(0, 3).map((relation) => (
                       <em key={`${note.id}-${relation}`}>{relation}</em>
                     ))}
-                  </div>
+                  </span>
                 ) : null}
               </li>
             ))}
           </ul>
         </div>
-        <div>
+        <div className="skfiy-knowledge-panel skfiy-knowledge-panel--backlinks">
           <h3>Vault backlinks</h3>
           <ul aria-label="Vault backlinks">
             {backlinks.map((backlink) => (
@@ -148,7 +200,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
             ))}
           </ul>
         </div>
-        <div>
+        <div className="skfiy-knowledge-panel skfiy-knowledge-panel--links">
           <h3>Links</h3>
           <ul aria-label="Knowledge graph links">
             {backlinks.map((backlink) => (
@@ -162,6 +214,10 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
       </div>
     </section>
   );
+}
+
+function isSelectedEdge(edge: DashboardKnowledgeGraphEdge, selectedId: string | null): boolean {
+  return selectedId !== null && (edge.from === selectedId || edge.to === selectedId);
 }
 
 interface VaultNote {

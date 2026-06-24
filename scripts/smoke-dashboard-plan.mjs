@@ -25,6 +25,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "injects prompt",
   "recalls context",
   "Vault notes",
+  "Focused note",
   "Vault backlinks",
   "Recent session recall",
   "Chrome control actions",
@@ -250,6 +251,11 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.linkCount >= 2
     && Number.isInteger(evidence?.vaultNoteCount)
     && evidence.vaultNoteCount >= 3
+    && evidence?.focusedNoteFound === true
+    && typeof evidence?.focusedNoteTitle === "string"
+    && evidence.focusedNoteTitle.endsWith(".md")
+    && Number.isInteger(evidence?.focusedBacklinkCount)
+    && evidence.focusedBacklinkCount >= 1
     && Number.isInteger(evidence?.backlinkCount)
     && evidence.backlinkCount >= 2
     && Number.isInteger(evidence?.sessionNodeCount)

@@ -350,13 +350,21 @@ async function main() {
   \`);
 
   const dom = await win.webContents.executeJavaScript(\`
-    (() => {
+    (async () => {
       const region = document.querySelector('[aria-label="Knowledge graph"]');
       region?.scrollIntoView({ block: "center", inline: "nearest" });
       const nodeItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph nodes"] li'));
       const linkItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph links"] li'));
       const vaultNoteItems = Array.from(document.querySelectorAll('[aria-label="Vault notes"] li'));
       const backlinkItems = Array.from(document.querySelectorAll('[aria-label="Vault backlinks"] li'));
+      const focusedButton = document.querySelector('[aria-label="Vault notes"] button[aria-label="Open note User preferences.md"]')
+        ?? document.querySelector('[aria-label="Vault notes"] button[aria-label^="Open note"]');
+      focusedButton?.click();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      const focusedNote = document.querySelector('[aria-label="Focused note"]');
+      focusedNote?.scrollIntoView({ block: "center", inline: "nearest" });
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      const focusedBacklinkItems = Array.from(document.querySelectorAll('[aria-label="Focused note backlinks"] li'));
       const rects = nodeItems.map((item) => {
         const rect = item.getBoundingClientRect();
         return {
@@ -383,12 +391,16 @@ async function main() {
         nodeCount: nodeItems.length,
         linkCount: linkItems.length,
         vaultNoteCount: vaultNoteItems.length,
+        focusedNoteFound: Boolean(focusedNote),
+        focusedNoteTitle: focusedNote?.querySelector("h4")?.textContent ?? "",
+        focusedBacklinkCount: focusedBacklinkItems.length,
         backlinkCount: backlinkItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
         fallbackTextOverlap,
         nodeTexts: nodeItems.map((item) => item.textContent),
         linkTexts: linkItems.map((item) => item.textContent),
         vaultNoteTexts: vaultNoteItems.map((item) => item.textContent),
+        focusedBacklinkTexts: focusedBacklinkItems.map((item) => item.textContent),
         backlinkTexts: backlinkItems.map((item) => item.textContent)
       };
     })()
@@ -405,7 +417,7 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.backlinkCount >= 2 && dom.sessionNodeCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.backlinkCount >= 2 && dom.sessionNodeCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }
