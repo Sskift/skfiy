@@ -355,7 +355,7 @@ describe("assistant agent provider", () => {
     expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("User: 你好"));
   });
 
-  it("injects skfiy identity as a Claude Code system prompt during real turns", async () => {
+  it("injects skfiy identity as the Claude Code system prompt during real turns", async () => {
     const runProcess = vi.fn<AssistantAgentProcessRunner>()
       .mockResolvedValue({ stdout: "我是 skfiy。", stderr: "" });
 
@@ -370,13 +370,14 @@ describe("assistant agent provider", () => {
     });
 
     const args = runProcess.mock.calls[0]?.[1] ?? [];
-    const systemPrompt = readArgValue(args, "--append-system-prompt");
+    const systemPrompt = readArgValue(args, "--system-prompt");
     const userPrompt = args.at(-1) ?? "";
 
     expect(systemPrompt).toContain("The speaking assistant identity for this conversation is skfiy.");
     expect(systemPrompt).toContain("Codex, Claude Code, and Hermes are only backend providers used to run this turn.");
     expect(systemPrompt).toContain("When asked who you are, answer as skfiy.");
     expect(systemPrompt).not.toContain("User: 你是谁");
+    expect(args).not.toContain("--append-system-prompt");
     expect(userPrompt).toContain("User: 你是谁");
   });
 
@@ -399,7 +400,7 @@ describe("assistant agent provider", () => {
         "--print",
         "--output-format",
         "text",
-        "--append-system-prompt",
+        "--system-prompt",
         expect.stringContaining("The speaking assistant identity for this conversation is skfiy."),
         "--permission-mode",
         "dontAsk",

@@ -14,8 +14,9 @@
 
 - The useless diamond marker is the assistant bubble arrow in `src/renderer/styles.css`; it should be removed.
 - Pet dragging is currently bounded by a transparent Electron window, not the visible pet hitbox, so it does not align with the real screen.
-- Background Agent currently supports `codex` and `claude-code` in `src/main/assistant-agent.ts`; legacy `local` and `built-in` provider language has been removed.
+- Background Agent currently supports `codex`, `claude-code`, and `hermes` in `src/main/assistant-agent.ts`; legacy `local` and `built-in` provider language has been removed.
 - The user wants Hermes as a third Background Agent backend. Hermes' `--oneshot` path auto-bypasses approvals, so skfiy must not wire it as a raw full-tool agent. The acceptable integration is a bounded chat backend invocation that injects skfiy identity, disables or excludes mutating Hermes toolsets, and keeps Computer Use inside skfiy.
+- Real Backend Agent turns must inject the skfiy identity before the user request. Claude Code must receive it through the primary `--system-prompt` channel; Codex and Hermes must receive it in the bounded prompt/query because their current CLI chat surfaces do not expose a separate system-prompt flag.
 - Pet settings currently expose Computer Use planner modes from `src/main/planner-provider-settings.ts`; that is not the same as selecting the Background Agent Provider.
 - Chrome extension pageControl can report current tab readiness and run observe/click/fill/submit/scroll paths, but Pet Agent prompts do not yet receive bounded real webpage context.
 - Dashboard already has snapshot/provider/browser panels, but it needs to become the readable operator surface for these capabilities, not a raw diagnostics page.
@@ -736,6 +737,7 @@ In `src/main/assistant-agent.ts`:
 - Build Hermes invocation with `hermes chat --query <prompt> --quiet --max-turns 1 --toolsets safe --ignore-rules --source skfiy-pet-chat`.
 - Do not use `hermes --oneshot`; official help says oneshot loads tools and auto-bypasses approvals.
 - Keep skfiy identity prompt and Computer Use boundary text in the shared prompt builder.
+- Use Claude Code `--system-prompt` for the skfiy identity contract rather than appending after Claude Code's default identity.
 
 In `src/main/assistant-agent-settings.ts`, accept exactly `codex`, `claude-code`, and `hermes`.
 

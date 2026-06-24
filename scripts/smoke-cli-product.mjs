@@ -386,7 +386,7 @@ function readInvocationPrompt(invocation) {
 }
 
 function readInvocationSystemPrompt(invocation) {
-  const systemPromptIndex = invocation.args.indexOf("--append-system-prompt");
+  const systemPromptIndex = invocation.args.indexOf("--system-prompt");
   return systemPromptIndex >= 0 ? invocation.args[systemPromptIndex + 1] ?? "" : "";
 }
 

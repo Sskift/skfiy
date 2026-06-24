@@ -266,7 +266,7 @@ export function buildAssistantAgentInvocation(
       "--print",
       "--output-format",
       "text",
-      "--append-system-prompt",
+      "--system-prompt",
       ASSISTANT_AGENT_IDENTITY_PROMPT,
       "--permission-mode",
       "dontAsk",
