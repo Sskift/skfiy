@@ -67,7 +67,7 @@ export function createBrowserPageContextFromConnection(connection: unknown): Bro
       visibleText: readOptionalString(pageObservation.visibleText),
       observedAt: readOptionalString(pageObservation.observedAt) ?? connectionObservedAt,
       reason: readOptionalString(pageControl?.reason) ?? readOptionalString(record.reason),
-      nextAction: readOptionalString(pageControl?.nextAction)
+      nextAction: createBrowserPageControlOperatorNextAction(pageControl)
     });
   }
 
@@ -76,7 +76,7 @@ export function createBrowserPageContextFromConnection(connection: unknown): Bro
       state: normalizeConnectionStateForContext(readOptionalString(pageControl.state) ?? connectionState),
       observedAt: connectionObservedAt,
       reason: readOptionalString(pageControl.reason) ?? readOptionalString(record.reason),
-      nextAction: readOptionalString(pageControl.nextAction)
+      nextAction: createBrowserPageControlOperatorNextAction(pageControl)
     });
   }
 
@@ -169,6 +169,108 @@ function normalizeConnectionStateForContext(value: string | undefined): BrowserP
   }
 
   return readBrowserPageContextState(value);
+}
+
+function createBrowserPageControlOperatorNextAction(
+  pageControl: Record<string, unknown> | undefined
+): string | undefined {
+  const reportedNextAction = readOptionalString(pageControl?.nextAction);
+
+  if (!reportedNextAction) {
+    return undefined;
+  }
+  if (!isBrowserPageControlMachineNextAction(reportedNextAction)) {
+    return reportedNextAction;
+  }
+
+  const state = readOptionalString(pageControl?.state);
+  const activeTab = readRecord(pageControl?.activeTab);
+  const chromeHostPermission = readRecord(pageControl?.chromeHostPermission);
+  const chromeCapturePermission = readRecord(pageControl?.chromeCapturePermission);
+  const blockerCodes = Array.isArray(pageControl?.blockers)
+    ? pageControl.blockers
+      .map((blocker) => readOptionalString(readRecord(blocker)?.code))
+      .filter(Boolean)
+    : [];
+  const host = readOptionalString(activeTab?.host)
+    ?? readOptionalString(chromeHostPermission?.host)
+    ?? readHostFromPermissionOrigin(readOptionalString(chromeHostPermission?.origin));
+  const chromeHostOrigins = readStringArray(chromeHostPermission?.origins);
+  const chromeCaptureOrigins = readStringArray(chromeCapturePermission?.origins);
+  const actions: string[] = [];
+
+  if (state === "ready") {
+    return "Chrome pageControl is ready for the current page.";
+  }
+
+  if (
+    reportedNextAction === "allow_host"
+    || state === "blocked_by_host_policy"
+    || blockerCodes.includes("blocked_by_host_policy")
+  ) {
+    actions.push(host
+      ? `Run \`${formatCommandLine(["skfiy", "chrome", "policy", "set", "--host", host, "--action", "allow-current-turn"])}\` or approve the host in Dashboard Chrome policy.`
+      : "Allow the current host in Dashboard Chrome policy.");
+  }
+
+  if (
+    reportedNextAction === "grant_chrome_host_permission"
+    || readOptionalString(chromeHostPermission?.state) === "missing"
+    || blockerCodes.includes("chrome_host_permission_missing")
+  ) {
+    actions.push(
+      `Grant Chrome site access for ${chromeHostOrigins[0] ?? readOptionalString(chromeHostPermission?.origin) ?? "the active page"} from the skfiy extension popup or Chrome extension details.`
+    );
+  }
+
+  if (
+    reportedNextAction === "grant_chrome_capture_permission"
+    || readOptionalString(chromeCapturePermission?.state) === "missing"
+    || blockerCodes.includes("chrome_capture_permission_missing")
+  ) {
+    actions.push(
+      `Grant Chrome visible-tab capture access for ${chromeCaptureOrigins[0] ?? "<all_urls>"} before screenshot-based page control.`
+    );
+  }
+
+  actions.push("Refresh the skfiy Chrome extension and rerun diagnostics.");
+
+  return actions.join(" ");
+}
+
+function isBrowserPageControlMachineNextAction(value: string): boolean {
+  return value === "allow_host"
+    || value === "grant_chrome_host_permission"
+    || value === "grant_chrome_capture_permission"
+    || value === "send_page_action";
+}
+
+function readHostFromPermissionOrigin(origin: string | undefined): string | undefined {
+  if (!origin) {
+    return undefined;
+  }
+
+  try {
+    return new URL(origin).host || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function formatCommandLine(commandLine: string[]): string {
+  return commandLine.map(formatCommandArg).join(" ");
+}
+
+function formatCommandArg(arg: string): string {
+  return /^[A-Za-z0-9_./:@%#{}=-]+$/.test(arg)
+    ? arg
+    : JSON.stringify(arg);
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {

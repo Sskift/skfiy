@@ -3124,7 +3124,8 @@ function createDashboardPageControlSummary(
     ?? readNonEmptyStringValue(blockers[0]?.message)
     ?? readNonEmptyStringValue(blockers[0]?.reason)
     ?? (state === "not-probed" ? "Chrome pageControl readiness has not been probed yet." : undefined);
-  const nextAction = readNonEmptyStringValue(pageControl.nextAction)
+  const nextAction = readDashboardPageControlOperatorNextAction(pageControl, state, blockers)
+    ?? readNonEmptyStringValue(pageControl.nextAction)
     ?? readNonEmptyStringValue(pageControl.guidance)
     ?? readDashboardPageControlNextAction(state, capabilities, contentScript, blockers);
   const summary: Record<string, unknown> = {
@@ -3292,6 +3293,105 @@ function readDashboardPageControlNextAction(
   }
 
   return undefined;
+}
+
+function readDashboardPageControlOperatorNextAction(
+  pageControl: Record<string, unknown>,
+  state: string,
+  blockers: Array<Record<string, string>>
+): string | undefined {
+  const reportedNextAction = readNonEmptyStringValue(pageControl.nextAction);
+
+  if (!reportedNextAction) {
+    return undefined;
+  }
+  if (!isDashboardPageControlMachineNextAction(reportedNextAction)) {
+    return reportedNextAction;
+  }
+
+  const activeTab = readRecord(pageControl.activeTab);
+  const chromeHostPermission = readRecord(pageControl.chromeHostPermission);
+  const chromeCapturePermission = readRecord(pageControl.chromeCapturePermission);
+  const blockerCodes = blockers.map((blocker) => blocker.code).filter(Boolean);
+  const host = readNonEmptyStringValue(activeTab?.host)
+    ?? readNonEmptyStringValue(chromeHostPermission?.host)
+    ?? readDashboardHostFromPermissionOrigin(readNonEmptyStringValue(chromeHostPermission?.origin));
+  const chromeHostOrigins = readDashboardStringArray(chromeHostPermission?.origins);
+  const chromeCaptureOrigins = readDashboardStringArray(chromeCapturePermission?.origins);
+  const actions: string[] = [];
+
+  if (state === "ready") {
+    return "Chrome pageControl is ready for the current page.";
+  }
+
+  if (
+    reportedNextAction === "allow_host"
+    || state === "blocked_by_host_policy"
+    || blockerCodes.includes("blocked_by_host_policy")
+  ) {
+    actions.push(host
+      ? `Run \`${formatDashboardCommandLine(["skfiy", "chrome", "policy", "set", "--host", host, "--action", "allow-current-turn"])}\` or approve the host in Dashboard Chrome policy.`
+      : "Allow the current host in Dashboard Chrome policy.");
+  }
+
+  if (
+    reportedNextAction === "grant_chrome_host_permission"
+    || readNonEmptyStringValue(chromeHostPermission?.state) === "missing"
+    || blockerCodes.includes("chrome_host_permission_missing")
+  ) {
+    actions.push(
+      `Grant Chrome site access for ${chromeHostOrigins[0] ?? readNonEmptyStringValue(chromeHostPermission?.origin) ?? "the active page"} from the skfiy extension popup or Chrome extension details.`
+    );
+  }
+
+  if (
+    reportedNextAction === "grant_chrome_capture_permission"
+    || readNonEmptyStringValue(chromeCapturePermission?.state) === "missing"
+    || blockerCodes.includes("chrome_capture_permission_missing")
+  ) {
+    actions.push(
+      `Grant Chrome visible-tab capture access for ${chromeCaptureOrigins[0] ?? "<all_urls>"} before screenshot-based page control.`
+    );
+  }
+
+  actions.push("Refresh the skfiy Chrome extension and rerun diagnostics.");
+
+  return actions.join(" ");
+}
+
+function isDashboardPageControlMachineNextAction(value: string): boolean {
+  return value === "allow_host"
+    || value === "grant_chrome_host_permission"
+    || value === "grant_chrome_capture_permission"
+    || value === "send_page_action";
+}
+
+function readDashboardHostFromPermissionOrigin(origin: string | undefined): string | undefined {
+  if (!origin) {
+    return undefined;
+  }
+
+  try {
+    return new URL(origin).host || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readDashboardStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function formatDashboardCommandLine(commandLine: string[]): string {
+  return commandLine.map(formatDashboardCommandArg).join(" ");
+}
+
+function formatDashboardCommandArg(arg: string): string {
+  return /^[A-Za-z0-9_./:@%#{}=-]+$/.test(arg)
+    ? arg
+    : JSON.stringify(arg);
 }
 
 function isDashboardPageControlCapable(

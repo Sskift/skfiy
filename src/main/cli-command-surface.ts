@@ -4509,8 +4509,11 @@ function createChromePageControlCapability({
     source: source ?? readString(reported?.source) ?? (
       reported ? "extension.pageControl" : normalizedState === "not-probed" ? "not-probed" : "cli-status-derived"
     ),
-    nextAction: readString(reported?.nextAction)
-      ?? createChromePageControlNextAction({
+    nextAction: createChromePageControlOperatorNextAction({
+      reported,
+      state: normalizedState,
+      extensionIds
+    }) ?? createChromePageControlNextAction({
         state: normalizedState,
         extensionIds
       })
@@ -4582,6 +4585,101 @@ function createChromePageControlNextAction({
     return `Run \`skfiy chrome status --json --extension-id ${extensionId}\` after opening a controllable Chrome page.`;
   }
   return `Open a controllable Chrome tab, grant any requested site access, refresh the skfiy extension, then rerun \`skfiy chrome status --json --extension-id ${extensionId}\`.`;
+}
+
+function createChromePageControlOperatorNextAction({
+  reported,
+  state,
+  extensionIds
+}: {
+  reported?: Record<string, unknown>;
+  state: string;
+  extensionIds: string[];
+}): string | undefined {
+  const reportedNextAction = readString(reported?.nextAction);
+
+  if (!reportedNextAction) {
+    return undefined;
+  }
+  if (!isChromePageControlMachineNextAction(reportedNextAction)) {
+    return reportedNextAction;
+  }
+
+  const extensionId = extensionIds[0] ?? "<extension-id>";
+  const activeTab = readRecord(reported?.activeTab);
+  const chromeHostPermission = readRecord(reported?.chromeHostPermission);
+  const chromeCapturePermission = readRecord(reported?.chromeCapturePermission);
+  const blockers = Array.isArray(reported?.blockers)
+    ? reported.blockers.map((blocker) => readRecord(blocker)).filter(Boolean)
+    : [];
+  const blockerCodes = blockers
+    .map((blocker) => readString(blocker?.code))
+    .filter(Boolean);
+  const host = readString(activeTab?.host)
+    ?? readString(chromeHostPermission?.host)
+    ?? readChromeHostFromPermissionOrigin(readString(chromeHostPermission?.origin));
+  const chromeHostOrigins = readStringArray(chromeHostPermission?.origins);
+  const chromeCaptureOrigins = readStringArray(chromeCapturePermission?.origins);
+  const actions: string[] = [];
+
+  if (state === "ready") {
+    return "Chrome extension page control is ready for the current page.";
+  }
+
+  if (
+    reportedNextAction === "allow_host"
+    || state === "blocked_by_host_policy"
+    || blockerCodes.includes("blocked_by_host_policy")
+  ) {
+    actions.push(host
+      ? `Run \`${formatCommandLine(["skfiy", "chrome", "policy", "set", "--host", host, "--action", "allow-current-turn"])}\` or approve the host in Dashboard Chrome policy.`
+      : "Allow the current host in Dashboard Chrome policy.");
+  }
+
+  if (
+    reportedNextAction === "grant_chrome_host_permission"
+    || readString(chromeHostPermission?.state) === "missing"
+    || blockerCodes.includes("chrome_host_permission_missing")
+  ) {
+    actions.push(
+      `Grant Chrome site access for ${chromeHostOrigins[0] ?? readString(chromeHostPermission?.origin) ?? "the active page"} from the skfiy extension popup or Chrome extension details.`
+    );
+  }
+
+  if (
+    reportedNextAction === "grant_chrome_capture_permission"
+    || readString(chromeCapturePermission?.state) === "missing"
+    || blockerCodes.includes("chrome_capture_permission_missing")
+  ) {
+    actions.push(
+      `Grant Chrome visible-tab capture access for ${chromeCaptureOrigins[0] ?? "<all_urls>"} before screenshot-based page control.`
+    );
+  }
+
+  actions.push(
+    `Refresh the skfiy Chrome extension, then rerun \`${formatCommandLine(["skfiy", "chrome", "status", "--json", "--extension-id", extensionId])}\`.`
+  );
+
+  return actions.join(" ");
+}
+
+function isChromePageControlMachineNextAction(value: string): boolean {
+  return value === "allow_host"
+    || value === "grant_chrome_host_permission"
+    || value === "grant_chrome_capture_permission"
+    || value === "send_page_action";
+}
+
+function readChromeHostFromPermissionOrigin(origin: string | undefined): string | undefined {
+  if (!origin) {
+    return undefined;
+  }
+
+  try {
+    return new URL(origin).host || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function createChromePageSafetyCapability({

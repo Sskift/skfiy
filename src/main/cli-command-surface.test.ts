@@ -2548,6 +2548,107 @@ describe("CLI command surface", () => {
     });
   });
 
+  it("expands Chrome page-control machine next actions into concrete operator guidance", async () => {
+    const statusStdout: string[] = [];
+    const doctorStdout: string[] = [];
+    const stderr: string[] = [];
+    const statusReader = async () => ({
+      app: { state: "installed", path: "/repo/dist/skfiy.app" },
+      cli: { state: "installed", path: "/repo/dist/skfiy" },
+      helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: { state: "controllable", controllable: true },
+      extension: {
+        state: "connected",
+        bridge: "native-messaging",
+        liveConnection: "connected",
+        nativeHostState: "installed",
+        pageControl: {
+          schemaVersion: 1,
+          capable: false,
+          state: "blocked_by_host_policy",
+          reason: "Host policy has not allowed this page.",
+          nextAction: "allow_host",
+          activeTab: {
+            state: "available",
+            host: "mew.bytedance.net"
+          },
+          chromeHostPermission: {
+            state: "missing",
+            origins: ["https://mew.bytedance.net/*"]
+          },
+          chromeCapturePermission: {
+            state: "missing",
+            origins: ["<all_urls>"]
+          },
+          blockers: [{
+            code: "blocked_by_host_policy",
+            reason: "default_policy",
+            message: "Host policy has not allowed this page."
+          }]
+        }
+      },
+      nativeHost: {
+        state: "installed",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+      },
+      dashboard: { state: "not-running" },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    await expect(runSkfiyCli({
+      argv: ["status", "--json", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader,
+      stdout: { write: (chunk: string) => statusStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    await expect(runSkfiyCli({
+      argv: ["doctor", "--json", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader,
+      signatureReader: async () => ({ state: "valid" }),
+      stdout: { write: (chunk: string) => doctorStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    const statusOutput = JSON.parse(statusStdout.join(""));
+    const doctorOutput = JSON.parse(doctorStdout.join(""));
+
+    expect(statusOutput.extension.pageControl.nextAction).toContain(
+      "skfiy chrome policy set --host mew.bytedance.net --action allow-current-turn"
+    );
+    expect(statusOutput.extension.pageControl.nextAction).toContain(
+      "Grant Chrome site access for https://mew.bytedance.net/*"
+    );
+    expect(statusOutput.extension.pageControl.nextAction).toContain(
+      "Grant Chrome visible-tab capture access for <all_urls>"
+    );
+    expect(statusOutput.extension.pageControl.nextAction).not.toBe("allow_host");
+    expect(doctorOutput.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "chrome-page-control-readiness",
+        nextAction: statusOutput.extension.pageControl.nextAction
+      })
+    ]));
+    expect(stderr).toEqual([]);
+  });
+
   it("passes through Chrome page-control readiness from extension diagnostics into status and doctor", async () => {
     const statusStdout: string[] = [];
     const doctorStdout: string[] = [];

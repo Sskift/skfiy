@@ -537,6 +537,50 @@ describe("dashboard snapshot data", () => {
     });
   });
 
+  it("expands Chrome pageControl machine next actions for dashboard operators", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-23T00:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      status: createPageControlStatus({
+        extension: {
+          state: "connected",
+          pageControl: {
+            state: "blocked_by_host_policy",
+            reason: "Host policy has not allowed this page.",
+            nextAction: "allow_host",
+            activeTab: {
+              host: "mew.bytedance.net"
+            },
+            chromeHostPermission: {
+              state: "missing",
+              origins: ["https://mew.bytedance.net/*"]
+            },
+            chromeCapturePermission: {
+              state: "missing",
+              origins: ["<all_urls>"]
+            },
+            blockers: [{
+              code: "blocked_by_host_policy",
+              reason: "default_policy",
+              message: "Host policy has not allowed this page."
+            }]
+          }
+        }
+      })
+    });
+
+    const pageControl = (snapshot.runtimeHealth as {
+      extension: { pageControl: { nextAction: string } };
+    }).extension.pageControl;
+
+    expect(pageControl.nextAction).toContain(
+      "skfiy chrome policy set --host mew.bytedance.net --action allow-current-turn"
+    );
+    expect(pageControl.nextAction).toContain("Grant Chrome site access for https://mew.bytedance.net/*");
+    expect(pageControl.nextAction).toContain("Grant Chrome visible-tab capture access for <all_urls>");
+    expect(pageControl.nextAction).not.toBe("allow_host");
+  });
+
   it("composes runtime, permission, replay, smoke, and long-horizon panels from read-only inputs", () => {
     const snapshot = createDashboardSnapshot({
       generatedAt: "2026-06-20T00:00:00.000Z",

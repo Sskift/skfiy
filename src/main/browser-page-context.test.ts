@@ -33,6 +33,41 @@ describe("browser page context", () => {
     expect(createBrowserPageContextPromptBlock(context)).toContain("Browser context unavailable");
   });
 
+  it("expands pageControl machine next actions before prompt injection", () => {
+    const context = createBrowserPageContextFromConnection({
+      state: "connected",
+      observedAt: "2026-06-23T00:00:00.000Z",
+      pageControl: {
+        state: "blocked_by_host_policy",
+        reason: "Host policy has not allowed this page.",
+        nextAction: "allow_host",
+        activeTab: {
+          host: "mew.bytedance.net"
+        },
+        chromeHostPermission: {
+          state: "missing",
+          origins: ["https://mew.bytedance.net/*"]
+        },
+        chromeCapturePermission: {
+          state: "missing",
+          origins: ["<all_urls>"]
+        },
+        blockers: [{
+          code: "blocked_by_host_policy"
+        }]
+      }
+    });
+
+    const promptBlock = createBrowserPageContextPromptBlock(context);
+
+    expect(context.nextAction).toContain(
+      "skfiy chrome policy set --host mew.bytedance.net --action allow-current-turn"
+    );
+    expect(context.nextAction).toContain("Grant Chrome site access for https://mew.bytedance.net/*");
+    expect(context.nextAction).toContain("Grant Chrome visible-tab capture access for <all_urls>");
+    expect(promptBlock).not.toContain("allow_host");
+  });
+
   it("reads the latest Chrome connection page observation", () => {
     const context = createBrowserPageContextFromConnection({
       state: "connected",
