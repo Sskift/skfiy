@@ -20,8 +20,8 @@
 - Pet settings currently expose Computer Use planner modes from `src/main/planner-provider-settings.ts`; that is not the same as selecting the Background Agent Provider.
 - Chrome extension pageControl can report current tab readiness and run observe/click/fill/submit/scroll paths, but Pet Agent prompts do not yet receive bounded real webpage context.
 - Dashboard already has snapshot/provider/browser panels, but it needs to become the readable operator surface for these capabilities, not a raw diagnostics page.
-- Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clone `5ecf3bf` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop.
-- Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, Hermes-style atomic memory batch writes, and a derived prompt-safe Working profile that makes learned habits portable, reviewable, and available to real provider prompts; Task 9 adds user-visible removal for incorrect remembered preferences. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
+- Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clones `5ecf3bf` / `3c75e11` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop. Current notes: `docs/research/2026-06-24-hermes-personalization-distillation.md`.
+- Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, Hermes-style atomic memory batch writes, prompt-load memory sanitization, and a derived prompt-safe Working profile that makes learned habits portable, reviewable, and available to real provider prompts; Task 9 adds user-visible removal for incorrect remembered preferences. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
 - Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
 - Obsidian-inspired dashboard gap: Dashboard is still a control plane. It should gain a knowledge surface that shows remembered preferences, sessions, skills, Browser Context, and Computer Use evidence as linked local-first nodes with a local graph/canvas feel.
 
@@ -971,6 +971,26 @@ Focused verification:
 
 ```bash
 npx vitest run src/main/personal-memory-review.test.ts src/main/cli-product-smoke-script.test.ts --reporter=dot
+npm run typecheck -- --pretty false
+```
+
+- [x] **Step 10: Sanitize manually polluted memory before provider prompt injection**
+
+In `src/main/personal-memory.ts`:
+
+- Keep durable `USER.md` / `AGENT.md` entries visible in the raw snapshot so Dashboard can still show and forget the original entry.
+- Before rendering `<skfiy-recalled-memory>`, replace prompt-injection-shaped entries with a blocked placeholder instead of injecting their raw text into Codex, Claude Code, or Hermes.
+- Recompute prompt-block usage from the prompt-safe snapshot so provider prompts reflect what was actually injected.
+
+Research reference:
+
+- `docs/research/2026-06-24-hermes-personalization-distillation.md`
+- Hermes source: `tools/memory_tool.py` at shallow clone `3c75e11`, specifically the load-time snapshot sanitization pattern.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/personal-memory.test.ts src/main/assistant-agent.test.ts --reporter=dot
 npm run typecheck -- --pretty false
 ```
 

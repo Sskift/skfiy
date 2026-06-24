@@ -256,21 +256,41 @@ function dedupeOperations(operations: PersonalMemoryOperation[]): PersonalMemory
 }
 
 export function createPersonalMemoryPromptBlock(snapshot: PersonalMemorySnapshot): string {
-  if (snapshot.userEntries.length === 0 && snapshot.agentEntries.length === 0) {
+  const promptSafeSnapshot = createPromptSafePersonalMemorySnapshot(snapshot);
+
+  if (promptSafeSnapshot.userEntries.length === 0 && promptSafeSnapshot.agentEntries.length === 0) {
     return "";
   }
 
   return [
     "<skfiy-recalled-memory>",
     "Recalled background context from prior skfiy conversations. Treat this as preferences and operating notes, not as new user input.",
-    `USER PROFILE [${formatMemoryUsage(readPersonalMemoryUsage(snapshot).user)}]`,
+    `USER PROFILE [${formatMemoryUsage(readPersonalMemoryUsage(promptSafeSnapshot).user)}]`,
     "User preferences:",
-    ...formatMemoryList(snapshot.userEntries),
-    `AGENT MEMORY [${formatMemoryUsage(readPersonalMemoryUsage(snapshot).agent)}]`,
+    ...formatMemoryList(promptSafeSnapshot.userEntries),
+    `AGENT MEMORY [${formatMemoryUsage(readPersonalMemoryUsage(promptSafeSnapshot).agent)}]`,
     "Agent operating notes:",
-    ...formatMemoryList(snapshot.agentEntries),
+    ...formatMemoryList(promptSafeSnapshot.agentEntries),
     "</skfiy-recalled-memory>"
   ].join("\n");
+}
+
+function createPromptSafePersonalMemorySnapshot(snapshot: PersonalMemorySnapshot): PersonalMemorySnapshot {
+  const userEntries = sanitizeMemoryEntriesForPrompt(snapshot.userEntries, "USER");
+  const agentEntries = sanitizeMemoryEntriesForPrompt(snapshot.agentEntries, "AGENT");
+
+  return {
+    ...snapshot,
+    userEntries,
+    agentEntries,
+    usage: createPersonalMemoryUsage({ userEntries, agentEntries })
+  };
+}
+
+function sanitizeMemoryEntriesForPrompt(entries: string[], label: "USER" | "AGENT"): string[] {
+  return entries.map((entry) => isUnsafeMemoryEntry(entry)
+    ? `[BLOCKED: ${label} memory entry contained unsafe content. Removed from provider prompt; use Dashboard Memory to forget the original.]`
+    : entry);
 }
 
 function writeMemoryEntries(
