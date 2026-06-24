@@ -262,6 +262,11 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
     if (nodes.some((node) => node.id === "memory:agent")) {
       pushEdge(edges, { from: "skill:memory-review", to: "memory:agent", label: "distills" });
     }
+    nodes
+      .filter((node) => node.kind === "session")
+      .forEach((node) => {
+        pushEdge(edges, { from: node.id, to: "skill:memory-review", label: "teaches" });
+      });
   }
 
   if (browserContext.state !== "missing") {

@@ -55,6 +55,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
     fromLabel: readNodeLabel(edge.from, nodes),
     toLabel: readNodeLabel(edge.to, nodes)
   }));
+  const learningLoopSteps = createLearningLoopSteps(visibleEdges, nodes);
   const vaultNotes = createVaultNotes(nodes, backlinks);
   const selectedNote = vaultNotes.find((note) => note.id === selectedNodeId) ?? vaultNotes[0] ?? null;
   const selectedId = selectedNote?.id ?? null;
@@ -132,6 +133,20 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
                 {node.detail ? <small>{node.detail}</small> : null}
               </li>
             ))}
+          </ul>
+        </div>
+        <div className="skfiy-knowledge-panel skfiy-knowledge-panel--loop">
+          <h3>Learning loop</h3>
+          <ul aria-label="Learning loop">
+            {learningLoopSteps.length > 0 ? learningLoopSteps.map((step) => (
+              <li key={step}>
+                <span>{step}</span>
+              </li>
+            )) : (
+              <li>
+                <span>No durable learning loop yet.</span>
+              </li>
+            )}
           </ul>
         </div>
         <div className="skfiy-knowledge-panel skfiy-knowledge-panel--focus" aria-label="Focused note" role="region">
@@ -218,6 +233,34 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
 
 function isSelectedEdge(edge: DashboardKnowledgeGraphEdge, selectedId: string | null): boolean {
   return selectedId !== null && (edge.from === selectedId || edge.to === selectedId);
+}
+
+const LEARNING_LOOP_EDGE_ORDER = new Map([
+  ["teaches", 0],
+  ["distills", 1],
+  ["guides behavior", 2],
+  ["injects prompt", 3],
+  ["recalls context", 4],
+  ["observed in", 5],
+  ["answered", 6]
+]);
+
+function createLearningLoopSteps(
+  edges: DashboardKnowledgeGraphEdge[],
+  nodes: DashboardKnowledgeGraphNode[]
+): string[] {
+  return edges
+    .filter((edge) => LEARNING_LOOP_EDGE_ORDER.has(edge.label))
+    .slice()
+    .sort((left, right) => {
+      const leftRank = LEARNING_LOOP_EDGE_ORDER.get(left.label) ?? Number.MAX_SAFE_INTEGER;
+      const rightRank = LEARNING_LOOP_EDGE_ORDER.get(right.label) ?? Number.MAX_SAFE_INTEGER;
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+      return `${left.from}-${left.to}`.localeCompare(`${right.from}-${right.to}`);
+    })
+    .map((edge) => `${readNodeLabel(edge.from, nodes)} -> ${edge.label} -> ${readNodeLabel(edge.to, nodes)}`);
 }
 
 interface VaultNote {

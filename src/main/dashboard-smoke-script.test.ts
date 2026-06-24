@@ -48,6 +48,10 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("vaultNoteCount");
     expect(source).toContain("focusedNoteFound");
     expect(source).toContain("focusedBacklinkCount");
+    expect(planSource).toContain("Learning loop");
+    expect(source).toContain("learningLoopCount");
+    expect(source).toContain("learningLoopTexts");
+    expect(source).toContain("learningLoopList?.scrollIntoView");
     expect(planSource).toContain("Vault notes");
     expect(planSource).toContain("Focused note");
     expect(source).toContain("Vault backlinks");
@@ -696,6 +700,7 @@ describe("dashboard product smoke script", () => {
         focusedNoteTitle: "User preferences.md",
         focusedBacklinkCount: 1,
         backlinkCount: 5,
+        learningLoopCount: 4,
         sessionNodeCount: 2,
         fallbackTextOverlap: false,
         nodeTexts: [
@@ -714,6 +719,12 @@ describe("dashboard product smoke script", () => {
           "User preferencesinjects promptCodex",
           "Latest sessionrecalls contextCodex",
           "Browser Contextobserved inLatest session"
+        ],
+        learningLoopTexts: [
+          "Latest session -> teaches -> Memory review",
+          "Memory review -> distills -> User preferences",
+          "User preferences -> injects prompt -> Codex",
+          "Codex -> answered -> Latest session"
         ],
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 1injects prompt -> Codex",
@@ -1043,6 +1054,7 @@ describe("dashboard product smoke script", () => {
         nodeCount: 5,
         linkCount: 4,
         backlinkCount: 4,
+        learningLoopCount: 4,
         nodeTexts: [
           "User preferencesmemoryUser prefers concise Chinese updates.",
           "Latest sessionsessionCodex: hello",
@@ -1060,6 +1072,12 @@ describe("dashboard product smoke script", () => {
           "Latest sessionrecalls contextCodex",
           "Memory reviewdistillsUser preferences"
         ],
+        learningLoopTexts: [
+          "Latest session -> teaches -> Memory review",
+          "Memory review -> distills -> User preferences",
+          "User preferences -> injects prompt -> Codex",
+          "Codex -> answered -> Latest session"
+        ],
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 2injects prompt -> CodexMemory review -> distills",
           "Latest session.mdsessionBacklinks 1recalls context -> Codex",
@@ -1070,6 +1088,14 @@ describe("dashboard product smoke script", () => {
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       personalMemoryApi: undefined
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        learningLoopCount: 0,
+        learningLoopTexts: []
+      }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
@@ -1141,6 +1167,7 @@ describe("dashboard product smoke script", () => {
           "Vault notes",
           "Focused note",
           "Vault backlinks",
+          "Learning loop",
           "Recent session recall",
           "Chrome control actions",
           "Chrome host policy controls",
@@ -1181,6 +1208,7 @@ describe("dashboard product smoke script", () => {
           "Vault notes",
           "Focused note",
           "Vault backlinks",
+          "Learning loop",
           "Recent session recall",
           "Chrome control actions",
           "Chrome host policy controls",

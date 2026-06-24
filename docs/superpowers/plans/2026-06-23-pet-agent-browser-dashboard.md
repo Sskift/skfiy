@@ -1086,6 +1086,20 @@ git add src/dashboard/KnowledgeGraph.tsx src/dashboard/KnowledgeGraph.test.tsx s
 git commit -m "feat: add knowledge graph dashboard"
 ```
 
+- [x] **Step 7: Show the personalization learning loop in the graph surface**
+
+In `src/dashboard/model.ts` and `src/dashboard/KnowledgeGraph.tsx`:
+
+- Connect recent session nodes back to `skill:memory-review` with a `teaches` edge.
+- Render a `Learning loop` panel that explains the durable personalization cycle from recent session to memory review, durable memory, selected Background Agent, and the next answered session.
+- Extend dashboard smoke evidence so screenshot probes must collect `learningLoopCount` and `learningLoopTexts` with `teaches`, `distills`, `injects prompt`, and `answered` stages.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/model.test.ts src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls

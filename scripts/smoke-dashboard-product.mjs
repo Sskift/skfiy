@@ -357,6 +357,7 @@ async function main() {
       const linkItems = Array.from(document.querySelectorAll('[aria-label="Knowledge graph links"] li'));
       const vaultNoteItems = Array.from(document.querySelectorAll('[aria-label="Vault notes"] li'));
       const backlinkItems = Array.from(document.querySelectorAll('[aria-label="Vault backlinks"] li'));
+      const learningLoopItems = Array.from(document.querySelectorAll('[aria-label="Learning loop"] li'));
       const focusedButton = document.querySelector('[aria-label="Vault notes"] button[aria-label="Open note User preferences.md"]')
         ?? document.querySelector('[aria-label="Vault notes"] button[aria-label^="Open note"]');
       focusedButton?.click();
@@ -365,6 +366,7 @@ async function main() {
       focusedNote?.scrollIntoView({ block: "center", inline: "nearest" });
       await new Promise((resolve) => setTimeout(resolve, 60));
       const focusedBacklinkItems = Array.from(document.querySelectorAll('[aria-label="Focused note backlinks"] li'));
+      const learningLoopList = document.querySelector('[aria-label="Learning loop"]');
       const rects = nodeItems.map((item) => {
         const rect = item.getBoundingClientRect();
         return {
@@ -386,6 +388,8 @@ async function main() {
             || (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top);
         }
       }
+      learningLoopList?.scrollIntoView({ block: "center", inline: "nearest" });
+      await new Promise((resolve) => setTimeout(resolve, 80));
       return {
         regionFound: Boolean(region),
         nodeCount: nodeItems.length,
@@ -395,12 +399,14 @@ async function main() {
         focusedNoteTitle: focusedNote?.querySelector("h4")?.textContent ?? "",
         focusedBacklinkCount: focusedBacklinkItems.length,
         backlinkCount: backlinkItems.length,
+        learningLoopCount: learningLoopItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
         fallbackTextOverlap,
         nodeTexts: nodeItems.map((item) => item.textContent),
         linkTexts: linkItems.map((item) => item.textContent),
         vaultNoteTexts: vaultNoteItems.map((item) => item.textContent),
         focusedBacklinkTexts: focusedBacklinkItems.map((item) => item.textContent),
+        learningLoopTexts: learningLoopItems.map((item) => item.textContent),
         backlinkTexts: backlinkItems.map((item) => item.textContent)
       };
     })()
@@ -417,7 +423,7 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.backlinkCount >= 2 && dom.sessionNodeCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }

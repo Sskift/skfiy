@@ -23,6 +23,7 @@ describe("readKnowledgeGraph", () => {
       expect.objectContaining({ from: "session:latest", to: "provider:codex", label: "recalls context" }),
       expect.objectContaining({ from: "session:recent-2", to: "provider:codex", label: "recalls context" }),
       expect.objectContaining({ from: "provider:codex", to: "session:recent-2", label: "answered" }),
+      expect.objectContaining({ from: "session:latest", to: "skill:memory-review", label: "teaches" }),
       expect.objectContaining({ from: "computer-use", to: "turn:current", label: "requires approval" }),
       expect.objectContaining({ from: "alert:screen-recording-missing", to: "computer-use", label: "blocked by" })
     ]));

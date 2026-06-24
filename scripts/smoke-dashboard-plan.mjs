@@ -27,6 +27,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Vault notes",
   "Focused note",
   "Vault backlinks",
+  "Learning loop",
   "Recent session recall",
   "Chrome control actions",
   "Chrome host policy controls",
@@ -258,6 +259,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.focusedBacklinkCount >= 1
     && Number.isInteger(evidence?.backlinkCount)
     && evidence.backlinkCount >= 2
+    && Number.isInteger(evidence?.learningLoopCount)
+    && evidence.learningLoopCount >= 4
     && Number.isInteger(evidence?.sessionNodeCount)
     && evidence.sessionNodeCount >= 2
     && evidence?.fallbackTextOverlap === false
@@ -265,10 +268,15 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Array.isArray(evidence?.linkTexts)
     && Array.isArray(evidence?.vaultNoteTexts)
     && Array.isArray(evidence?.backlinkTexts)
+    && Array.isArray(evidence?.learningLoopTexts)
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes(".md"))
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Backlinks"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("recalls context"))
+    && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("teaches"))
+    && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("distills"))
+    && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
+    && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("answered"))
     && (!hasBrowserContextNode
       || evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in")))
     && typeof evidence?.screenshotPath === "string"

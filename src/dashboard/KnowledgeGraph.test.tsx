@@ -101,4 +101,27 @@ describe("KnowledgeGraph", () => {
     expect(within(backlinks).getByText("User preferences -> injects prompt")).toBeInTheDocument();
     expect(within(backlinks).getByText("answered -> Latest session")).toBeInTheDocument();
   });
+
+  it("renders a readable learning loop when memory review closes the personalization cycle", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral", detail: "Codex: summarize dashboard" },
+        { id: "skill:memory-review", label: "Memory review", kind: "skill", tone: "neutral", detail: "Post-turn personalization distills durable notes." },
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries · short Chinese updates" },
+        { id: "provider:codex", label: "Codex", kind: "provider", tone: "success", detail: "Codex assistant is selected." }
+      ]}
+      edges={[
+        { from: "session:latest", to: "skill:memory-review", label: "teaches" },
+        { from: "skill:memory-review", to: "memory:user", label: "distills" },
+        { from: "memory:user", to: "provider:codex", label: "injects prompt" },
+        { from: "provider:codex", to: "session:latest", label: "answered" }
+      ]}
+    />);
+
+    const learningLoop = screen.getByRole("list", { name: "Learning loop" });
+    expect(within(learningLoop).getByText("Latest session -> teaches -> Memory review")).toBeInTheDocument();
+    expect(within(learningLoop).getByText("Memory review -> distills -> User preferences")).toBeInTheDocument();
+    expect(within(learningLoop).getByText("User preferences -> injects prompt -> Codex")).toBeInTheDocument();
+    expect(within(learningLoop).getByText("Codex -> answered -> Latest session")).toBeInTheDocument();
+  });
 });

@@ -552,7 +552,8 @@ a:focus-visible {
   display: grid;
   grid-template-columns: minmax(220px, 0.82fr) minmax(360px, 1.18fr);
   grid-template-areas:
-    "nodes focus"
+    "nodes loop"
+    "focus notes"
     "backlinks notes"
     "links notes";
   gap: 12px;
@@ -573,6 +574,13 @@ a:focus-visible {
 
 .skfiy-knowledge-panel--nodes {
   grid-area: nodes;
+}
+
+.skfiy-knowledge-panel--loop {
+  grid-area: loop;
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(134, 239, 172, 0.12)),
+    rgba(250, 250, 250, 0.96);
 }
 
 .skfiy-knowledge-panel--focus {
@@ -632,10 +640,16 @@ a:focus-visible {
   line-height: 1.35;
 }
 
-.skfiy-knowledge-graph-fallback > div:nth-child(2) li,
-.skfiy-knowledge-graph-fallback > div:nth-child(3) li {
+.skfiy-knowledge-panel--loop li,
+.skfiy-knowledge-panel--focus li,
+.skfiy-knowledge-panel--notes li {
   border: 1px solid rgba(139, 92, 246, 0.18);
   background: #ffffff;
+}
+
+.skfiy-knowledge-panel--loop li {
+  grid-template-columns: minmax(0, 1fr);
+  border-color: rgba(34, 211, 238, 0.2);
 }
 
 .skfiy-knowledge-graph-fallback li strong,
@@ -1349,6 +1363,7 @@ a:focus-visible {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "focus"
+      "loop"
       "nodes"
       "notes"
       "backlinks"
