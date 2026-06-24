@@ -2636,6 +2636,9 @@ describe("CLI command surface", () => {
     expect(statusOutput.extension.pageControl.nextAction).toContain(
       "Open the skfiy extension popup and click Grant https://mew.bytedance.net/* + <all_urls> and observe."
     );
+    expect(statusOutput.extension.pageControl.nextAction).toContain(
+      "Open Dashboard > Browser and click Open access page"
+    );
     expect(statusOutput.extension.pageControl.nextAction).not.toContain("Grant Chrome visible-tab capture access");
     expect(statusOutput.extension.pageControl.nextAction).not.toContain("Refresh the skfiy Chrome extension");
     expect(statusOutput.extension.pageControl.nextAction).not.toBe("allow_host");

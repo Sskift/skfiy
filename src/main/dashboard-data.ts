@@ -3348,6 +3348,9 @@ function readDashboardPageControlOperatorNextAction(
 
   if (chromePopupGrantOrigins.length > 0) {
     actions.push(
+      `Open Dashboard > Browser and click Open access page, then click Grant ${chromePopupGrantOrigins.join(" + ")} and observe.`
+    );
+    actions.push(
       `Open the skfiy extension popup and click Grant ${chromePopupGrantOrigins.join(" + ")} and observe.`
     );
   }

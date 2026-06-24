@@ -66,6 +66,9 @@ describe("browser page context", () => {
     expect(context.nextAction).toContain(
       "Open the skfiy extension popup and click Grant https://mew.bytedance.net/* + <all_urls> and observe."
     );
+    expect(context.nextAction).toContain(
+      "Open Dashboard > Browser and click Open access page"
+    );
     expect(context.nextAction).not.toContain("Grant Chrome visible-tab capture access");
     expect(context.nextAction).not.toContain("Refresh the skfiy Chrome extension and rerun diagnostics");
     expect(promptBlock).not.toContain("allow_host");

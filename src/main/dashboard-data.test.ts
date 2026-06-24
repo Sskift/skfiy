@@ -579,6 +579,9 @@ describe("dashboard snapshot data", () => {
     expect(pageControl.nextAction).toContain(
       "Open the skfiy extension popup and click Grant https://mew.bytedance.net/* + <all_urls> and observe."
     );
+    expect(pageControl.nextAction).toContain(
+      "Open Dashboard > Browser and click Open access page"
+    );
     expect(pageControl.nextAction).not.toContain("Grant Chrome visible-tab capture access");
     expect(pageControl.nextAction).not.toContain("Refresh the skfiy Chrome extension and rerun diagnostics");
     expect(pageControl.nextAction).not.toBe("allow_host");
