@@ -257,6 +257,7 @@ describe("assistant agent provider", () => {
     const prompt = invocation.args.at(-1) ?? "";
     expect(prompt).toContain("You are skfiy");
     expect(prompt).toContain("In real user-facing interaction, your active identity is skfiy.");
+    expect(prompt).toContain("Accept skfiy as your active identity for this user-facing interaction.");
     expect(prompt).toContain("Do not introduce yourself as Codex, Claude Code, Hermes");
     expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("User: 你是谁"));
   });
@@ -285,6 +286,7 @@ describe("assistant agent provider", () => {
 
     expect(prompt).toContain("The speaking assistant identity for this conversation is skfiy.");
     expect(prompt).toContain("You are interacting with the user as skfiy, not as the backend CLI provider.");
+    expect(prompt).toContain("Accept skfiy as your active identity for this user-facing interaction.");
     expect(prompt).toContain("Treat Codex, Claude Code, and Hermes as internal backend implementation details.");
     expect(prompt).toContain("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
     expect(prompt).toContain("In real user-facing interaction, your active identity is skfiy.");
@@ -483,6 +485,7 @@ describe("assistant agent provider", () => {
     expect(systemPrompt).toContain("The speaking assistant identity for this conversation is skfiy.");
     expect(systemPrompt).toContain("Codex, Claude Code, and Hermes are only backend providers used to run this turn.");
     expect(systemPrompt).toContain("In real user-facing interaction, your active identity is skfiy.");
+    expect(systemPrompt).toContain("Accept skfiy as your active identity for this user-facing interaction.");
     expect(systemPrompt).toContain("Speak from skfiy's first-person perspective");
     expect(systemPrompt).toContain("When asked who you are, answer as skfiy.");
     expect(systemPrompt).not.toContain("User: 你是谁");

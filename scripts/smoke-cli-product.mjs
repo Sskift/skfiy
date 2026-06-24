@@ -311,6 +311,7 @@ async function collectRealTurnIdentityProviderContract(runAssistantAgentTurn, se
     runnerSawSkfiyIdentity: identityPrompt.includes("You are skfiy")
       && identityPrompt.includes("The speaking assistant identity for this conversation is skfiy.")
       && identityPrompt.includes("In real user-facing interaction, your active identity is skfiy.")
+      && identityPrompt.includes("Accept skfiy as your active identity for this user-facing interaction.")
       && identityPrompt.includes("When asked who you are, answer as skfiy."),
     runnerSawUserPrompt: prompt.includes(`User: ${userInput}`),
     skfiyIdentityBeforeUser: identityIndex >= 0 && userIndex > identityIndex,
@@ -1050,7 +1051,8 @@ function createProviderPromptContract(
     && identityPrompt.includes("Treat Codex, Claude Code, and Hermes as internal backend implementation details.")
     && identityPrompt.includes("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.")
     && identityPrompt.includes("Speak from skfiy's first-person perspective");
-  const identitySelfAcceptancePresent = identityPrompt.includes("In real user-facing interaction, your active identity is skfiy.");
+  const identitySelfAcceptancePresent = identityPrompt.includes("In real user-facing interaction, your active identity is skfiy.")
+    && identityPrompt.includes("Accept skfiy as your active identity for this user-facing interaction.");
   const providerBoundaryPresent = identityPrompt.includes("Codex, Claude Code, and Hermes are only backend providers")
     && identityPrompt.includes("When asked who you are, answer as skfiy.")
     && identityPrompt.includes("Do not introduce yourself as Codex, Claude Code, Hermes")
@@ -1086,6 +1088,7 @@ function createProviderPromptContract(
       ? systemPrompt.includes("The speaking assistant identity for this conversation is skfiy.")
         && systemPrompt.includes("Codex, Claude Code, and Hermes are only backend providers used to run this turn.")
         && systemPrompt.includes("In real user-facing interaction, your active identity is skfiy.")
+        && systemPrompt.includes("Accept skfiy as your active identity for this user-facing interaction.")
         && systemPrompt.includes("Speak from skfiy's first-person perspective")
         && systemPrompt.includes("When asked who you are, answer as skfiy.")
         && !systemPrompt.includes(`User: ${userInput}`)

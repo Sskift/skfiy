@@ -25,6 +25,7 @@ describe("CLI product smoke script", () => {
     expect(source).toContain("collectProviderPromptContract");
     expect(source).toContain("collectRealTurnIdentityContract");
     expect(source).toContain("collectRealBrowserContextContract");
+    expect(source).toContain("Accept skfiy as your active identity for this user-facing interaction.");
     expect(source).toContain("collectRepeatedConversationLearningContract");
     expect(source).toContain("collectPersonalMemoryFallbackContract");
     expect(source).toContain("collectPostTurnPersonalizationContract");
