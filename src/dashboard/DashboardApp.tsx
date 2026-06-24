@@ -851,6 +851,17 @@ function PersonalSkillCardList({
               <span>{skill.kind} · evidence {skill.evidenceCount}</span>
               <strong>{skill.label}</strong>
               <small>{skill.promptHint}</small>
+              <div
+                aria-label={`Evidence for ${skill.label}`}
+                className="skfiy-dashboard-personal-skill-evidence"
+                role="list"
+              >
+                {skill.evidence.length > 0 ? skill.evidence.map((evidence) => (
+                  <span key={evidence} role="listitem">{evidence}</span>
+                )) : (
+                  <span role="listitem">No retained evidence text.</span>
+                )}
+              </div>
               <button
                 aria-label={`Mute personal skill: ${skill.label}`}
                 className="skfiy-dashboard-icon-button"
@@ -934,7 +945,7 @@ function MemoryEntryList({
     <div className="skfiy-dashboard-key-value-list skfiy-dashboard-memory-list">
       <h3>{title}</h3>
       {entries.length > 0 ? (
-        <ul>
+        <ul aria-label={title}>
           {entries.map((entry) => (
             <li key={entry}>
               <span>{entry}</span>

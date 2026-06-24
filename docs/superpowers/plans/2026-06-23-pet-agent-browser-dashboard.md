@@ -1134,6 +1134,20 @@ Focused verification:
 npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 10: Show personal skill evidence trails in Memory**
+
+In `src/dashboard/DashboardApp.tsx`, `src/dashboard/DashboardApp.test.tsx`, and `src/dashboard/styles.css`:
+
+- Show each personal skill card's retained evidence as visible, accessible evidence chips instead of only showing an evidence count.
+- Name the raw memory lists so Dashboard tests and assistive technology can distinguish original user/agent memory from derived skill evidence.
+- Preserve the mute control and keep forgotten raw memory assertions scoped to the raw memory entry rather than derived session/skill evidence.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/DashboardApp.test.tsx --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls

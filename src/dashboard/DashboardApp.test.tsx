@@ -290,14 +290,28 @@ describe("DashboardApp", () => {
 
     const memory = screen.getByRole("region", { name: "Memory" });
     expect(within(memory).getByRole("heading", { name: "Personal memory" })).toBeInTheDocument();
-    expect(within(memory).getByText("User prefers concise Chinese updates.")).toBeInTheDocument();
-    expect(within(memory).getByText("For dashboard work, prefer dense Obsidian-like knowledge surfaces.")).toBeInTheDocument();
+    const userPreferenceList = within(memory).getByRole("list", { name: "User preferences" });
+    expect(within(userPreferenceList).getByText("User prefers concise Chinese updates.")).toBeInTheDocument();
+    const agentNoteList = within(memory).getByRole("list", { name: "Agent operating notes" });
+    expect(within(agentNoteList).getByText(
+      "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
+    )).toBeInTheDocument();
     expect(within(memory).getByText("user budget 2% - 37/1,375 chars")).toBeInTheDocument();
     expect(within(memory).getByText("agent budget 3% - 66/2,200 chars")).toBeInTheDocument();
     expect(within(memory).getByText("sessions 2")).toBeInTheDocument();
     expect(within(memory).getByRole("heading", { name: "Personal skill cards" })).toBeInTheDocument();
     expect(within(memory).getByText("Concise Chinese progress updates")).toBeInTheDocument();
     expect(within(memory).getByText("Obsidian-style knowledge dashboard")).toBeInTheDocument();
+    const communicationEvidence = within(memory).getByRole("list", {
+      name: "Evidence for Concise Chinese progress updates"
+    });
+    expect(within(communicationEvidence).getByText("User prefers concise Chinese updates.")).toBeInTheDocument();
+    const dashboardEvidence = within(memory).getByRole("list", {
+      name: "Evidence for Obsidian-style knowledge dashboard"
+    });
+    expect(within(dashboardEvidence).getByText(
+      "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
+    )).toBeInTheDocument();
     expect(within(memory).getByRole("heading", { name: "Recent session recall" })).toBeInTheDocument();
     expect(within(memory).getByText("Codex · skfiy Dashboard")).toBeInTheDocument();
     expect(within(memory).getByText("Summarize current dashboard state.")).toBeInTheDocument();
@@ -558,7 +572,9 @@ describe("DashboardApp", () => {
       expect(runPersonalMemoryAction).toHaveBeenCalledTimes(1);
     });
     await waitFor(() => {
-      expect(within(memory).queryByText("User prefers concise Chinese updates.")).not.toBeInTheDocument();
+      expect(within(memory).queryByRole("button", {
+        name: "Forget memory: User prefers concise Chinese updates."
+      })).not.toBeInTheDocument();
     });
     expect(within(memory).getByText("Memory forgotten")).toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
