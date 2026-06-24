@@ -738,6 +738,7 @@ In `src/main/assistant-agent.ts`:
 - Do not use `hermes --oneshot`; official help says oneshot loads tools and auto-bypasses approvals.
 - Keep skfiy identity prompt and Computer Use boundary text in the shared prompt builder.
 - Use Claude Code `--system-prompt` for the skfiy identity contract rather than appending after Claude Code's default identity.
+- Keep Claude Code's ordinary user prompt free of the duplicated skfiy identity block; Codex and Hermes receive the identity in their bounded query prompt because they do not expose the same primary system-prompt channel.
 
 In `src/main/assistant-agent-settings.ts`, accept exactly `codex`, `claude-code`, and `hermes`.
 

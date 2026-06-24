@@ -229,7 +229,10 @@ export function buildAssistantAgentInvocation(
     browserPageContext,
     personalMemory,
     recalledSessions,
-    personalSkillSettings
+    personalSkillSettings,
+    {
+      includeIdentityPrompt: settings.mode !== "claude-code"
+    }
   );
 
   if (settings.mode === "codex") {
@@ -678,8 +681,12 @@ function createAssistantAgentPrompt(
   browserPageContext?: BrowserPageContext,
   personalMemory?: PersonalMemorySnapshot,
   recalledSessions?: SessionMemoryRecord[],
-  personalSkillSettings?: PersonalSkillSettings
+  personalSkillSettings?: PersonalSkillSettings,
+  options: {
+    includeIdentityPrompt?: boolean;
+  } = {}
 ): string {
+  const includeIdentityPrompt = options.includeIdentityPrompt ?? true;
   const personalMemoryBlock = personalMemory
     ? createPersonalMemoryPromptBlock(personalMemory)
     : "";
@@ -695,8 +702,7 @@ function createAssistantAgentPrompt(
     : "";
 
   return [
-    ASSISTANT_AGENT_IDENTITY_PROMPT,
-    "",
+    ...(includeIdentityPrompt ? [ASSISTANT_AGENT_IDENTITY_PROMPT, ""] : []),
     ...(personalMemoryBlock ? [personalMemoryBlock, ""] : []),
     ...(recalledSessionsBlock ? [recalledSessionsBlock, ""] : []),
     ...(personalSkillsBlock ? [personalSkillsBlock, ""] : []),

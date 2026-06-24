@@ -313,20 +313,21 @@ function createProviderPromptContract(
   );
   const prompt = readInvocationPrompt(invocation);
   const systemPrompt = readInvocationSystemPrompt(invocation);
+  const identityPrompt = settings.mode === "claude-code" ? systemPrompt : prompt;
   const argsText = invocation.args.join("\n");
-  const skfiyIndex = prompt.indexOf("You are skfiy");
+  const skfiyIndex = identityPrompt.indexOf("You are skfiy");
   const memoryIndex = prompt.indexOf("<skfiy-recalled-memory>");
   const sessionRecallIndex = prompt.indexOf("<skfiy-recalled-sessions>");
   const browserContextIndex = prompt.indexOf("Current Chrome page");
   const userIndex = prompt.indexOf(`User: ${userInput}`);
-  const providerIdentityInternalized = prompt.includes("The speaking assistant identity for this conversation is skfiy.")
-    && prompt.includes("Treat Codex, Claude Code, and Hermes as internal backend implementation details.")
-    && prompt.includes("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
-  const providerBoundaryPresent = prompt.includes("Codex, Claude Code, and Hermes are only backend providers")
-    && prompt.includes("When asked who you are, answer as skfiy.")
-    && prompt.includes("Do not introduce yourself as Codex, Claude Code, Hermes")
-    && prompt.includes("Computer Use is a tool capability")
-    && prompt.includes("Do not execute commands, edit files, or control apps directly from this provider call.");
+  const providerIdentityInternalized = identityPrompt.includes("The speaking assistant identity for this conversation is skfiy.")
+    && identityPrompt.includes("Treat Codex, Claude Code, and Hermes as internal backend implementation details.")
+    && identityPrompt.includes("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
+  const providerBoundaryPresent = identityPrompt.includes("Codex, Claude Code, and Hermes are only backend providers")
+    && identityPrompt.includes("When asked who you are, answer as skfiy.")
+    && identityPrompt.includes("Do not introduce yourself as Codex, Claude Code, Hermes")
+    && identityPrompt.includes("Computer Use is a tool capability")
+    && identityPrompt.includes("Do not execute commands, edit files, or control apps directly from this provider call.");
 
   return {
     mode: settings.mode,
@@ -334,7 +335,11 @@ function createProviderPromptContract(
     commandBasename: path.basename(invocation.command),
     promptHash: createHash("sha256").update(prompt).digest("hex"),
     promptLength: prompt.length,
-    skfiyIdentityBeforeUser: skfiyIndex >= 0 && userIndex > skfiyIndex,
+    skfiyIdentityBeforeUser: settings.mode === "claude-code"
+      ? skfiyIndex >= 0
+        && userIndex >= 0
+        && !prompt.includes("The speaking assistant identity for this conversation is skfiy.")
+      : skfiyIndex >= 0 && userIndex > skfiyIndex,
     memoryBeforeBrowserContext: memoryIndex >= 0 && browserContextIndex > memoryIndex,
     sessionRecallAfterMemory: sessionRecallIndex >= 0 && sessionRecallIndex > memoryIndex,
     sessionRecallBeforeBrowserContext: sessionRecallIndex >= 0 && browserContextIndex > sessionRecallIndex,
@@ -364,7 +369,7 @@ function createProviderPromptContract(
         && argsText.includes("--toolsets\nsafe")
         && argsText.includes("--source\nskfiy-pet-chat")
       : undefined,
-    rejectsDirectDesktopControl: prompt.includes("route the request through its own Computer Use tool layer"),
+    rejectsDirectDesktopControl: identityPrompt.includes("route the request through its own Computer Use tool layer"),
     dangerousFlagsAbsent: !containsAny(invocation.args, [
       "--oneshot",
       "--yolo",

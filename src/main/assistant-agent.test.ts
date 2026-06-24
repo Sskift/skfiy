@@ -279,12 +279,18 @@ describe("assistant agent provider", () => {
     });
 
     const args = runProcess.mock.calls[0]?.[1] ?? [];
-    const prompt = readProviderPrompt(label, args);
+    const prompt = readProviderIdentityPrompt(label, args);
+    const userPrompt = readProviderPrompt(label, args);
 
     expect(prompt).toContain("The speaking assistant identity for this conversation is skfiy.");
     expect(prompt).toContain("Treat Codex, Claude Code, and Hermes as internal backend implementation details.");
     expect(prompt).toContain("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
-    expect(prompt.indexOf("The speaking assistant identity")).toBeLessThan(prompt.indexOf("User: 你是谁"));
+    if (label === "Claude Code") {
+      expect(userPrompt).not.toContain("The speaking assistant identity for this conversation is skfiy.");
+      expect(userPrompt).toContain("User: 你是谁");
+    } else {
+      expect(prompt.indexOf("The speaking assistant identity")).toBeLessThan(prompt.indexOf("User: 你是谁"));
+    }
   });
 
   it("injects personal memory after skfiy identity and before Browser Context", () => {
@@ -395,7 +401,7 @@ describe("assistant agent provider", () => {
     expect(prompt).not.toContain("Favor linked knowledge");
   });
 
-  it("uses the same skfiy identity prompt for Claude Code backend calls", () => {
+  it("uses the Claude Code system prompt for skfiy identity without duplicating it in the user prompt", () => {
     const invocation = buildAssistantAgentInvocation({
       mode: "claude-code",
       codexBinary: "codex",
@@ -408,10 +414,13 @@ describe("assistant agent provider", () => {
       timeoutMs: 45_000
     }, "你好");
 
-    const prompt = invocation.args.at(-1) ?? "";
-    expect(prompt).toContain("You are skfiy");
-    expect(prompt).toContain("When asked who you are, answer as skfiy");
-    expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("User: 你好"));
+    const systemPrompt = readArgValue(invocation.args, "--system-prompt");
+    const userPrompt = invocation.args.at(-1) ?? "";
+    expect(systemPrompt).toContain("You are skfiy");
+    expect(systemPrompt).toContain("When asked who you are, answer as skfiy");
+    expect(userPrompt).not.toContain("You are skfiy");
+    expect(userPrompt).not.toContain("When asked who you are, answer as skfiy");
+    expect(userPrompt).toContain("User: 你好");
   });
 
   it("injects skfiy identity as the Claude Code system prompt during real turns", async () => {
@@ -437,6 +446,7 @@ describe("assistant agent provider", () => {
     expect(systemPrompt).toContain("When asked who you are, answer as skfiy.");
     expect(systemPrompt).not.toContain("User: 你是谁");
     expect(args).not.toContain("--append-system-prompt");
+    expect(userPrompt).not.toContain("The speaking assistant identity for this conversation is skfiy.");
     expect(userPrompt).toContain("User: 你是谁");
   });
 
@@ -737,6 +747,14 @@ function readProviderPrompt(label: "Codex" | "Claude Code" | "Hermes", args: str
   }
 
   return args.at(-1) ?? "";
+}
+
+function readProviderIdentityPrompt(label: "Codex" | "Claude Code" | "Hermes", args: string[]): string {
+  if (label === "Claude Code") {
+    return readArgValue(args, "--system-prompt");
+  }
+
+  return readProviderPrompt(label, args);
 }
 
 function readArgValue(args: string[], flag: string): string {
