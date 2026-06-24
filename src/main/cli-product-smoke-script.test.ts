@@ -26,6 +26,8 @@ describe("CLI product smoke script", () => {
     expect(source).toContain("collectRealTurnIdentityContract");
     expect(source).toContain("collectRealBrowserContextContract");
     expect(source).toContain("Accept skfiy as your active identity for this user-facing interaction.");
+    expect(source).toContain("providerDefaultOverridePresent");
+    expect(source).toContain("replyPrefixBlocked");
     expect(source).toContain("collectRepeatedConversationLearningContract");
     expect(source).toContain("collectPersonalMemoryFallbackContract");
     expect(source).toContain("collectPersonalMemoryPromptSanitizationContract");
@@ -297,6 +299,24 @@ describe("CLI product smoke script", () => {
         ...createPassingProviderPromptContract(),
         providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "codex"
           ? { ...provider, identitySelfAcceptancePresent: false }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      providerPromptContract: {
+        ...createPassingProviderPromptContract(),
+        providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "codex"
+          ? { ...provider, providerDefaultOverridePresent: false }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      realTurnIdentityContract: {
+        ...createPassingRealTurnIdentityContract(),
+        providers: createPassingRealTurnIdentityContract().providers.map((provider) => provider.mode === "claude-code"
+          ? { ...provider, replyPrefixBlocked: false }
           : provider)
       }
     })).toBe("failed");
@@ -603,6 +623,8 @@ function createPassingProviderPromptContract() {
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
         identitySelfAcceptancePresent: true,
+        providerDefaultOverridePresent: true,
+        replyPrefixBlocked: true,
         providerBoundaryPresent: true,
         usesReadOnlySandbox: true,
         rejectsDirectDesktopControl: true,
@@ -624,6 +646,8 @@ function createPassingProviderPromptContract() {
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
         identitySelfAcceptancePresent: true,
+        providerDefaultOverridePresent: true,
+        replyPrefixBlocked: true,
         providerBoundaryPresent: true,
         usesSystemIdentityPrompt: true,
         disallowsMutatingTools: true,
@@ -646,6 +670,8 @@ function createPassingProviderPromptContract() {
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
         identitySelfAcceptancePresent: true,
+        providerDefaultOverridePresent: true,
+        replyPrefixBlocked: true,
         providerBoundaryPresent: true,
         usesBoundedChatToolset: true,
         rejectsDirectDesktopControl: true,
@@ -671,6 +697,8 @@ function createPassingRealTurnIdentityContract() {
         runnerSawUserPrompt: true,
         skfiyIdentityBeforeUser: true,
         providerBoundaryPresent: true,
+        providerDefaultOverridePresent: true,
+        replyPrefixBlocked: true,
         responseProviderLabel: "Codex",
         responseMessage: "我是 skfiy。"
       },
@@ -684,6 +712,8 @@ function createPassingRealTurnIdentityContract() {
         runnerSawUserPrompt: true,
         userPromptHasNoDuplicateIdentity: true,
         providerBoundaryPresent: true,
+        providerDefaultOverridePresent: true,
+        replyPrefixBlocked: true,
         responseProviderLabel: "Claude Code",
         responseMessage: "我是 skfiy。"
       },
@@ -697,6 +727,8 @@ function createPassingRealTurnIdentityContract() {
         runnerSawUserPrompt: true,
         skfiyIdentityBeforeUser: true,
         providerBoundaryPresent: true,
+        providerDefaultOverridePresent: true,
+        replyPrefixBlocked: true,
         responseProviderLabel: "Hermes",
         responseMessage: "我是 skfiy。"
       }

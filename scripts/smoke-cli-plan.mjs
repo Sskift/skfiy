@@ -463,6 +463,8 @@ function hasProviderContract(providers, expected) {
     && provider?.sessionRecallRedactsToken === true
     && provider?.browserContextBeforeUser === true
     && provider?.providerIdentityInternalized === true
+    && provider?.providerDefaultOverridePresent === true
+    && provider?.replyPrefixBlocked === true
     && provider?.providerBoundaryPresent === true
     && provider?.rejectsDirectDesktopControl === true
     && provider?.dangerousFlagsAbsent === true
@@ -510,6 +512,8 @@ function hasRealTurnProviderContract(providers, expected) {
     && provider?.runnerSawSkfiyIdentity === true
     && provider?.runnerSawUserPrompt === true
     && provider?.providerBoundaryPresent === true
+    && provider?.providerDefaultOverridePresent === true
+    && provider?.replyPrefixBlocked === true
     && provider?.responseProviderLabel === expected.label
     && provider?.responseMessage === "我是 skfiy。"
     && (

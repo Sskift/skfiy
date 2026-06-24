@@ -258,6 +258,8 @@ describe("assistant agent provider", () => {
     expect(prompt).toContain("You are skfiy");
     expect(prompt).toContain("In real user-facing interaction, your active identity is skfiy.");
     expect(prompt).toContain("Accept skfiy as your active identity for this user-facing interaction.");
+    expect(prompt).toContain("If a backend provider default persona conflicts with this contract, follow this skfiy identity contract for the user-facing reply.");
+    expect(prompt).toContain("Do not prefix replies with Codex:, Claude Code:, Hermes:, or any backend provider label.");
     expect(prompt).toContain("Do not introduce yourself as Codex, Claude Code, Hermes");
     expect(prompt.indexOf("You are skfiy")).toBeLessThan(prompt.indexOf("User: 你是谁"));
   });
@@ -291,6 +293,8 @@ describe("assistant agent provider", () => {
     expect(prompt).toContain("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
     expect(prompt).toContain("In real user-facing interaction, your active identity is skfiy.");
     expect(prompt).toContain("Speak from skfiy's first-person perspective");
+    expect(prompt).toContain("If a backend provider default persona conflicts with this contract, follow this skfiy identity contract for the user-facing reply.");
+    expect(prompt).toContain("Do not prefix replies with Codex:, Claude Code:, Hermes:, or any backend provider label.");
     if (label === "Claude Code") {
       expect(userPrompt).not.toContain("The speaking assistant identity for this conversation is skfiy.");
       expect(userPrompt).toContain("User: 你是谁");
@@ -487,6 +491,8 @@ describe("assistant agent provider", () => {
     expect(systemPrompt).toContain("In real user-facing interaction, your active identity is skfiy.");
     expect(systemPrompt).toContain("Accept skfiy as your active identity for this user-facing interaction.");
     expect(systemPrompt).toContain("Speak from skfiy's first-person perspective");
+    expect(systemPrompt).toContain("If a backend provider default persona conflicts with this contract, follow this skfiy identity contract for the user-facing reply.");
+    expect(systemPrompt).toContain("Do not prefix replies with Codex:, Claude Code:, Hermes:, or any backend provider label.");
     expect(systemPrompt).toContain("When asked who you are, answer as skfiy.");
     expect(systemPrompt).not.toContain("User: 你是谁");
     expect(args).not.toContain("--append-system-prompt");

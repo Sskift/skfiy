@@ -178,6 +178,8 @@ async function collectProviderPromptContract() {
       && provider.browserContextBeforeUser
       && provider.sessionRecallRedactsToken
       && provider.providerBoundaryPresent
+      && provider.providerDefaultOverridePresent
+      && provider.replyPrefixBlocked
       && provider.rejectsDirectDesktopControl
       && provider.dangerousFlagsAbsent
       && (provider.mode !== "claude-code" || provider.usesSystemIdentityPrompt)
@@ -244,6 +246,8 @@ async function collectRealTurnIdentityContract() {
       && provider.runnerSawSkfiyIdentity
       && provider.runnerSawUserPrompt
       && provider.providerBoundaryPresent
+      && provider.providerDefaultOverridePresent
+      && provider.replyPrefixBlocked
       && provider.responseProviderLabel === provider.label
       && provider.responseMessage === "我是 skfiy。"
       && (
@@ -323,6 +327,8 @@ async function collectRealTurnIdentityProviderContract(runAssistantAgentTurn, se
     providerBoundaryPresent: identityPrompt.includes("Codex, Claude Code, and Hermes are only backend providers used to run this turn.")
       && identityPrompt.includes("Treat Codex, Claude Code, and Hermes as internal backend implementation details.")
       && identityPrompt.includes("Do not introduce yourself as Codex, Claude Code, Hermes"),
+    providerDefaultOverridePresent: identityPrompt.includes("If a backend provider default persona conflicts with this contract, follow this skfiy identity contract for the user-facing reply."),
+    replyPrefixBlocked: identityPrompt.includes("Do not prefix replies with Codex:, Claude Code:, Hermes:, or any backend provider label."),
     responseProviderLabel: turn.providerLabel,
     responseMessage: turn.message,
     runnerCwdIsProductRoot: capturedOptions?.cwd === ROOT_DIR,
@@ -1101,6 +1107,8 @@ function createProviderPromptContract(
     && identityPrompt.includes("Speak from skfiy's first-person perspective");
   const identitySelfAcceptancePresent = identityPrompt.includes("In real user-facing interaction, your active identity is skfiy.")
     && identityPrompt.includes("Accept skfiy as your active identity for this user-facing interaction.");
+  const providerDefaultOverridePresent = identityPrompt.includes("If a backend provider default persona conflicts with this contract, follow this skfiy identity contract for the user-facing reply.");
+  const replyPrefixBlocked = identityPrompt.includes("Do not prefix replies with Codex:, Claude Code:, Hermes:, or any backend provider label.");
   const providerBoundaryPresent = identityPrompt.includes("Codex, Claude Code, and Hermes are only backend providers")
     && identityPrompt.includes("When asked who you are, answer as skfiy.")
     && identityPrompt.includes("Do not introduce yourself as Codex, Claude Code, Hermes")
@@ -1131,6 +1139,8 @@ function createProviderPromptContract(
     browserContextBeforeUser: browserContextIndex >= 0 && userIndex > browserContextIndex,
     providerIdentityInternalized,
     identitySelfAcceptancePresent,
+    providerDefaultOverridePresent,
+    replyPrefixBlocked,
     providerBoundaryPresent,
     usesSystemIdentityPrompt: settings.mode === "claude-code"
       ? systemPrompt.includes("The speaking assistant identity for this conversation is skfiy.")
