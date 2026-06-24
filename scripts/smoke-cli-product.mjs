@@ -40,6 +40,7 @@ async function main() {
     commands: [],
     providerPromptContract: undefined,
     realTurnIdentityContract: undefined,
+    realBrowserContextContract: undefined,
     repeatedConversationLearningContract: undefined,
     personalMemoryFallbackContract: undefined,
     postTurnPersonalizationContract: undefined,
@@ -52,6 +53,7 @@ async function main() {
     await prepareIsolatedHome(options);
     evidence.providerPromptContract = await collectProviderPromptContract();
     evidence.realTurnIdentityContract = await collectRealTurnIdentityContract();
+    evidence.realBrowserContextContract = await collectRealBrowserContextContract();
     evidence.repeatedConversationLearningContract = await collectRepeatedConversationLearningContract();
     evidence.personalMemoryFallbackContract = await collectPersonalMemoryFallbackContract();
     evidence.postTurnPersonalizationContract = await collectPostTurnPersonalizationContract();
@@ -318,6 +320,106 @@ async function collectRealTurnIdentityProviderContract(runAssistantAgentTurn, se
     responseMessage: turn.message,
     runnerCwdIsProductRoot: capturedOptions?.cwd === ROOT_DIR,
     runnerTimeoutMs: capturedOptions?.timeoutMs
+  };
+}
+
+async function collectRealBrowserContextContract() {
+  const assistantModulePath = path.join(ROOT_DIR, "dist", "main", "assistant-agent.js");
+  const browserContextModulePath = path.join(ROOT_DIR, "dist", "main", "browser-page-context.js");
+  const productPath = "dist/main/browser-page-context.js -> dist/main/assistant-agent.js -> real Browser Context prompt contract";
+  const [
+    { runAssistantAgentTurn },
+    { createBrowserPageContextFromConnection }
+  ] = await Promise.all([
+    import(pathToFileURL(assistantModulePath).href),
+    import(pathToFileURL(browserContextModulePath).href)
+  ]);
+  const connection = {
+    state: "connected",
+    liveConnection: "connected",
+    observedAt: "2026-06-24T08:10:00.000Z",
+    pageObservation: {
+      url: "https://example.test/skfiy-browser-context",
+      title: "skfiy Browser Context Contract",
+      visibleText: "Browser context visible text from a ready Chrome pageControl observation.",
+      observedAt: "2026-06-24T08:09:59.000Z",
+      pageControl: {
+        state: "ready",
+        capable: true,
+        reason: "Content script loaded and DOM controls are available.",
+        nextAction: "send_page_action"
+      }
+    }
+  };
+  const browserPageContext = createBrowserPageContextFromConnection(connection);
+  const userInput = "总结当前网页上下文。";
+  let capturedCommand = "";
+  let capturedArgs = [];
+  const turn = await runAssistantAgentTurn(userInput, {
+    settings: {
+      mode: "codex",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
+      cwd: ROOT_DIR,
+      timeoutMs: 45_000
+    },
+    browserPageContext,
+    runProcess: async (command, args) => {
+      capturedCommand = command;
+      capturedArgs = args;
+      return {
+        stdout: "我看到当前 Chrome 页面。\n",
+        stderr: ""
+      };
+    },
+    now: () => new Date("2026-06-24T08:10:01.000Z"),
+    createTurnId: () => "real-browser-context-contract"
+  });
+  const prompt = readInvocationPrompt({
+    command: capturedCommand,
+    args: capturedArgs,
+    label: turn.providerLabel
+  });
+  const browserContextIndex = prompt.indexOf("Current Chrome page");
+  const userIndex = prompt.indexOf(`User: ${userInput}`);
+  const tokenLeakDetected = hasTokenLeak([JSON.stringify(browserPageContext), prompt]);
+  const result = turn.status === "completed"
+    && turn.providerLabel === "Codex"
+    && turn.message === "我看到当前 Chrome 页面。"
+    && browserPageContext.state === "ready"
+    && prompt.includes("Current Chrome page")
+    && prompt.includes("https://example.test/skfiy-browser-context")
+    && prompt.includes("skfiy Browser Context Contract")
+    && prompt.includes("Browser context visible text from a ready Chrome pageControl observation.")
+    && browserContextIndex >= 0
+    && userIndex > browserContextIndex
+    && prompt.includes("The speaking assistant identity for this conversation is skfiy.")
+    && !tokenLeakDetected
+    ? "passed"
+    : "failed";
+
+  return {
+    productPath,
+    assistantModulePath,
+    browserContextModulePath,
+    providerLabel: turn.providerLabel,
+    responseMessage: turn.message,
+    commandBasename: path.basename(capturedCommand),
+    connectionState: connection.state,
+    contextState: browserPageContext.state,
+    contextUrl: browserPageContext.url,
+    promptIncludesCurrentChromePage: prompt.includes("Current Chrome page"),
+    promptIncludesUrl: prompt.includes("https://example.test/skfiy-browser-context"),
+    promptIncludesTitle: prompt.includes("skfiy Browser Context Contract"),
+    promptIncludesVisibleText: prompt.includes("Browser context visible text from a ready Chrome pageControl observation."),
+    browserContextBeforeUser: browserContextIndex >= 0 && userIndex > browserContextIndex,
+    runnerSawSkfiyIdentity: prompt.includes("The speaking assistant identity for this conversation is skfiy."),
+    tokenLeakDetected,
+    result
   };
 }
 

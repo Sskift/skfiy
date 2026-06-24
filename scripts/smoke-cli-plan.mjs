@@ -142,6 +142,7 @@ export function classifyCliSmokeEvidence(evidence) {
     || evidence.commands.length !== expectedMatrix.length
     || !hasProviderPromptContractEvidence(evidence.providerPromptContract)
     || !hasRealTurnIdentityContractEvidence(evidence.realTurnIdentityContract)
+    || !hasRealBrowserContextContractEvidence(evidence.realBrowserContextContract)
     || !hasRepeatedConversationLearningContractEvidence(evidence.repeatedConversationLearningContract)
     || !hasPersonalMemoryFallbackContractEvidence(evidence.personalMemoryFallbackContract)
     || !hasPostTurnPersonalizationContractEvidence(evidence.postTurnPersonalizationContract)
@@ -512,6 +513,23 @@ function hasRealTurnProviderContract(providers, expected) {
       expected.mode !== "claude-code"
       || provider?.userPromptHasNoDuplicateIdentity === true
     );
+}
+
+function hasRealBrowserContextContractEvidence(contract) {
+  return contract?.productPath === "dist/main/browser-page-context.js -> dist/main/assistant-agent.js -> real Browser Context prompt contract"
+    && contract?.result === "passed"
+    && contract?.tokenLeakDetected === false
+    && contract?.providerLabel === "Codex"
+    && contract?.responseMessage === "我看到当前 Chrome 页面。"
+    && contract?.connectionState === "connected"
+    && contract?.contextState === "ready"
+    && contract?.contextUrl === "https://example.test/skfiy-browser-context"
+    && contract?.promptIncludesCurrentChromePage === true
+    && contract?.promptIncludesUrl === true
+    && contract?.promptIncludesTitle === true
+    && contract?.promptIncludesVisibleText === true
+    && contract?.browserContextBeforeUser === true
+    && contract?.runnerSawSkfiyIdentity === true;
 }
 
 function hasRepeatedConversationLearningContractEvidence(contract) {

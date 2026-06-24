@@ -24,6 +24,7 @@ describe("CLI product smoke script", () => {
     expect(source).toContain("launchLongRunningCommand");
     expect(source).toContain("collectProviderPromptContract");
     expect(source).toContain("collectRealTurnIdentityContract");
+    expect(source).toContain("collectRealBrowserContextContract");
     expect(source).toContain("collectRepeatedConversationLearningContract");
     expect(source).toContain("collectPersonalMemoryFallbackContract");
     expect(source).toContain("collectPostTurnPersonalizationContract");
@@ -133,6 +134,7 @@ describe("CLI product smoke script", () => {
       commands: CLI_COMMAND_MATRIX.map((command) => createPassingCommandEvidence(command)),
       providerPromptContract: createPassingProviderPromptContract(),
       realTurnIdentityContract: createPassingRealTurnIdentityContract(),
+      realBrowserContextContract: createPassingRealBrowserContextContract(),
       repeatedConversationLearningContract: createPassingRepeatedConversationLearningContract(),
       personalMemoryFallbackContract: createPassingPersonalMemoryFallbackContract(),
       postTurnPersonalizationContract: createPassingPostTurnPersonalizationContract(),
@@ -212,6 +214,17 @@ describe("CLI product smoke script", () => {
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
       realTurnIdentityContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      realBrowserContextContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      realBrowserContextContract: {
+        ...createPassingRealBrowserContextContract(),
+        promptIncludesVisibleText: false
+      }
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
@@ -607,6 +620,25 @@ function createPassingRealTurnIdentityContract() {
         responseMessage: "我是 skfiy。"
       }
     ]
+  };
+}
+
+function createPassingRealBrowserContextContract() {
+  return {
+    productPath: "dist/main/browser-page-context.js -> dist/main/assistant-agent.js -> real Browser Context prompt contract",
+    result: "passed",
+    tokenLeakDetected: false,
+    providerLabel: "Codex",
+    responseMessage: "我看到当前 Chrome 页面。",
+    connectionState: "connected",
+    contextState: "ready",
+    contextUrl: "https://example.test/skfiy-browser-context",
+    promptIncludesCurrentChromePage: true,
+    promptIncludesUrl: true,
+    promptIncludesTitle: true,
+    promptIncludesVisibleText: true,
+    browserContextBeforeUser: true,
+    runnerSawSkfiyIdentity: true
   };
 }
 
