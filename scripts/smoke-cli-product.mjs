@@ -40,6 +40,7 @@ async function main() {
     commands: [],
     providerPromptContract: undefined,
     realTurnIdentityContract: undefined,
+    repeatedConversationLearningContract: undefined,
     personalMemoryFallbackContract: undefined,
     postTurnPersonalizationContract: undefined,
     result: "not-run"
@@ -51,6 +52,7 @@ async function main() {
     await prepareIsolatedHome(options);
     evidence.providerPromptContract = await collectProviderPromptContract();
     evidence.realTurnIdentityContract = await collectRealTurnIdentityContract();
+    evidence.repeatedConversationLearningContract = await collectRepeatedConversationLearningContract();
     evidence.personalMemoryFallbackContract = await collectPersonalMemoryFallbackContract();
     evidence.postTurnPersonalizationContract = await collectPostTurnPersonalizationContract();
     smokeLock = await acquireSmokeLock({
@@ -316,6 +318,139 @@ async function collectRealTurnIdentityProviderContract(runAssistantAgentTurn, se
     responseMessage: turn.message,
     runnerCwdIsProductRoot: capturedOptions?.cwd === ROOT_DIR,
     runnerTimeoutMs: capturedOptions?.timeoutMs
+  };
+}
+
+async function collectRepeatedConversationLearningContract() {
+  const productPath = "dist/main/assistant-agent.js + dist/main/personalization-learning-loop.js -> repeated conversation learning contract";
+  const [
+    { runAssistantAgentTurn },
+    { recordCompletedAssistantTurnForPersonalization },
+    { createPersonalMemoryStore },
+    { createSessionMemoryStore, searchSessionMemory }
+  ] = await Promise.all([
+    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "assistant-agent.js")).href),
+    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "personalization-learning-loop.js")).href),
+    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "personal-memory.js")).href),
+    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "session-memory.js")).href)
+  ]);
+  const files = new Map();
+  const memoryStore = createPersonalMemoryStore({
+    baseDir: "/tmp/skfiy-cli-repeated-conversation-contract",
+    io: createMemoryIo(files)
+  });
+  const sessionMemoryStore = createSessionMemoryStore({
+    baseDir: "/tmp/skfiy-cli-repeated-conversation-contract",
+    io: createSessionIo(files)
+  });
+  const firstUserInput = "以后 dashboard 默认做 Obsidian 那种密集知识图谱，不要营销大卡片。";
+  const firstTurn = await runAssistantAgentTurn(firstUserInput, {
+    settings: createAssistantAgentSettings("codex"),
+    personalMemory: memoryStore.read(),
+    recalledSessions: searchSessionMemory(sessionMemoryStore.readAll(), firstUserInput, 3),
+    runProcess: async () => ({
+      stdout: "记住了，我会按更密集的本地知识面板来做。\n",
+      stderr: ""
+    }),
+    now: () => new Date("2026-06-24T08:30:00.000Z"),
+    createTurnId: () => "repeated-learning-turn-1"
+  });
+
+  await recordCompletedAssistantTurnForPersonalization({
+    userInput: firstUserInput,
+    turn: firstTurn,
+    browserPageContext: {
+      state: "ready",
+      url: "https://example.test/dashboard-brief",
+      title: "Dashboard brief"
+    },
+    memoryStore,
+    sessionMemoryStore,
+    runReviewTurn: async () => createCompletedTurn(
+      "repeated-learning-memory-review",
+      "Hermes",
+      `{"operations":[{"action":"add","target":"user","content":"User prefers dense Obsidian-like knowledge surfaces for dashboard work."},{"action":"add","target":"user","content":"User dislikes marketing-style hero/card-heavy dashboard layouts."}]}`
+    )
+  });
+
+  const memoryAfterFirstTurn = memoryStore.read();
+  const sessionsAfterFirstTurn = sessionMemoryStore.readAll();
+  const secondUserInput = "继续 dashboard 的视觉方向";
+  const recalledForSecondTurn = searchSessionMemory(
+    sessionsAfterFirstTurn,
+    "Obsidian dashboard 知识图谱 视觉方向",
+    3
+  );
+  let secondPrompt = "";
+  const secondTurn = await runAssistantAgentTurn(secondUserInput, {
+    settings: createAssistantAgentSettings("hermes"),
+    personalMemory: memoryAfterFirstTurn,
+    recalledSessions: recalledForSecondTurn,
+    runProcess: async (command, args) => {
+      secondPrompt = readInvocationPrompt({
+        command,
+        args,
+        label: "Hermes"
+      });
+      return {
+        stdout: "我记得你喜欢 Obsidian 风格的本地知识面板。\n",
+        stderr: ""
+      };
+    },
+    now: () => new Date("2026-06-24T08:31:00.000Z"),
+    createTurnId: () => "repeated-learning-turn-2"
+  });
+  const memoryIndex = secondPrompt.indexOf("<skfiy-recalled-memory>");
+  const recalledSessionIndex = secondPrompt.indexOf("<skfiy-recalled-sessions>");
+  const personalSkillIndex = secondPrompt.indexOf("<skfiy-personal-skills>");
+  const userIndex = secondPrompt.indexOf(`User: ${secondUserInput}`);
+  const firstTurnEvidence = {
+    providerLabel: firstTurn.providerLabel,
+    status: firstTurn.status,
+    sessionCount: sessionsAfterFirstTurn.length,
+    durableUserEntries: memoryAfterFirstTurn.userEntries
+  };
+  const secondTurnEvidence = {
+    providerLabel: secondTurn.providerLabel,
+    status: secondTurn.status,
+    responseMessage: secondTurn.message,
+    recalledSessionCount: recalledForSecondTurn.length,
+    promptIncludesMemory: secondPrompt.includes("User prefers dense Obsidian-like knowledge surfaces for dashboard work.")
+      && secondPrompt.includes("User dislikes marketing-style hero/card-heavy dashboard layouts."),
+    promptIncludesRecalledSession: secondPrompt.includes(firstUserInput),
+    promptIncludesPersonalSkill: secondPrompt.includes("Obsidian-style knowledge dashboard")
+      && secondPrompt.includes("Favor linked knowledge from memory, sessions, skills, and graph/canvas evidence"),
+    memoryBeforeRecalledSession: memoryIndex >= 0 && recalledSessionIndex > memoryIndex,
+    recalledSessionBeforePersonalSkill: recalledSessionIndex >= 0 && personalSkillIndex > recalledSessionIndex,
+    personalSkillBeforeUser: personalSkillIndex >= 0 && userIndex > personalSkillIndex
+  };
+  const tokenLeakDetected = hasTokenLeak([
+    JSON.stringify(firstTurnEvidence),
+    JSON.stringify(secondTurnEvidence)
+  ]);
+  const passed = firstTurnEvidence.providerLabel === "Codex"
+    && firstTurnEvidence.status === "completed"
+    && firstTurnEvidence.sessionCount === 1
+    && firstTurnEvidence.durableUserEntries.includes("User prefers dense Obsidian-like knowledge surfaces for dashboard work.")
+    && firstTurnEvidence.durableUserEntries.includes("User dislikes marketing-style hero/card-heavy dashboard layouts.")
+    && secondTurnEvidence.providerLabel === "Hermes"
+    && secondTurnEvidence.status === "completed"
+    && secondTurnEvidence.responseMessage === "我记得你喜欢 Obsidian 风格的本地知识面板。"
+    && secondTurnEvidence.recalledSessionCount === 1
+    && secondTurnEvidence.promptIncludesMemory
+    && secondTurnEvidence.promptIncludesRecalledSession
+    && secondTurnEvidence.promptIncludesPersonalSkill
+    && secondTurnEvidence.memoryBeforeRecalledSession
+    && secondTurnEvidence.recalledSessionBeforePersonalSkill
+    && secondTurnEvidence.personalSkillBeforeUser
+    && !tokenLeakDetected;
+
+  return {
+    productPath,
+    firstTurn: firstTurnEvidence,
+    secondTurn: secondTurnEvidence,
+    tokenLeakDetected,
+    result: passed ? "passed" : "failed"
   };
 }
 
@@ -629,6 +764,20 @@ function createCompletedTurn(id, providerLabel, message) {
     cancellation: {
       requested: false
     }
+  };
+}
+
+function createAssistantAgentSettings(mode) {
+  return {
+    mode,
+    codexBinary: "codex",
+    codexBinarySource: "default",
+    claudeCodeBinary: "claude",
+    claudeCodeBinarySource: "default",
+    hermesBinary: "hermes",
+    hermesBinarySource: "default",
+    cwd: ROOT_DIR,
+    timeoutMs: 45_000
   };
 }
 

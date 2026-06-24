@@ -24,6 +24,7 @@ describe("CLI product smoke script", () => {
     expect(source).toContain("launchLongRunningCommand");
     expect(source).toContain("collectProviderPromptContract");
     expect(source).toContain("collectRealTurnIdentityContract");
+    expect(source).toContain("collectRepeatedConversationLearningContract");
     expect(source).toContain("collectPersonalMemoryFallbackContract");
     expect(source).toContain("collectPostTurnPersonalizationContract");
   });
@@ -132,6 +133,7 @@ describe("CLI product smoke script", () => {
       commands: CLI_COMMAND_MATRIX.map((command) => createPassingCommandEvidence(command)),
       providerPromptContract: createPassingProviderPromptContract(),
       realTurnIdentityContract: createPassingRealTurnIdentityContract(),
+      repeatedConversationLearningContract: createPassingRepeatedConversationLearningContract(),
       personalMemoryFallbackContract: createPassingPersonalMemoryFallbackContract(),
       postTurnPersonalizationContract: createPassingPostTurnPersonalizationContract(),
       result: "passed"
@@ -210,6 +212,30 @@ describe("CLI product smoke script", () => {
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
       realTurnIdentityContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      repeatedConversationLearningContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      repeatedConversationLearningContract: {
+        ...createPassingRepeatedConversationLearningContract(),
+        secondTurn: {
+          ...createPassingRepeatedConversationLearningContract().secondTurn,
+          promptIncludesPersonalSkill: false
+        }
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      repeatedConversationLearningContract: {
+        ...createPassingRepeatedConversationLearningContract(),
+        firstTurn: {
+          ...createPassingRepeatedConversationLearningContract().firstTurn,
+          sessionCount: 0
+        }
+      }
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
@@ -581,6 +607,35 @@ function createPassingRealTurnIdentityContract() {
         responseMessage: "我是 skfiy。"
       }
     ]
+  };
+}
+
+function createPassingRepeatedConversationLearningContract() {
+  return {
+    productPath: "dist/main/assistant-agent.js + dist/main/personalization-learning-loop.js -> repeated conversation learning contract",
+    result: "passed",
+    tokenLeakDetected: false,
+    firstTurn: {
+      providerLabel: "Codex",
+      status: "completed",
+      sessionCount: 1,
+      durableUserEntries: [
+        "User prefers dense Obsidian-like knowledge surfaces for dashboard work.",
+        "User dislikes marketing-style hero/card-heavy dashboard layouts."
+      ]
+    },
+    secondTurn: {
+      providerLabel: "Hermes",
+      status: "completed",
+      responseMessage: "我记得你喜欢 Obsidian 风格的本地知识面板。",
+      recalledSessionCount: 1,
+      promptIncludesMemory: true,
+      promptIncludesRecalledSession: true,
+      promptIncludesPersonalSkill: true,
+      memoryBeforeRecalledSession: true,
+      recalledSessionBeforePersonalSkill: true,
+      personalSkillBeforeUser: true
+    }
   };
 }
 

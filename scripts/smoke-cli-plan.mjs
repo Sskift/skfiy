@@ -142,6 +142,7 @@ export function classifyCliSmokeEvidence(evidence) {
     || evidence.commands.length !== expectedMatrix.length
     || !hasProviderPromptContractEvidence(evidence.providerPromptContract)
     || !hasRealTurnIdentityContractEvidence(evidence.realTurnIdentityContract)
+    || !hasRepeatedConversationLearningContractEvidence(evidence.repeatedConversationLearningContract)
     || !hasPersonalMemoryFallbackContractEvidence(evidence.personalMemoryFallbackContract)
     || !hasPostTurnPersonalizationContractEvidence(evidence.postTurnPersonalizationContract)
   ) {
@@ -511,6 +512,28 @@ function hasRealTurnProviderContract(providers, expected) {
       expected.mode !== "claude-code"
       || provider?.userPromptHasNoDuplicateIdentity === true
     );
+}
+
+function hasRepeatedConversationLearningContractEvidence(contract) {
+  return contract?.productPath === "dist/main/assistant-agent.js + dist/main/personalization-learning-loop.js -> repeated conversation learning contract"
+    && contract?.result === "passed"
+    && contract?.tokenLeakDetected === false
+    && contract?.firstTurn?.providerLabel === "Codex"
+    && contract?.firstTurn?.status === "completed"
+    && contract?.firstTurn?.sessionCount === 1
+    && Array.isArray(contract?.firstTurn?.durableUserEntries)
+    && contract.firstTurn.durableUserEntries.includes("User prefers dense Obsidian-like knowledge surfaces for dashboard work.")
+    && contract.firstTurn.durableUserEntries.includes("User dislikes marketing-style hero/card-heavy dashboard layouts.")
+    && contract?.secondTurn?.providerLabel === "Hermes"
+    && contract?.secondTurn?.status === "completed"
+    && contract?.secondTurn?.responseMessage === "我记得你喜欢 Obsidian 风格的本地知识面板。"
+    && contract?.secondTurn?.recalledSessionCount === 1
+    && contract?.secondTurn?.promptIncludesMemory === true
+    && contract?.secondTurn?.promptIncludesRecalledSession === true
+    && contract?.secondTurn?.promptIncludesPersonalSkill === true
+    && contract?.secondTurn?.memoryBeforeRecalledSession === true
+    && contract?.secondTurn?.recalledSessionBeforePersonalSkill === true
+    && contract?.secondTurn?.personalSkillBeforeUser === true;
 }
 
 function hasPersonalMemoryFallbackContractEvidence(contract) {
