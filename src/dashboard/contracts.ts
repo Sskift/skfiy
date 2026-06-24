@@ -170,9 +170,11 @@ export interface DashboardPersonalMemoryUsageBucket {
 }
 
 export interface DashboardPersonalMemorySessionSummary {
+  turnId?: string;
   createdAt: string;
   userInput: string;
   providerLabel: string;
+  recallBasis?: string;
   browserTitle?: string;
   browserUrl?: string;
 }

@@ -281,6 +281,7 @@ describe("dashboard snapshot data", () => {
           createdAt: "2026-06-23T10:00:00.000Z",
           providerLabel: "Codex",
           userInput: "[redacted sensitive memory]",
+          recallBasis: "matched terms: dashboard, obsidian; score: 2",
           browserTitle: "Obsidian help",
           browserUrl: "https://obsidian.md"
         },

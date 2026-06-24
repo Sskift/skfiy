@@ -52,6 +52,7 @@ import {
 import { createWorkingProfile } from "./working-profile.js";
 import {
   readSessionMemoryRecords,
+  searchSessionMemory,
   type SessionMemoryRecord
 } from "./session-memory.js";
 import {
@@ -379,8 +380,6 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     baseDir,
     io
   });
-  const latestSession = sessions.at(-1);
-  const recentSessions = sessions.slice(-3).reverse();
   const personalSkills = createPersonalSkillCards({
     memory: personalMemory,
     sessions,
@@ -390,6 +389,13 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     memory: personalMemory,
     sessions,
     personalSkills
+  });
+  const latestSession = sessions.at(-1);
+  const recentSessions = createDashboardRecentSessionRecall({
+    memory: personalMemory,
+    personalSkills,
+    sessions,
+    workingProfile
   });
 
   return {
@@ -566,9 +572,13 @@ function sanitizeDashboardMemoryEntry(value: string): string {
 
 function createDashboardSessionSummary(session: SessionMemoryRecord): Record<string, unknown> {
   return {
+    turnId: sanitizeDashboardMemoryEntry(session.turnId),
     createdAt: session.createdAt,
     providerLabel: sanitizeDashboardMemoryEntry(session.providerLabel),
     userInput: sanitizeDashboardMemoryEntry(session.userInput),
+    ...(session.recallReason
+      ? { recallBasis: sanitizeDashboardMemoryEntry(session.recallReason) }
+      : {}),
     ...(session.browserContext?.title
       ? { browserTitle: sanitizeDashboardMemoryEntry(session.browserContext.title) }
       : {}),
@@ -576,6 +586,68 @@ function createDashboardSessionSummary(session: SessionMemoryRecord): Record<str
       ? { browserUrl: sanitizeDashboardMemoryEntry(session.browserContext.url) }
       : {})
   };
+}
+
+function createDashboardRecentSessionRecall({
+  memory,
+  personalSkills,
+  sessions,
+  workingProfile
+}: {
+  memory: ReturnType<typeof readPersonalMemorySnapshot>;
+  personalSkills: ReturnType<typeof createPersonalSkillCards>;
+  sessions: SessionMemoryRecord[];
+  workingProfile: ReturnType<typeof createWorkingProfile>;
+}): SessionMemoryRecord[] {
+  const query = createDashboardSessionRecallQuery({
+    memory,
+    personalSkills,
+    workingProfile
+  });
+  const recalledSessions = query
+    ? searchSessionMemory(sessions, query, 3)
+    : [];
+  const selectedSessionIds = new Set(recalledSessions.map((session) => session.turnId));
+  const recentFallbackSessions = sessions
+    .slice(-3)
+    .reverse()
+    .filter((session) => !selectedSessionIds.has(session.turnId));
+
+  return [
+    ...recalledSessions,
+    ...recentFallbackSessions
+  ].slice(0, 3);
+}
+
+function createDashboardSessionRecallQuery({
+  memory,
+  personalSkills,
+  workingProfile
+}: {
+  memory: ReturnType<typeof readPersonalMemorySnapshot>;
+  personalSkills: ReturnType<typeof createPersonalSkillCards>;
+  workingProfile: ReturnType<typeof createWorkingProfile>;
+}): string {
+  const parts = [
+    ...memory.userEntries.slice(-5),
+    ...memory.agentEntries.slice(-5),
+    ...personalSkills.flatMap((skill) => [
+      skill.label,
+      skill.description,
+      skill.promptHint
+    ]),
+    ...(workingProfile
+      ? [
+        workingProfile.summary,
+        ...workingProfile.habits
+      ]
+      : [])
+  ];
+
+  return parts
+    .map((part) => sanitizeDashboardMemoryEntry(part).replace(/[-_/]+/gu, " "))
+    .filter((part) => part && part !== "[redacted sensitive memory]")
+    .join(" ");
 }
 
 function createDashboardPendingMemoryWriteSummary(write: PendingPersonalMemoryWrite): Record<string, unknown> {

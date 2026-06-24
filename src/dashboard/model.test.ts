@@ -9,7 +9,12 @@ describe("readKnowledgeGraph", () => {
     expect(graph.nodes).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "memory:user", kind: "memory", label: "User preferences" }),
       expect.objectContaining({ id: "memory:agent", kind: "memory", label: "Agent operating notes" }),
-      expect.objectContaining({ id: "session:latest", kind: "session", label: "Latest session" }),
+      expect.objectContaining({
+        id: "session:latest",
+        kind: "session",
+        label: "Latest session",
+        detail: expect.stringContaining("Recall basis: matched terms: dashboard; score: 1")
+      }),
       expect.objectContaining({ id: "session:recent-2", kind: "session", label: "Recent session 2" }),
       expect.objectContaining({ id: "provider:codex", kind: "provider", label: "Codex" }),
       expect.objectContaining({ id: "browser:context", kind: "browser", label: "Browser Context" }),
@@ -256,12 +261,14 @@ function createSnapshot(): DashboardSnapshot {
           createdAt: "2026-06-23T12:00:00.000Z",
           providerLabel: "Codex",
           userInput: "summarize dashboard",
+          recallBasis: "matched terms: dashboard; score: 1",
           browserTitle: "Dashboard"
         },
         {
           createdAt: "2026-06-23T11:55:00.000Z",
           providerLabel: "Hermes",
-          userInput: "remember concise updates"
+          userInput: "remember concise updates",
+          recallBasis: "matched terms: concise, updates; score: 2"
         }
       ],
       memoryJournal: [

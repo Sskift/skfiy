@@ -374,6 +374,7 @@ async function main() {
       const learningLoopItems = Array.from(document.querySelectorAll('[aria-label="Learning loop"] li'));
       const sessionRecallRouteItems = Array.from(document.querySelectorAll(".skfiy-dashboard-session-recall-route"));
       const sessionRecallTierItems = Array.from(document.querySelectorAll(".skfiy-dashboard-session-recall-list li em"));
+      const sessionRecallBasisItems = Array.from(document.querySelectorAll(".skfiy-dashboard-session-recall-basis"));
       const promptStackItems = Array.from(document.querySelectorAll('[aria-label="Prompt stack"] li'));
       const promptStackTierItems = Array.from(document.querySelectorAll(".skfiy-prompt-stack-tier"));
       const promptSourceLedgerItems = Array.from(document.querySelectorAll('[aria-label="Prompt source ledger"] li'));
@@ -483,6 +484,7 @@ async function main() {
         learningLoopCount: learningLoopItems.length,
         sessionRecallRouteCount: sessionRecallRouteItems.length,
         sessionRecallTierCount: sessionRecallTierItems.length,
+        sessionRecallBasisCount: sessionRecallBasisItems.length,
         promptStackCount: promptStackItems.length,
         promptStackTierCount: promptStackTierItems.length,
         promptSourceLedgerCount: promptSourceLedgerItems.length,
@@ -508,6 +510,7 @@ async function main() {
         learningLoopTexts: learningLoopItems.map((item) => item.textContent),
         sessionRecallRouteTexts: sessionRecallRouteItems.map((item) => item.textContent),
         sessionRecallTierTexts: sessionRecallTierItems.map((item) => item.textContent),
+        sessionRecallBasisTexts: sessionRecallBasisItems.map((item) => item.textContent),
         promptStackTexts: promptStackItems.map((item) => item.textContent),
         promptStackTierTexts: promptStackTierItems.map((item) => item.textContent),
         promptSourceLedgerTexts: promptSourceLedgerItems.map((item) => item.textContent),
@@ -644,10 +647,14 @@ async function main() {
     && dom.sessionRecallRouteCount >= 1
     && Number.isInteger(dom.sessionRecallTierCount)
     && dom.sessionRecallTierCount === dom.sessionRecallRouteCount
+    && Number.isInteger(dom.sessionRecallBasisCount)
+    && dom.sessionRecallBasisCount >= 1
     && Array.isArray(dom.sessionRecallRouteTexts)
     && Array.isArray(dom.sessionRecallTierTexts)
+    && Array.isArray(dom.sessionRecallBasisTexts)
     && dom.sessionRecallRouteTexts.some((text) => typeof text === "string" && text.includes("recalls context ->"))
     && dom.sessionRecallTierTexts.every((text) => typeof text === "string" && text.includes("volatile session recall"))
+    && dom.sessionRecallBasisTexts.some((text) => typeof text === "string" && text.includes("Recall basis: matched terms:"))
     && dom.promptStackCount >= 5
     && Number.isInteger(dom.promptStackTierCount)
     && dom.promptStackTierCount === dom.promptStackCount

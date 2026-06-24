@@ -1,6 +1,27 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+const SESSION_SEARCH_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "by",
+  "for",
+  "from",
+  "in",
+  "is",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with"
+]);
+
 export interface SessionMemoryBrowserContext {
   url?: string;
   title?: string;
@@ -184,7 +205,7 @@ function tokenize(text: string): string[] {
       .toLocaleLowerCase()
       .split(/[^\p{L}\p{N}]+/u)
       .map((token) => token.trim())
-      .filter(Boolean)
+      .filter((token) => token.length > 1 && !SESSION_SEARCH_STOP_WORDS.has(token))
   ));
 }
 

@@ -1136,6 +1136,11 @@ function RecentSessionRecallList({
                 <small className="skfiy-dashboard-session-recall-route">
                   recalls context -&gt; {targetProviderLabel}
                 </small>
+                {session.recallBasis ? (
+                  <small className="skfiy-dashboard-session-recall-basis">
+                    Recall basis: {session.recallBasis}
+                  </small>
+                ) : null}
               </li>
             );
           })}

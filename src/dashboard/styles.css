@@ -645,6 +645,12 @@ a:focus-visible {
   font-weight: 720;
 }
 
+.skfiy-dashboard-session-recall-basis {
+  grid-column: 1 / -1;
+  color: #475569;
+  font-weight: 650;
+}
+
 .skfiy-dashboard-personal-skill-list > ul {
   gap: 8px;
   padding-left: 0;

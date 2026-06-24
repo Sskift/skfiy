@@ -429,9 +429,13 @@ function createSessionNodeDetail(
   }
 
   const browserLabel = session.browserTitle ?? session.browserUrl;
-  return browserLabel
+  const base = browserLabel
     ? `${session.providerLabel}: ${session.userInput} · ${browserLabel}`
     : `${session.providerLabel}: ${session.userInput}`;
+
+  return session.recallBasis
+    ? `${base} · Recall basis: ${session.recallBasis}`
+    : base;
 }
 
 export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusItem[] {

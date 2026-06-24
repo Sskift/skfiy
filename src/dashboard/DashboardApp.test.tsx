@@ -249,12 +249,14 @@ const snapshot: DashboardSnapshot = {
         createdAt: "2026-06-23T10:00:00.000Z",
         providerLabel: "Codex",
         userInput: "Summarize current dashboard state.",
+        recallBasis: "matched terms: dashboard; score: 1",
         browserTitle: "skfiy Dashboard"
       },
       {
         createdAt: "2026-06-23T09:55:00.000Z",
         providerLabel: "Hermes",
-        userInput: "以后进度更新短一点"
+        userInput: "以后进度更新短一点",
+        recallBasis: "matched terms: concise, updates; score: 2"
       }
     ],
     memoryJournal: [
@@ -400,6 +402,8 @@ describe("DashboardApp", () => {
     const sessionRecall = within(memory).getByRole("list", { name: "Recent session recall" });
     expect(within(sessionRecall).getAllByText("recalls context -> Codex")).toHaveLength(2);
     expect(within(sessionRecall).getAllByText("volatile session recall")).toHaveLength(2);
+    expect(within(sessionRecall).getByText("Recall basis: matched terms: dashboard; score: 1")).toBeInTheDocument();
+    expect(within(sessionRecall).getByText("Recall basis: matched terms: concise, updates; score: 2")).toBeInTheDocument();
 
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("User preferences").length).toBeGreaterThan(0);
@@ -422,6 +426,7 @@ describe("DashboardApp", () => {
     expect(within(graph).getByRole("list", { name: "Vault notes" })).toBeInTheDocument();
     expect(within(graph).getByText("User preferences.md")).toBeInTheDocument();
     expect(within(graph).getByText("Recent session 2.md")).toBeInTheDocument();
+    expect(within(graph).getAllByText(/Recall basis: matched terms:/u).length).toBeGreaterThan(0);
     fireEvent.click(within(graph).getByRole("button", { name: "Open note User preferences.md" }));
     const focusedNote = within(graph).getByRole("region", { name: "Focused note" });
     expect(within(focusedNote).getByRole("heading", { name: "User preferences.md" })).toBeInTheDocument();

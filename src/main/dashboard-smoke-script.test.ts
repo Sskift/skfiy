@@ -749,6 +749,7 @@ describe("dashboard product smoke script", () => {
         learningLoopCount: 4,
         sessionRecallRouteCount: 2,
         sessionRecallTierCount: 2,
+        sessionRecallBasisCount: 2,
         sessionRecallRouteTexts: [
           "recalls context -> Codex",
           "recalls context -> Codex"
@@ -756,6 +757,10 @@ describe("dashboard product smoke script", () => {
         sessionRecallTierTexts: [
           "volatile session recall",
           "volatile session recall"
+        ],
+        sessionRecallBasisTexts: [
+          "Recall basis: matched terms: dashboard; score: 1",
+          "Recall basis: matched terms: concise, updates; score: 2"
         ],
         promptStackCount: 6,
         promptStackTierCount: 6,
@@ -1292,6 +1297,7 @@ describe("dashboard product smoke script", () => {
         learningLoopCount: 4,
         sessionRecallRouteCount: 2,
         sessionRecallTierCount: 2,
+        sessionRecallBasisCount: 2,
         sessionRecallRouteTexts: [
           "recalls context -> Codex",
           "recalls context -> Codex"
@@ -1299,6 +1305,10 @@ describe("dashboard product smoke script", () => {
         sessionRecallTierTexts: [
           "volatile session recall",
           "volatile session recall"
+        ],
+        sessionRecallBasisTexts: [
+          "Recall basis: matched terms: dashboard; score: 1",
+          "Recall basis: matched terms: concise, updates; score: 2"
         ],
         promptStackCount: 5,
         promptStackTierCount: 5,
@@ -1466,8 +1476,18 @@ describe("dashboard product smoke script", () => {
         ...passedEvidence.knowledgeGraphEvidence,
         sessionRecallRouteCount: 0,
         sessionRecallTierCount: 0,
+        sessionRecallBasisCount: 0,
         sessionRecallRouteTexts: [],
-        sessionRecallTierTexts: []
+        sessionRecallTierTexts: [],
+        sessionRecallBasisTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        sessionRecallBasisCount: 0,
+        sessionRecallBasisTexts: []
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

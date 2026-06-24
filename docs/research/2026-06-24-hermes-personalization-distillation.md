@@ -51,6 +51,7 @@ Newly distilled in this pass:
 - The Dashboard `Prompt stack` now exposes Hermes-style prompt tiers instead of only a flat order: local memory/session/profile are volatile personalization layers, personal skills are stable learned habits, Browser Context is a live overlay, and the selected Background Agent is the runtime provider boundary.
 - The Dashboard `Recent session recall` list now shows the recall tier and the next prompt route for each indexed session, turning Hermes-style session search into an operator-visible Obsidian backlink path instead of a flat history list.
 - Session recall search now carries a prompt-safe `Recall basis` into the real provider prompt, so Codex, Claude Code, and Hermes can see which query terms made a prior turn relevant instead of receiving opaque history snippets.
+- The Dashboard now derives relevant session recall from durable memory, personal skill hints, and the Working profile, then displays the same `Recall basis` in the Memory surface and Knowledge graph notes while still keeping recent unmatched sessions as nearby context.
 
 ## Deliberate Non-Imports
 
