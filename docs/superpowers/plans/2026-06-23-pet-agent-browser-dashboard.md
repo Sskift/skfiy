@@ -73,7 +73,7 @@
 - Modify: `src/renderer/pet-atlas.ts`
 - Modify: `src/renderer/pet-atlas.test.ts`
 
-- [ ] **Step 1: Write renderer regression tests**
+- [x] **Step 1: Write renderer regression tests**
 
 Add tests in `src/renderer/App.test.tsx` that assert:
 
@@ -101,7 +101,7 @@ it("scales pet hitbox and visual sprite for desktop use", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify current failure**
+- [x] **Step 2: Run tests to verify current failure**
 
 Run:
 
@@ -111,7 +111,7 @@ npx vitest run src/renderer/App.test.tsx src/renderer/pet-atlas.test.ts --report
 
 Expected: failure on the diamond CSS selector or pet scale assertion before implementation.
 
-- [ ] **Step 3: Remove obsolete marker and stabilize bubble anchoring**
+- [x] **Step 3: Remove obsolete marker and stabilize bubble anchoring**
 
 In `src/renderer/styles.css`:
 
@@ -132,7 +132,7 @@ In `src/renderer/pet-atlas.ts`:
 - Apply the product display scale in one place.
 - Keep manifest layout values as source geometry and derive displayed hitbox/visual scale from them.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run:
 
@@ -143,7 +143,7 @@ npm run typecheck -- --pretty false
 
 Expected: all focused tests pass and typecheck exits with code 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/renderer/App.tsx src/renderer/App.test.tsx src/renderer/styles.css src/renderer/pet-atlas.ts src/renderer/pet-atlas.test.ts
@@ -163,7 +163,7 @@ git commit -m "fix: stabilize pet bubble interaction"
 - Modify: `src/renderer/App.test.tsx`
 - Modify: `src/renderer/styles.css`
 
-- [ ] **Step 1: Write pure geometry tests**
+- [x] **Step 1: Write pure geometry tests**
 
 Add tests in `src/main/window-position.test.ts` for a new pure function named `movePetAnchorByDelta`:
 
@@ -204,7 +204,7 @@ it("uses the display nearest to the requested pet anchor", () => {
 });
 ```
 
-- [ ] **Step 2: Run geometry tests to verify current failure**
+- [x] **Step 2: Run geometry tests to verify current failure**
 
 Run:
 
@@ -214,7 +214,7 @@ npx vitest run src/main/window-position.test.ts --reporter=dot
 
 Expected: failure because `movePetAnchorByDelta` does not exist.
 
-- [ ] **Step 3: Implement anchor-based geometry**
+- [x] **Step 3: Implement anchor-based geometry**
 
 In `src/main/window-position.ts`, add:
 
@@ -237,7 +237,7 @@ Implement `movePetAnchorByDelta(options: PetAnchorMoveOptions): Point` so it:
 
 Keep `calculatePetWindowBounds` and `resizePetWindowBoundsKeepingBottom` intact for launch/expanded positioning.
 
-- [ ] **Step 4: Wire renderer drag to visible pet geometry**
+- [x] **Step 4: Wire renderer drag to visible pet geometry**
 
 In `src/renderer/App.tsx`:
 
@@ -257,7 +257,7 @@ In `src/main/preload.cts`:
 
 - Extend `moveWindowBy(deltaX, deltaY, visibleRect)` and keep the existing call signature backward compatible.
 
-- [ ] **Step 5: Add renderer tests for drag payload and panel collapse**
+- [x] **Step 5: Add renderer tests for drag payload and panel collapse**
 
 Add tests in `src/renderer/App.test.tsx`:
 
@@ -276,7 +276,7 @@ it("sends the visible pet rect when dragging", async () => {
 });
 ```
 
-- [ ] **Step 6: Packaged app visual smoke**
+- [x] **Step 6: Packaged app visual smoke**
 
 Run:
 
@@ -294,7 +294,7 @@ Then use CDP or a small smoke script to drag the pet to top, bottom, left, and r
 
 Do not mark this task complete if the pet still stops near the middle of the screen or can be dragged below the screen.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main/window-position.ts src/main/window-position.test.ts src/main/main.ts src/main/preload.cts src/renderer/App.tsx src/renderer/App.test.tsx src/renderer/styles.css .skfiy-smoke/ui-pet-bounds.json
@@ -317,7 +317,7 @@ git commit -m "fix: bound pet dragging to visible screen"
 - Modify: `src/main/dashboard-data.test.ts`
 - Modify: `src/dashboard/contracts.ts`
 
-- [ ] **Step 1: Write settings-store tests**
+- [x] **Step 1: Write settings-store tests**
 
 Create `src/main/assistant-agent-settings.test.ts`:
 
@@ -340,7 +340,7 @@ describe("assistant agent settings store", () => {
 });
 ```
 
-- [ ] **Step 2: Implement persistent settings store**
+- [x] **Step 2: Implement persistent settings store**
 
 Create `src/main/assistant-agent-settings.ts` with:
 
@@ -351,7 +351,7 @@ Create `src/main/assistant-agent-settings.ts` with:
 
 Use `readInitialAssistantAgentSettings` from `src/main/assistant-agent.ts` for env/default parsing. Keep env-provided binary paths and cwd in the settings object.
 
-- [ ] **Step 3: Add IPC and preload contracts**
+- [x] **Step 3: Add IPC and preload contracts**
 
 In `src/main/main.ts`:
 
@@ -376,7 +376,7 @@ In `src/main/preload.cts`, expose:
 - `getAssistantAgentSettings()`
 - `setAssistantAgentSettings(update)`
 
-- [ ] **Step 4: Add Pet settings UI**
+- [x] **Step 4: Add Pet settings UI**
 
 In `src/renderer/App.tsx`:
 
@@ -393,7 +393,7 @@ Copy rules:
 - Use `Computer Use Planner` for desktop action planning.
 - Do not say that Codex or Claude directly control the desktop from pet chat.
 
-- [ ] **Step 5: Renderer tests**
+- [x] **Step 5: Renderer tests**
 
 Add tests in `src/renderer/App.test.tsx`:
 
@@ -412,7 +412,7 @@ it("shows background agent provider choices separately from Computer Use planner
 
 Add a test that selecting Codex calls `setAssistantAgentSettings({ mode: "codex" })`.
 
-- [ ] **Step 6: Dashboard provider data**
+- [x] **Step 6: Dashboard provider data**
 
 In `src/main/dashboard-data.ts`, include selected Background Agent provider state from the same store. In `src/dashboard/contracts.ts`, keep provider contracts typed so Dashboard can show assistant and planner independently.
 
@@ -422,7 +422,7 @@ Add or update `src/main/dashboard-data.test.ts` to assert:
 - raw env secrets are redacted,
 - planner summary remains separate.
 
-- [ ] **Step 7: Verification and commit**
+- [x] **Step 7: Verification and commit**
 
 Run:
 
@@ -454,7 +454,7 @@ git commit -m "feat: expose background agent provider settings"
 - Modify: `src/dashboard/DashboardApp.tsx`
 - Modify: `docs/chrome-extension-setup.md`
 
-- [ ] **Step 1: Write page-context tests**
+- [x] **Step 1: Write page-context tests**
 
 Create `src/main/browser-page-context.test.ts`:
 
@@ -488,7 +488,7 @@ describe("browser page context", () => {
 });
 ```
 
-- [ ] **Step 2: Implement bounded page context module**
+- [x] **Step 2: Implement bounded page context module**
 
 In `src/main/browser-page-context.ts`:
 
@@ -499,7 +499,7 @@ In `src/main/browser-page-context.ts`:
 - Limit visible text to 2000 characters.
 - Include `url`, `title`, `observedAt`, `state`, and `reason`.
 
-- [ ] **Step 3: Wire context into Background Agent prompt**
+- [x] **Step 3: Wire context into Background Agent prompt**
 
 In `src/main/assistant-agent.ts`:
 
@@ -513,7 +513,7 @@ In `src/main/main.ts`:
 - If unavailable, pass a typed unavailable context rather than throwing.
 - Do not block normal pet chat when Chrome is not connected.
 
-- [ ] **Step 4: Surface Browser context readiness**
+- [x] **Step 4: Surface Browser context readiness**
 
 In `src/main/dashboard-data.ts`:
 
@@ -526,7 +526,7 @@ In `src/dashboard/model.ts` and `src/dashboard/DashboardApp.tsx`:
 - Show url/title when ready.
 - Show next action when blocked.
 
-- [ ] **Step 5: Documentation**
+- [x] **Step 5: Documentation**
 
 Update `docs/chrome-extension-setup.md` with a section named `Pet Agent Page Context`:
 
@@ -535,7 +535,7 @@ Update `docs/chrome-extension-setup.md` with a section named `Pet Agent Page Con
 - Screenshot readiness is separate from DOM observation readiness.
 - If context is blocked, pet chat still works without browser context.
 
-- [ ] **Step 6: Verification and commit**
+- [x] **Step 6: Verification and commit**
 
 Run:
 
@@ -563,7 +563,7 @@ git commit -m "feat: pass chrome page context to pet agent"
 - Modify: `src/main/dashboard-data.test.ts`
 - Modify: `src/dashboard/DashboardApp.test.tsx`
 
-- [ ] **Step 1: Write dashboard view tests**
+- [x] **Step 1: Write dashboard view tests**
 
 Add tests in `src/dashboard/DashboardApp.test.tsx`:
 
@@ -584,7 +584,7 @@ it("shows assistant provider, current turn, browser context, and latest blocker"
 
 Use existing dashboard fixture helpers where available; if no helper exists, add a small local fixture in the test file.
 
-- [ ] **Step 2: Improve dashboard hierarchy**
+- [x] **Step 2: Improve dashboard hierarchy**
 
 In `src/dashboard/DashboardApp.tsx`:
 
@@ -599,7 +599,7 @@ In `src/dashboard/model.ts`:
 - Add view-model readers for `browserContext`, `assistantProvider`, and `latestTaskSignal`.
 - Return stable labels and tones for ready/partial/blocked/missing states.
 
-- [ ] **Step 3: Preserve useful controls**
+- [x] **Step 3: Preserve useful controls**
 
 Keep existing controls:
 
@@ -610,7 +610,7 @@ Keep existing controls:
 
 Add assistant provider status display, but do not allow Dashboard to mutate assistant provider until Pet settings mutation is stable.
 
-- [ ] **Step 4: Visual QA**
+- [x] **Step 4: Visual QA**
 
 Run:
 
@@ -627,7 +627,7 @@ Open the returned local URL. Verify:
 - panels are scannable,
 - current failure/blocker is visible without opening raw JSON.
 
-- [ ] **Step 5: Verification and commit**
+- [x] **Step 5: Verification and commit**
 
 Run:
 
