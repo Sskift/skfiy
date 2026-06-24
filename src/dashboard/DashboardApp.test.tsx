@@ -580,6 +580,56 @@ describe("DashboardApp", () => {
     expect(within(checklist).getByText("Refresh extension diagnostics")).toBeInTheDocument();
   });
 
+  it("shows a Finder Automation access checklist when Finder smoke exposes the macOS permission blocker", async () => {
+    const blockedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      permissions: {
+        ...snapshot.permissions,
+        finderAutomation: "unknown"
+      },
+      smokeEvidence: {
+        artifacts: [
+          ...snapshot.smokeEvidence.artifacts,
+          {
+            target: "finder",
+            result: "blocked",
+            finderSemanticObservation: {
+              result: "blocked",
+              reason: "Verification failed (selection): Automation permission is required to read Finder selection. Grant skfiy permission to control Finder, then try again."
+            }
+          }
+        ]
+      },
+      alerts: [
+        ...snapshot.alerts,
+        {
+          code: "finder-automation-permission",
+          severity: "warning",
+          message: "Finder Automation appears blocked by macOS Automation permission.",
+          reason: "Automation permission is required to read Finder selection."
+        }
+      ]
+    };
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => blockedSnapshot)}
+    />);
+
+    const computerUse = await screen.findByRole("region", { name: "Computer Use" });
+    const checklist = within(computerUse).getByRole("list", { name: "Finder Automation access checklist" });
+    expect(within(checklist).getByText("Open Automation settings")).toBeInTheDocument();
+    expect(within(checklist).getByText("System Settings > Privacy & Security > Automation")).toBeInTheDocument();
+    expect(within(checklist).getByText("Allow skfiy to control Finder")).toBeInTheDocument();
+    expect(within(checklist).getByText("Enable Finder under skfiy, then keep Finder available.")).toBeInTheDocument();
+    expect(within(checklist).getByText("Rerun Finder smoke")).toBeInTheDocument();
+  });
+
   it("loads redacted planner settings from the provider settings endpoint", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);

@@ -552,6 +552,22 @@ function DashboardContent({
                   />
                 ))}
               </div>
+              {computerUse.accessSteps.length > 0 ? (
+                <div className="skfiy-dashboard-control-panel">
+                  <h4>Finder Automation access checklist</h4>
+                  <ul
+                    aria-label="Finder Automation access checklist"
+                    className="skfiy-dashboard-evidence-list"
+                  >
+                    {computerUse.accessSteps.map((step) => (
+                      <li key={step.id}>
+                        <StatusChip tone={step.tone}>{step.label}</StatusChip>
+                        <span>{step.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </Card.Content>
           </Card.Root>
           {appReadiness.map((lane) => (

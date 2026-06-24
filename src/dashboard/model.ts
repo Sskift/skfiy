@@ -31,6 +31,7 @@ export interface DashboardComputerUseReadiness {
     tone: Tone;
   };
   permissions: DashboardStatusItem[];
+  accessSteps: DashboardComputerUseAccessStep[];
 }
 
 export interface DashboardAppReadinessLane {
@@ -121,6 +122,13 @@ export interface DashboardBrowserContextSummary {
 }
 
 export interface DashboardBrowserContextAccessStep {
+  id: string;
+  label: string;
+  detail: string;
+  tone: Tone;
+}
+
+export interface DashboardComputerUseAccessStep {
   id: string;
   label: string;
   detail: string;
@@ -942,8 +950,82 @@ export function readComputerUseReadiness(snapshot: DashboardSnapshot): Dashboard
       createPermissionStatus("Screen Recording", snapshot.permissions.screenRecording),
       createPermissionStatus("Accessibility", snapshot.permissions.accessibility),
       createPermissionStatus("Finder Automation", snapshot.permissions.finderAutomation)
-    ]
+    ],
+    accessSteps: readComputerUseAccessSteps(snapshot)
   };
+}
+
+function readComputerUseAccessSteps(snapshot: DashboardSnapshot): DashboardComputerUseAccessStep[] {
+  if (readString(snapshot.permissions.finderAutomation) === "granted") {
+    return [];
+  }
+
+  if (!hasFinderAutomationPermissionBlocker(snapshot)) {
+    return [];
+  }
+
+  return [
+    {
+      id: "open-automation-settings",
+      label: "Open Automation settings",
+      detail: "System Settings > Privacy & Security > Automation",
+      tone: "warning"
+    },
+    {
+      id: "allow-skfiy-finder",
+      label: "Allow skfiy to control Finder",
+      detail: "Enable Finder under skfiy, then keep Finder available.",
+      tone: "warning"
+    },
+    {
+      id: "rerun-finder-smoke",
+      label: "Rerun Finder smoke",
+      detail: "npm run smoke:finder -- --output .skfiy-smoke/finder-automation.json",
+      tone: "neutral"
+    }
+  ];
+}
+
+function hasFinderAutomationPermissionBlocker(snapshot: DashboardSnapshot): boolean {
+  const finderAlert = snapshot.alerts.some((alert) => (
+    readString(alert.code) === "finder-automation-permission"
+    || isFinderAutomationPermissionReason(readString(alert.reason))
+    || isFinderAutomationPermissionReason(readString(alert.message))
+  ));
+  if (finderAlert) {
+    return true;
+  }
+
+  const appReadiness = readRecord(snapshot.operatorReadiness.appReadiness);
+  const finderReadiness = readRecord(appReadiness?.finder);
+  if (isFinderAutomationPermissionReason(readString(finderReadiness?.reason))) {
+    return true;
+  }
+
+  return readRecordArray(snapshot.smokeEvidence.artifacts)
+    .filter((artifact) => readString(artifact.target) === "finder")
+    .some((artifact) => {
+      const finderObservation = readRecord(artifact.finderObservation);
+      const finderSemanticObservation = readRecord(artifact.finderSemanticObservation);
+      const desktopPreflight = readRecord(artifact.desktopPreflight);
+
+      return [
+        readString(artifact.reason),
+        readString(artifact.blocker),
+        readString(finderObservation?.reason),
+        readString(finderSemanticObservation?.reason),
+        readString(desktopPreflight?.reason)
+      ].some(isFinderAutomationPermissionReason);
+    });
+}
+
+function isFinderAutomationPermissionReason(reason: string | undefined): boolean {
+  if (!reason) {
+    return false;
+  }
+
+  const normalized = reason.toLowerCase();
+  return normalized.includes("finder") && normalized.includes("automation permission");
 }
 
 export function readAppReadinessLanes(snapshot: DashboardSnapshot): DashboardAppReadinessLane[] {

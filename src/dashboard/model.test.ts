@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSnapshot } from "./contracts";
-import { readKnowledgeGraph } from "./model";
+import { readComputerUseReadiness, readKnowledgeGraph } from "./model";
 
 describe("readKnowledgeGraph", () => {
   it("connects memory, sessions, provider, browser context, Computer Use, and alerts", () => {
@@ -155,6 +155,53 @@ describe("readKnowledgeGraph", () => {
         detail: "replace · from User prefers concise Chinese progress updates. -> User prefers concise Chinese-first progress updates with verification evidence."
       })
     ]));
+  });
+});
+
+describe("readComputerUseReadiness", () => {
+  it("builds Finder Automation access steps from blocked Finder smoke", () => {
+    const readiness = readComputerUseReadiness({
+      ...createSnapshot(),
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        finderAutomation: "unknown"
+      },
+      smokeEvidence: {
+        artifacts: [
+          {
+            target: "finder",
+            result: "blocked",
+            finderSemanticObservation: {
+              result: "blocked",
+              reason: "Automation permission is required to read Finder selection. Grant skfiy permission to control Finder, then try again."
+            }
+          }
+        ]
+      },
+      alerts: []
+    });
+
+    expect(readiness.accessSteps).toEqual([
+      {
+        id: "open-automation-settings",
+        label: "Open Automation settings",
+        detail: "System Settings > Privacy & Security > Automation",
+        tone: "warning"
+      },
+      {
+        id: "allow-skfiy-finder",
+        label: "Allow skfiy to control Finder",
+        detail: "Enable Finder under skfiy, then keep Finder available.",
+        tone: "warning"
+      },
+      {
+        id: "rerun-finder-smoke",
+        label: "Rerun Finder smoke",
+        detail: "npm run smoke:finder -- --output .skfiy-smoke/finder-automation.json",
+        tone: "neutral"
+      }
+    ]);
   });
 });
 
