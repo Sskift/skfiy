@@ -690,6 +690,7 @@ function hasDashboardPersonalMemoryApiEvidence(api) {
   const beforeMemory = api?.snapshotBefore?.body?.personalMemory;
   const afterMemory = api?.snapshotAfter?.body?.personalMemory;
   const forgetBody = api?.forgetResponse?.body;
+  const unsafeForgetBody = api?.unsafeForgetResponse?.body;
   const rejectedAddBody = api?.rejectedAddResponse?.body;
   const muteSkillBody = api?.muteSkillResponse?.body;
   const afterSkillMuteMemory = api?.snapshotAfterSkillMute?.body?.personalMemory;
@@ -697,6 +698,7 @@ function hasDashboardPersonalMemoryApiEvidence(api) {
   const afterText = JSON.stringify(api?.snapshotAfter?.body ?? {});
   const afterSkillMuteText = JSON.stringify(api?.snapshotAfterSkillMute?.body ?? {});
   const forgetText = JSON.stringify(forgetBody ?? {});
+  const unsafeForgetText = JSON.stringify(unsafeForgetBody ?? {});
   const muteSkillText = JSON.stringify(muteSkillBody ?? {});
 
   return api?.productPath === "smoke:dashboard -> isolated HOME memory fixture -> /api/personal-memory"
@@ -724,12 +726,20 @@ function hasDashboardPersonalMemoryApiEvidence(api) {
     && forgetBody?.result === "forgotten"
     && forgetBody?.applied === 1
     && forgetBody?.personalMemory?.userEntryCount === beforeMemory.userEntryCount - 1
+    && api?.unsafeForgetResponse?.status === 200
+    && unsafeForgetBody?.command === "dashboard personal memory"
+    && unsafeForgetBody?.source === "dashboard"
+    && unsafeForgetBody?.plannedMutation === true
+    && unsafeForgetBody?.executesSystemMutation === true
+    && unsafeForgetBody?.result === "forgotten"
+    && unsafeForgetBody?.applied === 1
+    && unsafeForgetBody?.personalMemory?.userEntryCount === beforeMemory.userEntryCount - 2
     && api?.rejectedAddResponse?.status === 400
     && rejectedAddBody?.command === "dashboard personal memory"
     && rejectedAddBody?.result === "error"
     && rejectedAddBody?.error?.code === "unknown-action"
     && api?.snapshotAfter?.status === 200
-    && afterMemory?.userEntryCount === beforeMemory.userEntryCount - 1
+    && afterMemory?.userEntryCount === beforeMemory.userEntryCount - 2
     && afterMemory?.agentEntryCount === beforeMemory.agentEntryCount
     && Array.isArray(afterMemory?.personalSkills)
     && afterMemory.personalSkills.some((skill) => skill?.id === "dashboard-knowledge-surface")
@@ -751,6 +761,7 @@ function hasDashboardPersonalMemoryApiEvidence(api) {
     && !afterSkillMuteMemory.personalSkills.some((skill) => skill?.id === "dashboard-knowledge-surface")
     && api?.personalSkillSettingsFileAfter?.dashboardKnowledgeSurfaceMuted === true
     && api?.userMemoryFileAfter?.sensitiveEntryPresent === false
+    && api?.userMemoryFileAfter?.unsafeEntryPresent === false
     && api?.userMemoryFileAfter?.keptEntryPresent === true
     && api?.tokenLeakDetected === false
     && api?.result === "passed"
@@ -758,6 +769,8 @@ function hasDashboardPersonalMemoryApiEvidence(api) {
     && !/token=/i.test(afterText)
     && !/token=/i.test(afterSkillMuteText)
     && !/token=/i.test(forgetText)
+    && !/ignore previous instructions/i.test(unsafeForgetText)
+    && !/reveal secrets/i.test(unsafeForgetText)
     && !/token=/i.test(muteSkillText);
 }
 

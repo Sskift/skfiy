@@ -22,6 +22,7 @@
 - Dashboard already has snapshot/provider/browser panels, but it needs to become the readable operator surface for these capabilities, not a raw diagnostics page.
 - Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clones `5ecf3bf` / `3c75e11` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop. Current notes: `docs/research/2026-06-24-hermes-personalization-distillation.md`.
 - Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, Hermes-style atomic memory batch writes, prompt-load memory sanitization, and a derived prompt-safe Working profile that makes learned habits portable, reviewable, and available to real provider prompts; Task 9 adds user-visible removal for incorrect remembered preferences. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
+- Personalization hardening: unsafe manually polluted memory is still blocked from provider prompts, but Dashboard/store removal must remain able to forget the exact polluted entry so users can correct bad sediment instead of getting stuck with an invisible prompt-safe placeholder.
 - Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
 - Obsidian-inspired dashboard gap: Dashboard is still a control plane. It should gain a knowledge surface that shows remembered preferences, sessions, skills, Browser Context, and Computer Use evidence as linked local-first nodes with a local graph/canvas feel.
 
@@ -1398,6 +1399,21 @@ Focused verification:
 npx vitest run src/main/personal-memory-pending.test.ts src/main/personal-memory-main-wiring.test.ts src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot
 ```
 
+- [x] **Step 7: Allow polluted memory to be forgotten**
+
+In `src/main/personal-memory.ts`, `src/main/dashboard-server.test.ts`, `scripts/smoke-dashboard-product.mjs`, and `scripts/smoke-dashboard-plan.mjs`:
+
+- Keep unsafe add/replace memory writes blocked before they can reach provider prompts.
+- Allow exact `remove` operations to delete prompt-injection-shaped manual memory entries that are already present on disk.
+- Keep `/api/personal-memory` responses count-only so deleting polluted entries does not echo the polluted text back through the Dashboard API.
+- Extend Dashboard product smoke to seed and delete both token-like memory and prompt-injection-shaped memory through the packaged loopback Dashboard path.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/personal-memory.test.ts src/main/dashboard-server.test.ts src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ## Task 10: End-To-End Product Validation
 
 **Files:**
@@ -1459,6 +1475,7 @@ Dashboard smoke now seeds an isolated personal memory fixture and must collect `
 - seeded user memory appears in `/snapshot.json`,
 - token-like memory is redacted from Dashboard responses,
 - `POST /api/personal-memory` can forget one exact user memory entry,
+- `POST /api/personal-memory` can also forget prompt-injection-shaped manual memory without echoing it,
 - unsupported dashboard memory `add` requests are rejected,
 - `POST /api/personal-skills` can mute one distilled skill without rewriting memory,
 - the next `/snapshot.json` omits the muted skill card and records the muted skill id,

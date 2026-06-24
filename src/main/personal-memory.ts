@@ -120,7 +120,7 @@ export function createPersonalMemoryStore({
         const content = normalizeMemoryEntry(operation.content);
         const previousContent = normalizeOptionalMemoryEntry(operation.previousContent);
 
-        if (!content || isUnsafeMemoryEntry(content)) {
+        if (!content || (operation.action !== "remove" && isUnsafeMemoryEntry(content))) {
           blocked.push(operation);
           continue;
         }
