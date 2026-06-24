@@ -4620,6 +4620,18 @@ function createChromePageControlOperatorNextAction({
     ?? readChromeHostFromPermissionOrigin(readString(chromeHostPermission?.origin));
   const chromeHostOrigins = readStringArray(chromeHostPermission?.origins);
   const chromeCaptureOrigins = readStringArray(chromeCapturePermission?.origins);
+  const chromePopupGrantOrigins = [
+    ...(reportedNextAction === "grant_chrome_host_permission"
+      || readString(chromeHostPermission?.state) === "missing"
+      || blockerCodes.includes("chrome_host_permission_missing")
+      ? [chromeHostOrigins[0] ?? readString(chromeHostPermission?.origin) ?? "the active page"]
+      : []),
+    ...(reportedNextAction === "grant_chrome_capture_permission"
+      || readString(chromeCapturePermission?.state) === "missing"
+      || blockerCodes.includes("chrome_capture_permission_missing")
+      ? [chromeCaptureOrigins[0] ?? "<all_urls>"]
+      : [])
+  ].filter((origin, index, origins) => origins.indexOf(origin) === index);
   const actions: string[] = [];
 
   if (state === "ready") {
@@ -4636,29 +4648,17 @@ function createChromePageControlOperatorNextAction({
       : "Allow the current host in Dashboard Chrome policy.");
   }
 
-  if (
-    reportedNextAction === "grant_chrome_host_permission"
-    || readString(chromeHostPermission?.state) === "missing"
-    || blockerCodes.includes("chrome_host_permission_missing")
-  ) {
+  if (chromePopupGrantOrigins.length > 0) {
     actions.push(
-      `Grant Chrome site access for ${chromeHostOrigins[0] ?? readString(chromeHostPermission?.origin) ?? "the active page"} from the skfiy extension popup or Chrome extension details.`
+      `Open the skfiy extension popup and click Grant ${chromePopupGrantOrigins.join(" + ")} and observe.`
     );
   }
 
-  if (
-    reportedNextAction === "grant_chrome_capture_permission"
-    || readString(chromeCapturePermission?.state) === "missing"
-    || blockerCodes.includes("chrome_capture_permission_missing")
-  ) {
+  if (actions.length === 0) {
     actions.push(
-      `Grant Chrome visible-tab capture access for ${chromeCaptureOrigins[0] ?? "<all_urls>"} before screenshot-based page control.`
+      `Refresh the skfiy Chrome extension, then rerun \`${formatCommandLine(["skfiy", "chrome", "status", "--json", "--extension-id", extensionId])}\`.`
     );
   }
-
-  actions.push(
-    `Refresh the skfiy Chrome extension, then rerun \`${formatCommandLine(["skfiy", "chrome", "status", "--json", "--extension-id", extensionId])}\`.`
-  );
 
   return actions.join(" ");
 }

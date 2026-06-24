@@ -63,8 +63,11 @@ describe("browser page context", () => {
     expect(context.nextAction).toContain(
       "skfiy chrome policy set --host mew.bytedance.net --action allow-current-turn"
     );
-    expect(context.nextAction).toContain("Grant Chrome site access for https://mew.bytedance.net/*");
-    expect(context.nextAction).toContain("Grant Chrome visible-tab capture access for <all_urls>");
+    expect(context.nextAction).toContain(
+      "Open the skfiy extension popup and click Grant https://mew.bytedance.net/* + <all_urls> and observe."
+    );
+    expect(context.nextAction).not.toContain("Grant Chrome visible-tab capture access");
+    expect(context.nextAction).not.toContain("Refresh the skfiy Chrome extension and rerun diagnostics");
     expect(promptBlock).not.toContain("allow_host");
   });
 

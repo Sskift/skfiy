@@ -2634,11 +2634,10 @@ describe("CLI command surface", () => {
       "skfiy chrome policy set --host mew.bytedance.net --action allow-current-turn"
     );
     expect(statusOutput.extension.pageControl.nextAction).toContain(
-      "Grant Chrome site access for https://mew.bytedance.net/*"
+      "Open the skfiy extension popup and click Grant https://mew.bytedance.net/* + <all_urls> and observe."
     );
-    expect(statusOutput.extension.pageControl.nextAction).toContain(
-      "Grant Chrome visible-tab capture access for <all_urls>"
-    );
+    expect(statusOutput.extension.pageControl.nextAction).not.toContain("Grant Chrome visible-tab capture access");
+    expect(statusOutput.extension.pageControl.nextAction).not.toContain("Refresh the skfiy Chrome extension");
     expect(statusOutput.extension.pageControl.nextAction).not.toBe("allow_host");
     expect(doctorOutput.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
