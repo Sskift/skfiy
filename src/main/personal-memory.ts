@@ -131,10 +131,6 @@ export function createPersonalMemoryStore({
             ignored += 1;
             continue;
           }
-          if (exceedsMemoryBudget([...entries, content], operation.target)) {
-            blocked.push(operation);
-            continue;
-          }
           entries.push(content);
           applied += 1;
           continue;
@@ -161,12 +157,26 @@ export function createPersonalMemoryStore({
         const replacementEntries = [...entries];
         replacementEntries[index] = content;
         const dedupedReplacementEntries = dedupeEntries(replacementEntries);
-        if (exceedsMemoryBudget(dedupedReplacementEntries, operation.target)) {
-          blocked.push(operation);
-          continue;
-        }
         next[operation.target] = dedupedReplacementEntries;
         applied += 1;
+      }
+
+      for (const target of ["user", "agent"] as const) {
+        if (exceedsMemoryBudget(next[target], target)) {
+          blocked.push(...findBudgetBlockingOperations(
+            snapshot[readSnapshotEntryKey(target)],
+            operations,
+            target
+          ));
+        }
+      }
+
+      if (blocked.length > 0) {
+        return {
+          applied: 0,
+          blocked: dedupeOperations(blocked),
+          ignored
+        };
       }
 
       if (applied > 0) {
@@ -177,6 +187,72 @@ export function createPersonalMemoryStore({
       return { applied, blocked, ignored };
     }
   };
+}
+
+function findBudgetBlockingOperations(
+  initialEntries: string[],
+  operations: PersonalMemoryOperation[],
+  target: PersonalMemoryTarget
+): PersonalMemoryOperation[] {
+  const entries = [...initialEntries];
+  const blocked: PersonalMemoryOperation[] = [];
+
+  for (const operation of operations) {
+    if (operation.target !== target) {
+      continue;
+    }
+
+    const content = normalizeMemoryEntry(operation.content);
+    const previousContent = normalizeOptionalMemoryEntry(operation.previousContent);
+    if (!content || isUnsafeMemoryEntry(content)) {
+      continue;
+    }
+
+    if (operation.action === "add") {
+      if (!entries.includes(content)) {
+        entries.push(content);
+      }
+    } else if (operation.action === "remove") {
+      const index = entries.indexOf(content);
+      if (index >= 0) {
+        entries.splice(index, 1);
+      }
+    } else if (previousContent) {
+      const index = entries.indexOf(previousContent);
+      if (index >= 0) {
+        entries[index] = content;
+      }
+    }
+
+    if (exceedsMemoryBudget(entries, target)) {
+      blocked.push(operation);
+      break;
+    }
+  }
+
+  return blocked.length > 0
+    ? blocked
+    : operations.filter((operation) => operation.target === target).slice(-1);
+}
+
+function readSnapshotEntryKey(target: PersonalMemoryTarget): "userEntries" | "agentEntries" {
+  return target === "user" ? "userEntries" : "agentEntries";
+}
+
+function dedupeOperations(operations: PersonalMemoryOperation[]): PersonalMemoryOperation[] {
+  const seen = new Set<string>();
+  const deduped: PersonalMemoryOperation[] = [];
+
+  for (const operation of operations) {
+    const key = JSON.stringify(operation);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(operation);
+  }
+
+  return deduped;
 }
 
 export function createPersonalMemoryPromptBlock(snapshot: PersonalMemorySnapshot): string {

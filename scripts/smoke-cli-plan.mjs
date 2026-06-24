@@ -145,6 +145,7 @@ export function classifyCliSmokeEvidence(evidence) {
     || !hasRealBrowserContextContractEvidence(evidence.realBrowserContextContract)
     || !hasRepeatedConversationLearningContractEvidence(evidence.repeatedConversationLearningContract)
     || !hasPersonalMemoryFallbackContractEvidence(evidence.personalMemoryFallbackContract)
+    || !hasPersonalMemoryAtomicBatchContractEvidence(evidence.personalMemoryAtomicBatchContract)
     || !hasPostTurnPersonalizationContractEvidence(evidence.postTurnPersonalizationContract)
   ) {
     return "failed";
@@ -450,6 +451,7 @@ function hasProviderContract(providers, expected) {
   return provider?.label === expected.label
     && provider?.commandBasename === expected.commandBasename
     && provider?.skfiyIdentityBeforeUser === true
+    && provider?.identitySelfAcceptancePresent === true
     && provider?.memoryBeforeBrowserContext === true
     && provider?.sessionRecallAfterMemory === true
     && provider?.sessionRecallBeforeBrowserContext === true
@@ -597,6 +599,23 @@ function hasPersonalMemoryFallbackContractEvidence(contract) {
     && contract?.secretLikeRequest?.operationCount === 0
     && contract?.oneOffRequest?.operationCount === 0
     && contract?.duplicatePreference?.operationCount === 0;
+}
+
+function hasPersonalMemoryAtomicBatchContractEvidence(contract) {
+  return contract?.productPath === "dist/main/personal-memory.js -> createPersonalMemoryStore -> atomic batch contract"
+    && contract?.result === "passed"
+    && contract?.tokenLeakDetected === false
+    && contract?.overBudgetBatch?.applied === 0
+    && contract?.overBudgetBatch?.blockedCount === 1
+    && contract?.overBudgetBatch?.durableUserEntryCount === 0
+    && contract?.removeThenAddBatch?.applied === 2
+    && contract?.removeThenAddBatch?.blockedCount === 0
+    && contract?.removeThenAddBatch?.durableUserEntryCount === 2
+    && contract?.removeThenAddBatch?.keptExistingEntry === true
+    && contract?.removeThenAddBatch?.addedReplacementEntry === true
+    && contract?.unsafeBatch?.applied === 0
+    && contract?.unsafeBatch?.blockedCount === 1
+    && contract?.unsafeBatch?.durableUserEntryCount === 0;
 }
 
 function hasPostTurnPersonalizationContractEvidence(contract) {

@@ -137,6 +137,7 @@ describe("CLI product smoke script", () => {
       realBrowserContextContract: createPassingRealBrowserContextContract(),
       repeatedConversationLearningContract: createPassingRepeatedConversationLearningContract(),
       personalMemoryFallbackContract: createPassingPersonalMemoryFallbackContract(),
+      personalMemoryAtomicBatchContract: createPassingPersonalMemoryAtomicBatchContract(),
       postTurnPersonalizationContract: createPassingPostTurnPersonalizationContract(),
       result: "passed"
     };
@@ -281,6 +282,15 @@ describe("CLI product smoke script", () => {
       ...passedEvidence,
       providerPromptContract: {
         ...createPassingProviderPromptContract(),
+        providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "codex"
+          ? { ...provider, identitySelfAcceptancePresent: false }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      providerPromptContract: {
+        ...createPassingProviderPromptContract(),
         providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "hermes"
           ? { ...provider, sessionRecallBeforeBrowserContext: false }
           : provider)
@@ -289,6 +299,20 @@ describe("CLI product smoke script", () => {
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
       personalMemoryFallbackContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      personalMemoryAtomicBatchContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      personalMemoryAtomicBatchContract: {
+        ...createPassingPersonalMemoryAtomicBatchContract(),
+        overBudgetBatch: {
+          ...createPassingPersonalMemoryAtomicBatchContract().overBudgetBatch,
+          durableUserEntryCount: 2
+        }
+      }
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
@@ -532,6 +556,7 @@ function createPassingProviderPromptContract() {
         sessionRecallRedactsToken: true,
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
+        identitySelfAcceptancePresent: true,
         providerBoundaryPresent: true,
         usesReadOnlySandbox: true,
         rejectsDirectDesktopControl: true,
@@ -548,6 +573,7 @@ function createPassingProviderPromptContract() {
         sessionRecallRedactsToken: true,
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
+        identitySelfAcceptancePresent: true,
         providerBoundaryPresent: true,
         usesSystemIdentityPrompt: true,
         disallowsMutatingTools: true,
@@ -565,6 +591,7 @@ function createPassingProviderPromptContract() {
         sessionRecallRedactsToken: true,
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
+        identitySelfAcceptancePresent: true,
         providerBoundaryPresent: true,
         usesBoundedChatToolset: true,
         rejectsDirectDesktopControl: true,
@@ -709,6 +736,31 @@ function createPassingPersonalMemoryFallbackContract() {
     },
     duplicatePreference: {
       operationCount: 0
+    }
+  };
+}
+
+function createPassingPersonalMemoryAtomicBatchContract() {
+  return {
+    productPath: "dist/main/personal-memory.js -> createPersonalMemoryStore -> atomic batch contract",
+    result: "passed",
+    tokenLeakDetected: false,
+    overBudgetBatch: {
+      applied: 0,
+      blockedCount: 1,
+      durableUserEntryCount: 0
+    },
+    removeThenAddBatch: {
+      applied: 2,
+      blockedCount: 0,
+      durableUserEntryCount: 2,
+      keptExistingEntry: true,
+      addedReplacementEntry: true
+    },
+    unsafeBatch: {
+      applied: 0,
+      blockedCount: 1,
+      durableUserEntryCount: 0
     }
   };
 }
