@@ -397,6 +397,48 @@ a:focus-visible {
   font-weight: 690;
 }
 
+.skfiy-dashboard-personal-skill-list ul {
+  gap: 8px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.skfiy-dashboard-personal-skill-list li {
+  display: grid;
+  grid-template-columns: minmax(106px, 0.55fr) minmax(0, 0.8fr) minmax(0, 1.4fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(79, 70, 229, 0.14);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.skfiy-dashboard-personal-skill-list li span,
+.skfiy-dashboard-personal-skill-list li small,
+.skfiy-dashboard-personal-skill-list li strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.skfiy-dashboard-personal-skill-list li span {
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 730;
+}
+
+.skfiy-dashboard-personal-skill-list li small {
+  color: #52525b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.skfiy-dashboard-personal-skill-list li strong {
+  color: #18181b;
+  font-weight: 720;
+}
+
 .skfiy-dashboard-icon-button {
   display: inline-grid;
   place-items: center;
@@ -1357,6 +1399,11 @@ a:focus-visible {
 
   .skfiy-dashboard-grid--two {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .skfiy-dashboard-personal-skill-list li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
   }
 
   .skfiy-knowledge-graph-fallback {

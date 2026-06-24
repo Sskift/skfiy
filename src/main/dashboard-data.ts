@@ -37,6 +37,7 @@ import {
   createSkfiyApplicationSupportPath,
   readPersonalMemorySnapshot
 } from "./personal-memory.js";
+import { createPersonalSkillCards } from "./personal-skills.js";
 import {
   readSessionMemoryRecords,
   type SessionMemoryRecord
@@ -356,6 +357,10 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
   });
   const latestSession = sessions.at(-1);
   const recentSessions = sessions.slice(-3).reverse();
+  const personalSkills = createPersonalSkillCards({
+    memory: personalMemory,
+    sessions
+  });
 
   return {
     userEntryCount: personalMemory.userEntries.length,
@@ -365,6 +370,9 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     ...(personalMemory.usage ? { usage: personalMemory.usage } : {}),
     recentUserEntries: personalMemory.userEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
     recentAgentEntries: personalMemory.agentEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
+    ...(personalSkills.length > 0
+      ? { personalSkills: personalSkills.map(createDashboardPersonalSkillSummary) }
+      : {}),
     ...(latestSession ? { latestSession: createDashboardSessionSummary(latestSession) } : {}),
     ...(recentSessions.length > 0
       ? { recentSessions: recentSessions.map(createDashboardSessionSummary) }
@@ -524,6 +532,18 @@ function createDashboardSessionSummary(session: SessionMemoryRecord): Record<str
     ...(session.browserContext?.url
       ? { browserUrl: sanitizeDashboardMemoryEntry(session.browserContext.url) }
       : {})
+  };
+}
+
+function createDashboardPersonalSkillSummary(card: ReturnType<typeof createPersonalSkillCards>[number]): Record<string, unknown> {
+  return {
+    id: card.id,
+    kind: card.kind,
+    label: sanitizeDashboardMemoryEntry(card.label),
+    description: sanitizeDashboardMemoryEntry(card.description),
+    promptHint: sanitizeDashboardMemoryEntry(card.promptHint),
+    evidenceCount: card.evidenceCount,
+    evidence: card.evidence.map(sanitizeDashboardMemoryEntry)
   };
 }
 

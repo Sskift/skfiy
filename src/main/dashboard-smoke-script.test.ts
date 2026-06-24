@@ -52,6 +52,9 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("learningLoopCount");
     expect(source).toContain("learningLoopTexts");
     expect(source).toContain("learningLoopList?.scrollIntoView");
+    expect(source).toContain("personalSkillNodeCount");
+    expect(source).toContain("personalSkillTexts");
+    expect(planSource).toContain("guides prompt");
     expect(planSource).toContain("Vault notes");
     expect(planSource).toContain("Focused note");
     expect(source).toContain("Vault backlinks");
@@ -693,8 +696,8 @@ describe("dashboard product smoke script", () => {
         screenshotPath: "/repo/.skfiy-smoke/dashboard-knowledge-graph.png",
         screenshotBytes: 1024,
         regionFound: true,
-        nodeCount: 6,
-        linkCount: 5,
+        nodeCount: 7,
+        linkCount: 7,
         vaultNoteCount: 6,
         focusedNoteFound: true,
         focusedNoteTitle: "User preferences.md",
@@ -702,9 +705,12 @@ describe("dashboard product smoke script", () => {
         backlinkCount: 5,
         learningLoopCount: 4,
         sessionNodeCount: 2,
+        personalSkillNodeCount: 2,
         fallbackTextOverlap: false,
         nodeTexts: [
           "User preferencesmemoryUser prefers concise Chinese updates.",
+          "Concise Chinese progress updatesskillcommunication",
+          "Obsidian-style knowledge dashboardskilldashboard",
           "Latest sessionsessionCodex: hello",
           "Codexprovidersready",
           "Browser Contextbrowserdashboard-smoke.example",
@@ -712,6 +718,8 @@ describe("dashboard product smoke script", () => {
         ],
         linkTexts: [
           "injects promptUser preferences -> Codex",
+          "guides promptConcise Chinese progress updates -> Codex",
+          "guides promptObsidian-style knowledge dashboard -> Codex",
           "recalls contextLatest session -> Codex",
           "observed inBrowser Context -> Latest session"
         ],
@@ -725,6 +733,10 @@ describe("dashboard product smoke script", () => {
           "Memory review -> distills -> User preferences",
           "User preferences -> injects prompt -> Codex",
           "Codex -> answered -> Latest session"
+        ],
+        personalSkillTexts: [
+          "Concise Chinese progress updatesskillcommunication",
+          "Obsidian-style knowledge dashboardskilldashboard"
         ],
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 1injects prompt -> Codex",
@@ -1051,12 +1063,15 @@ describe("dashboard product smoke script", () => {
       ...passedEvidence,
       knowledgeGraphEvidence: {
         ...passedEvidence.knowledgeGraphEvidence,
-        nodeCount: 5,
-        linkCount: 4,
+        nodeCount: 7,
+        linkCount: 6,
         backlinkCount: 4,
         learningLoopCount: 4,
+        personalSkillNodeCount: 2,
         nodeTexts: [
           "User preferencesmemoryUser prefers concise Chinese updates.",
+          "Concise Chinese progress updatesskillcommunication",
+          "Obsidian-style knowledge dashboardskilldashboard",
           "Latest sessionsessionCodex: hello",
           "Codexprovidersready",
           "Computer Usecomputer-useblocked",
@@ -1064,6 +1079,8 @@ describe("dashboard product smoke script", () => {
         ],
         linkTexts: [
           "injects promptUser preferences -> Codex",
+          "guides promptConcise Chinese progress updates -> Codex",
+          "guides promptObsidian-style knowledge dashboard -> Codex",
           "recalls contextLatest session -> Codex",
           "distillsMemory review -> User preferences"
         ],
@@ -1077,6 +1094,10 @@ describe("dashboard product smoke script", () => {
           "Memory review -> distills -> User preferences",
           "User preferences -> injects prompt -> Codex",
           "Codex -> answered -> Latest session"
+        ],
+        personalSkillTexts: [
+          "Concise Chinese progress updatesskillcommunication",
+          "Obsidian-style knowledge dashboardskilldashboard"
         ],
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 2injects prompt -> CodexMemory review -> distills",

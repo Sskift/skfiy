@@ -1102,6 +1102,23 @@ Focused verification:
 npx vitest run src/dashboard/model.test.ts src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 8: Distill Hermes-inspired personal skill cards**
+
+In `src/main/personal-skills.ts`, `src/main/assistant-agent.ts`, `src/main/dashboard-data.ts`, `src/dashboard/model.ts`, and `src/dashboard/DashboardApp.tsx`:
+
+- Distill reusable personal skill cards from local USER/AGENT memory plus repeated session evidence.
+- Keep personal skills read-only and prompt-safe; they are learned habits, not executable tools.
+- Inject a bounded `<skfiy-personal-skills>` block after recalled sessions and before Browser Context.
+- Show skill cards in the Memory panel and as `skill:*` nodes in the Knowledge graph.
+- Connect memory/session evidence to skills and skills to the selected Background Agent with `guides prompt`.
+- Extend dashboard smoke evidence so screenshot probes must collect personal skill nodes and `guides prompt` links.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/personal-skills.test.ts src/main/assistant-agent.test.ts src/main/dashboard-data.test.ts src/dashboard/model.test.ts src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls

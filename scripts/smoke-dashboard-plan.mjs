@@ -263,16 +263,22 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.learningLoopCount >= 4
     && Number.isInteger(evidence?.sessionNodeCount)
     && evidence.sessionNodeCount >= 2
+    && Number.isInteger(evidence?.personalSkillNodeCount)
+    && evidence.personalSkillNodeCount >= 2
     && evidence?.fallbackTextOverlap === false
     && Array.isArray(evidence?.nodeTexts)
     && Array.isArray(evidence?.linkTexts)
     && Array.isArray(evidence?.vaultNoteTexts)
     && Array.isArray(evidence?.backlinkTexts)
     && Array.isArray(evidence?.learningLoopTexts)
+    && Array.isArray(evidence?.personalSkillTexts)
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes(".md"))
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Backlinks"))
+    && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Concise Chinese progress updates"))
+    && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Obsidian-style knowledge dashboard"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("recalls context"))
+    && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("teaches"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("distills"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))

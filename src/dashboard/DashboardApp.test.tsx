@@ -184,6 +184,26 @@ const snapshot: DashboardSnapshot = {
     },
     recentUserEntries: ["User prefers concise Chinese updates."],
     recentAgentEntries: ["For dashboard work, prefer dense Obsidian-like knowledge surfaces."],
+    personalSkills: [
+      {
+        id: "communication-style",
+        kind: "communication",
+        label: "Concise Chinese progress updates",
+        description: "User prefers short Chinese progress updates.",
+        promptHint: "Use concise Chinese progress updates.",
+        evidenceCount: 2,
+        evidence: ["User prefers concise Chinese updates."]
+      },
+      {
+        id: "dashboard-knowledge-surface",
+        kind: "dashboard",
+        label: "Obsidian-style knowledge dashboard",
+        description: "User wants dashboard work to feel like a linked local knowledge surface.",
+        promptHint: "Favor linked memory, sessions, skills, and graph/canvas evidence over control-plane panels.",
+        evidenceCount: 2,
+        evidence: ["For dashboard work, prefer dense Obsidian-like knowledge surfaces."]
+      }
+    ],
     recentSessions: [
       {
         createdAt: "2026-06-23T10:00:00.000Z",
@@ -271,6 +291,9 @@ describe("DashboardApp", () => {
     expect(within(memory).getByText("user budget 2% - 37/1,375 chars")).toBeInTheDocument();
     expect(within(memory).getByText("agent budget 3% - 66/2,200 chars")).toBeInTheDocument();
     expect(within(memory).getByText("sessions 2")).toBeInTheDocument();
+    expect(within(memory).getByRole("heading", { name: "Personal skill cards" })).toBeInTheDocument();
+    expect(within(memory).getByText("Concise Chinese progress updates")).toBeInTheDocument();
+    expect(within(memory).getByText("Obsidian-style knowledge dashboard")).toBeInTheDocument();
     expect(within(memory).getByRole("heading", { name: "Recent session recall" })).toBeInTheDocument();
     expect(within(memory).getByText("Codex · skfiy Dashboard")).toBeInTheDocument();
     expect(within(memory).getByText("Summarize current dashboard state.")).toBeInTheDocument();
@@ -285,7 +308,10 @@ describe("DashboardApp", () => {
     expect(within(graph).getAllByText("Codex").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Browser Context").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Computer Use").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("Concise Chinese progress updates").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("Obsidian-style knowledge dashboard").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("injects prompt").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("guides prompt").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("recalls context").length).toBeGreaterThan(0);
     expect(within(graph).getByRole("list", { name: "Vault notes" })).toBeInTheDocument();
     expect(within(graph).getByText("User preferences.md")).toBeInTheDocument();

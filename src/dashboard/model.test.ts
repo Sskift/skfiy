@@ -14,11 +14,24 @@ describe("readKnowledgeGraph", () => {
       expect.objectContaining({ id: "provider:codex", kind: "provider", label: "Codex" }),
       expect.objectContaining({ id: "browser:context", kind: "browser", label: "Browser Context" }),
       expect.objectContaining({ id: "computer-use", kind: "computer-use", label: "Computer Use" }),
+      expect.objectContaining({
+        id: "skill:communication-style",
+        kind: "skill",
+        label: "Concise Chinese progress updates"
+      }),
+      expect.objectContaining({
+        id: "skill:dashboard-knowledge-surface",
+        kind: "skill",
+        label: "Obsidian-style knowledge dashboard"
+      }),
       expect.objectContaining({ id: "alert:screen-recording-missing", kind: "alert" })
     ]));
     expect(graph.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ from: "memory:user", to: "provider:codex", label: "injects prompt" }),
       expect.objectContaining({ from: "memory:agent", to: "provider:codex", label: "guides behavior" }),
+      expect.objectContaining({ from: "memory:user", to: "skill:communication-style", label: "distills skill" }),
+      expect.objectContaining({ from: "skill:communication-style", to: "provider:codex", label: "guides prompt" }),
+      expect.objectContaining({ from: "skill:dashboard-knowledge-surface", to: "provider:codex", label: "guides prompt" }),
       expect.objectContaining({ from: "browser:context", to: "session:latest", label: "observed in" }),
       expect.objectContaining({ from: "session:latest", to: "provider:codex", label: "recalls context" }),
       expect.objectContaining({ from: "session:recent-2", to: "provider:codex", label: "recalls context" }),
@@ -80,6 +93,26 @@ function createSnapshot(): DashboardSnapshot {
       sessionCount: 3,
       recentUserEntries: ["User prefers concise Chinese updates."],
       recentAgentEntries: ["Prefer Obsidian-like dashboard surfaces."],
+      personalSkills: [
+        {
+          id: "communication-style",
+          kind: "communication",
+          label: "Concise Chinese progress updates",
+          description: "User prefers short Chinese progress updates.",
+          promptHint: "Use concise Chinese progress updates.",
+          evidenceCount: 2,
+          evidence: ["User prefers concise Chinese updates."]
+        },
+        {
+          id: "dashboard-knowledge-surface",
+          kind: "dashboard",
+          label: "Obsidian-style knowledge dashboard",
+          description: "User wants dashboard work to feel like a linked local knowledge surface.",
+          promptHint: "Favor linked memory, sessions, skills, and graph/canvas evidence over control-plane panels.",
+          evidenceCount: 2,
+          evidence: ["Prefer Obsidian-like dashboard surfaces."]
+        }
+      ],
       recentSessions: [
         {
           createdAt: "2026-06-23T12:00:00.000Z",

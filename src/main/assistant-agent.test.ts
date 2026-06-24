@@ -336,6 +336,41 @@ describe("assistant agent provider", () => {
     expect(prompt.indexOf("<skfiy-recalled-sessions>")).toBeLessThan(prompt.indexOf("User: 继续 dashboard 的视觉方向"));
   });
 
+  it("injects distilled personal skills after recalled sessions and before Browser Context", () => {
+    const invocation = buildAssistantAgentInvocation(baseSettings, "继续 dashboard 的视觉方向", {
+      state: "ready",
+      url: "https://example.test",
+      title: "Example",
+      visibleText: "Example text",
+      observedAt: "2026-06-23T00:00:00.000Z"
+    }, {
+      userEntries: [
+        "User prefers concise Chinese progress updates.",
+        "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+      ],
+      agentEntries: [
+        "For skfiy UI work, verify packaged app smoke evidence."
+      ]
+    }, [
+      {
+        turnId: "turn-obsidian",
+        createdAt: "2026-06-23T10:05:00.000Z",
+        userInput: "Dashboard 要像 Obsidian，有知识图谱和双链",
+        assistantReply: "我会做成本地知识画布。",
+        providerLabel: "Hermes"
+      }
+    ]);
+
+    const prompt = invocation.args.at(-1) ?? "";
+    expect(prompt).toContain("<skfiy-personal-skills>");
+    expect(prompt).toContain("Concise Chinese progress updates");
+    expect(prompt).toContain("Obsidian-style knowledge dashboard");
+    expect(prompt).toContain("Evidence-first product verification");
+    expect(prompt.indexOf("<skfiy-recalled-sessions>")).toBeLessThan(prompt.indexOf("<skfiy-personal-skills>"));
+    expect(prompt.indexOf("<skfiy-personal-skills>")).toBeLessThan(prompt.indexOf("Current Chrome page"));
+    expect(prompt.indexOf("<skfiy-personal-skills>")).toBeLessThan(prompt.indexOf("User: 继续 dashboard 的视觉方向"));
+  });
+
   it("uses the same skfiy identity prompt for Claude Code backend calls", () => {
     const invocation = buildAssistantAgentInvocation({
       mode: "claude-code",

@@ -269,6 +269,29 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       });
   }
 
+  for (const skill of personalMemory?.personalSkills ?? []) {
+    const skillId = `skill:${sanitizeNodeId(skill.id)}`;
+    pushNode(nodes, {
+      id: skillId,
+      label: skill.label,
+      kind: "skill",
+      tone: "success",
+      detail: `${skill.kind} · ${skill.promptHint}`
+    });
+    if (nodes.some((node) => node.id === "memory:user")) {
+      pushEdge(edges, { from: "memory:user", to: skillId, label: "distills skill" });
+    }
+    if (nodes.some((node) => node.id === "memory:agent")) {
+      pushEdge(edges, { from: "memory:agent", to: skillId, label: "distills skill" });
+    }
+    nodes
+      .filter((node) => node.kind === "session")
+      .forEach((node) => {
+        pushEdge(edges, { from: node.id, to: skillId, label: "teaches" });
+      });
+    pushEdge(edges, { from: skillId, to: providerId, label: "guides prompt" });
+  }
+
   if (browserContext.state !== "missing") {
     pushNode(nodes, {
       id: "browser:context",

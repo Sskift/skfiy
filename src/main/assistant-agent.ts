@@ -13,6 +13,10 @@ import {
   type PersonalMemorySnapshot
 } from "./personal-memory.js";
 import {
+  createPersonalSkillCards,
+  createPersonalSkillsPromptBlock
+} from "./personal-skills.js";
+import {
   createSessionMemoryPromptBlock,
   type SessionMemoryRecord
 } from "./session-memory.js";
@@ -670,12 +674,19 @@ function createAssistantAgentPrompt(
   const recalledSessionsBlock = recalledSessions
     ? createSessionMemoryPromptBlock(recalledSessions)
     : "";
+  const personalSkillsBlock = personalMemory
+    ? createPersonalSkillsPromptBlock(createPersonalSkillCards({
+      memory: personalMemory,
+      sessions: recalledSessions ?? []
+    }))
+    : "";
 
   return [
     ASSISTANT_AGENT_IDENTITY_PROMPT,
     "",
     ...(personalMemoryBlock ? [personalMemoryBlock, ""] : []),
     ...(recalledSessionsBlock ? [recalledSessionsBlock, ""] : []),
+    ...(personalSkillsBlock ? [personalSkillsBlock, ""] : []),
     ...(browserPageContext ? [createBrowserPageContextPromptBlock(browserPageContext), ""] : []),
     `User: ${userInput.trim()}`
   ].join("\n");

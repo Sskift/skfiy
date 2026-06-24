@@ -44,6 +44,7 @@ import type {
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemorySummary,
+  DashboardPersonalSkillCard,
   DashboardPersonalMemoryUsageBucket,
   DashboardPlannerProviderMode,
   DashboardPlannerProviderSettingsUpdate,
@@ -729,6 +730,7 @@ function PersonalMemoryPanel({
 }) {
   const userEntries = memory?.recentUserEntries ?? [];
   const agentEntries = memory?.recentAgentEntries ?? [];
+  const personalSkills = memory?.personalSkills ?? [];
 
   return (
     <Card.Root
@@ -779,6 +781,7 @@ function PersonalMemoryPanel({
             title="Agent operating notes"
           />
         </div>
+        <PersonalSkillCardList skills={personalSkills} />
         <RecentSessionRecallList sessions={memory?.recentSessions ?? []} />
         <p
           aria-live="polite"
@@ -789,6 +792,31 @@ function PersonalMemoryPanel({
         </p>
       </Card.Content>
     </Card.Root>
+  );
+}
+
+function PersonalSkillCardList({
+  skills
+}: {
+  skills: DashboardPersonalSkillCard[];
+}) {
+  return (
+    <div className="skfiy-dashboard-key-value-list skfiy-dashboard-personal-skill-list">
+      <h3>Personal skill cards</h3>
+      {skills.length > 0 ? (
+        <ul aria-label="Personal skill cards">
+          {skills.map((skill) => (
+            <li key={skill.id}>
+              <span>{skill.kind} · evidence {skill.evidenceCount}</span>
+              <strong>{skill.label}</strong>
+              <small>{skill.promptHint}</small>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="skfiy-dashboard-empty">No personal skills have been distilled yet.</p>
+      )}
+    </div>
   );
 }
 

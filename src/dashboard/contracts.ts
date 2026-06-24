@@ -102,8 +102,19 @@ export interface DashboardPersonalMemorySummary {
   usage?: DashboardPersonalMemoryUsage;
   recentUserEntries: string[];
   recentAgentEntries: string[];
+  personalSkills?: DashboardPersonalSkillCard[];
   latestSession?: DashboardPersonalMemorySessionSummary;
   recentSessions?: DashboardPersonalMemorySessionSummary[];
+}
+
+export interface DashboardPersonalSkillCard {
+  id: string;
+  kind: "communication" | "dashboard" | "workflow" | string;
+  label: string;
+  description: string;
+  promptHint: string;
+  evidenceCount: number;
+  evidence: string[];
 }
 
 export interface DashboardPersonalMemoryUsage {

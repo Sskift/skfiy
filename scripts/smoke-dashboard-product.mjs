@@ -401,12 +401,16 @@ async function main() {
         backlinkCount: backlinkItems.length,
         learningLoopCount: learningLoopItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
+        personalSkillNodeCount: nodeItems.filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? "")).length,
         fallbackTextOverlap,
         nodeTexts: nodeItems.map((item) => item.textContent),
         linkTexts: linkItems.map((item) => item.textContent),
         vaultNoteTexts: vaultNoteItems.map((item) => item.textContent),
         focusedBacklinkTexts: focusedBacklinkItems.map((item) => item.textContent),
         learningLoopTexts: learningLoopItems.map((item) => item.textContent),
+        personalSkillTexts: nodeItems
+          .filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? ""))
+          .map((item) => item.textContent),
         backlinkTexts: backlinkItems.map((item) => item.textContent)
       };
     })()
@@ -423,7 +427,7 @@ async function main() {
     screenshotPath,
     screenshotBytes: png.length,
     ...dom,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }

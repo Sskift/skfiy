@@ -186,7 +186,7 @@ describe("dashboard snapshot data", () => {
       }
     });
 
-    expect(snapshot.personalMemory).toEqual({
+    expect(snapshot.personalMemory).toMatchObject({
       userEntryCount: 2,
       agentEntryCount: 1,
       sessionCount: 2,
@@ -232,6 +232,18 @@ describe("dashboard snapshot data", () => {
         }
       ]
     });
+    expect(snapshot.personalMemory?.personalSkills).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "communication-style",
+        label: "Concise Chinese progress updates",
+        kind: "communication"
+      }),
+      expect.objectContaining({
+        id: "dashboard-knowledge-surface",
+        label: "Obsidian-style knowledge dashboard",
+        kind: "dashboard"
+      })
+    ]));
     expect(JSON.stringify(snapshot.personalMemory)).not.toContain("token=secret");
   });
 
