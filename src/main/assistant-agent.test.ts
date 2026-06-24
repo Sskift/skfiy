@@ -283,6 +283,7 @@ describe("assistant agent provider", () => {
     const userPrompt = readProviderPrompt(label, args);
 
     expect(prompt).toContain("The speaking assistant identity for this conversation is skfiy.");
+    expect(prompt).toContain("You are interacting with the user as skfiy, not as the backend CLI provider.");
     expect(prompt).toContain("Treat Codex, Claude Code, and Hermes as internal backend implementation details.");
     expect(prompt).toContain("If asked about the backend, explain that skfiy can use Codex, Claude Code, or Hermes behind the pet.");
     expect(prompt).toContain("Speak from skfiy's first-person perspective");
