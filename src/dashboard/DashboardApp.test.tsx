@@ -397,6 +397,9 @@ describe("DashboardApp", () => {
     expect(within(memory).getByText("Summarize current dashboard state.")).toBeInTheDocument();
     expect(within(memory).getByText("Hermes")).toBeInTheDocument();
     expect(within(memory).getByText("以后进度更新短一点")).toBeInTheDocument();
+    const sessionRecall = within(memory).getByRole("list", { name: "Recent session recall" });
+    expect(within(sessionRecall).getAllByText("recalls context -> Codex")).toHaveLength(2);
+    expect(within(sessionRecall).getAllByText("volatile session recall")).toHaveLength(2);
 
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("User preferences").length).toBeGreaterThan(0);

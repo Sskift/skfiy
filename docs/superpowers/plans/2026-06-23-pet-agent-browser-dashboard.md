@@ -1318,6 +1318,20 @@ Focused verification:
 npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 19: Show session recall routes in the Memory surface**
+
+In `src/dashboard/DashboardApp.tsx`, `src/dashboard/styles.css`, `scripts/smoke-dashboard-product.mjs`, `scripts/smoke-dashboard-plan.mjs`, and `src/main/dashboard-smoke-script.test.ts`:
+
+- Add a compact tier label to each `Recent session recall` row so operators can distinguish session recall from durable memory or stable learned skills.
+- Show the next provider prompt route as `recalls context -> <selected Background Agent>` for each recalled session, matching the Knowledge graph edge semantics.
+- Extend Dashboard smoke evidence with `sessionRecallRouteCount`, `sessionRecallTierCount`, `sessionRecallRouteTexts`, and `sessionRecallTierTexts`; the product smoke cannot pass if recent sessions lose their visible recall route.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls
@@ -1562,6 +1576,7 @@ Validation evidence from 2026-06-24:
 - `.skfiy-smoke/dashboard-memory-evolution.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`, with 1 `Memory evolution` node, 3 timeline/order links, 2 `Learning receipt` nodes, 3 receipt links, and screenshot evidence at `.skfiy-smoke/dashboard-memory-evolution-knowledge-graph.png`.
 - `.skfiy-smoke/dashboard-prompt-stack.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-prompt-stack-knowledge-graph.png` shows the Obsidian-inspired `Prompt stack` above the graph canvas with memory, recalled sessions, personal skills, Working profile, and selected Background Agent ordering visible.
 - `.skfiy-smoke/dashboard-prompt-tiers.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-prompt-tiers-knowledge-graph.png` shows the Prompt stack tier labels for `volatile local memory`, `volatile session recall`, `stable learned habits`, `volatile portable profile`, and `runtime provider` in isolated product state. React and smoke classifier coverage require `live browser overlay` when a Browser Context node exists.
+- `.skfiy-smoke/dashboard-session-recall-routes.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-session-recall-routes-knowledge-graph.png` shows 2 `Recent session recall` rows with `volatile session recall` tier labels and `recalls context -> Codex` next-prompt routes.
 - `.skfiy-smoke/ghostty-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24 and captured a non-empty Ghostty before screenshot, but the run ended `needs-user-confirmation` with `Verification failed (before): Target app is not running or has no observable windows.` This replaces the older sleep/loginwindow blocker with a fresh Ghostty initialization/verification blocker.
 - `.skfiy-smoke/finder-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24, but the run ended `error` with `Finder runCommand timed out after 8000ms` and no Finder observation. This replaces the older sleep/loginwindow blocker with a fresh Finder renderer-command timeout blocker.
 - `./dist/skfiy status --json` reported packaged app, CLI, and helper installed; Screen Recording and Accessibility granted; desktop session controllable. It also reported current Chrome pageControl as `blocked_by_host_policy` on `mew-test.bytedance.net` with missing optional Chrome host and capture permissions.

@@ -372,6 +372,8 @@ async function main() {
       const vaultNoteItems = Array.from(document.querySelectorAll('[aria-label="Vault notes"] li'));
       const backlinkItems = Array.from(document.querySelectorAll('[aria-label="Vault backlinks"] li'));
       const learningLoopItems = Array.from(document.querySelectorAll('[aria-label="Learning loop"] li'));
+      const sessionRecallRouteItems = Array.from(document.querySelectorAll(".skfiy-dashboard-session-recall-route"));
+      const sessionRecallTierItems = Array.from(document.querySelectorAll(".skfiy-dashboard-session-recall-list li em"));
       const promptStackItems = Array.from(document.querySelectorAll('[aria-label="Prompt stack"] li'));
       const promptStackTierItems = Array.from(document.querySelectorAll(".skfiy-prompt-stack-tier"));
       const promptSourceLedgerItems = Array.from(document.querySelectorAll('[aria-label="Prompt source ledger"] li'));
@@ -479,6 +481,8 @@ async function main() {
         focusedNeighborhoodCount: focusedNeighborhoodItems.length,
         backlinkCount: backlinkItems.length,
         learningLoopCount: learningLoopItems.length,
+        sessionRecallRouteCount: sessionRecallRouteItems.length,
+        sessionRecallTierCount: sessionRecallTierItems.length,
         promptStackCount: promptStackItems.length,
         promptStackTierCount: promptStackTierItems.length,
         promptSourceLedgerCount: promptSourceLedgerItems.length,
@@ -502,6 +506,8 @@ async function main() {
         focusedBacklinkTexts: focusedBacklinkItems.map((item) => item.textContent),
         focusedNeighborhoodTexts: focusedNeighborhoodItems.map((item) => item.textContent),
         learningLoopTexts: learningLoopItems.map((item) => item.textContent),
+        sessionRecallRouteTexts: sessionRecallRouteItems.map((item) => item.textContent),
+        sessionRecallTierTexts: sessionRecallTierItems.map((item) => item.textContent),
         promptStackTexts: promptStackItems.map((item) => item.textContent),
         promptStackTierTexts: promptStackTierItems.map((item) => item.textContent),
         promptSourceLedgerTexts: promptSourceLedgerItems.map((item) => item.textContent),
@@ -634,6 +640,14 @@ async function main() {
     && dom.focusedNeighborhoodCount >= 1
     && dom.backlinkCount >= 2
     && dom.learningLoopCount >= 4
+    && Number.isInteger(dom.sessionRecallRouteCount)
+    && dom.sessionRecallRouteCount >= 1
+    && Number.isInteger(dom.sessionRecallTierCount)
+    && dom.sessionRecallTierCount === dom.sessionRecallRouteCount
+    && Array.isArray(dom.sessionRecallRouteTexts)
+    && Array.isArray(dom.sessionRecallTierTexts)
+    && dom.sessionRecallRouteTexts.some((text) => typeof text === "string" && text.includes("recalls context ->"))
+    && dom.sessionRecallTierTexts.every((text) => typeof text === "string" && text.includes("volatile session recall"))
     && dom.promptStackCount >= 5
     && Number.isInteger(dom.promptStackTierCount)
     && dom.promptStackTierCount === dom.promptStackCount

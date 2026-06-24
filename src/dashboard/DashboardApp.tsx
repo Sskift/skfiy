@@ -490,6 +490,7 @@ function DashboardContent({
           </div>
         </div>
         <PersonalMemoryPanel
+          assistantProviderLabel={snapshot.providers?.assistant?.label ?? "Background Agent"}
           error={memoryError}
           isSaving={isMemorySaving}
           memory={snapshot.personalMemory}
@@ -761,6 +762,7 @@ function DashboardContent({
 }
 
 function PersonalMemoryPanel({
+  assistantProviderLabel,
   error,
   isSaving,
   memory,
@@ -768,6 +770,7 @@ function PersonalMemoryPanel({
   onForget,
   onMuteSkill
 }: {
+  assistantProviderLabel: string;
   error: string | null;
   isSaving: boolean;
   memory: DashboardPersonalMemorySummary | undefined;
@@ -847,7 +850,10 @@ function PersonalMemoryPanel({
         <WorkingProfilePanel profile={memory?.workingProfile} />
         <MemoryEvolutionTrail entries={memoryJournal} />
         <MemoryJournalList entries={memoryJournal} />
-        <RecentSessionRecallList sessions={memory?.recentSessions ?? []} />
+        <RecentSessionRecallList
+          sessions={memory?.recentSessions ?? []}
+          targetProviderLabel={assistantProviderLabel}
+        />
         <p
           aria-live="polite"
           className="skfiy-dashboard-control-feedback"
@@ -1108,9 +1114,11 @@ function formatPendingMemoryActionLabel(write: DashboardPendingPersonalMemoryWri
 }
 
 function RecentSessionRecallList({
-  sessions
+  sessions,
+  targetProviderLabel
 }: {
   sessions: NonNullable<DashboardPersonalMemorySummary["recentSessions"]>;
+  targetProviderLabel: string;
 }) {
   return (
     <div className="skfiy-dashboard-key-value-list skfiy-dashboard-session-recall-list">
@@ -1124,6 +1132,10 @@ function RecentSessionRecallList({
                 <span>{browserLabel ? `${session.providerLabel} · ${browserLabel}` : session.providerLabel}</span>
                 <small>{formatGeneratedAt(session.createdAt)}</small>
                 <strong>{session.userInput}</strong>
+                <em>volatile session recall</em>
+                <small className="skfiy-dashboard-session-recall-route">
+                  recalls context -&gt; {targetProviderLabel}
+                </small>
               </li>
             );
           })}

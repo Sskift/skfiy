@@ -49,6 +49,7 @@ Newly distilled in this pass:
 - Post-turn learning now writes append-only memory journal receipts for durable and pending operations. Each receipt records the source, stage, provider label, turn id, action, target, and replacement provenance, then appears in both the Dashboard Memory panel and Obsidian-like graph so skfiy can explain why a habit was learned instead of only showing the final memory state.
 - The receipt stream now also renders as a `Memory evolution` timeline and graph node. This turns repeated chat personalization into an Obsidian-style trace: memory review records the timeline, the timeline orders individual receipts, and each receipt points back to the affected user or agent memory.
 - The Dashboard `Prompt stack` now exposes Hermes-style prompt tiers instead of only a flat order: local memory/session/profile are volatile personalization layers, personal skills are stable learned habits, Browser Context is a live overlay, and the selected Background Agent is the runtime provider boundary.
+- The Dashboard `Recent session recall` list now shows the recall tier and the next prompt route for each indexed session, turning Hermes-style session search into an operator-visible Obsidian backlink path instead of a flat history list.
 
 ## Deliberate Non-Imports
 

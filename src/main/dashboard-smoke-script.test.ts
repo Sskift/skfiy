@@ -747,6 +747,16 @@ describe("dashboard product smoke script", () => {
         focusedNeighborhoodCount: 2,
         backlinkCount: 7,
         learningLoopCount: 4,
+        sessionRecallRouteCount: 2,
+        sessionRecallTierCount: 2,
+        sessionRecallRouteTexts: [
+          "recalls context -> Codex",
+          "recalls context -> Codex"
+        ],
+        sessionRecallTierTexts: [
+          "volatile session recall",
+          "volatile session recall"
+        ],
         promptStackCount: 6,
         promptStackTierCount: 6,
         promptStackTierTexts: [
@@ -1280,6 +1290,16 @@ describe("dashboard product smoke script", () => {
         linkCount: 8,
         backlinkCount: 6,
         learningLoopCount: 4,
+        sessionRecallRouteCount: 2,
+        sessionRecallTierCount: 2,
+        sessionRecallRouteTexts: [
+          "recalls context -> Codex",
+          "recalls context -> Codex"
+        ],
+        sessionRecallTierTexts: [
+          "volatile session recall",
+          "volatile session recall"
+        ],
         promptStackCount: 5,
         promptStackTierCount: 5,
         promptStackTierTexts: [
@@ -1438,6 +1458,16 @@ describe("dashboard product smoke script", () => {
         ...passedEvidence.knowledgeGraphEvidence,
         learningLoopCount: 0,
         learningLoopTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        sessionRecallRouteCount: 0,
+        sessionRecallTierCount: 0,
+        sessionRecallRouteTexts: [],
+        sessionRecallTierTexts: []
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

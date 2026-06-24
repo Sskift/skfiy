@@ -320,6 +320,12 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Array.isArray(evidence?.backlinkTexts)
     && Array.isArray(evidence?.focusedNeighborhoodTexts)
     && Array.isArray(evidence?.learningLoopTexts)
+    && Number.isInteger(evidence?.sessionRecallRouteCount)
+    && evidence.sessionRecallRouteCount >= 1
+    && Number.isInteger(evidence?.sessionRecallTierCount)
+    && evidence.sessionRecallTierCount === evidence.sessionRecallRouteCount
+    && Array.isArray(evidence?.sessionRecallRouteTexts)
+    && Array.isArray(evidence?.sessionRecallTierTexts)
     && Array.isArray(evidence?.promptStackTexts)
     && Array.isArray(evidence?.promptStackTierTexts)
     && Array.isArray(evidence?.promptSourceLedgerTexts)
@@ -371,6 +377,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("distills"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("answered"))
+    && evidence.sessionRecallRouteTexts.some((text) => typeof text === "string" && text.includes("recalls context ->"))
+    && evidence.sessionRecallTierTexts.every((text) => typeof text === "string" && text.includes("volatile session recall"))
     && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Memory"))
     && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Recalled sessions"))
     && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Personal skills"))
