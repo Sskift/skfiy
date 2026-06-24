@@ -615,15 +615,17 @@ function applyGrantSiteAccessState(currentTab) {
 }
 
 async function requestPolicySnapshot(type, requestId = `popup-${Date.now()}`) {
+  const targetTabId = readTargetTabId();
   return chrome.runtime.sendMessage({
     type,
     schemaVersion: MESSAGE_SCHEMA_VERSION,
-    requestId
+    requestId,
+    ...(Number.isInteger(targetTabId) ? { tabId: targetTabId } : {})
   });
 }
 
 async function renderPopup() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = await readPopupTargetTab();
   const host = hostFromUrl(tab?.url ?? "");
   const stored = await chrome.storage.local.get([HOST_POLICY_STORAGE_KEY, LAST_SENSITIVE_PAUSE_KEY]);
   const snapshot = await requestPolicySnapshot(MESSAGE_TYPES.HOST_POLICY_SYNC_STATUS);
@@ -691,13 +693,28 @@ function createWakeDirectiveFromLocation() {
   };
 }
 
+async function readPopupTargetTab() {
+  const targetTabId = readTargetTabId();
+  const wakeAction = readWakeAction();
+  if (!wakeAction && Number.isInteger(targetTabId) && typeof chrome.tabs.get === "function") {
+    try {
+      return await chrome.tabs.get(targetTabId);
+    } catch {
+      // Fall through to active-tab diagnostics when a wake URL points at a stale tab.
+    }
+  }
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
+
 async function refreshHostPolicy() {
   const button = document.getElementById("sync-policy-button");
   button.disabled = true;
   applySyncStatus({ state: "syncing", source: "native_host", entryCount: 0 }, undefined);
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = await readPopupTargetTab();
     const host = hostFromUrl(tab?.url ?? "");
     const snapshot = await requestPolicySnapshot(MESSAGE_TYPES.HOST_POLICY_SYNC_REFRESH);
     const policy = {

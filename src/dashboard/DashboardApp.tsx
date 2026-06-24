@@ -1555,14 +1555,22 @@ function ChromeControlActions({
   const canRun = chromeControl.actionable
     && Boolean(chromeControl.extensionId)
     && Number.isInteger(chromeControl.tabId);
+  const canOpenAccessPage = chromeControl.browserContextAccessSteps.some(
+    (step) => step.id === "open-skfiy-chrome-popup"
+  )
+    && Boolean(chromeControl.extensionId)
+    && Number.isInteger(chromeControl.tabId);
 
   const launchAction = async (action: DashboardChromeControlActionRequest["action"]) => {
     const trimmedSelector = selector.trim();
     const trimmedText = text.trim();
     const targetTabId = Number.isInteger(chromeControl.tabId) ? chromeControl.tabId : undefined;
-    if (!canRun || !chromeControl.extensionId || targetTabId === undefined) {
+    const canLaunch = action === "open-popup" ? canOpenAccessPage : canRun;
+    if (!canLaunch || !chromeControl.extensionId || targetTabId === undefined) {
       setFeedbackTone("warning");
-      setFeedback(chromeControl.actionUnavailableReason ?? "Chrome action controls are not ready.");
+      setFeedback(action === "open-popup"
+        ? "Chrome access page is not available for the current tab."
+        : chromeControl.actionUnavailableReason ?? "Chrome action controls are not ready.");
       return;
     }
     if ((action === "click" || action === "fill") && !trimmedSelector) {
@@ -1662,6 +1670,17 @@ function ChromeControlActions({
         </div>
       </div>
       <div className="skfiy-dashboard-control-actions">
+        {canOpenAccessPage ? (
+          <button
+            className="skfiy-dashboard-button button"
+            disabled={busyAction !== null}
+            onClick={() => void launchAction("open-popup")}
+            type="button"
+          >
+            <ShieldCheck size={15} aria-hidden="true" />
+            {busyAction === "open-popup" ? "Opening access page" : "Open access page"}
+          </button>
+        ) : null}
         {CHROME_CONTROL_ACTIONS.map((item) => {
           const Icon = item.icon;
           return (

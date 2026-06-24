@@ -67,6 +67,7 @@ import {
   type PlannerProviderSettings,
   type PlannerProviderSettingsUpdate
 } from "./planner-provider-settings.js";
+import { createChromeExtensionWakeUrl } from "./chrome-extension-reloader.js";
 
 export interface DashboardHttpRequest {
   method?: string;
@@ -85,6 +86,7 @@ export interface DashboardHttpResponseOptions extends DashboardDescriptorInput {
   homeDir?: string;
   chromeHostPolicyIo?: ChromeHostPolicyResetIo;
   chromeControlRunner?: DashboardChromeControlRunner;
+  chromeControlPopupOpener?: DashboardChromeControlPopupOpener;
   chromeControlActivityStore?: DashboardChromeControlActivityStore;
   chromeControlActivityIo?: DashboardChromeControlActivityIo;
   assistantAgentSettings?: AssistantAgentSettings;
@@ -111,6 +113,15 @@ export interface DashboardChromeControlRunnerResult {
 export type DashboardChromeControlRunner = (
   input: DashboardChromeControlRunnerInput
 ) => Promise<DashboardChromeControlRunnerResult>;
+
+export interface DashboardChromeControlPopupOpenInput {
+  url: string;
+  chromeAppName: string;
+}
+
+export type DashboardChromeControlPopupOpener = (
+  input: DashboardChromeControlPopupOpenInput
+) => Promise<void>;
 
 export interface DashboardChromeControlActivityEntry {
   kind: "chrome-control-action";
@@ -534,6 +545,7 @@ function createDescriptorFromOptions(
     homeDir: _homeDir,
     chromeHostPolicyIo: _chromeHostPolicyIo,
     chromeControlRunner: _chromeControlRunner,
+    chromeControlPopupOpener: _chromeControlPopupOpener,
     chromeControlActivityStore: _chromeControlActivityStore,
     chromeControlActivityIo: _chromeControlActivityIo,
     assistantAgentSettings: _assistantAgentSettings,
@@ -1208,7 +1220,7 @@ export async function createDashboardChromeControlActionResponse(
     return createDashboardChromeControlErrorResponse({
       generatedAt,
       code: "unknown-action",
-      message: "Chrome control action must be observe, screenshot, click, fill, submit, or scroll."
+      message: "Chrome control action must be open-popup, observe, screenshot, click, fill, submit, or scroll."
     });
   }
 
@@ -1265,6 +1277,55 @@ export async function createDashboardChromeControlActionResponse(
     });
   }
 
+  const activeTab = readRecord(pageControl.activeTab) ?? {};
+  if (action === "open-popup") {
+    const wakeUrl = createChromeExtensionWakeUrl(extensionId, { targetTabId });
+    const opener = options.chromeControlPopupOpener ?? openDashboardChromeControlPopup;
+    let result: DashboardChromeControlActivityEntry["result"] = "verified";
+    let blockerReason: string | null = null;
+    try {
+      await opener({ url: wakeUrl, chromeAppName });
+    } catch (error) {
+      result = "failed";
+      blockerReason = readErrorMessage(error);
+    }
+    const command = formatDashboardChromeControlCommand("open", ["-a", chromeAppName, wakeUrl]);
+    const activityEntry = createDashboardChromeControlActivityEntry({
+      action,
+      chromeAppName,
+      host: readDashboardChromeHost(activeTab),
+      targetTabId,
+      result,
+      blockerReason,
+      command,
+      generatedAt
+    });
+
+    await persistDashboardChromeControlActivity({
+      homeDir: options.homeDir ?? process.env.HOME,
+      entry: activityEntry,
+      io: options.chromeControlActivityIo
+    });
+    appendDashboardChromeControlActivity(options.chromeControlActivityStore, activityEntry);
+
+    return jsonResponse({
+      schemaVersion: 1,
+      command: "dashboard chrome control action",
+      generatedAt,
+      source: "dashboard",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result,
+      action,
+      chromeAppName,
+      targetTabId,
+      wakeUrl,
+      launchedCommand: command,
+      blockerReason,
+      activityEntry
+    }, undefined, result === "failed" ? 502 : 200);
+  }
+
   const rootDir = options.rootDir ?? process.cwd();
   const binaryPath = path.join(rootDir, "dist", "skfiy");
   const args = createDashboardChromeControlArgs({
@@ -1284,7 +1345,6 @@ export async function createDashboardChromeControlActionResponse(
   const parsed = parseDashboardChromeControlStdout(runResult.stdout);
   const result = readDashboardChromeControlResult(runResult, parsed);
   const blockerReason = readDashboardChromeControlBlockerReason(runResult, parsed);
-  const activeTab = readRecord(pageControl.activeTab) ?? {};
   const activityEntry = createDashboardChromeControlActivityEntry({
     action,
     chromeAppName,
@@ -3143,6 +3203,7 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 type DashboardChromeControlAction =
+  | "open-popup"
   | "observe"
   | "screenshot"
   | "click"
@@ -3152,7 +3213,8 @@ type DashboardChromeControlAction =
 
 function normalizeDashboardChromeControlAction(value: unknown): DashboardChromeControlAction | undefined {
   if (
-    value === "observe"
+    value === "open-popup"
+    || value === "observe"
     || value === "screenshot"
     || value === "click"
     || value === "fill"
@@ -3317,6 +3379,9 @@ function validateDashboardChromeControlEligibility({
       message: "Open an ordinary HTTP or HTTPS page before launching Chrome control actions."
     };
   }
+  if (action === "open-popup") {
+    return { ok: true };
+  }
   if (pageControl.state === "blocked_by_host_policy" || blockerCodes.includes("blocked_by_host_policy")) {
     return {
       ok: false,
@@ -3428,6 +3493,25 @@ function runDashboardChromeControlCommand({
       });
     });
   });
+}
+
+function openDashboardChromeControlPopup({
+  url,
+  chromeAppName
+}: DashboardChromeControlPopupOpenInput): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile("open", ["-a", chromeAppName, url], (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function parseDashboardChromeControlStdout(stdout: unknown): Record<string, unknown> | undefined {

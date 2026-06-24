@@ -2213,6 +2213,99 @@ describe("dashboard loopback HTTP response helper", () => {
     }
   });
 
+  it("opens a target-tab Chrome extension recovery page when Browser Context needs popup permissions", async () => {
+    const opened: Array<{ url: string; chromeAppName: string }> = [];
+    const runnerCalls: DashboardChromeControlRunnerInput[] = [];
+    const dashboard = await startDashboardServer({
+      port: 0,
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      createSnapshot: () => createChromeControlDashboardSnapshot({
+        extension: {
+          extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"]
+        },
+        pageControl: {
+          state: "blocked_by_chrome_host_permission",
+          capable: false,
+          activeTab: {
+            state: "available",
+            tabId: 1782096947,
+            host: "mew-test.bytedance.net",
+            scheme: "https"
+          },
+          hostPolicy: {
+            decision: "allowed"
+          },
+          chromeHostPermission: {
+            state: "missing",
+            origins: ["https://mew-test.bytedance.net/*"]
+          },
+          chromeCapturePermission: {
+            state: "missing",
+            origins: ["<all_urls>"]
+          },
+          capabilities: {
+            domActions: false,
+            screenshot: false
+          },
+          blockers: [{ code: "blocked_by_chrome_host_permission" }]
+        }
+      }),
+      chromeControlRunner: async (input) => {
+        runnerCalls.push(input);
+        return { exitCode: 0, stdout: "{}\n", stderr: "" };
+      },
+      chromeControlPopupOpener: async (input) => {
+        opened.push(input);
+      },
+      chromeControlActivityIo: createNoopChromeControlActivityIo()
+    });
+
+    try {
+      const response = await requestUrl(`${dashboard.url}api/chrome-control-action`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "open-popup",
+          extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+          chromeAppName: "Chromium",
+          targetTabId: 1782096947
+        })
+      });
+
+      expect(response.status).toBe(200);
+      const payload = JSON.parse(response.body);
+      expect(payload).toMatchObject({
+        command: "dashboard chrome control action",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "verified",
+        action: "open-popup",
+        chromeAppName: "Chromium",
+        targetTabId: 1782096947,
+        activityEntry: {
+          kind: "chrome-control-action",
+          title: "Chrome open-popup",
+          result: "verified",
+          target: {
+            app: "Chromium",
+            host: "mew-test.bytedance.net",
+            tabId: 1782096947
+          }
+        }
+      });
+      expect(payload.wakeUrl).toMatch(/^chrome-extension:\/\/plcpkkhlcacihjfohlojdknnkademlno\/popup\.html\?/);
+      expect(payload.wakeUrl).toContain("skfiyTargetTabId=1782096947");
+      expect(opened).toEqual([{
+        chromeAppName: "Chromium",
+        url: payload.wakeUrl
+      }]);
+      expect(runnerCalls).toEqual([]);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
   it("persists Chrome control launcher Activity into the runtime snapshot", async () => {
     const runnerCalls: DashboardChromeControlRunnerInput[] = [];
     const files: Record<string, string> = {};

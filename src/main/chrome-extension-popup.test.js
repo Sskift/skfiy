@@ -938,6 +938,111 @@ describe("Chrome extension popup policy sync status", () => {
     });
   });
 
+  it("requests status and refresh diagnostics for the target tab when opened from a wake URL", async () => {
+    installPopupDocument();
+    window.history.replaceState(
+      {},
+      "",
+      "/popup.html?skfiyWake=dashboard&skfiyTargetTabId=42"
+    );
+    const policy = createPolicy({
+      currentTurnAllowedHosts: ["target.example"]
+    });
+    const mock = createPopupChromeMock({
+      policy,
+      tab: {
+        id: 99,
+        url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=dashboard&skfiyTargetTabId=42"
+      },
+      tabsById: {
+        42: {
+          id: 42,
+          url: "https://target.example/page"
+        }
+      },
+      onSendMessage: (message) => ({
+        type: "skfiy.host_policy.response",
+        schemaVersion: 1,
+        requestId: message.requestId,
+        policy,
+        syncStatus: {
+          schemaVersion: 1,
+          state: "synced",
+          source: "native_host",
+          updatedAt: "2026-06-20T10:02:00.000Z",
+          entryCount: 1,
+          nativeBridgeState: "connected",
+          nativeLaunchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+          nativeMessageType: message.type,
+          lastError: null,
+          error: null
+        },
+        diagnostics: {
+          schemaVersion: 1,
+          extension: {
+            version: "0.0.1"
+          },
+          capabilities: {
+            nativeMessaging: true,
+            scripting: true,
+            tabs: true
+          },
+          nativeHost: {
+            name: "com.sskift.skfiy",
+            bridgeState: "connected",
+            policyState: "configured"
+          },
+          currentTab: {
+            state: "available",
+            tabId: message.tabId,
+            host: "target.example",
+            hostPolicy: {
+              decision: "allowed",
+              reason: "host_allowed"
+            },
+            chromeHostPermission: {
+              state: "missing",
+              origins: ["https://target.example/*"]
+            },
+            chromeCapturePermission: {
+              state: "missing",
+              origins: ["<all_urls>"]
+            }
+          },
+          hostPolicy: {
+            defaultMode: "ask",
+            entryCount: 1,
+            allowedHosts: 0,
+            currentTurnAllowedHosts: 1,
+            blockedHosts: 0
+          }
+        }
+      })
+    });
+    globalThis.chrome = mock.chrome;
+
+    await importPopup();
+
+    await waitForAssertion(() => {
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: HOST_POLICY_SYNC_STATUS,
+        tabId: 42
+      }));
+      expect(document.getElementById("current-host").textContent).toBe("target.example");
+      expect(document.getElementById("grant-site-access-button").textContent)
+        .toBe("Grant https://target.example/* + <all_urls> and observe");
+    });
+
+    document.getElementById("sync-policy-button").click();
+
+    await waitForAssertion(() => {
+      expect(mock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: HOST_POLICY_SYNC_REFRESH,
+        tabId: 42
+      }));
+    });
+  });
+
   it("lets the user observe the current page from the popup and send Browser Context evidence", async () => {
     installPopupDocument();
     const policy = createPolicy();

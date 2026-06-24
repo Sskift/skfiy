@@ -2170,7 +2170,7 @@ async function handleRuntimeMessage(message) {
   }
 
   if (message?.type === MESSAGE_TYPES.HOST_POLICY_REQUEST) {
-    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(message.tabId);
     return {
       type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
@@ -2183,7 +2183,7 @@ async function handleRuntimeMessage(message) {
   }
 
   if (message?.type === MESSAGE_TYPES.HOST_POLICY_SYNC_STATUS) {
-    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(message.tabId);
     return {
       type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
@@ -2197,7 +2197,7 @@ async function handleRuntimeMessage(message) {
 
   if (message?.type === MESSAGE_TYPES.HOST_POLICY_SYNC_REFRESH) {
     await syncHostPolicy("popup_manual");
-    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(message.tabId);
     return {
       type: MESSAGE_TYPES.HOST_POLICY_RESPONSE,
       schemaVersion: MESSAGE_SCHEMA_VERSION,
@@ -2218,7 +2218,7 @@ async function handleRuntimeMessage(message) {
   }
 
   if (message?.type === MESSAGE_TYPES.DEV_RELOAD_STATUS) {
-    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot();
+    const { policy, syncStatus, diagnostics } = await readHostPolicySnapshot(message.tabId);
     return {
       type: MESSAGE_TYPES.DEV_RELOAD_STATUS,
       schemaVersion: MESSAGE_SCHEMA_VERSION,

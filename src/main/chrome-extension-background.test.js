@@ -802,6 +802,74 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.chrome.tabs.sendMessage).not.toHaveBeenCalled();
   });
 
+  it("uses the requested target tab for popup policy status diagnostics", async () => {
+    const mock = createChromeMock([], {
+      activeTab: {
+        id: 99,
+        windowId: 7,
+        url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyTargetTabId=42"
+      }
+    });
+    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
+      if (tabId === 42) {
+        return {
+          id: 42,
+          windowId: 7,
+          url: "https://target.example/dashboard"
+        };
+      }
+      return {
+        id: 99,
+        windowId: 7,
+        url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyTargetTabId=42"
+      };
+    });
+    mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      defaultMode: "ask",
+      allowedHosts: ["target.example"],
+      currentTurnAllowedHosts: [],
+      blockedHosts: []
+    };
+    globalThis.chrome = mock.chrome;
+    await importBackground();
+
+    const sendResponse = vi.fn();
+    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+      type: HOST_POLICY_SYNC_STATUS,
+      requestId: "popup-status-target",
+      tabId: 42
+    }, {}, sendResponse);
+
+    expect(keepChannelOpen).toBe(true);
+    await waitForAssertion(() => {
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
+        type: "skfiy.host_policy.response",
+        requestId: "popup-status-target",
+        diagnostics: expect.objectContaining({
+          currentTab: expect.objectContaining({
+            state: "available",
+            tabId: 42,
+            host: "target.example",
+            hostPolicy: {
+              decision: "allowed",
+              reason: "host_allowed"
+            },
+            chromeHostPermission: expect.objectContaining({
+              state: "missing",
+              origins: ["https://target.example/*"]
+            })
+          })
+        }),
+        pageControl: expect.objectContaining({
+          activeTab: expect.objectContaining({
+            tabId: 42,
+            host: "target.example"
+          })
+        })
+      }));
+    });
+  });
+
   it("queries existing content-script session diagnostics when policy and Chrome host permission allow it", async () => {
     const mock = createChromeMock([], {
       activeTab: {

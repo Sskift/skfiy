@@ -231,6 +231,11 @@ temporary policy entry:
 
 If `Host permission` says `Missing optional Chrome host permission`, open the
 skfiy extension popup on the current tab and click **Grant ... and observe**.
+From the local Dashboard, the Browser Context checklist can also open a
+target-tab recovery page with **Open access page**. That page keeps diagnostics
+and the Grant button pointed at the original Chrome tab through
+`skfiyTargetTabId`, so the extension page itself does not become the page being
+diagnosed.
 When both the current origin and visible-tab capture are missing, the popup
 requests the site origin and `<all_urls>` capture permission in the same Chrome
 user gesture, refreshes policy diagnostics, then observes the page and forwards

@@ -266,7 +266,7 @@ export interface DashboardKnowledgeGraph {
 }
 
 export interface DashboardChromeControlActionRequest {
-  action: "observe" | "screenshot" | "click" | "fill" | "submit" | "scroll";
+  action: "open-popup" | "observe" | "screenshot" | "click" | "fill" | "submit" | "scroll";
   extensionId: string;
   chromeAppName?: string;
   targetTabId: number;

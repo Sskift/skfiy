@@ -583,6 +583,81 @@ describe("DashboardApp", () => {
     expect(within(checklist).getByText("The popup observes the page automatically after access is granted.")).toBeInTheDocument();
   });
 
+  it("opens the target-tab Chrome extension access page from blocked Browser Context recovery", async () => {
+    const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+    const blockedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      runtimeHealth: {
+        ...snapshot.runtimeHealth,
+        extension: {
+          ...extension,
+          pageControl: {
+            state: "blocked_by_chrome_host_permission",
+            reason: "Chrome host permission missing",
+            activeTab: {
+              host: "mew-test.bytedance.net",
+              tabId: 1782098572,
+              windowId: 1782098107
+            },
+            hostPolicy: {
+              decision: "allowed",
+              reason: "host_allowed"
+            },
+            chromeHostPermission: {
+              state: "missing",
+              origins: ["https://mew-test.bytedance.net/*"]
+            },
+            chromeCapturePermission: {
+              state: "missing",
+              origins: ["<all_urls>"]
+            },
+            capabilities: {
+              observe: false,
+              screenshot: false
+            }
+          },
+          browserContext: {
+            state: "blocked_by_chrome_host_permission",
+            source: "extension.connection.pageControl",
+            reason: "Chrome host permission missing",
+            nextAction: "Open the skfiy extension popup and click Grant https://mew-test.bytedance.net/* + <all_urls> and observe."
+          }
+        }
+      }
+    };
+    const runChromeControlAction = vi.fn(async () => ({
+      result: "verified",
+      action: "open-popup",
+      wakeUrl: "chrome-extension://plcpkkhlcacihjfohlojdknnkademlno/popup.html?skfiyTargetTabId=1782098572",
+      activityEntry: {
+        title: "Chrome open-popup",
+        result: "verified"
+      }
+    }));
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => blockedSnapshot)}
+      runChromeControlAction={runChromeControlAction}
+    />);
+
+    const browser = await screen.findByRole("region", { name: "Browser" });
+    fireEvent.click(within(browser).getByRole("button", { name: "Open access page" }));
+
+    await waitFor(() => expect(runChromeControlAction).toHaveBeenCalledTimes(1));
+    expect(runChromeControlAction).toHaveBeenCalledWith({
+      action: "open-popup",
+      extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
+      targetTabId: 1782098572
+    });
+    expect(within(browser).getByText("Chrome open-popup: verified")).toBeInTheDocument();
+  });
+
   it("shows a Finder Automation access checklist when Finder smoke exposes the macOS permission blocker", async () => {
     const blockedSnapshot: DashboardSnapshot = {
       ...snapshot,
