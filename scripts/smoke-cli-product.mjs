@@ -105,8 +105,10 @@ async function main() {
 
 async function collectProviderPromptContract() {
   const modulePath = path.join(ROOT_DIR, "dist", "main", "assistant-agent.js");
+  const sessionModulePath = path.join(ROOT_DIR, "dist", "main", "session-memory.js");
   const productPath = "dist/main/assistant-agent.js -> buildAssistantAgentInvocation -> provider prompt contract";
   const { buildAssistantAgentInvocation } = await import(pathToFileURL(modulePath).href);
+  const { searchSessionMemory } = await import(pathToFileURL(sessionModulePath).href);
   const browserPageContext = {
     state: "ready",
     url: "https://example.test/skfiy-provider-contract",
@@ -118,7 +120,7 @@ async function collectProviderPromptContract() {
     userEntries: ["User prefers concise Chinese progress updates."],
     agentEntries: ["For provider calls, preserve skfiy identity and Computer Use boundaries."]
   };
-  const recalledSessions = [
+  const recalledSessions = searchSessionMemory([
     {
       turnId: "provider-contract-recall",
       createdAt: "2026-06-23T00:05:00.000Z",
@@ -130,7 +132,7 @@ async function collectProviderPromptContract() {
         title: "skfiy provider contract"
       }
     }
-  ];
+  ], "Obsidian dashboard", 1);
   const userInput = "你是谁，并总结当前页面。";
   const providers = [
     createProviderPromptContract(buildAssistantAgentInvocation, {
@@ -175,6 +177,7 @@ async function collectProviderPromptContract() {
       && provider.memoryBeforeBrowserContext
       && provider.sessionRecallAfterMemory
       && provider.sessionRecallBeforeBrowserContext
+      && provider.sessionRecallBasisPresent
       && provider.browserContextBeforeUser
       && provider.sessionRecallRedactsToken
       && provider.providerBoundaryPresent
@@ -1196,6 +1199,7 @@ function createProviderPromptContract(
     memoryBeforeBrowserContext: memoryIndex >= 0 && browserContextIndex > memoryIndex,
     sessionRecallAfterMemory: sessionRecallIndex >= 0 && sessionRecallIndex > memoryIndex,
     sessionRecallBeforeBrowserContext: sessionRecallIndex >= 0 && browserContextIndex > sessionRecallIndex,
+    sessionRecallBasisPresent: prompt.includes("Recall basis: matched terms: obsidian, dashboard; score: 2"),
     workingProfileBeforeBrowserContext: workingProfileIndex >= 0 && browserContextIndex > workingProfileIndex,
     workingProfileBeforeUser: workingProfileIndex >= 0 && userIndex > workingProfileIndex,
     personalSkillBeforeWorkingProfile: personalSkillIndex >= 0 && workingProfileIndex > personalSkillIndex,

@@ -1332,6 +1332,21 @@ Focused verification:
 npx vitest run src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 20: Add recall basis to provider session prompts**
+
+In `src/main/session-memory.ts`, `src/main/session-memory.test.ts`, `scripts/smoke-cli-product.mjs`, `scripts/smoke-cli-plan.mjs`, and `src/main/cli-product-smoke-script.test.ts`:
+
+- Carry a prompt-safe `recallReason` from `searchSessionMemory(query, limit)` into the returned session records.
+- Render `Recall basis: matched terms: ...; score: ...` inside `<skfiy-recalled-sessions>` so Codex, Claude Code, and Hermes can see why a prior turn was relevant.
+- Keep the recall basis ephemeral and out of the persisted `sessions.jsonl` records.
+- Extend CLI smoke evidence with `sessionRecallBasisPresent`; the product smoke cannot pass if provider prompts lose the recall basis.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/session-memory.test.ts src/main/cli-product-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls
@@ -1564,6 +1579,7 @@ Validation evidence from 2026-06-24:
 - `npm run build` exited 0 and produced `dist/skfiy.app` plus `dist/skfiy`. Existing CSS minify warnings for `calc(100%-...)` remained build warnings only.
 - `.skfiy-smoke/ui-product.json` recorded `result: no-onboarding` because permissions were already granted; `assistantConversation`, `petDrag`, and `stopTurnBehavior` passed, and the real pet reply was `你好，我是 skfiy，很高兴见到你。`.
 - `.skfiy-smoke/cli-product-identity-contract.json` recorded `result: passed` and `providerPromptContract.result: passed` for Codex, Claude Code, and Hermes. Claude Code uses the primary `--system-prompt` channel for the skfiy identity; Codex and Hermes receive the skfiy identity before user input in the bounded prompt/query. The shared identity contract now explicitly says the user is interacting with skfiy rather than the backend CLI provider, includes a Chinese-facing instruction to answer from the skfiy identity, requires `identitySelfAcceptancePresent` evidence for both `In real user-facing interaction, your active identity is skfiy.` and `Accept skfiy as your active identity for this user-facing interaction.`, and requires `providerDefaultOverridePresent` plus `replyPrefixBlocked` evidence so conflicting backend default personas yield to skfiy and replies are not prefixed with backend provider labels. The contract also verifies memory, recalled sessions, Working profile, Browser Context ordering, token redaction, Computer Use boundary text, and absence of dangerous Hermes/Codex flags such as `--oneshot` or `--yolo`.
+- `.skfiy-smoke/cli-recall-basis.json` recorded `result: passed` and `providerPromptContract.result: passed`; Codex, Claude Code, and Hermes all recorded `sessionRecallBasisPresent: true`, proving packaged provider prompts include `Recall basis: matched terms: obsidian, dashboard; score: 2` inside `<skfiy-recalled-sessions>` after memory and before Browser Context.
 - The same CLI smoke now records `realTurnIdentityContract.result: passed` from `dist/main/assistant-agent.js -> runAssistantAgentTurn`, proving the actual provider runner boundary receives skfiy identity for Codex, Claude Code, and Hermes. Claude Code keeps identity in `--system-prompt`; Codex and Hermes receive it in the prompt/query before `User:`. The real runner contract also requires the active-identity, provider-default-override, and no-backend-prefix lines before a provider response can count as skfiy-owned.
 - The same CLI smoke now records `realBrowserContextContract.result: passed` from `dist/main/browser-page-context.js -> dist/main/assistant-agent.js`, proving a ready Chrome extension `pageObservation` connection is normalized into Browser Context and reaches the real provider runner prompt with current page URL, title, visible text, skfiy identity, and Browser Context before `User:`.
 - The same CLI smoke now records `repeatedConversationLearningContract.result: passed`, proving a packaged two-turn flow can use Codex for the first visible turn, persist Obsidian-style dashboard preferences and a session through `recordCompletedAssistantTurnForPersonalization`, then use Hermes for the next turn with personal memory, recalled session history, the distilled Obsidian dashboard skill, and the Working profile injected before the real `User:` request.

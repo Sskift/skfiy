@@ -54,8 +54,27 @@ describe("session memory", () => {
     ];
 
     expect(searchSessionMemory(records, "Obsidian dashboard", 1)).toEqual([
-      expect.objectContaining({ turnId: "turn-1" })
+      expect.objectContaining({
+        turnId: "turn-1",
+        recallReason: "matched terms: obsidian, dashboard; score: 2"
+      })
     ]);
+  });
+
+  it("includes the recall basis in the provider prompt block", () => {
+    const recalled = searchSessionMemory([
+      {
+        turnId: "turn-1",
+        createdAt: "2026-06-23T10:00:00.000Z",
+        userInput: "喜欢 Obsidian 风格 dashboard",
+        assistantReply: "我会偏知识图谱和深色画布。",
+        providerLabel: "Codex"
+      }
+    ], "Obsidian dashboard", 1);
+
+    const block = createSessionMemoryPromptBlock(recalled);
+
+    expect(block).toContain("Recall basis: matched terms: obsidian, dashboard; score: 2");
   });
 
   it("formats recalled sessions as bounded background context", () => {

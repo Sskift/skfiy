@@ -456,6 +456,7 @@ function hasProviderContract(providers, expected) {
     && provider?.memoryBeforeBrowserContext === true
     && provider?.sessionRecallAfterMemory === true
     && provider?.sessionRecallBeforeBrowserContext === true
+    && provider?.sessionRecallBasisPresent === true
     && provider?.workingProfileBeforeBrowserContext === true
     && provider?.workingProfileBeforeUser === true
     && provider?.personalSkillBeforeWorkingProfile === true

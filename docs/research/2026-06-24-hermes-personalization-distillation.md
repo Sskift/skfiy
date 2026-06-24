@@ -50,6 +50,7 @@ Newly distilled in this pass:
 - The receipt stream now also renders as a `Memory evolution` timeline and graph node. This turns repeated chat personalization into an Obsidian-style trace: memory review records the timeline, the timeline orders individual receipts, and each receipt points back to the affected user or agent memory.
 - The Dashboard `Prompt stack` now exposes Hermes-style prompt tiers instead of only a flat order: local memory/session/profile are volatile personalization layers, personal skills are stable learned habits, Browser Context is a live overlay, and the selected Background Agent is the runtime provider boundary.
 - The Dashboard `Recent session recall` list now shows the recall tier and the next prompt route for each indexed session, turning Hermes-style session search into an operator-visible Obsidian backlink path instead of a flat history list.
+- Session recall search now carries a prompt-safe `Recall basis` into the real provider prompt, so Codex, Claude Code, and Hermes can see which query terms made a prior turn relevant instead of receiving opaque history snippets.
 
 ## Deliberate Non-Imports
 

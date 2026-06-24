@@ -334,6 +334,15 @@ describe("CLI product smoke script", () => {
       providerPromptContract: {
         ...createPassingProviderPromptContract(),
         providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "codex"
+          ? { ...provider, sessionRecallBasisPresent: false }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      providerPromptContract: {
+        ...createPassingProviderPromptContract(),
+        providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "codex"
           ? { ...provider, workingProfileBeforeBrowserContext: false }
           : provider)
       }
@@ -625,6 +634,7 @@ function createPassingProviderPromptContract() {
         memoryBeforeBrowserContext: true,
         sessionRecallAfterMemory: true,
         sessionRecallBeforeBrowserContext: true,
+        sessionRecallBasisPresent: true,
         workingProfileBeforeBrowserContext: true,
         workingProfileBeforeUser: true,
         personalSkillBeforeWorkingProfile: true,
@@ -648,6 +658,7 @@ function createPassingProviderPromptContract() {
         memoryBeforeBrowserContext: true,
         sessionRecallAfterMemory: true,
         sessionRecallBeforeBrowserContext: true,
+        sessionRecallBasisPresent: true,
         workingProfileBeforeBrowserContext: true,
         workingProfileBeforeUser: true,
         personalSkillBeforeWorkingProfile: true,
@@ -672,6 +683,7 @@ function createPassingProviderPromptContract() {
         memoryBeforeBrowserContext: true,
         sessionRecallAfterMemory: true,
         sessionRecallBeforeBrowserContext: true,
+        sessionRecallBasisPresent: true,
         workingProfileBeforeBrowserContext: true,
         workingProfileBeforeUser: true,
         personalSkillBeforeWorkingProfile: true,

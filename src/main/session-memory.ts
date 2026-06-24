@@ -13,6 +13,7 @@ export interface SessionMemoryRecord {
   assistantReply: string;
   providerLabel: string;
   browserContext?: SessionMemoryBrowserContext;
+  recallReason?: string;
 }
 
 export interface SessionMemoryIo {
@@ -79,12 +80,15 @@ export function searchSessionMemory(
   return records
     .map((record) => ({
       record,
-      score: scoreSessionRecord(record, queryTokens)
+      ...scoreSessionRecord(record, queryTokens)
     }))
     .filter((entry) => entry.score > 0)
     .sort((left, right) => right.score - left.score)
     .slice(0, limit)
-    .map((entry) => entry.record);
+    .map((entry) => ({
+      ...entry.record,
+      recallReason: createRecallReason(entry.matchedTerms, entry.score)
+    }));
 }
 
 export function createSessionMemoryPromptBlock(records: SessionMemoryRecord[]): string {
@@ -148,7 +152,13 @@ function parseSessionRecord(line: string): SessionMemoryRecord | undefined {
   }
 }
 
-function scoreSessionRecord(record: SessionMemoryRecord, queryTokens: string[]): number {
+function scoreSessionRecord(
+  record: SessionMemoryRecord,
+  queryTokens: string[]
+): {
+  score: number;
+  matchedTerms: string[];
+} {
   const haystack = [
     record.userInput,
     record.assistantReply,
@@ -156,8 +166,16 @@ function scoreSessionRecord(record: SessionMemoryRecord, queryTokens: string[]):
     record.browserContext?.url,
     record.browserContext?.title
   ].join(" ").toLocaleLowerCase();
+  const matchedTerms = queryTokens.filter((token) => haystack.includes(token));
 
-  return queryTokens.reduce((score, token) => score + (haystack.includes(token) ? 1 : 0), 0);
+  return {
+    score: matchedTerms.length,
+    matchedTerms
+  };
+}
+
+function createRecallReason(matchedTerms: string[], score: number): string {
+  return `matched terms: ${matchedTerms.join(", ")}; score: ${score}`;
 }
 
 function tokenize(text: string): string[] {
@@ -176,6 +194,7 @@ function formatRecalledSession(record: SessionMemoryRecord, index: number): stri
   return [
     `${index}. ${record.createdAt}`,
     `Provider: ${sanitizePromptText(record.providerLabel, 80)}`,
+    ...(record.recallReason ? [`Recall basis: ${sanitizePromptText(record.recallReason, 160)}`] : []),
     ...(browserLabel ? [`Browser: ${browserLabel}`] : []),
     `User asked: ${sanitizePromptText(record.userInput, 240)}`,
     `skfiy answered: ${sanitizePromptText(record.assistantReply, 240)}`
