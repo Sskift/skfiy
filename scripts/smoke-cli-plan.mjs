@@ -462,6 +462,9 @@ function hasProviderContract(providers, expected) {
 function hasPersonalMemoryFallbackContractEvidence(contract) {
   const explicitOperations = contract?.explicitPreference?.operations;
   const dashboardStyleOperations = contract?.dashboardStylePreference?.operations;
+  const explicitRememberOperations = contract?.explicitRemember?.operations;
+  const explicitForgetOperations = contract?.explicitForget?.operations;
+  const explicitRememberContent = "User explicitly asked skfiy to remember: 以后回答我时先给结论，再给验证证据.";
 
   return contract?.productPath === "dist/main/personal-memory-review.js -> createFallbackPersonalMemoryOperations -> local memory fallback contract"
     && contract?.result === "passed"
@@ -484,6 +487,18 @@ function hasPersonalMemoryFallbackContractEvidence(contract) {
       && operation?.target === "user"
       && operation?.content === "User dislikes marketing-style hero/card-heavy dashboard layouts."
     ))
+    && contract?.explicitRemember?.operationCount === 1
+    && Array.isArray(explicitRememberOperations)
+    && explicitRememberOperations.length === 1
+    && explicitRememberOperations[0]?.action === "add"
+    && explicitRememberOperations[0]?.target === "user"
+    && explicitRememberOperations[0]?.content === explicitRememberContent
+    && contract?.explicitForget?.operationCount === 1
+    && Array.isArray(explicitForgetOperations)
+    && explicitForgetOperations.length === 1
+    && explicitForgetOperations[0]?.action === "remove"
+    && explicitForgetOperations[0]?.target === "user"
+    && explicitForgetOperations[0]?.content === explicitRememberContent
     && contract?.secretLikeRequest?.operationCount === 0
     && contract?.oneOffRequest?.operationCount === 0
     && contract?.duplicatePreference?.operationCount === 0;

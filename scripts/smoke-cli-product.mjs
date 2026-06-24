@@ -190,6 +190,7 @@ async function collectPersonalMemoryFallbackContract() {
   const productPath = "dist/main/personal-memory-review.js -> createFallbackPersonalMemoryOperations -> local memory fallback contract";
   const { createFallbackPersonalMemoryOperations } = await import(pathToFileURL(modulePath).href);
   const expectedContent = "User prefers concise Chinese progress updates.";
+  const explicitRememberContent = "User explicitly asked skfiy to remember: 以后回答我时先给结论，再给验证证据.";
   const explicitPreferenceOperations = createFallbackPersonalMemoryOperations({
     userInput: "以后进度更新短一点，中文就好",
     assistantReply: "好的，我会更简洁。",
@@ -205,6 +206,16 @@ async function collectPersonalMemoryFallbackContract() {
     assistantReply: "记住了，我会按更密集的知识面板来做。",
     existingMemory: { userEntries: [], agentEntries: [] }
   });
+  const explicitRememberOperations = createFallbackPersonalMemoryOperations({
+    userInput: "请记住：以后回答我时先给结论，再给验证证据。",
+    assistantReply: "记住了。",
+    existingMemory: { userEntries: [], agentEntries: [] }
+  });
+  const explicitForgetOperations = createFallbackPersonalMemoryOperations({
+    userInput: "忘记：以后回答我时先给结论，再给验证证据。",
+    assistantReply: "我会忘记这条偏好。",
+    existingMemory: { userEntries: [explicitRememberContent], agentEntries: [] }
+  });
   const secretLikeRequestOperations = createFallbackPersonalMemoryOperations({
     userInput: "记住我的 API token 是 sk-provider-contract-secret-123456",
     assistantReply: "我不能保存密钥。",
@@ -218,12 +229,16 @@ async function collectPersonalMemoryFallbackContract() {
   const explicitPreference = summarizeMemoryFallbackOperations(explicitPreferenceOperations);
   const oneOffRequest = summarizeMemoryFallbackOperations(oneOffRequestOperations);
   const dashboardStylePreference = summarizeMemoryFallbackOperations(dashboardStylePreferenceOperations);
+  const explicitRemember = summarizeMemoryFallbackOperations(explicitRememberOperations);
+  const explicitForget = summarizeMemoryFallbackOperations(explicitForgetOperations);
   const secretLikeRequest = summarizeMemoryFallbackOperations(secretLikeRequestOperations);
   const duplicatePreference = summarizeMemoryFallbackOperations(duplicatePreferenceOperations);
   const tokenLeakDetected = hasTokenLeak([
     JSON.stringify(explicitPreference),
     JSON.stringify(oneOffRequest),
     JSON.stringify(dashboardStylePreference),
+    JSON.stringify(explicitRemember),
+    JSON.stringify(explicitForget),
     JSON.stringify(secretLikeRequest),
     JSON.stringify(duplicatePreference)
   ]);
@@ -242,6 +257,14 @@ async function collectPersonalMemoryFallbackContract() {
       && operation.target === "user"
       && operation.content === "User dislikes marketing-style hero/card-heavy dashboard layouts."
     ))
+    && explicitRemember.operationCount === 1
+    && explicitRemember.operations[0]?.action === "add"
+    && explicitRemember.operations[0]?.target === "user"
+    && explicitRemember.operations[0]?.content === explicitRememberContent
+    && explicitForget.operationCount === 1
+    && explicitForget.operations[0]?.action === "remove"
+    && explicitForget.operations[0]?.target === "user"
+    && explicitForget.operations[0]?.content === explicitRememberContent
     && secretLikeRequest.operationCount === 0
     && oneOffRequest.operationCount === 0
     && duplicatePreference.operationCount === 0
@@ -252,6 +275,8 @@ async function collectPersonalMemoryFallbackContract() {
     modulePath,
     explicitPreference,
     dashboardStylePreference,
+    explicitRemember,
+    explicitForget,
     secretLikeRequest,
     oneOffRequest,
     duplicatePreference,

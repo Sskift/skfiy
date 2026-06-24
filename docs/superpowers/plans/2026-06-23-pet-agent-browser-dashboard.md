@@ -21,6 +21,7 @@
 - Dashboard already has snapshot/provider/browser panels, but it needs to become the readable operator surface for these capabilities, not a raw diagnostics page.
 - Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clone `5ecf3bf` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop.
 - Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, and Dashboard visibility; Task 9 adds user-visible removal for incorrect remembered preferences. End-to-end validation remains required.
+- Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
 - Obsidian-inspired dashboard gap: Dashboard is still a control plane. It should gain a knowledge surface that shows remembered preferences, sessions, skills, Browser Context, and Computer Use evidence as linked local-first nodes with a local graph/canvas feel.
 
 ## File Ownership Map
@@ -949,6 +950,23 @@ Then commit:
 ```bash
 git add src/main/personal-memory.ts src/main/personal-memory.test.ts src/main/personal-memory-review.ts src/main/personal-memory-review.test.ts src/main/session-memory.ts src/main/session-memory.test.ts src/main/assistant-agent.ts src/main/assistant-agent.test.ts src/main/main.ts src/main/preload.cts src/main/dashboard-data.ts src/main/dashboard-data.test.ts src/dashboard/contracts.ts src/dashboard/model.ts src/dashboard/DashboardApp.tsx src/dashboard/DashboardApp.test.tsx
 git commit -m "feat: add personalized memory for pet agent"
+```
+
+- [x] **Step 9: Explicit local memory teaching fallback**
+
+In `src/main/personal-memory-review.ts`:
+
+- Support explicit `记住:` / `remember:` requests as durable user memory operations when provider review is unavailable.
+- Support explicit `忘记:` / `forget:` requests by removing matching existing user or agent memory entries.
+- Reject secret-like content and instruction-override-shaped content before creating local fallback operations.
+
+Update `scripts/smoke-cli-product.mjs`, `scripts/smoke-cli-plan.mjs`, and `src/main/cli-product-smoke-script.test.ts` so CLI smoke requires explicit remember and forget fallback evidence.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/personal-memory-review.test.ts src/main/cli-product-smoke-script.test.ts --reporter=dot
+npm run typecheck -- --pretty false
 ```
 
 ---

@@ -57,6 +57,50 @@ describe("personal memory review", () => {
     ]);
   });
 
+  it("stores explicit remember requests as durable local user preferences", () => {
+    expect(createFallbackPersonalMemoryOperations({
+      userInput: "请记住：以后回答我时先给结论，再给验证证据。",
+      assistantReply: "记住了。",
+      existingMemory: { userEntries: [], agentEntries: [] }
+    })).toEqual([
+      {
+        action: "add",
+        target: "user",
+        content: "User explicitly asked skfiy to remember: 以后回答我时先给结论，再给验证证据."
+      }
+    ]);
+  });
+
+  it("does not duplicate explicit remember requests when a narrower fallback already matched", () => {
+    expect(createFallbackPersonalMemoryOperations({
+      userInput: "记住：以后进度更新短一点，中文就好",
+      assistantReply: "记住了。",
+      existingMemory: { userEntries: [], agentEntries: [] }
+    })).toEqual([
+      { action: "add", target: "user", content: "User prefers concise Chinese progress updates." }
+    ]);
+  });
+
+  it("removes explicit forget requests from durable local user preferences", () => {
+    expect(createFallbackPersonalMemoryOperations({
+      userInput: "忘记：以后回答我时先给结论，再给验证证据。",
+      assistantReply: "我会忘记这条偏好。",
+      existingMemory: {
+        userEntries: [
+          "User explicitly asked skfiy to remember: 以后回答我时先给结论，再给验证证据.",
+          "User prefers concise Chinese progress updates."
+        ],
+        agentEntries: []
+      }
+    })).toEqual([
+      {
+        action: "remove",
+        target: "user",
+        content: "User explicitly asked skfiy to remember: 以后回答我时先给结论，再给验证证据."
+      }
+    ]);
+  });
+
   it("does not save local fallback memory from token-like explicit requests", () => {
     expect(createFallbackPersonalMemoryOperations({
       userInput: "记住我的 API token 是 sk-secret1234567890",

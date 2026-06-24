@@ -513,6 +513,18 @@ function createPassingPersonalMemoryFallbackContract() {
         { action: "add", target: "user", content: "User dislikes marketing-style hero/card-heavy dashboard layouts." }
       ]
     },
+    explicitRemember: {
+      operationCount: 1,
+      operations: [
+        { action: "add", target: "user", content: "User explicitly asked skfiy to remember: 以后回答我时先给结论，再给验证证据." }
+      ]
+    },
+    explicitForget: {
+      operationCount: 1,
+      operations: [
+        { action: "remove", target: "user", content: "User explicitly asked skfiy to remember: 以后回答我时先给结论，再给验证证据." }
+      ]
+    },
     secretLikeRequest: {
       operationCount: 0
     },
