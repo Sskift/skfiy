@@ -245,6 +245,16 @@ describe("CLI product smoke script", () => {
       ...passedEvidence,
       repeatedConversationLearningContract: {
         ...createPassingRepeatedConversationLearningContract(),
+        secondTurn: {
+          ...createPassingRepeatedConversationLearningContract().secondTurn,
+          promptIncludesWorkingProfile: false
+        }
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      repeatedConversationLearningContract: {
+        ...createPassingRepeatedConversationLearningContract(),
         firstTurn: {
           ...createPassingRepeatedConversationLearningContract().firstTurn,
           sessionCount: 0
@@ -293,6 +303,24 @@ describe("CLI product smoke script", () => {
         ...createPassingProviderPromptContract(),
         providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "hermes"
           ? { ...provider, sessionRecallBeforeBrowserContext: false }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      providerPromptContract: {
+        ...createPassingProviderPromptContract(),
+        providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "codex"
+          ? { ...provider, workingProfileBeforeBrowserContext: false }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      providerPromptContract: {
+        ...createPassingProviderPromptContract(),
+        providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "hermes"
+          ? { ...provider, personalSkillBeforeWorkingProfile: false }
           : provider)
       }
     })).toBe("failed");
@@ -553,6 +581,10 @@ function createPassingProviderPromptContract() {
         memoryBeforeBrowserContext: true,
         sessionRecallAfterMemory: true,
         sessionRecallBeforeBrowserContext: true,
+        workingProfileBeforeBrowserContext: true,
+        workingProfileBeforeUser: true,
+        personalSkillBeforeWorkingProfile: true,
+        workingProfileRedactsToken: true,
         sessionRecallRedactsToken: true,
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
@@ -570,6 +602,10 @@ function createPassingProviderPromptContract() {
         memoryBeforeBrowserContext: true,
         sessionRecallAfterMemory: true,
         sessionRecallBeforeBrowserContext: true,
+        workingProfileBeforeBrowserContext: true,
+        workingProfileBeforeUser: true,
+        personalSkillBeforeWorkingProfile: true,
+        workingProfileRedactsToken: true,
         sessionRecallRedactsToken: true,
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
@@ -588,6 +624,10 @@ function createPassingProviderPromptContract() {
         memoryBeforeBrowserContext: true,
         sessionRecallAfterMemory: true,
         sessionRecallBeforeBrowserContext: true,
+        workingProfileBeforeBrowserContext: true,
+        workingProfileBeforeUser: true,
+        personalSkillBeforeWorkingProfile: true,
+        workingProfileRedactsToken: true,
         sessionRecallRedactsToken: true,
         browserContextBeforeUser: true,
         providerIdentityInternalized: true,
@@ -691,8 +731,11 @@ function createPassingRepeatedConversationLearningContract() {
       promptIncludesMemory: true,
       promptIncludesRecalledSession: true,
       promptIncludesPersonalSkill: true,
+      promptIncludesWorkingProfile: true,
       memoryBeforeRecalledSession: true,
       recalledSessionBeforePersonalSkill: true,
+      personalSkillBeforeWorkingProfile: true,
+      workingProfileBeforeUser: true,
       personalSkillBeforeUser: true
     }
   };

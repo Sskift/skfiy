@@ -509,6 +509,7 @@ async function collectRepeatedConversationLearningContract() {
   const memoryIndex = secondPrompt.indexOf("<skfiy-recalled-memory>");
   const recalledSessionIndex = secondPrompt.indexOf("<skfiy-recalled-sessions>");
   const personalSkillIndex = secondPrompt.indexOf("<skfiy-personal-skills>");
+  const workingProfileIndex = secondPrompt.indexOf("<skfiy-working-profile>");
   const userIndex = secondPrompt.indexOf(`User: ${secondUserInput}`);
   const firstTurnEvidence = {
     providerLabel: firstTurn.providerLabel,
@@ -526,8 +527,13 @@ async function collectRepeatedConversationLearningContract() {
     promptIncludesRecalledSession: secondPrompt.includes(firstUserInput),
     promptIncludesPersonalSkill: secondPrompt.includes("Obsidian-style knowledge dashboard")
       && secondPrompt.includes("Favor linked knowledge from memory, sessions, skills, and graph/canvas evidence"),
+    promptIncludesWorkingProfile: secondPrompt.includes("Working profile")
+      && secondPrompt.includes("Portable skfiy working profile")
+      && secondPrompt.includes("<skfiy-working-profile>"),
     memoryBeforeRecalledSession: memoryIndex >= 0 && recalledSessionIndex > memoryIndex,
     recalledSessionBeforePersonalSkill: recalledSessionIndex >= 0 && personalSkillIndex > recalledSessionIndex,
+    personalSkillBeforeWorkingProfile: personalSkillIndex >= 0 && workingProfileIndex > personalSkillIndex,
+    workingProfileBeforeUser: workingProfileIndex >= 0 && userIndex > workingProfileIndex,
     personalSkillBeforeUser: personalSkillIndex >= 0 && userIndex > personalSkillIndex
   };
   const tokenLeakDetected = hasTokenLeak([
@@ -546,8 +552,11 @@ async function collectRepeatedConversationLearningContract() {
     && secondTurnEvidence.promptIncludesMemory
     && secondTurnEvidence.promptIncludesRecalledSession
     && secondTurnEvidence.promptIncludesPersonalSkill
+    && secondTurnEvidence.promptIncludesWorkingProfile
     && secondTurnEvidence.memoryBeforeRecalledSession
     && secondTurnEvidence.recalledSessionBeforePersonalSkill
+    && secondTurnEvidence.personalSkillBeforeWorkingProfile
+    && secondTurnEvidence.workingProfileBeforeUser
     && secondTurnEvidence.personalSkillBeforeUser
     && !tokenLeakDetected;
 
@@ -1033,6 +1042,8 @@ function createProviderPromptContract(
   const skfiyIndex = identityPrompt.indexOf("You are skfiy");
   const memoryIndex = prompt.indexOf("<skfiy-recalled-memory>");
   const sessionRecallIndex = prompt.indexOf("<skfiy-recalled-sessions>");
+  const personalSkillIndex = prompt.indexOf("<skfiy-personal-skills>");
+  const workingProfileIndex = prompt.indexOf("<skfiy-working-profile>");
   const browserContextIndex = prompt.indexOf("Current Chrome page");
   const userIndex = prompt.indexOf(`User: ${userInput}`);
   const providerIdentityInternalized = identityPrompt.includes("The speaking assistant identity for this conversation is skfiy.")
@@ -1060,6 +1071,12 @@ function createProviderPromptContract(
     memoryBeforeBrowserContext: memoryIndex >= 0 && browserContextIndex > memoryIndex,
     sessionRecallAfterMemory: sessionRecallIndex >= 0 && sessionRecallIndex > memoryIndex,
     sessionRecallBeforeBrowserContext: sessionRecallIndex >= 0 && browserContextIndex > sessionRecallIndex,
+    workingProfileBeforeBrowserContext: workingProfileIndex >= 0 && browserContextIndex > workingProfileIndex,
+    workingProfileBeforeUser: workingProfileIndex >= 0 && userIndex > workingProfileIndex,
+    personalSkillBeforeWorkingProfile: personalSkillIndex >= 0 && workingProfileIndex > personalSkillIndex,
+    workingProfileRedactsToken: workingProfileIndex >= 0
+      && prompt.includes("Working profile")
+      && !prompt.slice(workingProfileIndex).includes("sk-provider-contract-secret"),
     sessionRecallRedactsToken: prompt.includes("token [redacted]") && !prompt.includes("sk-provider-contract-secret"),
     browserContextBeforeUser: browserContextIndex >= 0 && userIndex > browserContextIndex,
     providerIdentityInternalized,

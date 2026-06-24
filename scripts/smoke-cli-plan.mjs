@@ -455,6 +455,10 @@ function hasProviderContract(providers, expected) {
     && provider?.memoryBeforeBrowserContext === true
     && provider?.sessionRecallAfterMemory === true
     && provider?.sessionRecallBeforeBrowserContext === true
+    && provider?.workingProfileBeforeBrowserContext === true
+    && provider?.workingProfileBeforeUser === true
+    && provider?.personalSkillBeforeWorkingProfile === true
+    && provider?.workingProfileRedactsToken === true
     && provider?.sessionRecallRedactsToken === true
     && provider?.browserContextBeforeUser === true
     && provider?.providerIdentityInternalized === true
@@ -551,8 +555,11 @@ function hasRepeatedConversationLearningContractEvidence(contract) {
     && contract?.secondTurn?.promptIncludesMemory === true
     && contract?.secondTurn?.promptIncludesRecalledSession === true
     && contract?.secondTurn?.promptIncludesPersonalSkill === true
+    && contract?.secondTurn?.promptIncludesWorkingProfile === true
     && contract?.secondTurn?.memoryBeforeRecalledSession === true
     && contract?.secondTurn?.recalledSessionBeforePersonalSkill === true
+    && contract?.secondTurn?.personalSkillBeforeWorkingProfile === true
+    && contract?.secondTurn?.workingProfileBeforeUser === true
     && contract?.secondTurn?.personalSkillBeforeUser === true;
 }
 
