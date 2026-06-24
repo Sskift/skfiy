@@ -170,6 +170,18 @@ const snapshot: DashboardSnapshot = {
     agentEntryCount: 1,
     sessionCount: 2,
     latestUpdatedAt: "2026-06-23T10:00:00.000Z",
+    usage: {
+      user: {
+        usedChars: 37,
+        limitChars: 1_375,
+        percent: 2
+      },
+      agent: {
+        usedChars: 66,
+        limitChars: 2_200,
+        percent: 3
+      }
+    },
     recentUserEntries: ["User prefers concise Chinese updates."],
     recentAgentEntries: ["For dashboard work, prefer dense Obsidian-like knowledge surfaces."],
     recentSessions: [
@@ -256,6 +268,8 @@ describe("DashboardApp", () => {
     expect(within(memory).getByRole("heading", { name: "Personal memory" })).toBeInTheDocument();
     expect(within(memory).getByText("User prefers concise Chinese updates.")).toBeInTheDocument();
     expect(within(memory).getByText("For dashboard work, prefer dense Obsidian-like knowledge surfaces.")).toBeInTheDocument();
+    expect(within(memory).getByText("user budget 2% - 37/1,375 chars")).toBeInTheDocument();
+    expect(within(memory).getByText("agent budget 3% - 66/2,200 chars")).toBeInTheDocument();
     expect(within(memory).getByText("sessions 2")).toBeInTheDocument();
     expect(within(memory).getByRole("heading", { name: "Recent session recall" })).toBeInTheDocument();
     expect(within(memory).getByText("Codex · skfiy Dashboard")).toBeInTheDocument();
@@ -265,6 +279,7 @@ describe("DashboardApp", () => {
 
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("User preferences").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText(/2% - 37\/1,375 chars/u).length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Latest session").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Recent session 2").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Codex").length).toBeGreaterThan(0);

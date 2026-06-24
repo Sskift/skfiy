@@ -362,6 +362,7 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     agentEntryCount: personalMemory.agentEntries.length,
     sessionCount: sessions.length,
     ...(personalMemory.latestUpdatedAt ? { latestUpdatedAt: personalMemory.latestUpdatedAt } : {}),
+    ...(personalMemory.usage ? { usage: personalMemory.usage } : {}),
     recentUserEntries: personalMemory.userEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
     recentAgentEntries: personalMemory.agentEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
     ...(latestSession ? { latestSession: createDashboardSessionSummary(latestSession) } : {}),

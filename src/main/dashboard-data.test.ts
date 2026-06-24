@@ -191,6 +191,18 @@ describe("dashboard snapshot data", () => {
       agentEntryCount: 1,
       sessionCount: 2,
       latestUpdatedAt: "2026-06-23T10:00:00.000Z",
+      usage: {
+        user: {
+          usedChars: 90,
+          limitChars: 1_375,
+          percent: 6
+        },
+        agent: {
+          usedChars: 66,
+          limitChars: 2_200,
+          percent: 3
+        }
+      },
       recentUserEntries: [
         "User prefers concise Chinese updates.",
         "[redacted sensitive memory]"

@@ -2,6 +2,7 @@ import type {
   DashboardKnowledgeGraph,
   DashboardKnowledgeGraphEdge,
   DashboardKnowledgeGraphNode,
+  DashboardPersonalMemoryUsageBucket,
   DashboardProviderSummary,
   DashboardSnapshot
 } from "./contracts";
@@ -193,7 +194,11 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       label: "User preferences",
       kind: "memory",
       tone: "success",
-      detail: createMemoryNodeDetail(personalMemory.userEntryCount, personalMemory.recentUserEntries[0])
+      detail: createMemoryNodeDetail(
+        personalMemory.userEntryCount,
+        personalMemory.recentUserEntries[0],
+        personalMemory.usage?.user
+      )
     });
     pushEdge(edges, { from: "memory:user", to: providerId, label: "injects prompt" });
   }
@@ -204,7 +209,11 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       label: "Agent operating notes",
       kind: "memory",
       tone: "success",
-      detail: createMemoryNodeDetail(personalMemory.agentEntryCount, personalMemory.recentAgentEntries[0])
+      detail: createMemoryNodeDetail(
+        personalMemory.agentEntryCount,
+        personalMemory.recentAgentEntries[0],
+        personalMemory.usage?.agent
+      )
     });
     pushEdge(edges, { from: "memory:agent", to: providerId, label: "guides behavior" });
   }
@@ -1148,8 +1157,20 @@ function pushEdge(edges: DashboardKnowledgeGraphEdge[], edge: DashboardKnowledge
   }
 }
 
-function createMemoryNodeDetail(count: number, sample: string | undefined): string {
-  return sample ? `${count} entries · ${sample}` : `${count} entries`;
+function createMemoryNodeDetail(
+  count: number,
+  sample: string | undefined,
+  usage: DashboardPersonalMemoryUsageBucket | undefined
+): string {
+  const usageLabel = usage
+    ? `${usage.percent}% - ${formatInteger(usage.usedChars)}/${formatInteger(usage.limitChars)} chars`
+    : undefined;
+  const countLabel = usageLabel ? `${count} entries · ${usageLabel}` : `${count} entries`;
+  return sample ? `${countLabel} · ${sample}` : countLabel;
+}
+
+function formatInteger(value: number): string {
+  return value.toLocaleString("en-US");
 }
 
 function sanitizeNodeId(value: string): string {

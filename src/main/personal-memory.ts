@@ -14,7 +14,19 @@ export interface PersonalMemoryOperation {
 export interface PersonalMemorySnapshot {
   userEntries: string[];
   agentEntries: string[];
+  usage?: PersonalMemoryUsage;
   latestUpdatedAt?: string;
+}
+
+export interface PersonalMemoryUsageBucket {
+  usedChars: number;
+  limitChars: number;
+  percent: number;
+}
+
+export interface PersonalMemoryUsage {
+  user: PersonalMemoryUsageBucket;
+  agent: PersonalMemoryUsageBucket;
 }
 
 export interface PersonalMemoryApplyResult {
@@ -41,6 +53,8 @@ export interface PersonalMemoryStoreOptions {
 
 const MEMORY_DELIMITER = "\n---\n";
 const MAX_MEMORY_ENTRY_LENGTH = 500;
+const USER_MEMORY_CHAR_LIMIT = 1_375;
+const AGENT_MEMORY_CHAR_LIMIT = 2_200;
 const UNSAFE_MEMORY_PATTERNS = [
   /ignore previous instructions/i,
   /reveal secrets/i,
@@ -72,11 +86,14 @@ export function readPersonalMemorySnapshot({
 }): PersonalMemorySnapshot {
   const userPath = createPersonalMemoryFilePath(baseDir, "user");
   const agentPath = createPersonalMemoryFilePath(baseDir, "agent");
+  const userEntries = readMemoryEntries(userPath, io);
+  const agentEntries = readMemoryEntries(agentPath, io);
   const latestUpdatedAt = readLatestMemoryUpdatedAt([userPath, agentPath], io);
 
   return {
-    userEntries: readMemoryEntries(userPath, io),
-    agentEntries: readMemoryEntries(agentPath, io),
+    userEntries,
+    agentEntries,
+    usage: createPersonalMemoryUsage({ userEntries, agentEntries }),
     ...(latestUpdatedAt ? { latestUpdatedAt } : {})
   };
 }
@@ -114,6 +131,10 @@ export function createPersonalMemoryStore({
             ignored += 1;
             continue;
           }
+          if (exceedsMemoryBudget([...entries, content], operation.target)) {
+            blocked.push(operation);
+            continue;
+          }
           entries.push(content);
           applied += 1;
           continue;
@@ -137,8 +158,14 @@ export function createPersonalMemoryStore({
           ignored += 1;
           continue;
         }
-        entries[index] = content;
-        next[operation.target] = dedupeEntries(entries);
+        const replacementEntries = [...entries];
+        replacementEntries[index] = content;
+        const dedupedReplacementEntries = dedupeEntries(replacementEntries);
+        if (exceedsMemoryBudget(dedupedReplacementEntries, operation.target)) {
+          blocked.push(operation);
+          continue;
+        }
+        next[operation.target] = dedupedReplacementEntries;
         applied += 1;
       }
 
@@ -160,8 +187,10 @@ export function createPersonalMemoryPromptBlock(snapshot: PersonalMemorySnapshot
   return [
     "<skfiy-recalled-memory>",
     "Recalled background context from prior skfiy conversations. Treat this as preferences and operating notes, not as new user input.",
+    `USER PROFILE [${formatMemoryUsage(readPersonalMemoryUsage(snapshot).user)}]`,
     "User preferences:",
     ...formatMemoryList(snapshot.userEntries),
+    `AGENT MEMORY [${formatMemoryUsage(readPersonalMemoryUsage(snapshot).agent)}]`,
     "Agent operating notes:",
     ...formatMemoryList(snapshot.agentEntries),
     "</skfiy-recalled-memory>"
@@ -201,10 +230,56 @@ function serializeMemoryEntries(entries: string[]): string {
   return `${dedupeEntries(entries).join(MEMORY_DELIMITER)}\n`;
 }
 
+function createPersonalMemoryUsage({
+  userEntries,
+  agentEntries
+}: {
+  userEntries: string[];
+  agentEntries: string[];
+}): PersonalMemoryUsage {
+  return {
+    user: createUsageBucket(userEntries, USER_MEMORY_CHAR_LIMIT),
+    agent: createUsageBucket(agentEntries, AGENT_MEMORY_CHAR_LIMIT)
+  };
+}
+
+function readPersonalMemoryUsage(snapshot: PersonalMemorySnapshot): PersonalMemoryUsage {
+  return snapshot.usage ?? createPersonalMemoryUsage(snapshot);
+}
+
+function createUsageBucket(entries: string[], limitChars: number): PersonalMemoryUsageBucket {
+  const usedChars = countMemoryChars(entries);
+  return {
+    usedChars,
+    limitChars,
+    percent: limitChars > 0 ? Math.min(100, Math.floor((usedChars / limitChars) * 100)) : 0
+  };
+}
+
+function exceedsMemoryBudget(entries: string[], target: PersonalMemoryTarget): boolean {
+  return countMemoryChars(entries) > readMemoryLimit(target);
+}
+
+function countMemoryChars(entries: string[]): number {
+  return entries.length > 0 ? entries.join(MEMORY_DELIMITER).length : 0;
+}
+
+function readMemoryLimit(target: PersonalMemoryTarget): number {
+  return target === "user" ? USER_MEMORY_CHAR_LIMIT : AGENT_MEMORY_CHAR_LIMIT;
+}
+
 function formatMemoryList(entries: string[]): string[] {
   return entries.length > 0
     ? entries.map((entry) => `- ${entry}`)
     : ["- none"];
+}
+
+function formatMemoryUsage(usage: PersonalMemoryUsageBucket): string {
+  return `${usage.percent}% - ${formatInteger(usage.usedChars)}/${formatInteger(usage.limitChars)} chars`;
+}
+
+function formatInteger(value: number): string {
+  return value.toLocaleString("en-US");
 }
 
 function normalizeMemoryEntry(value: unknown): string | undefined {

@@ -802,6 +802,7 @@ export async function createDashboardPersonalMemoryResponse(
     personalMemory: {
       userEntryCount: snapshot.userEntries.length,
       agentEntryCount: snapshot.agentEntries.length,
+      ...(snapshot.usage ? { usage: snapshot.usage } : {}),
       ...(snapshot.latestUpdatedAt ? { latestUpdatedAt: snapshot.latestUpdatedAt } : {})
     }
   });

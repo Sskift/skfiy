@@ -25,6 +25,69 @@ describe("personal memory store", () => {
     expect(createPersonalMemoryPromptBlock(store.read())).toContain("Agent operating notes");
   });
 
+  it("reports Hermes-style character usage and prompt budget headers", () => {
+    const files = new Map<string, string>();
+    const store = createPersonalMemoryStore({
+      baseDir: "/tmp/skfiy-memory",
+      io: createMemoryIo(files)
+    });
+
+    store.applyOperations([
+      { action: "add", target: "user", content: "abc" },
+      { action: "add", target: "user", content: "de" },
+      { action: "add", target: "agent", content: "dashboard" }
+    ]);
+
+    const snapshot = store.read();
+    expect(snapshot.usage).toEqual({
+      user: {
+        usedChars: 10,
+        limitChars: 1_375,
+        percent: 0
+      },
+      agent: {
+        usedChars: 9,
+        limitChars: 2_200,
+        percent: 0
+      }
+    });
+    expect(createPersonalMemoryPromptBlock(snapshot)).toContain(
+      "USER PROFILE [0% - 10/1,375 chars]"
+    );
+    expect(createPersonalMemoryPromptBlock(snapshot)).toContain(
+      "AGENT MEMORY [0% - 9/2,200 chars]"
+    );
+  });
+
+  it("blocks user memory additions that would exceed the character budget", () => {
+    const files = new Map<string, string>();
+    const store = createPersonalMemoryStore({
+      baseDir: "/tmp/skfiy-memory",
+      io: createMemoryIo(files)
+    });
+    const first = createFixedLengthEntry("a");
+    const second = createFixedLengthEntry("b");
+    const third = createFixedLengthEntry("c");
+
+    const result = store.applyOperations([
+      { action: "add", target: "user", content: first },
+      { action: "add", target: "user", content: second },
+      { action: "add", target: "user", content: third }
+    ]);
+
+    expect(result).toMatchObject({
+      applied: 2,
+      ignored: 0,
+      blocked: [{ action: "add", target: "user", content: third }]
+    });
+    expect(store.read().userEntries).toEqual([first, second]);
+    expect(store.read().usage?.user).toEqual({
+      usedChars: 1_005,
+      limitChars: 1_375,
+      percent: 73
+    });
+  });
+
   it("deduplicates entries and blocks prompt-injection-shaped memory", () => {
     const files = new Map<string, string>();
     const store = createPersonalMemoryStore({
@@ -57,6 +120,10 @@ describe("personal memory store", () => {
     });
   });
 });
+
+function createFixedLengthEntry(prefix: string): string {
+  return `${prefix}${"x".repeat(499)}`;
+}
 
 function createMemoryIo(files: Map<string, string>): PersonalMemoryIo {
   return {

@@ -615,6 +615,10 @@ async function exercisePersonalMemoryApi({ dashboardUrl, fixture, timeoutMs }) {
   ]);
   const passed = snapshotBefore.status === 200
     && snapshotBefore.body?.personalMemory?.userEntryCount >= 2
+    && snapshotBefore.body.personalMemory.usage?.user?.limitChars === 1375
+    && snapshotBefore.body.personalMemory.usage?.user?.usedChars > 0
+    && snapshotBefore.body.personalMemory.usage?.agent?.limitChars === 2200
+    && snapshotBefore.body.personalMemory.usage?.agent?.usedChars > 0
     && snapshotBefore.body.personalMemory.recentUserEntries?.includes("[redacted sensitive memory]")
     && forgetResponse.status === 200
     && forgetResponse.body?.result === "forgotten"
@@ -623,6 +627,7 @@ async function exercisePersonalMemoryApi({ dashboardUrl, fixture, timeoutMs }) {
     && rejectedAddResponse.body?.error?.code === "unknown-action"
     && snapshotAfter.status === 200
     && snapshotAfter.body?.personalMemory?.userEntryCount === snapshotBefore.body.personalMemory.userEntryCount - 1
+    && snapshotAfter.body.personalMemory.usage?.user?.usedChars < snapshotBefore.body.personalMemory.usage.user.usedChars
     && !userMemoryAfter.includes(DASHBOARD_MEMORY_SENSITIVE_ENTRY)
     && userMemoryAfter.includes(DASHBOARD_MEMORY_SAFE_ENTRY)
     && !tokenLeakDetected;

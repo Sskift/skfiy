@@ -55,6 +55,7 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("exercisePersonalMemoryApi");
     expect(source).toContain("personalMemoryApi");
     expect(source).toContain("/api/personal-memory");
+    expect(source).toContain("personalMemory.usage");
     expect(source).toContain("exerciseChromeControlActionApi");
     expect(source).toContain("dashboardChromeControlActionApi");
     expect(source).toContain("collectRealHomeChromeControlActionEvidence");
@@ -815,6 +816,18 @@ describe("dashboard product smoke script", () => {
             personalMemory: {
               userEntryCount: 2,
               agentEntryCount: 1,
+              usage: {
+                user: {
+                  usedChars: 93,
+                  limitChars: 1375,
+                  percent: 6
+                },
+                agent: {
+                  usedChars: 66,
+                  limitChars: 2200,
+                  percent: 3
+                }
+              },
               recentUserEntries: [
                 "User prefers concise Chinese updates.",
                 "[redacted sensitive memory]"
@@ -856,6 +869,18 @@ describe("dashboard product smoke script", () => {
             personalMemory: {
               userEntryCount: 1,
               agentEntryCount: 1,
+              usage: {
+                user: {
+                  usedChars: 37,
+                  limitChars: 1375,
+                  percent: 2
+                },
+                agent: {
+                  usedChars: 66,
+                  limitChars: 2200,
+                  percent: 3
+                }
+              },
               recentUserEntries: [
                 "User prefers concise Chinese updates."
               ],
@@ -1002,6 +1027,37 @@ describe("dashboard product smoke script", () => {
     };
 
     expect(classifyDashboardSmokeEvidence(passedEvidence)).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        nodeCount: 5,
+        linkCount: 4,
+        backlinkCount: 4,
+        nodeTexts: [
+          "User preferencesmemoryUser prefers concise Chinese updates.",
+          "Latest sessionsessionCodex: hello",
+          "Codexprovidersready",
+          "Computer Usecomputer-useblocked",
+          "Memory reviewskillPost-turn personalization distills durable notes."
+        ],
+        linkTexts: [
+          "injects promptUser preferences -> Codex",
+          "recalls contextLatest session -> Codex",
+          "distillsMemory review -> User preferences"
+        ],
+        backlinkTexts: [
+          "User preferencesinjects promptCodex",
+          "Latest sessionrecalls contextCodex",
+          "Memory reviewdistillsUser preferences"
+        ],
+        vaultNoteTexts: [
+          "User preferences.mdmemoryBacklinks 2injects prompt -> CodexMemory review -> distills",
+          "Latest session.mdsessionBacklinks 1recalls context -> Codex",
+          "Memory review.mdskillBacklinks 1distills -> User preferences"
+        ]
+      }
+    })).toBe("passed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       personalMemoryApi: undefined

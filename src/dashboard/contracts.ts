@@ -99,10 +99,22 @@ export interface DashboardPersonalMemorySummary {
   agentEntryCount: number;
   sessionCount: number;
   latestUpdatedAt?: string;
+  usage?: DashboardPersonalMemoryUsage;
   recentUserEntries: string[];
   recentAgentEntries: string[];
   latestSession?: DashboardPersonalMemorySessionSummary;
   recentSessions?: DashboardPersonalMemorySessionSummary[];
+}
+
+export interface DashboardPersonalMemoryUsage {
+  user: DashboardPersonalMemoryUsageBucket;
+  agent: DashboardPersonalMemoryUsageBucket;
+}
+
+export interface DashboardPersonalMemoryUsageBucket {
+  usedChars: number;
+  limitChars: number;
+  percent: number;
 }
 
 export interface DashboardPersonalMemorySessionSummary {
@@ -135,6 +147,7 @@ export interface DashboardPersonalMemoryActionResponse {
   personalMemory?: {
     userEntryCount: number;
     agentEntryCount: number;
+    usage?: DashboardPersonalMemoryUsage;
     latestUpdatedAt?: string;
   };
   error?: {

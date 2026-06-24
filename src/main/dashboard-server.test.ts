@@ -1795,7 +1795,19 @@ describe("dashboard loopback HTTP response helper", () => {
         applied: 1,
         personalMemory: {
           userEntryCount: 1,
-          agentEntryCount: 1
+          agentEntryCount: 1,
+          usage: {
+            user: {
+              usedChars: 37,
+              limitChars: 1_375,
+              percent: 2
+            },
+            agent: {
+              usedChars: 28,
+              limitChars: 2_200,
+              percent: 1
+            }
+          }
         }
       });
       expect(files[userMemoryPath]).toContain("User prefers concise Chinese updates.");

@@ -44,6 +44,7 @@ import type {
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemorySummary,
+  DashboardPersonalMemoryUsageBucket,
   DashboardPlannerProviderMode,
   DashboardPlannerProviderSettingsUpdate,
   DashboardAssistantProviderStatus,
@@ -752,6 +753,16 @@ function PersonalMemoryPanel({
             agent notes {memory?.agentEntryCount ?? 0}
           </StatusChip>
           <StatusChip tone="neutral">sessions {memory?.sessionCount ?? 0}</StatusChip>
+          {memory?.usage?.user ? (
+            <StatusChip tone={readMemoryUsageTone(memory.usage.user)}>
+              user budget {formatMemoryUsage(memory.usage.user)}
+            </StatusChip>
+          ) : null}
+          {memory?.usage?.agent ? (
+            <StatusChip tone={readMemoryUsageTone(memory.usage.agent)}>
+              agent budget {formatMemoryUsage(memory.usage.agent)}
+            </StatusChip>
+          ) : null}
           <StatusChip tone="neutral">updated {formatGeneratedAt(memory?.latestUpdatedAt ?? "")}</StatusChip>
         </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
@@ -807,6 +818,26 @@ function RecentSessionRecallList({
       )}
     </div>
   );
+}
+
+function readMemoryUsageTone(
+  usage: DashboardPersonalMemoryUsageBucket
+): "success" | "warning" | "danger" | "neutral" {
+  if (usage.percent >= 90) {
+    return "danger";
+  }
+  if (usage.percent >= 75) {
+    return "warning";
+  }
+  return "success";
+}
+
+function formatMemoryUsage(usage: DashboardPersonalMemoryUsageBucket): string {
+  return `${usage.percent}% - ${formatInteger(usage.usedChars)}/${formatInteger(usage.limitChars)} chars`;
+}
+
+function formatInteger(value: number): string {
+  return value.toLocaleString("en-US");
 }
 
 function MemoryEntryList({

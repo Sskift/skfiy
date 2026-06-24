@@ -236,6 +236,9 @@ export function classifyDashboardSmokeEvidence(evidence) {
 }
 
 function hasDashboardKnowledgeGraphEvidence(evidence) {
+  const hasBrowserContextNode = Array.isArray(evidence?.nodeTexts)
+    && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Browser Context"));
+
   return evidence?.productPath === "dist/skfiy dashboard -> Electron screenshot -> Knowledge graph"
     && evidence?.result === "passed"
     && evidence?.regionFound === true
@@ -260,7 +263,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Backlinks"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("recalls context"))
-    && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in"))
+    && (!hasBrowserContextNode
+      || evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in")))
     && typeof evidence?.screenshotPath === "string"
     && evidence.screenshotPath.endsWith("-knowledge-graph.png");
 }
