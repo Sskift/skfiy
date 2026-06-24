@@ -389,6 +389,17 @@ a:focus-visible {
   font-weight: 730;
 }
 
+.skfiy-dashboard-pending-memory-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.skfiy-dashboard-pending-memory-list li .skfiy-dashboard-pending-memory-meta strong {
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 760;
+}
+
 .skfiy-dashboard-pending-memory-list li small {
   color: #71717a;
   font-size: 12px;
@@ -404,6 +415,35 @@ a:focus-visible {
   color: #71717a;
   font-size: 12px;
   font-style: normal;
+}
+
+.skfiy-dashboard-memory-revision {
+  display: grid;
+  grid-template-columns: minmax(70px, max-content) minmax(0, 1fr);
+  gap: 4px 10px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(113, 113, 122, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.skfiy-dashboard-memory-revision span {
+  color: #71717a;
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.skfiy-dashboard-memory-revision strong,
+.skfiy-dashboard-memory-revision em {
+  grid-column: auto;
+  color: #18181b;
+  font-size: 12px;
+}
+
+.skfiy-dashboard-memory-revision em {
+  color: #52525b;
 }
 
 .skfiy-dashboard-pending-memory-actions {

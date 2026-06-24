@@ -45,6 +45,7 @@ Newly distilled in this pass:
 - The Dashboard focused note now shows a `Prompt provenance` trail that walks from session evidence through memory review or pending approval into durable prompt sources and then to the selected Background Agent. This keeps the Hermes-style learning loop visible as an auditable chain rather than only a static graph.
 - The Dashboard Prompt source ledger now carries Hermes-style memory pressure evidence: USER/AGENT memory usage changes the graph node tone and surfaces `memory pressure warning` / usage counts before memory silently crowds out prompt-safe context.
 - Unsafe manual memory entries remain removable through the count-only Dashboard memory API even though they are blocked from provider prompts, preserving the Hermes-style "memory is editable local state" UX without letting polluted text travel back through agent prompts or API responses.
+- Pending memory review now preserves Hermes-style `replace` semantics in the operator surface: Dashboard shows `Previous` / `Proposed` revisions, and the Knowledge graph node spells out `replace · from ... -> ...` while the candidate is still review-gated.
 
 ## Deliberate Non-Imports
 

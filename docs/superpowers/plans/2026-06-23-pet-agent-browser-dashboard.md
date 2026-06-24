@@ -1414,6 +1414,21 @@ Focused verification:
 npx vitest run src/main/personal-memory.test.ts src/main/dashboard-server.test.ts src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 8: Show pending memory replacements as reviewable revisions**
+
+In `src/dashboard/DashboardApp.tsx`, `src/dashboard/model.ts`, `scripts/smoke-dashboard-product.mjs`, and `scripts/smoke-dashboard-plan.mjs`:
+
+- Keep pending memory writes compatible with Hermes-style `add`, `replace`, and `remove` operations instead of treating every candidate as append-only.
+- Render pending `replace` writes in the Dashboard Memory panel as explicit `Previous` / `Proposed` revisions with a clear accessible label.
+- Render pending `replace` writes in the Obsidian-inspired Knowledge graph detail as `replace · from ... -> ...` so the graph shows the local memory mutation being reviewed.
+- Extend Dashboard product smoke to seed a pending replacement and require screenshot DOM evidence that the graph carries the from/to revision before the write becomes durable prompt memory.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/model.test.ts src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ## Task 10: End-To-End Product Validation
 
 **Files:**

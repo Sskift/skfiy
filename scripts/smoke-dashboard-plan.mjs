@@ -297,9 +297,9 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Number.isInteger(evidence?.workingProfileNoteCount)
     && evidence.workingProfileNoteCount >= 1
     && Number.isInteger(evidence?.pendingMemoryNodeCount)
-    && evidence.pendingMemoryNodeCount >= 1
+    && evidence.pendingMemoryNodeCount >= 2
     && Number.isInteger(evidence?.pendingMemoryLinkCount)
-    && evidence.pendingMemoryLinkCount >= 2
+    && evidence.pendingMemoryLinkCount >= 4
     && evidence?.fallbackTextOverlap === false
     && Array.isArray(evidence?.nodeTexts)
     && Array.isArray(evidence?.linkTexts)
@@ -330,6 +330,7 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Obsidian-style knowledge dashboard"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Working profile"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory"))
+    && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("replace · from User prefers concise Chinese updates. -> User prefers concise Chinese-first progress updates with verification evidence."))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("recalls context"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("awaits approval"))

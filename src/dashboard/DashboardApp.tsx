@@ -968,11 +968,25 @@ function PendingMemoryWriteList({
       {writes.length > 0 ? (
         <ul aria-label="Pending memory writes">
           {writes.map((write) => (
-            <li key={write.id}>
-              <span>{write.source} · {write.action} · {write.target}</span>
+            <li
+              aria-label={`Pending memory revision: ${formatPendingMemoryActionLabel(write)}`}
+              key={write.id}
+            >
+              <span className="skfiy-dashboard-pending-memory-meta">
+                <span>{write.source}</span>
+                <strong>{formatPendingMemoryActionLabel(write)}</strong>
+              </span>
               <small>{formatGeneratedAt(write.createdAt)}</small>
-              <strong>{write.content}</strong>
-              {write.previousContent ? <em>{write.previousContent}</em> : null}
+              {write.previousContent ? (
+                <div className="skfiy-dashboard-memory-revision">
+                  <span>Previous</span>
+                  <em>{write.previousContent}</em>
+                  <span>Proposed</span>
+                  <strong>{write.content}</strong>
+                </div>
+              ) : (
+                <strong>{write.content}</strong>
+              )}
               <div className="skfiy-dashboard-pending-memory-actions">
                 <button
                   aria-label={`Approve pending memory: ${write.content}`}
@@ -1003,6 +1017,15 @@ function PendingMemoryWriteList({
       )}
     </div>
   );
+}
+
+function formatPendingMemoryActionLabel(write: DashboardPendingPersonalMemoryWrite): string {
+  const action = write.action === "replace"
+    ? "replace"
+    : write.action === "remove"
+      ? "remove"
+      : "add";
+  return `${action} ${write.target} memory`;
 }
 
 function RecentSessionRecallList({

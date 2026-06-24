@@ -702,6 +702,54 @@ describe("DashboardApp", () => {
     expect(within(memory).getByText("Pending memory rejected")).toBeInTheDocument();
   });
 
+  it("renders pending replace memory writes as explicit revisions", async () => {
+    const replaceSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      personalMemory: {
+        ...snapshot.personalMemory!,
+        pendingWriteCount: 1,
+        pendingWrites: [
+          {
+            id: "pmw-revise-progress",
+            createdAt: "2026-06-24T05:00:00.000Z",
+            source: "post-turn-review",
+            action: "replace",
+            target: "user",
+            previousContent: "User prefers concise Chinese progress updates.",
+            content: "User prefers concise Chinese-first progress updates with verification evidence."
+          }
+        ]
+      }
+    };
+    const loadSnapshot = vi.fn(async () => replaceSnapshot);
+    const loadProviderSettings = vi.fn(async () => createProviderSettingsPayload({
+      mode: "external-cua",
+      externalProviderLabel: "OpenAI CUA",
+      externalEndpoint: "https://cua.example.test/plan",
+      externalApiKeyConfigured: true
+    }));
+
+    render(<DashboardApp
+      loadProviderSettings={loadProviderSettings}
+      loadSnapshot={loadSnapshot}
+      runPersonalMemoryAction={vi.fn()}
+    />);
+
+    const memory = await screen.findByRole("region", { name: "Memory" });
+    const pendingWrites = within(memory).getByRole("list", { name: "Pending memory writes" });
+    const revision = within(pendingWrites).getByRole("listitem", {
+      name: "Pending memory revision: replace user memory"
+    });
+
+    expect(within(revision).getByText("replace user memory")).toBeInTheDocument();
+    expect(within(revision).getByText("Previous")).toBeInTheDocument();
+    expect(within(revision).getByText("User prefers concise Chinese progress updates.")).toBeInTheDocument();
+    expect(within(revision).getByText("Proposed")).toBeInTheDocument();
+    expect(within(revision).getByText(
+      "User prefers concise Chinese-first progress updates with verification evidence."
+    )).toBeInTheDocument();
+  });
+
   it("mutes a personal skill card from dashboard controls and refreshes the snapshot", async () => {
     let currentSnapshot = snapshot;
     const loadSnapshot = vi.fn(async () => currentSnapshot);

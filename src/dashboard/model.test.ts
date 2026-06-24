@@ -91,6 +91,34 @@ describe("readKnowledgeGraph", () => {
       })
     ]));
   });
+
+  it("shows pending replace memory writes as revisions in the graph detail", () => {
+    const graph = readKnowledgeGraph({
+      ...createSnapshot(),
+      personalMemory: {
+        ...createSnapshot().personalMemory!,
+        pendingWriteCount: 1,
+        pendingWrites: [
+          {
+            id: "pmw-revise-progress",
+            createdAt: "2026-06-24T05:00:00.000Z",
+            source: "post-turn-review",
+            action: "replace",
+            target: "user",
+            previousContent: "User prefers concise Chinese progress updates.",
+            content: "User prefers concise Chinese-first progress updates with verification evidence."
+          }
+        ]
+      }
+    });
+
+    expect(graph.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "memory:pending:pmw-revise-progress",
+        detail: "replace · from User prefers concise Chinese progress updates. -> User prefers concise Chinese-first progress updates with verification evidence."
+      })
+    ]));
+  });
 });
 
 function createSnapshot(): DashboardSnapshot {

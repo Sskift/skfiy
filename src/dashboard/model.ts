@@ -1265,6 +1265,9 @@ function createPendingMemoryNodeDetail(
     : write.action === "remove"
       ? "remove"
       : "add";
+  if (action === "replace" && write.previousContent) {
+    return `${action} · from ${write.previousContent} -> ${write.content}`;
+  }
   return `${action} · ${write.content}`;
 }
 
