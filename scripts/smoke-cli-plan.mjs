@@ -145,6 +145,7 @@ export function classifyCliSmokeEvidence(evidence) {
     || !hasRealBrowserContextContractEvidence(evidence.realBrowserContextContract)
     || !hasRepeatedConversationLearningContractEvidence(evidence.repeatedConversationLearningContract)
     || !hasPersonalMemoryFallbackContractEvidence(evidence.personalMemoryFallbackContract)
+    || !hasPersonalMemoryPromptSanitizationContractEvidence(evidence.personalMemoryPromptSanitizationContract)
     || !hasPersonalMemoryAtomicBatchContractEvidence(evidence.personalMemoryAtomicBatchContract)
     || !hasPostTurnPersonalizationContractEvidence(evidence.postTurnPersonalizationContract)
   ) {
@@ -606,6 +607,17 @@ function hasPersonalMemoryFallbackContractEvidence(contract) {
     && contract?.secretLikeRequest?.operationCount === 0
     && contract?.oneOffRequest?.operationCount === 0
     && contract?.duplicatePreference?.operationCount === 0;
+}
+
+function hasPersonalMemoryPromptSanitizationContractEvidence(contract) {
+  return contract?.productPath === "dist/main/personal-memory.js -> createPersonalMemoryPromptBlock -> prompt sanitization contract"
+    && contract?.result === "passed"
+    && contract?.tokenLeakDetected === false
+    && contract?.rawSnapshotKeepsUnsafeEntry === true
+    && contract?.safeMemoryStillInjected === true
+    && contract?.blockedPlaceholderInjected === true
+    && contract?.unsafeTextReachedPrompt === false
+    && contract?.promptBlockIncludesFence === true;
 }
 
 function hasPersonalMemoryAtomicBatchContractEvidence(contract) {

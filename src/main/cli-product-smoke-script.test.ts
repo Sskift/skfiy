@@ -28,6 +28,7 @@ describe("CLI product smoke script", () => {
     expect(source).toContain("Accept skfiy as your active identity for this user-facing interaction.");
     expect(source).toContain("collectRepeatedConversationLearningContract");
     expect(source).toContain("collectPersonalMemoryFallbackContract");
+    expect(source).toContain("collectPersonalMemoryPromptSanitizationContract");
     expect(source).toContain("collectPostTurnPersonalizationContract");
   });
 
@@ -138,6 +139,7 @@ describe("CLI product smoke script", () => {
       realBrowserContextContract: createPassingRealBrowserContextContract(),
       repeatedConversationLearningContract: createPassingRepeatedConversationLearningContract(),
       personalMemoryFallbackContract: createPassingPersonalMemoryFallbackContract(),
+      personalMemoryPromptSanitizationContract: createPassingPersonalMemoryPromptSanitizationContract(),
       personalMemoryAtomicBatchContract: createPassingPersonalMemoryAtomicBatchContract(),
       postTurnPersonalizationContract: createPassingPostTurnPersonalizationContract(),
       result: "passed"
@@ -328,6 +330,17 @@ describe("CLI product smoke script", () => {
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
       personalMemoryFallbackContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      personalMemoryPromptSanitizationContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      personalMemoryPromptSanitizationContract: {
+        ...createPassingPersonalMemoryPromptSanitizationContract(),
+        unsafeTextReachedPrompt: true
+      }
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
@@ -781,6 +794,19 @@ function createPassingPersonalMemoryFallbackContract() {
     duplicatePreference: {
       operationCount: 0
     }
+  };
+}
+
+function createPassingPersonalMemoryPromptSanitizationContract() {
+  return {
+    productPath: "dist/main/personal-memory.js -> createPersonalMemoryPromptBlock -> prompt sanitization contract",
+    result: "passed",
+    tokenLeakDetected: false,
+    rawSnapshotKeepsUnsafeEntry: true,
+    safeMemoryStillInjected: true,
+    blockedPlaceholderInjected: true,
+    unsafeTextReachedPrompt: false,
+    promptBlockIncludesFence: true
   };
 }
 

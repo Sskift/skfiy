@@ -994,6 +994,21 @@ npx vitest run src/main/personal-memory.test.ts src/main/assistant-agent.test.ts
 npm run typecheck -- --pretty false
 ```
 
+- [x] **Step 11: Require prompt sanitization in packaged CLI smoke**
+
+In `scripts/smoke-cli-product.mjs`, `scripts/smoke-cli-plan.mjs`, and `src/main/cli-product-smoke-script.test.ts`:
+
+- Add `personalMemoryPromptSanitizationContract` to the built CLI smoke artifact.
+- Build the evidence from `dist/main/personal-memory.js` so the packaged artifact proves `createPersonalMemoryPromptBlock(...)` keeps manually polluted raw memory visible while excluding the unsafe text from the provider prompt block.
+- Require raw snapshot visibility, safe memory injection, blocked placeholder injection, fenced recalled-memory prompt output, and `unsafeTextReachedPrompt === false`.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/cli-product-smoke-script.test.ts --reporter=dot
+npm run smoke:cli:basic -- --output .skfiy-smoke/cli-memory-prompt-sanitization.json --require-passed
+```
+
 ---
 
 ## Task 8: Obsidian-Inspired Knowledge Graph Dashboard
