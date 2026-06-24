@@ -83,6 +83,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
     activeLens === "all" && normalizedSearchQuery.length === 0 ? visibleEdges : relationEdges,
     nodes
   );
+  const promptStackSteps = createPromptStackSteps(nodes, edges);
   const vaultNotes = createVaultNotes(filteredNodes, backlinks);
   const selectedNote = vaultNotes.find((note) => note.id === selectedNodeId) ?? vaultNotes[0] ?? null;
   const selectedId = selectedNote?.id ?? null;
@@ -128,6 +129,18 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
         <p role="status" aria-label="Vault lens summary">
           {summary}
         </p>
+      </div>
+      <div className="skfiy-knowledge-panel skfiy-knowledge-panel--prompt-stack">
+        <h3>Prompt stack</h3>
+        <ol aria-label="Prompt stack">
+          {promptStackSteps.map((step, index) => (
+            <li key={step.stage}>
+              <strong>{index + 1}</strong>
+              <span>{step.stage}</span>
+              <small>{step.items.join(", ")}</small>
+            </li>
+          ))}
+        </ol>
       </div>
       <div className="skfiy-knowledge-graph-canvas">
         <svg viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`} aria-label="Knowledge graph canvas">
@@ -321,6 +334,94 @@ const LEARNING_LOOP_EDGE_ORDER = new Map([
   ["observed in", 5],
   ["answered", 6]
 ]);
+
+interface PromptStackStep {
+  stage: string;
+  items: string[];
+}
+
+function createPromptStackSteps(
+  nodes: DashboardKnowledgeGraphNode[],
+  edges: DashboardKnowledgeGraphEdge[]
+): PromptStackStep[] {
+  const provider = nodes.find((node) => node.kind === "provider");
+  const providerId = provider?.id;
+  const promptProviderEdges = providerId
+    ? edges.filter((edge) => edge.to === providerId)
+    : edges;
+  const steps: PromptStackStep[] = [];
+  const memoryLabels = readPromptSourceLabels({
+    nodes,
+    edges: promptProviderEdges,
+    labels: new Set(["injects prompt", "guides behavior"]),
+    matchesNode: (node) => node.kind === "memory"
+      && node.id !== "profile:working"
+      && !node.id.startsWith("memory:pending:")
+  });
+  const sessionLabels = readPromptSourceLabels({
+    nodes,
+    edges: promptProviderEdges,
+    labels: new Set(["recalls context"]),
+    matchesNode: (node) => node.kind === "session"
+  });
+  const skillLabels = readPromptSourceLabels({
+    nodes,
+    edges: promptProviderEdges,
+    labels: new Set(["guides prompt"]),
+    matchesNode: (node) => node.kind === "skill"
+  });
+  const workingProfileLabels = readPromptSourceLabels({
+    nodes,
+    edges: promptProviderEdges,
+    labels: new Set(["travels with prompt"]),
+    matchesNode: (node) => node.id === "profile:working"
+  });
+  const browserLabels = nodes
+    .filter((node) => node.kind === "browser")
+    .map((node) => node.label);
+
+  pushPromptStackStep(steps, "Memory", memoryLabels);
+  pushPromptStackStep(steps, "Recalled sessions", sessionLabels);
+  pushPromptStackStep(steps, "Personal skills", skillLabels);
+  pushPromptStackStep(steps, "Working profile", workingProfileLabels);
+  pushPromptStackStep(steps, "Browser Context", browserLabels);
+  pushPromptStackStep(steps, "Background Agent", provider ? [provider.label] : []);
+
+  return steps;
+}
+
+function readPromptSourceLabels({
+  edges,
+  labels,
+  matchesNode,
+  nodes
+}: {
+  nodes: DashboardKnowledgeGraphNode[];
+  edges: DashboardKnowledgeGraphEdge[];
+  labels: Set<string>;
+  matchesNode: (node: DashboardKnowledgeGraphNode) => boolean;
+}): string[] {
+  const nodeIndex = new Map(nodes.map((node, index) => [node.id, index]));
+  const matchingNodeIds = new Set(edges
+    .filter((edge) => labels.has(edge.label))
+    .map((edge) => edge.from));
+
+  return nodes
+    .filter((node) => matchingNodeIds.has(node.id) && matchesNode(node))
+    .slice()
+    .sort((left, right) => (nodeIndex.get(left.id) ?? 0) - (nodeIndex.get(right.id) ?? 0))
+    .map((node) => node.label);
+}
+
+function pushPromptStackStep(
+  steps: PromptStackStep[],
+  stage: string,
+  items: string[]
+): void {
+  if (items.length > 0) {
+    steps.push({ stage, items });
+  }
+}
 
 function createLearningLoopSteps(
   edges: DashboardKnowledgeGraphEdge[],

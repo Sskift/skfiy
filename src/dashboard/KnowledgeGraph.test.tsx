@@ -244,4 +244,38 @@ describe("KnowledgeGraph", () => {
     expect(within(learningLoop).getByText("User preferences -> injects prompt -> Codex")).toBeInTheDocument();
     expect(within(learningLoop).getByText("Codex -> answered -> Latest session")).toBeInTheDocument();
   });
+
+  it("renders the next provider prompt stack in personalization order", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries" },
+        { id: "memory:agent", label: "Agent operating notes", kind: "memory", tone: "success", detail: "1 entry" },
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral", detail: "Codex: summarize dashboard" },
+        { id: "skill:communication-style", label: "Concise Chinese progress updates", kind: "skill", tone: "success", detail: "communication habit" },
+        { id: "profile:working", label: "Working profile", kind: "memory", tone: "success", detail: "Portable skfiy working profile" },
+        { id: "browser:context", label: "Browser Context", kind: "browser", tone: "warning", detail: "Dashboard tab" },
+        { id: "provider:hermes", label: "Hermes", kind: "provider", tone: "success", detail: "Hermes assistant is selected." }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:hermes", label: "injects prompt" },
+        { from: "memory:agent", to: "provider:hermes", label: "guides behavior" },
+        { from: "session:latest", to: "provider:hermes", label: "recalls context" },
+        { from: "skill:communication-style", to: "provider:hermes", label: "guides prompt" },
+        { from: "profile:working", to: "provider:hermes", label: "travels with prompt" },
+        { from: "browser:context", to: "session:latest", label: "observed in" }
+      ]}
+    />);
+
+    const promptStack = screen.getByRole("list", { name: "Prompt stack" });
+    const steps = within(promptStack).getAllByRole("listitem");
+
+    expect(steps.map((step) => step.textContent)).toEqual([
+      "1MemoryUser preferences, Agent operating notes",
+      "2Recalled sessionsLatest session",
+      "3Personal skillsConcise Chinese progress updates",
+      "4Working profileWorking profile",
+      "5Browser ContextBrowser Context",
+      "6Background AgentHermes"
+    ]);
+  });
 });

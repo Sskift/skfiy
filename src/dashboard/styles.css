@@ -790,6 +790,45 @@ a:focus-visible {
     rgba(250, 250, 250, 0.96);
 }
 
+.skfiy-knowledge-panel--prompt-stack {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(24, 24, 27, 0.9)),
+    #18181b;
+}
+
+.skfiy-knowledge-panel--prompt-stack h3 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 780;
+  line-height: 1.25;
+}
+
+.skfiy-knowledge-panel--prompt-stack ol {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skfiy-knowledge-panel--prompt-stack li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-rows: repeat(2, max-content);
+  gap: 4px 7px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  border-radius: 8px;
+  color: #e4e4e7;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .skfiy-knowledge-panel--focus {
   grid-area: focus;
   background:
@@ -828,6 +867,14 @@ a:focus-visible {
   gap: 7px;
   grid-auto-rows: max-content;
   align-content: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skfiy-knowledge-graph-fallback ol {
+  display: grid;
+  gap: 7px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -881,6 +928,34 @@ a:focus-visible {
 .skfiy-knowledge-graph-fallback li small {
   color: #52525b;
   font-size: 12px;
+}
+
+.skfiy-knowledge-panel--prompt-stack li strong {
+  grid-row: 1 / 3;
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid rgba(34, 211, 238, 0.34);
+  border-radius: 999px;
+  color: #cffafe;
+  background: rgba(8, 145, 178, 0.22);
+  font-size: 11px;
+}
+
+.skfiy-knowledge-panel--prompt-stack li span {
+  min-width: 0;
+  color: #f8fafc;
+  font-weight: 720;
+  overflow-wrap: anywhere;
+}
+
+.skfiy-knowledge-panel--prompt-stack li small {
+  min-width: 0;
+  grid-column: 2;
+  color: #cbd5e1;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .skfiy-vault-notes li {
@@ -1590,6 +1665,10 @@ a:focus-visible {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .skfiy-knowledge-panel--prompt-stack ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .skfiy-knowledge-graph-fallback {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
@@ -1618,6 +1697,10 @@ a:focus-visible {
 
   .skfiy-dashboard-card.card {
     padding: 14px;
+  }
+
+  .skfiy-knowledge-panel--prompt-stack ol {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .skfiy-knowledge-graph-fallback li {

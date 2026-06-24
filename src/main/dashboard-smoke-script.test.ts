@@ -69,6 +69,10 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("backlinkCount");
     expect(planSource).toContain("Recent session recall");
     expect(source).toContain("sessionNodeCount");
+    expect(source).toContain("Prompt stack");
+    expect(source).toContain("promptStackCount");
+    expect(source).toContain("promptStackTexts");
+    expect(source).toContain("Working profile");
     expect(source).toContain("seedPersonalMemoryFixture");
     expect(source).toContain("exercisePersonalMemoryApi");
     expect(source).toContain("personalMemoryApi");
@@ -732,6 +736,7 @@ describe("dashboard product smoke script", () => {
         focusedNeighborhoodCount: 2,
         backlinkCount: 7,
         learningLoopCount: 4,
+        promptStackCount: 6,
         sessionNodeCount: 2,
         personalSkillNodeCount: 2,
         workingProfileNodeCount: 1,
@@ -777,6 +782,14 @@ describe("dashboard product smoke script", () => {
           "Working profile -> travels with prompt -> Codex",
           "Codex -> answered -> Latest session"
         ],
+        promptStackTexts: [
+          "1MemoryUser preferences, Agent operating notes",
+          "2Recalled sessionsLatest session",
+          "3Personal skillsConcise Chinese progress updates, Obsidian-style knowledge dashboard",
+          "4Working profileWorking profile",
+          "5Browser ContextBrowser Context",
+          "6Background AgentCodex"
+        ],
         personalSkillTexts: [
           "Concise Chinese progress updatesskillcommunication",
           "Obsidian-style knowledge dashboardskilldashboard"
@@ -820,6 +833,7 @@ describe("dashboard product smoke script", () => {
           notesPanelUsesGradient: true,
           backlinksPanelUsesGradient: true,
           learningLoopPanelUsesGradient: true,
+          promptStackPanelUsesGradient: true,
           graphUsesGradientLinks: true,
           selectedNodeGlowVisible: true,
           paletteHasMultipleAccentFamilies: true,
@@ -1194,6 +1208,7 @@ describe("dashboard product smoke script", () => {
         linkCount: 8,
         backlinkCount: 6,
         learningLoopCount: 4,
+        promptStackCount: 5,
         personalSkillNodeCount: 2,
         workingProfileNodeCount: 1,
         workingProfileLinkCount: 3,
@@ -1236,6 +1251,13 @@ describe("dashboard product smoke script", () => {
           "User preferences -> injects prompt -> Codex",
           "Working profile -> travels with prompt -> Codex",
           "Codex -> answered -> Latest session"
+        ],
+        promptStackTexts: [
+          "1MemoryUser preferences",
+          "2Recalled sessionsLatest session",
+          "3Personal skillsConcise Chinese progress updates, Obsidian-style knowledge dashboard",
+          "4Working profileWorking profile",
+          "5Background AgentCodex"
         ],
         personalSkillTexts: [
           "Concise Chinese progress updatesskillcommunication",
@@ -1316,6 +1338,14 @@ describe("dashboard product smoke script", () => {
         ...passedEvidence.knowledgeGraphEvidence,
         learningLoopCount: 0,
         learningLoopTexts: []
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        promptStackCount: 0,
+        promptStackTexts: []
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
@@ -1418,6 +1448,7 @@ describe("dashboard product smoke script", () => {
           "Focused neighborhood",
           "Vault backlinks",
           "Learning loop",
+          "Prompt stack",
           "Recent session recall",
           "Chrome control actions",
           "Chrome host policy controls",
@@ -1462,6 +1493,7 @@ describe("dashboard product smoke script", () => {
           "Focused neighborhood",
           "Vault backlinks",
           "Learning loop",
+          "Prompt stack",
           "Recent session recall",
           "Chrome control actions",
           "Chrome host policy controls",

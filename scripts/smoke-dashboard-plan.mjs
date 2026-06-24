@@ -31,6 +31,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Focused neighborhood",
   "Vault backlinks",
   "Learning loop",
+  "Prompt stack",
   "Recent session recall",
   "Chrome control actions",
   "Chrome host policy controls",
@@ -278,6 +279,8 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.backlinkCount >= 2
     && Number.isInteger(evidence?.learningLoopCount)
     && evidence.learningLoopCount >= 4
+    && Number.isInteger(evidence?.promptStackCount)
+    && evidence.promptStackCount >= 5
     && Number.isInteger(evidence?.sessionNodeCount)
     && evidence.sessionNodeCount >= 2
     && Number.isInteger(evidence?.personalSkillNodeCount)
@@ -302,6 +305,7 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Array.isArray(evidence?.backlinkTexts)
     && Array.isArray(evidence?.focusedNeighborhoodTexts)
     && Array.isArray(evidence?.learningLoopTexts)
+    && Array.isArray(evidence?.promptStackTexts)
     && Array.isArray(evidence?.personalSkillTexts)
     && Array.isArray(evidence?.workingProfileTexts)
     && evidence.vaultLensTexts.some((text) => typeof text === "string" && text.includes("All"))
@@ -340,6 +344,11 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("distills"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.learningLoopTexts.some((text) => typeof text === "string" && text.includes("answered"))
+    && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Memory"))
+    && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Recalled sessions"))
+    && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Personal skills"))
+    && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Working profile"))
+    && evidence.promptStackTexts.some((text) => typeof text === "string" && text.includes("Background Agent"))
     && (!hasBrowserContextNode
       || evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("observed in")))
     && hasDashboardKnowledgeGraphVisualDesignContract(evidence.visualDesignContract)
@@ -360,6 +369,7 @@ function hasDashboardKnowledgeGraphVisualDesignContract(contract) {
     && contract?.notesPanelUsesGradient === true
     && contract?.backlinksPanelUsesGradient === true
     && contract?.learningLoopPanelUsesGradient === true
+    && contract?.promptStackPanelUsesGradient === true
     && contract?.graphUsesGradientLinks === true
     && contract?.selectedNodeGlowVisible === true
     && contract?.paletteHasMultipleAccentFamilies === true

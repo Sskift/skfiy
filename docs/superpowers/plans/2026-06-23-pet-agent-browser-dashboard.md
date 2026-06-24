@@ -1210,6 +1210,20 @@ Focused verification:
 npx vitest run src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
+- [x] **Step 14: Show the next provider Prompt stack**
+
+In `src/dashboard/KnowledgeGraph.tsx`, `src/dashboard/styles.css`, `scripts/smoke-dashboard-product.mjs`, `scripts/smoke-dashboard-plan.mjs`, and `src/main/dashboard-smoke-script.test.ts`:
+
+- Render a `Prompt stack` panel in the Obsidian-inspired graph surface that shows the next provider call order: durable memory, recalled sessions, personal skills, Working profile, Browser Context, and selected Background Agent.
+- Derive the stack from existing graph edges such as `injects prompt`, `recalls context`, `guides prompt`, and `travels with prompt` so it stays aligned with the actual personalization graph.
+- Extend Dashboard smoke evidence with `promptStackCount`, `promptStackTexts`, and `promptStackPanelUsesGradient`; the product smoke cannot pass if the stack is absent.
+
+Focused verification:
+
+```bash
+npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
 ---
 
 ## Task 9: Personal Memory Management Controls
@@ -1384,6 +1398,7 @@ Validation evidence from 2026-06-24:
 - The same CLI smoke now records `personalMemoryAtomicBatchContract.result: passed`, proving over-budget and unsafe memory operation batches abort without partial durable writes while remove+add batches are accepted against the final budget.
 - The same CLI smoke now records `postTurnPersonalizationContract.result: passed` from `dist/main/personalization-learning-loop.js`, proving the packaged post-turn coordinator records a session, writes durable reviewed memory, falls back to local preference extraction, and stages writes instead of mutating durable memory when approval review is enabled.
 - `.skfiy-smoke/dashboard-product.json` recorded `result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`. Dashboard screenshot evidence now also records `knowledgeGraphEvidence.visualDesignContract` with a 2560x1632 viewport, dark grid shell/canvas, dark vault lens, gradient focus/notes/backlinks/learning-loop panels, gradient graph links, selected node glow, multiple accent families, and screenshot coverage for both the dashboard shell and Knowledge graph.
+- `.skfiy-smoke/dashboard-prompt-stack.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-prompt-stack-knowledge-graph.png` shows the Obsidian-inspired `Prompt stack` above the graph canvas with memory, recalled sessions, personal skills, Working profile, and selected Background Agent ordering visible.
 - `.skfiy-smoke/ghostty-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24 and captured a non-empty Ghostty before screenshot, but the run ended `needs-user-confirmation` with `Verification failed (before): Target app is not running or has no observable windows.` This replaces the older sleep/loginwindow blocker with a fresh Ghostty initialization/verification blocker.
 - `.skfiy-smoke/finder-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24, but the run ended `error` with `Finder runCommand timed out after 8000ms` and no Finder observation. This replaces the older sleep/loginwindow blocker with a fresh Finder renderer-command timeout blocker.
 - `./dist/skfiy status --json` reported packaged app, CLI, and helper installed; Screen Recording and Accessibility granted; desktop session controllable. It also reported current Chrome pageControl as `blocked_by_host_policy` on `mew-test.bytedance.net` with missing optional Chrome host and capture permissions.
