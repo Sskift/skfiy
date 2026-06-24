@@ -458,6 +458,9 @@ async function main() {
         learningLoopCount: learningLoopItems.length,
         sessionNodeCount: nodeItems.filter((item) => /session/i.test(item.textContent ?? "")).length,
         personalSkillNodeCount: nodeItems.filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? "")).length,
+        workingProfileNodeCount: nodeItems.filter((item) => /Working profile/i.test(item.textContent ?? "")).length,
+        workingProfileLinkCount: linkItems.filter((item) => /shapes profile|summarizes habit|travels with prompt/i.test(item.textContent ?? "")).length,
+        workingProfileNoteCount: vaultNoteItems.filter((item) => /Working profile\.md/i.test(item.textContent ?? "")).length,
         pendingMemoryNodeCount: nodeItems.filter((item) => /Pending user memory|Pending agent memory/i.test(item.textContent ?? "")).length,
         pendingMemoryLinkCount: linkItems.filter((item) => /stages|awaits approval/i.test(item.textContent ?? "")).length,
         fallbackTextOverlap,
@@ -472,6 +475,11 @@ async function main() {
         personalSkillTexts: nodeItems
           .filter((item) => /Concise Chinese progress updates|Obsidian-style knowledge dashboard/i.test(item.textContent ?? ""))
           .map((item) => item.textContent),
+        workingProfileTexts: [
+          ...nodeItems.filter((item) => /Working profile/i.test(item.textContent ?? "")),
+          ...linkItems.filter((item) => /shapes profile|summarizes habit|travels with prompt/i.test(item.textContent ?? "")),
+          ...vaultNoteItems.filter((item) => /Working profile\.md/i.test(item.textContent ?? ""))
+        ].map((item) => item.textContent),
         backlinkTexts: backlinkItems.map((item) => item.textContent)
       };
 
@@ -586,7 +594,7 @@ async function main() {
     screenshotBytes: png.length,
     ...dom,
     visualDesignContract,
-    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.vaultSearchInputFound && dom.vaultSearchNodeCount >= 2 && dom.vaultSearchNoteCount >= 2 && dom.vaultSearchSummary.includes("approval") && dom.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory")) && dom.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && visualContractPassed && !dom.fallbackTextOverlap ? "passed" : "failed"
+    result: dom.regionFound && dom.nodeCount >= 5 && dom.vaultNoteCount >= 3 && dom.focusedNoteFound && /\\.md$/u.test(dom.focusedNoteTitle) && dom.focusedBacklinkCount >= 1 && dom.vaultLensCount >= 4 && dom.focusedNeighborhoodCount >= 1 && dom.backlinkCount >= 2 && dom.learningLoopCount >= 4 && dom.sessionNodeCount >= 2 && dom.personalSkillNodeCount >= 2 && dom.workingProfileNodeCount >= 1 && dom.workingProfileLinkCount >= 2 && dom.workingProfileNoteCount >= 1 && dom.pendingMemoryNodeCount >= 1 && dom.pendingMemoryLinkCount >= 2 && dom.vaultSearchInputFound && dom.vaultSearchNodeCount >= 2 && dom.vaultSearchNoteCount >= 2 && dom.vaultSearchSummary.includes("approval") && dom.vaultSearchNodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory")) && dom.vaultSearchNoteTexts.some((text) => typeof text === "string" && text.includes("User preferences.md")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt")) && dom.linkTexts.some((text) => typeof text === "string" && text.includes("travels with prompt")) && visualContractPassed && !dom.fallbackTextOverlap ? "passed" : "failed"
   }));
   app.quit();
 }

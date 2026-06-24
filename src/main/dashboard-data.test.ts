@@ -276,6 +276,18 @@ describe("dashboard snapshot data", () => {
         kind: "dashboard"
       })
     ]));
+    expect(snapshot.personalMemory?.workingProfile).toMatchObject({
+      label: "Working profile",
+      source: "derived-local-memory",
+      portability: "plain-text",
+      memoryEntryCount: 3,
+      sessionCount: 2,
+      skillCount: 2,
+      habits: expect.arrayContaining([
+        "Use concise Chinese progress updates; lead with the conclusion when reporting progress.",
+        "Favor linked knowledge from memory, sessions, skills, and graph/canvas evidence over control-plane panels."
+      ])
+    });
     expect(JSON.stringify(snapshot.personalMemory)).not.toContain("token=secret");
   });
 

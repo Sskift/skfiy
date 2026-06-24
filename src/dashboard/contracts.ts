@@ -106,8 +106,21 @@ export interface DashboardPersonalMemorySummary {
   pendingWrites?: DashboardPendingPersonalMemoryWrite[];
   mutedPersonalSkillIds?: string[];
   personalSkills?: DashboardPersonalSkillCard[];
+  workingProfile?: DashboardWorkingProfile;
   latestSession?: DashboardPersonalMemorySessionSummary;
   recentSessions?: DashboardPersonalMemorySessionSummary[];
+}
+
+export interface DashboardWorkingProfile {
+  label: "Working profile" | string;
+  source: "derived-local-memory" | string;
+  portability: "plain-text" | string;
+  summary: string;
+  habits: string[];
+  evidence: string[];
+  memoryEntryCount: number;
+  sessionCount: number;
+  skillCount: number;
 }
 
 export interface DashboardPendingPersonalMemoryWrite {

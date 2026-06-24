@@ -227,6 +227,23 @@ const snapshot: DashboardSnapshot = {
         evidence: ["For dashboard work, prefer dense Obsidian-like knowledge surfaces."]
       }
     ],
+    workingProfile: {
+      label: "Working profile",
+      source: "derived-local-memory",
+      portability: "plain-text",
+      summary: "Portable skfiy working profile: Concise Chinese progress updates; Obsidian-style knowledge dashboard.",
+      habits: [
+        "Use concise Chinese progress updates.",
+        "Favor linked memory, sessions, skills, and graph/canvas evidence over control-plane panels."
+      ],
+      evidence: [
+        "User prefers concise Chinese updates.",
+        "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
+      ],
+      memoryEntryCount: 2,
+      sessionCount: 2,
+      skillCount: 2
+    },
     recentSessions: [
       {
         createdAt: "2026-06-23T10:00:00.000Z",
@@ -324,6 +341,11 @@ describe("DashboardApp", () => {
     expect(within(memory).getByRole("heading", { name: "Personal skill cards" })).toBeInTheDocument();
     expect(within(memory).getByText("Concise Chinese progress updates")).toBeInTheDocument();
     expect(within(memory).getByText("Obsidian-style knowledge dashboard")).toBeInTheDocument();
+    expect(within(memory).getByRole("heading", { name: "Working profile" })).toBeInTheDocument();
+    expect(within(memory).getByText(
+      "Portable skfiy working profile: Concise Chinese progress updates; Obsidian-style knowledge dashboard."
+    )).toBeInTheDocument();
+    expect(within(memory).getByText("plain-text")).toBeInTheDocument();
     const communicationEvidence = within(memory).getByRole("list", {
       name: "Evidence for Concise Chinese progress updates"
     });
@@ -350,11 +372,13 @@ describe("DashboardApp", () => {
     expect(within(graph).getAllByText("Computer Use").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Concise Chinese progress updates").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Obsidian-style knowledge dashboard").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("Working profile").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Pending user memory").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("injects prompt").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("guides prompt").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("stages").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("awaits approval").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("travels with prompt").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("recalls context").length).toBeGreaterThan(0);
     expect(within(graph).getByRole("list", { name: "Vault notes" })).toBeInTheDocument();
     expect(within(graph).getByText("User preferences.md")).toBeInTheDocument();

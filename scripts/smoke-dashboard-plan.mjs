@@ -282,6 +282,12 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.sessionNodeCount >= 2
     && Number.isInteger(evidence?.personalSkillNodeCount)
     && evidence.personalSkillNodeCount >= 2
+    && Number.isInteger(evidence?.workingProfileNodeCount)
+    && evidence.workingProfileNodeCount >= 1
+    && Number.isInteger(evidence?.workingProfileLinkCount)
+    && evidence.workingProfileLinkCount >= 2
+    && Number.isInteger(evidence?.workingProfileNoteCount)
+    && evidence.workingProfileNoteCount >= 1
     && Number.isInteger(evidence?.pendingMemoryNodeCount)
     && evidence.pendingMemoryNodeCount >= 1
     && Number.isInteger(evidence?.pendingMemoryLinkCount)
@@ -297,6 +303,7 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && Array.isArray(evidence?.focusedNeighborhoodTexts)
     && Array.isArray(evidence?.learningLoopTexts)
     && Array.isArray(evidence?.personalSkillTexts)
+    && Array.isArray(evidence?.workingProfileTexts)
     && evidence.vaultLensTexts.some((text) => typeof text === "string" && text.includes("All"))
     && evidence.vaultLensTexts.some((text) => typeof text === "string" && text.includes("Skill"))
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes(".md"))
@@ -309,14 +316,19 @@ function hasDashboardKnowledgeGraphEvidence(evidence) {
     && evidence.vaultSearchNoteTexts.every((text) => typeof text === "string" && !text.includes("Latest session.md"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Concise Chinese progress updates"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Obsidian-style knowledge dashboard"))
+    && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Working profile"))
     && evidence.nodeTexts.some((text) => typeof text === "string" && text.includes("Pending user memory"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("injects prompt"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("recalls context"))
     && evidence.backlinkTexts.some((text) => typeof text === "string" && text.includes("awaits approval"))
     && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("guides prompt"))
+    && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("travels with prompt"))
     && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("stages"))
     && evidence.linkTexts.some((text) => typeof text === "string" && text.includes("awaits approval"))
     && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Pending user memory.md"))
+    && evidence.vaultNoteTexts.some((text) => typeof text === "string" && text.includes("Working profile.md"))
+    && evidence.workingProfileTexts.some((text) => typeof text === "string" && text.includes("Working profile"))
+    && evidence.workingProfileTexts.some((text) => typeof text === "string" && text.includes("travels with prompt"))
     && evidence.focusedNeighborhoodTexts.some((text) => typeof text === "string" && (
       text.includes("injects prompt")
       || text.includes("guides prompt")

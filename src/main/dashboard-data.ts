@@ -45,6 +45,7 @@ import {
   createPersonalSkillCards,
   readPersonalSkillSettings
 } from "./personal-skills.js";
+import { createWorkingProfile } from "./working-profile.js";
 import {
   readSessionMemoryRecords,
   type SessionMemoryRecord
@@ -377,6 +378,11 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     sessions,
     settings: personalSkillSettings
   });
+  const workingProfile = createWorkingProfile({
+    memory: personalMemory,
+    sessions,
+    personalSkills
+  });
 
   return {
     userEntryCount: personalMemory.userEntries.length,
@@ -398,6 +404,7 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     ...(personalSkills.length > 0
       ? { personalSkills: personalSkills.map(createDashboardPersonalSkillSummary) }
       : {}),
+    ...(workingProfile ? { workingProfile: createDashboardWorkingProfileSummary(workingProfile) } : {}),
     ...(latestSession ? { latestSession: createDashboardSessionSummary(latestSession) } : {}),
     ...(recentSessions.length > 0
       ? { recentSessions: recentSessions.map(createDashboardSessionSummary) }
@@ -583,6 +590,20 @@ function createDashboardPersonalSkillSummary(card: ReturnType<typeof createPerso
     promptHint: sanitizeDashboardMemoryEntry(card.promptHint),
     evidenceCount: card.evidenceCount,
     evidence: card.evidence.map(sanitizeDashboardMemoryEntry)
+  };
+}
+
+function createDashboardWorkingProfileSummary(profile: NonNullable<ReturnType<typeof createWorkingProfile>>): Record<string, unknown> {
+  return {
+    label: profile.label,
+    source: profile.source,
+    portability: profile.portability,
+    summary: sanitizeDashboardMemoryEntry(profile.summary),
+    habits: profile.habits.map(sanitizeDashboardMemoryEntry),
+    evidence: profile.evidence.map(sanitizeDashboardMemoryEntry),
+    memoryEntryCount: profile.memoryEntryCount,
+    sessionCount: profile.sessionCount,
+    skillCount: profile.skillCount
   };
 }
 

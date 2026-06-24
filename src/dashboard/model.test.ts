@@ -25,6 +25,11 @@ describe("readKnowledgeGraph", () => {
         label: "Obsidian-style knowledge dashboard"
       }),
       expect.objectContaining({
+        id: "profile:working",
+        kind: "memory",
+        label: "Working profile"
+      }),
+      expect.objectContaining({
         id: "memory:pending:pmw-review-style",
         kind: "memory",
         label: "Pending user memory",
@@ -38,6 +43,9 @@ describe("readKnowledgeGraph", () => {
       expect.objectContaining({ from: "skill:memory-review", to: "memory:pending:pmw-review-style", label: "stages" }),
       expect.objectContaining({ from: "memory:pending:pmw-review-style", to: "memory:user", label: "awaits approval" }),
       expect.objectContaining({ from: "memory:user", to: "skill:communication-style", label: "distills skill" }),
+      expect.objectContaining({ from: "memory:user", to: "profile:working", label: "shapes profile" }),
+      expect.objectContaining({ from: "profile:working", to: "provider:codex", label: "travels with prompt" }),
+      expect.objectContaining({ from: "skill:dashboard-knowledge-surface", to: "profile:working", label: "summarizes habit" }),
       expect.objectContaining({ from: "skill:communication-style", to: "provider:codex", label: "guides prompt" }),
       expect.objectContaining({ from: "skill:dashboard-knowledge-surface", to: "provider:codex", label: "guides prompt" }),
       expect.objectContaining({ from: "browser:context", to: "session:latest", label: "observed in" }),
@@ -132,6 +140,23 @@ function createSnapshot(): DashboardSnapshot {
           evidence: ["Prefer Obsidian-like dashboard surfaces."]
         }
       ],
+      workingProfile: {
+        label: "Working profile",
+        source: "derived-local-memory",
+        portability: "plain-text",
+        summary: "Portable skfiy working profile: Concise Chinese progress updates; Obsidian-style knowledge dashboard.",
+        habits: [
+          "Use concise Chinese progress updates.",
+          "Favor linked memory, sessions, skills, and graph/canvas evidence over control-plane panels."
+        ],
+        evidence: [
+          "User prefers concise Chinese updates.",
+          "Prefer Obsidian-like dashboard surfaces."
+        ],
+        memoryEntryCount: 2,
+        sessionCount: 3,
+        skillCount: 2
+      },
       recentSessions: [
         {
           createdAt: "2026-06-23T12:00:00.000Z",

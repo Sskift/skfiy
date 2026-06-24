@@ -843,6 +843,7 @@ function PersonalMemoryPanel({
           onMute={(skill) => onMuteSkill({ action: "mute", skillId: skill.id })}
           skills={personalSkills}
         />
+        <WorkingProfilePanel profile={memory?.workingProfile} />
         <RecentSessionRecallList sessions={memory?.recentSessions ?? []} />
         <p
           aria-live="polite"
@@ -853,6 +854,50 @@ function PersonalMemoryPanel({
         </p>
       </Card.Content>
     </Card.Root>
+  );
+}
+
+function WorkingProfilePanel({
+  profile
+}: {
+  profile: DashboardPersonalMemorySummary["workingProfile"];
+}) {
+  if (!profile) {
+    return null;
+  }
+
+  return (
+    <div className="skfiy-dashboard-key-value-list skfiy-dashboard-working-profile">
+      <h3>Working profile</h3>
+      <div className="skfiy-dashboard-inline-list" aria-label="Working profile status">
+        <StatusChip tone="success">{profile.source}</StatusChip>
+        <StatusChip tone="neutral">{profile.portability}</StatusChip>
+        <StatusChip tone="neutral">profile memory {profile.memoryEntryCount}</StatusChip>
+        <StatusChip tone="neutral">profile sessions {profile.sessionCount}</StatusChip>
+        <StatusChip tone="neutral">profile skills {profile.skillCount}</StatusChip>
+      </div>
+      <p>{profile.summary}</p>
+      {profile.habits.length > 0 ? (
+        <ul aria-label="Working profile habits">
+          {profile.habits.map((habit) => (
+            <li key={habit}>
+              <span>{habit}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {profile.evidence.length > 0 ? (
+        <div
+          aria-label="Working profile evidence"
+          className="skfiy-dashboard-personal-skill-evidence"
+          role="list"
+        >
+          {profile.evidence.map((evidence) => (
+            <span key={evidence} role="listitem">{evidence}</span>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

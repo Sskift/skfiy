@@ -21,7 +21,7 @@
 - Chrome extension pageControl can report current tab readiness and run observe/click/fill/submit/scroll paths, but Pet Agent prompts do not yet receive bounded real webpage context.
 - Dashboard already has snapshot/provider/browser panels, but it needs to become the readable operator surface for these capabilities, not a raw diagnostics page.
 - Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clone `5ecf3bf` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop.
-- Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, and Hermes-style atomic memory batch writes; Task 9 adds user-visible removal for incorrect remembered preferences. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
+- Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, Hermes-style atomic memory batch writes, and a derived prompt-safe Working profile that makes learned habits portable, reviewable, and available to real provider prompts; Task 9 adds user-visible removal for incorrect remembered preferences. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
 - Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
 - Obsidian-inspired dashboard gap: Dashboard is still a control plane. It should gain a knowledge surface that shows remembered preferences, sessions, skills, Browser Context, and Computer Use evidence as linked local-first nodes with a local graph/canvas feel.
 
@@ -39,6 +39,7 @@
 - `src/main/personal-memory-review.ts`: new bounded post-turn reviewer that proposes durable user preference updates.
 - `src/main/personalization-learning-loop.ts`: tested post-turn personalization coordinator that records sessions, runs review/fallback extraction, and applies or stages memory writes.
 - `src/main/session-memory.ts`: new local searchable chat/session event index for cross-session recall.
+- `src/main/working-profile.ts`: local derived Working profile that condenses memory, sessions, and personal skill cards into a plain-text portable user model.
 - `src/main/browser-page-context.ts`: new bounded Chrome page context reader for agent prompts.
 - `src/main/chrome-extension-*.ts`: existing Chrome extension diagnostics and pageControl bridge.
 - `chrome-extension/background.js`: MV3 pageControl worker.
@@ -1119,6 +1120,23 @@ Focused verification:
 
 ```bash
 npx vitest run src/main/personal-skills.test.ts src/main/assistant-agent.test.ts src/main/dashboard-data.test.ts src/dashboard/model.test.ts src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
+- [x] **Step 8a: Add portable Working profile from local personalization**
+
+In `src/main/working-profile.ts`, `src/main/dashboard-data.ts`, `src/dashboard/contracts.ts`, `src/dashboard/model.ts`, `src/dashboard/DashboardApp.tsx`, and Dashboard smoke files:
+
+- Derive a read-only `Working profile` from USER/AGENT memory, recent sessions, and personal skill cards.
+- Keep the profile plain-text, prompt-safe, and token/secret redacted; it is a portable user model, not a new mutation surface.
+- Inject the profile into real Background Agent prompts after personal skills and before Browser Context/User input.
+- Show the profile in Dashboard Memory and as `Working profile.md` in the Obsidian-inspired Knowledge graph.
+- Connect memory/session/skill evidence to the profile and the profile to the selected Background Agent with `travels with prompt`.
+- Extend dashboard smoke evidence so screenshot probes must collect `workingProfileNodeCount`, `workingProfileLinkCount`, `workingProfileNoteCount`, and `travels with prompt` links.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/working-profile.test.ts src/main/dashboard-data.test.ts src/dashboard/model.test.ts src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
 - [x] **Step 9: Add vault lens and focused neighborhood**

@@ -22,6 +22,10 @@ import {
   type SessionMemoryRecord
 } from "./session-memory.js";
 import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
+import {
+  createWorkingProfile,
+  createWorkingProfilePromptBlock
+} from "./working-profile.js";
 
 export type AssistantAgentMode = "codex" | "claude-code" | "hermes";
 export type AssistantAgentProviderId = AssistantAgentMode;
@@ -697,12 +701,25 @@ function createAssistantAgentPrompt(
   const recalledSessionsBlock = recalledSessions
     ? createSessionMemoryPromptBlock(recalledSessions)
     : "";
-  const personalSkillsBlock = personalMemory
-    ? createPersonalSkillsPromptBlock(createPersonalSkillCards({
+  const personalSkillCards = personalMemory
+    ? createPersonalSkillCards({
       memory: personalMemory,
       sessions: recalledSessions ?? [],
       settings: personalSkillSettings
-    }))
+    })
+    : [];
+  const personalSkillsBlock = personalSkillCards.length > 0
+    ? createPersonalSkillsPromptBlock(personalSkillCards)
+    : "";
+  const workingProfile = personalMemory
+    ? createWorkingProfile({
+      memory: personalMemory,
+      sessions: recalledSessions ?? [],
+      personalSkills: personalSkillCards
+    })
+    : undefined;
+  const workingProfileBlock = workingProfile
+    ? createWorkingProfilePromptBlock(workingProfile)
     : "";
 
   return [
@@ -710,6 +727,7 @@ function createAssistantAgentPrompt(
     ...(personalMemoryBlock ? [personalMemoryBlock, ""] : []),
     ...(recalledSessionsBlock ? [recalledSessionsBlock, ""] : []),
     ...(personalSkillsBlock ? [personalSkillsBlock, ""] : []),
+    ...(workingProfileBlock ? [workingProfileBlock, ""] : []),
     ...(browserPageContext ? [createBrowserPageContextPromptBlock(browserPageContext), ""] : []),
     `User: ${userInput.trim()}`
   ].join("\n");

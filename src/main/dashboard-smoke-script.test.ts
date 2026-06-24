@@ -734,6 +734,9 @@ describe("dashboard product smoke script", () => {
         learningLoopCount: 4,
         sessionNodeCount: 2,
         personalSkillNodeCount: 2,
+        workingProfileNodeCount: 1,
+        workingProfileLinkCount: 3,
+        workingProfileNoteCount: 1,
         pendingMemoryNodeCount: 1,
         pendingMemoryLinkCount: 2,
         fallbackTextOverlap: false,
@@ -741,6 +744,7 @@ describe("dashboard product smoke script", () => {
           "User preferencesmemoryUser prefers concise Chinese updates.",
           "Concise Chinese progress updatesskillcommunication",
           "Obsidian-style knowledge dashboardskilldashboard",
+          "Working profilememoryPortable skfiy working profile",
           "Pending user memorymemoryadd · User wants memory writes reviewed before becoming durable.",
           "Latest sessionsessionCodex: hello",
           "Codexprovidersready",
@@ -751,6 +755,8 @@ describe("dashboard product smoke script", () => {
           "injects promptUser preferences -> Codex",
           "guides promptConcise Chinese progress updates -> Codex",
           "guides promptObsidian-style knowledge dashboard -> Codex",
+          "travels with promptWorking profile -> Codex",
+          "shapes profileUser preferences -> Working profile",
           "stagesMemory review -> Pending user memory",
           "awaits approvalPending user memory -> User preferences",
           "recalls contextLatest session -> Codex",
@@ -758,6 +764,7 @@ describe("dashboard product smoke script", () => {
         ],
         backlinkTexts: [
           "User preferencesinjects promptCodex",
+          "Working profiletravels with promptCodex",
           "Pending user memoryawaits approvalUser preferences",
           "Memory reviewstagesPending user memory",
           "Latest sessionrecalls contextCodex",
@@ -767,11 +774,17 @@ describe("dashboard product smoke script", () => {
           "Latest session -> teaches -> Memory review",
           "Memory review -> distills -> User preferences",
           "User preferences -> injects prompt -> Codex",
+          "Working profile -> travels with prompt -> Codex",
           "Codex -> answered -> Latest session"
         ],
         personalSkillTexts: [
           "Concise Chinese progress updatesskillcommunication",
           "Obsidian-style knowledge dashboardskilldashboard"
+        ],
+        workingProfileTexts: [
+          "Working profilememoryPortable skfiy working profile",
+          "travels with promptWorking profile -> Codex",
+          "Working profile.mdmemoryBacklinks 3User preferences -> shapes profile"
         ],
         vaultLensTexts: [
           "All 8",
@@ -785,6 +798,7 @@ describe("dashboard product smoke script", () => {
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 2injects prompt -> CodexPending user memory -> awaits approval",
           "Pending user memory.mdmemoryBacklinks 2Memory review -> stagesawaits approval -> User preferences",
+          "Working profile.mdmemoryBacklinks 3User preferences -> shapes profileWorking profile -> travels with prompt",
           "Latest session.mdsessionBacklinks 2recalls context -> CodexBrowser Context -> observed in"
         ],
         focusedBacklinkTexts: [
@@ -1181,12 +1195,16 @@ describe("dashboard product smoke script", () => {
         backlinkCount: 6,
         learningLoopCount: 4,
         personalSkillNodeCount: 2,
+        workingProfileNodeCount: 1,
+        workingProfileLinkCount: 3,
+        workingProfileNoteCount: 1,
         pendingMemoryNodeCount: 1,
         pendingMemoryLinkCount: 2,
         nodeTexts: [
           "User preferencesmemoryUser prefers concise Chinese updates.",
           "Concise Chinese progress updatesskillcommunication",
           "Obsidian-style knowledge dashboardskilldashboard",
+          "Working profilememoryPortable skfiy working profile",
           "Pending user memorymemoryadd · User wants memory writes reviewed before becoming durable.",
           "Latest sessionsessionCodex: hello",
           "Codexprovidersready",
@@ -1197,6 +1215,8 @@ describe("dashboard product smoke script", () => {
           "injects promptUser preferences -> Codex",
           "guides promptConcise Chinese progress updates -> Codex",
           "guides promptObsidian-style knowledge dashboard -> Codex",
+          "travels with promptWorking profile -> Codex",
+          "shapes profileUser preferences -> Working profile",
           "recalls contextLatest session -> Codex",
           "distillsMemory review -> User preferences",
           "stagesMemory review -> Pending user memory",
@@ -1204,6 +1224,7 @@ describe("dashboard product smoke script", () => {
         ],
         backlinkTexts: [
           "User preferencesinjects promptCodex",
+          "Working profiletravels with promptCodex",
           "Latest sessionrecalls contextCodex",
           "Memory reviewdistillsUser preferences",
           "Memory reviewstagesPending user memory",
@@ -1213,15 +1234,22 @@ describe("dashboard product smoke script", () => {
           "Latest session -> teaches -> Memory review",
           "Memory review -> distills -> User preferences",
           "User preferences -> injects prompt -> Codex",
+          "Working profile -> travels with prompt -> Codex",
           "Codex -> answered -> Latest session"
         ],
         personalSkillTexts: [
           "Concise Chinese progress updatesskillcommunication",
           "Obsidian-style knowledge dashboardskilldashboard"
         ],
+        workingProfileTexts: [
+          "Working profilememoryPortable skfiy working profile",
+          "travels with promptWorking profile -> Codex",
+          "Working profile.mdmemoryBacklinks 3User preferences -> shapes profile"
+        ],
         vaultNoteTexts: [
           "User preferences.mdmemoryBacklinks 2injects prompt -> CodexMemory review -> distills",
           "Pending user memory.mdmemoryBacklinks 2Memory review -> stagesawaits approval -> User preferences",
+          "Working profile.mdmemoryBacklinks 3User preferences -> shapes profileWorking profile -> travels with prompt",
           "Latest session.mdsessionBacklinks 1recalls context -> Codex",
           "Memory review.mdskillBacklinks 1distills -> User preferences"
         ],
@@ -1247,6 +1275,19 @@ describe("dashboard product smoke script", () => {
         focusedNeighborhoodTexts: passedEvidence.knowledgeGraphEvidence.focusedNeighborhoodTexts.filter((text) => (
           !text.includes("Pending user memory")
         ))
+      }
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      knowledgeGraphEvidence: {
+        ...passedEvidence.knowledgeGraphEvidence,
+        workingProfileNodeCount: 0,
+        workingProfileLinkCount: 0,
+        workingProfileNoteCount: 0,
+        workingProfileTexts: [],
+        nodeTexts: passedEvidence.knowledgeGraphEvidence.nodeTexts.filter((text) => !text.includes("Working profile")),
+        linkTexts: passedEvidence.knowledgeGraphEvidence.linkTexts.filter((text) => !text.includes("profile") && !text.includes("travels with prompt")),
+        vaultNoteTexts: passedEvidence.knowledgeGraphEvidence.vaultNoteTexts.filter((text) => !text.includes("Working profile"))
       }
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({

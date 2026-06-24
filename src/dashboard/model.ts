@@ -153,6 +153,7 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
   const providerId = `provider:${sanitizeNodeId(assistantProvider?.mode ?? assistant.value)}`;
   const personalMemory = snapshot.personalMemory;
   const pendingMemoryWrites = personalMemory?.pendingWrites ?? [];
+  const workingProfile = personalMemory?.workingProfile;
   const browserContext = readBrowserContextSummary(snapshot);
   const computerUse = readComputerUseReadiness(snapshot);
   const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
@@ -307,6 +308,33 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
         pushEdge(edges, { from: node.id, to: skillId, label: "teaches" });
       });
     pushEdge(edges, { from: skillId, to: providerId, label: "guides prompt" });
+  }
+
+  if (workingProfile) {
+    pushNode(nodes, {
+      id: "profile:working",
+      label: workingProfile.label,
+      kind: "memory",
+      tone: "success",
+      detail: workingProfile.summary
+    });
+    if (nodes.some((node) => node.id === "memory:user")) {
+      pushEdge(edges, { from: "memory:user", to: "profile:working", label: "shapes profile" });
+    }
+    if (nodes.some((node) => node.id === "memory:agent")) {
+      pushEdge(edges, { from: "memory:agent", to: "profile:working", label: "shapes profile" });
+    }
+    nodes
+      .filter((node) => node.kind === "session")
+      .forEach((node) => {
+        pushEdge(edges, { from: node.id, to: "profile:working", label: "teaches profile" });
+      });
+    nodes
+      .filter((node) => node.kind === "skill" && node.id !== "skill:memory-review")
+      .forEach((node) => {
+        pushEdge(edges, { from: node.id, to: "profile:working", label: "summarizes habit" });
+      });
+    pushEdge(edges, { from: "profile:working", to: providerId, label: "travels with prompt" });
   }
 
   if (browserContext.state !== "missing") {
