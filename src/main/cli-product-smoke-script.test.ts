@@ -23,7 +23,9 @@ describe("CLI product smoke script", () => {
     expect(source).toContain("acquireSmokeLock");
     expect(source).toContain("launchLongRunningCommand");
     expect(source).toContain("collectProviderPromptContract");
+    expect(source).toContain("collectRealTurnIdentityContract");
     expect(source).toContain("collectPersonalMemoryFallbackContract");
+    expect(source).toContain("collectPostTurnPersonalizationContract");
   });
 
   it("parses CLI smoke options for a repeatable binary product run", async () => {
@@ -129,7 +131,9 @@ describe("CLI product smoke script", () => {
       profile: "full",
       commands: CLI_COMMAND_MATRIX.map((command) => createPassingCommandEvidence(command)),
       providerPromptContract: createPassingProviderPromptContract(),
+      realTurnIdentityContract: createPassingRealTurnIdentityContract(),
       personalMemoryFallbackContract: createPassingPersonalMemoryFallbackContract(),
+      postTurnPersonalizationContract: createPassingPostTurnPersonalizationContract(),
       result: "passed"
     };
     const basicEvidence = {
@@ -205,6 +209,28 @@ describe("CLI product smoke script", () => {
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
+      realTurnIdentityContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      realTurnIdentityContract: {
+        ...createPassingRealTurnIdentityContract(),
+        providers: createPassingRealTurnIdentityContract().providers.map((provider) => provider.mode === "claude-code"
+          ? { ...provider, identityChannel: "query-prompt" }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      realTurnIdentityContract: {
+        ...createPassingRealTurnIdentityContract(),
+        providers: createPassingRealTurnIdentityContract().providers.map((provider) => provider.mode === "hermes"
+          ? { ...provider, runnerSawSkfiyIdentity: false }
+          : provider)
+      }
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
       providerPromptContract: {
         ...createPassingProviderPromptContract(),
         providers: createPassingProviderPromptContract().providers.map((provider) => provider.mode === "hermes"
@@ -224,6 +250,20 @@ describe("CLI product smoke script", () => {
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
       personalMemoryFallbackContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      postTurnPersonalizationContract: undefined
+    })).toBe("failed");
+    expect(classifyCliSmokeEvidence({
+      ...passedEvidence,
+      postTurnPersonalizationContract: {
+        ...createPassingPostTurnPersonalizationContract(),
+        stagedWhenApprovalEnabled: {
+          ...createPassingPostTurnPersonalizationContract().stagedWhenApprovalEnabled,
+          durableUserEntryCount: 1
+        }
+      }
     })).toBe("failed");
     expect(classifyCliSmokeEvidence({
       ...passedEvidence,
@@ -495,6 +535,55 @@ function createPassingProviderPromptContract() {
   };
 }
 
+function createPassingRealTurnIdentityContract() {
+  return {
+    productPath: "dist/main/assistant-agent.js -> runAssistantAgentTurn -> real provider identity contract",
+    result: "passed",
+    tokenLeakDetected: false,
+    providers: [
+      {
+        mode: "codex",
+        label: "Codex",
+        commandBasename: "codex",
+        status: "completed",
+        identityChannel: "query-prompt",
+        runnerSawSkfiyIdentity: true,
+        runnerSawUserPrompt: true,
+        skfiyIdentityBeforeUser: true,
+        providerBoundaryPresent: true,
+        responseProviderLabel: "Codex",
+        responseMessage: "我是 skfiy。"
+      },
+      {
+        mode: "claude-code",
+        label: "Claude Code",
+        commandBasename: "claude",
+        status: "completed",
+        identityChannel: "system-prompt",
+        runnerSawSkfiyIdentity: true,
+        runnerSawUserPrompt: true,
+        userPromptHasNoDuplicateIdentity: true,
+        providerBoundaryPresent: true,
+        responseProviderLabel: "Claude Code",
+        responseMessage: "我是 skfiy。"
+      },
+      {
+        mode: "hermes",
+        label: "Hermes",
+        commandBasename: "hermes",
+        status: "completed",
+        identityChannel: "query-prompt",
+        runnerSawSkfiyIdentity: true,
+        runnerSawUserPrompt: true,
+        skfiyIdentityBeforeUser: true,
+        providerBoundaryPresent: true,
+        responseProviderLabel: "Hermes",
+        responseMessage: "我是 skfiy。"
+      }
+    ]
+  };
+}
+
 function createPassingPersonalMemoryFallbackContract() {
   return {
     productPath: "dist/main/personal-memory-review.js -> createFallbackPersonalMemoryOperations -> local memory fallback contract",
@@ -533,6 +622,29 @@ function createPassingPersonalMemoryFallbackContract() {
     },
     duplicatePreference: {
       operationCount: 0
+    }
+  };
+}
+
+function createPassingPostTurnPersonalizationContract() {
+  return {
+    productPath: "dist/main/personalization-learning-loop.js -> recordCompletedAssistantTurnForPersonalization -> post-turn learning contract",
+    result: "passed",
+    tokenLeakDetected: false,
+    durableReviewWrite: {
+      sessionCount: 1,
+      durableUserEntries: ["User prefers dense Obsidian-like dashboard surfaces."],
+      reviewPromptIncludesDurableInstruction: true,
+      reviewPromptReceivesExistingMemory: true
+    },
+    fallbackWrite: {
+      durableUserEntries: ["User prefers concise Chinese progress updates."]
+    },
+    stagedWhenApprovalEnabled: {
+      durableUserEntryCount: 0,
+      pendingWriteCount: 1,
+      pendingSource: "post-turn-review",
+      pendingContent: "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
     }
   };
 }

@@ -141,7 +141,9 @@ export function classifyCliSmokeEvidence(evidence) {
     || !Array.isArray(evidence.commands)
     || evidence.commands.length !== expectedMatrix.length
     || !hasProviderPromptContractEvidence(evidence.providerPromptContract)
+    || !hasRealTurnIdentityContractEvidence(evidence.realTurnIdentityContract)
     || !hasPersonalMemoryFallbackContractEvidence(evidence.personalMemoryFallbackContract)
+    || !hasPostTurnPersonalizationContractEvidence(evidence.postTurnPersonalizationContract)
   ) {
     return "failed";
   }
@@ -459,6 +461,58 @@ function hasProviderContract(providers, expected) {
     && provider?.[expected.requiredSafetyField] === true;
 }
 
+function hasRealTurnIdentityContractEvidence(contract) {
+  if (
+    contract?.productPath !== "dist/main/assistant-agent.js -> runAssistantAgentTurn -> real provider identity contract"
+    || contract?.result !== "passed"
+    || contract?.tokenLeakDetected !== false
+    || !Array.isArray(contract?.providers)
+  ) {
+    return false;
+  }
+
+  return hasRealTurnProviderContract(contract.providers, {
+    mode: "codex",
+    label: "Codex",
+    commandBasename: "codex",
+    identityChannel: "query-prompt"
+  })
+    && hasRealTurnProviderContract(contract.providers, {
+      mode: "claude-code",
+      label: "Claude Code",
+      commandBasename: "claude",
+      identityChannel: "system-prompt"
+    })
+    && hasRealTurnProviderContract(contract.providers, {
+      mode: "hermes",
+      label: "Hermes",
+      commandBasename: "hermes",
+      identityChannel: "query-prompt"
+    });
+}
+
+function hasRealTurnProviderContract(providers, expected) {
+  const provider = providers.find((candidate) => candidate?.mode === expected.mode);
+
+  return provider?.label === expected.label
+    && provider?.commandBasename === expected.commandBasename
+    && provider?.status === "completed"
+    && provider?.identityChannel === expected.identityChannel
+    && provider?.runnerSawSkfiyIdentity === true
+    && provider?.runnerSawUserPrompt === true
+    && provider?.providerBoundaryPresent === true
+    && provider?.responseProviderLabel === expected.label
+    && provider?.responseMessage === "我是 skfiy。"
+    && (
+      expected.identityChannel === "system-prompt"
+      || provider?.skfiyIdentityBeforeUser === true
+    )
+    && (
+      expected.mode !== "claude-code"
+      || provider?.userPromptHasNoDuplicateIdentity === true
+    );
+}
+
 function hasPersonalMemoryFallbackContractEvidence(contract) {
   const explicitOperations = contract?.explicitPreference?.operations;
   const dashboardStyleOperations = contract?.dashboardStylePreference?.operations;
@@ -502,6 +556,23 @@ function hasPersonalMemoryFallbackContractEvidence(contract) {
     && contract?.secretLikeRequest?.operationCount === 0
     && contract?.oneOffRequest?.operationCount === 0
     && contract?.duplicatePreference?.operationCount === 0;
+}
+
+function hasPostTurnPersonalizationContractEvidence(contract) {
+  return contract?.productPath === "dist/main/personalization-learning-loop.js -> recordCompletedAssistantTurnForPersonalization -> post-turn learning contract"
+    && contract?.result === "passed"
+    && contract?.tokenLeakDetected === false
+    && contract?.durableReviewWrite?.sessionCount === 1
+    && Array.isArray(contract?.durableReviewWrite?.durableUserEntries)
+    && contract.durableReviewWrite.durableUserEntries.includes("User prefers dense Obsidian-like dashboard surfaces.")
+    && contract?.durableReviewWrite?.reviewPromptIncludesDurableInstruction === true
+    && contract?.durableReviewWrite?.reviewPromptReceivesExistingMemory === true
+    && Array.isArray(contract?.fallbackWrite?.durableUserEntries)
+    && contract.fallbackWrite.durableUserEntries.includes("User prefers concise Chinese progress updates.")
+    && contract?.stagedWhenApprovalEnabled?.durableUserEntryCount === 0
+    && contract?.stagedWhenApprovalEnabled?.pendingWriteCount === 1
+    && contract?.stagedWhenApprovalEnabled?.pendingSource === "post-turn-review"
+    && contract?.stagedWhenApprovalEnabled?.pendingContent === "User prefers dense Obsidian-like knowledge surfaces for dashboard work.";
 }
 
 function hasTokenLeak(parts) {

@@ -39,7 +39,9 @@ async function main() {
     artifactPath: options.outputPath,
     commands: [],
     providerPromptContract: undefined,
+    realTurnIdentityContract: undefined,
     personalMemoryFallbackContract: undefined,
+    postTurnPersonalizationContract: undefined,
     result: "not-run"
   };
   let smokeLock;
@@ -48,7 +50,9 @@ async function main() {
     assertCliSmokeReady(options);
     await prepareIsolatedHome(options);
     evidence.providerPromptContract = await collectProviderPromptContract();
+    evidence.realTurnIdentityContract = await collectRealTurnIdentityContract();
     evidence.personalMemoryFallbackContract = await collectPersonalMemoryFallbackContract();
+    evidence.postTurnPersonalizationContract = await collectPostTurnPersonalizationContract();
     smokeLock = await acquireSmokeLock({
       rootDir: ROOT_DIR,
       scriptName: "smoke:cli"
@@ -185,6 +189,136 @@ async function collectProviderPromptContract() {
   };
 }
 
+async function collectRealTurnIdentityContract() {
+  const modulePath = path.join(ROOT_DIR, "dist", "main", "assistant-agent.js");
+  const productPath = "dist/main/assistant-agent.js -> runAssistantAgentTurn -> real provider identity contract";
+  const { runAssistantAgentTurn } = await import(pathToFileURL(modulePath).href);
+  const providers = await Promise.all([
+    collectRealTurnIdentityProviderContract(runAssistantAgentTurn, {
+      mode: "codex",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
+      cwd: ROOT_DIR,
+      timeoutMs: 45_000
+    }),
+    collectRealTurnIdentityProviderContract(runAssistantAgentTurn, {
+      mode: "claude-code",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
+      cwd: ROOT_DIR,
+      timeoutMs: 45_000
+    }),
+    collectRealTurnIdentityProviderContract(runAssistantAgentTurn, {
+      mode: "hermes",
+      codexBinary: "codex",
+      codexBinarySource: "default",
+      claudeCodeBinary: "claude",
+      claudeCodeBinarySource: "default",
+      hermesBinary: "hermes",
+      hermesBinarySource: "default",
+      cwd: ROOT_DIR,
+      timeoutMs: 45_000
+    })
+  ]);
+  const tokenLeakDetected = hasTokenLeak(providers.map((provider) => JSON.stringify(provider)));
+  const passed = providers.length === 3
+    && providers.every((provider) => (
+      provider.status === "completed"
+      && provider.runnerSawSkfiyIdentity
+      && provider.runnerSawUserPrompt
+      && provider.providerBoundaryPresent
+      && provider.responseProviderLabel === provider.label
+      && provider.responseMessage === "我是 skfiy。"
+      && (
+        provider.identityChannel === "system-prompt"
+        || provider.skfiyIdentityBeforeUser
+      )
+      && (
+        provider.mode !== "claude-code"
+        || (
+          provider.identityChannel === "system-prompt"
+          && provider.userPromptHasNoDuplicateIdentity
+        )
+      )
+      && (
+        provider.mode === "claude-code"
+        || provider.identityChannel === "query-prompt"
+      )
+    ))
+    && !tokenLeakDetected;
+
+  return {
+    productPath,
+    modulePath,
+    providers,
+    tokenLeakDetected,
+    result: passed ? "passed" : "failed"
+  };
+}
+
+async function collectRealTurnIdentityProviderContract(runAssistantAgentTurn, settings) {
+  const userInput = "你是谁";
+  let capturedCommand = "";
+  let capturedArgs = [];
+  let capturedOptions;
+  const turn = await runAssistantAgentTurn(userInput, {
+    settings,
+    runProcess: async (command, args, options) => {
+      capturedCommand = command;
+      capturedArgs = args;
+      capturedOptions = options;
+      return {
+        stdout: "我是 skfiy。\n",
+        stderr: ""
+      };
+    },
+    now: () => new Date("2026-06-24T08:00:00.000Z"),
+    createTurnId: () => `real-turn-identity-${settings.mode}`
+  });
+  const invocation = {
+    command: capturedCommand,
+    args: capturedArgs,
+    label: turn.providerLabel
+  };
+  const prompt = readInvocationPrompt(invocation);
+  const systemPrompt = readInvocationSystemPrompt(invocation);
+  const identityChannel = settings.mode === "claude-code" ? "system-prompt" : "query-prompt";
+  const identityPrompt = identityChannel === "system-prompt" ? systemPrompt : prompt;
+  const identityIndex = identityPrompt.indexOf("The speaking assistant identity for this conversation is skfiy.");
+  const userIndex = prompt.indexOf(`User: ${userInput}`);
+
+  return {
+    mode: settings.mode,
+    label: turn.providerLabel,
+    commandBasename: path.basename(capturedCommand),
+    status: turn.status,
+    identityChannel,
+    runnerSawSkfiyIdentity: identityPrompt.includes("You are skfiy")
+      && identityPrompt.includes("The speaking assistant identity for this conversation is skfiy.")
+      && identityPrompt.includes("When asked who you are, answer as skfiy."),
+    runnerSawUserPrompt: prompt.includes(`User: ${userInput}`),
+    skfiyIdentityBeforeUser: identityIndex >= 0 && userIndex > identityIndex,
+    userPromptHasNoDuplicateIdentity: settings.mode === "claude-code"
+      ? !prompt.includes("The speaking assistant identity for this conversation is skfiy.")
+      : undefined,
+    providerBoundaryPresent: identityPrompt.includes("Codex, Claude Code, and Hermes are only backend providers used to run this turn.")
+      && identityPrompt.includes("Treat Codex, Claude Code, and Hermes as internal backend implementation details.")
+      && identityPrompt.includes("Do not introduce yourself as Codex, Claude Code, Hermes"),
+    responseProviderLabel: turn.providerLabel,
+    responseMessage: turn.message,
+    runnerCwdIsProductRoot: capturedOptions?.cwd === ROOT_DIR,
+    runnerTimeoutMs: capturedOptions?.timeoutMs
+  };
+}
+
 async function collectPersonalMemoryFallbackContract() {
   const modulePath = path.join(ROOT_DIR, "dist", "main", "personal-memory-review.js");
   const productPath = "dist/main/personal-memory-review.js -> createFallbackPersonalMemoryOperations -> local memory fallback contract";
@@ -293,6 +427,242 @@ function summarizeMemoryFallbackOperations(operations) {
       target: operation.target,
       content: operation.content
     }))
+  };
+}
+
+async function collectPostTurnPersonalizationContract() {
+  const modulePath = path.join(ROOT_DIR, "dist", "main", "personalization-learning-loop.js");
+  const productPath = "dist/main/personalization-learning-loop.js -> recordCompletedAssistantTurnForPersonalization -> post-turn learning contract";
+  const [
+    { recordCompletedAssistantTurnForPersonalization },
+    { createPersonalMemoryStore },
+    { createPendingPersonalMemoryStore },
+    { createSessionMemoryStore }
+  ] = await Promise.all([
+    import(pathToFileURL(modulePath).href),
+    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "personal-memory.js")).href),
+    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "personal-memory-pending.js")).href),
+    import(pathToFileURL(path.join(ROOT_DIR, "dist", "main", "session-memory.js")).href)
+  ]);
+  const durableReviewWrite = await collectDurableReviewWrite({
+    recordCompletedAssistantTurnForPersonalization,
+    createPersonalMemoryStore,
+    createSessionMemoryStore
+  });
+  const fallbackWrite = await collectFallbackWrite({
+    recordCompletedAssistantTurnForPersonalization,
+    createPersonalMemoryStore,
+    createSessionMemoryStore
+  });
+  const stagedWhenApprovalEnabled = await collectStagedWhenApprovalEnabled({
+    recordCompletedAssistantTurnForPersonalization,
+    createPersonalMemoryStore,
+    createPendingPersonalMemoryStore,
+    createSessionMemoryStore
+  });
+  const tokenLeakDetected = hasTokenLeak([
+    JSON.stringify(durableReviewWrite),
+    JSON.stringify(fallbackWrite),
+    JSON.stringify(stagedWhenApprovalEnabled)
+  ]);
+  const passed = durableReviewWrite.sessionCount === 1
+    && durableReviewWrite.durableUserEntries.includes("User prefers dense Obsidian-like dashboard surfaces.")
+    && durableReviewWrite.reviewPromptIncludesDurableInstruction
+    && durableReviewWrite.reviewPromptReceivesExistingMemory
+    && fallbackWrite.durableUserEntries.includes("User prefers concise Chinese progress updates.")
+    && stagedWhenApprovalEnabled.durableUserEntryCount === 0
+    && stagedWhenApprovalEnabled.pendingWriteCount === 1
+    && stagedWhenApprovalEnabled.pendingSource === "post-turn-review"
+    && stagedWhenApprovalEnabled.pendingContent === "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+    && !tokenLeakDetected;
+
+  return {
+    productPath,
+    modulePath,
+    durableReviewWrite,
+    fallbackWrite,
+    stagedWhenApprovalEnabled,
+    tokenLeakDetected,
+    result: passed ? "passed" : "failed"
+  };
+}
+
+async function collectDurableReviewWrite({
+  recordCompletedAssistantTurnForPersonalization,
+  createPersonalMemoryStore,
+  createSessionMemoryStore
+}) {
+  const files = new Map();
+  const memoryStore = createPersonalMemoryStore({
+    baseDir: "/tmp/skfiy-cli-post-turn-contract",
+    io: createMemoryIo(files)
+  });
+  const sessionMemoryStore = createSessionMemoryStore({
+    baseDir: "/tmp/skfiy-cli-post-turn-contract",
+    io: createSessionIo(files)
+  });
+  let reviewPrompt = "";
+  let reviewPersonalMemory;
+
+  await recordCompletedAssistantTurnForPersonalization({
+    userInput: "以后 dashboard 要有 Obsidian 那种视觉冲击。",
+    turn: createCompletedTurn("turn-durable-review", "Codex", "我会记下这个偏好。"),
+    browserPageContext: {
+      state: "ready",
+      url: "https://example.test/dashboard",
+      title: "Dashboard brief"
+    },
+    memoryStore,
+    sessionMemoryStore,
+    runReviewTurn: async (prompt, { personalMemory }) => {
+      reviewPrompt = prompt;
+      reviewPersonalMemory = personalMemory;
+      return createCompletedTurn(
+        "turn-memory-review",
+        "Hermes",
+        `{"operations":[{"action":"add","target":"user","content":"User prefers dense Obsidian-like dashboard surfaces."}]}`
+      );
+    }
+  });
+
+  return {
+    sessionCount: sessionMemoryStore.readAll().length,
+    durableUserEntries: memoryStore.read().userEntries,
+    reviewPromptIncludesDurableInstruction: reviewPrompt.includes("durable user preferences"),
+    reviewPromptReceivesExistingMemory: Array.isArray(reviewPersonalMemory?.userEntries)
+      && Array.isArray(reviewPersonalMemory?.agentEntries)
+  };
+}
+
+async function collectFallbackWrite({
+  recordCompletedAssistantTurnForPersonalization,
+  createPersonalMemoryStore,
+  createSessionMemoryStore
+}) {
+  const files = new Map();
+  const memoryStore = createPersonalMemoryStore({
+    baseDir: "/tmp/skfiy-cli-fallback-contract",
+    io: createMemoryIo(files)
+  });
+  const sessionMemoryStore = createSessionMemoryStore({
+    baseDir: "/tmp/skfiy-cli-fallback-contract",
+    io: createSessionIo(files)
+  });
+
+  await recordCompletedAssistantTurnForPersonalization({
+    userInput: "以后进度更新短一点，中文就好",
+    turn: createCompletedTurn("turn-fallback", "Hermes", "好的，我会更简洁。"),
+    browserPageContext: {
+      state: "blocked",
+      reason: "no browser context"
+    },
+    memoryStore,
+    sessionMemoryStore,
+    runReviewTurn: async () => createCompletedTurn("turn-memory-review", "Hermes", `{"operations":[]}`)
+  });
+
+  return {
+    durableUserEntries: memoryStore.read().userEntries
+  };
+}
+
+async function collectStagedWhenApprovalEnabled({
+  recordCompletedAssistantTurnForPersonalization,
+  createPersonalMemoryStore,
+  createPendingPersonalMemoryStore,
+  createSessionMemoryStore
+}) {
+  const files = new Map();
+  const memoryStore = createPersonalMemoryStore({
+    baseDir: "/tmp/skfiy-cli-staged-contract",
+    io: createMemoryIo(files)
+  });
+  const pendingMemoryStore = createPendingPersonalMemoryStore({
+    baseDir: "/tmp/skfiy-cli-staged-contract",
+    io: createPendingIo(files),
+    now: () => new Date("2026-06-24T07:30:00.000Z")
+  });
+  const sessionMemoryStore = createSessionMemoryStore({
+    baseDir: "/tmp/skfiy-cli-staged-contract",
+    io: createSessionIo(files)
+  });
+
+  await recordCompletedAssistantTurnForPersonalization({
+    userInput: "以后 dashboard 默认做 Obsidian 那种密集知识图谱。",
+    turn: createCompletedTurn("turn-staged", "Claude Code", "我会记下这个方向。"),
+    browserPageContext: {
+      state: "unavailable"
+    },
+    memoryStore,
+    pendingMemoryStore,
+    sessionMemoryStore,
+    memoryWriteApprovalEnabled: true,
+    runReviewTurn: async () => createCompletedTurn(
+      "turn-memory-review",
+      "Claude Code",
+      `{"operations":[{"action":"add","target":"user","content":"User prefers dense Obsidian-like knowledge surfaces for dashboard work."}]}`
+    )
+  });
+
+  const pendingWrites = pendingMemoryStore.read();
+
+  return {
+    durableUserEntryCount: memoryStore.read().userEntries.length,
+    pendingWriteCount: pendingWrites.length,
+    pendingSource: pendingWrites[0]?.source,
+    pendingContent: pendingWrites[0]?.content
+  };
+}
+
+function createCompletedTurn(id, providerLabel, message) {
+  return {
+    id,
+    createdAt: "2026-06-24T07:00:00.000Z",
+    status: "completed",
+    providerLabel,
+    message,
+    route: {
+      kind: "chat",
+      reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+    },
+    toolCalls: [],
+    cancellation: {
+      requested: false
+    }
+  };
+}
+
+function createMemoryIo(files) {
+  return {
+    exists: (targetPath) => files.has(targetPath),
+    mkdir: () => undefined,
+    readFile: (targetPath) => files.get(targetPath) ?? "",
+    stat: (targetPath) => ({ mtimeMs: files.has(targetPath) ? Date.parse("2026-06-24T07:00:00.000Z") : 0 }),
+    writeFile: (targetPath, content) => {
+      files.set(targetPath, content);
+    }
+  };
+}
+
+function createPendingIo(files) {
+  return {
+    exists: (targetPath) => files.has(targetPath),
+    mkdir: () => undefined,
+    readFile: (targetPath) => files.get(targetPath) ?? "",
+    writeFile: (targetPath, content) => {
+      files.set(targetPath, content);
+    }
+  };
+}
+
+function createSessionIo(files) {
+  return {
+    exists: (targetPath) => files.has(targetPath),
+    mkdir: () => undefined,
+    readFile: (targetPath) => files.get(targetPath) ?? "",
+    writeFile: (targetPath, content) => {
+      files.set(targetPath, content);
+    }
   };
 }
 
