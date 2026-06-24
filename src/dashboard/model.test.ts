@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSnapshot } from "./contracts";
-import { readComputerUseReadiness, readKnowledgeGraph } from "./model";
+import { readChromeControlState, readComputerUseReadiness, readKnowledgeGraph } from "./model";
 
 describe("readKnowledgeGraph", () => {
   it("connects memory, sessions, provider, browser context, Computer Use, and alerts", () => {
@@ -202,6 +202,58 @@ describe("readComputerUseReadiness", () => {
         tone: "neutral"
       }
     ]);
+  });
+});
+
+describe("readChromeControlState", () => {
+  it("turns Browser Context permission blockers into popup grant and observe steps", () => {
+    const snapshot = createSnapshot();
+    const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+    const chromeControl = readChromeControlState({
+      ...snapshot,
+      runtimeHealth: {
+        ...snapshot.runtimeHealth,
+        extension: {
+          ...extension,
+          pageControl: {
+            state: "blocked_by_chrome_host_permission",
+            activeTab: {
+              host: "mew.bytedance.net"
+            },
+            hostPolicy: {
+              decision: "allowed"
+            },
+            chromeHostPermission: {
+              state: "missing",
+              origins: ["https://mew.bytedance.net/*"]
+            },
+            chromeCapturePermission: {
+              state: "missing",
+              origins: ["<all_urls>"]
+            },
+            capabilities: {
+              observe: false,
+              screenshot: false
+            }
+          }
+        }
+      }
+    });
+
+    expect(chromeControl.browserContextAccessSteps).toEqual(expect.arrayContaining([
+      {
+        id: "open-skfiy-chrome-popup",
+        label: "Open skfiy Chrome popup",
+        detail: "Click Grant https://mew.bytedance.net/* + <all_urls>.",
+        tone: "warning"
+      },
+      {
+        id: "observe-current-page",
+        label: "Observe current page",
+        detail: "After granting access, click Observe current page in the popup.",
+        tone: "neutral"
+      }
+    ]));
   });
 });
 

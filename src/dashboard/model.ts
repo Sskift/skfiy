@@ -578,6 +578,14 @@ function readBrowserContextAccessSteps(
     ?? readHostFromPermissionOrigin(readString(chromeHostPermission?.origin));
   const hostOrigins = readStringArray(chromeHostPermission?.origins);
   const captureOrigins = readStringArray(chromeCapturePermission?.origins);
+  const chromePopupGrantOrigins = [
+    ...(readString(chromeHostPermission?.state) === "missing"
+      ? [hostOrigins[0] ?? readString(chromeHostPermission?.origin) ?? "current page origin"]
+      : []),
+    ...(readString(chromeCapturePermission?.state) === "missing"
+      ? [captureOrigins[0] ?? "<all_urls>"]
+      : [])
+  ].filter((origin, index, origins) => origins.indexOf(origin) === index);
   const steps: DashboardBrowserContextAccessStep[] = [];
 
   if (host && readString(hostPolicy?.decision) !== "allowed") {
@@ -607,11 +615,20 @@ function readBrowserContextAccessSteps(
     });
   }
 
+  if (chromePopupGrantOrigins.length > 0) {
+    steps.push({
+      id: "open-skfiy-chrome-popup",
+      label: "Open skfiy Chrome popup",
+      detail: `Click Grant ${chromePopupGrantOrigins.join(" + ")}.`,
+      tone: "warning"
+    });
+  }
+
   if (steps.length > 0) {
     steps.push({
-      id: "refresh-extension-diagnostics",
-      label: "Refresh extension diagnostics",
-      detail: "Rerun Chrome status after granting access.",
+      id: "observe-current-page",
+      label: "Observe current page",
+      detail: "After granting access, click Observe current page in the popup.",
       tone: "neutral"
     });
   }
