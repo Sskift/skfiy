@@ -405,7 +405,7 @@ a:focus-visible {
 
 .skfiy-dashboard-personal-skill-list li {
   display: grid;
-  grid-template-columns: minmax(106px, 0.55fr) minmax(0, 0.8fr) minmax(0, 1.4fr);
+  grid-template-columns: minmax(106px, 0.55fr) minmax(0, 0.8fr) minmax(0, 1.4fr) 28px;
   gap: 10px;
   align-items: center;
   min-width: 0;

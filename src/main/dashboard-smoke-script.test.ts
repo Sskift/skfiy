@@ -65,6 +65,7 @@ describe("dashboard product smoke script", () => {
     expect(source).toContain("exercisePersonalMemoryApi");
     expect(source).toContain("personalMemoryApi");
     expect(source).toContain("/api/personal-memory");
+    expect(source).toContain("/api/personal-skills");
     expect(source).toContain("personalMemory.usage");
     expect(source).toContain("exerciseChromeControlActionApi");
     expect(source).toContain("dashboardChromeControlActionApi");
@@ -839,6 +840,7 @@ describe("dashboard product smoke script", () => {
           productPath: "smoke:dashboard -> isolated HOME -> personal memory files",
           userMemoryPath: "/Users/tester/Library/Application Support/skfiy/memory/USER.md",
           agentMemoryPath: "/Users/tester/Library/Application Support/skfiy/memory/AGENT.md",
+          personalSkillSettingsPath: "/Users/tester/Library/Application Support/skfiy/memory/personal-skills.json",
           seededUserEntries: 2,
           seededAgentEntries: 1
         },
@@ -918,6 +920,47 @@ describe("dashboard product smoke script", () => {
               ],
               recentAgentEntries: [
                 "For dashboard work, prefer dense Obsidian-like knowledge surfaces."
+              ],
+              personalSkills: [
+                {
+                  id: "communication-style",
+                  label: "Concise Chinese progress updates"
+                },
+                {
+                  id: "dashboard-knowledge-surface",
+                  label: "Obsidian-style knowledge dashboard"
+                }
+              ]
+            }
+          }
+        },
+        personalSkillApiUrl: "http://127.0.0.1:51234/api/personal-skills",
+        muteSkillResponse: {
+          status: 200,
+          body: {
+            command: "dashboard personal skills",
+            source: "dashboard",
+            plannedMutation: true,
+            executesSystemMutation: true,
+            result: "muted",
+            personalSkills: {
+              disabledSkillIds: ["dashboard-knowledge-surface"],
+              mutedSkillCount: 1
+            }
+          }
+        },
+        snapshotAfterSkillMute: {
+          status: 200,
+          body: {
+            personalMemory: {
+              userEntryCount: 1,
+              agentEntryCount: 1,
+              mutedPersonalSkillIds: ["dashboard-knowledge-surface"],
+              personalSkills: [
+                {
+                  id: "communication-style",
+                  label: "Concise Chinese progress updates"
+                }
               ]
             }
           }
@@ -925,6 +968,10 @@ describe("dashboard product smoke script", () => {
         userMemoryFileAfter: {
           sensitiveEntryPresent: false,
           keptEntryPresent: true
+        },
+        personalSkillSettingsFileAfter: {
+          path: "/Users/tester/Library/Application Support/skfiy/memory/personal-skills.json",
+          dashboardKnowledgeSurfaceMuted: true
         },
         tokenLeakDetected: false,
         result: "passed"

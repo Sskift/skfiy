@@ -37,7 +37,10 @@ import {
   createSkfiyApplicationSupportPath,
   readPersonalMemorySnapshot
 } from "./personal-memory.js";
-import { createPersonalSkillCards } from "./personal-skills.js";
+import {
+  createPersonalSkillCards,
+  readPersonalSkillSettings
+} from "./personal-skills.js";
 import {
   readSessionMemoryRecords,
   type SessionMemoryRecord
@@ -355,11 +358,16 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     baseDir,
     io
   });
+  const personalSkillSettings = readPersonalSkillSettings({
+    baseDir,
+    io
+  });
   const latestSession = sessions.at(-1);
   const recentSessions = sessions.slice(-3).reverse();
   const personalSkills = createPersonalSkillCards({
     memory: personalMemory,
-    sessions
+    sessions,
+    settings: personalSkillSettings
   });
 
   return {
@@ -368,6 +376,9 @@ function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, u
     sessionCount: sessions.length,
     ...(personalMemory.latestUpdatedAt ? { latestUpdatedAt: personalMemory.latestUpdatedAt } : {}),
     ...(personalMemory.usage ? { usage: personalMemory.usage } : {}),
+    ...(personalSkillSettings.disabledSkillIds.length > 0
+      ? { mutedPersonalSkillIds: personalSkillSettings.disabledSkillIds }
+      : {}),
     recentUserEntries: personalMemory.userEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
     recentAgentEntries: personalMemory.agentEntries.slice(-5).map(sanitizeDashboardMemoryEntry),
     ...(personalSkills.length > 0

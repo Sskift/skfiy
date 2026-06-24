@@ -1124,6 +1124,13 @@ npx vitest run src/main/personal-skills.test.ts src/main/assistant-agent.test.ts
 ## Task 9: Personal Memory Management Controls
 
 **Files:**
+- Modify: `src/main/personal-skills.ts`
+- Modify: `src/main/personal-skills.test.ts`
+- Modify: `src/main/assistant-agent.ts`
+- Modify: `src/main/assistant-agent.test.ts`
+- Modify: `src/main/main.ts`
+- Modify: `src/main/dashboard-data.ts`
+- Modify: `src/main/dashboard-data.test.ts`
 - Modify: `src/main/dashboard-server.ts`
 - Modify: `src/main/dashboard-server.test.ts`
 - Modify: `src/dashboard/api.ts`
@@ -1131,6 +1138,9 @@ npx vitest run src/main/personal-skills.test.ts src/main/assistant-agent.test.ts
 - Modify: `src/dashboard/DashboardApp.tsx`
 - Modify: `src/dashboard/DashboardApp.test.tsx`
 - Modify: `src/dashboard/styles.css`
+- Modify: `scripts/smoke-dashboard-product.mjs`
+- Modify: `scripts/smoke-dashboard-plan.mjs`
+- Modify: `src/main/dashboard-smoke-script.test.ts`
 
 - [x] **Step 1: Write dashboard memory management tests**
 
@@ -1160,7 +1170,24 @@ In `src/dashboard/DashboardApp.tsx`:
 - Refresh the snapshot after a successful action.
 - Show concise success/error feedback inside the Personal memory card.
 
-- [x] **Step 4: Focused verification**
+- [x] **Step 4: Add personal skill lifecycle controls**
+
+In `src/main/personal-skills.ts`, `src/main/assistant-agent.ts`, `src/main/dashboard-data.ts`, `src/main/dashboard-server.ts`, and Dashboard frontend files:
+
+- Store personal skill lifecycle settings in `${appSupport}/memory/personal-skills.json`.
+- Accept only known distilled skill IDs for Dashboard mute/unmute operations.
+- Keep the original USER/AGENT memory files unchanged when a skill is muted.
+- Filter muted skills from `<skfiy-personal-skills>` prompt injection, Dashboard memory cards, and knowledge graph inputs.
+- Add Dashboard controls to mute an incorrect distilled skill card and refresh the snapshot.
+- Extend Dashboard smoke evidence so `/api/personal-skills` mutes `dashboard-knowledge-surface` and the next snapshot omits that card.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/personal-skills.test.ts src/main/assistant-agent.test.ts src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/dashboard/DashboardApp.test.tsx src/main/dashboard-smoke-script.test.ts --reporter=dot
+```
+
+- [x] **Step 5: Focused verification**
 
 Run:
 
@@ -1227,11 +1254,13 @@ Dashboard smoke now seeds an isolated personal memory fixture and must collect `
 - token-like memory is redacted from Dashboard responses,
 - `POST /api/personal-memory` can forget one exact user memory entry,
 - unsupported dashboard memory `add` requests are rejected,
+- `POST /api/personal-skills` can mute one distilled skill without rewriting memory,
+- the next `/snapshot.json` omits the muted skill card and records the muted skill id,
 - the remembered-session graph still renders after memory mutation.
 
 If a smoke is blocked by local macOS permissions or Chrome environment, record the typed blocker and do not call the feature complete until the blocker is either resolved or explicitly accepted by the project owner.
 
-- [ ] **Step 4: Manual acceptance checklist**
+- [ ] **Step 6: Manual acceptance checklist**
 
 - Pet has no diamond marker.
 - Pet click does not move the pet.
@@ -1247,7 +1276,7 @@ If a smoke is blocked by local macOS permissions or Chrome environment, record t
 - Pet agent can answer using current webpage context when extension pageControl is ready.
 - Dashboard is visually clean and shows assistant, Computer Use, Chrome, current turn, latest blocker, and recent runtime evidence.
 
-- [ ] **Step 5: Final commit or PR**
+- [ ] **Step 7: Final commit or PR**
 
 After all checks pass:
 

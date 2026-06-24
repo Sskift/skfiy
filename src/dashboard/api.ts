@@ -4,6 +4,8 @@ import type {
   DashboardChromeHostPolicyResponse,
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
+  DashboardPersonalSkillActionRequest,
+  DashboardPersonalSkillActionResponse,
   DashboardPlannerProviderSettingsUpdate,
   DashboardProviderSettingsResponse,
   DashboardSnapshot
@@ -121,6 +123,25 @@ export async function postPersonalMemoryAction(
   }
 
   return payload as unknown as DashboardPersonalMemoryActionResponse;
+}
+
+export async function postPersonalSkillAction(
+  request: DashboardPersonalSkillActionRequest
+): Promise<DashboardPersonalSkillActionResponse> {
+  const response = await fetch("/api/personal-skills", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(request)
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Personal skill update failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardPersonalSkillActionResponse;
 }
 
 function readDashboardApiError(payload: Record<string, unknown>): string | undefined {

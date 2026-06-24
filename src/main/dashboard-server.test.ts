@@ -1836,6 +1836,99 @@ describe("dashboard loopback HTTP response helper", () => {
     }
   });
 
+  it("lets dashboard mute a distilled personal skill without rewriting memory", async () => {
+    const userMemoryPath = "/Users/tester/Library/Application Support/skfiy/memory/USER.md";
+    const personalSkillsPath = "/Users/tester/Library/Application Support/skfiy/memory/personal-skills.json";
+    const files: Record<string, string> = {
+      "/repo/package.json": JSON.stringify({ name: "skfiy", version: "0.1.0" }),
+      [userMemoryPath]: [
+        "User prefers concise Chinese updates.",
+        "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+      ].join("\n")
+    };
+    const workspaceIo = {
+      exists: (targetPath: string) => Object.hasOwn(files, targetPath),
+      readFile: (targetPath: string) => files[targetPath] ?? "",
+      writeFile: (targetPath: string, content: string) => {
+        files[targetPath] = content;
+      },
+      readdir: () => [],
+      stat: (targetPath: string) => ({
+        mtimeMs: Object.hasOwn(files, targetPath) ? Date.parse("2026-06-24T10:00:00.000Z") : 0
+      }),
+      homeDir: () => "/Users/tester",
+      pid: () => 4242,
+      uptimeSeconds: () => 17,
+      tmux: () => ({
+        status: 1,
+        stdout: "",
+        stderr: "tmux session was not found."
+      })
+    };
+    const dashboard = await startDashboardServer({
+      port: 0,
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      workspaceIo
+    });
+
+    try {
+      const response = await requestUrl(`${dashboard.url}api/personal-skills`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "mute",
+          skillId: "dashboard-knowledge-surface"
+        })
+      });
+
+      expect(response.status).toBe(200);
+      expect(JSON.parse(response.body)).toMatchObject({
+        command: "dashboard personal skills",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "muted",
+        personalSkills: {
+          disabledSkillIds: ["dashboard-knowledge-surface"],
+          mutedSkillCount: 1
+        }
+      });
+      expect(JSON.parse(files[personalSkillsPath])).toMatchObject({
+        disabledSkillIds: ["dashboard-knowledge-surface"]
+      });
+      expect(files[userMemoryPath]).toContain("Obsidian-like knowledge surfaces");
+      expect(response.body).not.toContain("Obsidian-like knowledge surfaces");
+
+      const snapshotResponse = await requestUrl(`${dashboard.url}snapshot.json`);
+      const snapshot = JSON.parse(snapshotResponse.body) as DashboardSnapshot;
+      expect(snapshot.personalMemory?.personalSkills).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "communication-style" })
+      ]));
+      expect(snapshot.personalMemory?.personalSkills).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "dashboard-knowledge-surface" })
+      ]));
+
+      const rejected = await requestUrl(`${dashboard.url}api/personal-skills`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "mute",
+          skillId: "not-a-skill"
+        })
+      });
+
+      expect(rejected.status).toBe(400);
+      expect(JSON.parse(rejected.body)).toMatchObject({
+        command: "dashboard personal skills",
+        result: "error",
+        error: {
+          code: "unknown-skill"
+        }
+      });
+    } finally {
+      await dashboard.close();
+    }
+  });
+
   it("launches a local packaged Chrome control action through the loopback server", async () => {
     const runnerCalls: DashboardChromeControlRunnerInput[] = [];
     const descriptor = createDashboardDescriptor({ port: 8787 });

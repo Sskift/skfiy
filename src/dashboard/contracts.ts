@@ -102,6 +102,7 @@ export interface DashboardPersonalMemorySummary {
   usage?: DashboardPersonalMemoryUsage;
   recentUserEntries: string[];
   recentAgentEntries: string[];
+  mutedPersonalSkillIds?: string[];
   personalSkills?: DashboardPersonalSkillCard[];
   latestSession?: DashboardPersonalMemorySessionSummary;
   recentSessions?: DashboardPersonalMemorySessionSummary[];
@@ -160,6 +161,30 @@ export interface DashboardPersonalMemoryActionResponse {
     agentEntryCount: number;
     usage?: DashboardPersonalMemoryUsage;
     latestUpdatedAt?: string;
+  };
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
+export interface DashboardPersonalSkillActionRequest {
+  action: "mute" | "unmute";
+  skillId: string;
+}
+
+export interface DashboardPersonalSkillActionResponse {
+  schemaVersion?: number;
+  command?: string;
+  generatedAt?: string;
+  source?: string;
+  plannedMutation?: boolean;
+  executesSystemMutation?: boolean;
+  result?: "muted" | "unmuted" | "unchanged" | "error" | string;
+  personalSkills?: {
+    disabledSkillIds: string[];
+    mutedSkillCount: number;
+    updatedAt?: string;
   };
   error?: {
     code?: string;

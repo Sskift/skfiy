@@ -37,6 +37,7 @@ import {
   createPersonalMemoryStore,
   createSkfiyApplicationSupportPath
 } from "./personal-memory.js";
+import { createPersonalSkillSettingsStore } from "./personal-skills.js";
 import {
   createFallbackPersonalMemoryOperations,
   createPersonalMemoryReviewPrompt,
@@ -184,6 +185,9 @@ const assistantAgentSettingsStore = createAssistantAgentSettingsStore(
   readInitialAssistantAgentSettingsFromConfig(process.env, { cwd: process.cwd() })
 );
 const personalMemoryStore = createPersonalMemoryStore({
+  baseDir: skfiyAppSupportDir
+});
+const personalSkillSettingsStore = createPersonalSkillSettingsStore({
   baseDir: skfiyAppSupportDir
 });
 const sessionMemoryStore = createSessionMemoryStore({
@@ -552,6 +556,7 @@ async function readLatestBrowserPageContext(): Promise<BrowserPageContext> {
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
   const browserPageContext = await readLatestBrowserPageContext();
   const personalMemory = personalMemoryStore.read();
+  const personalSkillSettings = personalSkillSettingsStore.read();
   const recalledSessions = searchSessionMemory(sessionMemoryStore.readAll(), input, 3);
 
   try {
@@ -559,6 +564,7 @@ async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAge
       settings: assistantAgentSettingsStore.get(),
       browserPageContext,
       personalMemory,
+      personalSkillSettings,
       recalledSessions
     });
     if (turn.status === "completed") {

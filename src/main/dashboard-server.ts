@@ -53,6 +53,11 @@ import {
   type PersonalMemoryTarget
 } from "./personal-memory.js";
 import {
+  createPersonalSkillSettingsStore,
+  isPersonalSkillId,
+  type PersonalSkillSettingsIo
+} from "./personal-skills.js";
+import {
   createPlannerProviderSettingsStore,
   readInitialPlannerProviderSettings,
   summarizePlannerProviderSettings,
@@ -359,6 +364,22 @@ async function handleDashboardServerRequest({
   if (url.pathname === "/api/personal-memory") {
     const body = requestMethod === "POST" ? await readRequestBody(request) : "";
     const dashboardResponse = await createDashboardPersonalMemoryResponse({
+      method: request.method,
+      url: requestUrl,
+      body
+    }, {
+      ...options,
+      port: readServerPort(server)
+    });
+
+    response.writeHead(dashboardResponse.status, dashboardResponse.headers);
+    response.end(dashboardResponse.body);
+    return;
+  }
+
+  if (url.pathname === "/api/personal-skills") {
+    const body = requestMethod === "POST" ? await readRequestBody(request) : "";
+    const dashboardResponse = await createDashboardPersonalSkillsResponse({
       method: request.method,
       url: requestUrl,
       body
@@ -806,6 +827,136 @@ export async function createDashboardPersonalMemoryResponse(
       ...(snapshot.latestUpdatedAt ? { latestUpdatedAt: snapshot.latestUpdatedAt } : {})
     }
   });
+}
+
+export async function createDashboardPersonalSkillsResponse(
+  request: DashboardHttpRequest,
+  options: DashboardHttpResponseOptions = {}
+): Promise<DashboardHttpResponse> {
+  const method = (request.method ?? "GET").toUpperCase();
+  const generatedAt = new Date().toISOString();
+
+  if (method !== "POST") {
+    return textResponse(405, "Method Not Allowed\n", {
+      allow: "POST"
+    });
+  }
+
+  const homeDir = options.homeDir ?? options.workspaceIo?.homeDir?.() ?? process.env.HOME ?? "";
+  if (!homeDir) {
+    return createDashboardPersonalSkillsErrorResponse({
+      generatedAt,
+      code: "home-dir-required",
+      message: "Home directory is required to locate personal skill settings."
+    }, 503);
+  }
+
+  const body = parseJsonObject(request.body ?? "");
+  if (!body.ok) {
+    return createDashboardPersonalSkillsErrorResponse({
+      generatedAt,
+      code: "invalid-json",
+      message: body.error
+    });
+  }
+
+  const action = normalizeDashboardPersonalSkillAction(body.value.action);
+  if (!action) {
+    return createDashboardPersonalSkillsErrorResponse({
+      generatedAt,
+      code: "unknown-action",
+      message: "Personal skill action must be mute or unmute."
+    });
+  }
+
+  const skillId = normalizeDashboardPersonalSkillId(body.value.skillId);
+  if (!skillId) {
+    return createDashboardPersonalSkillsErrorResponse({
+      generatedAt,
+      code: "unknown-skill",
+      message: "Personal skill action requires a known skill id."
+    });
+  }
+
+  const settingsIo = createDashboardPersonalSkillSettingsIo(options.workspaceIo);
+  if (settingsIo === "readonly") {
+    return createDashboardPersonalSkillsErrorResponse({
+      generatedAt,
+      code: "personal-skill-store-readonly",
+      message: "Personal skill settings are not writable from this dashboard server."
+    }, 503);
+  }
+
+  const store = createPersonalSkillSettingsStore({
+    baseDir: createSkfiyApplicationSupportPath(homeDir),
+    ...(settingsIo ? { io: settingsIo } : {})
+  });
+  const mutation = store.setMuted(skillId, action === "mute");
+
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard personal skills",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: true,
+    executesSystemMutation: true,
+    result: mutation.result,
+    personalSkills: {
+      disabledSkillIds: mutation.settings.disabledSkillIds,
+      mutedSkillCount: mutation.settings.disabledSkillIds.length,
+      ...(mutation.settings.updatedAt ? { updatedAt: mutation.settings.updatedAt } : {})
+    }
+  });
+}
+
+function normalizeDashboardPersonalSkillAction(value: unknown): "mute" | "unmute" | undefined {
+  return value === "mute" || value === "unmute" ? value : undefined;
+}
+
+function normalizeDashboardPersonalSkillId(value: unknown): string | undefined {
+  return isPersonalSkillId(value) ? value : undefined;
+}
+
+function createDashboardPersonalSkillSettingsIo(
+  workspaceIo: DashboardWorkspaceIo | undefined
+): PersonalSkillSettingsIo | "readonly" | undefined {
+  if (!workspaceIo) {
+    return undefined;
+  }
+  if (!workspaceIo.writeFile) {
+    return "readonly";
+  }
+
+  return {
+    exists: workspaceIo.exists,
+    mkdir: () => undefined,
+    readFile: workspaceIo.readFile,
+    writeFile: workspaceIo.writeFile
+  };
+}
+
+function createDashboardPersonalSkillsErrorResponse({
+  generatedAt,
+  code,
+  message
+}: {
+  generatedAt: string;
+  code: string;
+  message: string;
+}, status = 400): DashboardHttpResponse {
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard personal skills",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: false,
+    executesSystemMutation: false,
+    result: "error",
+    error: {
+      code,
+      message
+    }
+  }, undefined, status);
 }
 
 function normalizeDashboardPersonalMemoryAction(value: unknown): "forget" | undefined {

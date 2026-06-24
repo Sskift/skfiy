@@ -14,7 +14,8 @@ import {
 } from "./personal-memory.js";
 import {
   createPersonalSkillCards,
-  createPersonalSkillsPromptBlock
+  createPersonalSkillsPromptBlock,
+  type PersonalSkillSettings
 } from "./personal-skills.js";
 import {
   createSessionMemoryPromptBlock,
@@ -78,6 +79,7 @@ export interface RunAssistantAgentTurnInput {
   browserPageContext?: BrowserPageContext;
   personalMemory?: PersonalMemorySnapshot;
   recalledSessions?: SessionMemoryRecord[];
+  personalSkillSettings?: PersonalSkillSettings;
   runProcess?: AssistantAgentProcessRunner;
   now?: () => Date;
   createTurnId?: () => string;
@@ -219,9 +221,16 @@ export function buildAssistantAgentInvocation(
   userInput: string,
   browserPageContext?: BrowserPageContext,
   personalMemory?: PersonalMemorySnapshot,
-  recalledSessions?: SessionMemoryRecord[]
+  recalledSessions?: SessionMemoryRecord[],
+  personalSkillSettings?: PersonalSkillSettings
 ): AssistantAgentInvocation {
-  const prompt = createAssistantAgentPrompt(userInput, browserPageContext, personalMemory, recalledSessions);
+  const prompt = createAssistantAgentPrompt(
+    userInput,
+    browserPageContext,
+    personalMemory,
+    recalledSessions,
+    personalSkillSettings
+  );
 
   if (settings.mode === "codex") {
     return {
@@ -296,7 +305,8 @@ export async function runAssistantAgentTurn(
     signal,
     browserPageContext,
     personalMemory,
-    recalledSessions
+    recalledSessions,
+    personalSkillSettings
   }: RunAssistantAgentTurnInput
 ): Promise<AssistantAgentTurnResult> {
   const id = createTurnId();
@@ -307,7 +317,8 @@ export async function runAssistantAgentTurn(
     userInput,
     browserPageContext,
     personalMemory,
-    recalledSessions
+    recalledSessions,
+    personalSkillSettings
   );
   const providerLabel = invocation.label;
   const toolCalls = createAssistantAgentPlannedToolCalls({
@@ -666,7 +677,8 @@ function createAssistantAgentPrompt(
   userInput: string,
   browserPageContext?: BrowserPageContext,
   personalMemory?: PersonalMemorySnapshot,
-  recalledSessions?: SessionMemoryRecord[]
+  recalledSessions?: SessionMemoryRecord[],
+  personalSkillSettings?: PersonalSkillSettings
 ): string {
   const personalMemoryBlock = personalMemory
     ? createPersonalMemoryPromptBlock(personalMemory)
@@ -677,7 +689,8 @@ function createAssistantAgentPrompt(
   const personalSkillsBlock = personalMemory
     ? createPersonalSkillsPromptBlock(createPersonalSkillCards({
       memory: personalMemory,
-      sessions: recalledSessions ?? []
+      sessions: recalledSessions ?? [],
+      settings: personalSkillSettings
     }))
     : "";
 

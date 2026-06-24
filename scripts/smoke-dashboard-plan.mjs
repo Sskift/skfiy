@@ -578,9 +578,13 @@ function hasDashboardPersonalMemoryApiEvidence(api) {
   const afterMemory = api?.snapshotAfter?.body?.personalMemory;
   const forgetBody = api?.forgetResponse?.body;
   const rejectedAddBody = api?.rejectedAddResponse?.body;
+  const muteSkillBody = api?.muteSkillResponse?.body;
+  const afterSkillMuteMemory = api?.snapshotAfterSkillMute?.body?.personalMemory;
   const beforeText = JSON.stringify(api?.snapshotBefore?.body ?? {});
   const afterText = JSON.stringify(api?.snapshotAfter?.body ?? {});
+  const afterSkillMuteText = JSON.stringify(api?.snapshotAfterSkillMute?.body ?? {});
   const forgetText = JSON.stringify(forgetBody ?? {});
+  const muteSkillText = JSON.stringify(muteSkillBody ?? {});
 
   return api?.productPath === "smoke:dashboard -> isolated HOME memory fixture -> /api/personal-memory"
     && typeof api?.apiUrl === "string"
@@ -590,6 +594,8 @@ function hasDashboardPersonalMemoryApiEvidence(api) {
     && api.fixture.userMemoryPath.includes("Application Support/skfiy/memory/USER.md")
     && typeof api.fixture.agentMemoryPath === "string"
     && api.fixture.agentMemoryPath.includes("Application Support/skfiy/memory/AGENT.md")
+    && typeof api.fixture.personalSkillSettingsPath === "string"
+    && api.fixture.personalSkillSettingsPath.includes("Application Support/skfiy/memory/personal-skills.json")
     && api.fixture.seededUserEntries >= 2
     && api.fixture.seededAgentEntries >= 1
     && api?.snapshotBefore?.status === 200
@@ -612,13 +618,34 @@ function hasDashboardPersonalMemoryApiEvidence(api) {
     && api?.snapshotAfter?.status === 200
     && afterMemory?.userEntryCount === beforeMemory.userEntryCount - 1
     && afterMemory?.agentEntryCount === beforeMemory.agentEntryCount
+    && Array.isArray(afterMemory?.personalSkills)
+    && afterMemory.personalSkills.some((skill) => skill?.id === "dashboard-knowledge-surface")
+    && typeof api?.personalSkillApiUrl === "string"
+    && api.personalSkillApiUrl.endsWith("/api/personal-skills")
+    && api?.muteSkillResponse?.status === 200
+    && muteSkillBody?.command === "dashboard personal skills"
+    && muteSkillBody?.source === "dashboard"
+    && muteSkillBody?.plannedMutation === true
+    && muteSkillBody?.executesSystemMutation === true
+    && muteSkillBody?.result === "muted"
+    && Array.isArray(muteSkillBody?.personalSkills?.disabledSkillIds)
+    && muteSkillBody.personalSkills.disabledSkillIds.includes("dashboard-knowledge-surface")
+    && api?.snapshotAfterSkillMute?.status === 200
+    && Array.isArray(afterSkillMuteMemory?.mutedPersonalSkillIds)
+    && afterSkillMuteMemory.mutedPersonalSkillIds.includes("dashboard-knowledge-surface")
+    && Array.isArray(afterSkillMuteMemory?.personalSkills)
+    && afterSkillMuteMemory.personalSkills.some((skill) => skill?.id === "communication-style")
+    && !afterSkillMuteMemory.personalSkills.some((skill) => skill?.id === "dashboard-knowledge-surface")
+    && api?.personalSkillSettingsFileAfter?.dashboardKnowledgeSurfaceMuted === true
     && api?.userMemoryFileAfter?.sensitiveEntryPresent === false
     && api?.userMemoryFileAfter?.keptEntryPresent === true
     && api?.tokenLeakDetected === false
     && api?.result === "passed"
     && !/token=/i.test(beforeText)
     && !/token=/i.test(afterText)
-    && !/token=/i.test(forgetText);
+    && !/token=/i.test(afterSkillMuteText)
+    && !/token=/i.test(forgetText)
+    && !/token=/i.test(muteSkillText);
 }
 
 function hasDashboardStatusAutoDiscoveryEvidence(evidence, cliOutput) {

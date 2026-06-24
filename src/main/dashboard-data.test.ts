@@ -247,6 +247,46 @@ describe("dashboard snapshot data", () => {
     expect(JSON.stringify(snapshot.personalMemory)).not.toContain("token=secret");
   });
 
+  it("filters disabled personal skill cards from workspace sidecar settings", () => {
+    const files: Record<string, string> = {
+      "/Users/tester/Library/Application Support/skfiy/memory/USER.md": [
+        "User prefers concise Chinese updates.",
+        "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+      ].join("\n"),
+      "/Users/tester/Library/Application Support/skfiy/memory/personal-skills.json": JSON.stringify({
+        disabledSkillIds: ["dashboard-knowledge-surface"],
+        updatedAt: "2026-06-24T00:00:00.000Z"
+      })
+    };
+
+    const snapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      generatedAt: "2026-06-24T10:10:00.000Z",
+      io: {
+        exists: (targetPath) => targetPath === "/repo/package.json" || targetPath in files,
+        readFile: (targetPath) => files[targetPath],
+        readdir: () => [],
+        stat: () => ({ mtimeMs: Date.parse("2026-06-24T10:00:00.000Z") }),
+        homeDir: () => "/Users/tester"
+      }
+    });
+
+    expect(snapshot.personalMemory).toMatchObject({
+      mutedPersonalSkillIds: ["dashboard-knowledge-surface"]
+    });
+    expect(snapshot.personalMemory?.personalSkills).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "communication-style"
+      })
+    ]));
+    expect(snapshot.personalMemory?.personalSkills).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "dashboard-knowledge-surface"
+      })
+    ]));
+  });
+
   it("reads workspace provider settings from env without exposing raw env values", () => {
     const snapshot = createDashboardWorkspaceSnapshot({
       rootDir: "/repo",

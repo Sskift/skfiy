@@ -556,6 +556,7 @@ async function seedPersonalMemoryFixture(homeDir) {
   const userMemoryPath = path.join(memoryDir, "USER.md");
   const agentMemoryPath = path.join(memoryDir, "AGENT.md");
   const sessionMemoryPath = path.join(memoryDir, "sessions.jsonl");
+  const personalSkillSettingsPath = path.join(memoryDir, "personal-skills.json");
   const now = new Date();
   const sessions = [
     {
@@ -595,6 +596,7 @@ async function seedPersonalMemoryFixture(homeDir) {
     userMemoryPath,
     agentMemoryPath,
     sessionMemoryPath,
+    personalSkillSettingsPath,
     seededUserEntries: 2,
     seededAgentEntries: 1,
     seededSessionEntries: sessions.length
@@ -603,6 +605,7 @@ async function seedPersonalMemoryFixture(homeDir) {
 
 async function exercisePersonalMemoryApi({ dashboardUrl, fixture, timeoutMs }) {
   const apiUrl = new URL("/api/personal-memory", dashboardUrl).toString();
+  const skillApiUrl = new URL("/api/personal-skills", dashboardUrl).toString();
   const productPath = "smoke:dashboard -> isolated HOME memory fixture -> /api/personal-memory";
   const snapshotBefore = await readJsonResponse(
     new URL("/snapshot.json", dashboardUrl).toString(),
@@ -628,13 +631,29 @@ async function exercisePersonalMemoryApi({ dashboardUrl, fixture, timeoutMs }) {
     new URL("/snapshot.json", dashboardUrl).toString(),
     timeoutMs
   );
+  const muteSkillResponse = await readJsonRequest(skillApiUrl, timeoutMs, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "mute",
+      skillId: "dashboard-knowledge-surface"
+    })
+  });
+  const snapshotAfterSkillMute = await readJsonResponse(
+    new URL("/snapshot.json", dashboardUrl).toString(),
+    timeoutMs
+  );
   const userMemoryAfter = await readFile(fixture.userMemoryPath, "utf8").catch(() => "");
+  const personalSkillSettingsAfter = await readFile(fixture.personalSkillSettingsPath, "utf8").catch(() => "");
   const tokenLeakDetected = hasTokenLeak([
     JSON.stringify(snapshotBefore),
     JSON.stringify(forgetResponse),
     JSON.stringify(rejectedAddResponse),
-    JSON.stringify(snapshotAfter)
+    JSON.stringify(snapshotAfter),
+    JSON.stringify(muteSkillResponse),
+    JSON.stringify(snapshotAfterSkillMute)
   ]);
+  const beforeSkillIds = new Set(snapshotAfter.body?.personalMemory?.personalSkills?.map((skill) => skill.id) ?? []);
+  const mutedSkillIds = new Set(snapshotAfterSkillMute.body?.personalMemory?.personalSkills?.map((skill) => skill.id) ?? []);
   const passed = snapshotBefore.status === 200
     && snapshotBefore.body?.personalMemory?.userEntryCount >= 2
     && snapshotBefore.body.personalMemory.usage?.user?.limitChars === 1375
@@ -650,6 +669,16 @@ async function exercisePersonalMemoryApi({ dashboardUrl, fixture, timeoutMs }) {
     && snapshotAfter.status === 200
     && snapshotAfter.body?.personalMemory?.userEntryCount === snapshotBefore.body.personalMemory.userEntryCount - 1
     && snapshotAfter.body.personalMemory.usage?.user?.usedChars < snapshotBefore.body.personalMemory.usage.user.usedChars
+    && beforeSkillIds.has("dashboard-knowledge-surface")
+    && muteSkillResponse.status === 200
+    && muteSkillResponse.body?.command === "dashboard personal skills"
+    && muteSkillResponse.body?.result === "muted"
+    && muteSkillResponse.body?.personalSkills?.disabledSkillIds?.includes("dashboard-knowledge-surface")
+    && snapshotAfterSkillMute.status === 200
+    && snapshotAfterSkillMute.body?.personalMemory?.mutedPersonalSkillIds?.includes("dashboard-knowledge-surface")
+    && !mutedSkillIds.has("dashboard-knowledge-surface")
+    && mutedSkillIds.has("communication-style")
+    && personalSkillSettingsAfter.includes("dashboard-knowledge-surface")
     && !userMemoryAfter.includes(DASHBOARD_MEMORY_SENSITIVE_ENTRY)
     && userMemoryAfter.includes(DASHBOARD_MEMORY_SAFE_ENTRY)
     && !tokenLeakDetected;
@@ -662,9 +691,16 @@ async function exercisePersonalMemoryApi({ dashboardUrl, fixture, timeoutMs }) {
     forgetResponse,
     rejectedAddResponse,
     snapshotAfter,
+    personalSkillApiUrl: skillApiUrl,
+    muteSkillResponse,
+    snapshotAfterSkillMute,
     userMemoryFileAfter: {
       sensitiveEntryPresent: userMemoryAfter.includes(DASHBOARD_MEMORY_SENSITIVE_ENTRY),
       keptEntryPresent: userMemoryAfter.includes(DASHBOARD_MEMORY_SAFE_ENTRY)
+    },
+    personalSkillSettingsFileAfter: {
+      path: fixture.personalSkillSettingsPath,
+      dashboardKnowledgeSurfaceMuted: personalSkillSettingsAfter.includes("dashboard-knowledge-surface")
     },
     tokenLeakDetected,
     result: passed ? "passed" : "failed"

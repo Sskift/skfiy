@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Chrome,
   Eye,
+  EyeOff,
   Folder,
   Gauge,
   History,
@@ -34,6 +35,7 @@ import {
   postChromeControlAction,
   postChromeHostPolicyAction,
   postPersonalMemoryAction,
+  postPersonalSkillAction,
   postPlannerProviderSettings
 } from "./api";
 import type {
@@ -44,6 +46,8 @@ import type {
   DashboardPersonalMemoryActionRequest,
   DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemorySummary,
+  DashboardPersonalSkillActionRequest,
+  DashboardPersonalSkillActionResponse,
   DashboardPersonalSkillCard,
   DashboardPersonalMemoryUsageBucket,
   DashboardPlannerProviderMode,
@@ -90,6 +94,9 @@ export interface DashboardAppProps {
   runPersonalMemoryAction?: (
     request: DashboardPersonalMemoryActionRequest
   ) => Promise<DashboardPersonalMemoryActionResponse>;
+  runPersonalSkillAction?: (
+    request: DashboardPersonalSkillActionRequest
+  ) => Promise<DashboardPersonalSkillActionResponse>;
   saveChromeHostPolicyAction?: (
     request: DashboardChromeHostPolicyActionRequest
   ) => Promise<DashboardChromeHostPolicyResponse>;
@@ -143,6 +150,7 @@ export function DashboardApp({
   loadProviderSettings = fetchProviderSettings,
   runChromeControlAction = postChromeControlAction,
   runPersonalMemoryAction = postPersonalMemoryAction,
+  runPersonalSkillAction = postPersonalSkillAction,
   saveChromeHostPolicyAction = postChromeHostPolicyAction,
   savePlannerProviderSettings = postPlannerProviderSettings
 }: DashboardAppProps) {
@@ -198,6 +206,23 @@ export function DashboardApp({
       setIsSavingMemory(false);
     }
   }, [refresh, runPersonalMemoryAction]);
+
+  const submitPersonalSkillAction = useCallback(async (
+    request: DashboardPersonalSkillActionRequest
+  ) => {
+    setIsSavingMemory(true);
+    setMemoryError(null);
+    setMemoryNotice(null);
+    try {
+      const response = await runPersonalSkillAction(request);
+      await refresh();
+      setMemoryNotice(response.result === "unmuted" ? "Personal skill unmuted" : "Personal skill muted");
+    } catch (submitError) {
+      setMemoryError(readErrorMessage(submitError));
+    } finally {
+      setIsSavingMemory(false);
+    }
+  }, [refresh, runPersonalSkillAction]);
 
   const submitPlannerProviderSettings = useCallback(async (
     update: DashboardPlannerProviderSettingsUpdate
@@ -289,6 +314,7 @@ export function DashboardApp({
             onLoadChromeHostPolicy={loadChromeHostPolicy}
             onRefresh={refresh}
             onRunPersonalMemoryAction={submitPersonalMemoryAction}
+            onRunPersonalSkillAction={submitPersonalSkillAction}
             onRunChromeControlAction={runChromeControlAction}
             onSaveChromeHostPolicyAction={saveChromeHostPolicyAction}
             onSubmitPlannerProviderSettings={submitPlannerProviderSettings}
@@ -314,6 +340,7 @@ function DashboardContent({
   onLoadChromeHostPolicy,
   onRefresh,
   onRunPersonalMemoryAction,
+  onRunPersonalSkillAction,
   onRunChromeControlAction,
   onSaveChromeHostPolicyAction,
   onSubmitPlannerProviderSettings
@@ -331,6 +358,9 @@ function DashboardContent({
   onRefresh: () => Promise<void>;
   onRunPersonalMemoryAction: (
     request: DashboardPersonalMemoryActionRequest
+  ) => Promise<void>;
+  onRunPersonalSkillAction: (
+    request: DashboardPersonalSkillActionRequest
   ) => Promise<void>;
   onRunChromeControlAction: (
     request: DashboardChromeControlActionRequest
@@ -451,6 +481,7 @@ function DashboardContent({
           memory={snapshot.personalMemory}
           notice={memoryNotice}
           onForget={onRunPersonalMemoryAction}
+          onMuteSkill={onRunPersonalSkillAction}
         />
       </section>
 
@@ -720,13 +751,15 @@ function PersonalMemoryPanel({
   isSaving,
   memory,
   notice,
-  onForget
+  onForget,
+  onMuteSkill
 }: {
   error: string | null;
   isSaving: boolean;
   memory: DashboardPersonalMemorySummary | undefined;
   notice: string | null;
   onForget: (request: DashboardPersonalMemoryActionRequest) => Promise<void>;
+  onMuteSkill: (request: DashboardPersonalSkillActionRequest) => Promise<void>;
 }) {
   const userEntries = memory?.recentUserEntries ?? [];
   const agentEntries = memory?.recentAgentEntries ?? [];
@@ -781,7 +814,11 @@ function PersonalMemoryPanel({
             title="Agent operating notes"
           />
         </div>
-        <PersonalSkillCardList skills={personalSkills} />
+        <PersonalSkillCardList
+          isSaving={isSaving}
+          onMute={(skill) => onMuteSkill({ action: "mute", skillId: skill.id })}
+          skills={personalSkills}
+        />
         <RecentSessionRecallList sessions={memory?.recentSessions ?? []} />
         <p
           aria-live="polite"
@@ -796,8 +833,12 @@ function PersonalMemoryPanel({
 }
 
 function PersonalSkillCardList({
+  isSaving,
+  onMute,
   skills
 }: {
+  isSaving: boolean;
+  onMute: (skill: DashboardPersonalSkillCard) => Promise<void>;
   skills: DashboardPersonalSkillCard[];
 }) {
   return (
@@ -810,6 +851,16 @@ function PersonalSkillCardList({
               <span>{skill.kind} · evidence {skill.evidenceCount}</span>
               <strong>{skill.label}</strong>
               <small>{skill.promptHint}</small>
+              <button
+                aria-label={`Mute personal skill: ${skill.label}`}
+                className="skfiy-dashboard-icon-button"
+                disabled={isSaving}
+                onClick={() => void onMute(skill)}
+                title="Mute personal skill"
+                type="button"
+              >
+                <EyeOff size={14} aria-hidden="true" />
+              </button>
             </li>
           ))}
         </ul>

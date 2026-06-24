@@ -1,7 +1,10 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import type { PersonalMemorySnapshot } from "./personal-memory.js";
 import type { SessionMemoryRecord } from "./session-memory.js";
 
 export type PersonalSkillKind = "communication" | "dashboard" | "workflow";
+export type PersonalSkillSettingsMutationResult = "muted" | "unmuted" | "unchanged" | "invalid-skill";
 
 export interface PersonalSkillCard {
   id: string;
@@ -17,6 +20,28 @@ export interface PersonalSkillCardInput {
   memory: PersonalMemorySnapshot;
   sessions?: SessionMemoryRecord[];
   limit?: number;
+  settings?: PersonalSkillSettings;
+}
+
+export interface PersonalSkillSettings {
+  disabledSkillIds: string[];
+  updatedAt?: string;
+}
+
+export interface PersonalSkillSettingsReadIo {
+  exists: (targetPath: string) => boolean;
+  readFile: (targetPath: string) => string;
+}
+
+export interface PersonalSkillSettingsIo extends PersonalSkillSettingsReadIo {
+  mkdir: (targetPath: string) => void;
+  writeFile: (targetPath: string, content: string) => void;
+}
+
+export interface PersonalSkillSettingsStoreOptions {
+  baseDir: string;
+  io?: PersonalSkillSettingsIo;
+  now?: () => Date;
 }
 
 interface SkillPattern {
@@ -116,19 +141,100 @@ const SKILL_PATTERNS: SkillPattern[] = [
 export function createPersonalSkillCards({
   memory,
   sessions = [],
-  limit = DEFAULT_PERSONAL_SKILL_LIMIT
+  limit = DEFAULT_PERSONAL_SKILL_LIMIT,
+  settings
 }: PersonalSkillCardInput): PersonalSkillCard[] {
   if (limit <= 0) {
     return [];
   }
 
   const evidencePool = createEvidencePool(memory, sessions);
+  const disabledSkillIds = new Set(normalizePersonalSkillIds(settings?.disabledSkillIds ?? []));
 
   return SKILL_PATTERNS
+    .filter((skill) => !disabledSkillIds.has(skill.id))
     .map((skill) => createPersonalSkillCard(skill, evidencePool))
     .filter((card): card is PersonalSkillCard => Boolean(card))
     .sort((left, right) => right.evidenceCount - left.evidenceCount)
     .slice(0, limit);
+}
+
+export function createPersonalSkillSettingsFilePath(baseDir: string): string {
+  return path.join(baseDir, "memory", "personal-skills.json");
+}
+
+export function readPersonalSkillSettings({
+  baseDir,
+  io = createDefaultPersonalSkillSettingsIo()
+}: {
+  baseDir: string;
+  io?: PersonalSkillSettingsReadIo;
+}): PersonalSkillSettings {
+  const filePath = createPersonalSkillSettingsFilePath(baseDir);
+  if (!io.exists(filePath)) {
+    return createEmptyPersonalSkillSettings();
+  }
+
+  try {
+    const parsed = JSON.parse(io.readFile(filePath)) as unknown;
+    return normalizePersonalSkillSettings(parsed);
+  } catch {
+    return createEmptyPersonalSkillSettings();
+  }
+}
+
+export function createPersonalSkillSettingsStore({
+  baseDir,
+  io = createDefaultPersonalSkillSettingsIo(),
+  now = () => new Date()
+}: PersonalSkillSettingsStoreOptions) {
+  return {
+    read(): PersonalSkillSettings {
+      return readPersonalSkillSettings({ baseDir, io });
+    },
+    setMuted(skillId: string, muted: boolean): {
+      result: PersonalSkillSettingsMutationResult;
+      settings: PersonalSkillSettings;
+    } {
+      if (!isPersonalSkillId(skillId)) {
+        return {
+          result: "invalid-skill",
+          settings: readPersonalSkillSettings({ baseDir, io })
+        };
+      }
+
+      const current = readPersonalSkillSettings({ baseDir, io });
+      const disabledSkillIds = new Set(current.disabledSkillIds);
+      const wasMuted = disabledSkillIds.has(skillId);
+      if (muted === wasMuted) {
+        return {
+          result: "unchanged",
+          settings: current
+        };
+      }
+
+      if (muted) {
+        disabledSkillIds.add(skillId);
+      } else {
+        disabledSkillIds.delete(skillId);
+      }
+
+      const settings = {
+        disabledSkillIds: normalizePersonalSkillIds([...disabledSkillIds]),
+        updatedAt: now().toISOString()
+      };
+      writePersonalSkillSettings(baseDir, settings, io);
+
+      return {
+        result: muted ? "muted" : "unmuted",
+        settings
+      };
+    }
+  };
+}
+
+export function isPersonalSkillId(value: unknown): value is string {
+  return typeof value === "string" && SKILL_PATTERNS.some((skill) => skill.id === value);
 }
 
 export function createPersonalSkillsPromptBlock(cards: PersonalSkillCard[]): string {
@@ -210,4 +316,54 @@ function sanitizePersonalSkillEvidence(value: string): string | undefined {
 
 function dedupeStrings(values: string[]): string[] {
   return Array.from(new Set(values));
+}
+
+function createEmptyPersonalSkillSettings(): PersonalSkillSettings {
+  return {
+    disabledSkillIds: []
+  };
+}
+
+function normalizePersonalSkillSettings(value: unknown): PersonalSkillSettings {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return createEmptyPersonalSkillSettings();
+  }
+
+  const record = value as Record<string, unknown>;
+  const disabledSkillIds = Array.isArray(record.disabledSkillIds)
+    ? normalizePersonalSkillIds(record.disabledSkillIds)
+    : [];
+  const updatedAt = typeof record.updatedAt === "string" && record.updatedAt.trim().length > 0
+    ? record.updatedAt
+    : undefined;
+
+  return {
+    disabledSkillIds,
+    ...(updatedAt ? { updatedAt } : {})
+  };
+}
+
+function normalizePersonalSkillIds(values: unknown[]): string[] {
+  const knownOrder = SKILL_PATTERNS.map((skill) => skill.id);
+  const ids = new Set(values.filter(isPersonalSkillId));
+  return knownOrder.filter((id) => ids.has(id));
+}
+
+function writePersonalSkillSettings(
+  baseDir: string,
+  settings: PersonalSkillSettings,
+  io: PersonalSkillSettingsIo
+): void {
+  const filePath = createPersonalSkillSettingsFilePath(baseDir);
+  io.mkdir(path.dirname(filePath));
+  io.writeFile(filePath, `${JSON.stringify(settings, null, 2)}\n`);
+}
+
+function createDefaultPersonalSkillSettingsIo(): PersonalSkillSettingsIo {
+  return {
+    exists: existsSync,
+    mkdir: (targetPath) => mkdirSync(targetPath, { recursive: true }),
+    readFile: (targetPath) => readFileSync(targetPath, "utf8"),
+    writeFile: (targetPath, content) => writeFileSync(targetPath, content, "utf8")
+  };
 }

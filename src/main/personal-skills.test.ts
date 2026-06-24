@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createPersonalSkillCards,
+  createPersonalSkillSettingsFilePath,
+  createPersonalSkillSettingsStore,
   createPersonalSkillsPromptBlock
 } from "./personal-skills";
 
@@ -100,5 +102,69 @@ describe("personal skill cards", () => {
     expect(block).toContain("not executable tools");
     expect(block).toContain("Use concise Chinese progress updates.");
     expect(block).toContain("</skfiy-personal-skills>");
+  });
+
+  it("omits disabled personal skills from distilled cards and prompt blocks", () => {
+    const cards = createPersonalSkillCards({
+      memory: {
+        userEntries: [
+          "User prefers concise Chinese progress updates.",
+          "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+        ],
+        agentEntries: []
+      },
+      settings: {
+        disabledSkillIds: ["dashboard-knowledge-surface"]
+      }
+    });
+    const block = createPersonalSkillsPromptBlock(cards);
+
+    expect(cards.map((card) => card.id)).toContain("communication-style");
+    expect(cards.map((card) => card.id)).not.toContain("dashboard-knowledge-surface");
+    expect(block).toContain("Concise Chinese progress updates");
+    expect(block).not.toContain("Obsidian-style knowledge dashboard");
+  });
+
+  it("persists disabled personal skill ids in a sidecar instead of rewriting memory", () => {
+    const files: Record<string, string> = {};
+    const baseDir = "/tmp/skfiy";
+    const settingsPath = createPersonalSkillSettingsFilePath(baseDir);
+    const store = createPersonalSkillSettingsStore({
+      baseDir,
+      io: {
+        exists: (targetPath: string) => Object.hasOwn(files, targetPath),
+        mkdir: () => undefined,
+        readFile: (targetPath: string) => files[targetPath] ?? "",
+        writeFile: (targetPath: string, content: string) => {
+          files[targetPath] = content;
+        }
+      },
+      now: () => new Date("2026-06-24T00:00:00.000Z")
+    });
+
+    expect(settingsPath).toBe("/tmp/skfiy/memory/personal-skills.json");
+    expect(store.read()).toEqual({
+      disabledSkillIds: []
+    });
+    expect(store.setMuted("dashboard-knowledge-surface", true)).toMatchObject({
+      result: "muted",
+      settings: {
+        disabledSkillIds: ["dashboard-knowledge-surface"],
+        updatedAt: "2026-06-24T00:00:00.000Z"
+      }
+    });
+    expect(JSON.parse(files[settingsPath])).toMatchObject({
+      disabledSkillIds: ["dashboard-knowledge-surface"],
+      updatedAt: "2026-06-24T00:00:00.000Z"
+    });
+    expect(store.setMuted("dashboard-knowledge-surface", false)).toMatchObject({
+      result: "unmuted",
+      settings: {
+        disabledSkillIds: []
+      }
+    });
+    expect(store.setMuted("not-a-skill", true)).toMatchObject({
+      result: "invalid-skill"
+    });
   });
 });

@@ -371,6 +371,30 @@ describe("assistant agent provider", () => {
     expect(prompt.indexOf("<skfiy-personal-skills>")).toBeLessThan(prompt.indexOf("User: 继续 dashboard 的视觉方向"));
   });
 
+  it("does not inject disabled personal skills into provider prompts", () => {
+    const invocation = buildAssistantAgentInvocation(baseSettings, "继续 dashboard 的视觉方向", {
+      state: "ready",
+      url: "https://example.test",
+      title: "Example",
+      visibleText: "Example text",
+      observedAt: "2026-06-23T00:00:00.000Z"
+    }, {
+      userEntries: [
+        "User prefers concise Chinese progress updates.",
+        "User prefers dense Obsidian-like knowledge surfaces for dashboard work."
+      ],
+      agentEntries: []
+    }, [], {
+      disabledSkillIds: ["dashboard-knowledge-surface"]
+    });
+
+    const prompt = invocation.args.at(-1) ?? "";
+    expect(prompt).toContain("<skfiy-personal-skills>");
+    expect(prompt).toContain("Concise Chinese progress updates");
+    expect(prompt).not.toContain("Obsidian-style knowledge dashboard");
+    expect(prompt).not.toContain("Favor linked knowledge");
+  });
+
   it("uses the same skfiy identity prompt for Claude Code backend calls", () => {
     const invocation = buildAssistantAgentInvocation({
       mode: "claude-code",

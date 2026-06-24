@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DashboardApp } from "./DashboardApp";
-import type { DashboardProviderSettingsResponse, DashboardSnapshot } from "./contracts";
+import type {
+  DashboardPersonalSkillActionResponse,
+  DashboardProviderSettingsResponse,
+  DashboardSnapshot
+} from "./contracts";
 
 const snapshot: DashboardSnapshot = {
   schemaVersion: 1,
@@ -557,6 +561,56 @@ describe("DashboardApp", () => {
       expect(within(memory).queryByText("User prefers concise Chinese updates.")).not.toBeInTheDocument();
     });
     expect(within(memory).getByText("Memory forgotten")).toBeInTheDocument();
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("mutes a personal skill card from dashboard controls and refreshes the snapshot", async () => {
+    let currentSnapshot = snapshot;
+    const loadSnapshot = vi.fn(async () => currentSnapshot);
+    const loadProviderSettings = vi.fn(async () => createProviderSettingsPayload({
+      mode: "external-cua",
+      externalProviderLabel: "OpenAI CUA",
+      externalEndpoint: "https://cua.example.test/plan",
+      externalApiKeyConfigured: true
+    }));
+    const runPersonalSkillAction = vi.fn(async (request: unknown): Promise<DashboardPersonalSkillActionResponse> => {
+      expect(request).toEqual({
+        action: "mute",
+        skillId: "dashboard-knowledge-surface"
+      });
+      currentSnapshot = {
+        ...snapshot,
+        personalMemory: {
+          ...snapshot.personalMemory!,
+          mutedPersonalSkillIds: ["dashboard-knowledge-surface"],
+          personalSkills: snapshot.personalMemory!.personalSkills!.filter((skill) => (
+            skill.id !== "dashboard-knowledge-surface"
+          ))
+        }
+      };
+      return { result: "muted" };
+    });
+
+    render(<DashboardApp
+      loadProviderSettings={loadProviderSettings}
+      loadSnapshot={loadSnapshot}
+      runPersonalSkillAction={runPersonalSkillAction}
+    />);
+
+    const memory = await screen.findByRole("region", { name: "Memory" });
+    expect(within(memory).getByText("Obsidian-style knowledge dashboard")).toBeInTheDocument();
+
+    fireEvent.click(within(memory).getByRole("button", {
+      name: "Mute personal skill: Obsidian-style knowledge dashboard"
+    }));
+
+    await waitFor(() => {
+      expect(runPersonalSkillAction).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(within(memory).queryByText("Obsidian-style knowledge dashboard")).not.toBeInTheDocument();
+    });
+    expect(within(memory).getByText("Personal skill muted")).toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });
 
