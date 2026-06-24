@@ -623,6 +623,22 @@ function DashboardContent({
               {chromeControl.tabDiscoveryReason ? (
                 <p className="skfiy-dashboard-muted-message">{chromeControl.tabDiscoveryReason}</p>
               ) : null}
+              {chromeControl.browserContextAccessSteps.length > 0 ? (
+                <div className="skfiy-dashboard-control-panel">
+                  <h4>Browser Context access checklist</h4>
+                  <ul
+                    aria-label="Browser Context access checklist"
+                    className="skfiy-dashboard-evidence-list"
+                  >
+                    {chromeControl.browserContextAccessSteps.map((step) => (
+                      <li key={step.id}>
+                        <StatusChip tone={step.tone}>{step.label}</StatusChip>
+                        <span>{step.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <div className="skfiy-dashboard-inline-list">
                 {chromeControl.capabilities.length > 0 ? (
                   chromeControl.capabilities.map((capability) => (

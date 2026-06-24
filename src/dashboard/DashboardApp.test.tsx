@@ -516,6 +516,70 @@ describe("DashboardApp", () => {
     expect(within(activity).getAllByText("Chrome host permission missing").length).toBeGreaterThan(0);
   });
 
+  it("shows a browser context access checklist for the current tab permission chain", async () => {
+    const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+    const blockedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      runtimeHealth: {
+        ...snapshot.runtimeHealth,
+        extension: {
+          ...extension,
+          pageControl: {
+            state: "blocked_by_host_policy",
+            reason: "Host policy has not allowed this page.",
+            activeTab: {
+              host: "bytedance.larkoffice.com",
+              tabId: 1782098572,
+              windowId: 1782098107
+            },
+            hostPolicy: {
+              decision: "ask",
+              reason: "default_policy"
+            },
+            chromeHostPermission: {
+              state: "missing",
+              origins: ["https://bytedance.larkoffice.com/*"]
+            },
+            chromeCapturePermission: {
+              state: "missing",
+              origins: ["<all_urls>"]
+            },
+            capabilities: {
+              observe: false,
+              screenshot: false
+            }
+          },
+          browserContext: {
+            state: "blocked_by_host_policy",
+            source: "extension.connection.pageControl",
+            reason: "Host policy has not allowed this page.",
+            nextAction: "Grant page access"
+          }
+        }
+      }
+    };
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => blockedSnapshot)}
+    />);
+
+    const browser = await screen.findByRole("region", { name: "Browser" });
+    const checklist = within(browser).getByRole("list", { name: "Browser Context access checklist" });
+    expect(within(checklist).getByText("Allow current host")).toBeInTheDocument();
+    expect(within(checklist).getByText("bytedance.larkoffice.com")).toBeInTheDocument();
+    expect(within(checklist).getByText("Grant Chrome site access")).toBeInTheDocument();
+    expect(within(checklist).getByText("https://bytedance.larkoffice.com/*")).toBeInTheDocument();
+    expect(within(checklist).getByText("Grant visible-tab capture")).toBeInTheDocument();
+    expect(within(checklist).getByText("<all_urls>")).toBeInTheDocument();
+    expect(within(checklist).getByText("Refresh extension diagnostics")).toBeInTheDocument();
+  });
+
   it("loads redacted planner settings from the provider settings endpoint", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);

@@ -120,6 +120,13 @@ export interface DashboardBrowserContextSummary {
   nextAction?: string;
 }
 
+export interface DashboardBrowserContextAccessStep {
+  id: string;
+  label: string;
+  detail: string;
+  tone: Tone;
+}
+
 export interface DashboardChromeControlState {
   label: string;
   host: string;
@@ -142,6 +149,7 @@ export interface DashboardChromeControlState {
   tabDiscoveryLabel: string;
   tabDiscoveryReason?: string;
   browserContext: DashboardBrowserContextSummary;
+  browserContextAccessSteps: DashboardBrowserContextAccessStep[];
   hostPolicy: DashboardChromeHostPolicySummary;
 }
 
@@ -473,6 +481,7 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
   const capabilities = readRecord(pageControl?.capabilities);
   const contentScript = readRecord(pageControl?.contentScript);
   const browserContext = readDashboardBrowserContextSummary(readRecord(extension?.browserContext), pageControl);
+  const browserContextAccessSteps = readBrowserContextAccessSteps(pageControl);
   const capabilityLabels = Object.entries(capabilities ?? {})
     .filter(([, value]) => value === true || typeof value === "string")
     .map(([key, value]) => typeof value === "string" ? `${key}: ${value}` : key);
@@ -539,8 +548,79 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
     tabDiscoveryLabel: tabDiscovery.label,
     tabDiscoveryReason: tabDiscovery.reason,
     browserContext,
+    browserContextAccessSteps,
     hostPolicy
   };
+}
+
+function readBrowserContextAccessSteps(
+  pageControl: Record<string, unknown> | undefined
+): DashboardBrowserContextAccessStep[] {
+  const state = readString(pageControl?.state) ?? "";
+  if (state === "ready") {
+    return [];
+  }
+
+  const activeTab = readRecord(pageControl?.activeTab);
+  const hostPolicy = readRecord(pageControl?.hostPolicy);
+  const chromeHostPermission = readRecord(pageControl?.chromeHostPermission);
+  const chromeCapturePermission = readRecord(pageControl?.chromeCapturePermission);
+  const host = readString(activeTab?.host)
+    ?? readString(chromeHostPermission?.host)
+    ?? readHostFromPermissionOrigin(readString(chromeHostPermission?.origin));
+  const hostOrigins = readStringArray(chromeHostPermission?.origins);
+  const captureOrigins = readStringArray(chromeCapturePermission?.origins);
+  const steps: DashboardBrowserContextAccessStep[] = [];
+
+  if (host && readString(hostPolicy?.decision) !== "allowed") {
+    steps.push({
+      id: "allow-current-host",
+      label: "Allow current host",
+      detail: host,
+      tone: "warning"
+    });
+  }
+
+  if (readString(chromeHostPermission?.state) === "missing") {
+    steps.push({
+      id: "grant-site-access",
+      label: "Grant Chrome site access",
+      detail: hostOrigins[0] ?? readString(chromeHostPermission?.origin) ?? "current page origin",
+      tone: "warning"
+    });
+  }
+
+  if (readString(chromeCapturePermission?.state) === "missing") {
+    steps.push({
+      id: "grant-visible-tab-capture",
+      label: "Grant visible-tab capture",
+      detail: captureOrigins[0] ?? "<all_urls>",
+      tone: "warning"
+    });
+  }
+
+  if (steps.length > 0) {
+    steps.push({
+      id: "refresh-extension-diagnostics",
+      label: "Refresh extension diagnostics",
+      detail: "Rerun Chrome status after granting access.",
+      tone: "neutral"
+    });
+  }
+
+  return steps;
+}
+
+function readHostFromPermissionOrigin(origin: string | undefined): string | undefined {
+  if (!origin) {
+    return undefined;
+  }
+
+  try {
+    return new URL(origin).host;
+  } catch {
+    return undefined;
+  }
 }
 
 function readDashboardBrowserContextSummary(
