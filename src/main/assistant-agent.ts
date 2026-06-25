@@ -135,6 +135,8 @@ export class AssistantAgentTurnRuntimeError extends Error {
 
 const DEFAULT_ASSISTANT_AGENT_TIMEOUT_MS = 45_000;
 const READINESS_PROBE_TIMEOUT_MS = 5_000;
+const CODEX_PET_CHAT_MODEL = "gpt-5.5";
+const CODEX_PET_CHAT_REASONING_EFFORT = "low";
 const CLAUDE_CODE_DISALLOWED_TOOLS = "Bash,Edit,MultiEdit,Write,NotebookEdit,WebFetch,WebSearch,Task";
 const ASSISTANT_AGENT_IDENTITY_PROMPT = [
   "You are skfiy, an agent-first macOS desktop pet.",
@@ -251,8 +253,14 @@ export function buildAssistantAgentInvocation(
       command: settings.codexBinary,
       args: [
         "exec",
+        "--ignore-user-config",
+        "--ignore-rules",
+        "--model",
+        CODEX_PET_CHAT_MODEL,
         "--config",
         "approval_policy=\"never\"",
+        "--config",
+        `model_reasoning_effort="${CODEX_PET_CHAT_REASONING_EFFORT}"`,
         "--sandbox",
         "read-only",
         "--cd",

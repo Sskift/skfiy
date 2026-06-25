@@ -15,12 +15,19 @@ interface GraphPoint {
 }
 
 type VaultLensKind = DashboardKnowledgeGraphNode["kind"] | "all";
+type WorkspaceMode = "map" | "prompt" | "evidence";
 
 interface VaultLensOption {
   kind: VaultLensKind;
   label: string;
   count: number;
 }
+
+const WORKSPACE_MODE_OPTIONS: Array<{ mode: WorkspaceMode; label: string }> = [
+  { mode: "map", label: "Graph map" },
+  { mode: "prompt", label: "Prompt path" },
+  { mode: "evidence", label: "Evidence" }
+];
 
 const GRAPH_WIDTH = 760;
 const GRAPH_HEIGHT = 430;
@@ -57,6 +64,7 @@ const ALERT_POSITIONS: GraphPoint[] = [
 export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(() => nodes[0]?.id ?? null);
   const [activeLens, setActiveLens] = useState<VaultLensKind>("all");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("map");
   const [searchQuery, setSearchQuery] = useState("");
   const normalizedSearchQuery = normalizeVaultSearchQuery(searchQuery);
   const lensOptions = createVaultLensOptions(nodes);
@@ -93,11 +101,17 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
   const summary = normalizedSearchQuery.length > 0
     ? `Showing ${filteredNodes.length} of ${nodes.length} notes for ${normalizedSearchQuery}`
     : `Showing ${filteredNodes.length} of ${nodes.length} notes`;
+  const workspaceSummary = `${formatWorkspaceModeLabel(workspaceMode)} view · ${selectedNote?.fileName ?? "No note selected"} · ${summary}`;
   const setLens = (kind: VaultLensKind) => {
     setActiveLens(kind);
     setSelectedNodeId(kind === "all"
       ? nodes[0]?.id ?? null
       : nodes.find((node) => node.kind === kind)?.id ?? null);
+  };
+  const openLinkedNote = (nodeId: string) => {
+    setActiveLens("all");
+    setSearchQuery("");
+    setSelectedNodeId(nodeId);
   };
 
   return (
@@ -132,7 +146,29 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
           {summary}
         </p>
       </div>
-      <div className="skfiy-knowledge-graph-workspace" role="region" aria-label="Vault workspace">
+      <div className="skfiy-vault-workspace-bar">
+        <div className="skfiy-vault-workspace-mode" role="toolbar" aria-label="Vault workspace mode">
+          {WORKSPACE_MODE_OPTIONS.map((option) => (
+            <button
+              key={option.mode}
+              type="button"
+              aria-pressed={workspaceMode === option.mode}
+              onClick={() => setWorkspaceMode(option.mode)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <p role="status" aria-label="Vault workspace summary">
+          {workspaceSummary}
+        </p>
+      </div>
+      <div
+        className="skfiy-knowledge-graph-workspace"
+        data-mode={workspaceMode}
+        role="region"
+        aria-label="Vault workspace"
+      >
       <div className="skfiy-knowledge-panel skfiy-knowledge-panel--prompt-stack">
         <h3>Prompt stack</h3>
         <ol aria-label="Prompt stack">
@@ -254,8 +290,14 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
               {selectedNote.relations.length > 0 ? (
                 <ul aria-label="Focused note backlinks">
                   {selectedNote.relations.map((relation, index) => (
-                    <li key={`${selectedNote.id}-${relation}-${index}`}>
-                      <span>{relation}</span>
+                    <li key={`${selectedNote.id}-${relation.displayLabel}-${index}`}>
+                      <button
+                        type="button"
+                        aria-label={`Open linked note ${relation.targetFileName} from ${relation.label}`}
+                        onClick={() => openLinkedNote(relation.targetId)}
+                      >
+                        <span>{relation.displayLabel}</span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -313,7 +355,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
                 {note.relations.length > 0 ? (
                   <span className="skfiy-vault-note-links" aria-label={`${note.fileName} links`}>
                     {note.relations.slice(0, 3).map((relation, index) => (
-                      <em key={`${note.id}-${relation}-${index}`}>{relation}</em>
+                      <em key={`${note.id}-${relation.displayLabel}-${index}`}>{relation.displayLabel}</em>
                     ))}
                   </span>
                 ) : null}
@@ -328,7 +370,13 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
               <li key={`${backlink.from}-${backlink.to}-${backlink.label}`}>
                 <strong>{backlink.fromLabel}</strong>
                 <span>{backlink.label}</span>
-                <small>{backlink.toLabel}</small>
+                <button
+                  type="button"
+                  aria-label={`Open linked note ${backlink.toLabel}.md from ${backlink.label}`}
+                  onClick={() => openLinkedNote(backlink.to)}
+                >
+                  {backlink.toLabel}
+                </button>
               </li>
             ))}
           </ul>
@@ -694,12 +742,24 @@ function formatLensLabel(kind: DashboardKnowledgeGraphNode["kind"]): string {
   return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
 
+function formatWorkspaceModeLabel(mode: WorkspaceMode): string {
+  return WORKSPACE_MODE_OPTIONS.find((option) => option.mode === mode)?.label ?? "Graph map";
+}
+
+interface VaultRelation {
+  displayLabel: string;
+  direction: "incoming" | "outgoing";
+  label: string;
+  targetFileName: string;
+  targetId: string;
+}
+
 interface VaultNote {
   id: string;
   fileName: string;
   kind: DashboardKnowledgeGraphNode["kind"];
   detail: string;
-  relations: string[];
+  relations: VaultRelation[];
 }
 
 function createReadableBacklinks(
@@ -720,9 +780,25 @@ function createVaultNotes(
   return nodes.map((node) => {
     const relations = edges
       .filter((edge) => edge.from === node.id || edge.to === node.id)
-      .map((edge) => edge.from === node.id
-        ? `${edge.label} -> ${edge.toLabel}`
-        : `${edge.fromLabel} -> ${edge.label}`);
+      .map((edge): VaultRelation => {
+        if (edge.from === node.id) {
+          return {
+            direction: "outgoing",
+            displayLabel: `${edge.label} -> ${edge.toLabel}`,
+            label: edge.label,
+            targetFileName: `${edge.toLabel}.md`,
+            targetId: edge.to
+          };
+        }
+
+        return {
+          direction: "incoming",
+          displayLabel: `${edge.fromLabel} -> ${edge.label}`,
+          label: edge.label,
+          targetFileName: `${edge.fromLabel}.md`,
+          targetId: edge.from
+        };
+      });
 
     return {
       id: node.id,
@@ -739,7 +815,7 @@ function matchesVaultSearch(note: VaultNote, query: string): boolean {
     note.fileName,
     note.kind,
     note.detail,
-    ...note.relations
+    ...note.relations.map((relation) => relation.displayLabel)
   ].join(" ")).includes(query);
 }
 

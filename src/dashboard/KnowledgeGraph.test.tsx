@@ -219,6 +219,40 @@ describe("KnowledgeGraph", () => {
     expect(within(neighborhood).getByText("recalls context")).toBeInTheDocument();
   });
 
+  it("lets operators switch workspace mode and open linked backlinks as notes", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries" },
+        { id: "provider:codex", label: "Codex", kind: "provider", tone: "success", detail: "Codex selected" },
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral", detail: "Codex: summarize dashboard" }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:codex", label: "injects prompt" },
+        { from: "provider:codex", to: "session:latest", label: "answered" }
+      ]}
+    />);
+
+    const modeToolbar = screen.getByRole("toolbar", { name: "Vault workspace mode" });
+    expect(within(modeToolbar).getByRole("button", { name: "Graph map" }))
+      .toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(within(modeToolbar).getByRole("button", { name: "Prompt path" }));
+
+    expect(within(modeToolbar).getByRole("button", { name: "Prompt path" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("status", { name: "Vault workspace summary" }))
+      .toHaveTextContent("Prompt path view");
+
+    const focusedNote = screen.getByRole("region", { name: "Focused note" });
+    fireEvent.click(within(focusedNote).getByRole("button", {
+      name: "Open linked note Codex.md from injects prompt"
+    }));
+
+    expect(within(focusedNote).getByRole("heading", { name: "Codex.md" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Vault workspace summary" }))
+      .toHaveTextContent("Codex.md");
+  });
+
   it("keeps focused neighborhood keys unique when the same neighbor has two relations", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 

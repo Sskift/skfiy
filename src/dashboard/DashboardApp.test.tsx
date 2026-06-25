@@ -311,20 +311,20 @@ describe("DashboardApp", () => {
 
     const navigation = screen.getByRole("navigation", { name: "skfiy dashboard navigation" });
     expect(within(navigation).getByRole("link", { name: "Overview" })).toBeInTheDocument();
-    expect(within(navigation).getByRole("link", { name: "Provider" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Agent" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Memory" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Graph" })).toBeInTheDocument();
-    expect(within(navigation).getByRole("link", { name: "Computer Use" })).toBeInTheDocument();
-    expect(within(navigation).getByRole("link", { name: "Browser" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Tools" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Browser Context" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Activity" })).toBeInTheDocument();
     expect(within(navigation).getByRole("link", { name: "Next action" })).toBeInTheDocument();
 
-    expect(screen.getByRole("heading", { name: "skfiy control plane" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "skfiy agent workspace" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Overview" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Provider" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Background Agent" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Memory" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Knowledge graph" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Computer Use" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Agent tools" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Browser" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Activity" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Next action" })).toBeInTheDocument();
@@ -334,15 +334,15 @@ describe("DashboardApp", () => {
     expect(within(overview).getByRole("heading", { name: "Computer Use" })).toBeInTheDocument();
     expect(within(overview).getByRole("heading", { name: "Chrome Browser Context" })).toBeInTheDocument();
     expect(within(overview).getByRole("heading", { name: "Current Turn" })).toBeInTheDocument();
-    const commandCenter = within(overview).getByRole("region", { name: "Dynamic command center" });
-    expect(within(commandCenter).getByText("Live command layer")).toBeInTheDocument();
+    const commandCenter = within(overview).getByRole("region", { name: "Agent workspace" });
+    expect(within(commandCenter).getByText("Background Agent workspace")).toBeInTheDocument();
     expect(within(commandCenter).getByRole("img", { name: "Readiness radar chart" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("img", { name: "Agent runtime flow chart" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("img", { name: "Activity bar chart" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("progressbar", { name: "Operational confidence" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("progressbar", { name: "Browser context" })).toBeInTheDocument();
 
-    const provider = screen.getByRole("region", { name: "Provider" });
+    const provider = screen.getByRole("region", { name: "Background Agent" });
     expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();
     expect(within(provider).getByText("planner · external-cua")).toBeInTheDocument();
     expect(within(provider).getByText("External CUA endpoint and API key are configured.")).toBeInTheDocument();
@@ -440,8 +440,8 @@ describe("DashboardApp", () => {
     expect(within(focusedNote).getByText(/2% - 37\/1,375 chars/u)).toBeInTheDocument();
     expect(within(focusedNote).getByText("injects prompt -> Codex")).toBeInTheDocument();
 
-    const computerUse = screen.getByRole("region", { name: "Computer Use" });
-    expect(within(computerUse).getByRole("heading", { name: "Computer use" })).toBeInTheDocument();
+    const computerUse = screen.getByRole("region", { name: "Agent tools" });
+    expect(within(computerUse).getByRole("heading", { name: "Computer Use tool" })).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Chrome readiness" })).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Finder readiness" })).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Ghostty readiness" })).toBeInTheDocument();
@@ -475,6 +475,40 @@ describe("DashboardApp", () => {
     expect(within(nextAction).getByText("Screen Recording is not granted.")).toBeInTheDocument();
 
     expect(screen.getByLabelText("Dashboard connection: connected")).toBeInTheDocument();
+  });
+
+  it("frames Computer Use as an agent tool layer instead of a primary chat surface", async () => {
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => snapshot)}
+    />);
+
+    await screen.findByRole("heading", { level: 1, name: "skfiy" });
+
+    expect(screen.getAllByText("Background Agent workspace").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("heading", { name: "skfiy agent workspace" })).toBeInTheDocument();
+
+    const navigation = screen.getByRole("navigation", { name: "skfiy dashboard navigation" });
+    expect(within(navigation).getByRole("link", { name: "Agent" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Tools" })).toBeInTheDocument();
+    expect(within(navigation).queryByRole("link", { name: "Computer Use" })).not.toBeInTheDocument();
+
+    const commandCenter = screen.getByRole("region", { name: "Agent workspace" });
+    expect(within(commandCenter).getByText("Background Agent workspace")).toBeInTheDocument();
+    expect(within(commandCenter).getByText("Tool layer")).toBeInTheDocument();
+    expect(within(commandCenter).queryByText("Computer Use")).not.toBeInTheDocument();
+
+    const tools = screen.getByRole("region", { name: "Agent tools" });
+    expect(within(tools).getByRole("heading", { name: "Agent tools" })).toBeInTheDocument();
+    expect(within(tools).getByRole("heading", { name: "Computer Use tool" })).toBeInTheDocument();
+    expect(within(tools).getByText(
+      "Permissioned desktop/app-control tool invoked by the selected Background Agent."
+    )).toBeInTheDocument();
   });
 
   it("shows assistant provider, current turn, browser context, and latest blocker", async () => {
@@ -706,7 +740,7 @@ describe("DashboardApp", () => {
       loadSnapshot={vi.fn(async () => blockedSnapshot)}
     />);
 
-    const computerUse = await screen.findByRole("region", { name: "Computer Use" });
+    const computerUse = await screen.findByRole("region", { name: "Agent tools" });
     const checklist = within(computerUse).getByRole("list", { name: "Finder Automation access checklist" });
     expect(within(checklist).getByText("Open Automation settings")).toBeInTheDocument();
     expect(within(checklist).getByText("System Settings > Privacy & Security > Automation")).toBeInTheDocument();

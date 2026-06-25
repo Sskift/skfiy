@@ -114,11 +114,11 @@ export interface DashboardAppProps {
 
 const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: Home },
-  { id: "provider", label: "Provider", icon: Bot },
+  { id: "provider", label: "Agent", icon: Bot },
   { id: "memory", label: "Memory", icon: History },
   { id: "knowledge-graph", label: "Graph", icon: Gauge },
-  { id: "computer-use", label: "Computer Use", icon: MonitorCog },
-  { id: "browser", label: "Browser", icon: Chrome },
+  { id: "agent-tools", label: "Tools", icon: MonitorCog },
+  { id: "browser", label: "Browser Context", icon: Chrome },
   { id: "activity", label: "Activity", icon: Activity },
   { id: "next-action", label: "Next action", icon: ArrowRight }
 ] as const;
@@ -259,7 +259,7 @@ export function DashboardApp({
           <div className="skfiy-dashboard-brand-mark" aria-hidden="true">s</div>
           <div>
             <h1>skfiy</h1>
-            <span>Computer Use control</span>
+            <span>Background Agent workspace</span>
           </div>
         </div>
         <nav aria-label="skfiy dashboard navigation">
@@ -279,7 +279,7 @@ export function DashboardApp({
         <header className="skfiy-dashboard-topbar" aria-label="Dashboard session status">
           <div>
             <span className="skfiy-dashboard-kicker">Local dashboard</span>
-            <h2>skfiy control plane</h2>
+            <h2>skfiy agent workspace</h2>
           </div>
           <div className="skfiy-dashboard-topbar-actions">
             <StatusChip
@@ -487,7 +487,7 @@ function DashboardContent({
         <div className="skfiy-dashboard-section-heading">
           <div>
             <span>Connection</span>
-            <h2 id="provider-title">Provider</h2>
+            <h2 id="provider-title">Background Agent</h2>
           </div>
         </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
@@ -533,26 +533,29 @@ function DashboardContent({
       </section>
 
       <section
-        id="computer-use"
+        id="agent-tools"
         className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
-        aria-labelledby="computer-use-title"
+        aria-labelledby="agent-tools-title"
       >
         <div className="skfiy-dashboard-section-heading">
           <div>
-            <span>Readiness</span>
-            <h2 id="computer-use-title">Computer Use</h2>
+            <span>Tool layer</span>
+            <h2 id="agent-tools-title">Agent tools</h2>
           </div>
         </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
               <div>
-                <Card.Description>Desktop control</Card.Description>
-                <Card.Title>Computer use</Card.Title>
+                <Card.Description>Computer Use</Card.Description>
+                <Card.Title>Computer Use tool</Card.Title>
               </div>
               <MonitorCog size={18} aria-hidden="true" />
             </Card.Header>
             <Card.Content className="skfiy-dashboard-card-content">
+              <p className="skfiy-dashboard-muted-message">
+                Permissioned desktop/app-control tool invoked by the selected Background Agent.
+              </p>
               <StatusRow
                 icon={<MousePointer2 size={16} aria-hidden="true" />}
                 label="Desktop session"
@@ -851,7 +854,7 @@ function DashboardCommandCenter({
     { label: "Agent", detail: capabilities[0]?.value ?? "provider", tone: capabilities[0]?.tone ?? "neutral" },
     { label: "Memory", detail: `${knowledgeGraph.nodes.filter((node) => node.kind === "memory").length} nodes`, tone: readGraphTone(knowledgeGraph, "memory") },
     { label: "Browser", detail: chromeControl.label, tone: chromeControl.tone },
-    { label: "Computer Use", detail: computerUse.desktop.value, tone: computerUse.desktop.tone },
+    { label: "Tool layer", detail: computerUse.desktop.value, tone: computerUse.desktop.tone },
     { label: "Evidence", detail: runtimeEvidence.value, tone: runtimeEvidence.tone }
   ];
   const activityBars = [
@@ -882,14 +885,14 @@ function DashboardCommandCenter({
 
   return (
     <Card.Root
-      aria-label="Dynamic command center"
+      aria-label="Agent workspace"
       className="skfiy-dashboard-card skfiy-dashboard-command-center"
       role="region"
       variant="secondary"
     >
       <Card.Content className="skfiy-dashboard-command-grid">
         <section className="skfiy-dashboard-command-brief" aria-label="Live command brief">
-          <span className="skfiy-dashboard-kicker">Live command layer</span>
+          <span className="skfiy-dashboard-kicker">Background Agent workspace</span>
           <h3>{readiness.title}</h3>
           <p>{readiness.detail}</p>
           <div className="skfiy-dashboard-command-next">
