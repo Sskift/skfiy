@@ -27,6 +27,7 @@ export interface DashboardProviderSummary {
   selectedProvider?: string;
   configured?: boolean;
   readiness?: string;
+  readinessDetail?: string;
   lastHealthAt?: string;
   lastError?: string;
   providers?: DashboardAssistantProviderStatus[];
@@ -42,6 +43,7 @@ export interface DashboardAssistantProviderStatus {
   binaryPath?: string;
   binarySource: "default" | "env" | string;
   resolvedBinaryPath?: string;
+  readinessDetail?: string;
   lastError?: string;
 }
 

@@ -465,19 +465,20 @@ function summarizeDashboardAssistantProvider(
   const selectedProvider = providers.find((provider) => provider.selected);
   const configured = selectedProvider?.configured === true;
   const readiness = selectedProvider?.readiness ?? "unknown";
+  const chatReady = readiness === "chat-ready" || readiness === "ready";
 
   return {
     provider: "assistant",
     mode: settings.mode,
     label,
-    health: configured ? "available" : "unavailable",
+    health: chatReady ? "available" : configured ? "unknown" : "unavailable",
     configured,
     readiness,
     selectedProvider: settings.mode,
     timeoutMs: settings.timeoutMs,
     lastHealthAt: generatedAt,
     detail: configured
-      ? `${label} assistant is selected.`
+      ? `${label} assistant binary is configured; chat readiness has not been proven by a dry-run.`
       : `${label} assistant executable is not configured.`,
     providers,
     ...(selectedProvider?.lastError ? { lastError: selectedProvider.lastError } : {})
@@ -538,7 +539,7 @@ function createDashboardAssistantCliProviderState({
     label,
     selected: settings.mode === id,
     configured,
-    readiness: configured ? "ready" : "unconfigured",
+    readiness: configured ? "binary-configured" : "unconfigured",
     binaryPath: configured ? summarizeAssistantBinaryPath(binaryPath, binarySource, envName) : undefined,
     binarySource,
     ...(configured ? {} : { lastError: `${label} executable is not configured.` })

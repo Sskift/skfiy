@@ -24,7 +24,12 @@ type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 type AppPolicy = "allow" | "ask" | "deny";
 type AssistantAgentMode = "codex" | "claude-code" | "hermes";
 type AssistantAgentProviderId = AssistantAgentMode;
-type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
+type AssistantAgentProviderReadiness =
+  | "ready"
+  | "chat-ready"
+  | "binary-found"
+  | "unconfigured"
+  | "unavailable";
 type AssistantAgentExecutableSource = "default" | "env";
 type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 type RiskLevel = "low" | "medium" | "high" | "blocked";
@@ -133,6 +138,7 @@ interface AssistantAgentProviderState {
   executableSource: AssistantAgentExecutableSource;
   resolvedExecutablePath?: string;
   readiness: AssistantAgentProviderReadiness;
+  readinessDetail?: string;
   lastError?: string;
 }
 
@@ -632,6 +638,10 @@ function isAssistantAgentProviderState(value: unknown): value is AssistantAgentP
     )
     && isAssistantAgentProviderReadiness(state.readiness)
     && (
+      state.readinessDetail === undefined
+      || typeof state.readinessDetail === "string"
+    )
+    && (
       state.lastError === undefined
       || typeof state.lastError === "string"
     )
@@ -651,7 +661,11 @@ function isAssistantAgentExecutableSource(value: unknown): value is AssistantAge
 }
 
 function isAssistantAgentProviderReadiness(value: unknown): value is AssistantAgentProviderReadiness {
-  return value === "ready" || value === "unconfigured" || value === "unavailable";
+  return value === "ready"
+    || value === "chat-ready"
+    || value === "binary-found"
+    || value === "unconfigured"
+    || value === "unavailable";
 }
 
 function isPlannerProviderSettings(value: unknown): value is PlannerProviderSettings {

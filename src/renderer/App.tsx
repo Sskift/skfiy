@@ -58,7 +58,12 @@ export type PermissionSettingsTarget =
 export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electron";
 export type AppPolicy = "allow" | "ask" | "deny";
 export type AssistantAgentMode = "codex" | "claude-code" | "hermes";
-export type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
+export type AssistantAgentProviderReadiness =
+  | "ready"
+  | "chat-ready"
+  | "binary-found"
+  | "unconfigured"
+  | "unavailable";
 export type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
 export type TurnTranscriptOutcome =
@@ -103,6 +108,7 @@ export interface AssistantAgentProviderState {
   executableSource: "default" | "env";
   resolvedExecutablePath?: string;
   readiness: AssistantAgentProviderReadiness;
+  readinessDetail?: string;
   lastError?: string;
 }
 
@@ -635,8 +641,11 @@ function readExternalCuaStatusLabel(settings: PlannerProviderSettings): string {
 }
 
 function readAssistantAgentReadinessLabel(readiness: AssistantAgentProviderReadiness): string {
-  if (readiness === "ready") {
-    return "ready";
+  if (readiness === "ready" || readiness === "chat-ready") {
+    return "chat ready";
+  }
+  if (readiness === "binary-found") {
+    return "binary found";
   }
   if (readiness === "unconfigured") {
     return "unconfigured";
@@ -652,6 +661,7 @@ function readAssistantAgentProviderDetail(
   const executable = provider.executablePath ?? "not configured";
   return [
     `${provider.label} · ${readAssistantAgentReadinessLabel(provider.readiness)}`,
+    ...(provider.readinessDetail ? [provider.readinessDetail] : []),
     `binary ${executable}`,
     `cwd ${response.settings.cwd || "default"}`,
     `timeout ${Math.round(response.settings.timeoutMs / 1000)}s`

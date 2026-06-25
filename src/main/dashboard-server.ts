@@ -642,6 +642,7 @@ function summarizeAssistantAgentSettings({
   const selectedProvider = states.find((state) => state.selected);
   const configured = selectedProvider?.configured === true;
   const readiness = selectedProvider?.readiness ?? "unknown";
+  const chatReady = readiness === "chat-ready";
   return {
     provider: "assistant",
     mode: settings.mode,
@@ -650,13 +651,14 @@ function summarizeAssistantAgentSettings({
       : settings.mode === "claude-code"
         ? "Claude Code"
         : "Hermes",
-    health: readiness === "ready" ? "available" : "unavailable",
+    health: chatReady ? "available" : configured ? "unknown" : "unavailable",
     configured,
     readiness,
     selectedProvider: settings.mode,
     timeoutMs: settings.timeoutMs,
     lastHealthAt: generatedAt,
     providers: states.map(summarizeAssistantProviderState),
+    ...(selectedProvider?.readinessDetail ? { detail: selectedProvider.readinessDetail } : {}),
     ...(selectedProvider?.lastError ? { lastError: selectedProvider.lastError } : {})
   };
 }
@@ -676,6 +678,7 @@ function summarizeAssistantProviderState(
       ? { binaryPath: summarizeAssistantExecutablePath(state.executablePath, state.executableSource, state.id) }
       : {}),
     ...(state.resolvedExecutablePath ? { resolvedBinaryPath: state.resolvedExecutablePath } : {}),
+    ...(state.readinessDetail ? { readinessDetail: state.readinessDetail } : {}),
     ...(state.lastError ? { lastError: state.lastError } : {})
   };
 }

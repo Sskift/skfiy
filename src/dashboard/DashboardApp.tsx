@@ -2386,7 +2386,7 @@ function readHealthTone(health: string): Tone {
 }
 
 function readAssistantReadinessTone(readiness: string): Tone {
-  if (readiness === "ready") {
+  if (readiness === "ready" || readiness === "chat-ready") {
     return "success";
   }
   if (readiness === "unavailable" || readiness === "unconfigured") {

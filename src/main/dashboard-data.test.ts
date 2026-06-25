@@ -86,10 +86,10 @@ describe("dashboard snapshot data", () => {
         provider: "assistant",
         mode: "codex",
         label: "Codex",
-        health: "available",
-        detail: "Codex assistant is selected.",
+        health: "unknown",
+        detail: "Codex assistant binary is configured; chat readiness has not been proven by a dry-run.",
         configured: true,
-        readiness: "ready",
+        readiness: "binary-configured",
         selectedProvider: "codex",
         timeoutMs: 45_000,
         lastHealthAt: "2026-06-20T00:00:00.000Z",
@@ -100,7 +100,7 @@ describe("dashboard snapshot data", () => {
             label: "Codex",
             selected: true,
             configured: true,
-            readiness: "ready",
+            readiness: "binary-configured",
             binaryPath: "configured via SKFIY_CODEX_BIN",
             binarySource: "env"
           },
@@ -110,7 +110,7 @@ describe("dashboard snapshot data", () => {
             label: "Claude Code",
             selected: false,
             configured: true,
-            readiness: "ready",
+            readiness: "binary-configured",
             binaryPath: "claude",
             binarySource: "default"
           },
@@ -120,7 +120,7 @@ describe("dashboard snapshot data", () => {
             label: "Hermes",
             selected: false,
             configured: true,
-            readiness: "ready",
+            readiness: "binary-configured",
             binaryPath: "hermes",
             binarySource: "default"
           }
@@ -418,10 +418,10 @@ describe("dashboard snapshot data", () => {
         provider: "assistant",
         mode: "claude-code",
         label: "Claude Code",
-        health: "available",
-        detail: "Claude Code assistant is selected.",
+        health: "unknown",
+        detail: "Claude Code assistant binary is configured; chat readiness has not been proven by a dry-run.",
         configured: true,
-        readiness: "ready",
+        readiness: "binary-configured",
         selectedProvider: "claude-code",
         timeoutMs: 45_000,
         lastHealthAt: "2026-06-20T00:00:00.000Z",
@@ -432,7 +432,7 @@ describe("dashboard snapshot data", () => {
             label: "Codex",
             selected: false,
             configured: true,
-            readiness: "ready",
+            readiness: "binary-configured",
             binaryPath: "codex",
             binarySource: "default"
           },
@@ -442,7 +442,7 @@ describe("dashboard snapshot data", () => {
             label: "Claude Code",
             selected: true,
             configured: true,
-            readiness: "ready",
+            readiness: "binary-configured",
             binaryPath: "configured via SKFIY_CLAUDE_CODE_BIN",
             binarySource: "env"
           },
@@ -452,7 +452,7 @@ describe("dashboard snapshot data", () => {
             label: "Hermes",
             selected: false,
             configured: true,
-            readiness: "ready",
+            readiness: "binary-configured",
             binaryPath: "configured via SKFIY_HERMES_BIN",
             binarySource: "env"
           }

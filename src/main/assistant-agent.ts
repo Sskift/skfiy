@@ -31,7 +31,11 @@ export type AssistantAgentMode = "codex" | "claude-code" | "hermes";
 export type AssistantAgentProviderId = AssistantAgentMode;
 export type AssistantAgentCliBinarySource = "default" | "env";
 export type AssistantAgentExecutableSource = AssistantAgentCliBinarySource;
-export type AssistantAgentProviderReadiness = "ready" | "unconfigured" | "unavailable";
+export type AssistantAgentProviderReadiness =
+  | "chat-ready"
+  | "binary-found"
+  | "unconfigured"
+  | "unavailable";
 export type AssistantAgentTurnStatus = "completed" | "failed" | "cancelled";
 
 export interface AssistantAgentSettings {
@@ -67,6 +71,7 @@ export interface AssistantAgentProviderState {
   executableSource: AssistantAgentExecutableSource;
   resolvedExecutablePath?: string;
   readiness: AssistantAgentProviderReadiness;
+  readinessDetail?: string;
   lastError?: string;
 }
 
@@ -707,7 +712,8 @@ async function readCliAssistantAgentProviderState({
       executablePath: configuredExecutable,
       executableSource,
       resolvedExecutablePath,
-      readiness: "ready"
+      readiness: "binary-found",
+      readinessDetail: `${label} executable was found; chat readiness has not been proven by a dry-run.`
     };
   } catch (error) {
     return {

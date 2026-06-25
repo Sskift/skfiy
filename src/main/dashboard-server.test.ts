@@ -429,7 +429,7 @@ describe("dashboard loopback HTTP response helper", () => {
         provider: "assistant",
         mode: "codex",
         label: "Codex",
-        health: "available",
+        health: "unknown",
         selectedProvider: "codex",
         timeoutMs: 12_000
       });
@@ -441,7 +441,8 @@ describe("dashboard loopback HTTP response helper", () => {
           label: "Codex",
           selected: true,
           configured: true,
-          readiness: "ready",
+          readiness: "binary-found",
+          readinessDetail: "Codex executable was found; chat readiness has not been proven by a dry-run.",
           binaryPath: "codex",
           binarySource: "env",
           resolvedBinaryPath: "/opt/homebrew/bin/codex"

@@ -76,7 +76,8 @@ describe("assistant agent provider", () => {
         executablePath: "/opt/homebrew/bin/codex",
         executableSource: "env",
         resolvedExecutablePath: "/opt/homebrew/bin/codex:resolved",
-        readiness: "ready"
+        readiness: "binary-found",
+        readinessDetail: "Codex executable was found; chat readiness has not been proven by a dry-run."
       },
       {
         provider: "assistant",
@@ -87,7 +88,8 @@ describe("assistant agent provider", () => {
         executablePath: "/opt/homebrew/bin/claude",
         executableSource: "env",
         resolvedExecutablePath: "/opt/homebrew/bin/claude:resolved",
-        readiness: "ready"
+        readiness: "binary-found",
+        readinessDetail: "Claude Code executable was found; chat readiness has not been proven by a dry-run."
       },
       {
         provider: "assistant",
@@ -98,7 +100,8 @@ describe("assistant agent provider", () => {
         executablePath: "/Users/bytedance/.local/bin/hermes",
         executableSource: "env",
         resolvedExecutablePath: "/Users/bytedance/.local/bin/hermes:resolved",
-        readiness: "ready"
+        readiness: "binary-found",
+        readinessDetail: "Hermes executable was found; chat readiness has not been proven by a dry-run."
       }
     ]);
   });
@@ -117,7 +120,8 @@ describe("assistant agent provider", () => {
       id: "hermes",
       label: "Hermes",
       selected: true,
-      readiness: "ready",
+      readiness: "binary-found",
+      readinessDetail: "Hermes executable was found; chat readiness has not been proven by a dry-run.",
       executablePath: "/Users/bytedance/.local/bin/hermes"
     });
   });
