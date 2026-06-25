@@ -106,7 +106,7 @@ const APPROVAL_MARKERS: RegExp[] = [
   /approve or deny/i,
   /are you sure/i,
   /proceed\?/i,
-  /confirm/i
+  /\bconfirm(?:\s+(?:this|command|action|operation|request)|\?)\b/i
 ];
 
 const ERROR_MARKERS: RegExp[] = [
@@ -427,8 +427,7 @@ function splitNonEmptyLines(output: string | undefined): string[] {
 
   return output
     .split(/\r?\n/u)
-    .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0);
+    .filter((line) => line.trim().length > 0);
 }
 
 function parseInteger(value: string, field: string, line: string): number {

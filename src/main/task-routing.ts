@@ -12,7 +12,7 @@ export type ExecutableCommandRoute =
   | { kind: "ghostty"; bundleId: typeof GHOSTTY_BUNDLE_ID }
   | { kind: "chrome"; bundleId: typeof CHROME_BUNDLE_ID }
   | { kind: "finder"; bundleId: typeof FINDER_BUNDLE_ID }
-  | { kind: "tmux_supervision"; sessionName: "money-run" };
+  | { kind: "tmux_supervision"; sessionName: string };
 
 export type CommandRoute =
   | ExecutableCommandRoute
@@ -53,10 +53,11 @@ export function selectCommandRoute(command: string): CommandRoute {
 }
 
 function selectBaseCommandRoute(command: string): CommandRoute {
-  if (isMoneyRunSupervisionRequest(command)) {
+  const moneyRunSessionName = readMoneyRunSupervisionSessionName(command);
+  if (moneyRunSessionName) {
     return {
       kind: "tmux_supervision",
-      sessionName: "money-run"
+      sessionName: moneyRunSessionName
     };
   }
 
@@ -185,11 +186,11 @@ function isExplicitTerminalControlRequest(command: string): boolean {
   return /\b(ghostty|terminal|shell|term)\b|终端|命令行/u.test(normalized);
 }
 
-function isMoneyRunSupervisionRequest(command: string): boolean {
+function readMoneyRunSupervisionSessionName(command: string): string | undefined {
   const normalized = command.trim().toLowerCase();
 
   if (!normalized.includes("money-run")) {
-    return false;
+    return undefined;
   }
 
   const mentionsTmuxContext = /\btmux\b|\bsession\b|会话/u.test(normalized);
@@ -205,7 +206,11 @@ function isMoneyRunSupervisionRequest(command: string): boolean {
     "observe"
   ].some((phrase) => normalized.includes(phrase));
 
-  return mentionsTmuxContext && asksForSupervision;
+  if (!mentionsTmuxContext || !asksForSupervision) {
+    return undefined;
+  }
+
+  return command.match(/\b[A-Za-z0-9_.-]*money-run[A-Za-z0-9_.-]*\b/iu)?.[0] ?? "money-run";
 }
 
 function isRouteLevelConfirmationRequest(command: string): boolean {

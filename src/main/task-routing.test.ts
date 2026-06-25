@@ -79,6 +79,13 @@ describe("selectCommandRoute", () => {
     });
   });
 
+  it("preserves the requested money-run tmux session name", () => {
+    expect(selectCommandRoute("监督 tmux money-run-goal 这个 session")).toEqual({
+      kind: "tmux_supervision",
+      sessionName: "money-run-goal"
+    });
+  });
+
   it("asks for clarification instead of routing unsupported visible-app requests", () => {
     for (const command of [
       "用 TextEdit 输入 hello",

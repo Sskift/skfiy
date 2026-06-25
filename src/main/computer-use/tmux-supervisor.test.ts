@@ -286,6 +286,51 @@ describe("createTmuxSupervisionReport", () => {
     });
   });
 
+  it("does not treat research text mentioning confirmation grids as approval prompts", () => {
+    expect(createTmuxSupervisionReport({
+      sessionName: "money-run-goal",
+      hasSession: true,
+      windowsOutput: "@4\t1\tnode\t1\t1",
+      panesOutput: "money-run-goal\t@4\t1\tnode\t%4\t0\t1\t0\tnode\tmoney-run-goal-e8654",
+      paneTails: {
+        "%4": [
+          "下一轮趋势预判优先级：premium_mom24 的单变量 threshold / hold grid、简单 confirmation grid。",
+          "Working (25m 12s) · 1 background terminal running"
+        ].join("\n")
+      }
+    })).toMatchObject({
+      sessionName: "money-run-goal",
+      status: "observing",
+      signals: [],
+      recommendation: {
+        action: "continue_observing",
+        reason: "money-run-goal has 1 window, 1 pane, and no obvious block markers.",
+        mutatesSession: false
+      }
+    });
+  });
+
+  it("accepts tmux panes with an empty title field", () => {
+    expect(createTmuxSupervisionReport({
+      sessionName: "money-run-goal",
+      hasSession: true,
+      windowsOutput: "@4\t1\tzsh\t1\t1",
+      panesOutput: "money-run-goal\t@4\t1\tzsh\t%4\t1\t1\t0\tzsh\t",
+      paneTails: {
+        "%4": "Working (2m) · 1 background terminal running"
+      }
+    })).toMatchObject({
+      sessionName: "money-run-goal",
+      status: "observing",
+      panes: [
+        {
+          id: "%4",
+          title: ""
+        }
+      ]
+    });
+  });
+
   it("recommends inspection when recent output has obvious error markers", () => {
     expect(createTmuxSupervisionReport({
       sessionName: "money-run",
