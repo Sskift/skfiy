@@ -433,7 +433,7 @@ function defaultChromeFallbackScreenshotPath(): string {
 export function parseChromePageIntent(input: string): ChromePageIntent {
   const trimmed = input.trim();
 
-  if (trimmed === CHROME_CURRENT_PAGE_COMMAND) {
+  if (isChromeCurrentPageRequest(trimmed)) {
     return {
       ok: true,
       kind: "current_page"
@@ -445,18 +445,17 @@ export function parseChromePageIntent(input: string): ChromePageIntent {
     return formIntent;
   }
 
-  if (!trimmed.startsWith(CHROME_PAGE_PREFIX) || !trimmed.endsWith(CHROME_PAGE_SUFFIX)) {
+  const exactTestPageUrl = readExactChromeTestPageUrl(trimmed);
+  const flexiblePageUrl = exactTestPageUrl ?? readFlexibleChromePageUrl(trimmed);
+
+  if (!flexiblePageUrl) {
     return {
       ok: false,
       reason: "Chrome page control requires: 打开 Chrome 测试页面 <url> 并提取正文"
     };
   }
 
-  const url = trimmed
-    .slice(CHROME_PAGE_PREFIX.length, trimmed.length - CHROME_PAGE_SUFFIX.length)
-    .trim();
-
-  if (!isSupportedUrl(url)) {
+  if (!isSupportedUrl(flexiblePageUrl)) {
     return {
       ok: false,
       reason: "Chrome page control requires a file:, http:, or https: URL."
@@ -465,8 +464,43 @@ export function parseChromePageIntent(input: string): ChromePageIntent {
 
   return {
     ok: true,
-    url
+    url: flexiblePageUrl
   };
+}
+
+function isChromeCurrentPageRequest(input: string): boolean {
+  const normalized = input.trim().toLowerCase();
+
+  return normalized === CHROME_CURRENT_PAGE_COMMAND.toLowerCase()
+    || (
+      /\b(chrome|chromium)\b/u.test(normalized)
+      && /当前页面|current\s+page/u.test(normalized)
+      && /提取|读取|观察|查看|extract|read|observe/u.test(normalized)
+    );
+}
+
+function readExactChromeTestPageUrl(input: string): string | undefined {
+  if (!input.startsWith(CHROME_PAGE_PREFIX) || !input.endsWith(CHROME_PAGE_SUFFIX)) {
+    return undefined;
+  }
+
+  return input
+    .slice(CHROME_PAGE_PREFIX.length, input.length - CHROME_PAGE_SUFFIX.length)
+    .trim();
+}
+
+function readFlexibleChromePageUrl(input: string): string | undefined {
+  const normalized = input.trim().toLowerCase();
+
+  if (
+    !/\b(chrome|chromium)\b/u.test(normalized)
+    || !/(打开|访问|导航|加载|open|visit|navigate)/u.test(normalized)
+    || !/(提取|读取|正文|内容|extract|read|text|content)/u.test(normalized)
+  ) {
+    return undefined;
+  }
+
+  return input.match(/\b(?:file|https?):\/\/[^\s,，;；)）]+/iu)?.[0];
 }
 
 function readChromeIntentCommand(intent: Extract<ChromePageIntent, { ok: true }>): string {

@@ -9,6 +9,18 @@ describe("selectCommandRoute", () => {
     });
   });
 
+  it("routes provider-normalized Chrome page intents to Chrome", () => {
+    for (const command of [
+      "打开 Chrome 访问 file:///tmp/skfiy-chrome.html，并提取页面正文内容",
+      "用 Chromium 打开 https://example.test/skfiy 并读取正文内容"
+    ]) {
+      expect(selectCommandRoute(command)).toEqual({
+        kind: "chrome",
+        bundleId: "com.google.Chrome"
+      });
+    }
+  });
+
   it("routes explicit Chrome test-form commands to Chrome", () => {
     expect(selectCommandRoute(
       "填写 Chrome 测试表单 file:///tmp/skfiy-form.html 字段 #name=skfiy; #email=agent@skfiy.test; #role=operator 点击 #submit 并提取正文"

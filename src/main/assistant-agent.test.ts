@@ -188,7 +188,6 @@ describe("assistant agent provider", () => {
       command: "/opt/homebrew/bin/codex",
       args: [
         "exec",
-        "--ignore-user-config",
         "--ignore-rules",
         "--model",
         "gpt-5.5",
@@ -209,6 +208,7 @@ describe("assistant agent provider", () => {
       label: "Codex"
     });
     expect(invocation?.args).not.toContain("--ask-for-approval");
+    expect(invocation?.args).not.toContain("--ignore-user-config");
   });
 
   it("runs CLI providers with stdin closed so prompt arguments are not shadowed", async () => {

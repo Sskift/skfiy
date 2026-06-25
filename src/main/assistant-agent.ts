@@ -172,6 +172,7 @@ const ASSISTANT_AGENT_COMPUTER_USE_INTENT_PROMPT = [
   "Only when you determine that the user is explicitly asking skfiy to control a desktop app, append exactly one bounded JSON intent block.",
   "The only supported tool intent shape is:",
   `${COMPUTER_USE_INTENT_START_TAG}{"tool":"computer-use","action":"desktop-control","command":"<plain user-approved desktop action for skfiy to validate>"}${COMPUTER_USE_INTENT_END_TAG}`,
+  "If the user already named the app, action, URL, selector, file path, or target, copy the user's desktop-control request into command as literally as possible.",
   "The command must describe the app-control action for skfiy's own Computer Use layer to validate against app policy, permissions, risk, and approval.",
   "Do not claim that the desktop action already happened. Do not execute local mutations directly from the backend provider."
 ].join("\n");
@@ -270,7 +271,6 @@ export function buildAssistantAgentInvocation(
       command: settings.codexBinary,
       args: [
         "exec",
-        "--ignore-user-config",
         "--ignore-rules",
         "--model",
         CODEX_PET_CHAT_MODEL,
