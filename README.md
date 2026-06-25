@@ -84,8 +84,7 @@ caches can be deleted locally.
 
 - Floating desktop companion with active and quiet modes.
 - Manifest-driven pixel pet skins, with a local `luoxiaohei-local` origin skin
-  preferred when installed, bundled black-cat fallback, and previous cloudbot
-  kept as a legacy built-in.
+  preferred when installed and the bundled black-cat skin as the fallback.
 - App-agnostic macOS helper primitives for app listing, app activation,
   screenshots/OCR, clicks, drags, scrolls, text input, hotkeys, and key presses.
 - Target-specific adapters for early fixtures: Ghostty terminal turns, Chrome
@@ -103,7 +102,7 @@ main process emits task status such as `idle`, `executing`, `waiting`, or
 At startup, the packaged app asks the main process for the local
 `luoxiaohei-local` skin. If present, that user-owned skin wins. If it is missing
 or invalid, the renderer falls back to the bundled original `skfiy-black-cat`
-skin, while the older `skfiy-cloudbot` skin remains a legacy built-in.
+skin.
 
 Import a local origin image exported from an authorized source:
 

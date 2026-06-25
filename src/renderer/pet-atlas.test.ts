@@ -155,4 +155,8 @@ describe("pet atlas", () => {
 
     expect(getConfiguredPetAtlas(storage).slug).toBe("skfiy-black-cat");
   });
+
+  it("falls back to the default skin for removed legacy bundled skin ids", () => {
+    expect(resolvePetAtlas({ selectedSkinId: "skfiy-cloudbot" }).slug).toBe("skfiy-black-cat");
+  });
 });

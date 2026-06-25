@@ -50,4 +50,21 @@ describe("readStartupWarnings", () => {
       })
     );
   });
+
+  it("does not accept the obsolete Resources helper location as a bundled app", () => {
+    expect(
+      readStartupWarnings({
+        appPath: "/repo/dist/skfiy.app/Contents/Resources/app",
+        devServerUrl: undefined,
+        env: {},
+        isPackaged: false,
+        resourcesPath: "/repo/dist/skfiy.app/Contents/Resources",
+        exists: (candidate) => candidate.endsWith("/Contents/Resources/skfiy-helper")
+      })
+    ).toContainEqual(
+      expect.objectContaining({
+        id: "unbundled-electron"
+      })
+    );
+  });
 });

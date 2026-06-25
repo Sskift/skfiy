@@ -37,4 +37,16 @@ describe("resolveHelperPath", () => {
       })
     ).toBe("/repo/dist/skfiy-helper");
   });
+
+  it("ignores the obsolete Resources helper location outside packaged apps", () => {
+    expect(
+      resolveHelperPath({
+        env: {},
+        appPath: "/repo",
+        isPackaged: false,
+        resourcesPath: "/repo/dist/skfiy.app/Contents/Resources",
+        exists: (candidate) => candidate.endsWith("/Contents/Resources/skfiy-helper")
+      })
+    ).toBe("/repo/dist/skfiy-helper");
+  });
 });

@@ -25,10 +25,5 @@ export function resolveHelperPath({
     return bundledHelperPath;
   }
 
-  const legacyBundledHelperPath = path.join(resourcesPath, "skfiy-helper");
-  if (exists(legacyBundledHelperPath)) {
-    return legacyBundledHelperPath;
-  }
-
   return path.join(appPath, "dist", "skfiy-helper");
 }

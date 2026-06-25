@@ -25,8 +25,7 @@ export function readStartupWarnings({
   exists = existsSync
 }: StartupWarningOptions): StartupWarning[] {
   const warnings: StartupWarning[] = [];
-  const hasBundledHelper = exists(path.join(resourcesPath, "..", "MacOS", "skfiy-helper"))
-    || exists(path.join(resourcesPath, "skfiy-helper"));
+  const hasBundledHelper = exists(path.join(resourcesPath, "..", "MacOS", "skfiy-helper"));
 
   if (env.TMUX || env.TMUX_PANE) {
     warnings.push({

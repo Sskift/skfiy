@@ -3132,7 +3132,7 @@ describe("CLI command surface", () => {
           cli: { state: "installed", path: "/repo/dist/skfiy" },
           helper: {
             state: "missing",
-            path: "/repo/dist/skfiy.app/Contents/Resources/skfiy-helper"
+            path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
           },
           permissions: {
             screenRecording: "denied",

@@ -1,5 +1,4 @@
 import blackCatManifest from "./assets/skfiy-black-cat.pet.json";
-import cloudbotManifest from "./assets/skfiy-cloudbot.pet.json";
 import type { CSSProperties } from "react";
 
 export type TaskStatusName =
@@ -41,7 +40,7 @@ export interface PetAtlasManifest {
   frameHeight: number;
   columns: number;
   rows: number;
-  source?: "bundled-original" | "bundled-legacy" | "custom-user";
+  source?: "bundled-original" | "custom-user";
   rendering?: {
     mode: "sprite-atlas" | "animated-raster";
     ambientMotion?: boolean;
@@ -62,9 +61,9 @@ export interface PetAtlas extends PetAtlasManifest {
 
 type PetSpriteStyle = CSSProperties & Record<`--${string}`, string>;
 
-export type BuiltInPetSkinId = "skfiy-black-cat" | "skfiy-cloudbot";
+export type BundledPetSkinId = "skfiy-black-cat";
 
-export const DEFAULT_PET_SKIN_ID: BuiltInPetSkinId = "skfiy-black-cat";
+export const DEFAULT_PET_SKIN_ID: BundledPetSkinId = "skfiy-black-cat";
 export const SELECTED_PET_SKIN_STORAGE_KEY = "skfiy.petSkin.selectedId";
 export const CUSTOM_PET_SKIN_STORAGE_KEY = "skfiy.petSkin.customManifest";
 
@@ -87,21 +86,14 @@ function createBundledPetAtlas(manifest: PetAtlasManifest, assetUrl: string): Pe
   };
 }
 
-export const BUILT_IN_PET_SKINS: Record<BuiltInPetSkinId, PetAtlas> = {
+export const BUNDLED_PET_SKINS: Record<BundledPetSkinId, PetAtlas> = {
   "skfiy-black-cat": createBundledPetAtlas(
     blackCatManifest as PetAtlasManifest,
     new URL("./assets/skfiy-black-cat-atlas.svg", import.meta.url).href
-  ),
-  "skfiy-cloudbot": createBundledPetAtlas(
-    {
-      ...(cloudbotManifest as PetAtlasManifest),
-      source: "bundled-legacy"
-    },
-    new URL("./assets/skfiy-cloudbot-atlas.svg", import.meta.url).href
   )
 };
 
-export const PET_ATLAS = BUILT_IN_PET_SKINS[DEFAULT_PET_SKIN_ID];
+export const PET_ATLAS = BUNDLED_PET_SKINS[DEFAULT_PET_SKIN_ID];
 const PRODUCT_PET_DISPLAY_SCALE = 0.48;
 
 export const TASK_STATUS_TO_PET_STATE: Record<TaskStatusName, PetAtlasState> = {
@@ -216,8 +208,8 @@ export function resolvePetAtlas(input?: {
     };
   }
 
-  if (selectedSkinId in BUILT_IN_PET_SKINS) {
-    return BUILT_IN_PET_SKINS[selectedSkinId as BuiltInPetSkinId];
+  if (selectedSkinId in BUNDLED_PET_SKINS) {
+    return BUNDLED_PET_SKINS[selectedSkinId as BundledPetSkinId];
   }
 
   return PET_ATLAS;
