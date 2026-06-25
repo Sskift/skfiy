@@ -132,6 +132,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
           {summary}
         </p>
       </div>
+      <div className="skfiy-knowledge-graph-workspace" role="region" aria-label="Vault workspace">
       <div className="skfiy-knowledge-panel skfiy-knowledge-panel--prompt-stack">
         <h3>Prompt stack</h3>
         <ol aria-label="Prompt stack">
@@ -343,6 +344,7 @@ export function KnowledgeGraph({ nodes, edges }: KnowledgeGraphProps) {
             ))}
           </ul>
         </div>
+      </div>
       </div>
     </section>
   );

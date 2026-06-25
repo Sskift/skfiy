@@ -75,6 +75,26 @@ describe("KnowledgeGraph", () => {
     expect(within(notes).getAllByText(/Backlinks /u).length).toBeGreaterThan(0);
   });
 
+  it("lays out the core vault workspace as notes, graph canvas, and focused note panes", () => {
+    render(<KnowledgeGraph
+      nodes={[
+        { id: "memory:user", label: "User preferences", kind: "memory", tone: "success", detail: "2 entries" },
+        { id: "provider:codex", label: "Codex", kind: "provider", tone: "success", detail: "Codex selected" },
+        { id: "session:latest", label: "Latest session", kind: "session", tone: "neutral", detail: "Codex: summarize dashboard" }
+      ]}
+      edges={[
+        { from: "memory:user", to: "provider:codex", label: "injects prompt" },
+        { from: "provider:codex", to: "session:latest", label: "answered" }
+      ]}
+    />);
+
+    const workspace = screen.getByRole("region", { name: "Vault workspace" });
+
+    expect(within(workspace).getByRole("list", { name: "Vault notes" })).toBeInTheDocument();
+    expect(within(workspace).getByLabelText("Knowledge graph canvas")).toBeInTheDocument();
+    expect(within(workspace).getByRole("region", { name: "Focused note" })).toBeInTheDocument();
+  });
+
   it("focuses a selected vault note with backlinks and detail", () => {
     render(<KnowledgeGraph
       nodes={[

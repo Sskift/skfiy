@@ -441,6 +441,19 @@ function DashboardContent({
             </div>
           </div>
         </div>
+        <section
+          id="knowledge-graph"
+          className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main skfiy-dashboard-section--graph"
+        >
+          <div className="skfiy-dashboard-section-heading">
+            <div>
+              <span>Vault map</span>
+              <h2>Knowledge graph</h2>
+            </div>
+            <StatusChip tone="neutral">{knowledgeGraph.nodes.length} nodes</StatusChip>
+          </div>
+          <KnowledgeGraph nodes={knowledgeGraph.nodes} edges={knowledgeGraph.edges} />
+        </section>
         <DashboardCommandCenter
           activity={activity}
           alerts={alerts}
@@ -517,20 +530,6 @@ function DashboardContent({
           onForget={onRunPersonalMemoryAction}
           onMuteSkill={onRunPersonalSkillAction}
         />
-      </section>
-
-      <section
-        id="knowledge-graph"
-        className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main skfiy-dashboard-section--graph"
-      >
-        <div className="skfiy-dashboard-section-heading">
-          <div>
-            <span>Vault map</span>
-            <h2>Knowledge graph</h2>
-          </div>
-          <StatusChip tone="neutral">{knowledgeGraph.nodes.length} nodes</StatusChip>
-        </div>
-        <KnowledgeGraph nodes={knowledgeGraph.nodes} edges={knowledgeGraph.edges} />
       </section>
 
       <section

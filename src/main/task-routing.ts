@@ -90,10 +90,17 @@ function selectBaseCommandRoute(command: string): CommandRoute {
 
   const terminalIntent = parseTerminalIntent(command);
 
-  if (terminalIntent.ok && isExplicitTerminalControlRequest(command)) {
+  if (terminalIntent.ok) {
+    if (isExplicitTerminalControlRequest(command)) {
+      return {
+        kind: "ghostty",
+        bundleId: GHOSTTY_BUNDLE_ID
+      };
+    }
+
     return {
-      kind: "ghostty",
-      bundleId: GHOSTTY_BUNDLE_ID
+      kind: "needs_clarification",
+      reason: "No supported desktop control route matched this request."
     };
   }
 
@@ -101,10 +108,14 @@ function selectBaseCommandRoute(command: string): CommandRoute {
     return createChatRoute();
   }
 
-  return {
-    kind: "needs_clarification",
-    reason: "No supported desktop control route matched this request."
-  };
+  if (isDesktopControlRequest(command)) {
+    return {
+      kind: "needs_clarification",
+      reason: "No supported desktop control route matched this request."
+    };
+  }
+
+  return createChatRoute();
 }
 
 function isExecutableCommandRoute(route: CommandRoute): route is ExecutableCommandRoute {
@@ -214,8 +225,14 @@ function isRouteLevelDenialRequest(command: string): boolean {
 function isDesktopControlRequest(command: string): boolean {
   const normalized = command.trim().toLowerCase();
 
-  return /\b(ghostty|chrome|chromium|finder|terminal|app|desktop)\b|终端|命令行|桌面|应用|执行|运行|输入|点击|打开|整理|监督|观察|查看|拖|滚动/u
-    .test(normalized);
+  const hasControlVerb =
+    /\b(type|click|open|run|execute|control|observe|watch|read|inspect|capture|press|drag|scroll)\b|执行|运行|输入|点击|点|打开|整理|监督|观察|查看|拖|滚动|截图|按|创建/u
+      .test(normalized);
+  const namesControlTarget =
+    /\b(ghostty|chrome|chromium|finder|terminal|shell|app|desktop|window|button|file|folder)\b|终端|命令行|桌面|应用|程序|窗口|按钮|文件夹|目录|文件|当前页面|当前文件夹|选中文件/u
+      .test(normalized);
+
+  return hasControlVerb && namesControlTarget;
 }
 
 function isRoutePolicyBlockedRequest(command: string, route: ExecutableCommandRoute): boolean {

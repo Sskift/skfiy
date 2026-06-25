@@ -188,6 +188,19 @@ describe("selectCommandRoute", () => {
     }
   });
 
+  it("routes normal assistant questions to chat by default", () => {
+    for (const prompt of [
+      "现在整体项目完成得怎么样了？",
+      "帮我写一段简短的自我介绍",
+      "今天适合先做哪件事？"
+    ]) {
+      expect(selectCommandRoute(prompt)).toEqual({
+        kind: "chat",
+        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+      });
+    }
+  });
+
   it("keeps desktop control requests out of chat even when phrased conversationally", () => {
     expect(selectCommandRoute("你好 skfiy，在 Ghostty 执行 pwd")).toEqual({
       kind: "ghostty",
