@@ -239,6 +239,36 @@ export interface DashboardPersonalSkillActionResponse {
   };
 }
 
+export type DashboardAutomationMonitorActionRequest =
+  | {
+    action: "run-now";
+    monitorId: string;
+  }
+  | {
+    action: "upsert-tmux";
+    sessionName: string;
+    label?: string;
+    intervalMs?: number;
+    enabled?: boolean;
+  };
+
+export interface DashboardAutomationMonitorActionResponse {
+  schemaVersion?: number;
+  command?: string;
+  generatedAt?: string;
+  source?: string;
+  plannedMutation?: boolean;
+  executesSystemMutation?: boolean;
+  mutatesSession?: false;
+  result?: "configured" | "checked" | "blocked" | "error" | string;
+  monitorId?: string;
+  automation?: Record<string, unknown>;
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
 export type DashboardKnowledgeGraphNodeKind =
   | "memory"
   | "session"

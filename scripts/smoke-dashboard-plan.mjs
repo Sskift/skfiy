@@ -48,7 +48,11 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Chrome host policy host",
   "Always allow",
   "Allow current turn",
-  "Reset policy"
+  "Reset policy",
+  "Automation monitors",
+  "Automation monitor settings",
+  "Monitor tmux session",
+  "Run automation monitor:"
 ];
 
 export function createDefaultDashboardSmokeOptions(rootDir) {
@@ -211,6 +215,10 @@ export function classifyDashboardSmokeEvidence(evidence) {
   }
 
   if (!hasDashboardPersonalMemoryApiEvidence(evidence.personalMemoryApi)) {
+    return "failed";
+  }
+
+  if (!hasDashboardAutomationMonitorApiEvidence(evidence.dashboardAutomationMonitorApi)) {
     return "failed";
   }
 
@@ -810,6 +818,64 @@ function hasDashboardPersonalMemoryApiEvidence(api) {
     && !/ignore previous instructions/i.test(unsafeForgetText)
     && !/reveal secrets/i.test(unsafeForgetText)
     && !/token=/i.test(muteSkillText);
+}
+
+function hasDashboardAutomationMonitorApiEvidence(api) {
+  const upsertBody = api?.upsertResponse?.body;
+  const runNowBody = api?.runNowResponse?.body;
+  const upsertMonitor = findAutomationMonitor(upsertBody?.automation, api?.monitorId);
+  const runNowMonitor = findAutomationMonitor(runNowBody?.automation, api?.monitorId);
+  const snapshotMonitor = findAutomationMonitor(api?.snapshotAfter?.body?.automation, api?.monitorId);
+  const persistedMonitor = findAutomationMonitor(api?.persistedState, api?.monitorId);
+  const upsertText = JSON.stringify(upsertBody ?? {});
+  const runNowText = JSON.stringify(runNowBody ?? {});
+
+  return api?.productPath === "smoke:dashboard -> isolated HOME automation monitor -> /api/automation-monitor"
+    && typeof api?.apiUrl === "string"
+    && api.apiUrl.endsWith("/api/automation-monitor")
+    && typeof api?.statePath === "string"
+    && api.statePath.includes("Application Support/skfiy/automation-monitors.json")
+    && api?.sessionName === "dashboard-smoke-missing-session"
+    && api?.monitorId === "tmux-session:dashboard-smoke-missing-session"
+    && api?.snapshotBefore?.status === 200
+    && api?.upsertResponse?.status === 200
+    && upsertBody?.command === "dashboard automation monitor"
+    && upsertBody?.source === "dashboard"
+    && upsertBody?.plannedMutation === true
+    && upsertBody?.executesSystemMutation === false
+    && upsertBody?.mutatesSession === false
+    && upsertBody?.result === "configured"
+    && upsertBody?.monitorId === api.monitorId
+    && upsertMonitor?.sessionName === api.sessionName
+    && upsertMonitor?.intervalMs === 60_000
+    && upsertMonitor?.checkCount === 1
+    && api?.runNowResponse?.status === 200
+    && runNowBody?.command === "dashboard automation monitor"
+    && runNowBody?.source === "dashboard"
+    && runNowBody?.plannedMutation === true
+    && runNowBody?.executesSystemMutation === false
+    && runNowBody?.mutatesSession === false
+    && runNowBody?.result === "checked"
+    && runNowBody?.monitorId === api.monitorId
+    && runNowMonitor?.sessionName === api.sessionName
+    && runNowMonitor?.checkCount === 2
+    && api?.snapshotAfter?.status === 200
+    && snapshotMonitor?.checkCount === 2
+    && persistedMonitor?.checkCount === 2
+    && api?.tokenLeakDetected === false
+    && api?.result === "passed"
+    && !/token=/i.test(upsertText)
+    && !/token=/i.test(runNowText);
+}
+
+function findAutomationMonitor(snapshot, monitorId) {
+  const monitors = Array.isArray(snapshot?.runtimes)
+    ? snapshot.runtimes
+    : Array.isArray(snapshot?.monitors)
+      ? snapshot.monitors
+      : [];
+
+  return monitors.find((monitor) => monitor?.id === monitorId);
 }
 
 function hasDashboardStatusAutoDiscoveryEvidence(evidence, cliOutput) {

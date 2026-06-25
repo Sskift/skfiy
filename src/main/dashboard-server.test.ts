@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -17,6 +17,7 @@ import {
 } from "./dashboard-server";
 import type { DashboardSnapshot } from "./dashboard-data";
 import { createRuntimeSnapshotStatePath } from "./runtime-snapshot";
+import { createTmuxSupervisionReport } from "./computer-use/tmux-supervisor";
 
 function readUrl(url: string): Promise<{
   status: number;
@@ -222,6 +223,26 @@ function createNoopChromeControlActivityIo() {
     readFile: async () => "",
     writeFile: async () => undefined,
     rename: async () => undefined
+  };
+}
+
+function createInMemoryAutomationMonitorIo() {
+  const files = new Map<string, string>();
+
+  return {
+    files,
+    io: {
+      exists: (targetPath: string) => files.has(targetPath),
+      mkdir: () => undefined,
+      readFile: (targetPath: string) => files.get(targetPath) ?? "",
+      rename: (fromPath: string, toPath: string) => {
+        files.set(toPath, files.get(fromPath) ?? "");
+        files.delete(fromPath);
+      },
+      writeFile: (targetPath: string, content: string) => {
+        files.set(targetPath, content);
+      }
+    }
   };
 }
 
@@ -525,7 +546,7 @@ describe("dashboard loopback HTTP response helper", () => {
     } finally {
       await server.close();
     }
-  });
+  }, 15_000);
 
   it("labels Hermes as the selected Background Agent provider in dashboard settings", async () => {
     const server = await startDashboardServer({
@@ -556,6 +577,99 @@ describe("dashboard loopback HTTP response helper", () => {
         label: "Hermes",
         selectedProvider: "hermes"
       });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("serves safe skfiy automation monitor actions without mutating the tmux session", async () => {
+    const automationIo = createInMemoryAutomationMonitorIo();
+    const observeSession = vi.fn(async (sessionName: string) => createTmuxSupervisionReport({
+      sessionName,
+      hasSession: true,
+      windowsOutput: "@1\t0\tmain\t1\t1\n",
+      panesOutput: [
+        `${sessionName}\t@1\t0\tmain\t%1\t0\t1\t0\tbash\tcodex`
+      ].join("\n"),
+      paneTails: {
+        "%1": "running normally\n"
+      }
+    }));
+    const server = await startDashboardServer({
+      homeDir: "/Users/tester",
+      automationMonitorIo: automationIo.io,
+      automationTmuxClient: { observeSession }
+    });
+
+    try {
+      const configured = await requestUrl(`${server.url}api/automation-monitor`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "upsert-tmux",
+          sessionName: "money-run-goal",
+          label: "money-run goal",
+          intervalMs: 600_000,
+          enabled: true
+        })
+      });
+
+      expect(configured.status).toBe(200);
+      const configuredPayload = JSON.parse(configured.body);
+      expect(configuredPayload).toMatchObject({
+        command: "dashboard automation monitor",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: false,
+        mutatesSession: false,
+        result: "configured",
+        monitorId: "tmux-session:money-run-goal",
+        automation: {
+          activeCount: 1,
+          attentionCount: 0,
+          monitors: [
+            {
+              id: "tmux-session:money-run-goal",
+              kind: "tmux-session",
+              label: "money-run goal",
+              sessionName: "money-run-goal",
+              status: "observing",
+              checkCount: 1,
+              intervalMs: 600_000
+            }
+          ]
+        }
+      });
+      expect(observeSession).toHaveBeenCalledWith("money-run-goal");
+
+      const checked = await requestUrl(`${server.url}api/automation-monitor`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "run-now",
+          monitorId: "tmux-session:money-run-goal"
+        })
+      });
+
+      expect(checked.status).toBe(200);
+      const checkedPayload = JSON.parse(checked.body);
+      expect(checkedPayload).toMatchObject({
+        result: "checked",
+        monitorId: "tmux-session:money-run-goal",
+        mutatesSession: false,
+        automation: {
+          monitors: [
+            {
+              id: "tmux-session:money-run-goal",
+              status: "observing",
+              checkCount: 2
+            }
+          ]
+        }
+      });
+      expect(observeSession).toHaveBeenCalledTimes(2);
+
+      const persistedState = Array.from(automationIo.files.values()).join("\n");
+      expect(persistedState).toContain("\"sessionName\": \"money-run-goal\"");
+      expect(persistedState).toContain("\"checkCount\": 2");
     } finally {
       await server.close();
     }

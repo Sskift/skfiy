@@ -774,6 +774,112 @@ describe("DashboardApp", () => {
     expect(within(checklist).getByText("Rerun Finder smoke")).toBeInTheDocument();
   });
 
+  it("runs an existing skfiy automation monitor from the dashboard", async () => {
+    let currentSnapshot = snapshot;
+    const existingMonitor = Array.isArray(snapshot.automation?.monitors)
+      ? snapshot.automation.monitors[0]
+      : {};
+    const loadSnapshot = vi.fn(async () => currentSnapshot);
+    const runAutomationMonitorAction = vi.fn(async (request) => {
+      expect(request).toEqual({
+        action: "run-now",
+        monitorId: "tmux-session:money-run-goal"
+      });
+      currentSnapshot = {
+        ...snapshot,
+        automation: {
+          ...snapshot.automation,
+          monitors: [
+            {
+              ...existingMonitor,
+              status: "observing",
+              checkCount: 4,
+              lastSummary: "money-run-goal checked from Dashboard."
+            }
+          ]
+        }
+      };
+      return {
+        schemaVersion: 1,
+        result: "checked",
+        monitorId: "tmux-session:money-run-goal"
+      };
+    });
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={loadSnapshot}
+      runAutomationMonitorAction={runAutomationMonitorAction}
+    />);
+
+    const tools = await screen.findByRole("region", { name: "Agent tools" });
+    const monitors = within(tools).getByRole("list", { name: "Automation monitors" });
+    fireEvent.click(within(monitors).getByRole("button", {
+      name: "Run automation monitor: money-run goal"
+    }));
+
+    await waitFor(() => expect(runAutomationMonitorAction).toHaveBeenCalledTimes(1));
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
+    expect(await within(tools).findByText("Automation monitor checked")).toBeInTheDocument();
+    expect(within(tools).getByText("money-run-goal checked from Dashboard.")).toBeInTheDocument();
+  });
+
+  it("configures a tmux session monitor from the dashboard without exposing arbitrary commands", async () => {
+    let currentSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      automation: {
+        schemaVersion: 1,
+        generatedAt: "2026-06-25T10:00:00.000Z",
+        activeCount: 0,
+        attentionCount: 0,
+        monitors: []
+      }
+    };
+    const loadSnapshot = vi.fn(async () => currentSnapshot);
+    const runAutomationMonitorAction = vi.fn(async (request) => {
+      expect(request).toEqual({
+        action: "upsert-tmux",
+        sessionName: "money-run-goal",
+        label: "money-run-goal",
+        intervalMs: 300_000,
+        enabled: true
+      });
+      currentSnapshot = snapshot;
+      return {
+        schemaVersion: 1,
+        result: "configured",
+        monitorId: "tmux-session:money-run-goal"
+      };
+    });
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={loadSnapshot}
+      runAutomationMonitorAction={runAutomationMonitorAction}
+    />);
+
+    const tools = await screen.findByRole("region", { name: "Agent tools" });
+    const form = within(tools).getByRole("form", { name: "Automation monitor settings" });
+    fireEvent.change(within(form).getByLabelText("Automation tmux session"), {
+      target: { value: "money-run-goal" }
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Monitor tmux session" }));
+
+    await waitFor(() => expect(runAutomationMonitorAction).toHaveBeenCalledTimes(1));
+    expect(await within(tools).findByText("Automation monitor configured")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Automation shell command")).not.toBeInTheDocument();
+  });
+
   it("loads redacted planner settings from the provider settings endpoint", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);

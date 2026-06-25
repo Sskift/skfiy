@@ -62,6 +62,7 @@ export interface DashboardCapabilitySummary {
 export interface DashboardAutomationMonitorView {
   id: string;
   label: string;
+  sessionName?: string;
   status: string;
   detail: string;
   cadence: string;
@@ -505,6 +506,7 @@ export function readAutomationSummary(snapshot: DashboardSnapshot): DashboardAut
     return {
       id: readString(monitor.id) ?? `monitor-${index + 1}`,
       label: readString(monitor.label) ?? readString(monitor.sessionName) ?? `Monitor ${index + 1}`,
+      sessionName: readString(monitor.sessionName),
       status,
       detail: readString(monitor.lastSummary)
         ?? readString(readRecord(readRecord(monitor.lastReport)?.recommendation)?.reason)

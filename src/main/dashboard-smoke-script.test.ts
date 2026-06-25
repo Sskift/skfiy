@@ -1157,6 +1157,102 @@ describe("dashboard product smoke script", () => {
         tokenLeakDetected: false,
         result: "passed"
       },
+      dashboardAutomationMonitorApi: {
+        productPath: "smoke:dashboard -> isolated HOME automation monitor -> /api/automation-monitor",
+        apiUrl: "http://127.0.0.1:51234/api/automation-monitor",
+        statePath: "/Users/tester/Library/Application Support/skfiy/automation-monitors.json",
+        sessionName: "dashboard-smoke-missing-session",
+        monitorId: "tmux-session:dashboard-smoke-missing-session",
+        snapshotBefore: {
+          status: 200,
+          body: {
+            automation: undefined
+          }
+        },
+        upsertResponse: {
+          status: 200,
+          body: {
+            command: "dashboard automation monitor",
+            source: "dashboard",
+            plannedMutation: true,
+            executesSystemMutation: false,
+            mutatesSession: false,
+            result: "configured",
+            monitorId: "tmux-session:dashboard-smoke-missing-session",
+            automation: {
+              monitors: [
+                {
+                  id: "tmux-session:dashboard-smoke-missing-session",
+                  kind: "tmux-session",
+                  label: "dashboard smoke monitor",
+                  sessionName: "dashboard-smoke-missing-session",
+                  intervalMs: 60_000,
+                  checkCount: 1,
+                  status: "blocked"
+                }
+              ]
+            }
+          }
+        },
+        runNowResponse: {
+          status: 200,
+          body: {
+            command: "dashboard automation monitor",
+            source: "dashboard",
+            plannedMutation: true,
+            executesSystemMutation: false,
+            mutatesSession: false,
+            result: "checked",
+            monitorId: "tmux-session:dashboard-smoke-missing-session",
+            automation: {
+              monitors: [
+                {
+                  id: "tmux-session:dashboard-smoke-missing-session",
+                  kind: "tmux-session",
+                  label: "dashboard smoke monitor",
+                  sessionName: "dashboard-smoke-missing-session",
+                  intervalMs: 60_000,
+                  checkCount: 2,
+                  status: "blocked"
+                }
+              ]
+            }
+          }
+        },
+        snapshotAfter: {
+          status: 200,
+          body: {
+            automation: {
+              monitors: [
+                {
+                  id: "tmux-session:dashboard-smoke-missing-session",
+                  sessionName: "dashboard-smoke-missing-session",
+                  checkCount: 2,
+                  status: "blocked"
+                }
+              ]
+            }
+          }
+        },
+        persistedState: {
+          monitors: [
+            {
+              id: "tmux-session:dashboard-smoke-missing-session",
+              sessionName: "dashboard-smoke-missing-session"
+            }
+          ],
+          runtimes: [
+            {
+              id: "tmux-session:dashboard-smoke-missing-session",
+              sessionName: "dashboard-smoke-missing-session",
+              checkCount: 2,
+              status: "blocked"
+            }
+          ]
+        },
+        tokenLeakDetected: false,
+        result: "passed"
+      },
       dashboardStatusAutoDiscovery: {
         productPath: "dist/skfiy dashboard -> dashboard-server.json -> skfiy status --json",
         command: ["/repo/dist/skfiy", "status", "--json"],
@@ -1417,6 +1513,10 @@ describe("dashboard product smoke script", () => {
     })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
+      dashboardAutomationMonitorApi: undefined
+    })).toBe("failed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
       knowledgeGraphEvidence: {
         ...passedEvidence.knowledgeGraphEvidence,
         nodeTexts: passedEvidence.knowledgeGraphEvidence.nodeTexts.filter((text) => !text.includes("Pending user memory")),
@@ -1650,7 +1750,11 @@ describe("dashboard product smoke script", () => {
           "Chrome host policy host",
           "Always allow",
           "Allow current turn",
-          "Reset policy"
+          "Reset policy",
+          "Automation monitors",
+          "Automation monitor settings",
+          "Monitor tmux session",
+          "Run automation monitor:"
         ],
         foundMarkers: [
           "Assistant Provider",
@@ -1696,7 +1800,11 @@ describe("dashboard product smoke script", () => {
           "Chrome host policy host",
           "Always allow",
           "Allow current turn",
-          "Reset policy"
+          "Reset policy",
+          "Automation monitors",
+          "Automation monitor settings",
+          "Monitor tmux session",
+          "Run automation monitor:"
         ],
         missingMarkers: []
       }

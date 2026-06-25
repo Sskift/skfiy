@@ -32,6 +32,7 @@ import {
   fetchChromeHostPolicy,
   fetchDashboardSnapshot,
   fetchProviderSettings,
+  postAutomationMonitorAction,
   postChromeControlAction,
   postChromeHostPolicyAction,
   postPersonalMemoryAction,
@@ -39,6 +40,8 @@ import {
   postPlannerProviderSettings
 } from "./api";
 import type {
+  DashboardAutomationMonitorActionRequest,
+  DashboardAutomationMonitorActionResponse,
   DashboardChromeControlActionRequest,
   DashboardChromeHostPolicyAction,
   DashboardChromeHostPolicyActionRequest,
@@ -100,6 +103,9 @@ export interface DashboardAppProps {
   runChromeControlAction?: (
     request: DashboardChromeControlActionRequest
   ) => Promise<Record<string, unknown>>;
+  runAutomationMonitorAction?: (
+    request: DashboardAutomationMonitorActionRequest
+  ) => Promise<DashboardAutomationMonitorActionResponse>;
   runPersonalMemoryAction?: (
     request: DashboardPersonalMemoryActionRequest
   ) => Promise<DashboardPersonalMemoryActionResponse>;
@@ -157,6 +163,7 @@ export function DashboardApp({
   loadChromeHostPolicy = fetchChromeHostPolicy,
   loadSnapshot = fetchDashboardSnapshot,
   loadProviderSettings = fetchProviderSettings,
+  runAutomationMonitorAction = postAutomationMonitorAction,
   runChromeControlAction = postChromeControlAction,
   runPersonalMemoryAction = postPersonalMemoryAction,
   runPersonalSkillAction = postPersonalSkillAction,
@@ -170,6 +177,9 @@ export function DashboardApp({
   const [providerSettingsNotice, setProviderSettingsNotice] = useState<string | null>(null);
   const [memoryError, setMemoryError] = useState<string | null>(null);
   const [memoryNotice, setMemoryNotice] = useState<string | null>(null);
+  const [automationError, setAutomationError] = useState<string | null>(null);
+  const [automationNotice, setAutomationNotice] = useState<string | null>(null);
+  const [isRunningAutomation, setIsRunningAutomation] = useState(false);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSavingProviderSettings, setIsSavingProviderSettings] = useState(false);
@@ -232,6 +242,23 @@ export function DashboardApp({
       setIsSavingMemory(false);
     }
   }, [refresh, runPersonalSkillAction]);
+
+  const submitAutomationMonitorAction = useCallback(async (
+    request: DashboardAutomationMonitorActionRequest
+  ) => {
+    setIsRunningAutomation(true);
+    setAutomationError(null);
+    setAutomationNotice(null);
+    try {
+      const response = await runAutomationMonitorAction(request);
+      await refresh();
+      setAutomationNotice(readAutomationMonitorNotice(response.result));
+    } catch (submitError) {
+      setAutomationError(readErrorMessage(submitError));
+    } finally {
+      setIsRunningAutomation(false);
+    }
+  }, [refresh, runAutomationMonitorAction]);
 
   const submitPlannerProviderSettings = useCallback(async (
     update: DashboardPlannerProviderSettingsUpdate
@@ -318,10 +345,14 @@ export function DashboardApp({
             isProviderSettingsLoading={isRefreshing && !providerSettings}
             isProviderSettingsSaving={isSavingProviderSettings}
             isMemorySaving={isSavingMemory}
+            isRunningAutomation={isRunningAutomation}
+            automationError={automationError}
+            automationNotice={automationNotice}
             memoryError={memoryError}
             memoryNotice={memoryNotice}
             onLoadChromeHostPolicy={loadChromeHostPolicy}
             onRefresh={refresh}
+            onRunAutomationMonitorAction={submitAutomationMonitorAction}
             onRunPersonalMemoryAction={submitPersonalMemoryAction}
             onRunPersonalSkillAction={submitPersonalSkillAction}
             onRunChromeControlAction={runChromeControlAction}
@@ -349,6 +380,19 @@ function readPersonalMemoryNotice(result: DashboardPersonalMemoryActionResponse[
   return "Memory forgotten";
 }
 
+function readAutomationMonitorNotice(result: DashboardAutomationMonitorActionResponse["result"]): string {
+  if (result === "checked") {
+    return "Automation monitor checked";
+  }
+  if (result === "configured") {
+    return "Automation monitor configured";
+  }
+  if (result === "blocked") {
+    return "Automation monitor blocked";
+  }
+  return "Automation monitor updated";
+}
+
 function DashboardContent({
   snapshot,
   providerSettings,
@@ -357,10 +401,14 @@ function DashboardContent({
   isProviderSettingsLoading,
   isProviderSettingsSaving,
   isMemorySaving,
+  isRunningAutomation,
+  automationError,
+  automationNotice,
   memoryError,
   memoryNotice,
   onLoadChromeHostPolicy,
   onRefresh,
+  onRunAutomationMonitorAction,
   onRunPersonalMemoryAction,
   onRunPersonalSkillAction,
   onRunChromeControlAction,
@@ -374,10 +422,16 @@ function DashboardContent({
   isProviderSettingsLoading: boolean;
   isProviderSettingsSaving: boolean;
   isMemorySaving: boolean;
+  isRunningAutomation: boolean;
+  automationError: string | null;
+  automationNotice: string | null;
   memoryError: string | null;
   memoryNotice: string | null;
   onLoadChromeHostPolicy: () => Promise<DashboardChromeHostPolicyResponse>;
   onRefresh: () => Promise<void>;
+  onRunAutomationMonitorAction: (
+    request: DashboardAutomationMonitorActionRequest
+  ) => Promise<void>;
   onRunPersonalMemoryAction: (
     request: DashboardPersonalMemoryActionRequest
   ) => Promise<void>;
@@ -599,7 +653,13 @@ function DashboardContent({
               ) : null}
             </Card.Content>
           </Card.Root>
-          <AutomationMonitorsCard automation={automation} />
+          <AutomationMonitorsCard
+            automation={automation}
+            error={automationError}
+            isSaving={isRunningAutomation}
+            notice={automationNotice}
+            onRunAutomationMonitorAction={onRunAutomationMonitorAction}
+          />
           {appReadiness.map((lane) => (
             <AppReadinessCard key={lane.id} lane={lane} />
           ))}
@@ -2169,7 +2229,51 @@ function AppReadinessCard({ lane }: { lane: DashboardAppReadinessLane }) {
   );
 }
 
-function AutomationMonitorsCard({ automation }: { automation: DashboardAutomationSummary }) {
+function AutomationMonitorsCard({
+  automation,
+  error,
+  isSaving,
+  notice,
+  onRunAutomationMonitorAction
+}: {
+  automation: DashboardAutomationSummary;
+  error: string | null;
+  isSaving: boolean;
+  notice: string | null;
+  onRunAutomationMonitorAction: (
+    request: DashboardAutomationMonitorActionRequest
+  ) => Promise<void>;
+}) {
+  const [sessionName, setSessionName] = useState(automation.monitors[0]?.sessionName ?? "");
+  const [intervalMinutes, setIntervalMinutes] = useState("5");
+  const [inputError, setInputError] = useState<string | null>(null);
+
+  const feedback = inputError ?? error ?? notice ?? "";
+  const feedbackTone: Tone = inputError || error ? "danger" : notice ? "success" : "neutral";
+
+  const submitMonitor = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedSessionName = sessionName.trim();
+    const intervalMs = readAutomationIntervalMs(intervalMinutes);
+    if (!trimmedSessionName) {
+      setInputError("Enter a tmux session name.");
+      return;
+    }
+    if (intervalMs === undefined) {
+      setInputError("Enter a numeric interval.");
+      return;
+    }
+
+    setInputError(null);
+    void onRunAutomationMonitorAction({
+      action: "upsert-tmux",
+      sessionName: trimmedSessionName,
+      label: trimmedSessionName,
+      intervalMs,
+      enabled: true
+    });
+  };
+
   return (
     <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
       <Card.Header className="skfiy-dashboard-card-header">
@@ -2186,6 +2290,49 @@ function AutomationMonitorsCard({ automation }: { automation: DashboardAutomatio
             {automation.attentionCount} attention
           </StatusChip>
         </div>
+        <form
+          aria-label="Automation monitor settings"
+          className="skfiy-dashboard-control-form"
+          onSubmit={submitMonitor}
+        >
+          <div className="skfiy-dashboard-control-fields skfiy-dashboard-control-fields--policy">
+            <div className="skfiy-dashboard-field">
+              <label htmlFor="automation-monitor-session">tmux session</label>
+              <input
+                id="automation-monitor-session"
+                aria-label="Automation tmux session"
+                autoComplete="off"
+                onChange={(event) => setSessionName(event.target.value)}
+                placeholder="money-run-goal"
+                spellCheck={false}
+                type="text"
+                value={sessionName}
+              />
+            </div>
+            <div className="skfiy-dashboard-field">
+              <label htmlFor="automation-monitor-interval">interval minutes</label>
+              <input
+                id="automation-monitor-interval"
+                aria-label="Automation interval minutes"
+                inputMode="numeric"
+                min="1"
+                onChange={(event) => setIntervalMinutes(event.target.value)}
+                type="number"
+                value={intervalMinutes}
+              />
+            </div>
+          </div>
+          <div className="skfiy-dashboard-control-actions">
+            <button
+              className="skfiy-dashboard-button button"
+              disabled={isSaving}
+              type="submit"
+            >
+              <MonitorCog size={15} aria-hidden="true" />
+              {isSaving ? "Working" : "Monitor tmux session"}
+            </button>
+          </div>
+        </form>
         {automation.monitors.length > 0 ? (
           <ul className="skfiy-dashboard-evidence-list" aria-label="Automation monitors">
             {automation.monitors.map((monitor) => (
@@ -2196,6 +2343,19 @@ function AutomationMonitorsCard({ automation }: { automation: DashboardAutomatio
                   <span>{monitor.status} · {monitor.cadence}</span>
                   <span>{monitor.detail}</span>
                 </div>
+                <button
+                  aria-label={`Run automation monitor: ${monitor.label}`}
+                  className="skfiy-dashboard-button button"
+                  disabled={isSaving}
+                  onClick={() => void onRunAutomationMonitorAction({
+                    action: "run-now",
+                    monitorId: monitor.id
+                  })}
+                  type="button"
+                >
+                  <RefreshCw size={15} aria-hidden="true" />
+                  Run
+                </button>
               </li>
             ))}
           </ul>
@@ -2204,9 +2364,25 @@ function AutomationMonitorsCard({ automation }: { automation: DashboardAutomatio
             No skfiy-owned monitors are configured yet.
           </p>
         )}
+        <p
+          aria-live="polite"
+          className="skfiy-dashboard-control-feedback"
+          data-tone={feedbackTone}
+        >
+          {feedback}
+        </p>
       </Card.Content>
     </Card.Root>
   );
+}
+
+function readAutomationIntervalMs(value: string): number | undefined {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+
+  return Math.round(parsed * 60_000);
 }
 
 function readScrollDelta(value: string): number | undefined {

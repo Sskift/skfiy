@@ -76,6 +76,7 @@ async function main() {
     chromeHostPolicyApi: undefined,
     personalMemoryFixture: undefined,
     personalMemoryApi: undefined,
+    dashboardAutomationMonitorApi: undefined,
     dashboardChromeControlActionApi: undefined,
     dashboardStatusAutoDiscovery: undefined,
     runtimeSnapshotFixture: undefined,
@@ -141,6 +142,11 @@ async function main() {
       fixture: evidence.personalMemoryFixture,
       timeoutMs: options.timeoutMs
     });
+    evidence.dashboardAutomationMonitorApi = await exerciseAutomationMonitorApi({
+      dashboardUrl: launched.cliOutput.url,
+      homeDir: isolatedHomeDir,
+      timeoutMs: options.timeoutMs
+    });
     if (options.extensionId) {
       evidence.dashboardChromeControlActionApi = await collectRealHomeChromeControlActionEvidence({
         options,
@@ -165,6 +171,7 @@ async function main() {
       JSON.stringify(evidence.chromeHostPolicyApi),
       JSON.stringify(evidence.personalMemoryFixture),
       JSON.stringify(evidence.personalMemoryApi),
+      JSON.stringify(evidence.dashboardAutomationMonitorApi),
       JSON.stringify(evidence.dashboardChromeControlActionApi),
       JSON.stringify(evidence.dashboardStatusAutoDiscovery),
       JSON.stringify(evidence.freshInstallRuntimeSnapshot),
@@ -1111,6 +1118,105 @@ async function exercisePersonalMemoryApi({ dashboardUrl, fixture, timeoutMs }) {
   };
 }
 
+async function exerciseAutomationMonitorApi({ dashboardUrl, homeDir, timeoutMs }) {
+  const apiUrl = new URL("/api/automation-monitor", dashboardUrl).toString();
+  const productPath = "smoke:dashboard -> isolated HOME automation monitor -> /api/automation-monitor";
+  const sessionName = "dashboard-smoke-missing-session";
+  const monitorId = `tmux-session:${sessionName}`;
+  const statePath = createAutomationMonitorStatePath(homeDir);
+  const snapshotBefore = await readJsonResponse(
+    new URL("/snapshot.json", dashboardUrl).toString(),
+    timeoutMs
+  );
+  const upsertResponse = await readJsonRequest(apiUrl, timeoutMs, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "upsert-tmux",
+      sessionName,
+      label: "dashboard smoke monitor",
+      intervalMs: 60_000,
+      enabled: true
+    })
+  });
+  const runNowResponse = await readJsonRequest(apiUrl, timeoutMs, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "run-now",
+      monitorId
+    })
+  });
+  const snapshotAfter = await readJsonResponse(
+    new URL("/snapshot.json", dashboardUrl).toString(),
+    timeoutMs
+  );
+  const persistedText = await readFile(statePath, "utf8").catch(() => "");
+  const persistedState = persistedText ? JSON.parse(persistedText) : {};
+  const upsertMonitor = findAutomationMonitor(upsertResponse.body?.automation, monitorId);
+  const runNowMonitor = findAutomationMonitor(runNowResponse.body?.automation, monitorId);
+  const snapshotMonitor = findAutomationMonitor(snapshotAfter.body?.automation, monitorId);
+  const persistedMonitor = findAutomationMonitor(persistedState, monitorId);
+  const tokenLeakDetected = hasTokenLeak([
+    JSON.stringify(snapshotBefore),
+    JSON.stringify(upsertResponse),
+    JSON.stringify(runNowResponse),
+    JSON.stringify(snapshotAfter),
+    persistedText
+  ]);
+  const passed = snapshotBefore.status === 200
+    && upsertResponse.status === 200
+    && upsertResponse.body?.command === "dashboard automation monitor"
+    && upsertResponse.body?.source === "dashboard"
+    && upsertResponse.body?.plannedMutation === true
+    && upsertResponse.body?.executesSystemMutation === false
+    && upsertResponse.body?.mutatesSession === false
+    && upsertResponse.body?.result === "configured"
+    && upsertResponse.body?.monitorId === monitorId
+    && upsertMonitor?.sessionName === sessionName
+    && upsertMonitor?.checkCount === 1
+    && upsertMonitor?.intervalMs === 60_000
+    && runNowResponse.status === 200
+    && runNowResponse.body?.command === "dashboard automation monitor"
+    && runNowResponse.body?.source === "dashboard"
+    && runNowResponse.body?.plannedMutation === true
+    && runNowResponse.body?.executesSystemMutation === false
+    && runNowResponse.body?.mutatesSession === false
+    && runNowResponse.body?.result === "checked"
+    && runNowResponse.body?.monitorId === monitorId
+    && runNowMonitor?.sessionName === sessionName
+    && runNowMonitor?.checkCount === 2
+    && snapshotAfter.status === 200
+    && snapshotMonitor?.id === monitorId
+    && snapshotMonitor?.checkCount === 2
+    && persistedMonitor?.id === monitorId
+    && persistedMonitor?.checkCount === 2
+    && tokenLeakDetected === false;
+
+  return {
+    productPath,
+    apiUrl,
+    statePath,
+    sessionName,
+    monitorId,
+    snapshotBefore,
+    upsertResponse,
+    runNowResponse,
+    snapshotAfter,
+    persistedState,
+    tokenLeakDetected,
+    result: passed ? "passed" : "failed"
+  };
+}
+
+function findAutomationMonitor(snapshot, monitorId) {
+  const monitors = Array.isArray(snapshot?.runtimes)
+    ? snapshot.runtimes
+    : Array.isArray(snapshot?.monitors)
+      ? snapshot.monitors
+      : [];
+
+  return monitors.find((monitor) => monitor?.id === monitorId);
+}
+
 async function collectDashboardStatusAutoDiscoveryEvidence(options, { homeDir, cliOutput }) {
   const command = [options.cliPath, "status", "--json"];
   const result = await runCliJsonCommand(command, {
@@ -1262,6 +1368,16 @@ function createRuntimeTurnMarkerStatePath(homeDir) {
     "Application Support",
     "skfiy",
     "runtime-turn-marker.json"
+  );
+}
+
+function createAutomationMonitorStatePath(homeDir) {
+  return path.join(
+    homeDir,
+    "Library",
+    "Application Support",
+    "skfiy",
+    "automation-monitors.json"
   );
 }
 

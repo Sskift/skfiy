@@ -1,4 +1,6 @@
 import type {
+  DashboardAutomationMonitorActionRequest,
+  DashboardAutomationMonitorActionResponse,
   DashboardChromeControlActionRequest,
   DashboardChromeHostPolicyActionRequest,
   DashboardChromeHostPolicyResponse,
@@ -142,6 +144,25 @@ export async function postPersonalSkillAction(
   }
 
   return payload as unknown as DashboardPersonalSkillActionResponse;
+}
+
+export async function postAutomationMonitorAction(
+  request: DashboardAutomationMonitorActionRequest
+): Promise<DashboardAutomationMonitorActionResponse> {
+  const response = await fetch("/api/automation-monitor", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(request)
+  });
+  const payload = await response.json() as Record<string, unknown>;
+
+  if (!response.ok) {
+    throw new Error(readDashboardApiError(payload) ?? `Automation monitor update failed with HTTP ${response.status}.`);
+  }
+
+  return payload as unknown as DashboardAutomationMonitorActionResponse;
 }
 
 function readDashboardApiError(payload: Record<string, unknown>): string | undefined {

@@ -1,6 +1,13 @@
 import http from "node:http";
 import { execFile } from "node:child_process";
 import {
+  existsSync as fsExistsSync,
+  mkdirSync as fsMkdirSync,
+  readFileSync as fsReadFileSync,
+  renameSync as fsRenameSync,
+  writeFileSync as fsWriteFileSync
+} from "node:fs";
+import {
   mkdir as fsMkdir,
   readFile as fsReadFile,
   rename as fsRename,
@@ -68,6 +75,16 @@ import {
   type PlannerProviderSettingsUpdate
 } from "./planner-provider-settings.js";
 import { createChromeExtensionWakeUrl } from "./chrome-extension-reloader.js";
+import {
+  createAutomationMonitorManager,
+  createAutomationMonitorStatePath,
+  createAutomationMonitorStore,
+  type AutomationMonitorStoreIo
+} from "./automation-monitor.js";
+import {
+  createTmuxSupervisionClient,
+  type TmuxSupervisionClient
+} from "./tmux-supervision-client.js";
 
 export interface DashboardHttpRequest {
   method?: string;
@@ -92,6 +109,8 @@ export interface DashboardHttpResponseOptions extends DashboardDescriptorInput {
   assistantAgentSettings?: AssistantAgentSettings;
   assistantExecutableResolver?: AssistantAgentExecutableResolver;
   plannerProviderSettingsStore?: DashboardPlannerProviderSettingsStore;
+  automationMonitorIo?: AutomationMonitorStoreIo;
+  automationTmuxClient?: TmuxSupervisionClient;
   workspaceIo?: DashboardWorkspaceIo;
   createDescriptor?: (input: DashboardDescriptorInput) => DashboardDescriptor;
   createSnapshot?: (input: DashboardSnapshotInput) => DashboardSnapshot;
@@ -407,6 +426,22 @@ async function handleDashboardServerRequest({
     return;
   }
 
+  if (url.pathname === "/api/automation-monitor") {
+    const body = requestMethod === "POST" ? await readRequestBody(request) : "";
+    const dashboardResponse = await createDashboardAutomationMonitorResponse({
+      method: request.method,
+      url: requestUrl,
+      body
+    }, {
+      ...options,
+      port: readServerPort(server)
+    });
+
+    response.writeHead(dashboardResponse.status, dashboardResponse.headers);
+    response.end(dashboardResponse.body);
+    return;
+  }
+
   const builtDashboardResponse = await createBuiltDashboardHttpResponse({
     method: requestMethod,
     url,
@@ -551,6 +586,8 @@ function createDescriptorFromOptions(
     assistantAgentSettings: _assistantAgentSettings,
     assistantExecutableResolver: _assistantExecutableResolver,
     plannerProviderSettingsStore: _plannerProviderSettingsStore,
+    automationMonitorIo: _automationMonitorIo,
+    automationTmuxClient: _automationTmuxClient,
     workspaceIo: _workspaceIo,
     ...descriptorInput
   } = options;
@@ -1017,6 +1054,187 @@ function createDashboardPersonalSkillsErrorResponse({
     source: "dashboard",
     plannedMutation: false,
     executesSystemMutation: false,
+    result: "error",
+    error: {
+      code,
+      message
+    }
+  }, undefined, status);
+}
+
+export async function createDashboardAutomationMonitorResponse(
+  request: DashboardHttpRequest,
+  options: DashboardHttpResponseOptions = {}
+): Promise<DashboardHttpResponse> {
+  const method = (request.method ?? "GET").toUpperCase();
+  const generatedAt = new Date().toISOString();
+
+  if (method !== "POST") {
+    return textResponse(405, "Method Not Allowed\n", {
+      allow: "POST"
+    });
+  }
+
+  const homeDir = options.homeDir ?? options.workspaceIo?.homeDir?.() ?? process.env.HOME ?? "";
+  if (!homeDir) {
+    return createDashboardAutomationMonitorErrorResponse({
+      generatedAt,
+      code: "home-dir-required",
+      message: "Home directory is required to locate automation monitors."
+    }, 503);
+  }
+
+  const body = parseJsonObject(request.body ?? "");
+  if (!body.ok) {
+    return createDashboardAutomationMonitorErrorResponse({
+      generatedAt,
+      code: "invalid-json",
+      message: body.error
+    });
+  }
+
+  const action = normalizeDashboardAutomationMonitorAction(body.value.action);
+  if (!action) {
+    return createDashboardAutomationMonitorErrorResponse({
+      generatedAt,
+      code: "unknown-action",
+      message: "Automation monitor action must be upsert-tmux or run-now."
+    });
+  }
+
+  const store = createAutomationMonitorStore({
+    filePath: createAutomationMonitorStatePath(homeDir),
+    io: options.automationMonitorIo ?? createDefaultDashboardAutomationMonitorIo()
+  });
+  const manager = createAutomationMonitorManager({
+    store,
+    tmuxClient: options.automationTmuxClient ?? createTmuxSupervisionClient()
+  });
+
+  if (action === "upsert-tmux") {
+    const sessionName = normalizeDashboardTmuxSessionName(body.value.sessionName);
+    if (!sessionName) {
+      return createDashboardAutomationMonitorErrorResponse({
+        generatedAt,
+        code: "session-required",
+        message: "Automation monitor requires a valid tmux session name."
+      });
+    }
+
+    const definition = manager.upsertTmuxSessionMonitor({
+      sessionName,
+      label: normalizeOptionalNonEmptyString(body.value.label) ?? sessionName,
+      intervalMs: normalizeDashboardAutomationMonitorIntervalMs(body.value.intervalMs),
+      enabled: typeof body.value.enabled === "boolean" ? body.value.enabled : true
+    });
+    const monitor = await manager.runMonitorNow(definition.id);
+
+    return jsonResponse({
+      schemaVersion: 1,
+      command: "dashboard automation monitor",
+      generatedAt,
+      source: "dashboard",
+      plannedMutation: true,
+      executesSystemMutation: false,
+      mutatesSession: false,
+      result: "configured",
+      monitorId: definition.id,
+      monitor,
+      automation: manager.readSnapshot()
+    });
+  }
+
+  const monitorId = normalizeDashboardAutomationMonitorId(body.value.monitorId);
+  if (!monitorId) {
+    return createDashboardAutomationMonitorErrorResponse({
+      generatedAt,
+      code: "monitor-id-required",
+      message: "Automation run-now requires a known monitor id."
+    });
+  }
+
+  try {
+    const monitor = await manager.runMonitorNow(monitorId);
+
+    return jsonResponse({
+      schemaVersion: 1,
+      command: "dashboard automation monitor",
+      generatedAt,
+      source: "dashboard",
+      plannedMutation: true,
+      executesSystemMutation: false,
+      mutatesSession: false,
+      result: "checked",
+      monitorId,
+      monitor,
+      automation: manager.readSnapshot()
+    });
+  } catch (error) {
+    return createDashboardAutomationMonitorErrorResponse({
+      generatedAt,
+      code: "monitor-not-found",
+      message: readErrorMessage(error)
+    }, 404);
+  }
+}
+
+function normalizeDashboardAutomationMonitorAction(value: unknown): "upsert-tmux" | "run-now" | undefined {
+  return value === "upsert-tmux" || value === "run-now" ? value : undefined;
+}
+
+function normalizeDashboardTmuxSessionName(value: unknown): string | undefined {
+  const sessionName = normalizeOptionalNonEmptyString(value);
+  if (!sessionName || !/^[A-Za-z0-9_.:-]+$/u.test(sessionName)) {
+    return undefined;
+  }
+
+  return sessionName;
+}
+
+function normalizeDashboardAutomationMonitorId(value: unknown): string | undefined {
+  const id = normalizeOptionalNonEmptyString(value);
+  if (!id || !/^tmux-session:[A-Za-z0-9_.:-]+$/u.test(id)) {
+    return undefined;
+  }
+
+  return id;
+}
+
+function normalizeDashboardAutomationMonitorIntervalMs(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 300_000;
+  }
+
+  return Math.max(30_000, Math.round(value));
+}
+
+function createDefaultDashboardAutomationMonitorIo(): AutomationMonitorStoreIo {
+  return {
+    exists: fsExistsSync,
+    mkdir: (targetPath) => fsMkdirSync(targetPath, { recursive: true }),
+    readFile: (targetPath) => fsReadFileSync(targetPath, "utf8"),
+    rename: fsRenameSync,
+    writeFile: (targetPath, content) => fsWriteFileSync(targetPath, content, "utf8")
+  };
+}
+
+function createDashboardAutomationMonitorErrorResponse({
+  generatedAt,
+  code,
+  message
+}: {
+  generatedAt: string;
+  code: string;
+  message: string;
+}, status = 400): DashboardHttpResponse {
+  return jsonResponse({
+    schemaVersion: 1,
+    command: "dashboard automation monitor",
+    generatedAt,
+    source: "dashboard",
+    plannedMutation: false,
+    executesSystemMutation: false,
+    mutatesSession: false,
     result: "error",
     error: {
       code,
