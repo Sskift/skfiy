@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make skfiy feel like one coherent local pet product: the pet stays usable on screen, can select and call a real local background agent provider, can receive real Chrome page context through the extension bridge, and has a useful local dashboard for operator visibility.
+**Goal:** Make skfiy feel like one coherent local pet product: the pet stays usable on screen, can select and call a real local Background Agent provider, can receive real Chrome page context through the extension bridge, and has a useful local Dashboard for operator visibility.
 
 **Architecture:** Keep the pet renderer thin and make the Electron main process own OS/window/provider state. Represent the pet's position as a visible pet anchor in display coordinates, not as a large transparent window position. Treat Background Agent, Computer Use planner, Chrome page context, and Dashboard as separate capability surfaces with explicit typed contracts between main, preload, renderer, dashboard, and extension code.
 
@@ -12,19 +12,22 @@
 
 ## Current Baseline And Gaps
 
-- The useless diamond marker is the assistant bubble arrow in `src/renderer/styles.css`; it should be removed.
-- Pet dragging is currently bounded by a transparent Electron window, not the visible pet hitbox, so it does not align with the real screen.
-- Background Agent currently supports `codex`, `claude-code`, and `hermes` in `src/main/assistant-agent.ts`; legacy `local` and `built-in` provider language has been removed.
-- The user wants Hermes as a third Background Agent backend. Hermes' `--oneshot` path auto-bypasses approvals, so skfiy must not wire it as a raw full-tool agent. The acceptable integration is a bounded chat backend invocation that injects skfiy identity, disables or excludes mutating Hermes toolsets, and keeps Computer Use inside skfiy.
-- Real Backend Agent turns must inject the skfiy identity before the user request. Claude Code must receive it through the primary `--system-prompt` channel; Codex and Hermes must receive it in the bounded prompt/query because their current CLI chat surfaces do not expose a separate system-prompt flag. The identity block must explicitly say that the active identity in real user-facing interaction is skfiy, while Codex, Claude Code, and Hermes remain backend providers.
-- Pet settings currently expose Computer Use planner modes from `src/main/planner-provider-settings.ts`; that is not the same as selecting the Background Agent Provider.
-- Chrome extension pageControl can report current tab readiness and run observe/click/fill/submit/scroll paths, but Pet Agent prompts do not yet receive bounded real webpage context.
-- Dashboard already has snapshot/provider/browser panels, but it needs to become the readable operator surface for these capabilities, not a raw diagnostics page.
+- The pet bubble diamond marker has been removed. The current branch also removes the panel-open CSS rule that moved `.skfiy-pet`, anchors bubbles above the visible pet hitbox, and re-captures the visible pet rect when drag starts after a panel/mode transition.
+- Pet dragging now uses visible pet geometry instead of preserving the expanded window's old bottom-anchored offset; packaged UI smoke must still be rerun for this branch before claiming final screen-boundary proof.
+- Background Agent currently supports `codex`, `claude-code`, and `hermes` in `src/main/assistant-agent.ts`; legacy `local` and `built-in` provider language must stay out of UI and docs.
+- Computer Use is now admitted from a bounded structured tool intent emitted by the Background Agent response. Ordinary user questions go to the selected Background Agent first; host-side rule routing of raw user text must not reappear.
+- If Codex, Claude Code, or Hermes do not expose a native tool-call protocol, skfiy uses the structured intent marker as a compatibility layer, strips it from the visible answer, validates app policy/permissions/risk/approval, and executes Computer Use itself. CLI providers must not directly mutate the desktop from pet chat.
+- Real Background Agent turns must inject the skfiy identity before the user request. Claude Code must receive it through the primary `--system-prompt` channel; Codex and Hermes receive it in the bounded prompt/query because their current CLI chat surfaces do not expose the same primary system-prompt flag. The identity block must explicitly say that the active identity in real user-facing interaction is skfiy, while Codex, Claude Code, and Hermes remain backend providers.
+- Background Agent provider readiness distinguishes executable discovery from chat readiness. `binary-found` / `binary-configured` is not the same as `chat-ready`; future dry-run work should promote providers only when a short prompt path is proven.
+- Pet settings expose Background Agent provider choices separately from Computer Use Planner modes in `src/main/planner-provider-settings.ts`.
+- Chrome extension pageControl can report current tab readiness, run observe/click/fill/submit/scroll paths, and provide bounded Browser Context to Background Agent prompts when ready.
+- Dashboard now leads with an operator workspace for Background Agent readiness, Browser Context, Computer Use tool status, permissions/actions, and smoke/build evidence. The Knowledge graph remains an auxiliary evidence/provenance view, not the homepage center.
+- Dashboard status discovery now treats a reachable loopback descriptor as authoritative, including the default `127.0.0.1:8787` URL, and separates stale saved PID evidence from the live running status.
 - Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clones `5ecf3bf` / `3c75e11` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop. Current notes: `docs/research/2026-06-24-hermes-personalization-distillation.md`.
 - Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, Hermes-style atomic memory batch writes, prompt-load memory sanitization, and a derived prompt-safe Working profile that makes learned habits portable, reviewable, and available to real provider prompts; Task 9 adds user-visible removal for incorrect remembered preferences plus append-only learning receipts for durable and pending memory changes. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
 - Personalization hardening: unsafe manually polluted memory is still blocked from provider prompts, but Dashboard/store removal must remain able to forget the exact polluted entry so users can correct bad sediment instead of getting stuck with an invisible prompt-safe placeholder.
 - Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
-- Obsidian-inspired dashboard gap: Dashboard is still a control plane. It should gain a knowledge surface that shows remembered preferences, sessions, skills, Browser Context, and Computer Use evidence as linked local-first nodes with a local graph/canvas feel.
+- Evidence graph follow-up: Keep the graph useful for locating memory/session/browser/tool evidence and provenance. Do not let it displace the operator workspace or regress into a read-only decorative canvas.
 
 ## File Ownership Map
 
@@ -383,7 +386,7 @@ In `src/renderer/App.tsx`:
 - Add `AssistantAgentSettingsResponse` and provider state types.
 - Fetch assistant provider settings on startup and when opening settings.
 - Add a settings section named `Background Agent`.
-- Render segmented choices: `Codex`, `Claude Code`.
+- Render segmented choices: `Codex`, `Claude Code`, `Hermes`.
 - Show readiness, selected provider, binary path, cwd, timeout, and last error.
 - Keep `Computer Use planner` in a separate section labelled `Computer Use Planner`.
 
@@ -391,7 +394,7 @@ Copy rules:
 
 - Use `Background Agent` for the chat provider.
 - Use `Computer Use Planner` for desktop action planning.
-- Do not say that Codex or Claude directly control the desktop from pet chat.
+- Do not say that Codex, Claude Code, or Hermes directly control the desktop from pet chat.
 
 - [x] **Step 5: Renderer tests**
 
@@ -588,11 +591,11 @@ Use existing dashboard fixture helpers where available; if no helper exists, add
 
 In `src/dashboard/DashboardApp.tsx`:
 
-- Overview first row: Assistant Provider, Computer Use, Chrome Browser Context, Current Turn.
+- Overview first row: live operator workspace with Assistant Provider, Computer Use tool status, Browser Context, Current Turn, permission/action state, and recent evidence.
 - Provider section: Background Agent and Computer Use Planner side by side.
 - Browser section: Extension heartbeat, pageControl readiness, host policy, current page context.
 - Activity section: current turn, latest replay, latest failure/blocker, latest smoke evidence.
-- Keep raw JSON out of the primary scan path.
+- Keep raw JSON and the Knowledge graph out of the primary scan path. The graph can remain as an auxiliary evidence/provenance view.
 
 In `src/dashboard/model.ts`:
 
@@ -1081,7 +1084,7 @@ In `src/dashboard/model.ts`:
 
 In `src/main/dashboard-data.ts`, include enough `personalMemory` and session summary fields for the graph.
 
-- [x] **Step 4: Apply Obsidian-inspired visual language**
+- [x] **Step 4: Apply evidence graph visual language**
 
 In `src/dashboard/styles.css`:
 
@@ -1165,7 +1168,7 @@ In `src/main/working-profile.ts`, `src/main/dashboard-data.ts`, `src/dashboard/c
 - Derive a read-only `Working profile` from USER/AGENT memory, recent sessions, and personal skill cards.
 - Keep the profile plain-text, prompt-safe, and token/secret redacted; it is a portable user model, not a new mutation surface.
 - Inject the profile into real Background Agent prompts after personal skills and before Browser Context/User input.
-- Show the profile in Dashboard Memory and as `Working profile.md` in the Obsidian-inspired Knowledge graph.
+- Show the profile in Dashboard Memory and as `Working profile.md` in the auxiliary Knowledge graph.
 - Connect memory/session/skill evidence to the profile and the profile to the selected Background Agent with `travels with prompt`.
 - Extend dashboard smoke evidence so screenshot probes must collect `workingProfileNodeCount`, `workingProfileLinkCount`, `workingProfileNoteCount`, and `travels with prompt` links.
 
@@ -1250,7 +1253,7 @@ npx vitest run src/main/dashboard-smoke-script.test.ts --reporter=dot
 
 In `src/dashboard/KnowledgeGraph.tsx`, `src/dashboard/styles.css`, `scripts/smoke-dashboard-product.mjs`, `scripts/smoke-dashboard-plan.mjs`, and `src/main/dashboard-smoke-script.test.ts`:
 
-- Render a `Prompt stack` panel in the Obsidian-inspired graph surface that shows the next provider call order: durable memory, recalled sessions, personal skills, Working profile, Browser Context, and selected Background Agent.
+- Render a `Prompt stack` panel in the auxiliary evidence graph surface that shows the next provider call order: durable memory, recalled sessions, personal skills, Working profile, Browser Context, and selected Background Agent.
 - Derive the stack from existing graph edges such as `injects prompt`, `recalls context`, `guides prompt`, and `travels with prompt` so it stays aligned with the actual personalization graph.
 - Extend Dashboard smoke evidence with `promptStackCount`, `promptStackTexts`, and `promptStackPanelUsesGradient`; the product smoke cannot pass if the stack is absent.
 
@@ -1264,7 +1267,7 @@ npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/main/dashboard-smoke-sc
 
 In `src/dashboard/KnowledgeGraph.tsx`, `src/dashboard/styles.css`, `scripts/smoke-dashboard-product.mjs`, `scripts/smoke-dashboard-plan.mjs`, and `src/main/dashboard-smoke-script.test.ts`:
 
-- Render a `Prompt source ledger` panel beside the Obsidian-inspired graph surface so the operator can see which local personalization sources are durable prompt-safe inputs, which pending memory writes are still review-gated, and whether Browser Context or the selected Background Agent is ready or blocked.
+- Render a `Prompt source ledger` panel beside the auxiliary evidence graph surface so the operator can see which local personalization sources are durable prompt-safe inputs, which pending memory writes are still review-gated, and whether Browser Context or the selected Background Agent is ready or blocked.
 - Derive ledger entries from graph nodes and edges instead of duplicating dashboard state: durable memory from `injects prompt` / `guides behavior`, pending memory from `memory:pending:*`, sessions from `recalls context`, skills from `guides prompt`, Working profile from `travels with prompt`, and provider/browser readiness from node tones.
 - Extend Dashboard smoke evidence with `promptSourceLedgerCount`, `promptSourceLedgerTexts`, and `promptSourceLedgerPanelUsesGradient`; the product smoke cannot pass if the ledger is absent or omits Memory, Pending memory, Browser Context, or Background Agent status.
 
@@ -1353,7 +1356,7 @@ In `src/main/dashboard-data.ts`, `src/main/session-memory.ts`, `src/dashboard/co
 
 - Derive Dashboard session recall from durable memory, personal skill labels/hints, and the Working profile summary/habits instead of showing only flat recent history.
 - Keep relevant recalled sessions first with `Recall basis: matched terms: ...; score: ...`, then fill the list with unmatched recent sessions for nearby context.
-- Display the recall basis in the Memory surface and Knowledge graph session node detail so the Obsidian-style dashboard explains why a past turn is connected to the next provider prompt.
+- Display the recall basis in the Memory surface and Knowledge graph session node detail so the dashboard explains why a past turn is connected to the next provider prompt.
 - Extend Dashboard smoke evidence with `sessionRecallBasisCount` and `sessionRecallBasisTexts`; the product smoke cannot pass if the recall basis disappears.
 
 Focused verification:
@@ -1478,7 +1481,7 @@ In `src/dashboard/DashboardApp.tsx`, `src/dashboard/model.ts`, `scripts/smoke-da
 
 - Keep pending memory writes compatible with Hermes-style `add`, `replace`, and `remove` operations instead of treating every candidate as append-only.
 - Render pending `replace` writes in the Dashboard Memory panel as explicit `Previous` / `Proposed` revisions with a clear accessible label.
-- Render pending `replace` writes in the Obsidian-inspired Knowledge graph detail as `replace · from ... -> ...` so the graph shows the local memory mutation being reviewed.
+- Render pending `replace` writes in the auxiliary Knowledge graph detail as `replace · from ... -> ...` so the graph shows the local memory mutation being reviewed.
 - Extend Dashboard product smoke to seed a pending replacement and require screenshot DOM evidence that the graph carries the from/to revision before the write becomes durable prompt memory.
 
 Focused verification:
@@ -1494,7 +1497,7 @@ In `src/main/personal-memory-journal.ts`, `src/main/personalization-learning-loo
 - Record each durable or pending memory mutation as a JSONL learning receipt with source, stage, provider label, turn id, user input, action, target, content, and previous content for replacements.
 - Wire the journal into the real post-turn coordinator so Codex, Claude Code, and Hermes-backed interactions leave auditable memory provenance.
 - Surface the newest receipts in the Dashboard Memory panel without exposing token-like content.
-- Render receipts in the Obsidian-inspired graph as `Learning receipt` nodes linked from memory review to the affected user or agent memory target.
+- Render receipts in the auxiliary evidence graph as `Learning receipt` nodes linked from memory review to the affected user or agent memory target.
 - Extend packaged CLI smoke so durable review writes, local fallback writes, and approval-gated pending writes must each produce the expected journal source/stage/provider evidence.
 - Extend Dashboard smoke so the graph screenshot DOM must include receipt nodes and receipt links.
 
@@ -1509,7 +1512,7 @@ npx vitest run src/main/personal-memory-journal.test.ts src/main/personalization
 In `src/dashboard/DashboardApp.tsx`, `src/dashboard/KnowledgeGraph.tsx`, `src/dashboard/model.ts`, `scripts/smoke-dashboard-product.mjs`, and `scripts/smoke-dashboard-plan.mjs`:
 
 - Derive a readable `Memory evolution` timeline from the newest learning receipts so the Dashboard shows how a remembered habit changed across turns, providers, and pending approval stages.
-- Add a `Memory evolution` node to the Obsidian-inspired Knowledge graph, linked from memory review and out to the individual `Learning receipt` nodes with ordered receipt edges.
+- Add a `Memory evolution` node to the auxiliary Knowledge graph, linked from memory review and out to the individual `Learning receipt` nodes with ordered receipt edges.
 - Keep duplicate-label receipt relations stable in the vault note UI so repeated `Learning receipt` notes do not produce React key warnings.
 - Extend Dashboard product smoke so packaged screenshot DOM evidence must include the evolution node, timeline links, and ordered receipt links.
 
@@ -1525,7 +1528,7 @@ npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/dashboard/DashboardApp.
 - Modify only when tests reveal real defects.
 - Create smoke artifacts under `.skfiy-smoke/` when commands support `--output`.
 
-- [x] **Step 1: Run full unit and type gates**
+- [ ] **Step 1: Run full unit and type gates**
 
 ```bash
 git diff --check
@@ -1539,7 +1542,7 @@ Expected:
 - Typecheck exits 0.
 - Vitest exits 0.
 
-- [x] **Step 2: Build packaged app**
+- [ ] **Step 2: Build packaged app**
 
 ```bash
 npm run build
@@ -1551,7 +1554,7 @@ Expected:
 - `dist/skfiy` exists.
 - Known pre-existing CSS `calc(100%-...)` warnings can be recorded but must not be introduced by new code.
 
-- [x] **Step 3: Run product smoke gates**
+- [ ] **Step 3: Run product smoke gates**
 
 ```bash
 npm run smoke:ui -- --output .skfiy-smoke/ui-product.json
@@ -1588,7 +1591,11 @@ Dashboard smoke now seeds an isolated personal memory fixture and must collect `
 
 If a smoke is blocked by local macOS permissions or Chrome environment, record the typed blocker and do not call the feature complete until the blocker is either resolved or explicitly accepted by the project owner.
 
-Validation evidence from 2026-06-24:
+Current branch validation requirement:
+
+- Rerun `git diff --check`, `npm run typecheck -- --pretty false`, `npx vitest run --reporter=dot`, `npm run build`, `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json`, and `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` after the 2026-06-25 hardening commits. Do not reuse the older evidence below as completion proof for this branch.
+
+Historical validation evidence from 2026-06-24:
 
 - `git diff --check`, `npm run typecheck -- --pretty false`, and `npx vitest run --reporter=dot` exited 0. Vitest passed 110 files and 1035 tests; existing React `act(...)` warnings remained warnings only.
 - `npm run build` exited 0 and produced `dist/skfiy.app` plus `dist/skfiy`. Existing CSS minify warnings for `calc(100%-...)` remained build warnings only.
@@ -1597,7 +1604,7 @@ Validation evidence from 2026-06-24:
 - `.skfiy-smoke/cli-recall-basis.json` recorded `result: passed` and `providerPromptContract.result: passed`; Codex, Claude Code, and Hermes all recorded `sessionRecallBasisPresent: true`, proving packaged provider prompts include `Recall basis: matched terms: obsidian, dashboard; score: 2` inside `<skfiy-recalled-sessions>` after memory and before Browser Context.
 - The same CLI smoke now records `realTurnIdentityContract.result: passed` from `dist/main/assistant-agent.js -> runAssistantAgentTurn`, proving the actual provider runner boundary receives skfiy identity for Codex, Claude Code, and Hermes. Claude Code keeps identity in `--system-prompt`; Codex and Hermes receive it in the prompt/query before `User:`. The real runner contract also requires the active-identity, provider-default-override, and no-backend-prefix lines before a provider response can count as skfiy-owned.
 - The same CLI smoke now records `realBrowserContextContract.result: passed` from `dist/main/browser-page-context.js -> dist/main/assistant-agent.js`, proving a ready Chrome extension `pageObservation` connection is normalized into Browser Context and reaches the real provider runner prompt with current page URL, title, visible text, skfiy identity, and Browser Context before `User:`.
-- The same CLI smoke now records `repeatedConversationLearningContract.result: passed`, proving a packaged two-turn flow can use Codex for the first visible turn, persist Obsidian-style dashboard preferences and a session through `recordCompletedAssistantTurnForPersonalization`, then use Hermes for the next turn with personal memory, recalled session history, the distilled Obsidian dashboard skill, and the Working profile injected before the real `User:` request.
+- The same CLI smoke now records `repeatedConversationLearningContract.result: passed`, proving a packaged two-turn flow can use Codex for the first visible turn, persist dashboard preference memory and a session through `recordCompletedAssistantTurnForPersonalization`, then use Hermes for the next turn with personal memory, recalled session history, the distilled dashboard skill, and the Working profile injected before the real `User:` request.
 - The same CLI smoke recorded `personalMemoryFallbackContract.result: passed`, proving explicit preference extraction, explicit remember/forget, duplicate suppression, one-off request rejection, and token-like request blocking from the packaged build.
 - The same CLI smoke now records `personalMemoryAtomicBatchContract.result: passed`, proving over-budget and unsafe memory operation batches abort without partial durable writes while remove+add batches are accepted against the final budget.
 - The same CLI smoke now records `postTurnPersonalizationContract.result: passed` from `dist/main/personalization-learning-loop.js`, proving the packaged post-turn coordinator records a session, writes durable reviewed memory, falls back to local preference extraction, stages writes instead of mutating durable memory when approval review is enabled, and creates memory journal receipts for durable review, local fallback, and pending approval paths.
@@ -1605,11 +1612,11 @@ Validation evidence from 2026-06-24:
 - `.skfiy-smoke/dashboard-product.json` recorded `result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`. Dashboard screenshot evidence now also records `knowledgeGraphEvidence.visualDesignContract` with a 2560x1632 viewport, dark grid shell/canvas, dark vault lens, gradient focus/notes/backlinks/learning-loop panels, gradient graph links, selected node glow, multiple accent families, and screenshot coverage for both the dashboard shell and Knowledge graph.
 - `.skfiy-smoke/dashboard-memory-journal.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`, with 2 `Learning receipt` nodes and 3 receipt links in the graph DOM evidence plus screenshot evidence at `.skfiy-smoke/dashboard-memory-journal-knowledge-graph.png`.
 - `.skfiy-smoke/dashboard-memory-evolution.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`, with 1 `Memory evolution` node, 3 timeline/order links, 2 `Learning receipt` nodes, 3 receipt links, and screenshot evidence at `.skfiy-smoke/dashboard-memory-evolution-knowledge-graph.png`.
-- `.skfiy-smoke/dashboard-prompt-stack.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-prompt-stack-knowledge-graph.png` shows the Obsidian-inspired `Prompt stack` above the graph canvas with memory, recalled sessions, personal skills, Working profile, and selected Background Agent ordering visible.
+- `.skfiy-smoke/dashboard-prompt-stack.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-prompt-stack-knowledge-graph.png` shows the `Prompt stack` above the graph canvas with memory, recalled sessions, personal skills, Working profile, and selected Background Agent ordering visible.
 - `.skfiy-smoke/dashboard-prompt-tiers.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-prompt-tiers-knowledge-graph.png` shows the Prompt stack tier labels for `volatile local memory`, `volatile session recall`, `stable learned habits`, `volatile portable profile`, and `runtime provider` in isolated product state. React and smoke classifier coverage require `live browser overlay` when a Browser Context node exists.
 - `.skfiy-smoke/dashboard-session-recall-routes.json` recorded `result: passed` and `knowledgeGraphEvidence.result: passed`; screenshot evidence at `.skfiy-smoke/dashboard-session-recall-routes-knowledge-graph.png` shows 2 `Recent session recall` rows with `volatile session recall` tier labels and `recalls context -> Codex` next-prompt routes.
 - `.skfiy-smoke/dashboard-recall-basis.json` recorded `result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`; Dashboard smoke captured 2 session recall routes, 2 session recall tier labels, and 1 relevance-matched `Recall basis: matched terms: skfiy, dashboard, memory, show, how, local; score: 6` item, with screenshot evidence at `.skfiy-smoke/dashboard-recall-basis-knowledge-graph.png`.
-- `.skfiy-smoke/dashboard-goal-refresh.json` recorded `result: passed`, `personalMemoryApi.result: passed`, `knowledgeGraphEvidence.result: passed`, all React dashboard markers present, 22 knowledge nodes, 4 session nodes, 5 Prompt stack rows, 7 Prompt source ledger rows, and 1 session recall-basis item. Screenshot evidence was saved at `.skfiy-smoke/dashboard-goal-refresh-knowledge-graph.png`, refreshing proof for the Hermes-inspired personalization and Obsidian-style dashboard goal path.
+- `.skfiy-smoke/dashboard-goal-refresh.json` recorded `result: passed`, `personalMemoryApi.result: passed`, `knowledgeGraphEvidence.result: passed`, all React dashboard markers present, 22 knowledge nodes, 4 session nodes, 5 Prompt stack rows, 7 Prompt source ledger rows, and 1 session recall-basis item. Screenshot evidence was saved at `.skfiy-smoke/dashboard-goal-refresh-knowledge-graph.png`, refreshing proof for the Hermes-inspired personalization and dashboard evidence-graph path.
 - `.skfiy-smoke/ghostty-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24 and captured a non-empty Ghostty before screenshot, but the run ended `needs-user-confirmation` with `Verification failed (before): Target app is not running or has no observable windows.` This replaces the older sleep/loginwindow blocker with a fresh Ghostty initialization/verification blocker.
 - `.skfiy-smoke/finder-goal-refresh.json` recorded fresh desktop preflight `passed` evidence on 2026-06-24, but the run ended `error` with `Finder runCommand timed out after 8000ms` and no Finder observation. This replaces the older sleep/loginwindow blocker with a fresh Finder renderer-command timeout blocker.
 - `npx vitest run src/main/cli-command-surface.test.ts --reporter=dot` exited 0 with 61 tests on 2026-06-24 after adding a regression that proves `skfiy status --json` can infer the Chrome extension id from `chrome-extension://.../` heartbeat `launchOrigin` when `--extension-id` is omitted.
@@ -1634,7 +1641,7 @@ Validation evidence from 2026-06-24:
 - Chromium installed-extension action evidence on 2026-06-24: `npm run smoke:dashboard -- --extension-id plcpkkhlcacihjfohlojdknnkademlno --extension-chrome-app Chromium --output .skfiy-smoke/dashboard-chromium-web-control.json --require-passed` exited 2 because the overall Dashboard readiness snapshot saw environment blockers from an isolated HOME and locked/asleep desktop state, but the artifact's `dashboardChromeControlActionApi.result` was `passed`. The five live browser action runs `observe`, `fill`, `click`, `submit`, and `scroll` all verified against target app `Chromium`, target tab `2140417003`, and disposable host `127.0.0.1:61634`.
 - `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product-postbuild.json --require-passed` exited 0 on 2026-06-24 after the same build. The post-build Dashboard artifact recorded `result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`.
 - Web/browser live validation must use Chromium, not the user's primary Chrome profile. Earlier default-browser probes are not Browser Context acceptance evidence.
-- Live Browser Context answering evidence on 2026-06-25 used Chromium only. A disposable local page at `http://127.0.0.1:64663/` with title `skfiy live browser context acceptance` was opened in Chromium, allowed through current-turn skfiy host policy, and observed with `SKFIY_CHROME_APP_NAME=Chromium ./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 2140417011 --json`. The observe command returned `result: verified`, `pageControl.state: ready`, and visible text containing `Live Chromium page says: skfiy should remember Obsidian-style dashboard context and answer from current webpage evidence.` Importing `dist/main/browser-page-context.js` plus `dist/main/assistant-agent.js` then proved the live observation reached `runAssistantAgentTurn` before `User:` with skfiy identity intact. A real Codex backend call through the same `runAssistantAgentTurn` boundary returned `页面标题是「skfiy live browser context acceptance」。`, proving the pet agent path can answer from a ready current webpage context.
+- Live Browser Context answering evidence on 2026-06-25 used Chromium only. A disposable local page at `http://127.0.0.1:64663/` with title `skfiy live browser context acceptance` was opened in Chromium, allowed through current-turn skfiy host policy, and observed with `SKFIY_CHROME_APP_NAME=Chromium ./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 2140417011 --json`. The observe command returned `result: verified`, `pageControl.state: ready`, and visible text containing `Live Chromium page says: skfiy should remember dashboard context and answer from current webpage evidence.` Importing `dist/main/browser-page-context.js` plus `dist/main/assistant-agent.js` then proved the live observation reached `runAssistantAgentTurn` before `User:` with skfiy identity intact. A real Codex backend call through the same `runAssistantAgentTurn` boundary returned `页面标题是「skfiy live browser context acceptance」。`, proving the pet agent path can answer from a ready current webpage context.
 - `.skfiy-smoke/cli-goal-final.json` recorded `result: passed` on 2026-06-25. The refreshed packaged basic CLI smoke records `providerPromptContract.result: passed` for Codex, Claude Code, and Hermes; `realTurnIdentityContract.result: passed`; `realBrowserContextContract.result: passed`; `repeatedConversationLearningContract.result: passed` with a second Hermes turn receiving memory, recalled session, personal skill, and Working profile context; `personalMemoryFallbackContract.result: passed`; `personalMemoryPromptSanitizationContract.result: passed`; `personalMemoryAtomicBatchContract.result: passed`; and `postTurnPersonalizationContract.result: passed` with durable, local-fallback, and approval-gated pending journal evidence.
 - `./dist/skfiy chrome extension-info --json` reported the unpacked extension directory available, Chrome setup as `manual-required`, and extension id as `unknown-until-loaded`.
 - `npx vitest run src/main/personalization-learning-loop.test.ts src/main/personal-memory-main-wiring.test.ts src/main/personal-memory-review.test.ts src/main/personal-memory-pending.test.ts src/main/session-memory.test.ts src/main/assistant-agent.test.ts --reporter=dot` exited 0 on 2026-06-24. This adds behavior-level proof that a completed Background Agent turn records a session, runs bounded memory review, falls back to local durable preference extraction when review is empty/unavailable, and stages post-turn writes instead of mutating durable memory when approval review is enabled.
@@ -1654,7 +1661,7 @@ Typed blockers after this validation:
 - [x] Pet settings show Hermes as a Background Agent Provider and its invocation does not use Hermes `--oneshot` or `--yolo`.
 - [x] Repeated agent conversations can write durable user preferences to local personal memory. Behavior-level post-turn learning loop tests pass, and packaged CLI smoke now proves a two-turn learning flow carries memory, recalled sessions, and distilled personal skills into the next provider prompt.
 - [x] Background Agent prompts include skfiy identity, personal memory, recalled sessions, and Browser Context in that order before the real user input.
-- [x] Dashboard shows personal memory and session recall in an Obsidian-inspired knowledge graph/canvas surface.
+- [x] Dashboard shows personal memory and session recall in an auxiliary knowledge graph/evidence surface.
 - [x] Panic stop and `stopTurnBehavior` still surface `Task stopped` evidence.
 - [x] Chrome extension state says whether page context is ready, blocked, stale, or missing.
 - [x] Dashboard shows a structured Browser Context access checklist when the current tab is blocked by host policy, Chrome site access, or visible-tab capture permission.
@@ -1664,7 +1671,7 @@ Typed blockers after this validation:
 - [x] Dashboard can open a target-tab skfiy extension access page for Browser Context permission recovery without silently granting Chrome permissions.
 - [x] Dashboard shows a structured Finder Automation access checklist when Finder smoke reaches a macOS Automation permission blocker.
 - [x] Pet agent can answer using current webpage context when extension pageControl is ready. Live Chromium observe plus a real Codex-backed `runAssistantAgentTurn` returned the current page title from Browser Context on 2026-06-25.
-- [x] Dashboard is visually clean and shows assistant, Computer Use, Chrome, current turn, latest blocker, and recent runtime evidence. Product smoke and screenshot visual design contract passed.
+- [x] Dashboard is visually clean and leads with the operator workspace for assistant, Browser Context, Computer Use tool status, current turn, latest blocker, and recent runtime evidence. Product smoke must be rerun after current-branch hardening before this remains accepted.
 
 - [x] **Step 7: Final commit or PR**
 

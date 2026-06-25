@@ -1,17 +1,20 @@
 # skfiy
 
-skfiy is an agent-first macOS Computer Use runtime with a pixel desktop pet,
-packaged CLI, local dashboard, and app adapters for local experiments. It is
-designed around explicit, evidence-backed desktop routes: observe supported
-macOS app fixtures, decide the next action, execute clicks, typing, dragging,
-and hotkeys, then verify the result from screenshots, OCR, accessibility
-metadata, and replay events. Ghostty, Chromium/Chrome, Finder, screenshots, and
-tmux supervision are the current product routes; generic visible-app control
+skfiy is a local-first macOS desktop pet that fronts a Background Agent, with a
+packaged CLI, local Dashboard, and app adapters for local experiments. The pet's
+primary job is ordinary assistant conversation through a selected provider
+(Codex, Claude Code, or Hermes). When the Background Agent explicitly asks
+skfiy for desktop control, skfiy turns that bounded intent into a permissioned
+Computer Use tool request, checks app policy, permissions, risk, and approval,
+and then records replay evidence.
+
+Ghostty, Chromium/Chrome, Finder, screenshots, and tmux supervision are the
+current product routes for Computer Use evidence; generic visible-app control
 remains a design direction until it has an adapter contract and real smoke
 evidence.
 
 The first version keeps the public surface narrow while the control loop is
-hardened: the desktop pet opens the background agent, app policy gates any
+hardened: the desktop pet opens the Background Agent, app policy gates any
 desktop-control intent, Computer Use is a tool the agent can invoke, and task
 state remains visible in the floating companion. The pet art is now
 manifest-driven and separate from the backend: skfiy first looks for a local
@@ -203,23 +206,26 @@ The pet opens the background agent. The agent can answer, clarify, refuse, or
 ask skfiy to run a desktop-control intent. Computer Use is not a competing
 mode; it is the permissioned tool layer the agent calls for app control.
 
-By default the background agent uses Codex through `codex exec`. Configure the
+By default the Background Agent uses Codex through `codex exec`. Configure the
 provider explicitly when dogfooding another CLI:
 
 - `SKFIY_ASSISTANT_AGENT=codex` to route pet chat through `codex exec`.
 - `SKFIY_ASSISTANT_AGENT=claude-code` to route pet chat through `claude --print`.
-- `SKFIY_CODEX_BIN=/path/to/codex` or `SKFIY_CLAUDE_CODE_BIN=/path/to/claude`
-  when the binaries are not on the app's launch `PATH`.
+- `SKFIY_ASSISTANT_AGENT=hermes` to route pet chat through bounded Hermes chat.
+- `SKFIY_CODEX_BIN=/path/to/codex`, `SKFIY_CLAUDE_CODE_BIN=/path/to/claude`, or
+  `SKFIY_HERMES_BIN=/path/to/hermes` when the binaries are not on the app's
+  launch `PATH`.
 - `SKFIY_ASSISTANT_AGENT_CWD=/some/workdir` to choose the agent working
   directory.
 - `SKFIY_ASSISTANT_AGENT_TIMEOUT_MS=45000` to tune the bounded response wait.
 
-Both CLI providers are invoked as bounded, non-interactive background answerers:
-Codex runs with a read-only sandbox and `approval_policy="never"`; Claude Code
-runs in print mode with tools disabled. They must not directly execute desktop
-actions from the pet chat path. Explicit app-control intents are still admitted
-by skfiy, checked against app policy, and executed by skfiy's Computer Use
-orchestrators.
+CLI providers are invoked as bounded, non-interactive background answerers with
+the skfiy identity prompt injected. Codex runs with a read-only sandbox and
+`approval_policy="never"`; Claude Code runs in print mode with tools disabled;
+Hermes uses bounded chat settings and must not use `--oneshot` or `--yolo`.
+They must not directly execute desktop actions from the pet chat path. Explicit
+app-control intents are still admitted by skfiy, checked against app policy, and
+executed by skfiy's Computer Use orchestrators.
 
 ## Safety Model
 
@@ -251,7 +257,10 @@ helpers only.
 The local dashboard is an audit plane, not the primary pet UI. It binds to
 `127.0.0.1`, keeps tokens out of stdout by default, and exposes runtime health,
 permissions, current turn, replay, smoke evidence, extension state, and
-long-horizon supervision. The extension state currently includes packaged CLI
+long-horizon supervision. Its first screen is an operator workspace for
+Background Agent provider readiness, Browser Context, Computer Use tool status,
+permission actions, and build/smoke evidence; the graph is an auxiliary evidence
+view, not the homepage center. The extension state currently includes packaged CLI
 Native Messaging host manifest evidence plus the latest local extension
 heartbeat from `chrome-extension-connection.json`. The dashboard also exposes
 `/api/chrome-host-policy` so local operator flows can show, set, and reset the

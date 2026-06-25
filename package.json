@@ -2,7 +2,7 @@
   "name": "skfiy",
   "version": "0.1.0",
   "private": true,
-  "description": "Agent-first macOS Computer Use runtime with a pixel desktop pet, Chromium adapter, packaged CLI, and local dashboard.",
+  "description": "Local-first macOS desktop pet that fronts a Background Agent, with Computer Use as a permissioned tool layer.",
   "keywords": [
     "computer-use",
     "macos",

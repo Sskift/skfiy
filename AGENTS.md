@@ -67,12 +67,12 @@ The main agent remains responsible for review. Do not merge a subagent result un
 
 Use precise names in UI and docs:
 
-- `Background Agent`: the selected chat/reasoning provider, such as Local, Codex, or Claude Code.
+- `Background Agent`: the selected chat/reasoning provider: Codex, Claude Code, or Hermes.
 - `Computer Use`: the permissioned desktop/app-control tool layer.
 - `Computer Use Planner`: the provider that plans desktop-control actions.
 - `Browser Context`: bounded current-tab context from the Chrome extension pageControl bridge.
 
-Do not describe Computer Use as a competing chat mode. Do not imply Codex or Claude directly control the desktop from the pet chat provider call.
+Do not describe Computer Use as a competing chat mode. Do not imply Codex, Claude Code, or Hermes directly control the desktop from the pet chat provider call.
 
 ## Safety Rules
 
