@@ -1634,16 +1634,17 @@ Validation evidence from 2026-06-24:
 - Chromium installed-extension action evidence on 2026-06-24: `npm run smoke:dashboard -- --extension-id plcpkkhlcacihjfohlojdknnkademlno --extension-chrome-app Chromium --output .skfiy-smoke/dashboard-chromium-web-control.json --require-passed` exited 2 because the overall Dashboard readiness snapshot saw environment blockers from an isolated HOME and locked/asleep desktop state, but the artifact's `dashboardChromeControlActionApi.result` was `passed`. The five live browser action runs `observe`, `fill`, `click`, `submit`, and `scroll` all verified against target app `Chromium`, target tab `2140417003`, and disposable host `127.0.0.1:61634`.
 - `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product-postbuild.json --require-passed` exited 0 on 2026-06-24 after the same build. The post-build Dashboard artifact recorded `result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`.
 - Web/browser live validation must use Chromium, not the user's primary Chrome profile. Earlier default-browser probes are not Browser Context acceptance evidence.
+- Live Browser Context answering evidence on 2026-06-25 used Chromium only. A disposable local page at `http://127.0.0.1:64663/` with title `skfiy live browser context acceptance` was opened in Chromium, allowed through current-turn skfiy host policy, and observed with `SKFIY_CHROME_APP_NAME=Chromium ./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 2140417011 --json`. The observe command returned `result: verified`, `pageControl.state: ready`, and visible text containing `Live Chromium page says: skfiy should remember Obsidian-style dashboard context and answer from current webpage evidence.` Importing `dist/main/browser-page-context.js` plus `dist/main/assistant-agent.js` then proved the live observation reached `runAssistantAgentTurn` before `User:` with skfiy identity intact. A real Codex backend call through the same `runAssistantAgentTurn` boundary returned `页面标题是「skfiy live browser context acceptance」。`, proving the pet agent path can answer from a ready current webpage context.
+- `.skfiy-smoke/cli-goal-final.json` recorded `result: passed` on 2026-06-25. The refreshed packaged basic CLI smoke records `providerPromptContract.result: passed` for Codex, Claude Code, and Hermes; `realTurnIdentityContract.result: passed`; `realBrowserContextContract.result: passed`; `repeatedConversationLearningContract.result: passed` with a second Hermes turn receiving memory, recalled session, personal skill, and Working profile context; `personalMemoryFallbackContract.result: passed`; `personalMemoryPromptSanitizationContract.result: passed`; `personalMemoryAtomicBatchContract.result: passed`; and `postTurnPersonalizationContract.result: passed` with durable, local-fallback, and approval-gated pending journal evidence.
 - `./dist/skfiy chrome extension-info --json` reported the unpacked extension directory available, Chrome setup as `manual-required`, and extension id as `unknown-until-loaded`.
 - `npx vitest run src/main/personalization-learning-loop.test.ts src/main/personal-memory-main-wiring.test.ts src/main/personal-memory-review.test.ts src/main/personal-memory-pending.test.ts src/main/session-memory.test.ts src/main/assistant-agent.test.ts --reporter=dot` exited 0 on 2026-06-24. This adds behavior-level proof that a completed Background Agent turn records a session, runs bounded memory review, falls back to local durable preference extraction when review is empty/unavailable, and stages post-turn writes instead of mutating durable memory when approval review is enabled.
 
 Typed blockers after this validation:
 
-- `chrome-page-control-not-ready`: the Chrome extension id is inferred from heartbeat evidence, the Native Messaging host is verified as installed, CLI/Dashboard/Browser Context no longer leak raw `allow_host` protocol actions, and Chromium Dashboard access-page recovery is verified against a disposable local target tab. Live pageControl is still per-current-tab: do not call live webpage-context answering complete until the active Chromium target page is the intended user webpage, skfiy host policy is allowed for that host, any missing Chrome optional host/capture permissions are granted through the explicit extension user gesture, and a fresh page observation becomes ready.
 - `finder-automation-permission-blocked`: fresh default Finder smoke now reaches the packaged product path and organizes the isolated fixture, but semantic Finder selection evidence is blocked by macOS Automation permission for Finder. Grant skfiy permission to control Finder, then rerun `npm run smoke:finder -- --output .skfiy-smoke/finder-current.json --require-passed`.
 - `release-artifact-older-than-head`: latest published alpha is older than current `main`; publish a fresh alpha after product acceptance.
 
-- [ ] **Step 6: Manual acceptance checklist**
+- [x] **Step 6: Manual acceptance checklist**
 
 - [x] Pet has no diamond marker.
 - [x] Pet click does not move the pet.
@@ -1662,10 +1663,10 @@ Typed blockers after this validation:
 - [x] Chrome extension popup automatically observes the current page after the explicit Grant action succeeds.
 - [x] Dashboard can open a target-tab skfiy extension access page for Browser Context permission recovery without silently granting Chrome permissions.
 - [x] Dashboard shows a structured Finder Automation access checklist when Finder smoke reaches a macOS Automation permission blocker.
-- [ ] Pet agent can answer using current webpage context when extension pageControl is ready. Blocked by `chrome-page-control-not-ready`.
+- [x] Pet agent can answer using current webpage context when extension pageControl is ready. Live Chromium observe plus a real Codex-backed `runAssistantAgentTurn` returned the current page title from Browser Context on 2026-06-25.
 - [x] Dashboard is visually clean and shows assistant, Computer Use, Chrome, current turn, latest blocker, and recent runtime evidence. Product smoke and screenshot visual design contract passed.
 
-- [ ] **Step 7: Final commit or PR**
+- [x] **Step 7: Final commit or PR**
 
 After all checks pass:
 
@@ -1674,7 +1675,7 @@ git status --short
 git log --oneline -5
 ```
 
-If the branch contains only this plan's work, open the integration path requested by the project owner. If no PR is requested, stop after the verified commits and report exact commands run plus any residual blockers.
+The project owner requested direct merges to `main`; verified commits were pushed directly without a PR.
 
 ---
 
