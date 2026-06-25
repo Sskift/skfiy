@@ -138,6 +138,9 @@ const READINESS_PROBE_TIMEOUT_MS = 5_000;
 const CODEX_PET_CHAT_MODEL = "gpt-5.5";
 const CODEX_PET_CHAT_REASONING_EFFORT = "low";
 const CLAUDE_CODE_DISALLOWED_TOOLS = "Bash,Edit,MultiEdit,Write,NotebookEdit,WebFetch,WebSearch,Task";
+const ASSISTANT_CHAT_ROUTE_REASON = "Background Agent answered without requesting Computer Use.";
+const COMPUTER_USE_INTENT_START_TAG = "<skfiy-computer-use-intent>";
+const COMPUTER_USE_INTENT_END_TAG = "</skfiy-computer-use-intent>";
 const ASSISTANT_AGENT_IDENTITY_PROMPT = [
   "You are skfiy, an agent-first macOS desktop pet.",
   "The speaking assistant identity for this conversation is skfiy.",
@@ -157,6 +160,15 @@ const ASSISTANT_AGENT_IDENTITY_PROMPT = [
   "Computer Use is a tool capability that skfiy's agent can invoke for explicit app-control intents.",
   "Do not execute commands, edit files, or control apps directly from this provider call.",
   "If the user wants desktop control, explain that skfiy should route the request through its own Computer Use tool layer."
+].join("\n");
+const ASSISTANT_AGENT_COMPUTER_USE_INTENT_PROMPT = [
+  "Computer Use tool request contract:",
+  "For ordinary questions, answer normally and do not emit any tool intent.",
+  "Only when you determine that the user is explicitly asking skfiy to control a desktop app, append exactly one bounded JSON intent block.",
+  "The only supported tool intent shape is:",
+  `${COMPUTER_USE_INTENT_START_TAG}{"tool":"computer-use","action":"desktop-control","command":"<plain user-approved desktop action for skfiy to validate>"}${COMPUTER_USE_INTENT_END_TAG}`,
+  "The command must describe the app-control action for skfiy's own Computer Use layer to validate against app policy, permissions, risk, and approval.",
+  "Do not claim that the desktop action already happened. Do not execute local mutations directly from the backend provider."
 ].join("\n");
 const execFileAsync = promisify(execFile);
 
@@ -333,7 +345,6 @@ export async function runAssistantAgentTurn(
 ): Promise<AssistantAgentTurnResult> {
   const id = createTurnId();
   const createdAt = now().toISOString();
-  const route = selectCommandRoute(userInput);
   const invocation = buildAssistantAgentInvocation(
     settings,
     userInput,
@@ -343,12 +354,6 @@ export async function runAssistantAgentTurn(
     personalSkillSettings
   );
   const providerLabel = invocation.label;
-  const toolCalls = createAssistantAgentPlannedToolCalls({
-    turnId: id,
-    createdAt,
-    command: userInput,
-    route
-  });
 
   if (signal?.aborted) {
     throw new AssistantAgentTurnRuntimeError({
@@ -358,8 +363,8 @@ export async function runAssistantAgentTurn(
       providerLabel,
       message: "",
       error: { message: "Assistant agent turn was cancelled." },
-      route,
-      toolCalls,
+      route: createAssistantChatRoute(),
+      toolCalls: [],
       cancellation: readAssistantAgentCancellation(signal)
     });
   }
@@ -379,8 +384,8 @@ export async function runAssistantAgentTurn(
       providerLabel,
       message: "",
       error: { message: readErrorMessage(error) },
-      route,
-      toolCalls,
+      route: createAssistantChatRoute(),
+      toolCalls: [],
       cancellation: readAssistantAgentCancellation(signal)
     });
   }
@@ -393,13 +398,29 @@ export async function runAssistantAgentTurn(
       providerLabel,
       message: "",
       error: { message: "Assistant agent turn was cancelled." },
-      route,
-      toolCalls,
+      route: createAssistantChatRoute(),
+      toolCalls: [],
       cancellation: readAssistantAgentCancellation(signal)
     });
   }
 
-  const message = result.stdout.trim();
+  const response = readAssistantAgentResponse(result.stdout);
+  const route = response.computerUseIntent
+    ? selectCommandRoute(response.computerUseIntent.command)
+    : createAssistantChatRoute();
+  const toolCalls = response.computerUseIntent
+    ? createAssistantAgentPlannedToolCalls({
+      turnId: id,
+      createdAt,
+      command: response.computerUseIntent.command,
+      route
+    })
+    : [];
+  const message = response.message || (
+    response.computerUseIntent
+      ? "我会通过 skfiy 请求受控的 Computer Use。"
+      : ""
+  );
 
   if (!message) {
     throw new AssistantAgentTurnRuntimeError({
@@ -409,8 +430,8 @@ export async function runAssistantAgentTurn(
       providerLabel,
       message: "",
       error: { message: `${invocation.label} returned an empty assistant response.` },
-      route,
-      toolCalls,
+      route: createAssistantChatRoute(),
+      toolCalls: [],
       cancellation: { requested: false }
     });
   }
@@ -519,6 +540,63 @@ function createAssistantAgentTurnId(): string {
   return `assistant-turn-${randomUUID()}`;
 }
 
+interface AssistantAgentComputerUseIntent {
+  command: string;
+}
+
+interface ParsedAssistantAgentResponse {
+  message: string;
+  computerUseIntent?: AssistantAgentComputerUseIntent;
+}
+
+function readAssistantAgentResponse(stdout: string): ParsedAssistantAgentResponse {
+  const raw = stdout.trim();
+  const intentPattern = new RegExp(
+    `${escapeRegExp(COMPUTER_USE_INTENT_START_TAG)}([\\s\\S]*?)${escapeRegExp(COMPUTER_USE_INTENT_END_TAG)}`,
+    "u"
+  );
+  const match = raw.match(intentPattern);
+  const message = raw.replace(intentPattern, "").trim();
+
+  if (!match) {
+    return { message };
+  }
+
+  const parsedIntent = parseAssistantAgentComputerUseIntent(match[1]);
+  return parsedIntent
+    ? { message, computerUseIntent: parsedIntent }
+    : { message };
+}
+
+function parseAssistantAgentComputerUseIntent(value: string | undefined): AssistantAgentComputerUseIntent | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(value.trim()) as Record<string, unknown>;
+    if (
+      parsed.tool !== "computer-use"
+      || parsed.action !== "desktop-control"
+      || typeof parsed.command !== "string"
+      || parsed.command.trim().length === 0
+    ) {
+      return undefined;
+    }
+
+    return { command: parsed.command.trim() };
+  } catch {
+    return undefined;
+  }
+}
+
+function createAssistantChatRoute(): CommandRoute {
+  return {
+    kind: "chat",
+    reason: ASSISTANT_CHAT_ROUTE_REASON
+  };
+}
+
 function createAssistantAgentPlannedToolCalls({
   turnId,
   createdAt,
@@ -553,6 +631,10 @@ function createAssistantAgentPlannedToolCalls({
       }
     }
   ];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function readAssistantAgentCancellation(
@@ -735,6 +817,8 @@ function createAssistantAgentPrompt(
 
   return [
     ...(includeIdentityPrompt ? [ASSISTANT_AGENT_IDENTITY_PROMPT, ""] : []),
+    ASSISTANT_AGENT_COMPUTER_USE_INTENT_PROMPT,
+    "",
     ...(personalMemoryBlock ? [personalMemoryBlock, ""] : []),
     ...(recalledSessionsBlock ? [recalledSessionsBlock, ""] : []),
     ...(personalSkillsBlock ? [personalSkillsBlock, ""] : []),

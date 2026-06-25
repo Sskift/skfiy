@@ -602,7 +602,7 @@ describe("assistant agent provider", () => {
       message: "agent reply",
       route: {
         kind: "chat",
-        reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+        reason: "Background Agent answered without requesting Computer Use."
       },
       toolCalls: [],
       cancellation: {
@@ -616,7 +616,7 @@ describe("assistant agent provider", () => {
     });
   });
 
-  it("records planned Computer Use evidence for desktop-control requests without running tools", async () => {
+  it("treats desktop-sounding user text as chat unless the provider requests Computer Use", async () => {
     const command = "打开 Chrome 测试页面 file:///tmp/skfiy-chrome.html 并提取正文";
     const runProcess = vi.fn(async () => ({ stdout: "agent reply", stderr: "" }));
 
@@ -630,6 +630,45 @@ describe("assistant agent provider", () => {
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
       providerLabel: "Codex",
+      route: {
+        kind: "chat",
+        reason: "Background Agent answered without requesting Computer Use."
+      },
+      message: "agent reply",
+      toolCalls: [],
+      cancellation: {
+        requested: false
+      }
+    });
+  });
+
+  it("records planned Computer Use evidence only from a structured provider intent", async () => {
+    const command = "打开 Chrome 测试页面 file:///tmp/skfiy-chrome.html 并提取正文";
+    const runProcess = vi.fn(async () => ({
+      stdout: [
+        "我会通过 skfiy 请求受控的 Computer Use。",
+        "<skfiy-computer-use-intent>",
+        JSON.stringify({
+          tool: "computer-use",
+          action: "desktop-control",
+          command
+        }),
+        "</skfiy-computer-use-intent>"
+      ].join("\n"),
+      stderr: ""
+    }));
+
+    await expect(runAssistantAgentTurn(command, {
+      settings: baseSettings,
+      runProcess,
+      now: fixedNow,
+      createTurnId: () => "turn-desktop"
+    })).resolves.toMatchObject({
+      id: "turn-desktop",
+      createdAt: "2026-06-22T10:00:00.000Z",
+      status: "completed",
+      providerLabel: "Codex",
+      message: "我会通过 skfiy 请求受控的 Computer Use。",
       route: {
         kind: "chrome",
         bundleId: "com.google.Chrome"
@@ -656,9 +695,21 @@ describe("assistant agent provider", () => {
     });
   });
 
-  it("records route-level confirmation turns while planning the confirmed target route", async () => {
+  it("records route-level confirmation turns from a structured provider intent", async () => {
     const command = "在 Ghostty 执行 pwd，先等我确认";
-    const runProcess = vi.fn(async () => ({ stdout: "agent reply", stderr: "" }));
+    const runProcess = vi.fn(async () => ({
+      stdout: [
+        "这个桌面动作需要确认。",
+        "<skfiy-computer-use-intent>",
+        JSON.stringify({
+          tool: "computer-use",
+          action: "desktop-control",
+          command
+        }),
+        "</skfiy-computer-use-intent>"
+      ].join("\n"),
+      stderr: ""
+    }));
 
     await expect(runAssistantAgentTurn(command, {
       settings: baseSettings,
@@ -670,6 +721,7 @@ describe("assistant agent provider", () => {
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
       providerLabel: "Codex",
+      message: "这个桌面动作需要确认。",
       route: {
         kind: "needs_confirmation",
         reason: "Route policy requires confirmation before continuing with Ghostty.",
@@ -700,8 +752,20 @@ describe("assistant agent provider", () => {
     });
   });
 
-  it("records route-level denial turns without planning Computer Use", async () => {
-    const runProcess = vi.fn(async () => ({ stdout: "agent reply", stderr: "" }));
+  it("records route-level denial turns from a structured provider intent without planning Computer Use", async () => {
+    const runProcess = vi.fn(async () => ({
+      stdout: [
+        "不会执行这个桌面动作。",
+        "<skfiy-computer-use-intent>",
+        JSON.stringify({
+          tool: "computer-use",
+          action: "desktop-control",
+          command: "不要在 Ghostty 执行 pwd"
+        }),
+        "</skfiy-computer-use-intent>"
+      ].join("\n"),
+      stderr: ""
+    }));
 
     await expect(runAssistantAgentTurn("不要在 Ghostty 执行 pwd", {
       settings: baseSettings,
@@ -713,6 +777,7 @@ describe("assistant agent provider", () => {
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
       providerLabel: "Codex",
+      message: "不会执行这个桌面动作。",
       route: {
         kind: "denied",
         reason: "User denied this desktop control request.",
@@ -728,8 +793,20 @@ describe("assistant agent provider", () => {
     });
   });
 
-  it("records route-level blocked turns without planning Computer Use", async () => {
-    const runProcess = vi.fn(async () => ({ stdout: "agent reply", stderr: "" }));
+  it("records route-level blocked turns from a structured provider intent without planning Computer Use", async () => {
+    const runProcess = vi.fn(async () => ({
+      stdout: [
+        "这个命令被 skfiy 安全策略挡住了。",
+        "<skfiy-computer-use-intent>",
+        JSON.stringify({
+          tool: "computer-use",
+          action: "desktop-control",
+          command: "在 Ghostty 执行 rm -rf ~/Desktop"
+        }),
+        "</skfiy-computer-use-intent>"
+      ].join("\n"),
+      stderr: ""
+    }));
 
     await expect(runAssistantAgentTurn("在 Ghostty 执行 rm -rf ~/Desktop", {
       settings: baseSettings,
@@ -741,6 +818,7 @@ describe("assistant agent provider", () => {
       createdAt: "2026-06-22T10:00:00.000Z",
       status: "completed",
       providerLabel: "Codex",
+      message: "这个命令被 skfiy 安全策略挡住了。",
       route: {
         kind: "blocked",
         reason: "Route policy blocks destructive or sensitive terminal commands before Computer Use.",
@@ -783,7 +861,7 @@ describe("assistant agent provider", () => {
         },
         route: {
           kind: "chat",
-          reason: "Conversational prompt should be answered by the assistant instead of typed into Ghostty."
+          reason: "Background Agent answered without requesting Computer Use."
         },
         toolCalls: [],
         cancellation: {

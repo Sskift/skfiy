@@ -3,10 +3,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("assistant tool bridge main-process wiring", () => {
-  it("creates an assistant turn before invoking existing Computer Use routes", () => {
+  it("uses the assistant turn route before invoking existing Computer Use routes", () => {
     const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
-    const routeIndex = source.indexOf("const route = selectCommandRoute(command)");
     const assistantTurnIndex = source.indexOf("const assistantTurn = await createAssistantAgentTaskTurn(command)");
+    const routeIndex = source.indexOf("const route = assistantTurn.route", assistantTurnIndex);
     const clarificationIndex = source.indexOf("if (route.kind === \"needs_clarification\")");
     const terminalRouteStateIndex = source.indexOf("if (route.kind === \"denied\" || route.kind === \"blocked\")");
     const confirmationIndex = source.indexOf("if (route.kind === \"needs_confirmation\" && !approved)");
@@ -19,7 +19,7 @@ describe("assistant tool bridge main-process wiring", () => {
     expect(source).toContain("summarizeAssistantToolPlan");
     expect(source).toContain("createAssistantComputerUseExecutor({");
     expect(routeIndex).toBeGreaterThan(-1);
-    expect(assistantTurnIndex).toBeGreaterThan(routeIndex);
+    expect(routeIndex).toBeGreaterThan(assistantTurnIndex);
     expect(terminalRouteStateIndex).toBeGreaterThan(clarificationIndex);
     expect(terminalRouteStateIndex).toBeLessThan(executorPlanIndex);
     expect(executorPlanIndex).toBeGreaterThan(assistantTurnIndex);

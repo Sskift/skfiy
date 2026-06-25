@@ -93,7 +93,7 @@ import {
   readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
-import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
+import type { CommandRoute, ExecutableCommandRoute } from "./task-routing.js";
 import { readStartupWarnings } from "./startup-guard.js";
 import {
   readStopTurnHotkeyStatus,
@@ -1187,8 +1187,8 @@ async function runCommandTask(
     turnReplayStore.startTurn();
   }
 
-  const route = selectCommandRoute(command);
   const assistantTurn = await createAssistantAgentTaskTurn(command);
+  const route = assistantTurn.route;
 
   if (route.kind === "chat") {
     pendingApproval = null;
