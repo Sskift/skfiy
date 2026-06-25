@@ -410,11 +410,15 @@ function DashboardContent({
 
   return (
     <div className="skfiy-dashboard-content">
-      <section id="overview" className="skfiy-dashboard-section" aria-labelledby="overview-title">
+      <section
+        id="overview"
+        className="skfiy-dashboard-section skfiy-dashboard-section--operator"
+        aria-labelledby="overview-title"
+      >
         <div className="skfiy-dashboard-section-heading">
           <div>
             <span>Overview</span>
-            <h2 id="overview-title">Overview</h2>
+            <h2 id="overview-title">Operator workspace</h2>
           </div>
           <StatusChip tone={readiness.tone}>
             {readiness.label}
@@ -441,19 +445,6 @@ function DashboardContent({
             </div>
           </div>
         </div>
-        <section
-          id="knowledge-graph"
-          className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main skfiy-dashboard-section--graph"
-        >
-          <div className="skfiy-dashboard-section-heading">
-            <div>
-              <span>Vault map</span>
-              <h2>Knowledge graph</h2>
-            </div>
-            <StatusChip tone="neutral">{knowledgeGraph.nodes.length} nodes</StatusChip>
-          </div>
-          <KnowledgeGraph nodes={knowledgeGraph.nodes} edges={knowledgeGraph.edges} />
-        </section>
         <DashboardCommandCenter
           activity={activity}
           alerts={alerts}
@@ -477,6 +468,20 @@ function DashboardContent({
             <MetricCard key={item.label} item={item} />
           ))}
         </div>
+      </section>
+
+      <section
+        id="knowledge-graph"
+        className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main skfiy-dashboard-section--graph"
+      >
+        <div className="skfiy-dashboard-section-heading">
+          <div>
+            <span>Evidence map</span>
+            <h2 id="knowledge-graph-title">Knowledge graph</h2>
+          </div>
+          <StatusChip tone="neutral">{knowledgeGraph.nodes.length} nodes</StatusChip>
+        </div>
+        <KnowledgeGraph nodes={knowledgeGraph.nodes} edges={knowledgeGraph.edges} />
       </section>
 
       <section

@@ -189,6 +189,15 @@ a:focus-visible {
   min-width: 0;
 }
 
+.skfiy-dashboard-section--operator {
+  display: grid;
+  gap: 12px;
+}
+
+.skfiy-dashboard-section--operator > .skfiy-dashboard-section-heading {
+  margin-bottom: 0;
+}
+
 .skfiy-dashboard-section-heading {
   display: flex;
   align-items: end;

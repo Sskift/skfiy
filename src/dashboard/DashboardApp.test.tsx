@@ -320,7 +320,7 @@ describe("DashboardApp", () => {
     expect(within(navigation).getByRole("link", { name: "Next action" })).toBeInTheDocument();
 
     expect(screen.getByRole("heading", { name: "skfiy agent workspace" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Overview" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Operator workspace" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Background Agent" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Memory" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Knowledge graph" })).toBeInTheDocument();
@@ -329,7 +329,7 @@ describe("DashboardApp", () => {
     expect(screen.getByRole("region", { name: "Activity" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Next action" })).toBeInTheDocument();
 
-    const overview = screen.getByRole("region", { name: "Overview" });
+    const overview = screen.getByRole("region", { name: "Operator workspace" });
     expect(within(overview).getByRole("heading", { name: "Assistant Provider" })).toBeInTheDocument();
     expect(within(overview).getByRole("heading", { name: "Computer Use" })).toBeInTheDocument();
     expect(within(overview).getByRole("heading", { name: "Chrome Browser Context" })).toBeInTheDocument();
@@ -341,6 +341,8 @@ describe("DashboardApp", () => {
     expect(within(commandCenter).getByRole("img", { name: "Activity bar chart" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("progressbar", { name: "Operational confidence" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("progressbar", { name: "Browser context" })).toBeInTheDocument();
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(commandCenter.compareDocumentPosition(graph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const provider = screen.getByRole("region", { name: "Background Agent" });
     expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();
@@ -412,7 +414,6 @@ describe("DashboardApp", () => {
     expect(within(sessionRecall).getByText("Recall basis: matched terms: dashboard; score: 1")).toBeInTheDocument();
     expect(within(sessionRecall).getByText("Recall basis: matched terms: concise, updates; score: 2")).toBeInTheDocument();
 
-    const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("User preferences").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText(/2% - 37\/1,375 chars/u).length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("Latest session").length).toBeGreaterThan(0);
@@ -544,7 +545,7 @@ describe("DashboardApp", () => {
       loadSnapshot={vi.fn(async () => blockedSnapshot)}
     />);
 
-    const overview = await screen.findByRole("region", { name: "Overview" });
+    const overview = await screen.findByRole("region", { name: "Operator workspace" });
     expect(within(overview).getByRole("heading", { name: "Assistant Provider" })).toBeInTheDocument();
     expect(within(overview).getAllByText("Codex").length).toBeGreaterThan(0);
     expect(within(overview).getByRole("heading", { name: "Chrome Browser Context" })).toBeInTheDocument();
