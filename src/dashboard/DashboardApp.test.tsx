@@ -334,6 +334,13 @@ describe("DashboardApp", () => {
     expect(within(overview).getByRole("heading", { name: "Computer Use" })).toBeInTheDocument();
     expect(within(overview).getByRole("heading", { name: "Chrome Browser Context" })).toBeInTheDocument();
     expect(within(overview).getByRole("heading", { name: "Current Turn" })).toBeInTheDocument();
+    const commandCenter = within(overview).getByRole("region", { name: "Dynamic command center" });
+    expect(within(commandCenter).getByText("Live command layer")).toBeInTheDocument();
+    expect(within(commandCenter).getByRole("img", { name: "Readiness radar chart" })).toBeInTheDocument();
+    expect(within(commandCenter).getByRole("img", { name: "Agent runtime flow chart" })).toBeInTheDocument();
+    expect(within(commandCenter).getByRole("img", { name: "Activity bar chart" })).toBeInTheDocument();
+    expect(within(commandCenter).getByRole("progressbar", { name: "Operational confidence" })).toBeInTheDocument();
+    expect(within(commandCenter).getByRole("progressbar", { name: "Browser context" })).toBeInTheDocument();
 
     const provider = screen.getByRole("region", { name: "Provider" });
     expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();
@@ -505,9 +512,9 @@ describe("DashboardApp", () => {
 
     const overview = await screen.findByRole("region", { name: "Overview" });
     expect(within(overview).getByRole("heading", { name: "Assistant Provider" })).toBeInTheDocument();
-    expect(within(overview).getByText("Codex")).toBeInTheDocument();
+    expect(within(overview).getAllByText("Codex").length).toBeGreaterThan(0);
     expect(within(overview).getByRole("heading", { name: "Chrome Browser Context" })).toBeInTheDocument();
-    expect(within(overview).getByText("blocked_by_chrome_host_permission")).toBeInTheDocument();
+    expect(within(overview).getAllByText("blocked_by_chrome_host_permission").length).toBeGreaterThan(0);
     expect(within(overview).getByRole("heading", { name: "Current Turn" })).toBeInTheDocument();
     expect(within(overview).getAllByText("failed").length).toBeGreaterThan(0);
 
@@ -775,9 +782,15 @@ describe("DashboardApp", () => {
     render(<DashboardApp />);
 
     const form = await screen.findByRole("form", { name: "Planner provider settings" });
-    fireEvent.change(within(form).getByLabelText("Mode"), {
+    await waitFor(() => {
+      expect(within(form).getByLabelText("Mode")).toHaveValue("local-deterministic");
+      expect(within(form).getByRole("button", { name: "Save planner settings" })).toBeEnabled();
+    });
+    const modeInput = within(form).getByLabelText("Mode");
+    fireEvent.change(modeInput, {
       target: { value: "external-cua" }
     });
+    expect(modeInput).toHaveValue("external-cua");
     fireEvent.change(within(form).getByLabelText("External provider label"), {
       target: { value: "OpenAI CUA" }
     });

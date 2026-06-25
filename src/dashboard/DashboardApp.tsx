@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Card, Chip, Skeleton } from "@heroui/react";
+import { Button, Card, Chip, ProgressBar, Skeleton } from "@heroui/react";
 import {
   fetchChromeHostPolicy,
   fetchDashboardSnapshot,
@@ -79,8 +79,14 @@ import {
   type DashboardAppReadinessLane,
   type DashboardCapabilitySummary,
   type DashboardChromeControlState,
+  type DashboardComputerUseReadiness,
+  type DashboardDogfoodSummary,
   type DashboardLatestTaskSignal,
+  type DashboardNextAction,
+  type DashboardReadinessSummary,
+  type DashboardRecentActivity,
   type DashboardRuntimeEvidenceSummary,
+  type DashboardStatusItem,
   type Tone
 } from "./model";
 import { KnowledgeGraph } from "./KnowledgeGraph";
@@ -427,7 +433,7 @@ function DashboardContent({
             </div>
             <div>
               <span>Dashboard</span>
-              <strong>{snapshot.descriptor.url}</strong>
+              <strong title={snapshot.descriptor.url}>{formatDashboardUrl(snapshot.descriptor.url)}</strong>
             </div>
             <div>
               <span>Alerts</span>
@@ -435,6 +441,19 @@ function DashboardContent({
             </div>
           </div>
         </div>
+        <DashboardCommandCenter
+          activity={activity}
+          alerts={alerts}
+          capabilities={capabilities}
+          chromeControl={chromeControl}
+          computerUse={computerUse}
+          dogfood={dogfood}
+          knowledgeGraph={knowledgeGraph}
+          nextAction={nextAction}
+          readiness={readiness}
+          runtimeEvidence={runtimeEvidence}
+          stateItems={stateItems}
+        />
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--four">
           {capabilities.map((capability) => (
             <CapabilityCard key={capability.id} capability={capability} />
@@ -791,6 +810,305 @@ function DashboardContent({
       </section>
     </div>
   );
+}
+
+function DashboardCommandCenter({
+  activity,
+  alerts,
+  capabilities,
+  chromeControl,
+  computerUse,
+  dogfood,
+  knowledgeGraph,
+  nextAction,
+  readiness,
+  runtimeEvidence,
+  stateItems
+}: {
+  activity: DashboardRecentActivity;
+  alerts: string[];
+  capabilities: DashboardCapabilitySummary[];
+  chromeControl: DashboardChromeControlState;
+  computerUse: DashboardComputerUseReadiness;
+  dogfood: DashboardDogfoodSummary;
+  knowledgeGraph: ReturnType<typeof readKnowledgeGraph>;
+  nextAction: DashboardNextAction;
+  readiness: DashboardReadinessSummary;
+  runtimeEvidence: DashboardRuntimeEvidenceSummary;
+  stateItems: DashboardStatusItem[];
+}) {
+  const radarMetrics = [
+    { label: "Readiness", score: readToneScore(readiness.tone), tone: readiness.tone },
+    { label: "Desktop", score: readToneScore(computerUse.desktop.tone), tone: computerUse.desktop.tone },
+    { label: "Browser", score: readToneScore(chromeControl.tone), tone: chromeControl.tone },
+    { label: "Evidence", score: readToneScore(runtimeEvidence.tone), tone: runtimeEvidence.tone },
+    { label: "Release", score: readToneScore(dogfood.tone), tone: dogfood.tone },
+    { label: "Alerts", score: alerts.length === 0 ? 100 : Math.max(10, 80 - alerts.length * 18), tone: alerts.length === 0 ? "success" as const : "warning" as const }
+  ];
+  const operationalScore = Math.round(
+    radarMetrics.reduce((sum, metric) => sum + metric.score, 0) / Math.max(1, radarMetrics.length)
+  );
+  const flowNodes = [
+    { label: "Agent", detail: capabilities[0]?.value ?? "provider", tone: capabilities[0]?.tone ?? "neutral" },
+    { label: "Memory", detail: `${knowledgeGraph.nodes.filter((node) => node.kind === "memory").length} nodes`, tone: readGraphTone(knowledgeGraph, "memory") },
+    { label: "Browser", detail: chromeControl.label, tone: chromeControl.tone },
+    { label: "Computer Use", detail: computerUse.desktop.value, tone: computerUse.desktop.tone },
+    { label: "Evidence", detail: runtimeEvidence.value, tone: runtimeEvidence.tone }
+  ];
+  const activityBars = [
+    { label: "Actions", value: activity.actionCount ?? 0, tone: "success" as const },
+    { label: "Screenshots", value: activity.screenshotCount ?? 0, tone: "neutral" as const },
+    { label: "Checks", value: activity.verificationCount ?? 0, tone: "warning" as const }
+  ];
+  const progressItems = [
+    ...stateItems.map((item) => ({
+      label: item.label,
+      value: item.value,
+      score: readToneScore(item.tone),
+      tone: item.tone
+    })),
+    {
+      label: "Browser context",
+      value: chromeControl.browserContext.state,
+      score: readToneScore(chromeControl.browserContext.tone),
+      tone: chromeControl.browserContext.tone
+    },
+    {
+      label: "Next action",
+      value: nextAction.title,
+      score: readToneScore(nextAction.tone),
+      tone: nextAction.tone
+    }
+  ];
+
+  return (
+    <Card.Root
+      aria-label="Dynamic command center"
+      className="skfiy-dashboard-card skfiy-dashboard-command-center"
+      role="region"
+      variant="secondary"
+    >
+      <Card.Content className="skfiy-dashboard-command-grid">
+        <section className="skfiy-dashboard-command-brief" aria-label="Live command brief">
+          <span className="skfiy-dashboard-kicker">Live command layer</span>
+          <h3>{readiness.title}</h3>
+          <p>{readiness.detail}</p>
+          <div className="skfiy-dashboard-command-next">
+            <span>Next</span>
+            <strong>{nextAction.title}</strong>
+            <p>{nextAction.detail}</p>
+          </div>
+          <ProgressMeter
+            label="Operational confidence"
+            score={operationalScore}
+            tone={readiness.tone}
+            valueLabel={`${operationalScore}%`}
+          />
+        </section>
+        <section className="skfiy-dashboard-command-chart" aria-label="Readiness radar">
+          <SignalRadarChart metrics={radarMetrics} score={operationalScore} />
+        </section>
+        <section className="skfiy-dashboard-command-flow" aria-label="Runtime flow">
+          <RuntimeFlowChart nodes={flowNodes} />
+        </section>
+        <section className="skfiy-dashboard-command-evidence" aria-label="Evidence and activity">
+          <div className="skfiy-dashboard-mini-chart-heading">
+            <span>Activity texture</span>
+            <strong>{activity.turnState}</strong>
+          </div>
+          <ActivityBarChart items={activityBars} />
+          <div className="skfiy-dashboard-progress-stack">
+            {progressItems.map((item) => (
+              <ProgressMeter
+                key={`${item.label}-${item.value}`}
+                label={item.label}
+                score={item.score}
+                tone={item.tone}
+                valueLabel={item.value}
+              />
+            ))}
+          </div>
+        </section>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function ProgressMeter({
+  label,
+  score,
+  tone,
+  valueLabel
+}: {
+  label: string;
+  score: number;
+  tone: Tone;
+  valueLabel: string;
+}) {
+  const boundedScore = clampScore(score);
+
+  return (
+    <ProgressBar.Root
+      aria-label={label}
+      className="skfiy-dashboard-progress"
+      maxValue={100}
+      minValue={0}
+      value={boundedScore}
+    >
+      <div className="skfiy-dashboard-progress-copy">
+        <span>{label}</span>
+        <ProgressBar.Output>{valueLabel}</ProgressBar.Output>
+      </div>
+      <ProgressBar.Track className="skfiy-dashboard-progress-track">
+        <ProgressBar.Fill className="skfiy-dashboard-progress-fill" data-tone={tone} />
+      </ProgressBar.Track>
+    </ProgressBar.Root>
+  );
+}
+
+function SignalRadarChart({
+  metrics,
+  score
+}: {
+  metrics: Array<{ label: string; score: number; tone: Tone }>;
+  score: number;
+}) {
+  const center = 96;
+  const radius = 70;
+  const polygon = metrics
+    .map((metric, index) => {
+      const point = readRadarPoint(index, metrics.length, center, radius * (clampScore(metric.score) / 100));
+      return `${point.x},${point.y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="skfiy-dashboard-radar">
+      <svg aria-label="Readiness radar chart" role="img" viewBox="0 0 192 192">
+        <defs>
+          <linearGradient id="skfiy-dashboard-radar-fill" x1="20%" x2="100%" y1="20%" y2="100%">
+            <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.72" />
+            <stop offset="52%" stopColor="#60a5fa" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.36" />
+          </linearGradient>
+        </defs>
+        {[0.33, 0.66, 1].map((scale) => (
+          <polygon
+            className="skfiy-dashboard-radar-grid"
+            key={scale}
+            points={metrics
+              .map((_, index) => {
+                const point = readRadarPoint(index, metrics.length, center, radius * scale);
+                return `${point.x},${point.y}`;
+              })
+              .join(" ")}
+          />
+        ))}
+        {metrics.map((metric, index) => {
+          const edge = readRadarPoint(index, metrics.length, center, radius);
+          const dot = readRadarPoint(index, metrics.length, center, radius * (clampScore(metric.score) / 100));
+          return (
+            <g key={metric.label}>
+              <line className="skfiy-dashboard-radar-axis" x1={center} x2={edge.x} y1={center} y2={edge.y} />
+              <circle className="skfiy-dashboard-radar-dot" cx={dot.x} cy={dot.y} data-tone={metric.tone} r="3.8" />
+              <text className="skfiy-dashboard-radar-label" x={edge.x} y={edge.y}>{metric.label}</text>
+            </g>
+          );
+        })}
+        <polygon className="skfiy-dashboard-radar-shape" points={polygon} />
+      </svg>
+      <div className="skfiy-dashboard-radar-score">
+        <span>{score}%</span>
+        <strong>confidence</strong>
+      </div>
+    </div>
+  );
+}
+
+function RuntimeFlowChart({
+  nodes
+}: {
+  nodes: Array<{ label: string; detail: string; tone: Tone }>;
+}) {
+  return (
+    <div className="skfiy-dashboard-flow-chart" role="img" aria-label="Agent runtime flow chart">
+      {nodes.map((node, index) => (
+        <div className="skfiy-dashboard-flow-node" data-tone={node.tone} key={`${node.label}-${index}`}>
+          <span>{node.label}</span>
+          <strong>{node.detail}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActivityBarChart({
+  items
+}: {
+  items: Array<{ label: string; value: number; tone: Tone }>;
+}) {
+  const maxValue = Math.max(1, ...items.map((item) => item.value));
+
+  return (
+    <div className="skfiy-dashboard-activity-chart" role="img" aria-label="Activity bar chart">
+      {items.map((item) => (
+        <div className="skfiy-dashboard-activity-bar" key={item.label}>
+          <span>{item.label}</span>
+          <div>
+            <i data-tone={item.tone} style={{ width: `${Math.max(8, Math.round((item.value / maxValue) * 100))}%` }} />
+          </div>
+          <strong>{item.value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function readRadarPoint(
+  index: number,
+  total: number,
+  center: number,
+  radius: number
+): { x: number; y: number } {
+  const angle = -Math.PI / 2 + (index / Math.max(1, total)) * Math.PI * 2;
+  return {
+    x: Math.round((center + Math.cos(angle) * radius) * 100) / 100,
+    y: Math.round((center + Math.sin(angle) * radius) * 100) / 100
+  };
+}
+
+function readGraphTone(
+  graph: ReturnType<typeof readKnowledgeGraph>,
+  kind: string
+): Tone {
+  const nodes = graph.nodes.filter((node) => node.kind === kind);
+  if (nodes.some((node) => node.tone === "danger")) {
+    return "danger";
+  }
+  if (nodes.some((node) => node.tone === "warning")) {
+    return "warning";
+  }
+  if (nodes.some((node) => node.tone === "success")) {
+    return "success";
+  }
+  return "neutral";
+}
+
+function readToneScore(tone: Tone): number {
+  if (tone === "success") {
+    return 100;
+  }
+  if (tone === "warning") {
+    return 48;
+  }
+  if (tone === "danger") {
+    return 16;
+  }
+  return 68;
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 function PersonalMemoryPanel({
@@ -2102,4 +2420,13 @@ function formatGeneratedAt(value: string): string {
     month: "short",
     day: "numeric"
   }).format(date);
+}
+
+function formatDashboardUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    return `${url.host}${url.pathname === "/" ? "" : url.pathname}`;
+  } catch {
+    return value || "unknown";
+  }
 }
