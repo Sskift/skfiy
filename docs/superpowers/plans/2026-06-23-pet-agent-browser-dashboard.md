@@ -1591,9 +1591,12 @@ Dashboard smoke now seeds an isolated personal memory fixture and must collect `
 
 If a smoke is blocked by local macOS permissions or Chrome environment, record the typed blocker and do not call the feature complete until the blocker is either resolved or explicitly accepted by the project owner.
 
-Current branch validation requirement:
+Current branch validation evidence from 2026-06-25:
 
-- Rerun `git diff --check`, `npm run typecheck -- --pretty false`, `npx vitest run --reporter=dot`, `npm run build`, `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json`, and `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` after the 2026-06-25 hardening commits. Do not reuse the older evidence below as completion proof for this branch.
+- Fresh `git diff --check`, `npm run typecheck -- --pretty false`, `npx vitest run --reporter=dot`, `npm run build`, `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json`, and `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` exited 0 after the 2026-06-25 hardening commits. `npx vitest run --reporter=dot` passed 112 files and 1082 tests; existing React `act(...)` warnings remained warnings only. `npm run build` produced `dist/skfiy.app` plus `dist/skfiy` with existing CSS minify warnings for `calc(100%-...)` only.
+- `.skfiy-smoke/ui-product.json` recorded `result: no-onboarding` because permissions were already granted; `assistantConversation`, `petDrag`, and `stopTurnBehavior` passed, with screenshot evidence at `.skfiy-smoke/ui-product.png`.
+- `.skfiy-smoke/dashboard-product.json` recorded `result: passed`, `dashboardAutomationMonitorApi.result: passed`, `personalMemoryApi.result: passed`, and `knowledgeGraphEvidence.result: passed`, with screenshot evidence at `.skfiy-smoke/dashboard-product-knowledge-graph.png`.
+- `.skfiy-smoke/automation-monitor-product.json` recorded `result: passed`, `checkCountAdvancedByScheduler: true`, `tmuxSessionUnchanged: true`, and `tmux-session:money-run-goal` status `observing`.
 
 Historical validation evidence from 2026-06-24:
 
@@ -1644,14 +1647,14 @@ Historical validation evidence from 2026-06-24:
 - `npx vitest run src/main/dashboard-server.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot`, `npx vitest run src/main/dashboard-smoke-script.test.ts --reporter=dot`, `npm run typecheck -- --pretty false`, `npx vitest run --reporter=dot`, `npm run build`, `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json`, and `npm run smoke:automation-monitor -- --app dist/skfiy.app --session money-run-goal --label "money-run goal" --require-passed --output .skfiy-smoke/automation-monitor-product.json` exited 0 on 2026-06-25 after adding user-facing Dashboard automation monitor controls. The Dashboard now exposes a bounded `upsert-tmux` and `run-now` monitor workflow through `/api/automation-monitor`, records `plannedMutation: true` and `mutatesSession: false`, persists only skfiy monitor state, and the dashboard smoke artifact records `dashboardAutomationMonitorApi.result: passed`. The refreshed packaged automation smoke recorded `result: passed`, `checkCountAdvancedByScheduler: true`, `tmuxSessionUnchanged: true`, and `tmux-session:money-run-goal` status `observing`.
 - Web/browser live validation must use Chromium, not the user's primary Chrome profile. Earlier default-browser probes are not Browser Context acceptance evidence.
 - Live Browser Context answering evidence on 2026-06-25 used Chromium only. A disposable local page at `http://127.0.0.1:64663/` with title `skfiy live browser context acceptance` was opened in Chromium, allowed through current-turn skfiy host policy, and observed with `SKFIY_CHROME_APP_NAME=Chromium ./dist/skfiy chrome observe --extension-id plcpkkhlcacihjfohlojdknnkademlno --target-tab-id 2140417011 --json`. The observe command returned `result: verified`, `pageControl.state: ready`, and visible text containing `Live Chromium page says: skfiy should remember dashboard context and answer from current webpage evidence.` Importing `dist/main/browser-page-context.js` plus `dist/main/assistant-agent.js` then proved the live observation reached `runAssistantAgentTurn` before `User:` with skfiy identity intact. A real Codex backend call through the same `runAssistantAgentTurn` boundary returned `页面标题是「skfiy live browser context acceptance」。`, proving the pet agent path can answer from a ready current webpage context.
-- `.skfiy-smoke/cli-goal-final.json` recorded `result: passed` on 2026-06-25. The refreshed packaged basic CLI smoke records `providerPromptContract.result: passed` for Codex, Claude Code, and Hermes; `realTurnIdentityContract.result: passed`; `realBrowserContextContract.result: passed`; `repeatedConversationLearningContract.result: passed` with a second Hermes turn receiving memory, recalled session, personal skill, and Working profile context; `personalMemoryFallbackContract.result: passed`; `personalMemoryPromptSanitizationContract.result: passed`; `personalMemoryAtomicBatchContract.result: passed`; and `postTurnPersonalizationContract.result: passed` with durable, local-fallback, and approval-gated pending journal evidence.
+- `.skfiy-smoke/cli-product.json` recorded `result: passed` on 2026-06-25. The refreshed packaged basic CLI smoke records `providerPromptContract.result: passed` for Codex, Claude Code, and Hermes; `realTurnIdentityContract.result: passed`; `realBrowserContextContract.result: passed`; `repeatedConversationLearningContract.result: passed` with a second Hermes turn receiving memory, recalled session, personal skill, and Working profile context; `personalMemoryFallbackContract.result: passed`; `personalMemoryPromptSanitizationContract.result: passed`; `personalMemoryAtomicBatchContract.result: passed`; and `postTurnPersonalizationContract.result: passed` with durable, local-fallback, and approval-gated pending journal evidence.
 - `./dist/skfiy chrome extension-info --json` reported the unpacked extension directory available, Chrome setup as `manual-required`, and extension id as `unknown-until-loaded`.
 - `npx vitest run src/main/personalization-learning-loop.test.ts src/main/personal-memory-main-wiring.test.ts src/main/personal-memory-review.test.ts src/main/personal-memory-pending.test.ts src/main/session-memory.test.ts src/main/assistant-agent.test.ts --reporter=dot` exited 0 on 2026-06-24. This adds behavior-level proof that a completed Background Agent turn records a session, runs bounded memory review, falls back to local durable preference extraction when review is empty/unavailable, and stages post-turn writes instead of mutating durable memory when approval review is enabled.
 
 Typed blockers after this validation:
 
 - `finder-automation-permission-blocked`: fresh default Finder smoke now reaches the packaged product path and organizes the isolated fixture, but semantic Finder selection evidence is blocked by macOS Automation permission for Finder. Grant skfiy permission to control Finder, then rerun `npm run smoke:finder -- --output .skfiy-smoke/finder-current.json --require-passed`.
-- `release-artifact-older-than-head`: latest published alpha is older than current `main`; publish a fresh alpha after product acceptance.
+- `release-artifact-older-than-head`: latest published alpha is older than current branch `HEAD`; publish a fresh alpha after product acceptance.
 
 - [x] **Step 6: Manual acceptance checklist**
 
@@ -1674,7 +1677,7 @@ Typed blockers after this validation:
 - [x] Dashboard shows a structured Finder Automation access checklist when Finder smoke reaches a macOS Automation permission blocker.
 - [x] Pet agent can answer using current webpage context when extension pageControl is ready. Live Chromium observe plus a real Codex-backed `runAssistantAgentTurn` returned the current page title from Browser Context on 2026-06-25.
 - [x] Dashboard can configure and immediately run a skfiy-owned tmux automation monitor without exposing an arbitrary shell command or mutating the monitored session.
-- [x] Dashboard is visually clean and leads with the operator workspace for assistant, Browser Context, Computer Use tool status, current turn, latest blocker, and recent runtime evidence. Product smoke must be rerun after current-branch hardening before this remains accepted.
+- [x] Dashboard is visually clean and leads with the operator workspace for assistant, Browser Context, Computer Use tool status, current turn, latest blocker, and recent runtime evidence. Product smoke was rerun after current-branch hardening and recorded `result: passed`.
 
 - [x] **Step 7: Final commit or PR**
 
@@ -1685,7 +1688,7 @@ git status --short
 git log --oneline -5
 ```
 
-The project owner requested direct merges to `main`; verified commits were pushed directly without a PR.
+Verified commits are on branch `codex/agent-workbench-hardening`; keep this line updated if the branch is later merged or pushed.
 
 ---
 
