@@ -144,6 +144,7 @@ const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
 };
 const RUNTIME_EVIDENCE_RECENT_SECONDS = 300;
 const RUNTIME_EVIDENCE_SKEW_SECONDS = 5;
+const DEFAULT_DASHBOARD_URL = "http://127.0.0.1:8787/";
 
 const SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX =
   "x-apple.systempreferences:com.apple.preference.security?";
@@ -5296,7 +5297,9 @@ async function readDashboardStatus(
   const discovered = dashboardUrl
     ? undefined
     : readDashboardStatusFromState(homeDir);
-  const effectiveDashboardUrl = dashboardUrl ?? readString(discovered?.url);
+  const discoveredUrl = readString(discovered?.url);
+  const usingDefaultDashboardUrl = !dashboardUrl && !discoveredUrl;
+  const effectiveDashboardUrl = dashboardUrl ?? discoveredUrl ?? DEFAULT_DASHBOARD_URL;
 
   if (!effectiveDashboardUrl) {
     return discovered ?? { state: "not-running" };
@@ -5325,6 +5328,10 @@ async function readDashboardStatus(
   const descriptorProbe = await fetchDashboardJson(descriptorUrl);
 
   if (descriptorProbe.state !== "reachable") {
+    if (usingDefaultDashboardUrl) {
+      return discovered ?? { state: "not-running" };
+    }
+
     return {
       state: descriptorProbe.state === "blocked" ? "blocked" : "not-running",
       url: effectiveDashboardUrl,
@@ -5347,15 +5354,57 @@ async function readDashboardStatus(
   return {
     state: "running",
     url: effectiveDashboardUrl,
-    ...(discovered ? { source: "dashboard-server-state" } : {}),
-    ...(readString(discovered?.statePath) ? { statePath: readString(discovered?.statePath) } : {}),
-    ...(readNumber(discovered?.pid) !== undefined ? { pid: readNumber(discovered?.pid) } : {}),
-    ...(readString(discovered?.startedAt) ? { startedAt: readString(discovered?.startedAt) } : {}),
+    ...createReachableDashboardDiscoveryMetadata({
+      discovered,
+      usingDefaultDashboardUrl
+    }),
     descriptor: descriptorProbe.body,
     api: {
       chromeHostPolicy: await fetchDashboardJson(chromeHostPolicyApiUrl)
     }
   };
+}
+
+function createReachableDashboardDiscoveryMetadata({
+  discovered,
+  usingDefaultDashboardUrl
+}: {
+  discovered: Record<string, unknown> | undefined;
+  usingDefaultDashboardUrl: boolean;
+}): Record<string, unknown> {
+  if (usingDefaultDashboardUrl) {
+    return { source: "default-dashboard-url" };
+  }
+
+  if (!discovered) {
+    return {};
+  }
+
+  if (readString(discovered.state) === "not-running") {
+    return compactRecord({
+      source: "dashboard-probe",
+      stateEvidence: createDashboardStateEvidence(discovered)
+    });
+  }
+
+  return compactRecord({
+    source: "dashboard-server-state",
+    statePath: readString(discovered.statePath),
+    pid: readNumber(discovered.pid),
+    startedAt: readString(discovered.startedAt)
+  });
+}
+
+function createDashboardStateEvidence(discovered: Record<string, unknown>): Record<string, unknown> {
+  return compactRecord({
+    state: readString(discovered.state),
+    source: readString(discovered.source),
+    statePath: readString(discovered.statePath),
+    url: readString(discovered.url),
+    pid: readNumber(discovered.pid),
+    startedAt: readString(discovered.startedAt),
+    reason: readString(discovered.reason)
+  });
 }
 
 function readDashboardStatusFromState(homeDir: string | undefined): Record<string, unknown> | undefined {

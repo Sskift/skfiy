@@ -3754,6 +3754,194 @@ describe("CLI command surface", () => {
     }
   });
 
+  it("auto-discovers the default loopback dashboard when no server state exists", async () => {
+    const homeDir = createTempRoot();
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const requestedUrls: string[] = [];
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      requestedUrls.push(url);
+
+      if (url === "http://127.0.0.1:8787/descriptor.json") {
+        return new Response(JSON.stringify({
+          schemaVersion: 1,
+          name: "skfiy-dashboard",
+          bind: { host: "127.0.0.1", port: 8787 },
+          url: "http://127.0.0.1:8787/"
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+
+      if (url === "http://127.0.0.1:8787/api/chrome-host-policy") {
+        return new Response(JSON.stringify({
+          schemaVersion: 1,
+          source: "dashboard",
+          hostPolicy: { state: "default" }
+        }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+
+      return new Response(JSON.stringify({ error: "not found" }), {
+        status: 404,
+        headers: { "content-type": "application/json" }
+      });
+    });
+
+    try {
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      expect(JSON.parse(stdout.join(""))).toMatchObject({
+        schemaVersion: 1,
+        command: "status",
+        dashboard: {
+          state: "running",
+          source: "default-dashboard-url",
+          url: "http://127.0.0.1:8787/",
+          descriptor: {
+            schemaVersion: 1,
+            name: "skfiy-dashboard"
+          },
+          api: {
+            chromeHostPolicy: {
+              state: "reachable",
+              url: "http://127.0.0.1:8787/api/chrome-host-policy",
+              status: 200
+            }
+          }
+        },
+        readiness: {
+          checks: {
+            dashboard: {
+              ready: true,
+              state: "ready",
+              dashboardState: "running",
+              url: "http://127.0.0.1:8787/"
+            }
+          }
+        }
+      });
+      expect(requestedUrls).toEqual([
+        "http://127.0.0.1:8787/descriptor.json",
+        "http://127.0.0.1:8787/api/chrome-host-policy"
+      ]);
+      expect(stderr).toEqual([]);
+    } finally {
+      fetchMock.mockRestore();
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps stale dashboard server state separate when the descriptor is reachable", async () => {
+    const homeDir = createTempRoot();
+    const server = http.createServer((request, response) => {
+      response.setHeader("content-type", "application/json");
+
+      if (request.url === "/descriptor.json") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          name: "skfiy-dashboard",
+          bind: { host: "127.0.0.1", port: 0 }
+        }));
+        return;
+      }
+
+      if (request.url === "/api/chrome-host-policy") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          source: "dashboard",
+          hostPolicy: { state: "default" }
+        }));
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: "not found" }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+
+    try {
+      const address = server.address() as AddressInfo;
+      const dashboardUrl = `http://127.0.0.1:${address.port}/`;
+      const statePath = createDashboardServerStatePath(homeDir);
+      const startedAt = "2026-06-20T00:00:00.000Z";
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+
+      mkdirSync(path.dirname(statePath), { recursive: true });
+      writeFileSync(statePath, `${JSON.stringify(createDashboardServerState({
+        pid: 99_999_999,
+        url: dashboardUrl,
+        bind: {
+          host: "127.0.0.1",
+          port: address.port
+        },
+        startedAt,
+        rootDir: "/repo"
+      }), null, 2)}\n`);
+
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: startedAt,
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const output = JSON.parse(stdout.join(""));
+      expect(output).toMatchObject({
+        schemaVersion: 1,
+        command: "status",
+        dashboard: {
+          state: "running",
+          source: "dashboard-probe",
+          url: dashboardUrl,
+          descriptor: {
+            schemaVersion: 1,
+            name: "skfiy-dashboard"
+          },
+          stateEvidence: {
+            state: "not-running",
+            source: "dashboard-server-state",
+            statePath,
+            url: dashboardUrl,
+            pid: 99_999_999,
+            startedAt,
+            reason: "Recorded dashboard process is no longer running."
+          }
+        }
+      });
+      expect(output.dashboard.pid).toBeUndefined();
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(homeDir, { recursive: true, force: true });
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+
   it("keeps invalid dashboard URLs as status data instead of CLI failures", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
