@@ -1676,21 +1676,23 @@ export default function App() {
       return;
     }
 
+    let visibleRect = drag.visibleRect;
+    if (!drag.moved) {
+      setDetailsOpen(false);
+      setPermissionOnboardingOpen(false);
+      setAssistantPanelOpen(false);
+      visibleRect = readVisiblePetRect(event.currentTarget.getBoundingClientRect());
+    }
+
     petDragRef.current = {
       pointerId: drag.pointerId,
       lastScreenX: event.screenX,
       lastScreenY: event.screenY,
       moved: true,
-      visibleRect: drag.visibleRect
+      visibleRect
     };
 
-    if (!drag.moved) {
-      setDetailsOpen(false);
-      setPermissionOnboardingOpen(false);
-      setAssistantPanelOpen(false);
-    }
-
-    api.moveWindowBy(deltaX, deltaY, drag.visibleRect);
+    api.moveWindowBy(deltaX, deltaY, visibleRect);
   }
 
   function stopPetDrag(event: ReactPointerEvent<HTMLDivElement>) {

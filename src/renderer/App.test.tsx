@@ -213,12 +213,12 @@ describe("App", () => {
     expect(css).not.toContain(".assistant-bubble::after");
   });
 
-  it("anchors the pet to the bottom of expanded panels so bubbles do not pull it upward", () => {
+  it("does not reposition the pet when panels open", () => {
     const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
 
-    expect(css).toContain(".pet-stage.panel-open .skfiy-pet");
-    expect(css).toContain("bottom: 1px");
-    expect(css).toContain("bottom: 92px");
+    expect(css).not.toContain(".pet-stage.panel-open .skfiy-pet");
+    expect(css).not.toContain("bottom: 92px");
+    expect(css).toContain("top: calc(var(--pet-hitbox-height");
   });
 
   it("starts as a Codex-style pet overlay with controls tucked away", () => {
@@ -994,6 +994,50 @@ describe("App", () => {
     expect(api.moveWindowBy).toHaveBeenCalled();
     await waitFor(() => expect(api.setWindowMode).toHaveBeenLastCalledWith("compact"));
     expect(screen.queryByLabelText(/skfiy agent status/i)).not.toBeInTheDocument();
+  });
+
+  it("recaptures the visible pet rect when dragging starts from an open panel", async () => {
+    render(<App />);
+
+    const pet = screen.getByLabelText(/skfiy codex-style pet/i);
+    const api = window.skfiy as DesktopApi;
+
+    fireEvent.click(pet);
+    await screen.findByLabelText(/skfiy agent status/i);
+
+    vi.spyOn(pet, "getBoundingClientRect")
+      .mockReturnValueOnce({
+        x: 114,
+        y: 433,
+        left: 114,
+        top: 433,
+        width: 90,
+        height: 66,
+        right: 204,
+        bottom: 499,
+        toJSON: () => ({})
+      } as DOMRect)
+      .mockReturnValue({
+        x: 114,
+        y: 15,
+        left: 114,
+        top: 15,
+        width: 90,
+        height: 66,
+        right: 204,
+        bottom: 81,
+        toJSON: () => ({})
+      } as DOMRect);
+
+    fireEvent.pointerDown(pet, { button: 0, pointerId: 3, screenX: 200, screenY: 200 });
+    fireEvent.pointerMove(pet, { pointerId: 3, screenX: 210, screenY: 215 });
+
+    expect(api.moveWindowBy).toHaveBeenCalledWith(10, 15, {
+      x: 114,
+      y: 15,
+      width: 90,
+      height: 66
+    });
   });
 
   it("uses a compact transparent window until an input, task, or settings bubble is visible", async () => {

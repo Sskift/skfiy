@@ -60,18 +60,8 @@ export function resizePetWindowBoundsKeepingBottom(
 }
 
 export function calculatePetWindowOffsetForMode({
-  mode,
-  windowSize,
-  petSize,
   margin = 1
 }: CalculatePetWindowOffsetForModeOptions): Point {
-  if (mode === "expanded") {
-    return {
-      x: margin,
-      y: clamp(windowSize.height - petSize.height - margin, margin, windowSize.height)
-    };
-  }
-
   return { x: margin, y: margin };
 }
 

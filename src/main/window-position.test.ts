@@ -42,7 +42,7 @@ describe("calculatePetWindowBounds", () => {
     });
   });
 
-  it("uses the compact pet offset when shrinking from an input bubble to drag mode", () => {
+  it("keeps the visible pet offset stable when switching between compact and expanded windows", () => {
     const anchor = { x: 420, y: 520 };
     const petSize = { width: 90, height: 66 };
 
@@ -52,7 +52,7 @@ describe("calculatePetWindowBounds", () => {
         windowSize: { width: 320, height: 500 },
         petSize
       })
-    ).toEqual({ x: 1, y: 433 });
+    ).toEqual({ x: 1, y: 1 });
 
     expect(
       calculatePetWindowOffsetForMode({
