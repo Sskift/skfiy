@@ -65,6 +65,10 @@ import {
   summarizePlannerProviderSettings,
   type PlannerProviderSettings
 } from "./planner-provider-settings.js";
+import {
+  createAutomationMonitorSnapshotFromStoreSnapshot,
+  createAutomationMonitorStatePath
+} from "./automation-monitor.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
 const RECENT_RUNTIME_TURN_MARKER_SECONDS = 300;
@@ -75,6 +79,7 @@ const REQUIRED_DOGFOOD_WORKFLOWS = [
   "browser-fallback"
 ] as const;
 const SUPPORTED_SMOKE_TARGETS = new Set([
+  "automation-monitor",
   "chrome",
   "cli",
   "codex-plugin",
@@ -128,6 +133,7 @@ export interface DashboardSnapshotInput {
   };
   dogfoodRelease?: Record<string, unknown>;
   longHorizon?: Record<string, unknown>;
+  automation?: Record<string, unknown>;
   providerSettings?: DashboardProviderSettingsInput;
   personalMemory?: Record<string, unknown>;
 }
@@ -197,6 +203,7 @@ export interface DashboardSnapshot {
   };
   dogfoodRelease: Record<string, unknown>;
   longHorizon: Record<string, unknown>;
+  automation?: Record<string, unknown>;
   personalMemory?: Record<string, unknown>;
   alerts: Array<Record<string, unknown>>;
   providers?: {
@@ -214,6 +221,7 @@ export function createDashboardSnapshot({
   smokeEvidence = { artifacts: [] },
   dogfoodRelease = { state: "unknown" },
   longHorizon = { state: "unknown", session: "money-run" },
+  automation,
   providerSettings,
   personalMemory
 }: DashboardSnapshotInput): DashboardSnapshot {
@@ -269,6 +277,7 @@ export function createDashboardSnapshot({
     },
     dogfoodRelease: cloneRecord(dogfoodRelease),
     longHorizon: cloneRecord(longHorizon),
+    ...(automation ? { automation: cloneRecord(automation) } : {}),
     ...(personalMemory ? { personalMemory: cloneRecord(personalMemory) } : {}),
     ...(providerSettings ? { providers: createDashboardProviderSummaries(providerSettings, generatedAt) } : {}),
     alerts: createDashboardAlerts({
@@ -346,11 +355,46 @@ export function createDashboardWorkspaceSnapshot({
     },
     dogfoodRelease: readWorkspaceDogfoodRelease(rootDir, io),
     longHorizon: readWorkspaceLongHorizon(io),
+    automation: readWorkspaceAutomationMonitors(io, snapshotGeneratedAt),
     personalMemory: readWorkspacePersonalMemory(io),
     providerSettings: providerSettings ?? readWorkspaceProviderSettings(env, rootDir)
   });
 
   return snapshot;
+}
+
+function readWorkspaceAutomationMonitors(
+  io: DashboardWorkspaceIo,
+  generatedAt: string
+): Record<string, unknown> | undefined {
+  const homeDir = io.homeDir?.();
+  if (!homeDir) {
+    return undefined;
+  }
+
+  const statePath = createAutomationMonitorStatePath(homeDir);
+  if (!io.exists(statePath)) {
+    return undefined;
+  }
+
+  try {
+    return createAutomationMonitorSnapshotFromStoreSnapshot(
+      JSON.parse(io.readFile(statePath)),
+      generatedAt
+    ) as unknown as Record<string, unknown>;
+  } catch (error) {
+    return {
+      schemaVersion: 1,
+      generatedAt,
+      activeCount: 0,
+      attentionCount: 1,
+      monitors: [],
+      state: "error",
+      reason: error instanceof Error
+        ? `Automation monitor state could not be read: ${error.message}`
+        : "Automation monitor state could not be read."
+    };
+  }
 }
 
 function readWorkspacePersonalMemory(io: DashboardWorkspaceIo): Record<string, unknown> | undefined {
@@ -3515,6 +3559,7 @@ function readSmokeTarget(entry: string, artifact: Record<string, unknown>): stri
 
   const normalized = path.basename(entry, ".json").toLowerCase();
   const knownTargets = [
+    "automation-monitor",
     "ui",
     "desktop-session",
     "ghostty",

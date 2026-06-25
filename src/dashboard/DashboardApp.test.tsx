@@ -144,6 +144,26 @@ const snapshot: DashboardSnapshot = {
     state: "observing",
     session: "money-run"
   },
+  automation: {
+    schemaVersion: 1,
+    generatedAt: "2026-06-25T10:00:00.000Z",
+    activeCount: 1,
+    attentionCount: 0,
+    monitors: [
+      {
+        id: "tmux-session:money-run-goal",
+        kind: "tmux-session",
+        label: "money-run goal",
+        enabled: true,
+        intervalMs: 600_000,
+        sessionName: "money-run-goal",
+        status: "observing",
+        checkCount: 3,
+        lastCheckedAt: "2026-06-25T09:59:00.000Z",
+        lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
+      }
+    ]
+  },
   alerts: [
     {
       code: "screen-recording-missing",
@@ -443,6 +463,10 @@ describe("DashboardApp", () => {
 
     const computerUse = screen.getByRole("region", { name: "Agent tools" });
     expect(within(computerUse).getByRole("heading", { name: "Computer Use tool" })).toBeInTheDocument();
+    expect(within(computerUse).getByRole("heading", { name: "Automation monitors" })).toBeInTheDocument();
+    expect(within(computerUse).getByText("money-run goal")).toBeInTheDocument();
+    expect(within(computerUse).getByText("observing · every 10m")).toBeInTheDocument();
+    expect(within(computerUse).getByText("money-run-goal has 1 window, 1 pane, and no obvious block markers.")).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Chrome readiness" })).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Finder readiness" })).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Ghostty readiness" })).toBeInTheDocument();

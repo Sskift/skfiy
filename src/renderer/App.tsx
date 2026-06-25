@@ -246,6 +246,39 @@ export interface WindowBounds {
   height: number;
 }
 
+export type AutomationMonitorStatus =
+  | "observing"
+  | "needs_attention"
+  | "blocked"
+  | "idle"
+  | "disabled"
+  | "error";
+
+export interface AutomationMonitorRuntime {
+  id: string;
+  kind: "tmux-session";
+  label: string;
+  enabled: boolean;
+  intervalMs: number;
+  sessionName: string;
+  status: AutomationMonitorStatus;
+  checkCount: number;
+  lastCheckedAt?: string;
+  nextCheckAt?: string;
+  lastChangedAt?: string;
+  lastSummary?: string;
+  lastError?: string;
+  lastReport?: unknown;
+}
+
+export interface AutomationMonitorSnapshot {
+  schemaVersion: 1;
+  generatedAt: string;
+  activeCount: number;
+  attentionCount: number;
+  monitors: AutomationMonitorRuntime[];
+}
+
 export interface VisiblePetRect {
   x: number;
   y: number;
@@ -338,6 +371,11 @@ export interface DesktopApi {
     update: Partial<Pick<PlannerProviderSettings, "mode">>
   ) => Promise<PlannerProviderSettings>;
   getTurnReplay: () => Promise<TurnReplay | null>;
+  getAutomationMonitors: () => Promise<AutomationMonitorSnapshot>;
+  upsertTmuxMonitor: (
+    input: { sessionName: string; label?: string; intervalMs: number; enabled?: boolean }
+  ) => Promise<AutomationMonitorSnapshot>;
+  runAutomationMonitorNow: (id: string) => Promise<AutomationMonitorSnapshot>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   getPetSkin: () => Promise<PetAtlasManifest | null>;
   getWindowBounds: () => Promise<WindowBounds | null>;
@@ -550,6 +588,14 @@ const DEFAULT_PLANNER_PROVIDER_SETTINGS: PlannerProviderSettings = {
   externalApiKeyConfigured: false
 };
 
+const DEFAULT_AUTOMATION_MONITOR_SNAPSHOT: AutomationMonitorSnapshot = {
+  schemaVersion: 1,
+  generatedAt: new Date(0).toISOString(),
+  activeCount: 0,
+  attentionCount: 0,
+  monitors: []
+};
+
 const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
   approveTask: async () => undefined,
@@ -603,6 +649,9 @@ const fallbackApi: DesktopApi = {
     mode: update.mode ?? DEFAULT_PLANNER_PROVIDER_SETTINGS.mode
   }),
   getTurnReplay: async () => null,
+  getAutomationMonitors: async () => DEFAULT_AUTOMATION_MONITOR_SNAPSHOT,
+  upsertTmuxMonitor: async () => DEFAULT_AUTOMATION_MONITOR_SNAPSHOT,
+  runAutomationMonitorNow: async () => DEFAULT_AUTOMATION_MONITOR_SNAPSHOT,
   getRuntimeStatus: async () => ({
     stopTurnHotkey: {
       accelerator: "",

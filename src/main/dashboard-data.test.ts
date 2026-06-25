@@ -10,6 +10,7 @@ import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
   RUNTIME_TURN_MARKER_SCHEMA_VERSION
 } from "./runtime-snapshot";
+import { createAutomationMonitorStatePath } from "./automation-monitor";
 
 function createPageControlStatus({
   extension
@@ -56,6 +57,120 @@ function createPageControlStatus({
 }
 
 describe("dashboard snapshot data", () => {
+  it("includes skfiy-owned automation monitor state when provided", () => {
+    const snapshot = createDashboardSnapshot({
+      generatedAt: "2026-06-25T10:00:00.000Z",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      automation: {
+        schemaVersion: 1,
+        generatedAt: "2026-06-25T10:00:00.000Z",
+        activeCount: 1,
+        attentionCount: 0,
+        monitors: [
+          {
+            id: "tmux-session:money-run-goal",
+            kind: "tmux-session",
+            label: "money-run goal",
+            enabled: true,
+            intervalMs: 600_000,
+            sessionName: "money-run-goal",
+            status: "observing",
+            checkCount: 1,
+            lastCheckedAt: "2026-06-25T09:59:00.000Z",
+            lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
+          }
+        ]
+      }
+    });
+
+    expect(snapshot.automation).toEqual({
+      schemaVersion: 1,
+      generatedAt: "2026-06-25T10:00:00.000Z",
+      activeCount: 1,
+      attentionCount: 0,
+      monitors: [
+        {
+          id: "tmux-session:money-run-goal",
+          kind: "tmux-session",
+          label: "money-run goal",
+          enabled: true,
+          intervalMs: 600_000,
+          sessionName: "money-run-goal",
+          status: "observing",
+          checkCount: 1,
+          lastCheckedAt: "2026-06-25T09:59:00.000Z",
+          lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
+        }
+      ]
+    });
+  });
+
+  it("reads skfiy-owned automation monitor state from the local workspace snapshot", () => {
+    const automationPath = createAutomationMonitorStatePath("/Users/tester");
+    const files: Record<string, string> = {
+      [automationPath]: JSON.stringify({
+        schemaVersion: 1,
+        monitors: [
+          {
+            id: "tmux-session:money-run-goal",
+            kind: "tmux-session",
+            label: "money-run goal",
+            enabled: true,
+            intervalMs: 600_000,
+            sessionName: "money-run-goal",
+            createdAt: "2026-06-25T09:00:00.000Z",
+            updatedAt: "2026-06-25T09:00:00.000Z"
+          }
+        ],
+        runtimes: [
+          {
+            id: "tmux-session:money-run-goal",
+            kind: "tmux-session",
+            label: "money-run goal",
+            enabled: true,
+            intervalMs: 600_000,
+            sessionName: "money-run-goal",
+            createdAt: "2026-06-25T09:00:00.000Z",
+            updatedAt: "2026-06-25T09:00:00.000Z",
+            status: "observing",
+            checkCount: 2,
+            lastCheckedAt: "2026-06-25T09:59:00.000Z",
+            lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
+          }
+        ]
+      })
+    };
+
+    const snapshot = createDashboardWorkspaceSnapshot({
+      rootDir: "/repo",
+      descriptor: createDashboardDescriptor({ port: 8787 }),
+      generatedAt: "2026-06-25T10:00:00.000Z",
+      io: {
+        exists: (targetPath) => targetPath in files,
+        readFile: (targetPath) => files[targetPath],
+        readdir: () => [],
+        stat: () => ({ mtimeMs: Date.parse("2026-06-25T09:59:00.000Z") }),
+        homeDir: () => "/Users/tester"
+      }
+    });
+
+    expect(snapshot.automation).toMatchObject({
+      schemaVersion: 1,
+      generatedAt: "2026-06-25T09:59:00.000Z",
+      activeCount: 1,
+      attentionCount: 0,
+      monitors: [
+        {
+          id: "tmux-session:money-run-goal",
+          label: "money-run goal",
+          status: "observing",
+          checkCount: 2,
+          lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
+        }
+      ]
+    });
+  });
+
   it("adds redacted provider readiness summaries to snapshot data", () => {
     const snapshot = createDashboardSnapshot({
       generatedAt: "2026-06-20T00:00:00.000Z",
@@ -935,6 +1050,12 @@ describe("dashboard snapshot data", () => {
             stale: false
           },
           {
+            target: "automation-monitor",
+            result: "passed",
+            stale: false,
+            productPath: "LaunchServices -> renderer preload -> main automation monitor manager"
+          },
+          {
             target: "voice",
             result: "passed",
             stale: true,
@@ -968,7 +1089,7 @@ describe("dashboard snapshot data", () => {
       recentSmokeEvidence: {
         unsupportedTargets: ["voice"],
         unsupportedPassedTargets: ["voice"],
-        recentPassedTargets: []
+        recentPassedTargets: ["automation-monitor"]
       }
     });
     expect(snapshot.alerts).toContainEqual({

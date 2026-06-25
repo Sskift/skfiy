@@ -59,6 +59,23 @@ export interface DashboardCapabilitySummary {
   tone: Tone;
 }
 
+export interface DashboardAutomationMonitorView {
+  id: string;
+  label: string;
+  status: string;
+  detail: string;
+  cadence: string;
+  tone: Tone;
+}
+
+export interface DashboardAutomationSummary {
+  activeCount: number;
+  attentionCount: number;
+  generatedAt?: string;
+  monitors: DashboardAutomationMonitorView[];
+  tone: Tone;
+}
+
 export interface DashboardRecentActivity {
   latestMessage: string;
   turnState: string;
@@ -478,6 +495,36 @@ export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusI
       tone: snapshot.currentTurn.state === "failed" ? "danger" : "neutral"
     }
   ];
+}
+
+export function readAutomationSummary(snapshot: DashboardSnapshot): DashboardAutomationSummary {
+  const automation = readRecord(snapshot.automation);
+  const monitors = readRecordArray(automation?.monitors).map((monitor, index) => {
+    const status = readString(monitor.status) ?? "idle";
+    const intervalMs = readNumber(monitor.intervalMs);
+    return {
+      id: readString(monitor.id) ?? `monitor-${index + 1}`,
+      label: readString(monitor.label) ?? readString(monitor.sessionName) ?? `Monitor ${index + 1}`,
+      status,
+      detail: readString(monitor.lastSummary)
+        ?? readString(readRecord(readRecord(monitor.lastReport)?.recommendation)?.reason)
+        ?? "Waiting for the first skfiy-owned check.",
+      cadence: formatMonitorInterval(intervalMs),
+      tone: readAutomationMonitorTone(status)
+    };
+  });
+  const activeCount = readNumber(automation?.activeCount)
+    ?? monitors.filter((monitor) => monitor.status !== "disabled").length;
+  const attentionCount = readNumber(automation?.attentionCount)
+    ?? monitors.filter((monitor) => monitor.tone === "warning" || monitor.tone === "danger").length;
+
+  return {
+    activeCount,
+    attentionCount,
+    generatedAt: readString(automation?.generatedAt),
+    monitors,
+    tone: attentionCount > 0 ? "warning" : activeCount > 0 ? "success" : "neutral"
+  };
 }
 
 export function readChromeControlState(snapshot: DashboardSnapshot): DashboardChromeControlState {
@@ -1505,6 +1552,33 @@ function createMemoryEvolutionNodeDetail(entries: DashboardPersonalMemoryJournal
 
 function formatInteger(value: number): string {
   return value.toLocaleString("en-US");
+}
+
+function formatMonitorInterval(intervalMs: number | undefined): string {
+  if (!intervalMs) {
+    return "manual";
+  }
+
+  const minutes = Math.round(intervalMs / 60_000);
+  if (minutes < 60) {
+    return `every ${minutes}m`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  return `every ${hours}h`;
+}
+
+function readAutomationMonitorTone(status: string): Tone {
+  if (status === "observing") {
+    return "success";
+  }
+  if (status === "blocked" || status === "error") {
+    return "danger";
+  }
+  if (status === "needs_attention" || status === "idle") {
+    return "warning";
+  }
+  return "neutral";
 }
 
 function sanitizeNodeId(value: string): string {

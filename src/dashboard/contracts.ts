@@ -88,6 +88,7 @@ export interface DashboardSnapshot {
   };
   dogfoodRelease: Record<string, unknown>;
   longHorizon: Record<string, unknown>;
+  automation?: Record<string, unknown>;
   alerts: Array<Record<string, unknown>>;
   personalMemory?: DashboardPersonalMemorySummary;
   providers?: {

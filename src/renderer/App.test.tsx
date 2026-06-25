@@ -174,6 +174,27 @@ beforeEach(() => {
         mode: update.mode ?? plannerProviderSettings.mode
       })),
     getTurnReplay: vi.fn<DesktopApi["getTurnReplay"]>().mockResolvedValue(null),
+    getAutomationMonitors: vi.fn<DesktopApi["getAutomationMonitors"]>().mockResolvedValue({
+      schemaVersion: 1,
+      generatedAt: new Date(0).toISOString(),
+      activeCount: 0,
+      attentionCount: 0,
+      monitors: []
+    }),
+    upsertTmuxMonitor: vi.fn<DesktopApi["upsertTmuxMonitor"]>().mockResolvedValue({
+      schemaVersion: 1,
+      generatedAt: new Date(0).toISOString(),
+      activeCount: 0,
+      attentionCount: 0,
+      monitors: []
+    }),
+    runAutomationMonitorNow: vi.fn<DesktopApi["runAutomationMonitorNow"]>().mockResolvedValue({
+      schemaVersion: 1,
+      generatedAt: new Date(0).toISOString(),
+      activeCount: 0,
+      attentionCount: 0,
+      monitors: []
+    }),
     getRuntimeStatus: vi.fn<DesktopApi["getRuntimeStatus"]>().mockResolvedValue({
       stopTurnHotkey: {
         accelerator: "Control+Alt+Shift+Esc",

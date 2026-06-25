@@ -1,4 +1,5 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, screen, systemPreferences } from "electron";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -118,6 +119,12 @@ import {
 } from "./runtime-snapshot.js";
 import { readDefaultLocalOriginPetSkin } from "./pet-skin.js";
 import { readDefaultApprovalBypass } from "./approval-bypass.js";
+import {
+  createAutomationMonitorManager,
+  createAutomationMonitorStatePath,
+  createAutomationMonitorStore,
+  type AutomationMonitorStoreIo
+} from "./automation-monitor.js";
 
 type ManualMode = "active" | "quiet";
 type TaskStatus =
@@ -205,6 +212,13 @@ const turnReplayStore = createTurnReplayStore({
     persistRuntimeSnapshot(replay);
   }
 });
+const automationMonitorManager = createAutomationMonitorManager({
+  store: createAutomationMonitorStore({
+    filePath: createAutomationMonitorStatePath(os.homedir()),
+    io: createNodeAutomationMonitorStoreIo()
+  }),
+  tmuxClient: createTmuxSupervisionClient()
+});
 const assistantComputerUseExecutor = createAssistantComputerUseExecutor({
   replayStore: turnReplayStore
 });
@@ -217,6 +231,20 @@ let activeTaskController: AbortController | null = null;
 let activeComputerUseToolIdentity: AssistantComputerUseToolIdentity | null = null;
 let pendingApproval: PendingApproval | null = null;
 let stopTurnHotkeyRegistered = false;
+
+function createNodeAutomationMonitorStoreIo(): AutomationMonitorStoreIo {
+  return {
+    exists: fs.existsSync,
+    mkdir: (dirPath) => {
+      fs.mkdirSync(dirPath, { recursive: true });
+    },
+    readFile: (filePath) => fs.readFileSync(filePath, "utf8"),
+    rename: fs.renameSync,
+    writeFile: (filePath, content) => {
+      fs.writeFileSync(filePath, content, "utf8");
+    }
+  };
+}
 
 function persistRuntimeSnapshot(
   replay: TurnReplay | null,
@@ -459,6 +487,30 @@ function createDesktopHelper(): DesktopHelperClient {
 
 function readMode(value: unknown): ManualMode {
   return value === "quiet" || value === "active" ? value : "active";
+}
+
+function readTmuxMonitorInput(input: unknown): {
+  sessionName: string;
+  label?: string;
+  intervalMs: number;
+  enabled?: boolean;
+} {
+  const record = input && typeof input === "object" && !Array.isArray(input)
+    ? input as Record<string, unknown>
+    : {};
+  const sessionName = typeof record.sessionName === "string" ? record.sessionName : "";
+  const intervalMs = typeof record.intervalMs === "number" && Number.isFinite(record.intervalMs)
+    ? record.intervalMs
+    : 300_000;
+  const label = typeof record.label === "string" ? record.label : undefined;
+  const enabled = typeof record.enabled === "boolean" ? record.enabled : undefined;
+
+  return {
+    sessionName,
+    ...(label ? { label } : {}),
+    intervalMs,
+    ...(enabled === undefined ? {} : { enabled })
+  };
 }
 
 function isEnabledEnvFlag(value: string | undefined): boolean {
@@ -1638,6 +1690,26 @@ ipcMain.handle("skfiy:get-turn-replay", () => {
   return turnReplayStore.getReplay();
 });
 
+ipcMain.handle("skfiy:get-automation-monitors", () => {
+  return automationMonitorManager.readSnapshot();
+});
+
+ipcMain.handle("skfiy:upsert-tmux-monitor", async (_event, input: unknown) => {
+  const monitorInput = readTmuxMonitorInput(input);
+  const definition = automationMonitorManager.upsertTmuxSessionMonitor(monitorInput);
+  await automationMonitorManager.runMonitorNow(definition.id);
+  return automationMonitorManager.readSnapshot();
+});
+
+ipcMain.handle("skfiy:run-automation-monitor-now", async (_event, id: unknown) => {
+  if (typeof id !== "string" || !id.trim()) {
+    throw new Error("Automation monitor id must be text.");
+  }
+
+  await automationMonitorManager.runMonitorNow(id.trim());
+  return automationMonitorManager.readSnapshot();
+});
+
 ipcMain.handle("skfiy:get-runtime-status", () => {
   return {
     stopTurnHotkey: readStopTurnHotkeyStatus(stopTurnHotkeyRegistered)
@@ -1649,6 +1721,7 @@ ipcMain.handle("skfiy:get-pet-skin", async () => {
 });
 
 app.whenReady().then(async () => {
+  automationMonitorManager.start();
   await createWindow();
   if (!stopTurnHotkeyRegistered) {
     stopTurnHotkeyRegistered = registerStopTurnHotkey({
@@ -1662,6 +1735,10 @@ app.whenReady().then(async () => {
       await createWindow();
     }
   });
+});
+
+app.on("before-quit", () => {
+  automationMonitorManager.stop();
 });
 
 app.on("window-all-closed", () => {

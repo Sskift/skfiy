@@ -63,6 +63,7 @@ import type {
 import {
   readAlertMessages,
   readAppReadinessLanes,
+  readAutomationSummary,
   readCapabilitySummaries,
   readChromeControlState,
   readComputerUseReadiness,
@@ -77,6 +78,7 @@ import {
   readSnapshotState,
   readUnsupportedSmokeEvidence,
   type DashboardAppReadinessLane,
+  type DashboardAutomationSummary,
   type DashboardCapabilitySummary,
   type DashboardChromeControlState,
   type DashboardComputerUseReadiness,
@@ -398,6 +400,7 @@ function DashboardContent({
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
   const appReadiness = useMemo(() => readAppReadinessLanes(snapshot), [snapshot]);
+  const automation = useMemo(() => readAutomationSummary(snapshot), [snapshot]);
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
@@ -596,6 +599,7 @@ function DashboardContent({
               ) : null}
             </Card.Content>
           </Card.Root>
+          <AutomationMonitorsCard automation={automation} />
           {appReadiness.map((lane) => (
             <AppReadinessCard key={lane.id} lane={lane} />
           ))}
@@ -2160,6 +2164,46 @@ function AppReadinessCard({ lane }: { lane: DashboardAppReadinessLane }) {
           value={lane.value}
           detail={lane.detail}
         />
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function AutomationMonitorsCard({ automation }: { automation: DashboardAutomationSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-readiness-card" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>skfiy automation</Card.Description>
+          <Card.Title>Automation monitors</Card.Title>
+        </div>
+        <MonitorCog size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={automation.tone}>{automation.activeCount} active</StatusChip>
+          <StatusChip tone={automation.attentionCount > 0 ? "warning" : "success"}>
+            {automation.attentionCount} attention
+          </StatusChip>
+        </div>
+        {automation.monitors.length > 0 ? (
+          <ul className="skfiy-dashboard-evidence-list" aria-label="Automation monitors">
+            {automation.monitors.map((monitor) => (
+              <li key={monitor.id}>
+                <StatusChip tone={monitor.tone}>{monitor.status}</StatusChip>
+                <div>
+                  <strong>{monitor.label}</strong>
+                  <span>{monitor.status} · {monitor.cadence}</span>
+                  <span>{monitor.detail}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="skfiy-dashboard-muted-message">
+            No skfiy-owned monitors are configured yet.
+          </p>
+        )}
       </Card.Content>
     </Card.Root>
   );

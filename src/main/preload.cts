@@ -266,6 +266,39 @@ interface RuntimeStatus {
   };
 }
 
+type AutomationMonitorStatus =
+  | "observing"
+  | "needs_attention"
+  | "blocked"
+  | "idle"
+  | "disabled"
+  | "error";
+
+interface AutomationMonitorRuntime {
+  id: string;
+  kind: "tmux-session";
+  label: string;
+  enabled: boolean;
+  intervalMs: number;
+  sessionName: string;
+  status: AutomationMonitorStatus;
+  checkCount: number;
+  lastCheckedAt?: string;
+  nextCheckAt?: string;
+  lastChangedAt?: string;
+  lastSummary?: string;
+  lastError?: string;
+  lastReport?: unknown;
+}
+
+interface AutomationMonitorSnapshot {
+  schemaVersion: 1;
+  generatedAt: string;
+  activeCount: number;
+  attentionCount: number;
+  monitors: AutomationMonitorRuntime[];
+}
+
 interface PetAnimationState {
   row: number;
   frames: number;
@@ -330,6 +363,11 @@ interface DesktopApi {
     update: Partial<Pick<PlannerProviderSettings, "mode">>
   ) => Promise<PlannerProviderSettings>;
   getTurnReplay: () => Promise<TurnReplay | null>;
+  getAutomationMonitors: () => Promise<AutomationMonitorSnapshot>;
+  upsertTmuxMonitor: (
+    input: { sessionName: string; label?: string; intervalMs: number; enabled?: boolean }
+  ) => Promise<AutomationMonitorSnapshot>;
+  runAutomationMonitorNow: (id: string) => Promise<AutomationMonitorSnapshot>;
   getRuntimeStatus: () => Promise<RuntimeStatus>;
   getPetSkin: () => Promise<PetSkinManifest | null>;
   getWindowBounds: () => Promise<WindowBounds | null>;
@@ -456,6 +494,34 @@ const api: DesktopApi = {
   async getTurnReplay() {
     const payload = await ipcRenderer.invoke("skfiy:get-turn-replay");
     return isTurnReplay(payload) ? payload : null;
+  },
+  async getAutomationMonitors() {
+    const payload = await ipcRenderer.invoke("skfiy:get-automation-monitors");
+    return isAutomationMonitorSnapshot(payload)
+      ? payload
+      : createDefaultAutomationMonitorSnapshot();
+  },
+  async upsertTmuxMonitor(input) {
+    const payload = await ipcRenderer.invoke("skfiy:upsert-tmux-monitor", {
+      sessionName: typeof input.sessionName === "string" ? input.sessionName : "",
+      label: typeof input.label === "string" ? input.label : undefined,
+      intervalMs: typeof input.intervalMs === "number" && Number.isFinite(input.intervalMs)
+        ? input.intervalMs
+        : 300_000,
+      enabled: typeof input.enabled === "boolean" ? input.enabled : undefined
+    });
+    return isAutomationMonitorSnapshot(payload)
+      ? payload
+      : createDefaultAutomationMonitorSnapshot();
+  },
+  async runAutomationMonitorNow(id) {
+    const payload = await ipcRenderer.invoke(
+      "skfiy:run-automation-monitor-now",
+      typeof id === "string" ? id : ""
+    );
+    return isAutomationMonitorSnapshot(payload)
+      ? payload
+      : createDefaultAutomationMonitorSnapshot();
   },
   async getRuntimeStatus() {
     const payload = await ipcRenderer.invoke("skfiy:get-runtime-status");
@@ -1045,6 +1111,75 @@ function isRuntimeStatus(value: unknown): value is RuntimeStatus {
   );
 }
 
+function isAutomationMonitorSnapshot(value: unknown): value is AutomationMonitorSnapshot {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const snapshot = value as Partial<AutomationMonitorSnapshot>;
+  return (
+    snapshot.schemaVersion === 1
+    && typeof snapshot.generatedAt === "string"
+    && typeof snapshot.activeCount === "number"
+    && Number.isFinite(snapshot.activeCount)
+    && typeof snapshot.attentionCount === "number"
+    && Number.isFinite(snapshot.attentionCount)
+    && Array.isArray(snapshot.monitors)
+    && snapshot.monitors.every(isAutomationMonitorRuntime)
+  );
+}
+
+function isAutomationMonitorRuntime(value: unknown): value is AutomationMonitorRuntime {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const monitor = value as Partial<AutomationMonitorRuntime>;
+  return (
+    typeof monitor.id === "string"
+    && monitor.kind === "tmux-session"
+    && typeof monitor.label === "string"
+    && typeof monitor.enabled === "boolean"
+    && typeof monitor.intervalMs === "number"
+    && Number.isFinite(monitor.intervalMs)
+    && typeof monitor.sessionName === "string"
+    && isAutomationMonitorStatus(monitor.status)
+    && typeof monitor.checkCount === "number"
+    && Number.isFinite(monitor.checkCount)
+    && (
+      monitor.lastCheckedAt === undefined
+      || typeof monitor.lastCheckedAt === "string"
+    )
+    && (
+      monitor.nextCheckAt === undefined
+      || typeof monitor.nextCheckAt === "string"
+    )
+    && (
+      monitor.lastChangedAt === undefined
+      || typeof monitor.lastChangedAt === "string"
+    )
+    && (
+      monitor.lastSummary === undefined
+      || typeof monitor.lastSummary === "string"
+    )
+    && (
+      monitor.lastError === undefined
+      || typeof monitor.lastError === "string"
+    )
+  );
+}
+
+function isAutomationMonitorStatus(value: unknown): value is AutomationMonitorStatus {
+  return (
+    value === "observing"
+    || value === "needs_attention"
+    || value === "blocked"
+    || value === "idle"
+    || value === "disabled"
+    || value === "error"
+  );
+}
+
 function isPetSkinManifest(value: unknown): value is PetSkinManifest {
   if (!value || typeof value !== "object") {
     return false;
@@ -1161,6 +1296,16 @@ function createDefaultPlannerProviderSettings(): PlannerProviderSettings {
     externalProviderLabel: "External CUA",
     externalEndpoint: undefined,
     externalApiKeyConfigured: false
+  };
+}
+
+function createDefaultAutomationMonitorSnapshot(): AutomationMonitorSnapshot {
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date(0).toISOString(),
+    activeCount: 0,
+    attentionCount: 0,
+    monitors: []
   };
 }
 
