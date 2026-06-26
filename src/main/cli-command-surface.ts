@@ -3683,13 +3683,23 @@ function createRuntimeReadiness(status: Record<string, unknown>): Record<string,
     accessibility,
     "granted"
   );
-  addStateBlocker(
-    blockers,
-    "desktop-session-not-controllable",
-    "The active desktop session must be controllable.",
-    desktopSessionState,
-    "controllable"
-  );
+  if (desktopSessionState !== "controllable") {
+    blockers.push({
+      code: "desktop-session-blocked",
+      message: "The active desktop session must be controllable.",
+      state: desktopSessionState,
+      expected: "controllable",
+      ...(readString(desktopSession?.frontmostBundleId)
+        ? { frontmostBundleId: readString(desktopSession?.frontmostBundleId) }
+        : {}),
+      ...(readString(desktopSession?.frontmostLocalizedName)
+        ? { frontmostLocalizedName: readString(desktopSession?.frontmostLocalizedName) }
+        : {}),
+      ...(readBoolean(desktopSession?.mainDisplayAsleep) !== undefined
+        ? { mainDisplayAsleep: readBoolean(desktopSession?.mainDisplayAsleep) }
+        : {})
+    });
+  }
 
   return {
     state: blockers.length === 0 ? "ready" : "needs-action",
@@ -3837,13 +3847,7 @@ function createExtensionReadiness(
     && !isNonActionablePageControlCurrentPage(pageControl)
     && !isResolvedHostPolicyPageControlBlocker(pageControl, hostPolicy)
   ) {
-    blockers.push({
-      code: "page-control-not-ready",
-      message: readString(pageControl.reason)
-        ?? "Chrome extension pageControl readiness has not been proven.",
-      state: readString(pageControl.state) ?? "unknown",
-      source: readString(pageControl.source) ?? "unknown"
-    });
+    blockers.push(createPageControlReadinessBlocker(pageControl));
   }
 
   return {
@@ -3860,6 +3864,34 @@ function createExtensionReadiness(
     blockers,
     ...setupGuideFields
   };
+}
+
+function createPageControlReadinessBlocker(pageControl: Record<string, unknown>): Record<string, unknown> {
+  const state = readString(pageControl.state) ?? "unknown";
+  const blockerCodes = readPageControlBlockerCodes(pageControl);
+  const activeTab = readRecord(pageControl.activeTab);
+  const hostPolicy = readRecord(pageControl.hostPolicy);
+  const chromeHostPermission = readRecord(pageControl.chromeHostPermission);
+  const chromeCapturePermission = readRecord(pageControl.chromeCapturePermission);
+  const code = state === "blocked_by_host_policy" || blockerCodes.includes("blocked_by_host_policy")
+    ? "browser-context-host-policy-blocked"
+    : state === "blocked_by_chrome_host_permission" || blockerCodes.includes("chrome_host_permission_missing")
+      ? "chrome-host-permission-missing"
+      : "page-control-not-ready";
+
+  return compactRecord({
+    code,
+    message: readString(pageControl.reason)
+      ?? "Chrome extension pageControl readiness has not been proven.",
+    state,
+    source: readString(pageControl.source) ?? "unknown",
+    activeHost: readString(activeTab?.host),
+    activeTabId: readNumber(activeTab?.tabId),
+    hostPolicyDecision: readString(hostPolicy?.decision),
+    hostPolicyReason: readString(hostPolicy?.reason),
+    chromeHostPermissionState: readString(chromeHostPermission?.state),
+    chromeCapturePermissionState: readString(chromeCapturePermission?.state)
+  });
 }
 
 function isResolvedHostPolicyPageControlBlocker(
@@ -3918,6 +3950,8 @@ function createMoneyRunReadiness(status: Record<string, unknown>): Record<string
   const moneyRun = readRecord(status.moneyRun);
   const moneyRunState = readString(moneyRun?.state) ?? "unknown";
   const mutatesSession = moneyRun?.mutatesSession === true;
+  const recommendation = readRecord(moneyRun?.recommendation);
+  const activePane = readRecord(moneyRun?.activePane);
 
   if (moneyRunState === "unknown") {
     return {
@@ -3932,11 +3966,21 @@ function createMoneyRunReadiness(status: Record<string, unknown>): Record<string
 
   const blockers: Array<Record<string, unknown>> = moneyRunState === "observing"
     ? []
-    : [{
-        code: "money-run-not-observing",
-        message: "money-run tmux supervision is not in an observing state.",
-        state: moneyRunState
-      }];
+    : [moneyRunState === "needs_attention"
+        ? compactRecord({
+            code: "money-run-needs-attention",
+            message: readString(recommendation?.reason)
+              ?? "money-run tmux supervision needs operator inspection.",
+            state: moneyRunState,
+            action: readString(recommendation?.action) ?? "inspect_output",
+            mutatesSession: readBoolean(recommendation?.mutatesSession) ?? mutatesSession,
+            paneId: readString(activePane?.id)
+          })
+        : {
+            code: "money-run-not-observing",
+            message: "money-run tmux supervision is not in an observing state.",
+            state: moneyRunState
+          }];
   if (mutatesSession) {
     blockers.push({
       code: "money-run-mutating-probe",
@@ -3953,7 +3997,8 @@ function createMoneyRunReadiness(status: Record<string, unknown>): Record<string
     source: readString(moneyRun?.source) ?? "tmux-read-only-probe",
     mutatesSession,
     ...(readRecord(moneyRun?.summary) ? { summary: readRecord(moneyRun?.summary) } : {}),
-    ...(readRecord(moneyRun?.recommendation) ? { recommendation: readRecord(moneyRun?.recommendation) } : {}),
+    ...(activePane ? { activePane } : {}),
+    ...(recommendation ? { recommendation } : {}),
     blockers
   };
 }

@@ -149,10 +149,13 @@ smoke launch injects a prompt-scoped `SKFIY_SMOKE_ASSISTANT_PROMPT` plus
 the real turn pipeline. UI smoke now records
 `assistantConversation.result: "passed"` and
 `stopTurnBehavior.result: "passed"` with `approval_required -> cancelled`
-evidence. The remaining UI product blocker is the current locked desktop state
-(`desktop-session-blocked`, frontmost `com.apple.loginwindow`); the smoke
+evidence. The remaining UI product blocker is the current locked/asleep desktop
+state (`desktop-session-blocked`, frontmost `com.apple.loginwindow`); the smoke
 artifacts still record `stealsFocus: false`, and `smoke:v2` now promotes that
-UI blocker into the aggregate `blockers` list.
+UI blocker into the aggregate `blockers` list. CLI status/doctor readiness now
+uses the same typed blocker language for desktop-session, Browser Context host
+policy, and money-run attention states instead of collapsing them into generic
+readiness failures.
 
 ## Current Branch Hardening Evidence
 

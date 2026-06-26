@@ -2850,10 +2850,15 @@ describe("CLI command surface", () => {
       state: "needs-action",
       blockers: [{
         area: "extension",
-        code: "page-control-not-ready",
+        code: "browser-context-host-policy-blocked",
         message: "Host policy has not allowed this page.",
         state: "blocked_by_host_policy",
-        source: "extension.connection.pageControl"
+        source: "extension.connection.pageControl",
+        activeHost: "bytedance.larkoffice.com",
+        hostPolicyDecision: "ask",
+        hostPolicyReason: "default_policy",
+        chromeHostPermissionState: "granted",
+        chromeCapturePermissionState: "granted"
       }]
     });
     expect(statusOutput.readiness.checks.extension.pageControl).toMatchObject({
@@ -2864,6 +2869,70 @@ describe("CLI command surface", () => {
       }
     });
     expect(stderr).toEqual([]);
+  });
+
+  it("reports locked desktop sessions with the same blocker code as product smokes", async () => {
+    const stdout: string[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["status", "--json"],
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader: async () => ({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        permissions: {
+          screenRecording: "granted",
+          accessibility: "granted",
+          finderAutomation: "granted"
+        },
+        desktopSession: {
+          state: "blocked",
+          controllable: false,
+          frontmostBundleId: "com.apple.loginwindow",
+          frontmostLocalizedName: "loginwindow",
+          mainDisplayAsleep: false
+        },
+        extension: { state: "unknown" },
+        nativeHost: { state: "unknown", extensionIds: [], cliShimPath: "/repo/dist/skfiy" },
+        dashboard: { state: "running", url: "http://127.0.0.1:8787/" },
+        moneyRun: {
+          state: "observing",
+          session: "money-run",
+          source: "tmux-read-only-probe",
+          mutatesSession: false
+        }
+      }),
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: () => undefined }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join("")).readiness).toMatchObject({
+      state: "needs-action",
+      checks: {
+        runtime: {
+          state: "needs-action",
+          desktopSessionState: "blocked",
+          blockers: [
+            {
+              code: "desktop-session-blocked",
+              state: "blocked",
+              expected: "controllable",
+              frontmostBundleId: "com.apple.loginwindow",
+              frontmostLocalizedName: "loginwindow",
+              mainDisplayAsleep: false
+            }
+          ]
+        }
+      },
+      blockers: [
+        {
+          area: "runtime",
+          code: "desktop-session-blocked"
+        }
+      ]
+    });
   });
 
   it("does not keep a stale Browser Context host-policy blocker after the active host is allowed", async () => {
@@ -3382,6 +3451,64 @@ describe("CLI command surface", () => {
           ]
         }
       }
+    });
+  });
+
+  it("reports money-run attention state with inspectable non-mutating blocker details", async () => {
+    const stdout: string[] = [];
+
+    await expect(runSkfiyCli({
+      argv: ["status", "--json"],
+      rootDir: "/repo",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader: async () => ({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: {
+          state: "installed",
+          path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper"
+        },
+        permissions: {
+          screenRecording: "granted",
+          accessibility: "granted",
+          finderAutomation: "unknown"
+        },
+        desktopSession: { state: "controllable", controllable: true },
+        extension: { state: "unknown" },
+        nativeHost: { state: "unknown", extensionIds: [], cliShimPath: "/repo/dist/skfiy" },
+        dashboard: { state: "not-running" },
+        moneyRun: {
+          state: "needs_attention",
+          session: "money-run",
+          source: "tmux-read-only-probe",
+          mutatesSession: false,
+          activePane: {
+            id: "%4"
+          },
+          recommendation: {
+            action: "inspect_output",
+            reason: "money-run recent output contains an obvious error marker in pane %4.",
+            mutatesSession: false
+          }
+        }
+      }),
+      stdout: { write: (chunk: string) => stdout.push(chunk) },
+      stderr: { write: () => undefined }
+    })).resolves.toBe(0);
+
+    expect(JSON.parse(stdout.join("")).readiness.checks.moneyRun).toMatchObject({
+      state: "needs-action",
+      ready: false,
+      mutatesSession: false,
+      blockers: [
+        {
+          code: "money-run-needs-attention",
+          state: "needs_attention",
+          action: "inspect_output",
+          mutatesSession: false,
+          paneId: "%4"
+        }
+      ]
     });
   });
 
