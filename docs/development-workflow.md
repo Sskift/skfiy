@@ -22,9 +22,21 @@ skfiy only handles agent requests and authorized desktop actions. OS-level input
 
 ## Smoke Tests
 
-Use these active smoke targets:
+Use `smoke:v2` when you need a layered gate that is quiet by default:
+
+- `npm run smoke:v2 -- --output .skfiy-smoke/v2/silent.json --require-passed`
+- `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed`
+- `npm run smoke:v2 -- --profile field --output .skfiy-smoke/v2/field.json`
+
+`smoke:v2` without a profile uses `silent`; it must not steal mouse or keyboard
+focus. The `release` profile combines contract and packaged no-focus checks.
+The `field` profile is opt-in only because it can activate skfiy, Ghostty,
+Finder, Chromium/Chrome, or other target apps.
+
+Use these individual smoke targets when a touched surface needs direct evidence:
 
 - `npm run smoke:ui -- --output .skfiy-smoke/ui-current.json`
+- `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-current.json`
 - `npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session-current.json`
 - `npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-current.json`
 - `npm run smoke:chrome -- --output .skfiy-smoke/chrome-current.json`
@@ -36,7 +48,8 @@ Use these active smoke targets:
 ## Dogfood Flow
 
 1. Build and package `dist/skfiy.app` plus `dist/skfiy`.
-2. Run UI, Ghostty, Chrome, Finder, and optional money-run smokes.
+2. Run `smoke:v2 --profile release`, then UI, Dashboard, Ghostty, Chrome,
+   Finder, and optional money-run smokes when those surfaces changed.
 3. Create the alpha artifact with `npm run alpha:artifact`, passing the active smoke artifact paths.
 4. Verify with `npm run dogfood:verify -- --manifest <alpha-manifest>`.
 5. Assign real testers with `npm run dogfood:tester`; it runs packaged-app smokes sequentially and creates a checked issue draft.
@@ -53,5 +66,10 @@ The dashboard is user-facing, not developer-only. It should show:
 - Current turn and replay timeline.
 - Recent smoke evidence and dogfood readiness.
 - Long-horizon money-run supervision status.
+
+Default Dashboard UX should lead with chat readiness, Browser Context, and
+anything waiting for the user. Release evidence, smoke detail, planner settings,
+and the Knowledge graph are operator/evidence surfaces, not the ordinary first
+decision path.
 
 Do not add in-app audio input, input-method provider, or transcript panels.

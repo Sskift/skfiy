@@ -17,6 +17,7 @@ into grouped ownership, QA/SRE gates, and real-scenario acceptance evidence.
    - Computer Use adapters
    - Browser bridge
    - Binary, release, dogfood, and SRE
+   - Product experience and visual hierarchy
    - Product boundary and capability matrix
 2. Use subagents for independent audit or implementation slices with disjoint
    write ownership.
@@ -93,12 +94,41 @@ Manual blocker policy:
 | Computer Use adapters | Agent tool layer can observe, act, verify, stop, and replay for supported Ghostty, Finder, and Chromium/Chrome routes. | `src/main/computer-use/*`, `src/main/task-routing.ts`, adapter tests, smoke artifacts. | UI, Ghostty, Finder, and Chrome packaged smokes pass or are blocked only by manual macOS/browser authorization. |
 | Browser bridge | Chromium extension and native host can observe, navigate, click, type, scroll, reload, and report permission/host failures. | `chrome-extension/*`, `src/main/chrome-native-host.ts`, `src/main/chrome-extension-page-control.ts`, Chrome tests. | `npm run smoke:chrome -- --app dist/skfiy.app --require-passed --output .skfiy-smoke/chrome-<commit>.json`. |
 | Release and dogfood SRE | Build, smoke, alpha artifact, issue body, dogfood report, cohort, and status gates all reference the same commit and artifacts. | `package.json`, `scripts/create-alpha-artifact.mjs`, `scripts/dogfood-status.mjs`, `docs/release-evidence/latest-alpha.json`. | Build passes; required smoke artifacts match current commit; alpha artifact and dogfood status do not point to stale evidence. |
+| Product experience | The pet and Dashboard are useful without making the user parse release evidence first. | `src/renderer/App.tsx`, `src/renderer/styles.css`, `src/dashboard/DashboardApp.tsx`, `src/dashboard/styles.css`, active plan Task 12. | First scan answers chat readiness, Browser Context, and user attention; evidence graph/release/smoke detail stays reachable but secondary. |
 | Product boundary | Docs, tests, UI, and templates do not reintroduce obsolete audio/dictation/input-method product paths. | README, canonical docs, issue templates, package scripts, negative tests. | Boundary `rg` is manually reviewed; allowed hits are boundary docs, negative tests, Chrome's `Google Network Speech` diagnostic name, packaging removal of old macOS permission keys, and turn replay transcript context. |
 
 ## Audit Queue
 
 These items are the current supervisor queue. A subagent audit can add items,
 but implementation should stay in disjoint work packages.
+
+## Product/UX Consolidation Plan
+
+The 2026-06-26 product review found that skfiy's core direction is now clear:
+local-first desktop pet, Background Agent first, Browser Context as an
+enhancement, and Computer Use as a permissioned tool layer. The remaining gap is
+not raw capability; it is default product hierarchy.
+
+The next implementation package is active plan Task 12:
+`Product Surface Simplification And Evidence Integrity`.
+
+Acceptance for that package:
+
+- Dashboard first scan answers exactly the operational questions a normal user
+  has before reading evidence: can skfiy chat, can it see the current browser
+  page, and is anything waiting for approval or inspection.
+- Pet right-click settings stay lightweight: Background Agent choice, app policy
+  summary, and permissions. Dense replay, planner, release, smoke, and graph
+  detail live in Dashboard or an advanced disclosure.
+- Release evidence, smoke artifacts, radar/flow charts, and the Knowledge graph
+  remain available for operators, but they are not the first mental model for
+  ordinary use.
+- Malformed or stale runtime snapshot evidence is typed as
+  `runtime-snapshot-invalid` or an equivalent evidence code before Dashboard or
+  CLI status presents current-turn/replay data as trustworthy.
+- No-focus validation remains the default: `smoke:v2` defaults to `silent`,
+  `smoke:v2 --profile release` must record `stealsFocus: false`, and visible
+  field smoke is opt-in only.
 
 ## Current Branch Hardening Evidence
 
@@ -209,6 +239,7 @@ git diff --check
 npm run typecheck -- --pretty false
 npx vitest run --reporter=dot
 npm run build
+npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed
 ```
 
 Add focused tests for the touched workstream before the full gate. Add packaged

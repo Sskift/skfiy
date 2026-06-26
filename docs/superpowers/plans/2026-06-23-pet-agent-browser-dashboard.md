@@ -28,6 +28,11 @@
 - Personalization hardening: unsafe manually polluted memory is still blocked from provider prompts, but Dashboard/store removal must remain able to forget the exact polluted entry so users can correct bad sediment instead of getting stuck with an invisible prompt-safe placeholder.
 - Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
 - Evidence graph follow-up: Keep the graph useful for locating memory/session/browser/tool evidence and provenance. Do not let it displace the operator workspace or regress into a read-only decorative canvas.
+- Product/UX review from 2026-06-26: the product boundary is now clear and useful for dogfood, but the default UI still reads like an engineer/operator console. The first scan should answer three questions before exposing evidence detail: can skfiy chat, can Browser Context see the current page, and is anything waiting for the user to approve or inspect.
+- Dashboard follow-up: provider, Browser Context, pending action, and automation state should remain first-class, while release evidence, smoke details, radar/flow charts, and the Knowledge graph should move behind an evidence/operator view. The graph remains valuable, but it must not be the mental model for ordinary use.
+- Pet settings follow-up: keep right-click settings lightweight for daily provider choice, app policy summary, and permissions. Dense replay, planner, and release/smoke evidence belong in Dashboard or an advanced disclosure.
+- Evidence integrity follow-up: if `runtime-snapshot.json` is malformed or stale, status/doctor/Dashboard must surface a typed `runtime-snapshot-invalid` or equivalent evidence state and avoid presenting current-turn/replay data as authoritative.
+- Documentation hygiene: completed design specs should be folded into this active plan or canonical docs, then removed. Avoid keeping parallel `docs/superpowers/specs/*` files that can compete with the single active plan.
 
 ## File Ownership Map
 
@@ -1538,6 +1543,10 @@ npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/dashboard/DashboardApp.
 - Modify: `src/main/finder-smoke-script.test.ts`
 - Modify: `src/main/orchestrator/finder-task.test.ts`
 
+Smoke v2 design is canonical in this task and `docs/development-workflow.md`.
+Do not keep a parallel temporary design spec after implementation; fold durable
+semantics into this plan and canonical workflow docs.
+
 - [x] **Step 1: Write smoke v2 contract tests**
 
 Add `src/main/smoke-v2-script.test.ts` covering:
@@ -1675,7 +1684,7 @@ npm run smoke:v2 -- --profile field --output .skfiy-smoke/v2/field.json
 - [x] **Step 11: Commit**
 
 ```bash
-git add docs/superpowers/specs/2026-06-26-smoke-v2-design.md docs/superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md package.json scripts/smoke-v2-plan.mjs scripts/smoke-v2-product.mjs scripts/smoke-ghostty-plan.mjs scripts/smoke-finder-plan.mjs scripts/smoke-finder-product.mjs src/main/smoke-v2-script.test.ts src/main/smoke-script.test.ts src/main/finder-smoke-script.test.ts src/main/main.ts src/main/orchestrator/finder-task.ts src/main/orchestrator/finder-task.test.ts
+git add docs/superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md docs/development-workflow.md package.json scripts/smoke-v2-plan.mjs scripts/smoke-v2-product.mjs scripts/smoke-ghostty-plan.mjs scripts/smoke-finder-plan.mjs scripts/smoke-finder-product.mjs src/main/smoke-v2-script.test.ts src/main/smoke-script.test.ts src/main/finder-smoke-script.test.ts src/main/main.ts src/main/orchestrator/finder-task.ts src/main/orchestrator/finder-task.test.ts
 git commit -m "feat: add layered smoke v2 runner"
 ```
 
@@ -1872,6 +1881,172 @@ git log --oneline -5
 ```
 
 Verified commits are on branch `codex/agent-workbench-hardening`; keep this line updated if the branch is later merged or pushed.
+
+---
+
+## Task 12: Product Surface Simplification And Evidence Integrity
+
+**Files:**
+- Modify: `src/dashboard/DashboardApp.tsx`
+- Modify: `src/dashboard/DashboardApp.test.tsx`
+- Modify: `src/dashboard/model.ts`
+- Modify: `src/dashboard/model.test.ts`
+- Modify: `src/dashboard/styles.css`
+- Modify: `src/renderer/App.tsx`
+- Modify: `src/renderer/App.test.tsx`
+- Modify: `src/renderer/styles.css`
+- Modify: `src/main/cli-command-surface.ts`
+- Modify: `src/main/cli-command-surface.test.ts`
+- Modify: `src/main/dashboard-data.ts`
+- Modify: `src/main/dashboard-data.test.ts`
+- Modify: `docs/product-readiness-matrix.md`
+- Modify: `docs/development-workflow.md`
+
+- [ ] **Step 1: Write Dashboard first-scan regression tests**
+
+In `src/dashboard/DashboardApp.test.tsx`, add a test named
+`keeps the default dashboard scan path focused on chat, browser context, and user action`.
+Use the existing `snapshot` fixture in that test file and assert the
+`Operator workspace` region contains these top-level headings before any
+evidence-heavy regions:
+
+```ts
+const overview = await screen.findByRole("region", { name: "Operator workspace" });
+expect(within(overview).getByRole("heading", { name: "Chat readiness" })).toBeInTheDocument();
+expect(within(overview).getByRole("heading", { name: "Browser Context" })).toBeInTheDocument();
+expect(within(overview).getByRole("heading", { name: "Waiting on you" })).toBeInTheDocument();
+expect(within(overview).queryByRole("img", { name: /readiness radar chart/i })).not.toBeInTheDocument();
+expect(within(overview).queryByRole("img", { name: /agent runtime flow chart/i })).not.toBeInTheDocument();
+expect(within(overview).queryByText(/release behind-head/i)).not.toBeInTheDocument();
+```
+
+Add a second assertion that the same page still exposes the evidence-heavy
+sections outside the first scan:
+
+```ts
+expect(screen.getByRole("region", { name: "Activity" })).toBeInTheDocument();
+expect(screen.getByRole("region", { name: "Knowledge graph" })).toBeInTheDocument();
+expect(screen.getByRole("heading", { name: "Release gate" })).toBeInTheDocument();
+```
+
+- [ ] **Step 2: Run Dashboard tests and confirm they fail**
+
+```bash
+npx vitest run src/dashboard/DashboardApp.test.tsx --reporter=dot --testTimeout=20000
+```
+
+Expected: fail because the current overview still contains the radar/flow
+command center and does not expose the simplified `Chat readiness`,
+`Browser Context`, and `Waiting on you` headings.
+
+- [ ] **Step 3: Simplify the Dashboard default scan path**
+
+In `src/dashboard/DashboardApp.tsx`, replace the first-screen command center
+with three compact summary cards:
+
+- `Chat readiness`: selected Background Agent label, readiness state, and latest
+  dry-run/auth blocker if present.
+- `Browser Context`: current host/title, pageControl state, host policy, Chrome
+  optional permission state, and the single safest recovery action.
+- `Waiting on you`: approval-required turns, `money-run-needs-attention`,
+  `runtime-snapshot-invalid`, or `no action needed`.
+
+Move `SignalRadarChart`, `RuntimeFlowChart`, activity bars, release evidence,
+and smoke evidence into `Activity` or a dedicated evidence subsection below the
+first scan. Keep `KnowledgeGraph` auxiliary and linked from navigation, not part
+of the ordinary first decision.
+
+In `src/dashboard/model.ts`, add or adjust readers so the three cards do not
+duplicate parsing logic:
+
+- `readChatReadinessSummary(snapshot)`
+- `readBrowserContextSummary(snapshot)`
+- `readUserAttentionSummary(snapshot)`
+
+- [ ] **Step 4: Tighten Dashboard visual hierarchy**
+
+In `src/dashboard/styles.css`:
+
+- Keep card radius at `8px` or less.
+- Reduce first-screen decorative chart weight; no radar/flow chart appears in
+  `#overview`.
+- Keep the palette mixed but calmer: neutral dark shell, white/near-white cards,
+  teal only for primary ready/action emphasis, amber for attention, red for
+  blockers.
+- Ensure chip text wraps or truncates inside its own container and does not
+  create horizontal overflow at 1280px desktop width.
+
+- [ ] **Step 5: Write pet settings regression tests**
+
+In `src/renderer/App.test.tsx`, add a test named
+`keeps right click settings lightweight and moves evidence detail out of the daily path`.
+Open settings and assert:
+
+```ts
+const settings = await screen.findByLabelText("skfiy settings");
+expect(within(settings).getByLabelText("Background Agent 设置")).toBeInTheDocument();
+expect(within(settings).getByLabelText("Computer Use 设置")).toBeInTheDocument();
+expect(within(settings).getByLabelText("权限")).toBeInTheDocument();
+expect(within(settings).queryByText(/Release gate/i)).not.toBeInTheDocument();
+expect(within(settings).queryByText(/Smoke evidence/i)).not.toBeInTheDocument();
+```
+
+If `Computer Use Planner` remains available from the pet, keep it under the
+existing `诊断/高级` disclosure and assert it is not visible until that disclosure
+is opened.
+
+- [ ] **Step 6: Surface runtime snapshot evidence honestly**
+
+In `src/main/cli-command-surface.test.ts` and `src/main/dashboard-data.test.ts`,
+add malformed `runtime-snapshot.json` fixtures and assert:
+
+```ts
+expect(status.evidence.runtimeSnapshot.state).toBe("invalid");
+expect(status.evidence.currentTurn.state).toBe("unknown");
+expect(JSON.stringify(status.readiness.blockers)).toContain("runtime-snapshot-invalid");
+```
+
+If product readiness should remain `ready` despite a malformed snapshot, record
+the invalid snapshot as an `evidence` or `activity` blocker instead of a runtime
+blocker, but keep the typed code `runtime-snapshot-invalid` visible in
+status/doctor/Dashboard.
+
+- [ ] **Step 7: Run focused verification**
+
+```bash
+npx vitest run src/dashboard/DashboardApp.test.tsx src/dashboard/model.test.ts --reporter=dot --testTimeout=20000
+npx vitest run src/renderer/App.test.tsx --reporter=dot --testTimeout=20000
+npx vitest run src/main/cli-command-surface.test.ts src/main/dashboard-data.test.ts --reporter=dot
+npm run typecheck -- --pretty false
+git diff --check
+```
+
+- [ ] **Step 8: Run product-path visual evidence**
+
+Use no-focus defaults unless the project owner explicitly authorizes visible
+field smoke:
+
+```bash
+npm run build
+npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed
+npm run smoke:ui -- --output .skfiy-smoke/ui-product.json
+npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json
+```
+
+Expected:
+
+- UI smoke still records `launchMode: hidden` and `stealsFocus: false`.
+- Dashboard smoke records `result: passed`.
+- Dashboard screenshot evidence shows the first scan focused on chat,
+  Browser Context, and user attention; graph/evidence detail remains reachable
+  below the first scan.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/dashboard/DashboardApp.tsx src/dashboard/DashboardApp.test.tsx src/dashboard/model.ts src/dashboard/model.test.ts src/dashboard/styles.css src/renderer/App.tsx src/renderer/App.test.tsx src/renderer/styles.css src/main/cli-command-surface.ts src/main/cli-command-surface.test.ts src/main/dashboard-data.ts src/main/dashboard-data.test.ts docs/product-readiness-matrix.md docs/development-workflow.md
+git commit -m "feat: simplify skfiy operator surface"
+```
 
 ---
 

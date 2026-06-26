@@ -32,6 +32,9 @@ research notes as dated context unless they contain a still-open product gap.
 - `superpowers/plans/`: active implementation plans for agentic work. Keep
   exactly one active plan unless the project owner explicitly asks for a
   temporary split.
+- Temporary specs and design notes should be folded into the active plan or a
+  canonical doc once implemented. Do not keep a parallel
+  `superpowers/specs/` task source that can drift from the single active plan.
 
 ## Local Artifact Hygiene
 
