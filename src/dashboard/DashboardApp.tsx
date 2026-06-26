@@ -67,7 +67,9 @@ import {
   readAlertMessages,
   readAppReadinessLanes,
   readAutomationSummary,
+  readBrowserContextSummary,
   readCapabilitySummaries,
+  readChatReadinessSummary,
   readChromeControlState,
   readComputerUseReadiness,
   readDogfoodSummary,
@@ -80,9 +82,12 @@ import {
   readRuntimeEvidenceSummary,
   readSnapshotState,
   readUnsupportedSmokeEvidence,
+  readUserAttentionSummary,
   type DashboardAppReadinessLane,
   type DashboardAutomationSummary,
+  type DashboardBrowserContextSummary,
   type DashboardCapabilitySummary,
+  type DashboardChatReadinessSummary,
   type DashboardChromeControlState,
   type DashboardComputerUseReadiness,
   type DashboardDogfoodSummary,
@@ -92,6 +97,7 @@ import {
   type DashboardRecentActivity,
   type DashboardRuntimeEvidenceSummary,
   type DashboardStatusItem,
+  type DashboardUserAttentionSummary,
   type Tone
 } from "./model";
 import { KnowledgeGraph } from "./KnowledgeGraph";
@@ -452,6 +458,8 @@ function DashboardContent({
   const readiness = useMemo(() => readReadinessSummary(snapshot), [snapshot]);
   const capabilities = useMemo(() => readCapabilitySummaries(snapshot), [snapshot]);
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
+  const browserContext = useMemo(() => readBrowserContextSummary(snapshot), [snapshot]);
+  const chatReadiness = useMemo(() => readChatReadinessSummary(snapshot), [snapshot]);
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
   const appReadiness = useMemo(() => readAppReadinessLanes(snapshot), [snapshot]);
   const automation = useMemo(() => readAutomationSummary(snapshot), [snapshot]);
@@ -462,6 +470,7 @@ function DashboardContent({
   const runtimeEvidence = useMemo(() => readRuntimeEvidenceSummary(snapshot), [snapshot]);
   const dogfood = useMemo(() => readDogfoodSummary(snapshot), [snapshot]);
   const nextAction = useMemo(() => readNextAction(snapshot), [snapshot]);
+  const userAttention = useMemo(() => readUserAttentionSummary(snapshot), [snapshot]);
   const alerts = useMemo(() => readAlertMessages(snapshot), [snapshot]);
   const knowledgeGraph = useMemo(() => readKnowledgeGraph(snapshot), [snapshot]);
 
@@ -502,29 +511,12 @@ function DashboardContent({
             </div>
           </div>
         </div>
-        <DashboardCommandCenter
-          activity={activity}
-          alerts={alerts}
-          capabilities={capabilities}
+        <DashboardFirstScan
+          browserContext={browserContext}
+          chatReadiness={chatReadiness}
           chromeControl={chromeControl}
-          computerUse={computerUse}
-          dogfood={dogfood}
-          knowledgeGraph={knowledgeGraph}
-          nextAction={nextAction}
-          readiness={readiness}
-          runtimeEvidence={runtimeEvidence}
-          stateItems={stateItems}
+          userAttention={userAttention}
         />
-        <div className="skfiy-dashboard-grid skfiy-dashboard-grid--four">
-          {capabilities.map((capability) => (
-            <CapabilityCard key={capability.id} capability={capability} />
-          ))}
-        </div>
-        <div className="skfiy-dashboard-grid skfiy-dashboard-grid--three">
-          {stateItems.map((item) => (
-            <MetricCard key={item.label} item={item} />
-          ))}
-        </div>
       </section>
 
       <section
@@ -764,6 +756,19 @@ function DashboardContent({
             <h2>Activity</h2>
           </div>
         </div>
+        <DashboardCommandCenter
+          activity={activity}
+          alerts={alerts}
+          capabilities={capabilities}
+          chromeControl={chromeControl}
+          computerUse={computerUse}
+          dogfood={dogfood}
+          knowledgeGraph={knowledgeGraph}
+          nextAction={nextAction}
+          readiness={readiness}
+          runtimeEvidence={runtimeEvidence}
+          stateItems={stateItems}
+        />
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
@@ -882,6 +887,114 @@ function DashboardContent({
         <KnowledgeGraph nodes={knowledgeGraph.nodes} edges={knowledgeGraph.edges} />
       </section>
     </div>
+  );
+}
+
+function DashboardFirstScan({
+  browserContext,
+  chatReadiness,
+  chromeControl,
+  userAttention
+}: {
+  browserContext: DashboardBrowserContextSummary;
+  chatReadiness: DashboardChatReadinessSummary;
+  chromeControl: DashboardChromeControlState;
+  userAttention: DashboardUserAttentionSummary;
+}) {
+  const browserMeta: DashboardStatusItem[] = [
+    {
+      label: "host",
+      value: chromeControl.host,
+      tone: chromeControl.host === "No active ordinary page" ? "warning" : "neutral"
+    },
+    {
+      label: "context",
+      value: browserContext.state,
+      tone: browserContext.tone
+    },
+    {
+      label: "pageControl",
+      value: chromeControl.label,
+      tone: chromeControl.tone
+    },
+    {
+      label: "host policy",
+      value: chromeControl.hostPolicy.state,
+      tone: chromeControl.hostPolicy.tone
+    },
+    {
+      label: "access",
+      value: chromeControl.browserContextAccessSteps.length === 0
+        ? "access ready"
+        : `${chromeControl.browserContextAccessSteps.length} recovery steps`,
+      tone: chromeControl.browserContextAccessSteps.length === 0 ? "success" : "warning"
+    }
+  ];
+  const browserSummary = {
+    title: "Browser Context",
+    value: browserContext.title ?? browserContext.url ?? chromeControl.host,
+    detail: browserContext.nextAction ?? browserContext.reason,
+    tone: browserContext.tone,
+    meta: browserMeta
+  };
+
+  return (
+    <div className="skfiy-dashboard-first-scan" aria-label="Default dashboard scan path">
+      <FirstScanCard
+        description="Background Agent"
+        icon={<Bot size={18} aria-hidden="true" />}
+        summary={chatReadiness}
+      />
+      <FirstScanCard
+        description="Current tab"
+        icon={<Chrome size={18} aria-hidden="true" />}
+        summary={browserSummary}
+      />
+      <FirstScanCard
+        description={userAttention.source}
+        icon={<TriangleAlert size={18} aria-hidden="true" />}
+        summary={userAttention}
+      />
+    </div>
+  );
+}
+
+function FirstScanCard({
+  description,
+  icon,
+  summary
+}: {
+  description: string;
+  icon: ReactNode;
+  summary: DashboardChatReadinessSummary | DashboardUserAttentionSummary;
+}) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-first-card" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header skfiy-dashboard-first-card-header">
+        <div>
+          <Card.Description>{description}</Card.Description>
+          <Card.Title>{summary.title}</Card.Title>
+        </div>
+        <div className="skfiy-dashboard-first-card-icon" data-tone={summary.tone}>
+          {icon}
+        </div>
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content skfiy-dashboard-first-card-content">
+        <div className="skfiy-dashboard-first-card-value">
+          <strong>{summary.value}</strong>
+          <StatusChip tone={summary.tone}>{summary.tone}</StatusChip>
+        </div>
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-first-card-meta">
+          {summary.meta.map((item) => (
+            <div key={`${summary.title}-${item.label}`}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
+        </div>
+      </Card.Content>
+    </Card.Root>
   );
 }
 

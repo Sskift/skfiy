@@ -1,4 +1,5 @@
 import type {
+  DashboardAssistantProviderStatus,
   DashboardKnowledgeGraph,
   DashboardKnowledgeGraphEdge,
   DashboardKnowledgeGraphNode,
@@ -22,6 +23,20 @@ export interface DashboardReadinessSummary {
   label: string;
   detail: string;
   tone: Tone;
+}
+
+export interface DashboardOperatorScanSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  meta: DashboardStatusItem[];
+}
+
+export type DashboardChatReadinessSummary = DashboardOperatorScanSummary;
+
+export interface DashboardUserAttentionSummary extends DashboardOperatorScanSummary {
+  source: string;
 }
 
 export interface DashboardComputerUseReadiness {
@@ -1238,8 +1253,133 @@ export function readAssistantProviderView(snapshot: DashboardSnapshot): Dashboar
   };
 }
 
+export function readChatReadinessSummary(snapshot: DashboardSnapshot): DashboardChatReadinessSummary {
+  const providers = readProviderSummaries(snapshot);
+  const assistant = providers.find((provider) => provider.provider === "assistant") ?? providers[0];
+  const selectedProvider = assistant?.providers?.find((provider) => provider.selected) ?? assistant?.providers?.[0];
+  const readiness = readAssistantReadinessState(assistant, selectedProvider);
+  const tone = readAssistantReadinessTone(readiness, assistant?.health);
+  const detail = assistant?.readinessDetail
+    ?? selectedProvider?.readinessDetail
+    ?? assistant?.detail
+    ?? "Background Agent readiness has not reported detail.";
+
+  return {
+    title: "Chat readiness",
+    value: assistant?.label ?? selectedProvider?.label ?? "unknown",
+    detail,
+    tone,
+    meta: [
+      {
+        label: "provider",
+        value: assistant?.mode ?? selectedProvider?.id ?? "unknown",
+        tone: assistant?.configured === false ? "warning" : "neutral"
+      },
+      {
+        label: "readiness",
+        value: readiness,
+        tone
+      }
+    ]
+  };
+}
+
 export function readBrowserContextSummary(snapshot: DashboardSnapshot): DashboardBrowserContextSummary {
   return readChromeControlState(snapshot).browserContext;
+}
+
+export function readUserAttentionSummary(snapshot: DashboardSnapshot): DashboardUserAttentionSummary {
+  const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
+  const approvalState = readString(snapshot.currentTurn.approvalState) ?? "";
+  if (
+    currentTurnState.includes("approval")
+    || approvalState === "pending"
+    || snapshot.currentTurn.approvalRequired === true
+  ) {
+    return {
+      title: "Waiting on you",
+      value: "Review pending approval",
+      detail: readString(snapshot.currentTurn.command) ?? readLatestMessage(snapshot),
+      tone: "warning",
+      source: "Current turn",
+      meta: [
+        { label: "turn", value: currentTurnState, tone: "warning" },
+        { label: "approval", value: approvalState || "required", tone: "warning" }
+      ]
+    };
+  }
+
+  const runtimeSnapshotAlert = snapshot.alerts.find((alert) => {
+    const code = readString(alert.code) ?? "";
+    return code === "runtime-snapshot-invalid" || code.startsWith("runtime-snapshot-invalid");
+  });
+  if (runtimeSnapshotAlert) {
+    const code = readString(runtimeSnapshotAlert.code) ?? "runtime-snapshot-invalid";
+    const tone = readAlertTone(runtimeSnapshotAlert);
+    return {
+      title: "Waiting on you",
+      value: code,
+      detail: readString(runtimeSnapshotAlert.message) ?? "Runtime snapshot could not be trusted.",
+      tone,
+      source: "Runtime snapshot",
+      meta: [
+        { label: "status", value: code, tone }
+      ]
+    };
+  }
+
+  const automation = readAutomationSummary(snapshot);
+  const attentionMonitor = automation.monitors.find((monitor) => (
+    monitor.tone === "danger" || monitor.tone === "warning"
+  ));
+  if (automation.attentionCount > 0 && attentionMonitor) {
+    return {
+      title: "Waiting on you",
+      value: `${attentionMonitor.label} needs attention`,
+      detail: attentionMonitor.detail,
+      tone: attentionMonitor.tone,
+      source: "Automation monitor",
+      meta: [
+        { label: "monitor", value: attentionMonitor.status, tone: attentionMonitor.tone },
+        {
+          label: "mutates",
+          value: attentionMonitor.mutatesSession ? "yes" : "no",
+          tone: attentionMonitor.mutatesSession ? "danger" : "success"
+        }
+      ]
+    };
+  }
+
+  const nextAction = readNextAction(snapshot);
+  if (nextAction.tone !== "success") {
+    return {
+      title: "Waiting on you",
+      value: nextAction.title,
+      detail: nextAction.detail,
+      tone: nextAction.tone,
+      source: nextAction.source,
+      meta: [
+        { label: "source", value: nextAction.source, tone: "neutral" },
+        { label: "state", value: nextAction.tone, tone: nextAction.tone }
+      ]
+    };
+  }
+
+  return {
+    title: "Waiting on you",
+    value: "No action needed",
+    detail: readLatestMessage(snapshot),
+    tone: "success",
+    source: "Ready",
+    meta: [
+      { label: "turn", value: currentTurnState, tone: "neutral" },
+      {
+        label: "alerts",
+        value: snapshot.alerts.length === 0 ? "none" : String(snapshot.alerts.length),
+        tone: snapshot.alerts.length === 0 ? "success" : "warning"
+      }
+    ]
+  };
 }
 
 function readBrowserContextDetail(browserContext: DashboardBrowserContextSummary): string {
@@ -1247,6 +1387,30 @@ function readBrowserContextDetail(browserContext: DashboardBrowserContextSummary
     ?? browserContext.url
     ?? browserContext.nextAction
     ?? browserContext.reason;
+}
+
+function readAssistantReadinessState(
+  assistant: DashboardProviderSummary | undefined,
+  selectedProvider: DashboardAssistantProviderStatus | undefined
+): string {
+  return readString(assistant?.readiness)
+    ?? readString(selectedProvider?.readiness)
+    ?? readString(assistant?.health)
+    ?? "unknown";
+}
+
+function readAssistantReadinessTone(readiness: string, health: string | undefined): Tone {
+  if (readiness === "chat-ready") {
+    return "success";
+  }
+  if (readiness === "auth-or-permission-blocked" || readiness === "unavailable") {
+    return "danger";
+  }
+  if (["version-ok", "binary-found", "binary-configured", "unconfigured", "unknown"].includes(readiness)) {
+    return "warning";
+  }
+
+  return readHealthTone(health ?? readiness);
 }
 
 function readHealthTone(health: string): Tone {

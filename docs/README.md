@@ -35,6 +35,10 @@ research notes as dated context unless they contain a still-open product gap.
 - Temporary specs and design notes should be folded into the active plan or a
   canonical doc once implemented. Do not keep a parallel
   `superpowers/specs/` task source that can drift from the single active plan.
+- Short research notes that only restate a code-level API contract should be
+  folded into canonical docs and tests, then removed. The Dashboard
+  `/api/evidence-summary` contract now lives in
+  `product-readiness-matrix.md` and `src/main/dashboard-evidence-summary.test.ts`.
 
 ## Local Artifact Hygiene
 

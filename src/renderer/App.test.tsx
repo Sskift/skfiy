@@ -360,6 +360,22 @@ describe("App", () => {
     expect(within(settings).queryByText("偏好")).not.toBeInTheDocument();
   });
 
+  it("keeps the daily right-click settings lightweight until advanced is opened", async () => {
+    render(<App />);
+
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const settings = await screen.findByLabelText(/skfiy settings/i);
+    expect(within(settings).getByText("日常设置")).toBeInTheDocument();
+    expect(within(settings).queryByText("Computer Use Planner")).not.toBeInTheDocument();
+    expect(within(settings).queryByText("Release gate")).not.toBeInTheDocument();
+    expect(within(settings).queryByText("Smoke evidence")).not.toBeInTheDocument();
+
+    fireEvent.click(within(settings).getByText("诊断/高级"));
+
+    expect(await within(settings).findByText("Computer Use Planner")).toBeInTheDocument();
+  });
+
   it("shows a user-mode dashboard summary before advanced diagnostics", async () => {
     render(<App />);
 
@@ -552,7 +568,7 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "选择 Hermes background agent" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("诊断/高级"));
-    expect(screen.getByText("Computer Use Planner")).toBeInTheDocument();
+    expect(await screen.findByText("Computer Use Planner")).toBeInTheDocument();
   });
 
   it("selects Codex as the background agent provider", async () => {
@@ -604,11 +620,10 @@ describe("App", () => {
     fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
     fireEvent.click(screen.getByText("诊断/高级"));
 
-    await waitFor(() => {
-      expect(screen.getByText("External CUA")).toBeInTheDocument();
-    });
-    expect(screen.getByText("External CUA 已配置")).toBeInTheDocument();
-    expect(screen.getByText("在 dashboard 中配置")).toBeInTheDocument();
+    const planner = await screen.findByLabelText("Computer Use Planner");
+    expect(within(planner).getAllByText("External CUA").length).toBeGreaterThan(0);
+    expect(within(planner).getByText("External CUA 已配置")).toBeInTheDocument();
+    expect(within(planner).getByText("在 dashboard 中配置")).toBeInTheDocument();
     expect(screen.queryByText("Endpoint 已配置")).not.toBeInTheDocument();
     expect(screen.queryByText("API Key 已配置")).not.toBeInTheDocument();
   });
@@ -627,10 +642,9 @@ describe("App", () => {
     fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
     fireEvent.click(screen.getByText("诊断/高级"));
 
-    await waitFor(() => {
-      expect(screen.getByText("External CUA")).toBeInTheDocument();
-    });
-    expect(screen.getByText("在 dashboard 中配置")).toBeInTheDocument();
+    const planner = await screen.findByLabelText("Computer Use Planner");
+    expect(within(planner).getAllByText("External CUA").length).toBeGreaterThan(0);
+    expect(within(planner).getByText("在 dashboard 中配置")).toBeInTheDocument();
     expect(screen.queryByText("https://cua.example.test/plan")).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue("https://cua.example.test/plan")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /endpoint/i })).not.toBeInTheDocument();

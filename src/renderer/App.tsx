@@ -1351,6 +1351,7 @@ export default function App() {
   const [assistantInputSubmitting, setAssistantInputSubmitting] = useState(false);
   const [assistantConversation, setAssistantConversation] = useState<AssistantConversationMessage[]>([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
   const [permissionOnboardingOpen, setPermissionOnboardingOpen] = useState(false);
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
   const [desktopSessionDiagnostics, setDesktopSessionDiagnostics] =
@@ -1546,6 +1547,8 @@ export default function App() {
       void refreshAssistantAgentSettings();
       void refreshPermissions();
       void refreshTurnReplay();
+    } else {
+      setAdvancedSettingsOpen(false);
     }
   }, [detailsOpen, refreshAssistantAgentSettings, refreshPermissions, refreshTurnReplay]);
 
@@ -1952,7 +1955,12 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <details className="advanced-panel" aria-label="诊断/高级">
+                <details
+                  className="advanced-panel"
+                  aria-label="诊断/高级"
+                  open={advancedSettingsOpen}
+                  onToggle={(event) => setAdvancedSettingsOpen(event.currentTarget.open)}
+                >
                   <summary>
                     <span>
                       <SlidersHorizontal size={13} aria-hidden="true" />
@@ -1960,38 +1968,40 @@ export default function App() {
                     </span>
                     <em>回放与 Computer Use Planner</em>
                   </summary>
-                  <div className="advanced-panel-body">
-                    <div className="app-policy-panel" aria-label="Computer Use Planner">
-                      <div className="app-policy-heading">
-                        <strong>Computer Use Planner</strong>
-                        <span>
-                          {plannerProviderSettings.mode === "external-cua"
-                            ? plannerProviderSettings.externalProviderLabel
-                            : "Computer Use"}
-                        </span>
-                      </div>
-                      <div className="provider-switch" role="group" aria-label="Computer Use planner">
-                        {PLANNER_PROVIDER_OPTIONS.map((option) => (
-                          <button
-                            type="button"
-                            key={option.mode}
-                            aria-label={option.aria}
-                            aria-pressed={plannerProviderSettings.mode === option.mode}
-                            onClick={() => void selectPlannerProviderMode(option.mode)}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                      {plannerProviderSettings.mode === "external-cua" ? (
-                        <div className="provider-status-card" aria-label="External CUA 连接状态">
-                          <strong>{readExternalCuaStatusLabel(plannerProviderSettings)}</strong>
-                          <p>在 dashboard 中配置</p>
+                  {advancedSettingsOpen ? (
+                    <div className="advanced-panel-body">
+                      <div className="app-policy-panel" aria-label="Computer Use Planner">
+                        <div className="app-policy-heading">
+                          <strong>Computer Use Planner</strong>
+                          <span>
+                            {plannerProviderSettings.mode === "external-cua"
+                              ? plannerProviderSettings.externalProviderLabel
+                              : "Computer Use"}
+                          </span>
                         </div>
-                      ) : null}
+                        <div className="provider-switch" role="group" aria-label="Computer Use planner">
+                          {PLANNER_PROVIDER_OPTIONS.map((option) => (
+                            <button
+                              type="button"
+                              key={option.mode}
+                              aria-label={option.aria}
+                              aria-pressed={plannerProviderSettings.mode === option.mode}
+                              onClick={() => void selectPlannerProviderMode(option.mode)}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                        {plannerProviderSettings.mode === "external-cua" ? (
+                          <div className="provider-status-card" aria-label="External CUA 连接状态">
+                            <strong>{readExternalCuaStatusLabel(plannerProviderSettings)}</strong>
+                            <p>在 dashboard 中配置</p>
+                          </div>
+                        ) : null}
+                      </div>
+                      <LocalReplayViewer replay={turnReplay} />
                     </div>
-                    <LocalReplayViewer replay={turnReplay} />
-                  </div>
+                  ) : null}
                 </details>
                 <div className="permissions-panel" aria-label="权限">
                   <div className="permissions-heading">

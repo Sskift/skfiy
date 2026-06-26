@@ -90,7 +90,7 @@ Manual blocker policy:
 | Workstream | Expected capability | Current evidence to inspect | Real acceptance |
 | --- | --- | --- | --- |
 | Agent and routing | Every user request enters an assistant turn; the agent can answer, clarify, refuse, request confirmation, or call Computer Use tools. | `src/main/assistant-agent.ts`, `src/main/task-routing.ts`, `src/main/main.ts`, focused agent/routing tests. | Chat request stays in agent; Ghostty/Chrome/Finder requests produce structured turn/tool evidence; stop cancels queued work. |
-| Dashboard and settings | Dashboard answers whether skfiy can control desktop/browser now and exposes provider readiness, permission state, current turn, replay, dogfood, Browser Context, Computer Use tool status, monitor scheduler state, and dashboard build identity. | `src/dashboard/*`, `src/main/dashboard-server.ts`, `src/main/dashboard-data.ts`, dashboard tests. | `npm run smoke:dashboard -- --cli dist/skfiy --require-passed --output .skfiy-smoke/dashboard-<commit>.json`. |
+| Dashboard and settings | Dashboard answers whether skfiy can chat, see Browser Context, and needs user attention before exposing deeper operator evidence. It also exposes provider readiness, permission state, current turn, replay, dogfood, Browser Context, Computer Use tool status, monitor scheduler state, dashboard build identity, and the compact `/api/evidence-summary` supervision API. | `src/dashboard/*`, `src/main/dashboard-server.ts`, `src/main/dashboard-data.ts`, `src/main/dashboard-evidence-summary.ts`, dashboard tests. | `npm run smoke:dashboard -- --cli dist/skfiy --require-passed --output .skfiy-smoke/dashboard-<commit>.json`. |
 | Computer Use adapters | Agent tool layer can observe, act, verify, stop, and replay for supported Ghostty, Finder, and Chromium/Chrome routes. | `src/main/computer-use/*`, `src/main/task-routing.ts`, adapter tests, smoke artifacts. | UI, Ghostty, Finder, and Chrome packaged smokes pass or are blocked only by manual macOS/browser authorization. |
 | Browser bridge | Chromium extension and native host can observe, navigate, click, type, scroll, reload, and report permission/host failures. | `chrome-extension/*`, `src/main/chrome-native-host.ts`, `src/main/chrome-extension-page-control.ts`, Chrome tests. | `npm run smoke:chrome -- --app dist/skfiy.app --require-passed --output .skfiy-smoke/chrome-<commit>.json`. |
 | Release and dogfood SRE | Build, smoke, alpha artifact, issue body, dogfood report, cohort, and status gates all reference the same commit and artifacts. | `package.json`, `scripts/create-alpha-artifact.mjs`, `scripts/dogfood-status.mjs`, `docs/release-evidence/latest-alpha.json`. | Build passes; required smoke artifacts match current commit; alpha artifact and dogfood status do not point to stale evidence. |
@@ -109,26 +109,40 @@ local-first desktop pet, Background Agent first, Browser Context as an
 enhancement, and Computer Use as a permissioned tool layer. The remaining gap is
 not raw capability; it is default product hierarchy.
 
-The next implementation package is active plan Task 12:
+The current implementation package is active plan Task 12:
 `Product Surface Simplification And Evidence Integrity`.
 
 Acceptance for that package:
 
 - Dashboard first scan answers exactly the operational questions a normal user
   has before reading evidence: can skfiy chat, can it see the current browser
-  page, and is anything waiting for approval or inspection.
+  page, and is anything waiting for approval or inspection. Radar/flow/release
+  evidence remains below the first scan.
 - Pet right-click settings stay lightweight: Background Agent choice, app policy
-  summary, and permissions. Dense replay, planner, release, smoke, and graph
-  detail live in Dashboard or an advanced disclosure.
-- Release evidence, smoke artifacts, radar/flow charts, and the Knowledge graph
-  remain available for operators, but they are not the first mental model for
-  ordinary use.
-- Malformed or stale runtime snapshot evidence is typed as
-  `runtime-snapshot-invalid` or an equivalent evidence code before Dashboard or
-  CLI status presents current-turn/replay data as trustworthy.
+  summary, and permissions. Dense replay and Computer Use Planner settings are
+  hidden under the existing advanced disclosure; release, smoke, and graph
+  detail live in Dashboard.
+- Release evidence, smoke artifacts, radar/flow charts, the compact
+  `/api/evidence-summary` API, and the Knowledge graph remain available for
+  operators, but they are not the first mental model for ordinary use.
+- Malformed runtime snapshot evidence is surfaced as
+  `runtime-snapshot-invalid` in Dashboard evidence while current-turn data falls
+  back to `unknown` before UI presents replay/current-turn data as trustworthy.
 - No-focus validation remains the default: `smoke:v2` defaults to `silent`,
   `smoke:v2 --profile release` must record `stealsFocus: false`, and visible
   field smoke is opt-in only.
+
+Documentation cleanup rule for this package: delete or fold short research
+notes once their contract is represented by code tests and canonical docs. The
+old dashboard evidence-summary note was folded into this matrix because the
+source of truth is now `src/main/dashboard-evidence-summary.ts` plus its tests.
+
+Current Task 12 verification status on 2026-06-26: focused tests, full Vitest,
+typecheck, `git diff --check`, and `npm run build` pass. Dashboard smoke passes
+through the no-open product path. UI product smoke is still blocked by
+`provider-usage-limit` from the Codex provider call and by the current locked or
+asleep desktop state (`desktop-session-blocked`); the smoke artifacts still
+record `stealsFocus: false`.
 
 ## Current Branch Hardening Evidence
 

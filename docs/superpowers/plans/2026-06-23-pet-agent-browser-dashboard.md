@@ -29,10 +29,10 @@
 - Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
 - Evidence graph follow-up: Keep the graph useful for locating memory/session/browser/tool evidence and provenance. Do not let it displace the operator workspace or regress into a read-only decorative canvas.
 - Product/UX review from 2026-06-26: the product boundary is now clear and useful for dogfood, but the default UI still reads like an engineer/operator console. The first scan should answer three questions before exposing evidence detail: can skfiy chat, can Browser Context see the current page, and is anything waiting for the user to approve or inspect.
-- Dashboard follow-up: provider, Browser Context, pending action, and automation state should remain first-class, while release evidence, smoke details, radar/flow charts, and the Knowledge graph should move behind an evidence/operator view. The graph remains valuable, but it must not be the mental model for ordinary use.
-- Pet settings follow-up: keep right-click settings lightweight for daily provider choice, app policy summary, and permissions. Dense replay, planner, and release/smoke evidence belong in Dashboard or an advanced disclosure.
-- Evidence integrity follow-up: if `runtime-snapshot.json` is malformed or stale, status/doctor/Dashboard must surface a typed `runtime-snapshot-invalid` or equivalent evidence state and avoid presenting current-turn/replay data as authoritative.
-- Documentation hygiene: completed design specs should be folded into this active plan or canonical docs, then removed. Avoid keeping parallel `docs/superpowers/specs/*` files that can compete with the single active plan.
+- Dashboard follow-up: Task 12 simplifies the first scan to Chat readiness, Browser Context, and Waiting on you. Release evidence, smoke details, radar/flow charts, and the Knowledge graph remain below the first scan as evidence/operator surfaces.
+- Pet settings follow-up: Task 12 keeps right-click settings lightweight for daily provider choice, app policy summary, and permissions. Dense replay and Computer Use Planner settings stay under the advanced disclosure; release/smoke evidence belongs in Dashboard.
+- Evidence integrity follow-up: Task 12 surfaces malformed runtime snapshots as `runtime-snapshot-invalid` Dashboard evidence and presents current-turn state as `unknown` before replay/current-turn data is trusted. CLI status already reports invalid runtime snapshots as invalid with unknown current turn; unifying the exact blocker code in CLI status/doctor remains a follow-up if required.
+- Documentation hygiene: completed design specs should be folded into this active plan or canonical docs, then removed. Avoid keeping parallel `docs/superpowers/specs/*` files that can compete with the single active plan. Short API restatement notes should also be folded into canonical docs and tests; the old Dashboard evidence-summary research note has been folded into `docs/product-readiness-matrix.md`.
 
 ## File Ownership Map
 
@@ -1895,14 +1895,14 @@ Verified commits are on branch `codex/agent-workbench-hardening`; keep this line
 - Modify: `src/renderer/App.tsx`
 - Modify: `src/renderer/App.test.tsx`
 - Modify: `src/renderer/styles.css`
-- Modify: `src/main/cli-command-surface.ts`
-- Modify: `src/main/cli-command-surface.test.ts`
 - Modify: `src/main/dashboard-data.ts`
 - Modify: `src/main/dashboard-data.test.ts`
 - Modify: `docs/product-readiness-matrix.md`
 - Modify: `docs/development-workflow.md`
+- Reference existing CLI invalid-runtime behavior: `src/main/cli-command-surface.ts`
+- Reference existing CLI tests: `src/main/cli-command-surface.test.ts`
 
-- [ ] **Step 1: Write Dashboard first-scan regression tests**
+- [x] **Step 1: Write Dashboard first-scan regression tests**
 
 In `src/dashboard/DashboardApp.test.tsx`, add a test named
 `keeps the default dashboard scan path focused on chat, browser context, and user action`.
@@ -1929,7 +1929,7 @@ expect(screen.getByRole("region", { name: "Knowledge graph" })).toBeInTheDocumen
 expect(screen.getByRole("heading", { name: "Release gate" })).toBeInTheDocument();
 ```
 
-- [ ] **Step 2: Run Dashboard tests and confirm they fail**
+- [x] **Step 2: Run Dashboard tests and confirm they fail**
 
 ```bash
 npx vitest run src/dashboard/DashboardApp.test.tsx --reporter=dot --testTimeout=20000
@@ -1939,7 +1939,7 @@ Expected: fail because the current overview still contains the radar/flow
 command center and does not expose the simplified `Chat readiness`,
 `Browser Context`, and `Waiting on you` headings.
 
-- [ ] **Step 3: Simplify the Dashboard default scan path**
+- [x] **Step 3: Simplify the Dashboard default scan path**
 
 In `src/dashboard/DashboardApp.tsx`, replace the first-screen command center
 with three compact summary cards:
@@ -1963,7 +1963,7 @@ duplicate parsing logic:
 - `readBrowserContextSummary(snapshot)`
 - `readUserAttentionSummary(snapshot)`
 
-- [ ] **Step 4: Tighten Dashboard visual hierarchy**
+- [x] **Step 4: Tighten Dashboard visual hierarchy**
 
 In `src/dashboard/styles.css`:
 
@@ -1976,7 +1976,7 @@ In `src/dashboard/styles.css`:
 - Ensure chip text wraps or truncates inside its own container and does not
   create horizontal overflow at 1280px desktop width.
 
-- [ ] **Step 5: Write pet settings regression tests**
+- [x] **Step 5: Write pet settings regression tests**
 
 In `src/renderer/App.test.tsx`, add a test named
 `keeps right click settings lightweight and moves evidence detail out of the daily path`.
@@ -1995,23 +1995,27 @@ If `Computer Use Planner` remains available from the pet, keep it under the
 existing `诊断/高级` disclosure and assert it is not visible until that disclosure
 is opened.
 
-- [ ] **Step 6: Surface runtime snapshot evidence honestly**
+- [x] **Step 6: Surface runtime snapshot evidence honestly**
 
-In `src/main/cli-command-surface.test.ts` and `src/main/dashboard-data.test.ts`,
-add malformed `runtime-snapshot.json` fixtures and assert:
+`src/main/cli-command-surface.ts` already reports malformed
+`runtime-snapshot.json` as runtime evidence with `state: "invalid"` and
+`currentTurn.state: "unknown"`. This task adds Dashboard evidence coverage in
+`src/main/dashboard-data.test.ts` and user-attention coverage in
+`src/dashboard/model.test.ts`:
 
 ```ts
-expect(status.evidence.runtimeSnapshot.state).toBe("invalid");
-expect(status.evidence.currentTurn.state).toBe("unknown");
-expect(JSON.stringify(status.readiness.blockers)).toContain("runtime-snapshot-invalid");
+expect(snapshot.runtimeHealth.runtimeSnapshot.emptyReasonCode).toBe("runtime-snapshot-invalid");
+expect(snapshot.currentTurn.state).toBe("unknown");
+expect(snapshot.alerts).toContainEqual(expect.objectContaining({ code: "runtime-snapshot-invalid" }));
 ```
 
 If product readiness should remain `ready` despite a malformed snapshot, record
 the invalid snapshot as an `evidence` or `activity` blocker instead of a runtime
-blocker, but keep the typed code `runtime-snapshot-invalid` visible in
-status/doctor/Dashboard.
+blocker. Keep the typed code `runtime-snapshot-invalid` visible in Dashboard
+evidence; add a separate CLI status/doctor task if the same exact code must be
+reported there instead of the existing `runtimeSnapshot.state: "invalid"`.
 
-- [ ] **Step 7: Run focused verification**
+- [x] **Step 7: Run focused verification**
 
 ```bash
 npx vitest run src/dashboard/DashboardApp.test.tsx src/dashboard/model.test.ts --reporter=dot --testTimeout=20000
@@ -2040,6 +2044,14 @@ Expected:
 - Dashboard screenshot evidence shows the first scan focused on chat,
   Browser Context, and user attention; graph/evidence detail remains reachable
   below the first scan.
+
+Current 2026-06-26 evidence:
+
+- `npm run build` exited 0 and packaged `dist/skfiy.app`.
+- `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` wrote the release artifact but exited 2. The `cli-basic` and `dashboard-product` scenarios passed; `ui-product` recorded `result: "missing-stop-turn-behavior"`, `focusMode: "hidden-window"`, and `stealsFocus: false`.
+- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` exited 0 and recorded `launchMode: "hidden"` and `stealsFocus: false`, but the artifact result is `missing-stop-turn-behavior` because the Background Agent call hit a Codex usage limit and the current desktop session is locked/asleep.
+- `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` exited 0 and recorded `result: "passed"` through `skfiy dashboard --no-open`.
+- Typed blockers before Step 8 can be checked off: `provider-usage-limit` (Codex CLI reports usage limit; retry after quota reset or use another chat-ready provider) and `desktop-session-blocked` (frontmost `com.apple.loginwindow`, main display asleep; wake/unlock before field or stop-turn product proof).
 
 - [ ] **Step 9: Commit**
 

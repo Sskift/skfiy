@@ -366,11 +366,16 @@ describe("DashboardApp", () => {
     expect(screen.getByRole("region", { name: "Next action" })).toBeInTheDocument();
 
     const overview = screen.getByRole("region", { name: "Operator workspace" });
-    expect(within(overview).getByRole("heading", { name: "Assistant Provider" })).toBeInTheDocument();
-    expect(within(overview).getByRole("heading", { name: "Computer Use" })).toBeInTheDocument();
-    expect(within(overview).getByRole("heading", { name: "Chrome Browser Context" })).toBeInTheDocument();
-    expect(within(overview).getByRole("heading", { name: "Current Turn" })).toBeInTheDocument();
-    const commandCenter = within(overview).getByRole("region", { name: "Agent workspace" });
+    expect(within(overview).getByRole("heading", { name: "Chat readiness" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Browser Context" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Waiting on you" })).toBeInTheDocument();
+    expect(within(overview).getByText("Codex")).toBeInTheDocument();
+    expect(within(overview).getByText("skfiy Dashboard")).toBeInTheDocument();
+    expect(within(overview).getByText("Grant Screen Recording")).toBeInTheDocument();
+    expect(within(overview).queryByRole("img", { name: "Readiness radar chart" })).not.toBeInTheDocument();
+    expect(within(overview).queryByRole("img", { name: "Agent runtime flow chart" })).not.toBeInTheDocument();
+    expect(within(overview).queryByText("release behind-head")).not.toBeInTheDocument();
+    const commandCenter = screen.getByRole("region", { name: "Agent workspace" });
     expect(within(commandCenter).getByText("Background Agent workspace")).toBeInTheDocument();
     expect(within(commandCenter).getByRole("img", { name: "Readiness radar chart" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("img", { name: "Agent runtime flow chart" })).toBeInTheDocument();
@@ -378,6 +383,7 @@ describe("DashboardApp", () => {
     expect(within(commandCenter).getByRole("progressbar", { name: "Operational confidence" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("progressbar", { name: "Browser context" })).toBeInTheDocument();
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(overview.compareDocumentPosition(commandCenter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(commandCenter.compareDocumentPosition(graph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const provider = screen.getByRole("region", { name: "Background Agent" });
@@ -528,6 +534,30 @@ describe("DashboardApp", () => {
     expect(screen.getByLabelText("Dashboard connection: connected")).toBeInTheDocument();
   });
 
+  it("keeps the default dashboard scan path focused on chat, browser context, and user action", async () => {
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => snapshot)}
+    />);
+
+    const overview = await screen.findByRole("region", { name: "Operator workspace" });
+    expect(within(overview).getByRole("heading", { name: "Chat readiness" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Browser Context" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Waiting on you" })).toBeInTheDocument();
+    expect(within(overview).queryByRole("img", { name: /readiness radar chart/i })).not.toBeInTheDocument();
+    expect(within(overview).queryByRole("img", { name: /agent runtime flow chart/i })).not.toBeInTheDocument();
+    expect(within(overview).queryByText(/release behind-head/i)).not.toBeInTheDocument();
+
+    expect(screen.getByRole("region", { name: "Activity" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Knowledge graph" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Release gate" })).toBeInTheDocument();
+  });
+
   it("frames Computer Use as an agent tool layer instead of a primary chat surface", async () => {
     render(<DashboardApp
       loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
@@ -602,12 +632,11 @@ describe("DashboardApp", () => {
     />);
 
     const overview = await screen.findByRole("region", { name: "Operator workspace" });
-    expect(within(overview).getByRole("heading", { name: "Assistant Provider" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Chat readiness" })).toBeInTheDocument();
     expect(within(overview).getAllByText("Codex").length).toBeGreaterThan(0);
-    expect(within(overview).getByRole("heading", { name: "Chrome Browser Context" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Browser Context" })).toBeInTheDocument();
     expect(within(overview).getAllByText("blocked_by_chrome_host_permission").length).toBeGreaterThan(0);
-    expect(within(overview).getByRole("heading", { name: "Current Turn" })).toBeInTheDocument();
-    expect(within(overview).getAllByText("failed").length).toBeGreaterThan(0);
+    expect(within(overview).getByRole("heading", { name: "Waiting on you" })).toBeInTheDocument();
 
     const activity = screen.getByRole("region", { name: "Activity" });
     expect(within(activity).getByRole("heading", { name: "Latest blocker" })).toBeInTheDocument();

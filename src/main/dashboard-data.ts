@@ -1391,6 +1391,18 @@ function createDashboardAlerts({
 
   if (runtimeSnapshot?.state === "repaired" || runtimeSnapshot?.state === "isolated") {
     alerts.push({
+      code: "runtime-snapshot-invalid",
+      severity: "warning",
+      message: runtimeSnapshot.state === "repaired"
+        ? "Runtime snapshot was invalid; skfiy isolated it and wrote a clean replacement."
+        : "Runtime snapshot was invalid and isolated; a clean replacement was not written.",
+      ...(typeof runtimeSnapshot.path === "string" ? { path: runtimeSnapshot.path } : {}),
+      ...(typeof runtimeSnapshot.isolatedPath === "string"
+        ? { isolatedPath: runtimeSnapshot.isolatedPath }
+        : {}),
+      ...(typeof runtimeSnapshot.reason === "string" ? { reason: runtimeSnapshot.reason } : {})
+    });
+    alerts.push({
       code: "runtime-snapshot-repaired",
       severity: "warning",
       message: runtimeSnapshot.state === "repaired"
@@ -1432,6 +1444,13 @@ function createDashboardAlerts({
   }
 
   if (runtimeSnapshot?.state === "repair-failed") {
+    alerts.push({
+      code: "runtime-snapshot-invalid",
+      severity: "error",
+      message: "Runtime snapshot is invalid and could not be isolated.",
+      ...(typeof runtimeSnapshot.path === "string" ? { path: runtimeSnapshot.path } : {}),
+      ...(typeof runtimeSnapshot.reason === "string" ? { reason: runtimeSnapshot.reason } : {})
+    });
     alerts.push({
       code: "runtime-snapshot-repair-failed",
       severity: "error",
@@ -1938,7 +1957,9 @@ function repairRuntimeSnapshot({
     };
 
     return {
-      ...createMissingRuntimePanels(reason, snapshotPath, recovery),
+      ...createMissingRuntimePanels(reason, snapshotPath, recovery, {
+        emptyReasonCode: "runtime-snapshot-invalid"
+      }),
       status: {
         state: "repaired",
         path: snapshotPath,
@@ -1946,7 +1967,8 @@ function repairRuntimeSnapshot({
         replacementPath: snapshotPath,
         sha256,
         observedAt,
-        reason
+        reason,
+        emptyReasonCode: "runtime-snapshot-invalid"
       }
     };
   } catch (error) {
@@ -1962,7 +1984,9 @@ function repairRuntimeSnapshot({
     };
 
     return {
-      ...createMissingRuntimePanels(reason, snapshotPath, recovery),
+      ...createMissingRuntimePanels(reason, snapshotPath, recovery, {
+        emptyReasonCode: "runtime-snapshot-invalid"
+      }),
       status: {
         state,
         path: snapshotPath,
@@ -1971,6 +1995,7 @@ function repairRuntimeSnapshot({
         sha256,
         observedAt,
         reason,
+        emptyReasonCode: "runtime-snapshot-invalid",
         repairError
       }
     };
@@ -1997,7 +2022,7 @@ function createMissingRuntimePanels(
 } {
   return {
     currentTurn: {
-      state: "idle",
+      state: recovery || metadata.emptyReasonCode === "runtime-snapshot-invalid" ? "unknown" : "idle",
       source: "runtime-snapshot",
       reason,
       ...metadata,

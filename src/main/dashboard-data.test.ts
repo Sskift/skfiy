@@ -2686,11 +2686,13 @@ describe("dashboard snapshot data", () => {
       isolatedPath: renamed[0].toPath,
       replacementPath: runtimePath,
       sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      emptyReasonCode: "runtime-snapshot-invalid",
       reason: expect.stringContaining("JSON")
     });
     expect(firstSnapshot.currentTurn).toMatchObject({
-      state: "idle",
+      state: "unknown",
       source: "runtime-snapshot",
+      emptyReasonCode: "runtime-snapshot-invalid",
       path: runtimePath,
       recovery: {
         state: "repaired",
@@ -2704,6 +2706,14 @@ describe("dashboard snapshot data", () => {
       recovery: {
         state: "repaired"
       }
+    });
+    expect(firstSnapshot.alerts).toContainEqual({
+      code: "runtime-snapshot-invalid",
+      severity: "warning",
+      message: "Runtime snapshot was invalid; skfiy isolated it and wrote a clean replacement.",
+      path: runtimePath,
+      isolatedPath: renamed[0].toPath,
+      reason: expect.stringContaining("JSON")
     });
     expect(firstSnapshot.alerts).toContainEqual({
       code: "runtime-snapshot-repaired",

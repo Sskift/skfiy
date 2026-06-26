@@ -72,4 +72,8 @@ anything waiting for the user. Release evidence, smoke detail, planner settings,
 and the Knowledge graph are operator/evidence surfaces, not the ordinary first
 decision path.
 
+Use `/api/evidence-summary` for compact supervision/status cards that need
+allowlisted health signals. Use `/snapshot.json` for the detailed operator
+Dashboard state.
+
 Do not add in-app audio input, input-method provider, or transcript panels.

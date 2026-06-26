@@ -4,7 +4,8 @@ import {
   readAutomationSummary,
   readChromeControlState,
   readComputerUseReadiness,
-  readKnowledgeGraph
+  readKnowledgeGraph,
+  readUserAttentionSummary
 } from "./model";
 
 describe("readKnowledgeGraph", () => {
@@ -322,6 +323,34 @@ describe("readAutomationSummary", () => {
           tone: "warning"
         }
       ]
+    });
+  });
+});
+
+describe("readUserAttentionSummary", () => {
+  it("prioritizes invalid runtime snapshot evidence over generic next actions", () => {
+    const summary = readUserAttentionSummary({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "unknown",
+        source: "runtime-snapshot",
+        emptyReasonCode: "runtime-snapshot-invalid"
+      },
+      alerts: [
+        {
+          code: "runtime-snapshot-invalid",
+          severity: "warning",
+          message: "Runtime snapshot was invalid; skfiy isolated it and wrote a clean replacement."
+        }
+      ]
+    });
+
+    expect(summary).toMatchObject({
+      title: "Waiting on you",
+      value: "runtime-snapshot-invalid",
+      detail: "Runtime snapshot was invalid; skfiy isolated it and wrote a clean replacement.",
+      tone: "warning",
+      source: "Runtime snapshot"
     });
   });
 });
