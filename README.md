@@ -77,11 +77,12 @@ caches can be deleted locally.
   product-path testing contract for user-visible work.
 - [docs/internal-alpha-build.md](docs/internal-alpha-build.md): unsigned alpha
   artifact, GitHub pre-release, dogfood, and cohort workflow.
-- [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md): manual
-  unpacked extension install, native host setup, and bridge diagnostics.
-- [docs/research/](docs/research/): historical research and implementation
-  notes. Fold durable operational instructions back into the README or workflow
-  docs instead of treating old plans as live checklists.
+- [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md): canonical
+  extension install, native host setup, Browser Context readiness, permission
+  recovery, and bridge diagnostics.
+- [docs/research/](docs/research/): retained research that still feeds the
+  active plan. Fold durable operational instructions back into canonical docs
+  and tests instead of treating old notes as live checklists.
 
 ## MVP Scope
 

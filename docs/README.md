@@ -12,8 +12,8 @@ research notes as dated context unless they contain a still-open product gap.
   validation through `dist/skfiy.app` and packaged smoke gates.
 - `internal-alpha-build.md`: unsigned alpha packaging, release evidence,
   dogfood tester flow, and cohort verification.
-- `chrome-extension-setup.md`: Chrome unpacked extension setup, Native
-  Messaging host install/status checks, and troubleshooting.
+- `chrome-extension-setup.md`: canonical Chrome extension setup, permission,
+  Native Messaging, Browser Context readiness, and recovery docs.
 - `product-readiness-matrix.md`: supervisor-facing product boundary,
   workstream ownership, real-scenario acceptance, and QA/SRE gate.
 - `release-evidence/latest-alpha.json`: latest published alpha pointer used by
@@ -26,9 +26,9 @@ research notes as dated context unless they contain a still-open product gap.
 
 - `decisions/`: durable decision records that should stay stable unless the
   decision changes.
-- `research/`: dated research, architecture notes, and implementation logs.
-  Most files are archival, not active task lists. The dated long plan above is
-  the one exception while these workstreams are still open.
+- `research/`: retained dated research that still feeds the active plan. Keep
+  only notes with open product value; fold implementation logs and API
+  restatements into canonical docs and tests, then delete them.
 - `superpowers/plans/`: active implementation plans for agentic work. Keep
   exactly one active plan unless the project owner explicitly asks for a
   temporary split.
@@ -39,6 +39,8 @@ research notes as dated context unless they contain a still-open product gap.
   folded into canonical docs and tests, then removed. The Dashboard
   `/api/evidence-summary` contract now lives in
   `product-readiness-matrix.md` and `src/main/dashboard-evidence-summary.test.ts`.
+  The old Chrome extension architecture note has been folded into
+  `chrome-extension-setup.md`, Browser Context tests, and the active plan.
 
 ## Local Artifact Hygiene
 

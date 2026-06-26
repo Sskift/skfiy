@@ -136,13 +136,19 @@ Documentation cleanup rule for this package: delete or fold short research
 notes once their contract is represented by code tests and canonical docs. The
 old dashboard evidence-summary note was folded into this matrix because the
 source of truth is now `src/main/dashboard-evidence-summary.ts` plus its tests.
+The old Chrome extension architecture note was removed after its durable setup,
+permission, and Browser Context recovery details were folded into
+`docs/chrome-extension-setup.md`, Browser Context tests, and the active plan.
 
 Current Task 12 verification status on 2026-06-26: focused tests, full Vitest,
 typecheck, `git diff --check`, and `npm run build` pass. Dashboard smoke passes
-through the no-open product path. UI product smoke is still blocked by
-`provider-usage-limit` from the Codex provider call and by the current locked or
-asleep desktop state (`desktop-session-blocked`); the smoke artifacts still
-record `stealsFocus: false`.
+through the no-open product path. Hidden UI product smoke no longer depends on a
+live Background Agent quota because the smoke launch injects
+`SKFIY_SMOKE_ASSISTANT_REPLY`; the assistant conversation path records a
+deterministic skfiy reply while preserving the normal provider path outside
+smoke. The remaining UI product blocker is the current locked or asleep desktop
+state (`desktop-session-blocked`), which prevents stop-turn approval evidence;
+the smoke artifacts still record `stealsFocus: false`.
 
 ## Current Branch Hardening Evidence
 
@@ -174,6 +180,10 @@ top of that baseline.
 - Background Agent readiness distinguishes executable discovery, version probe,
   bounded dry-run chat proof, and auth/quota/permission failure. Only dry-run
   chat proof is `chat-ready`.
+- Hidden UI smoke uses a smoke-only deterministic assistant reply so provider
+  quota does not mask renderer, pet drag, or stop-turn product evidence.
+  Provider auth/quota failures still remain real typed blockers for Background
+  Agent readiness dry-runs.
 - Automation monitor snapshots now separate the persisted monitor result from
   the app-process scheduler lifecycle. Dashboard API `run-now` is a read-only
   one-shot with `mutatesSession: false`; an inactive scheduler with a persisted

@@ -32,7 +32,7 @@
 - Dashboard follow-up: Task 12 simplifies the first scan to Chat readiness, Browser Context, and Waiting on you. Release evidence, smoke details, radar/flow charts, and the Knowledge graph remain below the first scan as evidence/operator surfaces.
 - Pet settings follow-up: Task 12 keeps right-click settings lightweight for daily provider choice, app policy summary, and permissions. Dense replay and Computer Use Planner settings stay under the advanced disclosure; release/smoke evidence belongs in Dashboard.
 - Evidence integrity follow-up: Task 12 surfaces malformed runtime snapshots as `runtime-snapshot-invalid` Dashboard evidence and presents current-turn state as `unknown` before replay/current-turn data is trusted. CLI status already reports invalid runtime snapshots as invalid with unknown current turn; unifying the exact blocker code in CLI status/doctor remains a follow-up if required.
-- Documentation hygiene: completed design specs should be folded into this active plan or canonical docs, then removed. Avoid keeping parallel `docs/superpowers/specs/*` files that can compete with the single active plan. Short API restatement notes should also be folded into canonical docs and tests; the old Dashboard evidence-summary research note has been folded into `docs/product-readiness-matrix.md`.
+- Documentation hygiene: completed design specs should be folded into this active plan or canonical docs, then removed. Avoid keeping parallel `docs/superpowers/specs/*` files that can compete with the single active plan. Short API restatement notes should also be folded into canonical docs and tests; the old Dashboard evidence-summary research note has been folded into `docs/product-readiness-matrix.md`, and the old Chrome extension architecture note has been folded into `docs/chrome-extension-setup.md`, Browser Context tests, and this active plan.
 
 ## File Ownership Map
 
@@ -2049,16 +2049,19 @@ Current 2026-06-26 evidence:
 
 - `npm run build` exited 0 and packaged `dist/skfiy.app`.
 - `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` wrote the release artifact but exited 2. The `cli-basic` and `dashboard-product` scenarios passed; `ui-product` recorded `result: "missing-stop-turn-behavior"`, `focusMode: "hidden-window"`, and `stealsFocus: false`.
-- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` exited 0 and recorded `launchMode: "hidden"` and `stealsFocus: false`, but the artifact result is `missing-stop-turn-behavior` because the Background Agent call hit a Codex usage limit and the current desktop session is locked/asleep.
+- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` exited 0 and recorded `launchMode: "hidden"` and `stealsFocus: false`. After `ac28ba0 test: make ui smoke quota independent`, the artifact's assistant conversation path uses `SKFIY_SMOKE_ASSISTANT_REPLY` and records a deterministic skfiy reply instead of calling a live provider quota path. The artifact result remains `missing-stop-turn-behavior` because the current desktop session is locked/asleep, so stop-turn approval UI cannot be proven.
 - `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` exited 0 and recorded `result: "passed"` through `skfiy dashboard --no-open`.
-- Typed blockers before Step 8 can be checked off: `provider-usage-limit` (Codex CLI reports usage limit; retry after quota reset or use another chat-ready provider) and `desktop-session-blocked` (frontmost `com.apple.loginwindow`, main display asleep; wake/unlock before field or stop-turn product proof).
+- Remaining typed blocker before Step 8 can be checked off: `desktop-session-blocked` (frontmost `com.apple.loginwindow`, main display asleep; wake/unlock before field or stop-turn product proof). `provider-usage-limit` is no longer a UI smoke blocker, although real Background Agent readiness dry-runs can still report `provider-auth-blocked` when a provider is not chat-ready.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
-git add src/dashboard/DashboardApp.tsx src/dashboard/DashboardApp.test.tsx src/dashboard/model.ts src/dashboard/model.test.ts src/dashboard/styles.css src/renderer/App.tsx src/renderer/App.test.tsx src/renderer/styles.css src/main/cli-command-surface.ts src/main/cli-command-surface.test.ts src/main/dashboard-data.ts src/main/dashboard-data.test.ts docs/product-readiness-matrix.md docs/development-workflow.md
 git commit -m "feat: simplify skfiy operator surface"
 ```
+
+Committed as `cc2443f feat: simplify skfiy operator surface`; follow-up hidden
+UI smoke quota independence was committed as
+`ac28ba0 test: make ui smoke quota independent`.
 
 ---
 
