@@ -176,6 +176,7 @@ interface VisiblePetRect extends Point, Size {}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const devServerUrl = process.env.SKFIY_DEV_SERVER_URL;
+const smokeWindowHidden = process.env.SKFIY_SMOKE_WINDOW_MODE === "hidden";
 app.setName("skfiy");
 const COMPACT_WINDOW_SIZE: Size = { width: 90, height: 66 };
 const EXPANDED_WINDOW_SIZE: Size = { width: 320, height: 500 };
@@ -1383,6 +1384,9 @@ async function createWindow() {
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: true,
+    show: !smokeWindowHidden,
+    focusable: !smokeWindowHidden,
+    paintWhenInitiallyHidden: true,
     hasShadow: false,
     backgroundColor: "#00000000",
     title: "skfiy",

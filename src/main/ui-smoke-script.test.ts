@@ -36,7 +36,9 @@ describe("packaged UI product smoke script", () => {
     expect(defaults).toMatchObject({
       appPath: path.join("/repo", "dist", "skfiy.app"),
       productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
-      requiredPermissionLabels: ["屏幕录制", "辅助功能"]
+      requiredPermissionLabels: ["屏幕录制", "辅助功能"],
+      launchMode: "hidden",
+      stealsFocus: false
     });
     expect(parseUiSmokeArgs([
       "--app",
@@ -53,6 +55,30 @@ describe("packaged UI product smoke script", () => {
       requirePassed: true
     });
     expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_BYPASS_APPROVAL=strict");
+    expect(formatUiLaunchCommand(defaults)).toContain("open -n -g -a");
+    expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_SMOKE_WINDOW_MODE=hidden");
+    expect(parseUiSmokeArgs(["--visible"], defaults)).toMatchObject({
+      launchMode: "visible",
+      stealsFocus: true
+    });
+    expect(formatUiLaunchCommand(parseUiSmokeArgs(["--visible"], defaults))).toContain("open -n -a");
+    expect(formatUiLaunchCommand(parseUiSmokeArgs(["--visible"], defaults))).not.toContain("-g -a");
+    expect(formatUiLaunchCommand(parseUiSmokeArgs(["--visible"], defaults))).not.toContain("SKFIY_SMOKE_WINDOW_MODE=hidden");
+  });
+
+  it("lets packaged UI smoke launch the app hidden without focusing the user's desktop", () => {
+    const mainSource = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const smokeSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-product.mjs"), "utf8");
+    const planSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-plan.mjs"), "utf8");
+
+    expect(mainSource).toContain("SKFIY_SMOKE_WINDOW_MODE");
+    expect(mainSource).toContain("show: !smokeWindowHidden");
+    expect(mainSource).toContain("focusable: !smokeWindowHidden");
+    expect(mainSource).toContain("paintWhenInitiallyHidden: true");
+    expect(planSource).toContain("SKFIY_SMOKE_WINDOW_MODE=hidden");
+    expect(smokeSource).toContain("options.launchMode === \"hidden\"");
+    expect(smokeSource).toContain("\"-g\"");
+    expect(smokeSource).toContain("HIDDEN_WINDOW_ENV");
   });
 
   it("classifies a real permission onboarding click as passed only with product-path evidence", async () => {

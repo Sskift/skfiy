@@ -55,7 +55,7 @@ const SCENARIOS = [
     artifactName: "ui-v2-product.json",
     script: "smoke:ui",
     args: ({ appPath }) => ["--app", appPath],
-    focusMode: "frontmost-app",
+    focusMode: "hidden-window",
     acceptedResults: ["passed", "no-onboarding"]
   },
   {

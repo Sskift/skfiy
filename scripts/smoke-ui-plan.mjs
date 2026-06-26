@@ -3,6 +3,7 @@ import path from "node:path";
 
 export const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 export const STRICT_APPROVAL_ENV = "SKFIY_BYPASS_APPROVAL=strict";
+export const HIDDEN_WINDOW_ENV = "SKFIY_SMOKE_WINDOW_MODE=hidden";
 export const REQUIRED_COMPUTER_USE_PERMISSION_KEYS = ["screenRecording", "accessibility"];
 export const REQUIRED_PERMISSION_KEYS = [
   "screenRecording",
@@ -24,6 +25,8 @@ export function createDefaultUiSmokeOptions(rootDir) {
     settleMs: 1_200,
     productPath: UI_PRODUCT_PATH,
     requiredPermissionLabels: [...REQUIRED_PERMISSION_LABELS],
+    launchMode: "hidden",
+    stealsFocus: false,
     requirePassed: false,
     keepExisting: false,
     keepOpen: false,
@@ -55,6 +58,14 @@ export function parseUiSmokeArgs(argv, defaults) {
         break;
       case "--require-passed":
         options.requirePassed = true;
+        break;
+      case "--hidden":
+        options.launchMode = "hidden";
+        options.stealsFocus = false;
+        break;
+      case "--visible":
+        options.launchMode = "visible";
+        options.stealsFocus = true;
         break;
       case "--keep-existing":
         options.keepExisting = true;
@@ -128,7 +139,9 @@ export async function writeUiSmokeEvidence(outputPath, evidence, io = fs) {
 }
 
 export function formatUiLaunchCommand(options) {
-  return `open -na ${options.appPath} --env ${STRICT_APPROVAL_ENV} --args --remote-debugging-port=${options.port}`;
+  const noFocusFlag = options.launchMode === "hidden" ? " -g" : "";
+  const hiddenEnv = options.launchMode === "hidden" ? ` --env ${HIDDEN_WINDOW_ENV}` : "";
+  return `open -n${noFocusFlag} -a ${options.appPath} --env ${STRICT_APPROVAL_ENV}${hiddenEnv} --args --remote-debugging-port=${options.port}`;
 }
 
 export function createUiHelpText(defaults) {
@@ -144,6 +157,8 @@ Options:
   --timeout-ms <ms>     Wait time for the renderer CDP page. Default: ${defaults.timeoutMs}
   --settle-ms <ms>      Wait after clicking the pet. Default: ${defaults.settleMs}
   --require-passed      Exit 2 unless the UI smoke result is passed.
+  --hidden              Launch skfiy hidden and without focusing the desktop. Default.
+  --visible             Launch skfiy visibly for frontmost app evidence.
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   -h, --help            Show this help.

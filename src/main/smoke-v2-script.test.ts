@@ -70,6 +70,19 @@ describe("smoke v2 runner", () => {
       profile: "release",
       artifactsDir: ".skfiy-smoke",
       appPath: "dist/skfiy.app"
+    }).map((scenario) => ({
+      id: scenario.id,
+      focusMode: scenario.focusMode,
+      stealsFocus: scenario.stealsFocus
+    }))).toEqual([
+      { id: "cli-basic", focusMode: "none", stealsFocus: false },
+      { id: "ui-product", focusMode: "hidden-window", stealsFocus: false },
+      { id: "dashboard-product", focusMode: "hidden-window", stealsFocus: false }
+    ]);
+    expect(createSmokeV2Plan({
+      profile: "release",
+      artifactsDir: ".skfiy-smoke",
+      appPath: "dist/skfiy.app"
     }).map((scenario) => path.basename(String(scenario.artifactPath)))).toEqual([
       "cli-v2-basic.json",
       "ui-v2-product.json",

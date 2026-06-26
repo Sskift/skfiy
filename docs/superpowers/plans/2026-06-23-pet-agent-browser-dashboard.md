@@ -1663,14 +1663,14 @@ Expected:
 
 - `.skfiy-smoke/v2/silent.json` passes without frontmost app control or mouse/keyboard focus stealing.
 - `smoke:v2` defaults to `silent`; it records `stealsFocus: false` for every executed scenario.
-- Frontmost app smoke remains opt-in only:
+- Release smoke remains no-focus by default; frontmost app field smoke remains opt-in only:
 
 ```bash
 npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed
 npm run smoke:v2 -- --profile field --output .skfiy-smoke/v2/field.json
 ```
 
-Do not run the opt-in commands while the user is actively using the Mac; they can activate skfiy, Ghostty, Finder, Chrome, or other target apps by design.
+`release` must record `stealsFocus: false` for every executed scenario. Do not run `field` while the user is actively using the Mac; field scenarios can activate skfiy, Ghostty, Finder, Chrome, or other target apps by design.
 
 - [x] **Step 11: Commit**
 
@@ -1711,7 +1711,7 @@ Expected:
 - `dist/skfiy` exists.
 - Known pre-existing CSS `calc(100%-...)` warnings can be recorded but must not be introduced by new code.
 
-- [ ] **Step 3: Run product smoke gates**
+- [x] **Step 3: Run product smoke gates**
 
 ```bash
 npm run smoke:ui -- --output .skfiy-smoke/ui-product.json
@@ -1752,14 +1752,15 @@ Current no-focus validation evidence from 2026-06-26:
 
 - `git diff --check` exited 0.
 - `npm run typecheck -- --pretty false` exited 0.
-- `npx vitest run --reporter=dot` exited 0 after updating the brittle main-process wiring source assertion for the new multi-line `createPendingApproval(...)` call shape; 113 files and 1099 tests passed. Existing React `act(...)` warnings remained warnings only.
+- `npx vitest run --reporter=dot` exited 0 after updating the UI smoke launch contract; 113 files and 1100 tests passed. Existing React `act(...)` warnings remained warnings only.
 - `npm run build` exited 0 and produced `dist/skfiy.app` plus `dist/skfiy`. Existing CSS minify warnings for `calc(100%-...)` remained build warnings only.
 - `npm run smoke:cli -- --profile basic --output .skfiy-smoke/cli-product-basic.json` exited 0 and recorded `result: passed`.
 - `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` exited 0 and recorded `result: passed`.
-- `npm run smoke:v2 -- --output .skfiy-smoke/v2/silent.json --require-passed` exited 0 and recorded `result: passed` with two executed scenarios: `cli-basic` (`focusMode: none`, `stealsFocus: false`) and `dashboard-product` (`focusMode: hidden-window`, `stealsFocus: false`).
-- `./dist/skfiy status --json` exited 0 with app/helper/cli/native host installed and extension connected; desktop session reported `blocked` because the current macOS session state is blocked/locked, so frontmost app smokes remain intentionally deferred.
+- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json --require-passed` exited 0 in hidden launch mode and recorded `launchMode: hidden`, `stealsFocus: false`, `result: no-onboarding`, passing `assistantConversation`, `petDrag`, and `stopTurnBehavior` with screenshot evidence at `.skfiy-smoke/ui-product.png`.
+- `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` exited 0 and recorded `result: passed` with three executed scenarios: `cli-basic` (`focusMode: none`, `stealsFocus: false`), `ui-product` (`focusMode: hidden-window`, `stealsFocus: false`), and `dashboard-product` (`focusMode: hidden-window`, `stealsFocus: false`).
+- `./dist/skfiy status --json` exited 0. The latest read-only summary reports typed `needs-action` blockers instead of permission ambiguity: `desktop-session-not-controllable` because `loginwindow` is frontmost, `stale-dashboard-build-mismatch` for an older reachable Dashboard process, and `extension-not-connected` because the Chrome Native Messaging heartbeat is stale. Browser Context itself reports active host `mew.bytedance.net`, host policy `allowed`, Chrome host permission `granted`, Chrome capture permission `granted`, and no pageControl blockers.
 - `./dist/skfiy chrome extension-info --json` exited 0 with `result: available`.
-- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` was intentionally not run in this pass because it can activate the packaged app and steal input focus. Run it only when the user explicitly allows frontmost app control.
+- Visible/frontmost smoke remains explicit opt-in only: use `npm run smoke:ui -- --visible ...` or `npm run smoke:v2 -- --profile field ...` only when the user allows frontmost app control.
 
 Current branch validation evidence from 2026-06-25:
 

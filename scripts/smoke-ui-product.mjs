@@ -11,6 +11,7 @@ import {
   createUiHelpText,
   formatUiLaunchCommand,
   parseUiSmokeArgs,
+  HIDDEN_WINDOW_ENV,
   STRICT_APPROVAL_ENV,
   writeUiSmokeEvidence
 } from "./smoke-ui-plan.mjs";
@@ -35,6 +36,8 @@ async function main() {
     timestamp: new Date().toISOString(),
     appPath: options.appPath,
     launch: formatUiLaunchCommand(options),
+    launchMode: options.launchMode,
+    stealsFocus: options.stealsFocus,
     appLaunchViaOpen: true,
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: options.productPath,
@@ -150,10 +153,12 @@ function assertUiSmokeReady(options) {
 async function launchSkfiy(options) {
   await execFileAsync("open", [
     "-n",
+    ...(options.launchMode === "hidden" ? ["-g"] : []),
     "-a",
     options.appPath,
     "--env",
     STRICT_APPROVAL_ENV,
+    ...(options.launchMode === "hidden" ? ["--env", HIDDEN_WINDOW_ENV] : []),
     "--args",
     `--remote-debugging-port=${options.port}`
   ]);
