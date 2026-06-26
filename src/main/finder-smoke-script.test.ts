@@ -55,6 +55,7 @@ describe("Finder product smoke script", () => {
     expect(source).toContain("拖放 Finder 测试文件夹");
     expect(source).toContain("openFinderFolder");
     expect(source).toContain("selectFinderFolder");
+    expect(source).toContain("prepareFinderTargetForMode(options.targetMode, evidence.fixtureRoot)");
     expect(source).toContain("readFinderDragProbe");
     expect(source).toContain("readFinderItemDragDrop");
     expect(source).toContain("readFinderPlanPreview");
@@ -503,6 +504,74 @@ describe("Finder product smoke script", () => {
         selectedCount: 0
       }
     })).toBe("failed");
+  });
+
+  it("reads the latest Finder smoke evidence that matches the isolated fixture root", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      readFinderSmokeEventEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      readFinderSmokeEventEvidence: (input: Record<string, unknown>) => {
+        finderSemanticObservation: Record<string, unknown>;
+        finderPlanPreview: Record<string, unknown>;
+      };
+    };
+    const fixtureRoot = "/tmp/skfiy-finder-smoke-CZSwTE";
+    const parentRoot = "/tmp";
+
+    const evidence = readFinderSmokeEventEvidence({
+      targetMode: "current-finder-folder",
+      fixtureRoot,
+      events: [
+        {
+          status: "observing",
+          finderSelection: {
+            source: "finder-applescript",
+            frontmostBundleId: "com.sskift.skfiy",
+            targetPath: parentRoot,
+            selection: [
+              { path: "/tmp/assessmentagent", name: "assessmentagent", kind: "directory" }
+            ]
+          }
+        },
+        {
+          status: "executing",
+          finderPlanPreview: {
+            rootPath: parentRoot,
+            operationCount: 12,
+            destructiveOperationCount: 0,
+            createFolders: ["/tmp/Other"],
+            moveFiles: [
+              { from: "/tmp/.DS_Store", to: "/tmp/Other/.DS_Store" }
+            ]
+          }
+        },
+        {
+          status: "observing",
+          finderSelection: {
+            source: "finder-applescript",
+            frontmostBundleId: "com.openai.codex",
+            targetPath: fixtureRoot,
+            selection: []
+          }
+        },
+        {
+          status: "executing",
+          finderPlanPreview: createFinderPlanPreviewEvidence(fixtureRoot)
+        }
+      ]
+    });
+
+    expect(evidence.finderSemanticObservation).toMatchObject({
+      result: "passed",
+      targetPath: fixtureRoot,
+      selectedCount: 0
+    });
+    expect(evidence.finderPlanPreview).toMatchObject({
+      result: "passed",
+      rootPath: fixtureRoot,
+      operationCount: 6
+    });
   });
 
   it("classifies a selected Finder folder organization only when semantic selection contains the fixture directory", async () => {

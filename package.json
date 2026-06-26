@@ -51,6 +51,7 @@
     "smoke:desktop-session": "node scripts/smoke-desktop-session.mjs",
     "smoke:automation-monitor": "node scripts/smoke-automation-monitor-product.mjs",
     "smoke:money-run": "node scripts/smoke-money-run-supervision.mjs",
+    "smoke:v2": "node scripts/smoke-v2-product.mjs",
     "dogfood:verify": "node scripts/verify-dogfood-artifacts.mjs",
     "dogfood:issue": "node scripts/create-dogfood-issue-draft.mjs",
     "dogfood:report": "node scripts/update-dogfood-cohort.mjs",

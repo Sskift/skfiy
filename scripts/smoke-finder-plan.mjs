@@ -279,6 +279,178 @@ export function classifyFinderSmokeEvidence({
   return "passed";
 }
 
+export function readFinderSmokeEventEvidence({
+  events = [],
+  finderObservation,
+  targetMode = "explicit-path",
+  fixtureRoot
+} = {}) {
+  return {
+    finderSemanticObservation: readFinderSemanticObservationFromEvents(
+      events,
+      finderObservation,
+      { targetMode, fixtureRoot }
+    ),
+    finderPlanPreview: readFinderPlanPreviewFromEvents(events, { fixtureRoot }),
+    finderPlanConfirmation: readFinderPlanConfirmationFromEvents(events, { fixtureRoot })
+  };
+}
+
+function readFinderSemanticObservationFromEvents(events, finderObservation, options = {}) {
+  const selectionEvent = findLastMatchingEvent(events, (event) => {
+    const selection = event?.finderSelection;
+    return Boolean(selection && finderSelectionMatchesFixture(selection, options));
+  })?.finderSelection
+    ?? findLastMatchingEvent(events, (event) => Boolean(event?.finderSelection))?.finderSelection;
+
+  if (selectionEvent) {
+    return {
+      result: "passed",
+      source: selectionEvent.source,
+      frontmostBundleId: selectionEvent.frontmostBundleId,
+      targetPath: selectionEvent.targetPath,
+      selectedCount: Array.isArray(selectionEvent.selection)
+        ? selectionEvent.selection.length
+        : undefined,
+      selectedItems: Array.isArray(selectionEvent.selection)
+        ? selectionEvent.selection.map((item) => ({
+          path: item.path,
+          name: item.name,
+          kind: item.kind
+        }))
+        : []
+    };
+  }
+
+  const blockedEvent = findLastMatchingEvent(events, (event) => (
+    typeof event?.message === "string"
+    && event.message.includes("Verification failed (selection):")
+    && isPermissionBlockedMessage(event.message)
+  ));
+
+  if (blockedEvent) {
+    return {
+      result: "blocked",
+      reason: blockedEvent.message
+    };
+  }
+
+  if (finderObservation?.result === "blocked") {
+    return {
+      result: "blocked",
+      reason: `Skipped Finder semantic selection because Finder observe_app was blocked: ${finderObservation.reason}`
+    };
+  }
+
+  return {
+    result: "missing"
+  };
+}
+
+function readFinderPlanPreviewFromEvents(events, options = {}) {
+  const preview = findLastMatchingEvent(events, (event) => {
+    const candidate = event?.finderPlanPreview;
+    return Boolean(candidate && finderPlanPreviewMatchesFixture(candidate, options));
+  })?.finderPlanPreview
+    ?? findLastMatchingEvent(events, (event) => Boolean(event?.finderPlanPreview))?.finderPlanPreview;
+
+  if (preview) {
+    return {
+      result: "passed",
+      rootPath: preview.rootPath,
+      operationCount: preview.operationCount,
+      destructiveOperationCount: preview.destructiveOperationCount,
+      createFolders: Array.isArray(preview.createFolders) ? preview.createFolders : [],
+      moveFiles: Array.isArray(preview.moveFiles) ? preview.moveFiles : []
+    };
+  }
+
+  return {
+    result: "missing"
+  };
+}
+
+function readFinderPlanConfirmationFromEvents(events, options = {}) {
+  const confirmationIndex = findLastIndex(events, (event) => (
+    event?.status === "approval_required"
+    && typeof event.message === "string"
+    && event.message.includes("Finder plan confirmation required")
+  ));
+
+  if (confirmationIndex === -1) {
+    return {
+      result: "missing"
+    };
+  }
+
+  const matchingPreviewIndex = findLastIndex(
+    events.slice(0, confirmationIndex),
+    (event) => {
+      const candidate = event?.finderPlanPreview;
+      return Boolean(candidate && finderPlanPreviewMatchesFixture(candidate, options));
+    }
+  );
+  const previewIndex = matchingPreviewIndex !== -1
+    ? matchingPreviewIndex
+    : findLastIndex(events.slice(0, confirmationIndex), (event) => Boolean(event?.finderPlanPreview));
+  const confirmationEvent = events[confirmationIndex];
+  const continuedAfterConfirmation = events.slice(confirmationIndex + 1).some((event) =>
+    event?.status !== "approval_required"
+  );
+
+  return {
+    result: continuedAfterConfirmation ? "passed" : "waiting",
+    reason: confirmationEvent.message.replace(/^.*Finder plan confirmation required:\s*/, ""),
+    confirmedAfterPreview: previewIndex !== -1 && previewIndex < confirmationIndex && continuedAfterConfirmation
+  };
+}
+
+function finderSelectionMatchesFixture(selection, { targetMode, fixtureRoot } = {}) {
+  if (typeof fixtureRoot !== "string") {
+    return true;
+  }
+
+  if (targetMode === "current-finder-folder") {
+    return typeof selection.targetPath === "string"
+      && path.resolve(selection.targetPath) === path.resolve(fixtureRoot);
+  }
+
+  if (targetMode === "selected-finder-folder") {
+    return Array.isArray(selection.selection)
+      && selection.selection.some((item) => (
+        item?.kind === "directory"
+        && typeof item.path === "string"
+        && path.resolve(item.path) === path.resolve(fixtureRoot)
+      ));
+  }
+
+  return typeof selection.targetPath !== "string"
+    || path.resolve(selection.targetPath) === path.resolve(fixtureRoot);
+}
+
+function finderPlanPreviewMatchesFixture(preview, { fixtureRoot } = {}) {
+  return typeof fixtureRoot !== "string"
+    || (
+      typeof preview.rootPath === "string"
+      && path.resolve(preview.rootPath) === path.resolve(fixtureRoot)
+    );
+}
+
+function findLastMatchingEvent(events, predicate) {
+  const index = findLastIndex(events, predicate);
+  return index === -1 ? undefined : events[index];
+}
+
+function findLastIndex(events, predicate) {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (predicate(events[index], index)) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 export function createPermissionBlockedFinderEvidence(permissions) {
   if (!hasDeniedComputerUsePermission(permissions)) {
     return undefined;

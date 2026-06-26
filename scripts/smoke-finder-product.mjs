@@ -15,6 +15,7 @@ import {
   createHelpText,
   parseProcessIds,
   parseFinderSmokeArgs,
+  readFinderSmokeEventEvidence,
   readFinderProductPath,
   withSmokeTimeout
 } from "./smoke-finder-plan.mjs";
@@ -129,6 +130,7 @@ async function main() {
     evidence.processesAfterLaunch = await readSkfiyProcesses();
 
     const page = await waitForRendererPage(options.port, options.timeoutMs);
+    await prepareFinderTargetForMode(options.targetMode, evidence.fixtureRoot);
     const cdp = await createCdpClient(page.webSocketDebuggerUrl);
     const sendCdp = (method, params, label) => withSmokeTimeout(
       cdp.send(method, params),
@@ -186,12 +188,12 @@ async function main() {
       evidence.appPolicySettings = appPolicySettings.result?.value;
       evidence.events = cdp.events;
       evidence.finderObservation = readFinderObservation(cdp.events);
-      evidence.finderSemanticObservation = readFinderSemanticObservation(
-        cdp.events,
-        evidence.finderObservation
-      );
-      evidence.finderPlanPreview = readFinderPlanPreview(cdp.events);
-      evidence.finderPlanConfirmation = readFinderPlanConfirmation(cdp.events);
+      Object.assign(evidence, readFinderSmokeEventEvidence({
+        events: cdp.events,
+        finderObservation: evidence.finderObservation,
+        targetMode: options.targetMode,
+        fixtureRoot: evidence.fixtureRoot
+      }));
       evidence.finderDragProbe = readFinderDragProbe(cdp.events, evidence.finderObservation);
       evidence.finderItemDragDrop = readFinderItemDragDrop(
         cdp.events,
@@ -204,12 +206,12 @@ async function main() {
     } catch (error) {
       evidence.events = cdp.events;
       evidence.finderObservation = readFinderObservation(cdp.events);
-      evidence.finderSemanticObservation = readFinderSemanticObservation(
-        cdp.events,
-        evidence.finderObservation
-      );
-      evidence.finderPlanPreview = readFinderPlanPreview(cdp.events);
-      evidence.finderPlanConfirmation = readFinderPlanConfirmation(cdp.events);
+      Object.assign(evidence, readFinderSmokeEventEvidence({
+        events: cdp.events,
+        finderObservation: evidence.finderObservation,
+        targetMode: options.targetMode,
+        fixtureRoot: evidence.fixtureRoot
+      }));
       evidence.finderDragProbe = readFinderDragProbe(cdp.events, evidence.finderObservation);
       evidence.finderItemDragDrop = readFinderItemDragDrop(
         cdp.events,
@@ -342,7 +344,47 @@ async function openFinderFolder(folderPath) {
 }
 
 async function selectFinderFolder(folderPath) {
-  await execFileAsync("open", ["-R", folderPath]);
+  const parentDir = path.dirname(folderPath);
+  const folderName = path.basename(folderPath);
+  await execFileAsync("osascript", [
+    "-e",
+    `set parentFolder to POSIX file ${JSON.stringify(parentDir)} as alias`,
+    "-e",
+    `set folderName to ${JSON.stringify(folderName)}`,
+    "-e",
+    `tell application id "com.apple.finder"`,
+    "-e",
+    "activate",
+    "-e",
+    "open parentFolder",
+    "-e",
+    "delay 0.4",
+    "-e",
+    "set selection to {item folderName of parentFolder}",
+    "-e",
+    "end tell"
+  ]);
+}
+
+async function prepareFinderTargetForMode(targetMode, fixtureRoot) {
+  if (!fixtureRoot) {
+    return;
+  }
+
+  if (
+    targetMode === "current-finder-folder"
+    || targetMode === "drag-probe"
+    || targetMode === "item-drag-drop"
+  ) {
+    await openFinderFolder(fixtureRoot);
+    await sleep(700);
+    return;
+  }
+
+  if (targetMode === "selected-finder-folder") {
+    await selectFinderFolder(fixtureRoot);
+    await sleep(700);
+  }
 }
 
 function readFinderSmokeCommand(targetMode, fixtureRoot) {

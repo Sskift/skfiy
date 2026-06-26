@@ -107,6 +107,7 @@ export type FinderTaskEvent =
 export interface FinderTaskOptions {
   approved?: boolean;
   planApproved?: boolean;
+  approvedPlanPreview?: FinderPlanPreview;
   desktopClient?: FinderDesktopClient;
   createScreenshotPath?: (stage: "before") => string;
 }
@@ -208,16 +209,32 @@ export async function* runFinderOrganizationTask(
     }))
   });
 
+  const preview = createFinderPlanPreview(rootPath, plan.operations);
+
   yield {
     type: "plan_preview",
-    preview: createFinderPlanPreview(rootPath, plan.operations)
+    preview
   };
+
+  if (
+    needsFinderPlanConfirmation(parsed.target)
+    && options.planApproved
+    && options.approvedPlanPreview
+    && !areFinderPlanPreviewsEquivalent(preview, options.approvedPlanPreview)
+  ) {
+    yield {
+      type: "verification_failed",
+      stage: "selection",
+      reason: "Finder approved plan no longer matches the current Finder target."
+    };
+    return;
+  }
 
   if (needsFinderPlanConfirmation(parsed.target) && !options.planApproved) {
     yield {
       type: "plan_confirmation_required",
       command: parsed.command,
-      preview: createFinderPlanPreview(rootPath, plan.operations),
+      preview,
       reason: readFinderPlanConfirmationReason(parsed.target)
     };
     return;
@@ -339,6 +356,35 @@ function createFinderPlanPreview(
         to: operation.to
       }))
   };
+}
+
+function areFinderPlanPreviewsEquivalent(left: FinderPlanPreview, right: FinderPlanPreview): boolean {
+  return path.resolve(left.rootPath) === path.resolve(right.rootPath)
+    && left.operationCount === right.operationCount
+    && left.destructiveOperationCount === right.destructiveOperationCount
+    && haveSamePathSet(left.createFolders, right.createFolders)
+    && haveSameMoveSet(left.moveFiles, right.moveFiles);
+}
+
+function haveSamePathSet(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const rightPaths = new Set(right.map((entry) => path.resolve(entry)));
+  return left.every((entry) => rightPaths.has(path.resolve(entry)));
+}
+
+function haveSameMoveSet(
+  left: ReadonlyArray<{ from: string; to: string }>,
+  right: ReadonlyArray<{ from: string; to: string }>
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const rightMoves = new Set(right.map((move) => `${path.resolve(move.from)}\0${path.resolve(move.to)}`));
+  return left.every((move) => rightMoves.has(`${path.resolve(move.from)}\0${path.resolve(move.to)}`));
 }
 
 async function* observeFinder(

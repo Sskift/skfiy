@@ -152,6 +152,14 @@ export function classifySmokeResult(events) {
     return "no-events";
   }
 
+  if (events.some((event) => event?.status === "denied")) {
+    return "denied";
+  }
+
+  if (events.some((event) => event?.status === "blocked" && isDeniedByRoutePolicyMessage(event.message))) {
+    return "denied";
+  }
+
   if (last.status === "completed") {
     return "passed";
   }
@@ -223,6 +231,11 @@ function isBlockedEnvironmentMessage(message) {
     || normalized.includes("desktop session is not controllable")
     || normalized.includes("loginwindow is frontmost")
   );
+}
+
+function isDeniedByRoutePolicyMessage(message) {
+  return typeof message === "string"
+    && message.toLowerCase().includes("route policy blocks destructive or sensitive terminal commands");
 }
 
 function isPermissionBlockedMessage(normalizedMessage) {

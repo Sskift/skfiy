@@ -201,6 +201,54 @@ describe("Ghostty product smoke script", () => {
     ])).toBe("blocked");
   });
 
+  it("classifies a denial event as denied even if a later idle event is emitted", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      classifySmokeResult
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifySmokeResult: (
+        events: Array<{ status: string; message?: string }>
+      ) => string;
+    };
+
+    expect(classifySmokeResult([
+      {
+        status: "approval_required",
+        message: "Approval required (high): destructive terminal command."
+      },
+      {
+        status: "denied",
+        message: "Task denied."
+      },
+      {
+        status: "idle",
+        message: "No task is waiting for approval."
+      }
+    ])).toBe("denied");
+  });
+
+  it("classifies destructive route-policy blocks as denial evidence even if idle follows", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      classifySmokeResult
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifySmokeResult: (
+        events: Array<{ status: string; message?: string }>
+      ) => string;
+    };
+
+    expect(classifySmokeResult([
+      {
+        status: "blocked",
+        message: "Route policy blocks destructive or sensitive terminal commands before Computer Use."
+      },
+      {
+        status: "idle",
+        message: "No task is waiting for approval."
+      }
+    ])).toBe("denied");
+  });
+
   it("classifies locked or unavailable desktop sessions as blocked", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
     const {

@@ -164,6 +164,7 @@ interface PendingApproval extends AssistantComputerUseToolIdentity {
   mode: ManualMode;
   route: ComputerUseCommandRoute;
   planApproved?: boolean;
+  approvedPlanPreview?: FinderPlanPreview;
 }
 
 interface ObserveAppReplayRecord extends DesktopAppState {
@@ -709,14 +710,16 @@ function createPendingApproval(
   mode: ManualMode,
   identity: AssistantComputerUseToolIdentity,
   route: ComputerUseCommandRoute,
-  planApproved = false
+  planApproved = false,
+  approvedPlanPreview?: FinderPlanPreview
 ): PendingApproval {
   return {
     ...identity,
     command,
     mode,
     route,
-    ...(planApproved ? { planApproved } : {})
+    ...(planApproved ? { planApproved } : {}),
+    ...(approvedPlanPreview ? { approvedPlanPreview } : {})
   };
 }
 
@@ -726,7 +729,8 @@ function requireComputerUseApproval({
   route,
   toolIdentity,
   reason,
-  planApproved = false
+  planApproved = false,
+  approvedPlanPreview
 }: {
   command: string;
   mode: ManualMode;
@@ -734,12 +738,20 @@ function requireComputerUseApproval({
   toolIdentity: AssistantComputerUseToolIdentity;
   reason: string;
   planApproved?: boolean;
+  approvedPlanPreview?: FinderPlanPreview;
 }): void {
   assistantComputerUseExecutor.requireApproval({
     ...toolIdentity,
     reason
   });
-  pendingApproval = createPendingApproval(command, mode, toolIdentity, route, planApproved);
+  pendingApproval = createPendingApproval(
+    command,
+    mode,
+    toolIdentity,
+    route,
+    planApproved,
+    approvedPlanPreview
+  );
   activeComputerUseToolIdentity = toolIdentity;
 }
 
@@ -843,6 +855,7 @@ async function resumePendingApprovalTask(
     mode: approval.mode,
     approved: true,
     planApproved: approval.planApproved === true,
+    approvedPlanPreview: approval.approvedPlanPreview,
     route: approval.route,
     toolIdentity: {
       turnId: approval.turnId,
@@ -857,6 +870,7 @@ async function continueComputerUseTask({
   mode,
   approved,
   planApproved,
+  approvedPlanPreview,
   route,
   toolIdentity
 }: {
@@ -865,6 +879,7 @@ async function continueComputerUseTask({
   mode: ManualMode;
   approved: boolean;
   planApproved: boolean;
+  approvedPlanPreview?: FinderPlanPreview;
   route: ComputerUseCommandRoute;
   toolIdentity: AssistantComputerUseToolIdentity;
 }): Promise<void> {
@@ -982,6 +997,7 @@ async function continueComputerUseTask({
       for await (const taskEvent of runFinderOrganizationTask(command, {
         approved,
         planApproved,
+        approvedPlanPreview,
         desktopClient,
         createScreenshotPath: () => createScreenshotPath("finder-before")
       })) {
@@ -1008,7 +1024,8 @@ async function continueComputerUseTask({
             route,
             toolIdentity,
             reason: taskEvent.reason,
-            planApproved: true
+            planApproved: true,
+            approvedPlanPreview: taskEvent.preview
           });
         }
 

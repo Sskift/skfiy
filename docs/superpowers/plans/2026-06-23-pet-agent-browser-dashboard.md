@@ -1522,7 +1522,164 @@ Focused verification:
 npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/dashboard/DashboardApp.test.tsx src/dashboard/model.test.ts src/main/dashboard-smoke-script.test.ts --reporter=dot
 ```
 
-## Task 10: End-To-End Product Validation
+## Task 10: Layered Smoke V2 Runner
+
+**Files:**
+- Create: `scripts/smoke-v2-plan.mjs`
+- Create: `scripts/smoke-v2-product.mjs`
+- Create: `src/main/smoke-v2-script.test.ts`
+- Modify: `package.json`
+- Modify: `scripts/smoke-ghostty-plan.mjs`
+- Modify: `scripts/smoke-finder-plan.mjs`
+- Modify: `scripts/smoke-finder-product.mjs`
+- Modify: `src/main/main.ts`
+- Modify: `src/main/orchestrator/finder-task.ts`
+- Modify: `src/main/smoke-script.test.ts`
+- Modify: `src/main/finder-smoke-script.test.ts`
+- Modify: `src/main/orchestrator/finder-task.test.ts`
+
+- [x] **Step 1: Write smoke v2 contract tests**
+
+Add `src/main/smoke-v2-script.test.ts` covering:
+
+```ts
+expect(packageJson.scripts).toMatchObject({
+  "smoke:v2": "node scripts/smoke-v2-product.mjs"
+});
+expect(createDefaultSmokeV2Options("/repo").profile).toBe("silent");
+expect(createSmokeV2Plan({ profile: "silent", artifactsDir: ".skfiy-smoke/v2" }).map((scenario) => scenario.stealsFocus))
+  .toEqual([false, false]);
+expect(createSmokeV2Plan({ profile: "release", artifactsDir: ".skfiy-smoke/v2" }).map((scenario) => scenario.id))
+  .toEqual(["cli-basic", "ui-product", "dashboard-product"]);
+expect(createSmokeV2Plan({ profile: "field", artifactsDir: ".skfiy-smoke/v2" }).map((scenario) => scenario.layer))
+  .toEqual(["field", "field", "field", "field", "field", "field"]);
+```
+
+Also test artifact normalization:
+
+```ts
+expect(classifySmokeV2Scenario({
+  id: "ghostty-matrix",
+  acceptedResults: ["passed", "blocked"],
+  rawArtifact: { result: "blocked", desktopPreflight: { result: "blocked" } },
+  exitCode: 0
+})).toMatchObject({
+  result: "blocked",
+  blockerCode: "desktop-session-blocked"
+});
+expect(classifySmokeV2Evidence([{ result: "passed" }, { result: "blocked" }], { requirePassed: false }))
+  .toBe("blocked");
+expect(classifySmokeV2Evidence([{ result: "passed" }, { result: "blocked" }], { requirePassed: true }))
+  .toBe("failed");
+```
+
+- [x] **Step 2: Run tests to verify current failure**
+
+```bash
+npx vitest run src/main/smoke-v2-script.test.ts --reporter=dot
+```
+
+Expected: fail because `scripts/smoke-v2-plan.mjs`, `scripts/smoke-v2-product.mjs`, and `smoke:v2` do not exist yet.
+
+- [x] **Step 3: Implement pure smoke v2 planning and classification**
+
+Create `scripts/smoke-v2-plan.mjs` with:
+
+- `SMOKE_V2_SCHEMA_VERSION = 2`
+- `SMOKE_V2_KIND = "skfiy-smoke-v2"`
+- `createSmokeV2Plan(options)`
+- `parseSmokeV2Args(argv, defaults)`
+- `classifySmokeV2Scenario(input)`
+- `classifySmokeV2Evidence(scenarios, options)`
+- `createSmokeV2Evidence(input)`
+- `createSmokeV2HelpText(defaults)`
+
+Profiles:
+
+- `silent`: `cli-basic`, `dashboard-product`; default, no frontmost app control.
+- `release`: `cli-basic`, `ui-product`, `dashboard-product`
+- `field`: `desktop-session`, `ghostty-matrix`, `finder-selected-folder`, `finder-current-folder`, `chrome-browser-context`, `money-run`
+- `all`: release plus field
+
+- [x] **Step 4: Implement smoke v2 runner**
+
+Create `scripts/smoke-v2-product.mjs` that:
+
+- Parses `--profile`, `--output`, `--artifacts-dir`, `--app`, `--extension-id`, `--extension-chrome-app`, `--session`, `--require-passed`, and `--dry-run`.
+- Runs scenarios serially through `npm run <existing-smoke> -- ...`.
+- Writes per-scenario artifacts under `.skfiy-smoke/v2/` by default so v2 scratch artifacts do not pollute the legacy top-level smoke evidence scan.
+- Emits one aggregate v2 artifact.
+- In `--dry-run`, writes the planned commands without executing them.
+
+- [x] **Step 5: Add package script**
+
+Add:
+
+```json
+"smoke:v2": "node scripts/smoke-v2-product.mjs"
+```
+
+- [x] **Step 6: Keep Ghostty denial evidence sticky**
+
+In `scripts/smoke-ghostty-plan.mjs`, update `classifySmokeResult(events)` so any event with `status === "denied"` returns `"denied"` before a later `idle` event can override it.
+
+- [x] **Step 7: Bind Finder confirmation to the approved plan**
+
+In `src/main/orchestrator/finder-task.ts`, add `approvedPlanPreview?: FinderPlanPreview` to `FinderTaskOptions`. When `planApproved` is true for current-folder or selected-folder operations, compare the new preview against the approved preview and emit:
+
+```ts
+{
+  type: "verification_failed",
+  stage: "selection",
+  reason: "Finder approved plan no longer matches the current Finder target."
+}
+```
+
+if root path, folder creates, file moves, operation count, or destructive count differ.
+
+In `src/main/main.ts`, store `taskEvent.preview` in `pendingApproval.approvedPlanPreview` when requiring Finder plan confirmation and pass it back into `runFinderOrganizationTask` on resume.
+
+- [x] **Step 8: Stabilize Finder smoke field evidence**
+
+In `scripts/smoke-finder-plan.mjs`, expose `readFinderSmokeEventEvidence(...)` that prefers the latest event matching the isolated `fixtureRoot` for semantic selection, plan preview, and plan confirmation.
+
+In `scripts/smoke-finder-product.mjs`, use that helper and replace `open -R <folder>` selected-folder setup with an AppleScript sequence that opens the parent folder and sets Finder selection to exactly the fixture folder.
+
+- [x] **Step 9: Focused verification**
+
+```bash
+npx vitest run src/main/smoke-v2-script.test.ts src/main/smoke-script.test.ts src/main/finder-smoke-script.test.ts src/main/orchestrator/finder-task.test.ts --reporter=dot
+npm run typecheck -- --pretty false
+```
+
+- [x] **Step 10: No-focus smoke v2 verification**
+
+```bash
+npm run build
+npm run smoke:v2 -- --output .skfiy-smoke/v2/silent.json --require-passed
+```
+
+Expected:
+
+- `.skfiy-smoke/v2/silent.json` passes without frontmost app control or mouse/keyboard focus stealing.
+- `smoke:v2` defaults to `silent`; it records `stealsFocus: false` for every executed scenario.
+- Frontmost app smoke remains opt-in only:
+
+```bash
+npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed
+npm run smoke:v2 -- --profile field --output .skfiy-smoke/v2/field.json
+```
+
+Do not run the opt-in commands while the user is actively using the Mac; they can activate skfiy, Ghostty, Finder, Chrome, or other target apps by design.
+
+- [x] **Step 11: Commit**
+
+```bash
+git add docs/superpowers/specs/2026-06-26-smoke-v2-design.md docs/superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md package.json scripts/smoke-v2-plan.mjs scripts/smoke-v2-product.mjs scripts/smoke-ghostty-plan.mjs scripts/smoke-finder-plan.mjs scripts/smoke-finder-product.mjs src/main/smoke-v2-script.test.ts src/main/smoke-script.test.ts src/main/finder-smoke-script.test.ts src/main/main.ts src/main/orchestrator/finder-task.ts src/main/orchestrator/finder-task.test.ts
+git commit -m "feat: add layered smoke v2 runner"
+```
+
+## Task 11: End-To-End Product Validation
 
 **Files:**
 - Modify only when tests reveal real defects.

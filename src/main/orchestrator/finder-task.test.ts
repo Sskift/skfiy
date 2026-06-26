@@ -525,6 +525,88 @@ describe("runFinderOrganizationTask", () => {
     }
   });
 
+  it("does not execute a current-folder plan when the approved preview root changes before resume", async () => {
+    const approvedRoot = await createFixture();
+    const shiftedRoot = await createFixture();
+    const desktopClient = {
+      async executeAction(action: DesktopExecutableAction): Promise<DesktopActionResult> {
+        if (action.type === "observe_app") {
+          return {
+            bundleId: "com.apple.finder",
+            isRunning: true,
+            isActive: true,
+            screenshotPath: action.screenshotOutputPath,
+            frontmostBundleId: "com.apple.finder",
+            accessibilityTrusted: true,
+            windows: [
+              {
+                title: path.basename(shiftedRoot),
+                layer: 0,
+                bounds: { x: 10, y: 20, width: 640, height: 480 }
+              }
+            ]
+          };
+        }
+
+        return { ok: true };
+      },
+      async getFinderSelection() {
+        return {
+          source: "finder-applescript" as const,
+          frontmostBundleId: "com.apple.finder",
+          targetPath: shiftedRoot,
+          selection: []
+        };
+      }
+    };
+
+    try {
+      const events = await collectEvents(
+        runFinderOrganizationTask("整理 Finder 当前文件夹", {
+          approved: true,
+          planApproved: true,
+          desktopClient,
+          approvedPlanPreview: {
+            rootPath: approvedRoot,
+            operationCount: 6,
+            destructiveOperationCount: 0,
+            createFolders: [
+              path.join(approvedRoot, "Documents"),
+              path.join(approvedRoot, "Images"),
+              path.join(approvedRoot, "Code")
+            ],
+            moveFiles: [
+              {
+                from: path.join(approvedRoot, "notes.pdf"),
+                to: path.join(approvedRoot, "Documents", "notes.pdf")
+              },
+              {
+                from: path.join(approvedRoot, "photo.png"),
+                to: path.join(approvedRoot, "Images", "photo.png")
+              },
+              {
+                from: path.join(approvedRoot, "script.ts"),
+                to: path.join(approvedRoot, "Code", "script.ts")
+              }
+            ]
+          }
+        } as Parameters<typeof runFinderOrganizationTask>[1] & {
+          approvedPlanPreview: unknown;
+        })
+      );
+
+      expect(events.at(-1)).toMatchObject({
+        type: "verification_failed",
+        stage: "selection",
+        reason: "Finder approved plan no longer matches the current Finder target."
+      });
+      expect(await readdir(shiftedRoot)).toEqual(["notes.pdf", "photo.png", "script.ts"]);
+    } finally {
+      await rm(approvedRoot, { recursive: true, force: true });
+      await rm(shiftedRoot, { recursive: true, force: true });
+    }
+  });
+
   it("fails closed when the current Finder folder cannot be grounded semantically", async () => {
     const rootPath = await createFixture();
     const desktopClient = {
