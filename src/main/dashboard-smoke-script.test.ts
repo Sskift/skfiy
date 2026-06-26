@@ -1202,6 +1202,11 @@ describe("dashboard product smoke script", () => {
             result: "configured",
             monitorId: "tmux-session:dashboard-smoke-missing-session",
             automation: {
+              scheduler: {
+                state: "inactive",
+                scope: "app-process",
+                mutatesSession: false
+              },
               monitors: [
                 {
                   id: "tmux-session:dashboard-smoke-missing-session",
@@ -1210,7 +1215,9 @@ describe("dashboard product smoke script", () => {
                   sessionName: "dashboard-smoke-missing-session",
                   intervalMs: 60_000,
                   checkCount: 1,
-                  status: "blocked"
+                  status: "blocked",
+                  lastResult: "blocked",
+                  mutatesSession: false
                 }
               ]
             }
@@ -1227,6 +1234,11 @@ describe("dashboard product smoke script", () => {
             result: "checked",
             monitorId: "tmux-session:dashboard-smoke-missing-session",
             automation: {
+              scheduler: {
+                state: "inactive",
+                scope: "app-process",
+                mutatesSession: false
+              },
               monitors: [
                 {
                   id: "tmux-session:dashboard-smoke-missing-session",
@@ -1235,7 +1247,9 @@ describe("dashboard product smoke script", () => {
                   sessionName: "dashboard-smoke-missing-session",
                   intervalMs: 60_000,
                   checkCount: 2,
-                  status: "blocked"
+                  status: "blocked",
+                  lastResult: "blocked",
+                  mutatesSession: false
                 }
               ]
             }
@@ -1245,12 +1259,17 @@ describe("dashboard product smoke script", () => {
           status: 200,
           body: {
             automation: {
+              scheduler: {
+                state: "inactive"
+              },
               monitors: [
                 {
                   id: "tmux-session:dashboard-smoke-missing-session",
                   sessionName: "dashboard-smoke-missing-session",
                   checkCount: 2,
-                  status: "blocked"
+                  status: "blocked",
+                  lastResult: "blocked",
+                  mutatesSession: false
                 }
               ]
             }
@@ -1815,6 +1834,7 @@ describe("dashboard product smoke script", () => {
           "Allow current turn",
           "Reset policy",
           "Automation monitors",
+          "scheduler inactive",
           "Automation monitor settings",
           "Monitor tmux session",
           "Run automation monitor:"
@@ -1865,6 +1885,7 @@ describe("dashboard product smoke script", () => {
           "Allow current turn",
           "Reset policy",
           "Automation monitors",
+          "scheduler inactive",
           "Automation monitor settings",
           "Monitor tmux session",
           "Run automation monitor:"

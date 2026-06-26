@@ -50,6 +50,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Allow current turn",
   "Reset policy",
   "Automation monitors",
+  "scheduler inactive",
   "Automation monitor settings",
   "Monitor tmux session",
   "Run automation monitor:"
@@ -857,9 +858,14 @@ function hasDashboardAutomationMonitorApiEvidence(api) {
     && upsertBody?.mutatesSession === false
     && upsertBody?.result === "configured"
     && upsertBody?.monitorId === api.monitorId
+    && upsertBody?.automation?.scheduler?.state === "inactive"
+    && upsertBody?.automation?.scheduler?.scope === "app-process"
+    && upsertBody?.automation?.scheduler?.mutatesSession === false
     && upsertMonitor?.sessionName === api.sessionName
     && upsertMonitor?.intervalMs === 60_000
     && upsertMonitor?.checkCount === 1
+    && upsertMonitor?.mutatesSession === false
+    && typeof upsertMonitor?.lastResult === "string"
     && api?.runNowResponse?.status === 200
     && runNowBody?.command === "dashboard automation monitor"
     && runNowBody?.source === "dashboard"
@@ -868,10 +874,18 @@ function hasDashboardAutomationMonitorApiEvidence(api) {
     && runNowBody?.mutatesSession === false
     && runNowBody?.result === "checked"
     && runNowBody?.monitorId === api.monitorId
+    && runNowBody?.automation?.scheduler?.state === "inactive"
+    && runNowBody?.automation?.scheduler?.scope === "app-process"
+    && runNowBody?.automation?.scheduler?.mutatesSession === false
     && runNowMonitor?.sessionName === api.sessionName
     && runNowMonitor?.checkCount === 2
+    && runNowMonitor?.mutatesSession === false
+    && typeof runNowMonitor?.lastResult === "string"
     && api?.snapshotAfter?.status === 200
+    && api?.snapshotAfter?.body?.automation?.scheduler?.state === "inactive"
     && snapshotMonitor?.checkCount === 2
+    && snapshotMonitor?.mutatesSession === false
+    && typeof snapshotMonitor?.lastResult === "string"
     && persistedMonitor?.checkCount === 2
     && api?.tokenLeakDetected === false
     && api?.result === "passed"

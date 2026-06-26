@@ -210,7 +210,27 @@ function classifyEvidence(evidence) {
     return "failed";
   }
 
+  if (evidence.afterTickSnapshot?.scheduler?.state !== "active") {
+    return "failed";
+  }
+
+  if (evidence.afterTickSnapshot?.scheduler?.scope !== "app-process") {
+    return "failed";
+  }
+
+  if (evidence.afterTickSnapshot?.scheduler?.mutatesSession !== false) {
+    return "failed";
+  }
+
   if (!persistedMonitor) {
+    return "failed";
+  }
+
+  if (monitor.schedulerState !== "active" || monitor.mutatesSession !== false) {
+    return "failed";
+  }
+
+  if (typeof monitor.lastResult !== "string") {
     return "failed";
   }
 

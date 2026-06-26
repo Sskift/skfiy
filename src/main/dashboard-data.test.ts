@@ -158,14 +158,27 @@ describe("dashboard snapshot data", () => {
       schemaVersion: 1,
       generatedAt: "2026-06-25T09:59:00.000Z",
       activeCount: 1,
-      attentionCount: 0,
+      attentionCount: 1,
+      scheduler: {
+        state: "inactive",
+        scope: "app-process",
+        owner: "skfiy",
+        activeTimerCount: 0,
+        mutatesSession: false
+      },
       monitors: [
         {
           id: "tmux-session:money-run-goal",
           label: "money-run goal",
-          status: "observing",
+          status: "scheduler_inactive",
           checkCount: 2,
-          lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
+          lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers.",
+          lastResult: "observing",
+          lastResultAt: "2026-06-25T09:59:00.000Z",
+          observedSession: "money-run-goal",
+          schedulerState: "inactive",
+          schedulerScope: "app-process",
+          mutatesSession: false
         }
       ]
     });

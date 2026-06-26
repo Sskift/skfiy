@@ -179,6 +179,15 @@ beforeEach(() => {
       generatedAt: new Date(0).toISOString(),
       activeCount: 0,
       attentionCount: 0,
+      schedulerInactiveCount: 0,
+      scheduler: {
+        state: "inactive",
+        scope: "app-process",
+        owner: "skfiy",
+        activeTimerCount: 0,
+        mutatesSession: false,
+        reason: "Open skfiy to resume interval checks."
+      },
       monitors: []
     }),
     upsertTmuxMonitor: vi.fn<DesktopApi["upsertTmuxMonitor"]>().mockResolvedValue({
@@ -186,6 +195,15 @@ beforeEach(() => {
       generatedAt: new Date(0).toISOString(),
       activeCount: 0,
       attentionCount: 0,
+      schedulerInactiveCount: 0,
+      scheduler: {
+        state: "inactive",
+        scope: "app-process",
+        owner: "skfiy",
+        activeTimerCount: 0,
+        mutatesSession: false,
+        reason: "Open skfiy to resume interval checks."
+      },
       monitors: []
     }),
     runAutomationMonitorNow: vi.fn<DesktopApi["runAutomationMonitorNow"]>().mockResolvedValue({
@@ -193,6 +211,15 @@ beforeEach(() => {
       generatedAt: new Date(0).toISOString(),
       activeCount: 0,
       attentionCount: 0,
+      schedulerInactiveCount: 0,
+      scheduler: {
+        state: "inactive",
+        scope: "app-process",
+        owner: "skfiy",
+        activeTimerCount: 0,
+        mutatesSession: false,
+        reason: "Open skfiy to resume interval checks."
+      },
       monitors: []
     }),
     getRuntimeStatus: vi.fn<DesktopApi["getRuntimeStatus"]>().mockResolvedValue({

@@ -1171,9 +1171,14 @@ async function exerciseAutomationMonitorApi({ dashboardUrl, homeDir, timeoutMs }
     && upsertResponse.body?.mutatesSession === false
     && upsertResponse.body?.result === "configured"
     && upsertResponse.body?.monitorId === monitorId
+    && upsertResponse.body?.automation?.scheduler?.state === "inactive"
+    && upsertResponse.body?.automation?.scheduler?.scope === "app-process"
+    && upsertResponse.body?.automation?.scheduler?.mutatesSession === false
     && upsertMonitor?.sessionName === sessionName
     && upsertMonitor?.checkCount === 1
     && upsertMonitor?.intervalMs === 60_000
+    && upsertMonitor?.mutatesSession === false
+    && typeof upsertMonitor?.lastResult === "string"
     && runNowResponse.status === 200
     && runNowResponse.body?.command === "dashboard automation monitor"
     && runNowResponse.body?.source === "dashboard"
@@ -1182,11 +1187,19 @@ async function exerciseAutomationMonitorApi({ dashboardUrl, homeDir, timeoutMs }
     && runNowResponse.body?.mutatesSession === false
     && runNowResponse.body?.result === "checked"
     && runNowResponse.body?.monitorId === monitorId
+    && runNowResponse.body?.automation?.scheduler?.state === "inactive"
+    && runNowResponse.body?.automation?.scheduler?.scope === "app-process"
+    && runNowResponse.body?.automation?.scheduler?.mutatesSession === false
     && runNowMonitor?.sessionName === sessionName
     && runNowMonitor?.checkCount === 2
+    && runNowMonitor?.mutatesSession === false
+    && typeof runNowMonitor?.lastResult === "string"
     && snapshotAfter.status === 200
+    && snapshotAfter.body?.automation?.scheduler?.state === "inactive"
     && snapshotMonitor?.id === monitorId
     && snapshotMonitor?.checkCount === 2
+    && snapshotMonitor?.mutatesSession === false
+    && typeof snapshotMonitor?.lastResult === "string"
     && persistedMonitor?.id === monitorId
     && persistedMonitor?.checkCount === 2
     && tokenLeakDetected === false;

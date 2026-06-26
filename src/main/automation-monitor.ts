@@ -7,11 +7,25 @@ import { createSkfiyApplicationSupportPath } from "./personal-memory.js";
 import type { TmuxSupervisionClient } from "./tmux-supervision-client.js";
 
 export type AutomationMonitorKind = "tmux-session";
+export type AutomationSchedulerState = "active" | "inactive";
 export type AutomationMonitorStatus =
   | TmuxSupervisionStatus
   | "idle"
   | "disabled"
-  | "error";
+  | "error"
+  | "scheduler_inactive";
+export type AutomationMonitorLastResult = TmuxSupervisionStatus | "error";
+export type AutomationSchedulerScope = "app-process";
+
+export interface AutomationMonitorSchedulerStatus {
+  state: AutomationSchedulerState;
+  scope: AutomationSchedulerScope;
+  owner: "skfiy";
+  activeTimerCount: number;
+  mutatesSession: false;
+  startedAt?: string;
+  reason?: string;
+}
 
 export interface AutomationMonitorDefinition {
   id: string;
@@ -33,6 +47,12 @@ export interface AutomationMonitorRuntime extends AutomationMonitorDefinition {
   lastSummary?: string;
   lastError?: string;
   lastReport?: TmuxSupervisionReport;
+  lastResult?: AutomationMonitorLastResult;
+  lastResultAt?: string;
+  observedSession?: string;
+  schedulerState?: AutomationSchedulerState;
+  schedulerScope?: AutomationSchedulerScope;
+  mutatesSession?: false;
 }
 
 export interface AutomationMonitorSnapshot {
@@ -40,6 +60,8 @@ export interface AutomationMonitorSnapshot {
   generatedAt: string;
   activeCount: number;
   attentionCount: number;
+  schedulerInactiveCount: number;
+  scheduler: AutomationMonitorSchedulerStatus;
   monitors: AutomationMonitorRuntime[];
 }
 
@@ -106,7 +128,7 @@ export function createAutomationMonitorSnapshotFromStoreSnapshot(
     runtimes.get(definition.id) ?? createInitialRuntime(definition)
   ));
 
-  return createAutomationMonitorSnapshot(monitors, fallbackGeneratedAt);
+  return createAutomationMonitorSnapshot(monitors, fallbackGeneratedAt, createInactiveAutomationMonitorScheduler());
 }
 
 export function createAutomationMonitorStore({
@@ -158,6 +180,7 @@ export function createAutomationMonitorManager({
   const runtimes = new Map<string, AutomationMonitorRuntime>();
   const timers = new Map<string, unknown>();
   let started = false;
+  let startedAt: string | undefined;
 
   const storeSnapshot = store.read();
   const persistedRuntimes = new Map<string, AutomationMonitorRuntime>();
@@ -206,31 +229,37 @@ export function createAutomationMonitorManager({
     }
 
     if (!definition.enabled) {
-      const disabled = updateRuntime(definition, {
+      updateRuntime(definition, {
         status: "disabled"
       });
-      return disabled;
+      return readSnapshotRuntime(definition.id);
     }
 
     const checkedAt = now();
     try {
       const report = await tmuxClient.observeSession(definition.sessionName);
-      return updateRuntime(definition, {
+      updateRuntime(definition, {
         checkCount: readRuntime(definition).checkCount + 1,
         lastCheckedAt: checkedAt,
         lastReport: report,
+        lastResult: report.status,
+        lastResultAt: checkedAt,
         lastSummary: report.recommendation.reason,
         nextCheckAt: addMilliseconds(checkedAt, definition.intervalMs),
         status: report.status
       });
+      return readSnapshotRuntime(definition.id);
     } catch (error) {
-      return updateRuntime(definition, {
+      updateRuntime(definition, {
         checkCount: readRuntime(definition).checkCount + 1,
         lastCheckedAt: checkedAt,
         lastError: error instanceof Error ? error.message : String(error),
+        lastResult: "error",
+        lastResultAt: checkedAt,
         nextCheckAt: addMilliseconds(checkedAt, definition.intervalMs),
         status: "error"
       });
+      return readSnapshotRuntime(definition.id);
     }
   }
 
@@ -254,6 +283,40 @@ export function createAutomationMonitorManager({
     runtimes.set(definition.id, runtime);
     persist();
     return runtime;
+  }
+
+  function readSchedulerStatus(): AutomationMonitorSchedulerStatus {
+    if (!started) {
+      return createInactiveAutomationMonitorScheduler();
+    }
+
+    return {
+      state: "active",
+      scope: "app-process",
+      owner: "skfiy",
+      activeTimerCount: timers.size,
+      mutatesSession: false,
+      ...(startedAt ? { startedAt } : {})
+    };
+  }
+
+  function readSnapshotRuntime(id: string): AutomationMonitorRuntime {
+    const monitor = readManagerSnapshot().monitors.find((candidate) => candidate.id === id);
+    if (monitor) {
+      return monitor;
+    }
+
+    const definition = definitions.get(id);
+    if (definition) {
+      return readRuntime(definition);
+    }
+
+    throw new Error(`Unknown automation monitor: ${id}`);
+  }
+
+  function readManagerSnapshot(): AutomationMonitorSnapshot {
+    const monitors = Array.from(definitions.values()).map((definition) => readRuntime(definition));
+    return createAutomationMonitorSnapshot(monitors, now(), readSchedulerStatus());
   }
 
   return {
@@ -284,6 +347,9 @@ export function createAutomationMonitorManager({
       return definition;
     },
     start() {
+      if (!started) {
+        startedAt = now();
+      }
       started = true;
       for (const definition of definitions.values()) {
         schedule(definition);
@@ -297,27 +363,30 @@ export function createAutomationMonitorManager({
       timers.clear();
     },
     runMonitorNow,
-    readSnapshot() {
-      const monitors = Array.from(definitions.values()).map((definition) => readRuntime(definition));
-      return createAutomationMonitorSnapshot(monitors, now());
-    }
+    readSnapshot: readManagerSnapshot
   };
 }
 
 function createAutomationMonitorSnapshot(
   monitors: AutomationMonitorRuntime[],
-  fallbackGeneratedAt: string
+  fallbackGeneratedAt: string,
+  scheduler: AutomationMonitorSchedulerStatus
 ): AutomationMonitorSnapshot {
+  const publicMonitors = monitors.map((monitor) => createPublicAutomationMonitorRuntime(monitor, scheduler));
+
   return {
     schemaVersion: 1,
-    generatedAt: readLatestRuntimeTimestamp(monitors) ?? fallbackGeneratedAt,
-    activeCount: monitors.filter((monitor) => monitor.enabled).length,
-    attentionCount: monitors.filter((monitor) => (
+    generatedAt: readLatestRuntimeTimestamp(publicMonitors) ?? fallbackGeneratedAt,
+    activeCount: publicMonitors.filter((monitor) => monitor.enabled).length,
+    attentionCount: publicMonitors.filter((monitor) => (
       monitor.status === "needs_attention"
       || monitor.status === "blocked"
       || monitor.status === "error"
+      || monitor.status === "scheduler_inactive"
     )).length,
-    monitors
+    schedulerInactiveCount: publicMonitors.filter((monitor) => monitor.status === "scheduler_inactive").length,
+    scheduler,
+    monitors: publicMonitors
   };
 }
 
@@ -325,8 +394,56 @@ function createInitialRuntime(definition: AutomationMonitorDefinition): Automati
   return {
     ...definition,
     status: definition.enabled ? "idle" : "disabled",
-    checkCount: 0
+    checkCount: 0,
+    observedSession: definition.sessionName,
+    mutatesSession: false
   };
+}
+
+function createInactiveAutomationMonitorScheduler(): AutomationMonitorSchedulerStatus {
+  return {
+    state: "inactive",
+    scope: "app-process",
+    owner: "skfiy",
+    activeTimerCount: 0,
+    mutatesSession: false,
+    reason: "Open skfiy to resume interval checks."
+  };
+}
+
+function createPublicAutomationMonitorRuntime(
+  monitor: AutomationMonitorRuntime,
+  scheduler: AutomationMonitorSchedulerStatus
+): AutomationMonitorRuntime {
+  const lastResult = monitor.lastResult ?? readMonitorLastResult(monitor.status);
+  const lastResultAt = monitor.lastResultAt ?? monitor.lastCheckedAt;
+  const status = readPublicAutomationMonitorStatus(monitor, scheduler);
+
+  return {
+    ...monitor,
+    status,
+    observedSession: monitor.observedSession ?? monitor.sessionName,
+    schedulerState: scheduler.state,
+    schedulerScope: scheduler.scope,
+    mutatesSession: false,
+    ...(lastResult ? { lastResult } : {}),
+    ...(lastResultAt ? { lastResultAt } : {})
+  };
+}
+
+function readPublicAutomationMonitorStatus(
+  monitor: AutomationMonitorRuntime,
+  scheduler: AutomationMonitorSchedulerStatus
+): AutomationMonitorStatus {
+  if (!monitor.enabled) {
+    return "disabled";
+  }
+
+  if (scheduler.state === "inactive" && monitor.status === "observing") {
+    return "scheduler_inactive";
+  }
+
+  return monitor.status;
 }
 
 function normalizeAutomationMonitorStoreSnapshot(value: unknown): AutomationMonitorStoreSnapshot {
@@ -392,6 +509,7 @@ function normalizeAutomationMonitorRuntime(
   }
 
   const status = normalizeAutomationMonitorStatus(record.status);
+  const lastResult = normalizeAutomationMonitorLastResult(record.lastResult);
   const checkCount = typeof record.checkCount === "number" && Number.isFinite(record.checkCount)
     ? Math.max(0, Math.round(record.checkCount))
     : 0;
@@ -407,6 +525,8 @@ function normalizeAutomationMonitorRuntime(
     ...(typeof record.lastChangedAt === "string" ? { lastChangedAt: record.lastChangedAt } : {}),
     ...(typeof record.lastSummary === "string" ? { lastSummary: record.lastSummary } : {}),
     ...(typeof record.lastError === "string" ? { lastError: record.lastError } : {}),
+    ...(lastResult ? { lastResult } : {}),
+    ...(typeof record.lastResultAt === "string" ? { lastResultAt: record.lastResultAt } : {}),
     ...(lastReport ? { lastReport: lastReport as unknown as TmuxSupervisionReport } : {})
   };
 }
@@ -419,9 +539,25 @@ function normalizeAutomationMonitorStatus(value: unknown): AutomationMonitorStat
     || value === "idle"
     || value === "disabled"
     || value === "error"
+    || value === "scheduler_inactive"
   )
     ? value
     : "idle";
+}
+
+function normalizeAutomationMonitorLastResult(value: unknown): AutomationMonitorLastResult | undefined {
+  return (
+    value === "observing"
+    || value === "needs_attention"
+    || value === "blocked"
+    || value === "error"
+  )
+    ? value
+    : undefined;
+}
+
+function readMonitorLastResult(status: AutomationMonitorStatus): AutomationMonitorLastResult | undefined {
+  return normalizeAutomationMonitorLastResult(status);
 }
 
 function normalizeMonitorSessionName(value: string): string {
@@ -460,7 +596,8 @@ function readLatestRuntimeTimestamp(monitors: AutomationMonitorRuntime[]): strin
   const timestamps = monitors
     .flatMap((monitor) => [
       monitor.lastCheckedAt,
-      monitor.lastChangedAt
+      monitor.lastChangedAt,
+      monitor.lastResultAt
     ])
     .filter((value): value is string => typeof value === "string")
     .filter((value) => Number.isFinite(Date.parse(value)))

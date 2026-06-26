@@ -149,6 +149,15 @@ const snapshot: DashboardSnapshot = {
     generatedAt: "2026-06-25T10:00:00.000Z",
     activeCount: 1,
     attentionCount: 0,
+    schedulerInactiveCount: 0,
+    scheduler: {
+      state: "active",
+      scope: "app-process",
+      owner: "skfiy",
+      activeTimerCount: 1,
+      startedAt: "2026-06-25T09:50:00.000Z",
+      mutatesSession: false
+    },
     monitors: [
       {
         id: "tmux-session:money-run-goal",
@@ -160,6 +169,13 @@ const snapshot: DashboardSnapshot = {
         status: "observing",
         checkCount: 3,
         lastCheckedAt: "2026-06-25T09:59:00.000Z",
+        nextCheckAt: "2026-06-25T10:09:00.000Z",
+        lastResult: "observing",
+        lastResultAt: "2026-06-25T09:59:00.000Z",
+        observedSession: "money-run-goal",
+        schedulerState: "active",
+        schedulerScope: "app-process",
+        mutatesSession: false,
         lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
       }
     ]
@@ -464,9 +480,14 @@ describe("DashboardApp", () => {
     const computerUse = screen.getByRole("region", { name: "Agent tools" });
     expect(within(computerUse).getByRole("heading", { name: "Computer Use tool" })).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Automation monitors" })).toBeInTheDocument();
+    expect(within(computerUse).getByText("scheduler active")).toBeInTheDocument();
+    expect(within(computerUse).getByText("0 scheduler inactive")).toBeInTheDocument();
+    expect(within(computerUse).getByText("app-process scheduler · 1 timer · started 2026-06-25T09:50:00.000Z")).toBeInTheDocument();
     expect(within(computerUse).getByText("money-run goal")).toBeInTheDocument();
     expect(within(computerUse).getByText("observing · every 10m")).toBeInTheDocument();
     expect(within(computerUse).getByText("money-run-goal has 1 window, 1 pane, and no obvious block markers.")).toBeInTheDocument();
+    expect(within(computerUse).getByText("session money-run-goal · last result observing · mutates session no")).toBeInTheDocument();
+    expect(within(computerUse).getByText("last check 2026-06-25T09:59:00.000Z · next check 2026-06-25T10:09:00.000Z")).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Chrome readiness" })).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Finder readiness" })).toBeInTheDocument();
     expect(within(computerUse).getByRole("heading", { name: "Ghostty readiness" })).toBeInTheDocument();

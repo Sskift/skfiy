@@ -254,7 +254,20 @@ export type AutomationMonitorStatus =
   | "blocked"
   | "idle"
   | "disabled"
-  | "error";
+  | "error"
+  | "scheduler_inactive";
+export type AutomationSchedulerState = "active" | "inactive";
+export type AutomationMonitorLastResult = "observing" | "needs_attention" | "blocked" | "error";
+
+export interface AutomationMonitorSchedulerStatus {
+  state: AutomationSchedulerState;
+  scope: "app-process";
+  owner: "skfiy";
+  activeTimerCount: number;
+  mutatesSession: false;
+  startedAt?: string;
+  reason?: string;
+}
 
 export interface AutomationMonitorRuntime {
   id: string;
@@ -271,6 +284,12 @@ export interface AutomationMonitorRuntime {
   lastSummary?: string;
   lastError?: string;
   lastReport?: unknown;
+  lastResult?: AutomationMonitorLastResult;
+  lastResultAt?: string;
+  observedSession?: string;
+  schedulerState?: AutomationSchedulerState;
+  schedulerScope?: "app-process";
+  mutatesSession?: false;
 }
 
 export interface AutomationMonitorSnapshot {
@@ -278,6 +297,8 @@ export interface AutomationMonitorSnapshot {
   generatedAt: string;
   activeCount: number;
   attentionCount: number;
+  schedulerInactiveCount: number;
+  scheduler: AutomationMonitorSchedulerStatus;
   monitors: AutomationMonitorRuntime[];
 }
 
@@ -595,6 +616,15 @@ const DEFAULT_AUTOMATION_MONITOR_SNAPSHOT: AutomationMonitorSnapshot = {
   generatedAt: new Date(0).toISOString(),
   activeCount: 0,
   attentionCount: 0,
+  schedulerInactiveCount: 0,
+  scheduler: {
+    state: "inactive",
+    scope: "app-process",
+    owner: "skfiy",
+    activeTimerCount: 0,
+    mutatesSession: false,
+    reason: "Open skfiy to resume interval checks."
+  },
   monitors: []
 };
 

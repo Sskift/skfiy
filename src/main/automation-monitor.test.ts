@@ -40,7 +40,14 @@ describe("automation monitor manager", () => {
       schemaVersion: 1,
       generatedAt: "2026-06-25T10:00:00.000Z",
       activeCount: 1,
-      attentionCount: 0,
+      attentionCount: 1,
+      scheduler: {
+        state: "inactive",
+        scope: "app-process",
+        owner: "skfiy",
+        activeTimerCount: 0,
+        mutatesSession: false
+      },
       monitors: [
         {
           id: "tmux-session:money-run-goal",
@@ -49,10 +56,16 @@ describe("automation monitor manager", () => {
           enabled: true,
           intervalMs: 600_000,
           sessionName: "money-run-goal",
-          status: "observing",
+          status: "scheduler_inactive",
           checkCount: 1,
           lastCheckedAt: "2026-06-25T10:00:00.000Z",
-          lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
+          lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers.",
+          lastResult: "observing",
+          lastResultAt: "2026-06-25T10:00:00.000Z",
+          observedSession: "money-run-goal",
+          schedulerState: "inactive",
+          schedulerScope: "app-process",
+          mutatesSession: false
         }
       ]
     });
@@ -72,9 +85,112 @@ describe("automation monitor manager", () => {
           status: "observing",
           checkCount: 1,
           lastCheckedAt: "2026-06-25T10:00:00.000Z",
+          lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers.",
+          lastResult: "observing",
+          lastResultAt: "2026-06-25T10:00:00.000Z"
+        }
+      ]
+    });
+  });
+
+  it("marks restored observing monitors inactive until the app scheduler starts", async () => {
+    const io = createMemoryIo();
+    io.files["/state/automation-monitors.json"] = JSON.stringify({
+      schemaVersion: 1,
+      monitors: [
+        {
+          id: "tmux-session:money-run-goal",
+          kind: "tmux-session",
+          label: "money-run goal",
+          enabled: true,
+          intervalMs: 123_000,
+          sessionName: "money-run-goal",
+          createdAt: "2026-06-25T09:00:00.000Z",
+          updatedAt: "2026-06-25T09:00:00.000Z"
+        }
+      ],
+      runtimes: [
+        {
+          id: "tmux-session:money-run-goal",
+          status: "observing",
+          checkCount: 2,
+          lastCheckedAt: "2026-06-25T09:55:00.000Z",
+          nextCheckAt: "2026-06-25T09:57:03.000Z",
           lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
         }
       ]
+    });
+    const scheduled: Array<{ intervalMs: number; callback: () => Promise<void> }> = [];
+    const client = {
+      observeSession: vi.fn(async (sessionName: string) => createTmuxSupervisionReport({
+        sessionName,
+        hasSession: true,
+        windowsOutput: "@4\t1\tzsh\t1\t1",
+        panesOutput: `${sessionName}\t@4\t1\tzsh\t%4\t0\t1\t0\tzsh\t`,
+        paneTails: {
+          "%4": "Working"
+        }
+      }))
+    };
+    const manager = createAutomationMonitorManager({
+      now: () => "2026-06-25T10:05:00.000Z",
+      setInterval: (callback, intervalMs) => {
+        scheduled.push({ callback, intervalMs });
+        return `timer-${scheduled.length}`;
+      },
+      store: createAutomationMonitorStore({
+        filePath: "/state/automation-monitors.json",
+        io
+      }),
+      tmuxClient: client
+    });
+
+    expect(manager.readSnapshot()).toMatchObject({
+      activeCount: 1,
+      attentionCount: 1,
+      scheduler: {
+        state: "inactive",
+        scope: "app-process",
+        activeTimerCount: 0
+      },
+      monitors: [
+        {
+          status: "scheduler_inactive",
+          lastResult: "observing",
+          schedulerState: "inactive",
+          mutatesSession: false
+        }
+      ]
+    });
+
+    manager.start();
+
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0]?.intervalMs).toBe(123_000);
+    expect(manager.readSnapshot()).toMatchObject({
+      attentionCount: 0,
+      scheduler: {
+        state: "active",
+        scope: "app-process",
+        activeTimerCount: 1,
+        startedAt: "2026-06-25T10:05:00.000Z"
+      },
+      monitors: [
+        {
+          status: "observing",
+          lastResult: "observing",
+          schedulerState: "active"
+        }
+      ]
+    });
+
+    await scheduled[0]?.callback();
+
+    expect(client.observeSession).toHaveBeenCalledWith("money-run-goal");
+    expect(manager.readSnapshot().monitors[0]).toMatchObject({
+      status: "observing",
+      checkCount: 3,
+      lastResult: "observing"
     });
   });
 
@@ -131,7 +247,7 @@ describe("automation monitor manager", () => {
         windowsOutput: "@4\t1\tnode\t1\t1",
         panesOutput: `${sessionName}\t@4\t1\tnode\t%4\t0\t1\t0\tnode\tworker`,
         paneTails: {
-          "%4": "Traceback (most recent call last):\nError: permission denied"
+          "%4": "Traceback (most recent call last):\nAttributeError: 'NoneType' object has no attribute 'result'"
         }
       }))
     };
@@ -158,10 +274,19 @@ describe("automation monitor manager", () => {
           lastSummary: "money-run-goal recent output contains an obvious error marker in pane %4.",
           lastReport: {
             status: "needs_attention",
+            signals: [
+              {
+                paneId: "%4",
+                type: "error-marker"
+              }
+            ],
             recommendation: {
-              action: "inspect_output"
+              action: "inspect_output",
+              mutatesSession: false
             }
-          }
+          },
+          lastResult: "needs_attention",
+          mutatesSession: false
         }
       ]
     });

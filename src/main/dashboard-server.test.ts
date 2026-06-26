@@ -628,18 +628,32 @@ describe("dashboard loopback HTTP response helper", () => {
         mutatesSession: false,
         result: "configured",
         monitorId: "tmux-session:money-run-goal",
+        monitor: {
+          status: "scheduler_inactive",
+          lastResult: "observing",
+          mutatesSession: false
+        },
         automation: {
           activeCount: 1,
-          attentionCount: 0,
+          attentionCount: 1,
+          schedulerInactiveCount: 1,
+          scheduler: {
+            state: "inactive",
+            scope: "app-process",
+            activeTimerCount: 0,
+            mutatesSession: false
+          },
           monitors: [
             {
               id: "tmux-session:money-run-goal",
               kind: "tmux-session",
               label: "money-run goal",
               sessionName: "money-run-goal",
-              status: "observing",
+              status: "scheduler_inactive",
+              lastResult: "observing",
               checkCount: 1,
-              intervalMs: 600_000
+              intervalMs: 600_000,
+              mutatesSession: false
             }
           ]
         }
@@ -660,12 +674,21 @@ describe("dashboard loopback HTTP response helper", () => {
         result: "checked",
         monitorId: "tmux-session:money-run-goal",
         mutatesSession: false,
+        monitor: {
+          status: "scheduler_inactive",
+          lastResult: "observing",
+          mutatesSession: false
+        },
         automation: {
+          attentionCount: 1,
+          schedulerInactiveCount: 1,
           monitors: [
             {
               id: "tmux-session:money-run-goal",
-              status: "observing",
-              checkCount: 2
+              status: "scheduler_inactive",
+              lastResult: "observing",
+              checkCount: 2,
+              mutatesSession: false
             }
           ]
         }

@@ -274,7 +274,20 @@ type AutomationMonitorStatus =
   | "blocked"
   | "idle"
   | "disabled"
-  | "error";
+  | "error"
+  | "scheduler_inactive";
+type AutomationSchedulerState = "active" | "inactive";
+type AutomationMonitorLastResult = "observing" | "needs_attention" | "blocked" | "error";
+
+interface AutomationMonitorSchedulerStatus {
+  state: AutomationSchedulerState;
+  scope: "app-process";
+  owner: "skfiy";
+  activeTimerCount: number;
+  mutatesSession: false;
+  startedAt?: string;
+  reason?: string;
+}
 
 interface AutomationMonitorRuntime {
   id: string;
@@ -291,6 +304,12 @@ interface AutomationMonitorRuntime {
   lastSummary?: string;
   lastError?: string;
   lastReport?: unknown;
+  lastResult?: AutomationMonitorLastResult;
+  lastResultAt?: string;
+  observedSession?: string;
+  schedulerState?: AutomationSchedulerState;
+  schedulerScope?: "app-process";
+  mutatesSession?: false;
 }
 
 interface AutomationMonitorSnapshot {
@@ -298,6 +317,8 @@ interface AutomationMonitorSnapshot {
   generatedAt: string;
   activeCount: number;
   attentionCount: number;
+  schedulerInactiveCount: number;
+  scheduler: AutomationMonitorSchedulerStatus;
   monitors: AutomationMonitorRuntime[];
 }
 
@@ -1126,8 +1147,35 @@ function isAutomationMonitorSnapshot(value: unknown): value is AutomationMonitor
     && Number.isFinite(snapshot.activeCount)
     && typeof snapshot.attentionCount === "number"
     && Number.isFinite(snapshot.attentionCount)
+    && typeof snapshot.schedulerInactiveCount === "number"
+    && Number.isFinite(snapshot.schedulerInactiveCount)
+    && isAutomationMonitorSchedulerStatus(snapshot.scheduler)
     && Array.isArray(snapshot.monitors)
     && snapshot.monitors.every(isAutomationMonitorRuntime)
+  );
+}
+
+function isAutomationMonitorSchedulerStatus(value: unknown): value is AutomationMonitorSchedulerStatus {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const scheduler = value as Partial<AutomationMonitorSchedulerStatus>;
+  return (
+    (scheduler.state === "active" || scheduler.state === "inactive")
+    && scheduler.scope === "app-process"
+    && scheduler.owner === "skfiy"
+    && typeof scheduler.activeTimerCount === "number"
+    && Number.isFinite(scheduler.activeTimerCount)
+    && scheduler.mutatesSession === false
+    && (
+      scheduler.startedAt === undefined
+      || typeof scheduler.startedAt === "string"
+    )
+    && (
+      scheduler.reason === undefined
+      || typeof scheduler.reason === "string"
+    )
   );
 }
 
@@ -1168,6 +1216,31 @@ function isAutomationMonitorRuntime(value: unknown): value is AutomationMonitorR
       monitor.lastError === undefined
       || typeof monitor.lastError === "string"
     )
+    && (
+      monitor.lastResult === undefined
+      || isAutomationMonitorLastResult(monitor.lastResult)
+    )
+    && (
+      monitor.lastResultAt === undefined
+      || typeof monitor.lastResultAt === "string"
+    )
+    && (
+      monitor.observedSession === undefined
+      || typeof monitor.observedSession === "string"
+    )
+    && (
+      monitor.schedulerState === undefined
+      || monitor.schedulerState === "active"
+      || monitor.schedulerState === "inactive"
+    )
+    && (
+      monitor.schedulerScope === undefined
+      || monitor.schedulerScope === "app-process"
+    )
+    && (
+      monitor.mutatesSession === undefined
+      || monitor.mutatesSession === false
+    )
   );
 }
 
@@ -1178,6 +1251,16 @@ function isAutomationMonitorStatus(value: unknown): value is AutomationMonitorSt
     || value === "blocked"
     || value === "idle"
     || value === "disabled"
+    || value === "error"
+    || value === "scheduler_inactive"
+  );
+}
+
+function isAutomationMonitorLastResult(value: unknown): value is AutomationMonitorLastResult {
+  return (
+    value === "observing"
+    || value === "needs_attention"
+    || value === "blocked"
     || value === "error"
   );
 }
@@ -1307,6 +1390,15 @@ function createDefaultAutomationMonitorSnapshot(): AutomationMonitorSnapshot {
     generatedAt: new Date(0).toISOString(),
     activeCount: 0,
     attentionCount: 0,
+    schedulerInactiveCount: 0,
+    scheduler: {
+      state: "inactive",
+      scope: "app-process",
+      owner: "skfiy",
+      activeTimerCount: 0,
+      mutatesSession: false,
+      reason: "Open skfiy to resume interval checks."
+    },
     monitors: []
   };
 }

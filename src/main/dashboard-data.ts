@@ -408,6 +408,15 @@ function readWorkspaceAutomationMonitors(
       generatedAt,
       activeCount: 0,
       attentionCount: 1,
+      schedulerInactiveCount: 0,
+      scheduler: {
+        state: "inactive",
+        scope: "app-process",
+        owner: "skfiy",
+        activeTimerCount: 0,
+        mutatesSession: false,
+        reason: "Automation monitor state could not be read."
+      },
       monitors: [],
       state: "error",
       reason: error instanceof Error

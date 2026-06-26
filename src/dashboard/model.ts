@@ -67,11 +67,28 @@ export interface DashboardAutomationMonitorView {
   detail: string;
   cadence: string;
   tone: Tone;
+  lastCheckedAt?: string;
+  nextCheckAt?: string;
+  lastResult?: string;
+  observedSession?: string;
+  mutatesSession: boolean;
+}
+
+export interface DashboardAutomationSchedulerView {
+  state: string;
+  label: string;
+  detail: string;
+  tone: Tone;
+  scope: string;
+  activeTimerCount: number;
+  mutatesSession: false;
 }
 
 export interface DashboardAutomationSummary {
   activeCount: number;
   attentionCount: number;
+  schedulerInactiveCount: number;
+  scheduler: DashboardAutomationSchedulerView;
   generatedAt?: string;
   monitors: DashboardAutomationMonitorView[];
   tone: Tone;
@@ -500,6 +517,7 @@ export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusI
 
 export function readAutomationSummary(snapshot: DashboardSnapshot): DashboardAutomationSummary {
   const automation = readRecord(snapshot.automation);
+  const scheduler = readAutomationSchedulerSummary(readRecord(automation?.scheduler));
   const monitors = readRecordArray(automation?.monitors).map((monitor, index) => {
     const status = readString(monitor.status) ?? "idle";
     const intervalMs = readNumber(monitor.intervalMs);
@@ -512,17 +530,26 @@ export function readAutomationSummary(snapshot: DashboardSnapshot): DashboardAut
         ?? readString(readRecord(readRecord(monitor.lastReport)?.recommendation)?.reason)
         ?? "Waiting for the first skfiy-owned check.",
       cadence: formatMonitorInterval(intervalMs),
-      tone: readAutomationMonitorTone(status)
+      tone: readAutomationMonitorTone(status),
+      lastCheckedAt: readString(monitor.lastCheckedAt),
+      nextCheckAt: readString(monitor.nextCheckAt),
+      lastResult: readString(monitor.lastResult),
+      observedSession: readString(monitor.observedSession) ?? readString(monitor.sessionName),
+      mutatesSession: monitor.mutatesSession === true
     };
   });
   const activeCount = readNumber(automation?.activeCount)
     ?? monitors.filter((monitor) => monitor.status !== "disabled").length;
   const attentionCount = readNumber(automation?.attentionCount)
     ?? monitors.filter((monitor) => monitor.tone === "warning" || monitor.tone === "danger").length;
+  const schedulerInactiveCount = readNumber(automation?.schedulerInactiveCount)
+    ?? monitors.filter((monitor) => monitor.status === "scheduler_inactive").length;
 
   return {
     activeCount,
     attentionCount,
+    schedulerInactiveCount,
+    scheduler,
     generatedAt: readString(automation?.generatedAt),
     monitors,
     tone: attentionCount > 0 ? "warning" : activeCount > 0 ? "success" : "neutral"
@@ -1570,6 +1597,31 @@ function formatMonitorInterval(intervalMs: number | undefined): string {
   return `every ${hours}h`;
 }
 
+function readAutomationSchedulerSummary(scheduler: Record<string, unknown> | undefined): DashboardAutomationSchedulerView {
+  const state = readString(scheduler?.state) === "active" ? "active" : "inactive";
+  const scope = readString(scheduler?.scope) ?? "app-process";
+  const activeTimerCount = readNumber(scheduler?.activeTimerCount) ?? 0;
+  const startedAt = readString(scheduler?.startedAt);
+  const reason = readString(scheduler?.reason);
+  const timerLabel = `${activeTimerCount} ${activeTimerCount === 1 ? "timer" : "timers"}`;
+  const detailParts = [
+    `${scope} scheduler`,
+    timerLabel,
+    ...(state === "active" && startedAt ? [`started ${startedAt}`] : []),
+    ...(state === "inactive" && reason ? [reason] : [])
+  ];
+
+  return {
+    state,
+    label: `scheduler ${state}`,
+    detail: detailParts.join(" · "),
+    tone: state === "active" ? "success" : "warning",
+    scope,
+    activeTimerCount,
+    mutatesSession: false
+  };
+}
+
 function readAutomationMonitorTone(status: string): Tone {
   if (status === "observing") {
     return "success";
@@ -1577,7 +1629,7 @@ function readAutomationMonitorTone(status: string): Tone {
   if (status === "blocked" || status === "error") {
     return "danger";
   }
-  if (status === "needs_attention" || status === "idle") {
+  if (status === "needs_attention" || status === "idle" || status === "scheduler_inactive") {
     return "warning";
   }
   return "neutral";

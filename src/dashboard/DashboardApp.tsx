@@ -2285,11 +2285,18 @@ function AutomationMonitorsCard({
       </Card.Header>
       <Card.Content className="skfiy-dashboard-card-content">
         <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={automation.scheduler.tone}>{automation.scheduler.label}</StatusChip>
           <StatusChip tone={automation.tone}>{automation.activeCount} active</StatusChip>
           <StatusChip tone={automation.attentionCount > 0 ? "warning" : "success"}>
             {automation.attentionCount} attention
           </StatusChip>
+          <StatusChip tone={automation.schedulerInactiveCount > 0 ? "warning" : "success"}>
+            {automation.schedulerInactiveCount} scheduler inactive
+          </StatusChip>
         </div>
+        <p className="skfiy-dashboard-muted-message">
+          {automation.scheduler.detail}
+        </p>
         <form
           aria-label="Automation monitor settings"
           className="skfiy-dashboard-control-form"
@@ -2342,6 +2349,18 @@ function AutomationMonitorsCard({
                   <strong>{monitor.label}</strong>
                   <span>{monitor.status} · {monitor.cadence}</span>
                   <span>{monitor.detail}</span>
+                  <span>
+                    session {monitor.observedSession ?? monitor.sessionName ?? "unknown"}
+                    {" · "}
+                    last result {monitor.lastResult ?? monitor.status}
+                    {" · "}
+                    mutates session {monitor.mutatesSession ? "yes" : "no"}
+                  </span>
+                  <span>
+                    last check {monitor.lastCheckedAt ?? "never"}
+                    {" · "}
+                    next check {monitor.nextCheckAt ?? "not scheduled"}
+                  </span>
                 </div>
                 <button
                   aria-label={`Run automation monitor: ${monitor.label}`}

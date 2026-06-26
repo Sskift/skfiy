@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSnapshot } from "./contracts";
-import { readChromeControlState, readComputerUseReadiness, readKnowledgeGraph } from "./model";
+import {
+  readAutomationSummary,
+  readChromeControlState,
+  readComputerUseReadiness,
+  readKnowledgeGraph
+} from "./model";
 
 describe("readKnowledgeGraph", () => {
   it("connects memory, sessions, provider, browser context, Computer Use, and alerts", () => {
@@ -254,6 +259,70 @@ describe("readChromeControlState", () => {
         tone: "neutral"
       }
     ]));
+  });
+});
+
+describe("readAutomationSummary", () => {
+  it("surfaces app-process scheduler state and read-only monitor evidence", () => {
+    const summary = readAutomationSummary({
+      ...createSnapshot(),
+      automation: {
+        schemaVersion: 1,
+        generatedAt: "2026-06-25T10:00:00.000Z",
+        activeCount: 1,
+        attentionCount: 1,
+        schedulerInactiveCount: 1,
+        scheduler: {
+          state: "inactive",
+          scope: "app-process",
+          owner: "skfiy",
+          activeTimerCount: 0,
+          mutatesSession: false,
+          reason: "Open skfiy to resume interval checks."
+        },
+        monitors: [
+          {
+            id: "tmux-session:money-run-goal",
+            label: "money-run goal",
+            sessionName: "money-run-goal",
+            status: "scheduler_inactive",
+            intervalMs: 300_000,
+            checkCount: 2,
+            lastCheckedAt: "2026-06-25T09:59:00.000Z",
+            nextCheckAt: "2026-06-25T10:04:00.000Z",
+            lastResult: "observing",
+            observedSession: "money-run-goal",
+            mutatesSession: false,
+            lastSummary: "money-run-goal has 1 window, 1 pane, and no obvious block markers."
+          }
+        ]
+      }
+    });
+
+    expect(summary).toMatchObject({
+      activeCount: 1,
+      attentionCount: 1,
+      schedulerInactiveCount: 1,
+      scheduler: {
+        state: "inactive",
+        label: "scheduler inactive",
+        detail: "app-process scheduler · 0 timers · Open skfiy to resume interval checks.",
+        tone: "warning",
+        mutatesSession: false
+      },
+      monitors: [
+        {
+          id: "tmux-session:money-run-goal",
+          status: "scheduler_inactive",
+          lastResult: "observing",
+          lastCheckedAt: "2026-06-25T09:59:00.000Z",
+          nextCheckAt: "2026-06-25T10:04:00.000Z",
+          observedSession: "money-run-goal",
+          mutatesSession: false,
+          tone: "warning"
+        }
+      ]
+    });
   });
 });
 
