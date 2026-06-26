@@ -4,7 +4,9 @@ import path from "node:path";
 export const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 export const STRICT_APPROVAL_ENV = "SKFIY_BYPASS_APPROVAL=strict";
 export const HIDDEN_WINDOW_ENV = "SKFIY_SMOKE_WINDOW_MODE=hidden";
+export const SMOKE_ASSISTANT_PROMPT_ENV = "SKFIY_SMOKE_ASSISTANT_PROMPT";
 export const SMOKE_ASSISTANT_REPLY_ENV = "SKFIY_SMOKE_ASSISTANT_REPLY";
+export const DEFAULT_SMOKE_ASSISTANT_PROMPT = "你好 skfiy，请用一句话回复。";
 export const DEFAULT_SMOKE_ASSISTANT_REPLY = "你好，我是 skfiy。";
 export const REQUIRED_COMPUTER_USE_PERMISSION_KEYS = ["screenRecording", "accessibility"];
 export const REQUIRED_PERMISSION_KEYS = [
@@ -27,6 +29,7 @@ export function createDefaultUiSmokeOptions(rootDir) {
     settleMs: 1_200,
     productPath: UI_PRODUCT_PATH,
     requiredPermissionLabels: [...REQUIRED_PERMISSION_LABELS],
+    smokeAssistantPrompt: DEFAULT_SMOKE_ASSISTANT_PROMPT,
     smokeAssistantReply: DEFAULT_SMOKE_ASSISTANT_REPLY,
     launchMode: "hidden",
     stealsFocus: false,
@@ -105,6 +108,10 @@ export function classifyUiSmokeEvidence(evidence) {
     return "missing-pet-drag";
   }
 
+  if (hasBlockedDesktopSessionEvidence(evidence.desktopSessionDiagnostics)) {
+    return "desktop-session-blocked";
+  }
+
   if (!hasStopTurnBehaviorEvidence(evidence.stopTurnBehavior)) {
     return "missing-stop-turn-behavior";
   }
@@ -144,10 +151,13 @@ export async function writeUiSmokeEvidence(outputPath, evidence, io = fs) {
 export function formatUiLaunchCommand(options) {
   const noFocusFlag = options.launchMode === "hidden" ? " -g" : "";
   const hiddenEnv = options.launchMode === "hidden" ? ` --env ${HIDDEN_WINDOW_ENV}` : "";
+  const smokeAssistantPromptEnv = options.smokeAssistantPrompt
+    ? ` --env ${SMOKE_ASSISTANT_PROMPT_ENV}=${shellEscapeEnvValue(options.smokeAssistantPrompt)}`
+    : "";
   const smokeAssistantEnv = options.smokeAssistantReply
     ? ` --env ${SMOKE_ASSISTANT_REPLY_ENV}=${shellEscapeEnvValue(options.smokeAssistantReply)}`
     : "";
-  return `open -n${noFocusFlag} -a ${options.appPath} --env ${STRICT_APPROVAL_ENV}${hiddenEnv}${smokeAssistantEnv} --args --remote-debugging-port=${options.port}`;
+  return `open -n${noFocusFlag} -a ${options.appPath} --env ${STRICT_APPROVAL_ENV}${hiddenEnv}${smokeAssistantPromptEnv}${smokeAssistantEnv} --args --remote-debugging-port=${options.port}`;
 }
 
 export function createUiHelpText(defaults) {
@@ -202,6 +212,14 @@ function hasAllRequiredPermissionsGranted(permissions) {
 
   return REQUIRED_PERMISSION_KEYS.every((permission) =>
     permissions?.[permission]?.state === "granted"
+  );
+}
+
+function hasBlockedDesktopSessionEvidence(diagnostics) {
+  return Boolean(
+    diagnostics &&
+      typeof diagnostics === "object" &&
+      diagnostics.state === "blocked"
   );
 }
 

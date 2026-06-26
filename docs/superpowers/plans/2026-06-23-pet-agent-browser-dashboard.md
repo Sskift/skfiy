@@ -23,7 +23,7 @@
 - Chrome extension pageControl can report current tab readiness, run observe/click/fill/submit/scroll paths, and provide bounded Browser Context to Background Agent prompts when ready.
 - Dashboard now leads with an operator workspace for Background Agent readiness, Browser Context, Computer Use tool status, permissions/actions, and smoke/build evidence. The Knowledge graph remains an auxiliary evidence/provenance view, not the homepage center.
 - Dashboard status discovery now treats a reachable loopback descriptor as authoritative, including the default `127.0.0.1:8787` URL, and separates stale saved PID evidence from the live running status.
-- Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clones `5ecf3bf` / `3c75e11` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop. Current notes: `docs/research/2026-06-24-hermes-personalization-distillation.md`.
+- Hermes research basis has been folded into this active plan and the memory/session tests. Official repository `NousResearch/hermes-agent` and local shallow clones `5ecf3bf` / `3c75e11` showed a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill that pattern, do not embed Hermes' unrestricted tool loop, and do not keep a parallel dated research note as a task source.
 - Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, Hermes-style atomic memory batch writes, prompt-load memory sanitization, and a derived prompt-safe Working profile that makes learned habits portable, reviewable, and available to real provider prompts; Task 9 adds user-visible removal for incorrect remembered preferences plus append-only learning receipts for durable and pending memory changes. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
 - Personalization hardening: unsafe manually polluted memory is still blocked from provider prompts, but Dashboard/store removal must remain able to forget the exact polluted entry so users can correct bad sediment instead of getting stuck with an invisible prompt-safe placeholder.
 - Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
@@ -991,10 +991,9 @@ In `src/main/personal-memory.ts`:
 - Before rendering `<skfiy-recalled-memory>`, replace prompt-injection-shaped entries with a blocked placeholder instead of injecting their raw text into Codex, Claude Code, or Hermes.
 - Recompute prompt-block usage from the prompt-safe snapshot so provider prompts reflect what was actually injected.
 
-Research reference:
+Research basis:
 
-- `docs/research/2026-06-24-hermes-personalization-distillation.md`
-- Hermes source: `tools/memory_tool.py` at shallow clone `3c75e11`, specifically the load-time snapshot sanitization pattern.
+- Hermes source: `tools/memory_tool.py` at shallow clone `3c75e11`, specifically the load-time snapshot sanitization pattern. The dated Hermes research note was removed after this contract was folded into the active plan and tests.
 
 Focused verification:
 
@@ -2048,10 +2047,10 @@ Expected:
 Current 2026-06-26 evidence:
 
 - `npm run build` exited 0 and packaged `dist/skfiy.app`.
-- `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` wrote the release artifact but exited 2. The `cli-basic` and `dashboard-product` scenarios passed; `ui-product` recorded `result: "missing-stop-turn-behavior"`, `focusMode: "hidden-window"`, and `stealsFocus: false`.
-- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` exited 0 and recorded `launchMode: "hidden"` and `stealsFocus: false`. After `ac28ba0 test: make ui smoke quota independent`, the artifact's assistant conversation path uses `SKFIY_SMOKE_ASSISTANT_REPLY` and records a deterministic skfiy reply instead of calling a live provider quota path. The artifact result remains `missing-stop-turn-behavior` because the current desktop session is locked/asleep, so stop-turn approval UI cannot be proven.
-- `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` exited 0 and recorded `result: "passed"` through `skfiy dashboard --no-open`.
-- Remaining typed blocker before Step 8 can be checked off: `desktop-session-blocked` (frontmost `com.apple.loginwindow`, main display asleep; wake/unlock before field or stop-turn product proof). `provider-usage-limit` is no longer a UI smoke blocker, although real Background Agent readiness dry-runs can still report `provider-auth-blocked` when a provider is not chat-ready.
+- `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` wrote the release artifact but exited 2 because `--require-passed` rejects the current UI blocker. The `cli-basic` and `dashboard-product` scenarios passed; `ui-product` recorded `result: "desktop-session-blocked"`, `focusMode: "hidden-window"`, `stealsFocus: false`, and aggregate blocker `{ scenarioId: "ui-product", code: "desktop-session-blocked" }`.
+- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` and the v2 UI artifact record `launchMode: "hidden"` and `stealsFocus: false`. The assistant conversation path uses smoke-only `SKFIY_SMOKE_ASSISTANT_PROMPT` plus `SKFIY_SMOKE_ASSISTANT_REPLY`, so ordinary Computer Use command turns still exercise the real turn pipeline. The artifact records `assistantConversation.result: "passed"` and `stopTurnBehavior.result: "passed"` with `approval_required -> cancelled` evidence.
+- `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` and the v2 dashboard artifact record `result: "passed"` through `skfiy dashboard --no-open`.
+- Remaining typed blocker before Step 8 can be checked off: `desktop-session-blocked` (frontmost `com.apple.loginwindow`; unlock the Mac and keep the display awake before field or release proof). `provider-usage-limit` is no longer a UI smoke blocker, although real Background Agent readiness dry-runs can still report `provider-auth-blocked` when a provider is not chat-ready.
 
 - [x] **Step 9: Commit**
 

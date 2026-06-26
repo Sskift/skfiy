@@ -140,15 +140,19 @@ The old Chrome extension architecture note was removed after its durable setup,
 permission, and Browser Context recovery details were folded into
 `docs/chrome-extension-setup.md`, Browser Context tests, and the active plan.
 
-Current Task 12 verification status on 2026-06-26: focused tests, full Vitest,
-typecheck, `git diff --check`, and `npm run build` pass. Dashboard smoke passes
-through the no-open product path. Hidden UI product smoke no longer depends on a
-live Background Agent quota because the smoke launch injects
-`SKFIY_SMOKE_ASSISTANT_REPLY`; the assistant conversation path records a
-deterministic skfiy reply while preserving the normal provider path outside
-smoke. The remaining UI product blocker is the current locked or asleep desktop
-state (`desktop-session-blocked`), which prevents stop-turn approval evidence;
-the smoke artifacts still record `stealsFocus: false`.
+Current Task 12 verification status on 2026-06-26: focused UI smoke and
+smoke:v2 script tests pass, typecheck/build/diff verification has been run for
+the branch, and Dashboard smoke passes through the no-open product path. Hidden
+UI product smoke no longer depends on a live Background Agent quota because the
+smoke launch injects a prompt-scoped `SKFIY_SMOKE_ASSISTANT_PROMPT` plus
+`SKFIY_SMOKE_ASSISTANT_REPLY`; ordinary Computer Use command turns still use
+the real turn pipeline. UI smoke now records
+`assistantConversation.result: "passed"` and
+`stopTurnBehavior.result: "passed"` with `approval_required -> cancelled`
+evidence. The remaining UI product blocker is the current locked desktop state
+(`desktop-session-blocked`, frontmost `com.apple.loginwindow`); the smoke
+artifacts still record `stealsFocus: false`, and `smoke:v2` now promotes that
+UI blocker into the aggregate `blockers` list.
 
 ## Current Branch Hardening Evidence
 

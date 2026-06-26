@@ -12,6 +12,7 @@ import {
   formatUiLaunchCommand,
   parseUiSmokeArgs,
   HIDDEN_WINDOW_ENV,
+  SMOKE_ASSISTANT_PROMPT_ENV,
   SMOKE_ASSISTANT_REPLY_ENV,
   STRICT_APPROVAL_ENV,
   writeUiSmokeEvidence
@@ -160,6 +161,9 @@ async function launchSkfiy(options) {
     "--env",
     STRICT_APPROVAL_ENV,
     ...(options.launchMode === "hidden" ? ["--env", HIDDEN_WINDOW_ENV] : []),
+    ...(options.smokeAssistantPrompt
+      ? ["--env", `${SMOKE_ASSISTANT_PROMPT_ENV}=${options.smokeAssistantPrompt}`]
+      : []),
     ...(options.smokeAssistantReply
       ? ["--env", `${SMOKE_ASSISTANT_REPLY_ENV}=${options.smokeAssistantReply}`]
       : []),
@@ -265,6 +269,7 @@ function createInspectPermissionOnboardingExpression(settleMs) {
     isVisibleEdgeAligned.toString(),
     hasVisiblePetEdgeChecks.toString(),
     exerciseStopTurnBehavior.toString(),
+    summarizeTaskEvents.toString(),
     waitForDomCondition.toString(),
     waitForTaskEvent.toString(),
     setTextAreaValue.toString(),
@@ -878,7 +883,8 @@ async function exerciseStopTurnBehavior() {
       beforeStatus: "missing",
       afterStatus: "missing",
       beforeMessage: "",
-      afterMessage: ""
+      afterMessage: "",
+      taskEvents: []
     };
   }
 
@@ -903,7 +909,8 @@ async function exerciseStopTurnBehavior() {
         afterStatus: "missing-approval-ui",
         beforeMessage: before?.message ?? "",
         afterMessage: "",
-        eventCount: events.length
+        eventCount: events.length,
+        taskEvents: summarizeTaskEvents(events)
       };
     }
 
@@ -927,7 +934,8 @@ async function exerciseStopTurnBehavior() {
       afterStatus: after?.status ?? "missing",
       beforeMessage: before?.message ?? "",
       afterMessage: after?.message ?? "",
-      eventCount: events.length
+      eventCount: events.length,
+      taskEvents: summarizeTaskEvents(events)
     };
   } catch (error) {
     return {
@@ -938,11 +946,22 @@ async function exerciseStopTurnBehavior() {
       afterStatus: "error",
       beforeMessage: "",
       afterMessage: error instanceof Error ? error.message : String(error),
-      eventCount: events.length
+      eventCount: events.length,
+      taskEvents: summarizeTaskEvents(events)
     };
   } finally {
     unsubscribe();
   }
+}
+
+function summarizeTaskEvents(events) {
+  return events.map((event) => ({
+    status: typeof event.status === "string" ? event.status : undefined,
+    message: typeof event.message === "string" ? event.message.slice(0, 240) : undefined,
+    command: typeof event.command === "string" ? event.command.slice(0, 240) : undefined,
+    target: typeof event.target === "string" ? event.target : undefined,
+    mode: typeof event.mode === "string" ? event.mode : undefined
+  }));
 }
 
 async function waitForDomCondition(predicate, timeoutMs = 3_000) {

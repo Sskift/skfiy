@@ -461,6 +461,10 @@ function readBlockerCode(rawArtifact, result) {
     return "desktop-session-blocked";
   }
 
+  if (rawArtifact?.desktopSessionDiagnostics?.state === "blocked") {
+    return "desktop-session-blocked";
+  }
+
   if (result === "needs-user-confirmation") {
     return "needs-user-confirmation";
   }

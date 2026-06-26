@@ -80,9 +80,9 @@ caches can be deleted locally.
 - [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md): canonical
   extension install, native host setup, Browser Context readiness, permission
   recovery, and bridge diagnostics.
-- [docs/research/](docs/research/): retained research that still feeds the
-  active plan. Fold durable operational instructions back into canonical docs
-  and tests instead of treating old notes as live checklists.
+Research notes are not a live task source. Keep dated research only while it has
+open product value; once a pattern is represented by the active plan,
+canonical docs, and tests, delete the note instead of letting it drift.
 
 ## MVP Scope
 

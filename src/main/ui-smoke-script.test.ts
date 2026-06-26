@@ -39,6 +39,7 @@ describe("packaged UI product smoke script", () => {
       requiredPermissionLabels: ["屏幕录制", "辅助功能"],
       launchMode: "hidden",
       stealsFocus: false,
+      smokeAssistantPrompt: "你好 skfiy，请用一句话回复。",
       smokeAssistantReply: "你好，我是 skfiy。"
     });
     expect(parseUiSmokeArgs([
@@ -58,6 +59,7 @@ describe("packaged UI product smoke script", () => {
     expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_BYPASS_APPROVAL=strict");
     expect(formatUiLaunchCommand(defaults)).toContain("open -n -g -a");
     expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_SMOKE_WINDOW_MODE=hidden");
+    expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_SMOKE_ASSISTANT_PROMPT=");
     expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_SMOKE_ASSISTANT_REPLY=");
     expect(parseUiSmokeArgs(["--visible"], defaults)).toMatchObject({
       launchMode: "visible",
@@ -93,6 +95,25 @@ describe("packaged UI product smoke script", () => {
     expect(smokeSource).toContain("options.smokeAssistantReply");
     expect(mainSource).toContain("process.env.SKFIY_SMOKE_ASSISTANT_REPLY");
     expect(mainSource).toContain("createSmokeAssistantAgentTaskTurn");
+  });
+
+  it("limits deterministic UI smoke replies to the assistant chat prompt", () => {
+    const mainSource = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const smokeSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-product.mjs"), "utf8");
+    const planSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-plan.mjs"), "utf8");
+
+    expect(planSource).toContain("SKFIY_SMOKE_ASSISTANT_PROMPT");
+    expect(smokeSource).toContain("SMOKE_ASSISTANT_PROMPT_ENV");
+    expect(smokeSource).toContain("options.smokeAssistantPrompt");
+    expect(mainSource).toContain("process.env.SKFIY_SMOKE_ASSISTANT_PROMPT");
+    expect(mainSource).toContain("input.trim() !== smokePrompt");
+  });
+
+  it("records stop-turn task event summaries for product smoke diagnosis", () => {
+    const smokeSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-product.mjs"), "utf8");
+
+    expect(smokeSource).toContain("summarizeTaskEvents.toString()");
+    expect(smokeSource).toContain("taskEvents: summarizeTaskEvents(events)");
   });
 
   it("classifies a real permission onboarding click as passed only with product-path evidence", async () => {
@@ -201,6 +222,16 @@ describe("packaged UI product smoke script", () => {
       ...passedEvidence,
       stopTurnBehavior: undefined
     })).toBe("missing-stop-turn-behavior");
+    expect(classifyUiSmokeEvidence({
+      ...passedEvidence,
+      desktopSessionDiagnostics: {
+        state: "blocked",
+        reason: "Desktop session is locked by loginwindow",
+        frontmostBundleId: "com.apple.loginwindow",
+        mainDisplayAsleep: true
+      },
+      stopTurnBehavior: undefined
+    })).toBe("desktop-session-blocked");
     expect(classifyUiSmokeEvidence({
       ...passedEvidence,
       assistantConversation: undefined

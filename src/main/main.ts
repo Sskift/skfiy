@@ -652,8 +652,9 @@ async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAge
 }
 
 function createSmokeAssistantAgentTaskTurn(input: string): AssistantAgentTurnResult | undefined {
+  const smokePrompt = process.env.SKFIY_SMOKE_ASSISTANT_PROMPT?.trim();
   const smokeReply = process.env.SKFIY_SMOKE_ASSISTANT_REPLY?.trim();
-  if (!smokeReply) {
+  if (!smokePrompt || !smokeReply || input.trim() !== smokePrompt) {
     return undefined;
   }
 

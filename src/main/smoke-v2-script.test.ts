@@ -137,6 +137,30 @@ describe("smoke v2 runner", () => {
     });
 
     expect(classifySmokeV2Scenario({
+      id: "ui-product",
+      layer: "packaged",
+      focusMode: "hidden-window",
+      stealsFocus: false,
+      acceptedResults: ["passed", "no-onboarding"],
+      rawArtifact: {
+        result: "desktop-session-blocked",
+        desktopSessionDiagnostics: {
+          state: "blocked",
+          reason: "Desktop session is locked by loginwindow.",
+          frontmostBundleId: "com.apple.loginwindow"
+        }
+      },
+      exitCode: 0
+    })).toMatchObject({
+      id: "ui-product",
+      result: "desktop-session-blocked",
+      accepted: false,
+      blockerCode: "desktop-session-blocked",
+      focusMode: "hidden-window",
+      stealsFocus: false
+    });
+
+    expect(classifySmokeV2Scenario({
       id: "money-run",
       layer: "field",
       acceptedResults: ["passed"],

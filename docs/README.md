@@ -26,9 +26,9 @@ research notes as dated context unless they contain a still-open product gap.
 
 - `decisions/`: durable decision records that should stay stable unless the
   decision changes.
-- `research/`: retained dated research that still feeds the active plan. Keep
-  only notes with open product value; fold implementation logs and API
-  restatements into canonical docs and tests, then delete them.
+- Dated research notes are temporary. Keep one only while it has open product
+  value; fold implementation logs and API restatements into the active plan,
+  canonical docs, and tests, then delete the note.
 - `superpowers/plans/`: active implementation plans for agentic work. Keep
   exactly one active plan unless the project owner explicitly asks for a
   temporary split.
@@ -41,6 +41,9 @@ research notes as dated context unless they contain a still-open product gap.
   `product-readiness-matrix.md` and `src/main/dashboard-evidence-summary.test.ts`.
   The old Chrome extension architecture note has been folded into
   `chrome-extension-setup.md`, Browser Context tests, and the active plan.
+  The old Hermes personalization distillation note has been folded into the
+  active plan, memory/session tests, Working profile docs in code, and the
+  Dashboard memory/operator surfaces.
 
 ## Local Artifact Hygiene
 
