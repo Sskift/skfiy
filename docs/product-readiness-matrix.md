@@ -142,7 +142,12 @@ permission, and Browser Context recovery details were folded into
 
 Current Task 12 verification status on 2026-06-26: focused UI smoke and
 smoke:v2 script tests pass, typecheck/build/diff verification has been run for
-the branch, and Dashboard smoke passes through the no-open product path. Hidden
+the branch, and Dashboard smoke passes through the no-open product path. The CLI
+smoke default timeout is now 30 seconds so `doctor-json` has enough room for
+read-only desktop-session, Dashboard, Chrome, and money-run probes in a cold
+isolated HOME. `npm run smoke:v2 -- --profile silent --output
+.skfiy-smoke/v2/silent.json --require-passed` records `result: "passed"` with
+`cli-basic` and `dashboard-product` both reporting `stealsFocus: false`. Hidden
 UI product smoke no longer depends on a live Background Agent quota because the
 smoke launch injects a prompt-scoped `SKFIY_SMOKE_ASSISTANT_PROMPT` plus
 `SKFIY_SMOKE_ASSISTANT_REPLY`; ordinary Computer Use command turns still use
@@ -151,11 +156,11 @@ the real turn pipeline. UI smoke now records
 `stopTurnBehavior.result: "passed"` with `approval_required -> cancelled`
 evidence. The remaining UI product blocker is the current locked/asleep desktop
 state (`desktop-session-blocked`, frontmost `com.apple.loginwindow`); the smoke
-artifacts still record `stealsFocus: false`, and `smoke:v2` now promotes that
-UI blocker into the aggregate `blockers` list. CLI status/doctor readiness now
-uses the same typed blocker language for desktop-session, Browser Context host
-policy, and money-run attention states instead of collapsing them into generic
-readiness failures.
+artifacts still record `stealsFocus: false`, and `smoke:v2 --profile release`
+now promotes that UI blocker into the aggregate `blockers` list. CLI
+status/doctor readiness now uses the same typed blocker language for
+desktop-session, Browser Context host policy, and money-run attention states
+instead of collapsing them into generic readiness failures.
 
 ## Current Branch Hardening Evidence
 

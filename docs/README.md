@@ -1,8 +1,9 @@
 # skfiy Docs
 
-This directory separates current operator instructions from historical research.
-When a workflow changes, update the canonical document first and leave old
-research notes as dated context unless they contain a still-open product gap.
+This directory separates current operator instructions from durable decision
+records. When a workflow changes, update the canonical document first; do not
+keep temporary research notes, implementation logs, or duplicate specs after
+their contracts have been folded into the active plan, canonical docs, or tests.
 
 ## Canonical Docs
 
@@ -26,15 +27,16 @@ research notes as dated context unless they contain a still-open product gap.
 
 - `decisions/`: durable decision records that should stay stable unless the
   decision changes.
-- Dated research notes are temporary. Keep one only while it has open product
-  value; fold implementation logs and API restatements into the active plan,
-  canonical docs, and tests, then delete the note.
+- Dated research notes are temporary. Keep them out of git once their product
+  value has been folded into the active plan, canonical docs, and tests.
 - `superpowers/plans/`: active implementation plans for agentic work. Keep
   exactly one active plan unless the project owner explicitly asks for a
   temporary split.
 - Temporary specs and design notes should be folded into the active plan or a
   canonical doc once implemented. Do not keep a parallel
-  `superpowers/specs/` task source that can drift from the single active plan.
+  `superpowers/specs/` task source that can drift from the single active plan;
+  this repository intentionally has no tracked `docs/superpowers/specs/`
+  files.
 - Short research notes that only restate a code-level API contract should be
   folded into canonical docs and tests, then removed. The Dashboard
   `/api/evidence-summary` contract now lives in

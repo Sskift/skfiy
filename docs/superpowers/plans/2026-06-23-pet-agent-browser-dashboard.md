@@ -1756,7 +1756,8 @@ Dashboard smoke now seeds an isolated personal memory fixture and must collect `
 
 If a smoke is blocked by local macOS permissions or Chrome environment, record the typed blocker and do not call the feature complete until the blocker is either resolved or explicitly accepted by the project owner.
 
-Current no-focus validation evidence from 2026-06-26:
+Earlier no-focus validation evidence from 2026-06-26, before the current
+locked/asleep desktop-session blocker was reproduced:
 
 - `git diff --check` exited 0.
 - `npm run typecheck -- --pretty false` exited 0.
@@ -1765,8 +1766,8 @@ Current no-focus validation evidence from 2026-06-26:
 - `npm run smoke:cli -- --profile basic --output .skfiy-smoke/cli-product-basic.json` exited 0 and recorded `result: passed`.
 - `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` exited 0 and recorded `result: passed`.
 - `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json --require-passed` exited 0 in hidden launch mode and recorded `launchMode: hidden`, `stealsFocus: false`, `result: no-onboarding`, passing `assistantConversation`, `petDrag`, and `stopTurnBehavior` with screenshot evidence at `.skfiy-smoke/ui-product.png`.
-- `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` exited 0 and recorded `result: passed` with three executed scenarios: `cli-basic` (`focusMode: none`, `stealsFocus: false`), `ui-product` (`focusMode: hidden-window`, `stealsFocus: false`), and `dashboard-product` (`focusMode: hidden-window`, `stealsFocus: false`).
-- `./dist/skfiy status --json` exited 0. The latest read-only summary reports typed `needs-action` blockers instead of permission ambiguity: `desktop-session-not-controllable` because `loginwindow` is frontmost, `stale-dashboard-build-mismatch` for an older reachable Dashboard process, and `extension-not-connected` because the Chrome Native Messaging heartbeat is stale. Browser Context itself reports active host `mew.bytedance.net`, host policy `allowed`, Chrome host permission `granted`, Chrome capture permission `granted`, and no pageControl blockers.
+- `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` exited 0 and recorded `result: passed` with three executed scenarios: `cli-basic` (`focusMode: none`, `stealsFocus: false`), `ui-product` (`focusMode: hidden-window`, `stealsFocus: false`), and `dashboard-product` (`focusMode: hidden-window`, `stealsFocus: false`). This is historical evidence only; the current authoritative Task 12 evidence below supersedes it while the desktop session is locked/asleep.
+- `./dist/skfiy status --json` exited 0. The read-only summary from that earlier run reported typed `needs-action` blockers instead of permission ambiguity: `desktop-session-not-controllable` because `loginwindow` was frontmost, `stale-dashboard-build-mismatch` for an older reachable Dashboard process, and `extension-not-connected` because the Chrome Native Messaging heartbeat was stale. Browser Context itself reported active host `mew.bytedance.net`, host policy `allowed`, Chrome host permission `granted`, Chrome capture permission `granted`, and no pageControl blockers. Current CLI status/doctor now use the blocker names recorded in Task 12 evidence below.
 - `./dist/skfiy chrome extension-info --json` exited 0 with `result: available`.
 - Visible/frontmost smoke remains explicit opt-in only: use `npm run smoke:ui -- --visible ...` or `npm run smoke:v2 -- --profile field ...` only when the user allows frontmost app control.
 
@@ -2047,6 +2048,9 @@ Expected:
 Current 2026-06-26 evidence:
 
 - `npm run build` exited 0 and packaged `dist/skfiy.app`.
+- `npx vitest run src/main/cli-product-smoke-script.test.ts --reporter=dot` first failed when the CLI smoke default timeout was still `8000`, then passed after the default was raised to `30000` so cold `doctor-json` probes are not misclassified as SIGTERM failures in isolated HOME.
+- `npm run smoke:cli:basic -- --output .skfiy-smoke/cli-product-basic.json --require-passed` exited 0 and recorded `result: "passed"`.
+- `npm run smoke:v2 -- --profile silent --output .skfiy-smoke/v2/silent.json --require-passed` exited 0 and recorded `result: "passed"` with `cli-basic` (`focusMode: "none"`, `stealsFocus: false`) and `dashboard-product` (`focusMode: "hidden-window"`, `stealsFocus: false`).
 - `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` wrote the release artifact but exited 2 because `--require-passed` rejects the current UI blocker. The `cli-basic` and `dashboard-product` scenarios passed; `ui-product` recorded `result: "desktop-session-blocked"`, `focusMode: "hidden-window"`, `stealsFocus: false`, and aggregate blocker `{ scenarioId: "ui-product", code: "desktop-session-blocked" }`.
 - `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` and the v2 UI artifact record `launchMode: "hidden"` and `stealsFocus: false`. The assistant conversation path uses smoke-only `SKFIY_SMOKE_ASSISTANT_PROMPT` plus `SKFIY_SMOKE_ASSISTANT_REPLY`, so ordinary Computer Use command turns still exercise the real turn pipeline. The artifact records `assistantConversation.result: "passed"` and `stopTurnBehavior.result: "passed"` with `approval_required -> cancelled` evidence.
 - `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json --timeout-ms 30000` and the v2 dashboard artifact record `result: "passed"` through `skfiy dashboard --no-open`.

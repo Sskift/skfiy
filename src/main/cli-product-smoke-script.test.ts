@@ -65,7 +65,7 @@ describe("CLI product smoke script", () => {
     expect(defaults).toMatchObject({
       cliPath: path.join("/repo", "dist", "skfiy"),
       isolatedHomeDir: path.join("/repo", ".skfiy-cli-smoke", "home"),
-      timeoutMs: 8_000,
+      timeoutMs: 30_000,
       profile: "full",
       requirePassed: false,
       help: false

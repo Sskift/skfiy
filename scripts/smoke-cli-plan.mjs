@@ -2,7 +2,7 @@ import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 
 export const PRODUCT_PATH = "dist/skfiy -> skfiy CLI command matrix";
-export const DEFAULT_TIMEOUT_MS = 8_000;
+export const DEFAULT_TIMEOUT_MS = 30_000;
 export const FIXTURE_EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
 export const CLI_SMOKE_PROFILE_NAMES = ["full", "basic"];
 
