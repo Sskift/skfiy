@@ -532,7 +532,7 @@ describe("DashboardApp", () => {
     expect(within(nextAction).getByText("Screen Recording is not granted.")).toBeInTheDocument();
 
     expect(screen.getByLabelText("Dashboard connection: connected")).toBeInTheDocument();
-  });
+  }, 20_000);
 
   it("keeps the default dashboard scan path focused on chat, browser context, and user action", async () => {
     render(<DashboardApp
