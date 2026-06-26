@@ -123,12 +123,12 @@ export interface DashboardAppProps {
 const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: Home },
   { id: "provider", label: "Agent", icon: Bot },
-  { id: "memory", label: "Memory", icon: History },
-  { id: "knowledge-graph", label: "Graph", icon: Gauge },
   { id: "agent-tools", label: "Tools", icon: MonitorCog },
   { id: "browser", label: "Browser Context", icon: Chrome },
   { id: "activity", label: "Activity", icon: Activity },
-  { id: "next-action", label: "Next action", icon: ArrowRight }
+  { id: "next-action", label: "Next action", icon: ArrowRight },
+  { id: "memory", label: "Memory", icon: History },
+  { id: "knowledge-graph", label: "Graph", icon: Gauge }
 ] as const;
 
 const CHROME_CONTROL_ACTIONS: Array<{
@@ -528,20 +528,6 @@ function DashboardContent({
       </section>
 
       <section
-        id="knowledge-graph"
-        className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main skfiy-dashboard-section--graph"
-      >
-        <div className="skfiy-dashboard-section-heading">
-          <div>
-            <span>Evidence map</span>
-            <h2 id="knowledge-graph-title">Knowledge graph</h2>
-          </div>
-          <StatusChip tone="neutral">{knowledgeGraph.nodes.length} nodes</StatusChip>
-        </div>
-        <KnowledgeGraph nodes={knowledgeGraph.nodes} edges={knowledgeGraph.edges} />
-      </section>
-
-      <section
         id="provider"
         className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
         aria-labelledby="provider-title"
@@ -553,45 +539,17 @@ function DashboardContent({
           </div>
         </div>
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--two">
-          {providers.map((provider) => (
-            <ProviderCard key={`${provider.mode}-${provider.label}`} provider={provider} />
-          ))}
+          {providers
+            .filter((provider) => provider.provider !== "planner")
+            .map((provider) => (
+              <ProviderCard key={`${provider.mode}-${provider.label}`} provider={provider} />
+            ))}
           <AssistantProviderSettingsPanel
             assistant={providerSettings?.providers.assistant}
             error={providerSettingsError}
             isLoading={isProviderSettingsLoading}
           />
-          <PlannerProviderSettingsForm
-            settings={providerSettings}
-            error={providerSettingsError}
-            notice={providerSettingsNotice}
-            isLoading={isProviderSettingsLoading}
-            isSaving={isProviderSettingsSaving}
-            onSubmit={onSubmitPlannerProviderSettings}
-          />
         </div>
-      </section>
-
-      <section
-        id="memory"
-        className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
-        aria-labelledby="memory-title"
-      >
-        <div className="skfiy-dashboard-section-heading">
-          <div>
-            <span>Local knowledge</span>
-            <h2 id="memory-title">Memory</h2>
-          </div>
-        </div>
-        <PersonalMemoryPanel
-          assistantProviderLabel={snapshot.providers?.assistant?.label ?? "Background Agent"}
-          error={memoryError}
-          isSaving={isMemorySaving}
-          memory={snapshot.personalMemory}
-          notice={memoryNotice}
-          onForget={onRunPersonalMemoryAction}
-          onMuteSkill={onRunPersonalSkillAction}
-        />
       </section>
 
       <section
@@ -653,6 +611,14 @@ function DashboardContent({
               ) : null}
             </Card.Content>
           </Card.Root>
+          <PlannerProviderSettingsForm
+            settings={providerSettings}
+            error={providerSettingsError}
+            notice={providerSettingsNotice}
+            isLoading={isProviderSettingsLoading}
+            isSaving={isProviderSettingsSaving}
+            onSubmit={onSubmitPlannerProviderSettings}
+          />
           <AutomationMonitorsCard
             automation={automation}
             error={automationError}
@@ -878,6 +844,42 @@ function DashboardContent({
             </div>
           </Card.Content>
         </Card.Root>
+      </section>
+
+      <section
+        id="memory"
+        className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main"
+        aria-labelledby="memory-title"
+      >
+        <div className="skfiy-dashboard-section-heading">
+          <div>
+            <span>Local knowledge</span>
+            <h2 id="memory-title">Memory</h2>
+          </div>
+        </div>
+        <PersonalMemoryPanel
+          assistantProviderLabel={snapshot.providers?.assistant?.label ?? "Background Agent"}
+          error={memoryError}
+          isSaving={isMemorySaving}
+          memory={snapshot.personalMemory}
+          notice={memoryNotice}
+          onForget={onRunPersonalMemoryAction}
+          onMuteSkill={onRunPersonalSkillAction}
+        />
+      </section>
+
+      <section
+        id="knowledge-graph"
+        className="skfiy-dashboard-section skfiy-dashboard-grid skfiy-dashboard-grid--main skfiy-dashboard-section--graph"
+      >
+        <div className="skfiy-dashboard-section-heading">
+          <div>
+            <span>Evidence map</span>
+            <h2 id="knowledge-graph-title">Knowledge graph</h2>
+          </div>
+          <StatusChip tone="neutral">{knowledgeGraph.nodes.length} nodes</StatusChip>
+        </div>
+        <KnowledgeGraph nodes={knowledgeGraph.nodes} edges={knowledgeGraph.edges} />
       </section>
     </div>
   );
@@ -1770,6 +1772,7 @@ function PlannerProviderSettingsForm({
 
   const controlsDisabled = isLoading || isSaving || !planner;
   const apiKeyConfigured = planner?.externalApiKeyConfigured;
+  const plannerDetail = planner ? readPlannerProviderSettingsDetail(planner) : undefined;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1788,18 +1791,24 @@ function PlannerProviderSettingsForm({
     <Card.Root className="skfiy-dashboard-card skfiy-dashboard-provider-settings-card" variant="secondary">
       <Card.Header className="skfiy-dashboard-card-header">
         <div>
-          <Card.Description>Planner settings</Card.Description>
-          <Card.Title>Provider settings</Card.Title>
+          <Card.Description>Computer Use advanced</Card.Description>
+          <Card.Title>Computer Use Planner settings</Card.Title>
         </div>
         <Bot size={18} aria-hidden="true" />
       </Card.Header>
       <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-muted-message">
+          Advanced Computer Use tool-layer planner. Not a Background Agent chat provider.
+        </p>
+        {plannerDetail ? (
+          <p className="skfiy-dashboard-muted-message">{plannerDetail}</p>
+        ) : null}
         <form
-          aria-label="Planner provider settings"
+          aria-label="Computer Use Planner settings"
           className="skfiy-dashboard-provider-form"
           onSubmit={handleSubmit}
         >
-          <div className="skfiy-dashboard-inline-list" aria-label="Planner provider settings status">
+          <div className="skfiy-dashboard-inline-list" aria-label="Computer Use Planner settings status">
             <StatusChip tone={readHealthTone(planner?.health ?? "unknown")}>
               {planner?.health ?? (isLoading ? "loading settings" : "unknown")}
             </StatusChip>
@@ -2449,6 +2458,24 @@ function readProviderDetail(provider: DashboardProviderSummary): string {
   }
 
   return provider.endpoint ?? provider.binaryPath ?? provider.mode;
+}
+
+function readPlannerProviderSettingsDetail(planner: DashboardProviderSettingsPlanner): string {
+  if (planner.mode === "disabled") {
+    return "Computer Use Planner is disabled.";
+  }
+
+  if (planner.mode === "external-cua") {
+    if (planner.externalEndpoint && planner.externalApiKeyConfigured) {
+      return "External CUA endpoint and API key are configured.";
+    }
+    if (planner.externalEndpoint) {
+      return "External CUA endpoint is configured; API key is missing.";
+    }
+    return "External CUA endpoint is missing.";
+  }
+
+  return "Local deterministic planner is selected for Computer Use.";
 }
 
 function StatusRow({

@@ -382,9 +382,8 @@ describe("DashboardApp", () => {
 
     const provider = screen.getByRole("region", { name: "Background Agent" });
     expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();
-    expect(within(provider).getByText("planner · external-cua")).toBeInTheDocument();
-    expect(within(provider).getByText("External CUA endpoint and API key are configured.")).toBeInTheDocument();
-    expect(within(provider).getAllByText("api key configured").length).toBeGreaterThan(0);
+    expect(within(provider).queryByText("planner · external-cua")).not.toBeInTheDocument();
+    expect(within(provider).queryByRole("form", { name: "Computer Use Planner settings" })).not.toBeInTheDocument();
 
     const assistantHealth = within(provider).getByRole("region", { name: "Assistant provider health" });
     expect(within(assistantHealth).getByText("selected codex")).toBeInTheDocument();
@@ -479,6 +478,10 @@ describe("DashboardApp", () => {
 
     const computerUse = screen.getByRole("region", { name: "Agent tools" });
     expect(within(computerUse).getByRole("heading", { name: "Computer Use tool" })).toBeInTheDocument();
+    expect(within(computerUse).getByRole("heading", { name: "Computer Use Planner settings" })).toBeInTheDocument();
+    expect(within(computerUse).getByText("Advanced Computer Use tool-layer planner. Not a Background Agent chat provider.")).toBeInTheDocument();
+    expect(within(computerUse).getByText("External CUA endpoint and API key are configured.")).toBeInTheDocument();
+    expect(within(computerUse).getAllByText("api key configured").length).toBeGreaterThan(0);
     expect(within(computerUse).getByRole("heading", { name: "Automation monitors" })).toBeInTheDocument();
     expect(within(computerUse).getByText("scheduler active")).toBeInTheDocument();
     expect(within(computerUse).getByText("0 scheduler inactive")).toBeInTheDocument();
@@ -496,6 +499,8 @@ describe("DashboardApp", () => {
     expect(within(computerUse).getByText("No fresh Ghostty smoke artifact has been recorded.")).toBeInTheDocument();
     expect(within(computerUse).getByText("ignored unsupported smoke: voice")).toBeInTheDocument();
     expect(within(computerUse).getByText("Screen Recording")).toBeInTheDocument();
+    expect(provider.compareDocumentPosition(computerUse) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(computerUse.compareDocumentPosition(graph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const browser = screen.getByRole("region", { name: "Browser" });
     expect(within(browser).getByRole("heading", { name: "Browser control" })).toBeInTheDocument();
@@ -552,9 +557,15 @@ describe("DashboardApp", () => {
     const tools = screen.getByRole("region", { name: "Agent tools" });
     expect(within(tools).getByRole("heading", { name: "Agent tools" })).toBeInTheDocument();
     expect(within(tools).getByRole("heading", { name: "Computer Use tool" })).toBeInTheDocument();
+    expect(within(tools).getByRole("heading", { name: "Computer Use Planner settings" })).toBeInTheDocument();
     expect(within(tools).getByText(
       "Permissioned desktop/app-control tool invoked by the selected Background Agent."
     )).toBeInTheDocument();
+    expect(within(tools).getByText(
+      "Advanced Computer Use tool-layer planner. Not a Background Agent chat provider."
+    )).toBeInTheDocument();
+    const provider = screen.getByRole("region", { name: "Background Agent" });
+    expect(within(provider).queryByRole("heading", { name: "Computer Use Planner settings" })).not.toBeInTheDocument();
   });
 
   it("shows assistant provider, current turn, browser context, and latest blocker", async () => {
@@ -921,7 +932,7 @@ describe("DashboardApp", () => {
 
     render(<DashboardApp />);
 
-    const form = await screen.findByRole("form", { name: "Planner provider settings" });
+    const form = await screen.findByRole("form", { name: "Computer Use Planner settings" });
     await waitFor(() => {
       expect(within(form).getByLabelText("Mode")).toHaveValue("external-cua");
       expect(within(form).getByLabelText("External provider label")).toHaveValue("OpenAI CUA");
@@ -967,7 +978,7 @@ describe("DashboardApp", () => {
 
     render(<DashboardApp />);
 
-    const form = await screen.findByRole("form", { name: "Planner provider settings" });
+    const form = await screen.findByRole("form", { name: "Computer Use Planner settings" });
     await waitFor(() => {
       expect(within(form).getByLabelText("Mode")).toHaveValue("local-deterministic");
       expect(within(form).getByRole("button", { name: "Save planner settings" })).toBeEnabled();

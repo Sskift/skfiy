@@ -16,7 +16,7 @@ export const REQUIRED_REACT_DASHBOARD_CONTENT_MARKERS = [
   "Latest blocker",
   "Runtime evidence",
   "Assistant providers",
-  "Provider settings",
+  "Computer Use Planner settings",
   "Knowledge graph",
   "User preferences",
   "Forget memory",
