@@ -883,6 +883,70 @@ describe("Finder product smoke script", () => {
     })).toBe("failed");
   });
 
+  it("accepts selected-folder semantic evidence when skfiy is frontmost after AppleEvents consent", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      classifyFinderSmokeEvidence
+    } = await import(pathToFileURL(modulePath).href) as {
+      classifyFinderSmokeEvidence: (input: Record<string, unknown>) => string;
+    };
+    const fixtureRoot = "/var/folders/skfiy-finder-smoke-abc123";
+
+    expect(classifyFinderSmokeEvidence({
+      appLaunchViaOpen: true,
+      runnerHasTmux: false,
+      productPath: "renderer -> preload -> main -> helper observe_app -> fs -> Finder",
+      targetMode: "selected-finder-folder",
+      fixtureRoot,
+      finderObservation: {
+        result: "passed",
+        screenshotPath: "/tmp/skfiy/finder-before.png",
+        frontmostBundleId: "com.apple.finder"
+      },
+      finderSemanticObservation: {
+        result: "passed",
+        source: "finder-applescript",
+        frontmostBundleId: "com.sskift.skfiy",
+        targetPath: "/var/folders",
+        selectedCount: 1,
+        selectedItems: [
+          {
+            path: fixtureRoot,
+            name: "skfiy-finder-smoke-abc123",
+            kind: "directory"
+          }
+        ]
+      },
+      finderPlanPreview: {
+        result: "passed",
+        rootPath: fixtureRoot,
+        operationCount: 6,
+        destructiveOperationCount: 0,
+        createFolders: [
+          `${fixtureRoot}/Images`,
+          `${fixtureRoot}/Documents`,
+          `${fixtureRoot}/Code`
+        ],
+        moveFiles: [
+          { from: `${fixtureRoot}/photo.png`, to: `${fixtureRoot}/Images/photo.png` },
+          { from: `${fixtureRoot}/notes.pdf`, to: `${fixtureRoot}/Documents/notes.pdf` },
+          { from: `${fixtureRoot}/script.ts`, to: `${fixtureRoot}/Code/script.ts` }
+        ]
+      },
+      finderPlanConfirmation: {
+        result: "passed",
+        confirmedAfterPreview: true,
+        reason: "Finder selected-folder organization needs confirmation after plan preview."
+      },
+      events: [{ status: "completed", message: "Finder test folder organized." }],
+      afterTree: [
+        "Code/script.ts",
+        "Documents/notes.pdf",
+        "Images/photo.png"
+      ]
+    })).toBe("passed");
+  });
+
   it("classifies a completed Finder organization with permission-blocked observation as blocked", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
     const {

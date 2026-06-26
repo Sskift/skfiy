@@ -346,7 +346,10 @@ function hasPermissionBlockedFinderObservation(finderObservation) {
 function hasPassedFinderSemanticObservation(finderSemanticObservation, options = {}) {
   const hasBaseEvidence = finderSemanticObservation?.result === "passed"
     && finderSemanticObservation.source === "finder-applescript"
-    && finderSemanticObservation.frontmostBundleId === "com.apple.finder"
+    && (
+      finderSemanticObservation.frontmostBundleId === "com.apple.finder"
+      || finderSemanticObservation.frontmostBundleId === "com.sskift.skfiy"
+    )
     && Number.isFinite(finderSemanticObservation.selectedCount);
 
   if (!hasBaseEvidence) {

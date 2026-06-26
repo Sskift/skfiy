@@ -11,6 +11,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const APP_BUNDLE_NAME = "skfiy.app";
 const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
+const APPLE_EVENTS_USAGE_DESCRIPTION = "skfiy needs permission to control Finder when you approve Computer Use file organization tasks.";
 export const ELECTRON_APP_COPY_OPTIONS = {
   recursive: true,
   verbatimSymlinks: true
@@ -178,9 +179,14 @@ async function rewriteInfoPlist(infoPlistPath) {
     "NSSpeechRecognitionUsageDescription"
   );
   const withExecutable = setInfoPlistString(withoutObsoleteAudioPermissions, "CFBundleExecutable", "skfiy");
+  const withAppleEventsUsage = setInfoPlistString(
+    withExecutable,
+    "NSAppleEventsUsageDescription",
+    APPLE_EVENTS_USAGE_DESCRIPTION
+  );
   const next = setInfoPlistString(
     setInfoPlistString(
-      setInfoPlistString(withExecutable, "CFBundleIdentifier", BUNDLE_IDENTIFIER),
+      setInfoPlistString(withAppleEventsUsage, "CFBundleIdentifier", BUNDLE_IDENTIFIER),
       "CFBundleName",
       "skfiy"
     ),

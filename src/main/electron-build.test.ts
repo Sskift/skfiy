@@ -124,7 +124,7 @@ describe("Electron build wiring", () => {
 
     expect(packageJson.name).toBe("skfiy");
     expect(packagingScript).toContain('setInfoPlistString(withoutObsoleteAudioPermissions, "CFBundleExecutable", "skfiy")');
-    expect(packagingScript).toContain('setInfoPlistString(withExecutable, "CFBundleIdentifier", BUNDLE_IDENTIFIER)');
+    expect(packagingScript).toContain('setInfoPlistString(withAppleEventsUsage, "CFBundleIdentifier", BUNDLE_IDENTIFIER)');
     expect(packagingScript).toContain('"CFBundleName",\n      "skfiy"');
     expect(packagingScript).toContain('"CFBundleDisplayName",\n    "skfiy"');
     expect(packagingScript).toContain('name: "skfiy"');
@@ -152,6 +152,31 @@ describe("Electron build wiring", () => {
     expect(packagingScript).toContain('removeInfoPlistString(current, "NSMicrophoneUsageDescription")');
     expect(packagingScript).toContain('removeInfoPlistString(');
     expect(packagingScript).toContain('"NSSpeechRecognitionUsageDescription"');
+  });
+
+  it("declares AppleEvents usage for Finder Automation prompts", () => {
+    const packagingScript = readFileSync(
+      path.join(process.cwd(), "scripts/package-macos-app.mjs"),
+      "utf8"
+    );
+    const helperInfoPlist = readFileSync(
+      path.join(process.cwd(), "macos-helper/Sources/skfiy-helper/Info.plist"),
+      "utf8"
+    );
+
+    expect(packagingScript).toContain('"NSAppleEventsUsageDescription"');
+    expect(packagingScript).toContain("skfiy needs permission to control Finder");
+    expect(helperInfoPlist).toContain("<key>NSAppleEventsUsageDescription</key>");
+    expect(helperInfoPlist).toContain("skfiy needs permission to control Finder");
+  });
+
+  it("rebuilds the Swift helper when its embedded Info.plist changes", () => {
+    const buildHelperScript = readFileSync(
+      path.join(process.cwd(), "scripts/build-helper.sh"),
+      "utf8"
+    );
+
+    expect(buildHelperScript).toContain('swift package --package-path "$HELPER_DIR" clean');
   });
 
   it("keeps the Swift helper identity free of voice permission usage descriptions", () => {

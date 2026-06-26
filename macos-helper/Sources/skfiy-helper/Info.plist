@@ -15,6 +15,8 @@
   <string>6.0</string>
   <key>CFBundleName</key>
   <string>skfiy</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>skfiy needs permission to control Finder when you approve Computer Use file organization tasks.</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
