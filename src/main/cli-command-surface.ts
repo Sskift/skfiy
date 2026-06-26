@@ -3768,6 +3768,7 @@ function createExtensionReadiness(
   const liveConnection = readString(extension?.liveConnection) ?? "unknown";
   const pageSafety = readRecord(extension?.pageSafety);
   const pageControl = readRecord(extension?.pageControl);
+  const hostPolicy = readRecord(extension?.hostPolicy) as ChromeHostPolicyState | undefined;
   const extensionIds = context.extensionIds.length > 0
     ? context.extensionIds
     : readStringArray(nativeHost?.extensionIds);
@@ -3784,7 +3785,7 @@ function createExtensionReadiness(
       : readStringArray(nativeHost?.allowedOrigins),
     expectedAllowedOrigins: readStringArray(nativeHost?.expectedAllowedOrigins),
     nativeHostReason: readString(nativeHost?.reason) ?? readString(extension?.reason),
-    hostPolicy: readRecord(extension?.hostPolicy) as ChromeHostPolicyState | undefined,
+    hostPolicy,
     connectionPath: readString(connection?.path),
     connectionState: readString(connection?.state),
     connectionReason: readString(connection?.reason)
@@ -3830,7 +3831,12 @@ function createExtensionReadiness(
       liveConnection
     });
   }
-  if (pageControl && readString(pageControl.state) !== "ready") {
+  if (
+    pageControl
+    && readString(pageControl.state) !== "ready"
+    && !isNonActionablePageControlCurrentPage(pageControl)
+    && !isResolvedHostPolicyPageControlBlocker(pageControl, hostPolicy)
+  ) {
     blockers.push({
       code: "page-control-not-ready",
       message: readString(pageControl.reason)
@@ -3854,6 +3860,58 @@ function createExtensionReadiness(
     blockers,
     ...setupGuideFields
   };
+}
+
+function isResolvedHostPolicyPageControlBlocker(
+  pageControl: Record<string, unknown>,
+  hostPolicy: ChromeHostPolicyState | undefined
+): boolean {
+  const activeTab = readRecord(pageControl.activeTab);
+  const host = readString(activeTab?.host);
+  const blockers = readPageControlBlockerCodes(pageControl);
+
+  if (!host || !hostPolicy || blockers.length === 0 || !blockers.includes("blocked_by_host_policy")) {
+    return false;
+  }
+
+  return decideChromeHostPolicy(hostPolicy.policy, host).decision === "allow";
+}
+
+function isNonActionablePageControlCurrentPage(pageControl: Record<string, unknown>): boolean {
+  const activeTab = readRecord(pageControl.activeTab);
+  const scheme = normalizeUrlScheme(readString(activeTab?.scheme));
+  const host = readString(activeTab?.host) ?? "";
+  const chromeHostPermission = readRecord(pageControl.chromeHostPermission);
+  const blockerCodes = readPageControlBlockerCodes(pageControl);
+
+  return scheme === "chrome"
+    || scheme === "chrome-extension"
+    || scheme === "file"
+    || (scheme !== "" && scheme !== "http" && scheme !== "https")
+    || host === "extensions"
+    || host.startsWith("chrome://")
+    || host.startsWith("chrome-extension://")
+    || blockerCodes.includes("internal_chrome_page")
+    || blockerCodes.includes("chrome_extension_page")
+    || blockerCodes.includes("unsupported_scheme")
+    || (
+      readString(chromeHostPermission?.state) === "not_applicable"
+      && readString(chromeHostPermission?.reason) === "non_http_page"
+    );
+}
+
+function readPageControlBlockerCodes(pageControl: Record<string, unknown>): string[] {
+  const blockers = Array.isArray(pageControl.blockers)
+    ? pageControl.blockers.map((blocker) => readRecord(blocker)).filter(Boolean)
+    : [];
+
+  return blockers
+    .map((blocker) => readString(blocker?.code))
+    .filter((code): code is string => Boolean(code));
+}
+
+function normalizeUrlScheme(scheme: string | undefined): string {
+  return (scheme ?? "").trim().toLowerCase().replace(/:$/, "");
 }
 
 function createMoneyRunReadiness(status: Record<string, unknown>): Record<string, unknown> {

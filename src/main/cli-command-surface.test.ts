@@ -2652,6 +2652,336 @@ describe("CLI command surface", () => {
     expect(stderr).toEqual([]);
   });
 
+  it("does not treat Chrome internal pages as actionable Browser Context readiness blockers", async () => {
+    const statusStdout: string[] = [];
+    const stderr: string[] = [];
+    const statusReader = async () => ({
+      app: { state: "installed", path: "/repo/dist/skfiy.app" },
+      cli: { state: "installed", path: "/repo/dist/skfiy" },
+      helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: { state: "controllable", controllable: true },
+      extension: {
+        state: "connected",
+        bridge: "native-messaging",
+        liveConnection: "connected",
+        nativeHostState: "installed",
+        pageControl: {
+          schemaVersion: 1,
+          capable: false,
+          state: "blocked_by_host_policy",
+          reason: "Host policy has not allowed this page.",
+          source: "extension.connection.pageControl",
+          activeTab: {
+            state: "available",
+            tabId: 42,
+            windowId: 7,
+            host: "extensions"
+          },
+          hostPolicy: {
+            decision: "ask",
+            reason: "default_policy"
+          },
+          chromeHostPermission: {
+            state: "not_applicable",
+            reason: "non_http_page",
+            origins: []
+          },
+          chromeCapturePermission: {
+            state: "granted",
+            reason: "all_urls_granted",
+            origins: ["<all_urls>"]
+          },
+          blockers: [{
+            code: "blocked_by_host_policy",
+            reason: "default_policy",
+            message: "Host policy has not allowed this page."
+          }]
+        }
+      },
+      nativeHost: {
+        state: "installed",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+      },
+      dashboard: {
+        state: "running",
+        url: "http://127.0.0.1:8787/",
+        api: {
+          chromeHostPolicy: {
+            state: "reachable"
+          }
+        }
+      },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    await expect(runSkfiyCli({
+      argv: ["status", "--json", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader,
+      stdout: { write: (chunk: string) => statusStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    const statusOutput = JSON.parse(statusStdout.join(""));
+
+    expect(statusOutput.readiness).toMatchObject({
+      state: "ready",
+      checks: {
+        extension: {
+          state: "ready",
+          pageControl: {
+            state: "blocked_by_host_policy",
+            activeTab: {
+              host: "extensions"
+            },
+            chromeHostPermission: {
+              state: "not_applicable",
+              reason: "non_http_page"
+            }
+          }
+        }
+      },
+      blockers: []
+    });
+    expect(JSON.stringify(statusOutput.readiness.blockers)).not.toContain("page-control-not-ready");
+    expect(stderr).toEqual([]);
+  });
+
+  it("keeps Browser Context readiness blockers for ordinary HTTPS pages", async () => {
+    const statusStdout: string[] = [];
+    const stderr: string[] = [];
+    const statusReader = async () => ({
+      app: { state: "installed", path: "/repo/dist/skfiy.app" },
+      cli: { state: "installed", path: "/repo/dist/skfiy" },
+      helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: { state: "controllable", controllable: true },
+      extension: {
+        state: "connected",
+        bridge: "native-messaging",
+        liveConnection: "connected",
+        nativeHostState: "installed",
+        pageControl: {
+          schemaVersion: 1,
+          capable: false,
+          state: "blocked_by_host_policy",
+          reason: "Host policy has not allowed this page.",
+          source: "extension.connection.pageControl",
+          activeTab: {
+            state: "available",
+            tabId: 42,
+            windowId: 7,
+            scheme: "https:",
+            host: "bytedance.larkoffice.com"
+          },
+          hostPolicy: {
+            decision: "ask",
+            reason: "default_policy"
+          },
+          chromeHostPermission: {
+            state: "granted",
+            reason: "optional_host_permission_granted",
+            origins: ["https://bytedance.larkoffice.com/*"]
+          },
+          chromeCapturePermission: {
+            state: "granted",
+            reason: "all_urls_granted",
+            origins: ["<all_urls>"]
+          },
+          blockers: [{
+            code: "blocked_by_host_policy",
+            reason: "default_policy",
+            message: "Host policy has not allowed this page."
+          }]
+        }
+      },
+      nativeHost: {
+        state: "installed",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+      },
+      dashboard: {
+        state: "running",
+        url: "http://127.0.0.1:8787/",
+        api: {
+          chromeHostPolicy: {
+            state: "reachable"
+          }
+        }
+      },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    await expect(runSkfiyCli({
+      argv: ["status", "--json", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader,
+      stdout: { write: (chunk: string) => statusStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    const statusOutput = JSON.parse(statusStdout.join(""));
+
+    expect(statusOutput.readiness).toMatchObject({
+      state: "needs-action",
+      blockers: [{
+        area: "extension",
+        code: "page-control-not-ready",
+        message: "Host policy has not allowed this page.",
+        state: "blocked_by_host_policy",
+        source: "extension.connection.pageControl"
+      }]
+    });
+    expect(statusOutput.readiness.checks.extension.pageControl).toMatchObject({
+      state: "blocked_by_host_policy",
+      activeTab: {
+        scheme: "https:",
+        host: "bytedance.larkoffice.com"
+      }
+    });
+    expect(stderr).toEqual([]);
+  });
+
+  it("does not keep a stale Browser Context host-policy blocker after the active host is allowed", async () => {
+    const statusStdout: string[] = [];
+    const stderr: string[] = [];
+    const statusReader = async () => ({
+      app: { state: "installed", path: "/repo/dist/skfiy.app" },
+      cli: { state: "installed", path: "/repo/dist/skfiy" },
+      helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        finderAutomation: "granted"
+      },
+      desktopSession: { state: "controllable", controllable: true },
+      extension: {
+        state: "connected",
+        bridge: "native-messaging",
+        liveConnection: "connected",
+        nativeHostState: "installed",
+        hostPolicy: {
+          schemaVersion: 1,
+          state: "configured",
+          policy: {
+            defaultMode: "ask",
+            allowedHosts: [],
+            currentTurnAllowedHosts: ["bytedance.larkoffice.com"],
+            blockedHosts: []
+          }
+        },
+        pageControl: {
+          schemaVersion: 1,
+          capable: false,
+          state: "blocked_by_host_policy",
+          reason: "Host policy has not allowed this page.",
+          source: "extension.connection.pageControl",
+          activeTab: {
+            state: "available",
+            tabId: 42,
+            windowId: 7,
+            scheme: "https:",
+            host: "bytedance.larkoffice.com"
+          },
+          hostPolicy: {
+            decision: "ask",
+            reason: "default_policy"
+          },
+          chromeHostPermission: {
+            state: "granted",
+            reason: "optional_host_permission_granted",
+            origins: ["https://bytedance.larkoffice.com/*"]
+          },
+          chromeCapturePermission: {
+            state: "granted",
+            reason: "all_urls_granted",
+            origins: ["<all_urls>"]
+          },
+          blockers: [{
+            code: "blocked_by_host_policy",
+            reason: "default_policy",
+            message: "Host policy has not allowed this page."
+          }]
+        }
+      },
+      nativeHost: {
+        state: "installed",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: ["abcdefghijklmnopabcdefghijklmnop"]
+      },
+      dashboard: {
+        state: "running",
+        url: "http://127.0.0.1:8787/",
+        api: {
+          chromeHostPolicy: {
+            state: "reachable"
+          }
+        }
+      },
+      moneyRun: {
+        state: "observing",
+        session: "money-run",
+        source: "tmux-read-only-probe",
+        mutatesSession: false
+      }
+    });
+
+    await expect(runSkfiyCli({
+      argv: ["status", "--json", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"],
+      rootDir: "/repo",
+      homeDir: "/Users/tester",
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      statusReader,
+      stdout: { write: (chunk: string) => statusStdout.push(chunk) },
+      stderr: { write: (chunk: string) => stderr.push(chunk) }
+    })).resolves.toBe(0);
+
+    const statusOutput = JSON.parse(statusStdout.join(""));
+
+    expect(statusOutput.readiness).toMatchObject({
+      state: "ready",
+      checks: {
+        extension: {
+          state: "ready",
+          pageControl: {
+            state: "blocked_by_host_policy",
+            activeTab: {
+              scheme: "https:",
+              host: "bytedance.larkoffice.com"
+            }
+          }
+        }
+      },
+      blockers: []
+    });
+    expect(JSON.stringify(statusOutput.readiness.blockers)).not.toContain("page-control-not-ready");
+    expect(stderr).toEqual([]);
+  });
+
   it("passes through Chrome page-control readiness from extension diagnostics into status and doctor", async () => {
     const statusStdout: string[] = [];
     const doctorStdout: string[] = [];

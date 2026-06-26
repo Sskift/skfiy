@@ -197,9 +197,11 @@ export function classifyDashboardSmokeEvidence(evidence) {
   const chromeBlocked = hasChromeBlockedSmokeEvidence(snapshot.smokeEvidence.artifacts, snapshot);
 
   if (!hasOperatorReadinessEvidence(snapshot.operatorReadiness)) {
-    return chromeBlocked && hasOperatorReadinessBlockedByChromeEvidence(snapshot.operatorReadiness)
-      ? "blocked"
-      : "failed";
+    if (!hasOperatorReadinessBlockedByChromeEvidence(snapshot.operatorReadiness)) {
+      return "failed";
+    }
+
+    return chromeBlocked ? "blocked" : "passed";
   }
 
   if (

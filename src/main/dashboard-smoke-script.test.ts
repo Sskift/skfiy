@@ -1946,6 +1946,42 @@ describe("dashboard product smoke script", () => {
           smokeEvidence: {
             artifacts: [
               {
+                target: "cli",
+                result: "passed",
+                path: "/repo/.skfiy-smoke/cli-basic.json",
+                productPath: "dist/skfiy -> skfiy CLI command matrix"
+              }
+            ]
+          }
+        }
+      }
+    })).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          operatorReadiness: {
+            ...passedEvidence.snapshotResponse.body.operatorReadiness,
+            state: "blocked",
+            extensionReadiness: {
+              state: "blocked",
+              bridge: "native-messaging",
+              liveConnection: "unknown",
+              nativeHostState: "missing",
+              reason: "Chrome extension native messaging path is not ready."
+            },
+            recentSmokeEvidence: {
+              state: "needs-evidence",
+              requiredTargets: ["chrome", "cli"],
+              recentPassedTargets: ["cli"],
+              missingTargets: ["chrome"]
+            }
+          },
+          smokeEvidence: {
+            artifacts: [
+              {
                 target: "chrome",
                 result: "blocked",
                 path: "/repo/.skfiy-smoke/chrome-reload.json",
