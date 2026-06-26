@@ -1685,7 +1685,7 @@ git commit -m "feat: add layered smoke v2 runner"
 - Modify only when tests reveal real defects.
 - Create smoke artifacts under `.skfiy-smoke/` when commands support `--output`.
 
-- [ ] **Step 1: Run full unit and type gates**
+- [x] **Step 1: Run full unit and type gates**
 
 ```bash
 git diff --check
@@ -1699,7 +1699,7 @@ Expected:
 - Typecheck exits 0.
 - Vitest exits 0.
 
-- [ ] **Step 2: Build packaged app**
+- [x] **Step 2: Build packaged app**
 
 ```bash
 npm run build
@@ -1747,6 +1747,19 @@ Dashboard smoke now seeds an isolated personal memory fixture and must collect `
 - the remembered-session graph still renders after memory mutation.
 
 If a smoke is blocked by local macOS permissions or Chrome environment, record the typed blocker and do not call the feature complete until the blocker is either resolved or explicitly accepted by the project owner.
+
+Current no-focus validation evidence from 2026-06-26:
+
+- `git diff --check` exited 0.
+- `npm run typecheck -- --pretty false` exited 0.
+- `npx vitest run --reporter=dot` exited 0 after updating the brittle main-process wiring source assertion for the new multi-line `createPendingApproval(...)` call shape; 113 files and 1099 tests passed. Existing React `act(...)` warnings remained warnings only.
+- `npm run build` exited 0 and produced `dist/skfiy.app` plus `dist/skfiy`. Existing CSS minify warnings for `calc(100%-...)` remained build warnings only.
+- `npm run smoke:cli -- --profile basic --output .skfiy-smoke/cli-product-basic.json` exited 0 and recorded `result: passed`.
+- `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` exited 0 and recorded `result: passed`.
+- `npm run smoke:v2 -- --output .skfiy-smoke/v2/silent.json --require-passed` exited 0 and recorded `result: passed` with two executed scenarios: `cli-basic` (`focusMode: none`, `stealsFocus: false`) and `dashboard-product` (`focusMode: hidden-window`, `stealsFocus: false`).
+- `./dist/skfiy status --json` exited 0 with app/helper/cli/native host installed and extension connected; desktop session reported `blocked` because the current macOS session state is blocked/locked, so frontmost app smokes remain intentionally deferred.
+- `./dist/skfiy chrome extension-info --json` exited 0 with `result: available`.
+- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` was intentionally not run in this pass because it can activate the packaged app and steal input focus. Run it only when the user explicitly allows frontmost app control.
 
 Current branch validation evidence from 2026-06-25:
 

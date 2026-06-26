@@ -33,11 +33,15 @@ describe("assistant tool bridge main-process wiring", () => {
 
   it("stores approval continuations by assistant Computer Use tool identity", () => {
     const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const approvalFunctionStart = source.indexOf("function requireComputerUseApproval({");
+    const approvalFunctionEnd = source.indexOf("function completeComputerUseToolCall(", approvalFunctionStart);
+    const approvalFunction = source.slice(approvalFunctionStart, approvalFunctionEnd);
 
     expect(source).toContain("interface PendingApproval extends AssistantComputerUseToolIdentity");
     expect(source).toContain("identity: AssistantComputerUseToolIdentity");
-    expect(source).toContain("pendingApproval = createPendingApproval(command, mode, toolIdentity");
-    expect(source).toContain("activeComputerUseToolIdentity = toolIdentity");
+    expect(approvalFunction).toContain("pendingApproval = createPendingApproval(");
+    expect(approvalFunction).toContain("toolIdentity,");
+    expect(approvalFunction).toContain("activeComputerUseToolIdentity = toolIdentity");
   });
 
   it("does not report a failed chat provider turn as completed", () => {
