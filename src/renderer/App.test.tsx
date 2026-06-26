@@ -60,7 +60,7 @@ function createAssistantAgentFixture(mode: AssistantAgentMode): AssistantAgentSe
         executablePath: "codex",
         executableSource: "default",
         resolvedExecutablePath: "/opt/homebrew/bin/codex",
-        readiness: "ready"
+        readiness: "chat-ready"
       },
       {
         provider: "assistant",
@@ -71,7 +71,7 @@ function createAssistantAgentFixture(mode: AssistantAgentMode): AssistantAgentSe
         executablePath: "claude",
         executableSource: "default",
         resolvedExecutablePath: "/opt/homebrew/bin/claude",
-        readiness: "ready"
+        readiness: "chat-ready"
       },
       {
         provider: "assistant",
@@ -82,7 +82,7 @@ function createAssistantAgentFixture(mode: AssistantAgentMode): AssistantAgentSe
         executablePath: "hermes",
         executableSource: "default",
         resolvedExecutablePath: "/Users/tester/.local/bin/hermes",
-        readiness: "ready"
+        readiness: "chat-ready"
       }
     ]
   };

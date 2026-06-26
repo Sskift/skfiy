@@ -2611,10 +2611,14 @@ function readHealthTone(health: string): Tone {
 }
 
 function readAssistantReadinessTone(readiness: string): Tone {
-  if (readiness === "ready" || readiness === "chat-ready") {
+  if (readiness === "chat-ready") {
     return "success";
   }
-  if (readiness === "unavailable" || readiness === "unconfigured") {
+  if (
+    readiness === "unavailable"
+    || readiness === "unconfigured"
+    || readiness === "auth-or-permission-blocked"
+  ) {
     return "danger";
   }
 

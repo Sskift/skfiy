@@ -25,9 +25,11 @@ type AppPolicy = "allow" | "ask" | "deny";
 type AssistantAgentMode = "codex" | "claude-code" | "hermes";
 type AssistantAgentProviderId = AssistantAgentMode;
 type AssistantAgentProviderReadiness =
-  | "ready"
   | "chat-ready"
+  | "version-ok"
   | "binary-found"
+  | "binary-configured"
+  | "auth-or-permission-blocked"
   | "unconfigured"
   | "unavailable";
 type AssistantAgentExecutableSource = "default" | "env";

@@ -470,7 +470,8 @@ describe("dashboard loopback HTTP response helper", () => {
           readinessDetail: "Codex executable was found; chat readiness has not been proven by a dry-run.",
           binaryPath: "codex",
           binarySource: "env",
-          resolvedBinaryPath: "/opt/homebrew/bin/codex"
+          resolvedBinaryPath: "/opt/homebrew/bin/codex",
+          lastError: "spawn /opt/homebrew/bin/codex ENOENT"
         },
         {
           provider: "assistant",

@@ -63,7 +63,11 @@ describe("assistant agent provider", () => {
     }, { cwd: "/tmp/skfiy" });
 
     const states = await readAssistantAgentProviderStates(settings, {
-      resolveExecutable: async (command) => `${command}:resolved`
+      resolveExecutable: async (command) => `${command}:resolved`,
+      runReadinessProbe: async (_command, args) => ({
+        stdout: `${args.join(" ")} version 1.2.3`,
+        stderr: ""
+      })
     });
 
     expect(states).toEqual([
@@ -76,8 +80,9 @@ describe("assistant agent provider", () => {
         executablePath: "/opt/homebrew/bin/codex",
         executableSource: "env",
         resolvedExecutablePath: "/opt/homebrew/bin/codex:resolved",
-        readiness: "binary-found",
-        readinessDetail: "Codex executable was found; chat readiness has not been proven by a dry-run."
+        readiness: "version-ok",
+        readinessDetail: "Codex version check passed; chat readiness has not been proven by a dry-run.",
+        version: "--version version 1.2.3"
       },
       {
         provider: "assistant",
@@ -88,8 +93,9 @@ describe("assistant agent provider", () => {
         executablePath: "/opt/homebrew/bin/claude",
         executableSource: "env",
         resolvedExecutablePath: "/opt/homebrew/bin/claude:resolved",
-        readiness: "binary-found",
-        readinessDetail: "Claude Code executable was found; chat readiness has not been proven by a dry-run."
+        readiness: "version-ok",
+        readinessDetail: "Claude Code version check passed; chat readiness has not been proven by a dry-run.",
+        version: "--version version 1.2.3"
       },
       {
         provider: "assistant",
@@ -100,10 +106,58 @@ describe("assistant agent provider", () => {
         executablePath: "/Users/bytedance/.local/bin/hermes",
         executableSource: "env",
         resolvedExecutablePath: "/Users/bytedance/.local/bin/hermes:resolved",
-        readiness: "binary-found",
-        readinessDetail: "Hermes executable was found; chat readiness has not been proven by a dry-run."
+        readiness: "version-ok",
+        readinessDetail: "Hermes version check passed; chat readiness has not been proven by a dry-run.",
+        version: "--version version 1.2.3"
       }
     ]);
+  });
+
+  it("promotes a provider to chat-ready only after a safe dry-run answers", async () => {
+    const probeCalls: Array<{ command: string; args: string[] }> = [];
+    const states = await readAssistantAgentProviderStates(baseSettings, {
+      proveChatReadiness: true,
+      resolveExecutable: async (command) => `/resolved/${command}`,
+      runReadinessProbe: async (command, args) => {
+        probeCalls.push({ command, args });
+        if (args.includes("--version")) {
+          return { stdout: "codex 1.2.3", stderr: "" };
+        }
+        return { stdout: "skfiy-ready", stderr: "" };
+      }
+    });
+
+    expect(states.find((state) => state.id === "codex")).toMatchObject({
+      readiness: "chat-ready",
+      readinessDetail: "Codex answered a bounded dry-run prompt.",
+      version: "codex 1.2.3"
+    });
+    expect(probeCalls.some((call) => (
+      call.command === "/resolved/codex"
+      && call.args.includes("--sandbox")
+      && call.args.includes("read-only")
+      && call.args.some((arg) => arg.includes("You are skfiy"))
+      && call.args.some((arg) => arg.includes("Reply exactly with skfiy-ready."))
+    ))).toBe(true);
+  });
+
+  it("reports auth or permission blockers from safe dry-run failures", async () => {
+    const states = await readAssistantAgentProviderStates(baseSettings, {
+      proveChatReadiness: true,
+      resolveExecutable: async (command) => `/resolved/${command}`,
+      runReadinessProbe: async (_command, args) => {
+        if (args.includes("--version")) {
+          return { stdout: "codex 1.2.3", stderr: "" };
+        }
+        throw new Error("Not authenticated. Run codex login.");
+      }
+    });
+
+    expect(states.find((state) => state.id === "codex")).toMatchObject({
+      readiness: "auth-or-permission-blocked",
+      readinessDetail: "Codex dry-run was blocked by authentication or permissions.",
+      lastError: "Not authenticated. Run codex login."
+    });
   });
 
   it("lists Hermes as a Background Agent provider with readiness", async () => {
@@ -113,15 +167,19 @@ describe("assistant agent provider", () => {
     });
 
     const states = await readAssistantAgentProviderStates(settings, {
-      resolveExecutable: async (command) => `${command}:resolved`
+      resolveExecutable: async (command) => `${command}:resolved`,
+      runReadinessProbe: async () => ({
+        stdout: "hermes 0.1.0",
+        stderr: ""
+      })
     });
 
     expect(states.find((state) => state.id === "hermes")).toMatchObject({
       id: "hermes",
       label: "Hermes",
       selected: true,
-      readiness: "binary-found",
-      readinessDetail: "Hermes executable was found; chat readiness has not been proven by a dry-run.",
+      readiness: "version-ok",
+      readinessDetail: "Hermes version check passed; chat readiness has not been proven by a dry-run.",
       executablePath: "/Users/bytedance/.local/bin/hermes"
     });
   });

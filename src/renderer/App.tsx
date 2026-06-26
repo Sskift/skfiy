@@ -59,9 +59,11 @@ export type StartupWarningId = "tmux-launch" | "dev-server" | "unbundled-electro
 export type AppPolicy = "allow" | "ask" | "deny";
 export type AssistantAgentMode = "codex" | "claude-code" | "hermes";
 export type AssistantAgentProviderReadiness =
-  | "ready"
   | "chat-ready"
+  | "version-ok"
   | "binary-found"
+  | "binary-configured"
+  | "auth-or-permission-blocked"
   | "unconfigured"
   | "unavailable";
 export type PlannerProviderMode = "local-deterministic" | "external-cua" | "disabled";
@@ -690,11 +692,20 @@ function readExternalCuaStatusLabel(settings: PlannerProviderSettings): string {
 }
 
 function readAssistantAgentReadinessLabel(readiness: AssistantAgentProviderReadiness): string {
-  if (readiness === "ready" || readiness === "chat-ready") {
+  if (readiness === "chat-ready") {
     return "chat ready";
+  }
+  if (readiness === "version-ok") {
+    return "version ok";
   }
   if (readiness === "binary-found") {
     return "binary found";
+  }
+  if (readiness === "binary-configured") {
+    return "binary configured";
+  }
+  if (readiness === "auth-or-permission-blocked") {
+    return "auth blocked";
   }
   if (readiness === "unconfigured") {
     return "unconfigured";

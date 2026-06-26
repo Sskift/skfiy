@@ -376,7 +376,7 @@ describe("DashboardApp", () => {
     expect(within(assistantHealth).getByRole("heading", { name: "Codex" })).toBeInTheDocument();
     expect(within(assistantHealth).getByRole("heading", { name: "Claude Code" })).toBeInTheDocument();
     expect(within(assistantHealth).getByRole("heading", { name: "Hermes" })).toBeInTheDocument();
-    expect(within(assistantHealth).getAllByText("readiness ready").length).toBeGreaterThanOrEqual(1);
+    expect(within(assistantHealth).getAllByText("readiness chat-ready").length).toBeGreaterThanOrEqual(1);
     expect(within(assistantHealth).getByText("/opt/homebrew/bin/codex")).toBeInTheDocument();
     expect(within(assistantHealth).getByText("source env")).toBeInTheDocument();
     expect(within(assistantHealth).getByText("readiness unavailable")).toBeInTheDocument();
@@ -1408,7 +1408,7 @@ function createProviderSettingsPayload(planner: {
         label: "Codex",
         health: "available",
         configured: true,
-        readiness: "ready",
+        readiness: "chat-ready",
         selectedProvider: "codex",
         timeoutMs: 45_000,
         lastHealthAt: "2026-06-22T08:00:01.000Z",
@@ -1419,7 +1419,7 @@ function createProviderSettingsPayload(planner: {
             label: "Codex",
             selected: true,
             configured: true,
-            readiness: "ready",
+            readiness: "chat-ready",
             binaryPath: "/opt/homebrew/bin/codex",
             binarySource: "env",
             resolvedBinaryPath: "/opt/homebrew/bin/codex"
@@ -1441,7 +1441,7 @@ function createProviderSettingsPayload(planner: {
             label: "Hermes",
             selected: false,
             configured: true,
-            readiness: "ready",
+            readiness: "chat-ready",
             binaryPath: "/Users/tester/.local/bin/hermes",
             binarySource: "default"
           }

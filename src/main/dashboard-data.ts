@@ -529,7 +529,7 @@ function summarizeDashboardAssistantProvider(
   const selectedProvider = providers.find((provider) => provider.selected);
   const configured = selectedProvider?.configured === true;
   const readiness = selectedProvider?.readiness ?? "unknown";
-  const chatReady = readiness === "chat-ready" || readiness === "ready";
+  const chatReady = readiness === "chat-ready";
 
   return {
     provider: "assistant",

@@ -33,7 +33,10 @@ export type AssistantAgentCliBinarySource = "default" | "env";
 export type AssistantAgentExecutableSource = AssistantAgentCliBinarySource;
 export type AssistantAgentProviderReadiness =
   | "chat-ready"
+  | "version-ok"
   | "binary-found"
+  | "binary-configured"
+  | "auth-or-permission-blocked"
   | "unconfigured"
   | "unavailable";
 export type AssistantAgentTurnStatus = "completed" | "failed" | "cancelled";
@@ -72,6 +75,7 @@ export interface AssistantAgentProviderState {
   resolvedExecutablePath?: string;
   readiness: AssistantAgentProviderReadiness;
   readinessDetail?: string;
+  version?: string;
   lastError?: string;
 }
 
@@ -82,6 +86,7 @@ export type AssistantAgentProcessRunner = (
 ) => Promise<AssistantAgentProcessResult>;
 
 export type AssistantAgentExecutableResolver = (command: string) => Promise<string>;
+export type AssistantAgentReadinessProbeRunner = AssistantAgentProcessRunner;
 
 export interface RunAssistantAgentTurnInput {
   settings: AssistantAgentSettings;
@@ -215,9 +220,12 @@ export async function readAssistantAgentProviderStates(
   settings: AssistantAgentSettings,
   options: {
     resolveExecutable?: AssistantAgentExecutableResolver;
+    runReadinessProbe?: AssistantAgentReadinessProbeRunner;
+    proveChatReadiness?: boolean;
   } = {}
 ): Promise<AssistantAgentProviderState[]> {
   const resolveExecutable = options.resolveExecutable ?? resolveAssistantAgentExecutable;
+  const runReadinessProbe = options.runReadinessProbe ?? runAssistantAgentProcess;
 
   return [
     await readCliAssistantAgentProviderState({
@@ -226,7 +234,10 @@ export async function readAssistantAgentProviderStates(
       selected: settings.mode === "codex",
       executablePath: settings.codexBinary,
       executableSource: settings.codexBinarySource,
-      resolveExecutable
+      settings,
+      resolveExecutable,
+      runReadinessProbe,
+      proveChatReadiness: options.proveChatReadiness === true
     }),
     await readCliAssistantAgentProviderState({
       id: "claude-code",
@@ -234,7 +245,10 @@ export async function readAssistantAgentProviderStates(
       selected: settings.mode === "claude-code",
       executablePath: settings.claudeCodeBinary,
       executableSource: settings.claudeCodeBinarySource,
-      resolveExecutable
+      settings,
+      resolveExecutable,
+      runReadinessProbe,
+      proveChatReadiness: options.proveChatReadiness === true
     }),
     await readCliAssistantAgentProviderState({
       id: "hermes",
@@ -242,7 +256,10 @@ export async function readAssistantAgentProviderStates(
       selected: settings.mode === "hermes",
       executablePath: settings.hermesBinary,
       executableSource: settings.hermesBinarySource,
-      resolveExecutable
+      settings,
+      resolveExecutable,
+      runReadinessProbe,
+      proveChatReadiness: options.proveChatReadiness === true
     })
   ];
 }
@@ -678,14 +695,20 @@ async function readCliAssistantAgentProviderState({
   selected,
   executablePath,
   executableSource,
-  resolveExecutable
+  settings,
+  resolveExecutable,
+  runReadinessProbe,
+  proveChatReadiness
 }: {
+  settings: AssistantAgentSettings;
   id: AssistantAgentProviderId;
   label: "Codex" | "Claude Code" | "Hermes";
   selected: boolean;
   executablePath: string;
   executableSource: AssistantAgentCliBinarySource;
   resolveExecutable: AssistantAgentExecutableResolver;
+  runReadinessProbe: AssistantAgentReadinessProbeRunner;
+  proveChatReadiness: boolean;
 }): Promise<AssistantAgentProviderState> {
   const configuredExecutable = readOptionalString(executablePath);
   if (!configuredExecutable) {
@@ -703,7 +726,7 @@ async function readCliAssistantAgentProviderState({
 
   try {
     const resolvedExecutablePath = await resolveExecutable(configuredExecutable);
-    return {
+    const baseState: AssistantAgentProviderState = {
       provider: "assistant",
       id,
       label,
@@ -715,6 +738,24 @@ async function readCliAssistantAgentProviderState({
       readiness: "binary-found",
       readinessDetail: `${label} executable was found; chat readiness has not been proven by a dry-run.`
     };
+
+    const versionResult = await readAssistantAgentVersionState({
+      baseState,
+      runReadinessProbe,
+      resolvedExecutablePath,
+      settings
+    });
+
+    if (!proveChatReadiness || versionResult.readiness !== "version-ok") {
+      return versionResult;
+    }
+
+    return readAssistantAgentChatReadyState({
+      baseState: versionResult,
+      runReadinessProbe,
+      resolvedExecutablePath,
+      settings
+    });
   } catch (error) {
     return {
       provider: "assistant",
@@ -728,6 +769,124 @@ async function readCliAssistantAgentProviderState({
       lastError: error instanceof Error ? error.message : String(error)
     };
   }
+}
+
+async function readAssistantAgentVersionState({
+  baseState,
+  resolvedExecutablePath,
+  runReadinessProbe,
+  settings
+}: {
+  baseState: AssistantAgentProviderState;
+  resolvedExecutablePath: string;
+  runReadinessProbe: AssistantAgentReadinessProbeRunner;
+  settings: AssistantAgentSettings;
+}): Promise<AssistantAgentProviderState> {
+  try {
+    const result = await runReadinessProbe(resolvedExecutablePath, ["--version"], {
+      cwd: settings.cwd,
+      timeoutMs: Math.min(settings.timeoutMs, READINESS_PROBE_TIMEOUT_MS)
+    });
+    const version = readProbeSummary(result) ?? "version check passed";
+
+    return {
+      ...baseState,
+      readiness: "version-ok",
+      readinessDetail: `${baseState.label} version check passed; chat readiness has not been proven by a dry-run.`,
+      version
+    };
+  } catch (error) {
+    const message = readErrorMessage(error);
+    if (isAuthOrPermissionError(message)) {
+      return {
+        ...baseState,
+        readiness: "auth-or-permission-blocked",
+        readinessDetail: `${baseState.label} version check was blocked by authentication or permissions.`,
+        lastError: message
+      };
+    }
+
+    return {
+      ...baseState,
+      lastError: message
+    };
+  }
+}
+
+async function readAssistantAgentChatReadyState({
+  baseState,
+  resolvedExecutablePath,
+  runReadinessProbe,
+  settings
+}: {
+  baseState: AssistantAgentProviderState;
+  resolvedExecutablePath: string;
+  runReadinessProbe: AssistantAgentReadinessProbeRunner;
+  settings: AssistantAgentSettings;
+}): Promise<AssistantAgentProviderState> {
+  const probeSettings = createAssistantAgentProbeSettings(settings, baseState.id, resolvedExecutablePath);
+  const invocation = buildAssistantAgentInvocation(
+    probeSettings,
+    "Reply exactly with skfiy-ready."
+  );
+
+  try {
+    const result = await runReadinessProbe(invocation.command, invocation.args, {
+      cwd: settings.cwd,
+      timeoutMs: Math.min(settings.timeoutMs, READINESS_PROBE_TIMEOUT_MS)
+    });
+    const response = readAssistantAgentResponse(result.stdout);
+    if (!response.message.trim()) {
+      return {
+        ...baseState,
+        lastError: `${baseState.label} dry-run returned an empty response.`
+      };
+    }
+
+    return {
+      ...baseState,
+      readiness: "chat-ready",
+      readinessDetail: `${baseState.label} answered a bounded dry-run prompt.`
+    };
+  } catch (error) {
+    const message = readErrorMessage(error);
+    if (isAuthOrPermissionError(message)) {
+      return {
+        ...baseState,
+        readiness: "auth-or-permission-blocked",
+        readinessDetail: `${baseState.label} dry-run was blocked by authentication or permissions.`,
+        lastError: message
+      };
+    }
+
+    return {
+      ...baseState,
+      lastError: message
+    };
+  }
+}
+
+function createAssistantAgentProbeSettings(
+  settings: AssistantAgentSettings,
+  mode: AssistantAgentProviderId,
+  resolvedExecutablePath: string
+): AssistantAgentSettings {
+  return {
+    ...settings,
+    mode,
+    ...(mode === "codex" ? { codexBinary: resolvedExecutablePath } : {}),
+    ...(mode === "claude-code" ? { claudeCodeBinary: resolvedExecutablePath } : {}),
+    ...(mode === "hermes" ? { hermesBinary: resolvedExecutablePath } : {})
+  };
+}
+
+function readProbeSummary(result: AssistantAgentProcessResult): string | undefined {
+  const summary = (result.stdout || result.stderr).trim().split(/\r?\n/u)[0]?.trim();
+  return summary && summary.length > 0 ? summary.slice(0, 200) : undefined;
+}
+
+function isAuthOrPermissionError(message: string): boolean {
+  return /auth|login|permission|unauthori[sz]ed|forbidden|consent|not authenticated/i.test(message);
 }
 
 async function resolveAssistantAgentExecutable(command: string): Promise<string> {

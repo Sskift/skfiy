@@ -42,7 +42,16 @@ export interface DashboardAssistantProviderStatus {
   label: string;
   selected: boolean;
   configured: boolean;
-  readiness: "ready" | "unconfigured" | "unavailable" | "unknown" | string;
+  readiness:
+    | "chat-ready"
+    | "version-ok"
+    | "binary-found"
+    | "binary-configured"
+    | "auth-or-permission-blocked"
+    | "unconfigured"
+    | "unavailable"
+    | "unknown"
+    | string;
   binaryPath?: string;
   binarySource: "default" | "env" | string;
   resolvedBinaryPath?: string;
