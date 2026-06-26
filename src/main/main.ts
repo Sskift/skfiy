@@ -1,4 +1,5 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, screen, systemPreferences } from "electron";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -619,6 +620,11 @@ async function readLatestBrowserPageContext(): Promise<BrowserPageContext> {
 }
 
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
+  const smokeTurn = createSmokeAssistantAgentTaskTurn(input);
+  if (smokeTurn) {
+    return smokeTurn;
+  }
+
   const browserPageContext = await readLatestBrowserPageContext();
   const personalMemory = personalMemoryStore.read();
   const personalSkillSettings = personalSkillSettingsStore.read();
@@ -643,6 +649,27 @@ async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAge
 
     throw error;
   }
+}
+
+function createSmokeAssistantAgentTaskTurn(input: string): AssistantAgentTurnResult | undefined {
+  const smokeReply = process.env.SKFIY_SMOKE_ASSISTANT_REPLY?.trim();
+  if (!smokeReply) {
+    return undefined;
+  }
+
+  return {
+    id: `assistant-smoke-turn-${randomUUID()}`,
+    createdAt: new Date().toISOString(),
+    status: "completed",
+    providerLabel: "Codex",
+    message: smokeReply,
+    route: {
+      kind: "chat",
+      reason: "UI smoke uses a deterministic assistant reply to avoid live provider quota."
+    },
+    toolCalls: [],
+    cancellation: { requested: false }
+  };
 }
 
 function schedulePersonalMemoryPostTurnReview(

@@ -12,6 +12,7 @@ import {
   formatUiLaunchCommand,
   parseUiSmokeArgs,
   HIDDEN_WINDOW_ENV,
+  SMOKE_ASSISTANT_REPLY_ENV,
   STRICT_APPROVAL_ENV,
   writeUiSmokeEvidence
 } from "./smoke-ui-plan.mjs";
@@ -159,6 +160,9 @@ async function launchSkfiy(options) {
     "--env",
     STRICT_APPROVAL_ENV,
     ...(options.launchMode === "hidden" ? ["--env", HIDDEN_WINDOW_ENV] : []),
+    ...(options.smokeAssistantReply
+      ? ["--env", `${SMOKE_ASSISTANT_REPLY_ENV}=${options.smokeAssistantReply}`]
+      : []),
     "--args",
     `--remote-debugging-port=${options.port}`
   ]);

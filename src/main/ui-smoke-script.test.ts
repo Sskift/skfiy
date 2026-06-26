@@ -38,7 +38,8 @@ describe("packaged UI product smoke script", () => {
       productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
       requiredPermissionLabels: ["屏幕录制", "辅助功能"],
       launchMode: "hidden",
-      stealsFocus: false
+      stealsFocus: false,
+      smokeAssistantReply: "你好，我是 skfiy。"
     });
     expect(parseUiSmokeArgs([
       "--app",
@@ -57,6 +58,7 @@ describe("packaged UI product smoke script", () => {
     expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_BYPASS_APPROVAL=strict");
     expect(formatUiLaunchCommand(defaults)).toContain("open -n -g -a");
     expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_SMOKE_WINDOW_MODE=hidden");
+    expect(formatUiLaunchCommand(defaults)).toContain("--env SKFIY_SMOKE_ASSISTANT_REPLY=");
     expect(parseUiSmokeArgs(["--visible"], defaults)).toMatchObject({
       launchMode: "visible",
       stealsFocus: true
@@ -79,6 +81,18 @@ describe("packaged UI product smoke script", () => {
     expect(smokeSource).toContain("options.launchMode === \"hidden\"");
     expect(smokeSource).toContain("\"-g\"");
     expect(smokeSource).toContain("HIDDEN_WINDOW_ENV");
+  });
+
+  it("keeps hidden UI smoke independent from live Background Agent quota", () => {
+    const mainSource = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const smokeSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-product.mjs"), "utf8");
+    const planSource = readFileSync(path.join(process.cwd(), "scripts/smoke-ui-plan.mjs"), "utf8");
+
+    expect(planSource).toContain("SKFIY_SMOKE_ASSISTANT_REPLY");
+    expect(smokeSource).toContain("SMOKE_ASSISTANT_REPLY_ENV");
+    expect(smokeSource).toContain("options.smokeAssistantReply");
+    expect(mainSource).toContain("process.env.SKFIY_SMOKE_ASSISTANT_REPLY");
+    expect(mainSource).toContain("createSmokeAssistantAgentTaskTurn");
   });
 
   it("classifies a real permission onboarding click as passed only with product-path evidence", async () => {

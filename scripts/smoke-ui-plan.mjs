@@ -4,6 +4,8 @@ import path from "node:path";
 export const UI_PRODUCT_PATH = "LaunchServices -> renderer DOM -> React permission onboarding";
 export const STRICT_APPROVAL_ENV = "SKFIY_BYPASS_APPROVAL=strict";
 export const HIDDEN_WINDOW_ENV = "SKFIY_SMOKE_WINDOW_MODE=hidden";
+export const SMOKE_ASSISTANT_REPLY_ENV = "SKFIY_SMOKE_ASSISTANT_REPLY";
+export const DEFAULT_SMOKE_ASSISTANT_REPLY = "你好，我是 skfiy。";
 export const REQUIRED_COMPUTER_USE_PERMISSION_KEYS = ["screenRecording", "accessibility"];
 export const REQUIRED_PERMISSION_KEYS = [
   "screenRecording",
@@ -25,6 +27,7 @@ export function createDefaultUiSmokeOptions(rootDir) {
     settleMs: 1_200,
     productPath: UI_PRODUCT_PATH,
     requiredPermissionLabels: [...REQUIRED_PERMISSION_LABELS],
+    smokeAssistantReply: DEFAULT_SMOKE_ASSISTANT_REPLY,
     launchMode: "hidden",
     stealsFocus: false,
     requirePassed: false,
@@ -141,7 +144,10 @@ export async function writeUiSmokeEvidence(outputPath, evidence, io = fs) {
 export function formatUiLaunchCommand(options) {
   const noFocusFlag = options.launchMode === "hidden" ? " -g" : "";
   const hiddenEnv = options.launchMode === "hidden" ? ` --env ${HIDDEN_WINDOW_ENV}` : "";
-  return `open -n${noFocusFlag} -a ${options.appPath} --env ${STRICT_APPROVAL_ENV}${hiddenEnv} --args --remote-debugging-port=${options.port}`;
+  const smokeAssistantEnv = options.smokeAssistantReply
+    ? ` --env ${SMOKE_ASSISTANT_REPLY_ENV}=${shellEscapeEnvValue(options.smokeAssistantReply)}`
+    : "";
+  return `open -n${noFocusFlag} -a ${options.appPath} --env ${STRICT_APPROVAL_ENV}${hiddenEnv}${smokeAssistantEnv} --args --remote-debugging-port=${options.port}`;
 }
 
 export function createUiHelpText(defaults) {
@@ -183,6 +189,10 @@ function readPositiveInteger(value, flag) {
   }
 
   return parsed;
+}
+
+function shellEscapeEnvValue(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
 function hasAllRequiredPermissionsGranted(permissions) {
