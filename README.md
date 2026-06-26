@@ -25,10 +25,9 @@ imported.
 ## Current Local Evidence
 
 Use the short git commit in local artifact file names. For the current machine,
-the latest Finder smoke is currently blocked before Finder launch because the
-desktop session is at `com.apple.loginwindow`; older Finder evidence also shows
-that Finder item drag/drop still needs an unlocked, awake desktop to prove the
-compiled `skfiy.app` Automation path.
+Finder Automation has passed with the compiled `skfiy.app` identity; if a future
+Finder smoke blocks, classify the artifact by domain instead of treating every
+Finder failure as an Automation grant problem.
 
 - UI permission and pet drag smoke: passed,
   `.skfiy-smoke/ui-<commit>.json`.
@@ -44,13 +43,14 @@ compiled `skfiy.app` Automation path.
   `.skfiy-smoke/codex-plugin-<commit>.json`.
 - Long-horizon `money-run` tmux supervision smoke: passed,
   `.skfiy-smoke/money-run-<commit>.json`.
-- Finder item drag/drop smoke: blocked by desktop preflight on the latest run,
-  `.skfiy-smoke/finder-<commit>.json`.
+- Finder item drag/drop smoke: passed for the Automation grant path,
+  `.skfiy-smoke/finder-automation-granted-passed.json`.
 
-The latest Finder blocker is separate from Screen Recording, Accessibility, and
-Finder Automation. If the artifact reports `com.apple.loginwindow`, unlock the
-Mac and keep the display awake first; if it then reports an Automation blocker,
-grant the compiled `skfiy.app` permission to control Finder and rerun:
+Finder desktop-session blockers are separate from Screen Recording,
+Accessibility, and Finder Automation. If the artifact reports
+`com.apple.loginwindow` or display sleep, unlock the Mac and keep the display
+awake first; if it reports an Automation blocker, grant the compiled
+`skfiy.app` permission to control Finder and rerun:
 
 ```bash
 npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-<commit>.json
@@ -227,6 +227,12 @@ They must not directly execute desktop actions from the pet chat path. Explicit
 app-control intents are still admitted by skfiy, checked against app policy, and
 executed by skfiy's Computer Use orchestrators.
 
+Provider readiness is deliberately conservative. A discovered binary or version
+probe is reported as `version-ok`; only a bounded dry-run chat response is
+`chat-ready`. Auth, quota, or permission failures stay typed as provider
+blockers so the pet and Dashboard do not imply that a provider can answer when
+only the executable was found.
+
 ## Safety Model
 
 skfiy treats each Computer Use turn as permissioned app control, with
@@ -282,15 +288,30 @@ launcher response. It also writes
 `~/Library/Application Support/skfiy/dashboard-server.json`, so
 `skfiy status --json` and `skfiy doctor --json` can auto-discover the current
 dashboard, verify the recorded PID, and probe the descriptor plus
-`/api/chrome-host-policy` without requiring `--dashboard-url`.
+`/api/chrome-host-policy` without requiring `--dashboard-url`. The descriptor
+also records a build identity. A reachable loopback dashboard with a mismatched
+build identity is `stale-dashboard-build-mismatch`, not ready.
+
 Dashboard alerts now use stable blocker codes for locked `loginwindow` sessions,
 display sleep, missing TCC grants, stale Chrome extension heartbeats, stale smoke
-evidence, and release drift. The dashboard also reads the latest Finder smoke
-artifact so a desktop-preflight blocker such as `com.apple.loginwindow` is shown
-as `finder-automation-unproven` instead of being misread as a Finder Automation
-grant failure. The dashboard shell groups those alerts into Desktop session,
-Permissions, Chrome bridge, Smoke evidence, Release drift, and Runtime snapshot
-bands so operators see the failing domain before opening raw JSON.
+evidence, stale dashboard builds, release drift, Browser Context host-policy or
+Chrome optional-permission blockers, Background Agent auth blockers, and
+money-run panes that need operator attention. The dashboard also reads the
+latest Finder smoke artifact so a desktop-preflight blocker such as
+`com.apple.loginwindow` is shown as `finder-automation-unproven` instead of
+being misread as a Finder Automation grant failure. The dashboard shell groups
+those alerts into Desktop session, Permissions, Chrome bridge, Smoke evidence,
+Release drift, and Runtime snapshot bands so operators see the failing domain
+before opening raw JSON.
+
+Automation monitors are skfiy-owned app-process schedulers. Dashboard
+`run-now` calls are bounded, read-only one-shots and report
+`mutatesSession: false`; they do not prove that a background scheduler is still
+running. Monitor rows include scheduler state, last check, next check, last
+result, observed tmux session, and session-mutation evidence. If persisted state
+says the last result was observing but the app-process scheduler is inactive,
+the Dashboard and CLI must report the monitor as scheduler-inactive instead of
+currently observing.
 
 The Chrome smoke now also records `installedExtensionRun`; on this machine it is
 a known blocker because branded `Google Chrome` 146 no longer honors automated
