@@ -423,6 +423,15 @@ describe("dashboard product smoke script", () => {
       },
       result: "collected"
     };
+    const dashboardBuildIdentity = {
+      schemaVersion: 1,
+      rootDir: "/repo",
+      packageVersion: "0.1.0",
+      gitCommit: "abcdef1234567890",
+      distSkfiyMtimeMs: 1000,
+      distMainBundleMtimeMs: 2000,
+      fingerprint: "dashboard-build-current"
+    };
     const passedEvidence = withRuntimeSnapshotCoverage({
       cliPath: "/repo/dist/skfiy",
       runnerHasTmux: false,
@@ -464,6 +473,9 @@ describe("dashboard product smoke script", () => {
           eventStore: {
             mode: "append-only",
             requiredForExecution: false
+          },
+          runtime: {
+            buildIdentity: dashboardBuildIdentity
           }
         }
       },
@@ -472,7 +484,10 @@ describe("dashboard product smoke script", () => {
         body: {
           bind: { host: "127.0.0.1", port: 51234 },
           url: "http://127.0.0.1:51234/",
-          auth: { tokenPrinted: false }
+          auth: { tokenPrinted: false },
+          runtime: {
+            buildIdentity: dashboardBuildIdentity
+          }
         }
       },
       snapshotResponse: {
@@ -526,7 +541,14 @@ describe("dashboard product smoke script", () => {
               state: "running",
               url: "http://127.0.0.1:51234/",
               pid: 4242,
-              uptimeSeconds: 17
+              uptimeSeconds: 17,
+              buildIdentity: dashboardBuildIdentity,
+              runtimeIdentity: {
+                state: "matched",
+                reason: "Reachable Dashboard build identity matches the current skfiy build.",
+                currentBuildIdentity: dashboardBuildIdentity,
+                descriptorBuildIdentity: dashboardBuildIdentity
+              }
             },
             runtimeSnapshot: {
               state: "available",
@@ -1274,6 +1296,14 @@ describe("dashboard product smoke script", () => {
             url: "http://127.0.0.1:51234/",
             pid: 4242,
             statePath: "/Users/tester/Library/Application Support/skfiy/dashboard-server.json",
+            stale: false,
+            runtimeIdentity: {
+              state: "matched",
+              reason: "Reachable Dashboard build identity matches the current skfiy build.",
+              currentBuildIdentity: dashboardBuildIdentity,
+              descriptorBuildIdentity: dashboardBuildIdentity,
+              stateBuildIdentity: dashboardBuildIdentity
+            },
             api: {
               chromeHostPolicy: {
                 state: "reachable",
@@ -1383,6 +1413,39 @@ describe("dashboard product smoke script", () => {
     };
 
     expect(classifyDashboardSmokeEvidence(passedEvidence)).toBe("passed");
+    expect(classifyDashboardSmokeEvidence({
+      ...passedEvidence,
+      descriptorResponse: {
+        ...passedEvidence.descriptorResponse,
+        body: {
+          ...passedEvidence.descriptorResponse.body,
+          runtime: {
+            buildIdentity: {
+              schemaVersion: 1,
+              rootDir: "/repo",
+              packageVersion: "0.1.0",
+              fingerprint: "old-dashboard-build"
+            }
+          }
+        }
+      },
+      snapshotResponse: {
+        ...passedEvidence.snapshotResponse,
+        body: {
+          ...passedEvidence.snapshotResponse.body,
+          runtimeHealth: {
+            ...passedEvidence.snapshotResponse.body.runtimeHealth,
+            dashboard: {
+              ...passedEvidence.snapshotResponse.body.runtimeHealth.dashboard,
+              runtimeIdentity: {
+                state: "mismatch",
+                code: "stale-dashboard-build-mismatch"
+              }
+            }
+          }
+        }
+      }
+    })).toBe("failed");
     expect(classifyDashboardSmokeEvidence({
       ...passedEvidence,
       knowledgeGraphEvidence: {

@@ -8,6 +8,9 @@ export interface DashboardDescriptor {
   auth: Record<string, unknown>;
   updates: Record<string, unknown>;
   eventStore?: Record<string, unknown>;
+  runtime?: {
+    buildIdentity?: Record<string, unknown>;
+  };
   panels: Array<Record<string, unknown>>;
 }
 

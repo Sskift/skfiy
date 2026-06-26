@@ -17,6 +17,12 @@ import {
   writeDashboardServerState
 } from "./dashboard-server-state.js";
 import {
+  STALE_DASHBOARD_BUILD_MISMATCH_CODE,
+  compareDashboardRuntimeIdentity,
+  createDashboardBuildIdentity,
+  normalizeDashboardBuildIdentity
+} from "./dashboard-runtime-identity.js";
+import {
   createChromeExtensionConnectionStatePath,
   installChromeNativeHost,
   readChromeExtensionConnectionStatus,
@@ -1896,12 +1902,16 @@ export async function runSkfiyCli({
 
   if (result.invocation.kind === "dashboard") {
     const dashboardGeneratedAt = generatedAt ?? new Date().toISOString();
+    const dashboardBuildIdentity = createDashboardBuildIdentity({
+      rootDir: normalizedRootDir
+    });
     const dashboard = await dashboardServerStarter({
       port: result.invocation.options.port,
       rootDir: normalizedRootDir
     });
     const descriptor = createDashboardDescriptor({
-      port: dashboard.bind.port
+      port: dashboard.bind.port,
+      buildIdentity: dashboardBuildIdentity
     });
     let dashboardStatePath: string | undefined;
     let dashboardStateError: string | undefined;
@@ -1915,7 +1925,8 @@ export async function runSkfiyCli({
             url: dashboard.url,
             bind: dashboard.bind,
             startedAt: dashboardGeneratedAt,
-            rootDir: normalizedRootDir
+            rootDir: normalizedRootDir,
+            buildIdentity: dashboardBuildIdentity
           })
         });
       } catch (error) {
@@ -3715,7 +3726,15 @@ function createDashboardReadiness(
   }
 
   const blockers: Array<Record<string, unknown>> = [];
-  if (dashboardState !== "running") {
+  if (dashboardState === "stale") {
+    const blocker = readRecord(dashboard?.blocker);
+    blockers.push({
+      code: readString(blocker?.code) ?? STALE_DASHBOARD_BUILD_MISMATCH_CODE,
+      message: readString(blocker?.message)
+        ?? "Reachable Dashboard is serving a different skfiy build than this CLI.",
+      state: dashboardState
+    });
+  } else if (dashboardState !== "running") {
     blockers.push({
       code: "dashboard-not-running",
       message: "Loopback dashboard is not running.",
@@ -4133,7 +4152,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
     const nativeHost = await readNativeHostStatusForStatus(effectiveInput);
     const hostPolicy = await readChromeHostPolicyForStatus(effectiveInput);
     const [dashboard, moneyRun] = await Promise.all([
-      readDashboardStatus(input.dashboardUrl, input.homeDir),
+      readDashboardStatus(input.dashboardUrl, input.homeDir, input.rootDir),
       readMoneyRunStatusForStatus()
     ]);
 
@@ -4164,7 +4183,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
   const [permissions, desktopSession, dashboard, moneyRun] = await Promise.all([
     readPermissionStatesForStatus(desktopHelper),
     readDesktopSessionForStatus(desktopHelper),
-    readDashboardStatus(input.dashboardUrl, input.homeDir),
+    readDashboardStatus(input.dashboardUrl, input.homeDir, input.rootDir),
     readMoneyRunStatusForStatus()
   ]);
 
@@ -5292,8 +5311,10 @@ function readConnectionState(connection: ChromeExtensionConnectionStatus | undef
 
 async function readDashboardStatus(
   dashboardUrl: string | undefined,
-  homeDir?: string
+  homeDir: string | undefined,
+  rootDir: string
 ): Promise<Record<string, unknown>> {
+  const currentBuildIdentity = createDashboardBuildIdentity({ rootDir });
   const discovered = dashboardUrl
     ? undefined
     : readDashboardStatusFromState(homeDir);
@@ -5351,13 +5372,38 @@ async function readDashboardStatus(
     };
   }
 
+  const descriptorBuildIdentity = normalizeDashboardBuildIdentity(
+    readRecord(descriptorProbe.body)?.runtime
+      ? readRecord(readRecord(descriptorProbe.body)?.runtime)?.buildIdentity
+      : undefined
+  );
+  const stateBuildIdentity = normalizeDashboardBuildIdentity(
+    readRecord(discovered?.buildIdentity) ?? undefined
+  );
+  const runtimeIdentity = compareDashboardRuntimeIdentity({
+    currentBuildIdentity,
+    descriptorBuildIdentity,
+    stateBuildIdentity
+  });
+  const stale = runtimeIdentity.state !== "matched";
+
   return {
-    state: "running",
+    state: stale ? "stale" : "running",
     url: effectiveDashboardUrl,
     ...createReachableDashboardDiscoveryMetadata({
       discovered,
       usingDefaultDashboardUrl
     }),
+    stale,
+    runtimeIdentity,
+    ...(stale
+      ? {
+        blocker: {
+          code: runtimeIdentity.code ?? STALE_DASHBOARD_BUILD_MISMATCH_CODE,
+          message: runtimeIdentity.reason
+        }
+      }
+      : {}),
     descriptor: descriptorProbe.body,
     api: {
       chromeHostPolicy: await fetchDashboardJson(chromeHostPolicyApiUrl)
@@ -5425,6 +5471,7 @@ function readDashboardStatusFromState(homeDir: string | undefined): Record<strin
       url: result.state.url,
       pid: result.state.pid,
       startedAt: result.state.startedAt,
+      ...(result.state.buildIdentity ? { buildIdentity: result.state.buildIdentity } : {}),
       reason: "Recorded dashboard process is no longer running."
     };
   }
@@ -5436,7 +5483,8 @@ function readDashboardStatusFromState(homeDir: string | undefined): Record<strin
     url: result.state.url,
     pid: result.state.pid,
     startedAt: result.state.startedAt,
-    bind: result.state.bind
+    bind: result.state.bind,
+    ...(result.state.buildIdentity ? { buildIdentity: result.state.buildIdentity } : {})
   };
 }
 

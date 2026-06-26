@@ -18,6 +18,7 @@ import {
 import type { DashboardSnapshot } from "./dashboard-data";
 import { createRuntimeSnapshotStatePath } from "./runtime-snapshot";
 import { createTmuxSupervisionReport } from "./computer-use/tmux-supervisor";
+import { createDashboardBuildIdentity } from "./dashboard-runtime-identity";
 
 function readUrl(url: string): Promise<{
   status: number;
@@ -272,7 +273,10 @@ describe("dashboard loopback HTTP response helper", () => {
     expect(response.headers["content-type"]).toBe("application/json; charset=utf-8");
 
     const descriptor = JSON.parse(response.body);
-    expect(descriptor).toEqual(createDashboardDescriptor({ port: 8787 }));
+    expect(descriptor).toEqual(createDashboardDescriptor({
+      port: 8787,
+      buildIdentity: createDashboardBuildIdentity({})
+    }));
     expect(descriptor.bind.host).toBe("127.0.0.1");
     expect(response.body).not.toContain("0.0.0.0");
     expect(response.body).not.toContain("token=");

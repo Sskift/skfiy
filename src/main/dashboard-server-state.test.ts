@@ -32,7 +32,16 @@ describe("dashboard server state", () => {
           port: 8787
         },
         startedAt: "2026-06-20T00:00:00.000Z",
-        rootDir: "/repo"
+        rootDir: "/repo",
+        buildIdentity: {
+          schemaVersion: 1,
+          rootDir: "/repo",
+          packageVersion: "0.1.0",
+          gitCommit: "abcdef1234567890",
+          distSkfiyMtimeMs: 1000,
+          distMainBundleMtimeMs: 2000,
+          fingerprint: "dashboard-build-current"
+        }
       });
 
       const statePath = await writeDashboardServerState({
@@ -40,6 +49,12 @@ describe("dashboard server state", () => {
         state
       });
 
+      expect(state).toMatchObject({
+        buildIdentity: {
+          fingerprint: "dashboard-build-current",
+          packageVersion: "0.1.0"
+        }
+      });
       expect(statePath).toBe(createDashboardServerStatePath(homeDir));
       expect(JSON.parse(readFileSync(statePath, "utf8"))).toEqual(state);
       expect(readDashboardServerState(homeDir)).toEqual({

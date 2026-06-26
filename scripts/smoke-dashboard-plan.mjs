@@ -145,6 +145,7 @@ export function classifyDashboardSmokeEvidence(evidence) {
   if (
     evidence.descriptorResponse?.status !== 200
     || descriptor?.auth?.tokenPrinted !== false
+    || !hasDashboardBuildIdentity(descriptor?.runtime?.buildIdentity)
     || !isLoopbackBind(descriptorBind)
     || !sameBind(outputBind, descriptorBind)
     || descriptor?.url !== cliOutput.url
@@ -173,6 +174,9 @@ export function classifyDashboardSmokeEvidence(evidence) {
     || !hasMissingAfterTurnRuntimeSnapshotEvidence(evidence.missingAfterTurnRuntimeSnapshot)
     || snapshot?.runtimeHealth?.dashboard?.state !== "running"
     || snapshot?.runtimeHealth?.dashboard?.url !== cliOutput.url
+    || !hasDashboardBuildIdentity(snapshot?.runtimeHealth?.dashboard?.buildIdentity)
+    || snapshot?.runtimeHealth?.dashboard?.runtimeIdentity?.state !== "matched"
+    || snapshot.runtimeHealth.dashboard.buildIdentity.fingerprint !== descriptor.runtime.buildIdentity.fingerprint
     || !Number.isInteger(snapshot?.runtimeHealth?.dashboard?.pid)
     || snapshot.runtimeHealth.dashboard.pid <= 0
     || !Number.isFinite(snapshot?.runtimeHealth?.dashboard?.uptimeSeconds)
@@ -248,6 +252,13 @@ export function classifyDashboardSmokeEvidence(evidence) {
   }
 
   return "passed";
+}
+
+function hasDashboardBuildIdentity(value) {
+  return value?.schemaVersion === 1
+    && typeof value?.fingerprint === "string"
+    && value.fingerprint.length > 0
+    && value.fingerprint !== "unknown";
 }
 
 function hasDashboardKnowledgeGraphEvidence(evidence) {
@@ -899,6 +910,8 @@ function hasDashboardStatusAutoDiscoveryEvidence(evidence, cliOutput) {
     && dashboard?.url === cliOutput?.url
     && dashboard?.pid === cliOutput?.serverPid
     && dashboard?.statePath === cliOutput?.statePath
+    && dashboard?.stale === false
+    && dashboard?.runtimeIdentity?.state === "matched"
     && dashboard?.api?.chromeHostPolicy?.state === "reachable"
     && dashboardReadiness?.ready === true
     && dashboardReadiness?.state === "ready"

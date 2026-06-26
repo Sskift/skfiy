@@ -1,6 +1,10 @@
 import path from "node:path";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
+import {
+  normalizeDashboardBuildIdentity,
+  type DashboardBuildIdentity
+} from "./dashboard-runtime-identity.js";
 
 export const DASHBOARD_SERVER_STATE_SCHEMA_VERSION = 1;
 
@@ -14,6 +18,7 @@ export interface DashboardServerState {
   };
   startedAt: string;
   rootDir?: string;
+  buildIdentity?: DashboardBuildIdentity;
 }
 
 export interface DashboardServerStateIo {
@@ -43,7 +48,8 @@ export function createDashboardServerState({
   url,
   bind,
   startedAt = new Date().toISOString(),
-  rootDir
+  rootDir,
+  buildIdentity
 }: Omit<DashboardServerState, "schemaVersion" | "startedAt"> & {
   startedAt?: string;
 }): DashboardServerState {
@@ -53,7 +59,8 @@ export function createDashboardServerState({
     url,
     bind,
     startedAt,
-    ...(rootDir ? { rootDir } : {})
+    ...(rootDir ? { rootDir } : {}),
+    ...(buildIdentity ? { buildIdentity } : {})
   };
 }
 
@@ -142,6 +149,8 @@ function normalizeDashboardServerState(value: unknown): DashboardServerState | u
     return undefined;
   }
 
+  const buildIdentity = normalizeDashboardBuildIdentity(record.buildIdentity);
+
   return {
     schemaVersion: DASHBOARD_SERVER_STATE_SCHEMA_VERSION,
     pid: record.pid,
@@ -151,7 +160,8 @@ function normalizeDashboardServerState(value: unknown): DashboardServerState | u
       port: bindRecord.port
     },
     startedAt: record.startedAt,
-    ...(typeof record.rootDir === "string" ? { rootDir: record.rootDir } : {})
+    ...(typeof record.rootDir === "string" ? { rootDir: record.rootDir } : {}),
+    ...(buildIdentity ? { buildIdentity } : {})
   };
 }
 

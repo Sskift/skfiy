@@ -69,6 +69,11 @@ import {
   createAutomationMonitorSnapshotFromStoreSnapshot,
   createAutomationMonitorStatePath
 } from "./automation-monitor.js";
+import {
+  compareDashboardRuntimeIdentity,
+  createDashboardBuildIdentity,
+  normalizeDashboardBuildIdentity
+} from "./dashboard-runtime-identity.js";
 
 const STALE_SMOKE_EVIDENCE_SECONDS = 86_400;
 const RECENT_RUNTIME_TURN_MARKER_SECONDS = 300;
@@ -299,6 +304,19 @@ export function createDashboardWorkspaceSnapshot({
 }: DashboardWorkspaceSnapshotInput): DashboardSnapshot {
   const snapshotGeneratedAt = generatedAt ?? new Date().toISOString();
   const packageInfo = readPackageInfo(rootDir, io);
+  const dashboardBuildIdentity = createDashboardBuildIdentity({
+    rootDir,
+    io
+  });
+  const descriptorBuildIdentity = normalizeDashboardBuildIdentity(
+    readRecord(descriptor.runtime)?.buildIdentity
+  );
+  const runtimeIdentity = compareDashboardRuntimeIdentity({
+    currentBuildIdentity: dashboardBuildIdentity,
+    descriptorBuildIdentity: descriptorBuildIdentity?.fingerprint === "unknown"
+      ? dashboardBuildIdentity
+      : descriptorBuildIdentity
+  });
   const appPath = path.join(rootDir, "dist", "skfiy.app");
   const helperPath = path.join(appPath, "Contents", "MacOS", "skfiy-helper");
   const cliPath = path.join(rootDir, "dist", "skfiy");
@@ -335,7 +353,9 @@ export function createDashboardWorkspaceSnapshot({
         state: "running",
         url: descriptor.url,
         pid: readWorkspacePid(io),
-        uptimeSeconds: readWorkspaceUptimeSeconds(io)
+        uptimeSeconds: readWorkspaceUptimeSeconds(io),
+        buildIdentity: dashboardBuildIdentity,
+        runtimeIdentity
       },
       package: packageInfo,
       cli: {

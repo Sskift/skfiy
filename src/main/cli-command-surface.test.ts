@@ -27,6 +27,7 @@ import {
   createDashboardServerState,
   createDashboardServerStatePath
 } from "./dashboard-server-state";
+import { createDashboardBuildIdentity } from "./dashboard-runtime-identity";
 import type { ChromeExtensionReloadInput } from "./chrome-extension-reloader";
 import type {
   ChromeExtensionPageControlInput,
@@ -3573,6 +3574,7 @@ describe("CLI command surface", () => {
   });
 
   it("probes dashboard Chrome host policy API through concrete status collection", async () => {
+    const dashboardBuildIdentity = createDashboardBuildIdentity({ rootDir: "/repo" });
     const server = http.createServer((request, response) => {
       response.setHeader("content-type", "application/json");
 
@@ -3580,7 +3582,8 @@ describe("CLI command surface", () => {
         response.end(JSON.stringify({
           schemaVersion: 1,
           name: "skfiy-dashboard",
-          bind: { host: "127.0.0.1", port: 0 }
+          bind: { host: "127.0.0.1", port: 0 },
+          runtime: { buildIdentity: dashboardBuildIdentity }
         }));
         return;
       }
@@ -3650,6 +3653,7 @@ describe("CLI command surface", () => {
 
   it("auto-discovers a running dashboard from the local server state file", async () => {
     const homeDir = createTempRoot();
+    const dashboardBuildIdentity = createDashboardBuildIdentity({ rootDir: "/repo" });
     const server = http.createServer((request, response) => {
       response.setHeader("content-type", "application/json");
 
@@ -3657,7 +3661,8 @@ describe("CLI command surface", () => {
         response.end(JSON.stringify({
           schemaVersion: 1,
           name: "skfiy-dashboard",
-          bind: { host: "127.0.0.1", port: 0 }
+          bind: { host: "127.0.0.1", port: 0 },
+          runtime: { buildIdentity: dashboardBuildIdentity }
         }));
         return;
       }
@@ -3698,7 +3703,8 @@ describe("CLI command surface", () => {
           port: address.port
         },
         startedAt,
-        rootDir: "/repo"
+        rootDir: "/repo",
+        buildIdentity: dashboardBuildIdentity
       }), null, 2)}\n`);
 
       await expect(runSkfiyCli({
@@ -3756,6 +3762,7 @@ describe("CLI command surface", () => {
 
   it("auto-discovers the default loopback dashboard when no server state exists", async () => {
     const homeDir = createTempRoot();
+    const dashboardBuildIdentity = createDashboardBuildIdentity({ rootDir: "/repo" });
     const stdout: string[] = [];
     const stderr: string[] = [];
     const requestedUrls: string[] = [];
@@ -3768,7 +3775,8 @@ describe("CLI command surface", () => {
           schemaVersion: 1,
           name: "skfiy-dashboard",
           bind: { host: "127.0.0.1", port: 8787 },
-          url: "http://127.0.0.1:8787/"
+          url: "http://127.0.0.1:8787/",
+          runtime: { buildIdentity: dashboardBuildIdentity }
         }), {
           status: 200,
           headers: { "content-type": "application/json" }
@@ -3845,6 +3853,7 @@ describe("CLI command surface", () => {
 
   it("keeps stale dashboard server state separate when the descriptor is reachable", async () => {
     const homeDir = createTempRoot();
+    const dashboardBuildIdentity = createDashboardBuildIdentity({ rootDir: "/repo" });
     const server = http.createServer((request, response) => {
       response.setHeader("content-type", "application/json");
 
@@ -3852,7 +3861,8 @@ describe("CLI command surface", () => {
         response.end(JSON.stringify({
           schemaVersion: 1,
           name: "skfiy-dashboard",
-          bind: { host: "127.0.0.1", port: 0 }
+          bind: { host: "127.0.0.1", port: 0 },
+          runtime: { buildIdentity: dashboardBuildIdentity }
         }));
         return;
       }
@@ -3927,6 +3937,126 @@ describe("CLI command surface", () => {
         }
       });
       expect(output.dashboard.pid).toBeUndefined();
+      expect(stderr).toEqual([]);
+    } finally {
+      rmSync(homeDir, { recursive: true, force: true });
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+
+  it("does not treat a reachable dashboard from an older build as ready", async () => {
+    const homeDir = createTempRoot();
+    const server = http.createServer((request, response) => {
+      response.setHeader("content-type", "application/json");
+
+      if (request.url === "/descriptor.json") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          name: "skfiy-dashboard",
+          bind: { host: "127.0.0.1", port: 0 },
+          url: "http://127.0.0.1:8787/",
+          runtime: {
+            buildIdentity: {
+              schemaVersion: 1,
+              rootDir: "/repo",
+              packageVersion: "0.1.0",
+              fingerprint: "old-dashboard-build"
+            }
+          }
+        }));
+        return;
+      }
+
+      if (request.url === "/api/chrome-host-policy") {
+        response.end(JSON.stringify({
+          schemaVersion: 1,
+          source: "dashboard",
+          hostPolicy: { state: "default" }
+        }));
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: "not found" }));
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+
+    try {
+      const address = server.address() as AddressInfo;
+      const dashboardUrl = `http://127.0.0.1:${address.port}/`;
+      const statePath = createDashboardServerStatePath(homeDir);
+      const startedAt = "2026-06-20T00:00:00.000Z";
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+
+      mkdirSync(path.dirname(statePath), { recursive: true });
+      writeFileSync(statePath, `${JSON.stringify(createDashboardServerState({
+        pid: process.pid,
+        url: dashboardUrl,
+        bind: {
+          host: "127.0.0.1",
+          port: address.port
+        },
+        startedAt,
+        rootDir: "/repo",
+        buildIdentity: {
+          schemaVersion: 1,
+          rootDir: "/repo",
+          packageVersion: "0.1.0",
+          fingerprint: "old-dashboard-build"
+        }
+      }), null, 2)}\n`);
+
+      await expect(runSkfiyCli({
+        argv: ["status", "--json"],
+        rootDir: "/repo",
+        homeDir,
+        generatedAt: startedAt,
+        stdout: { write: (chunk: string) => stdout.push(chunk) },
+        stderr: { write: (chunk: string) => stderr.push(chunk) }
+      })).resolves.toBe(0);
+
+      const output = JSON.parse(stdout.join(""));
+      expect(output).toMatchObject({
+        schemaVersion: 1,
+        command: "status",
+        dashboard: {
+          state: "stale",
+          source: "dashboard-server-state",
+          statePath,
+          url: dashboardUrl,
+          pid: process.pid,
+          stale: true,
+          blocker: {
+            code: "stale-dashboard-build-mismatch"
+          }
+        },
+        readiness: {
+          checks: {
+            dashboard: {
+              ready: false,
+              state: "needs-action",
+              dashboardState: "stale",
+              blockers: [
+                expect.objectContaining({
+                  code: "stale-dashboard-build-mismatch"
+                })
+              ]
+            }
+          }
+        }
+      });
       expect(stderr).toEqual([]);
     } finally {
       rmSync(homeDir, { recursive: true, force: true });

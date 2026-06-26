@@ -1,3 +1,5 @@
+import type { DashboardBuildIdentity } from "./dashboard-runtime-identity.js";
+
 export const DASHBOARD_PANEL_IDS = [
   "runtime-health",
   "operator-readiness",
@@ -23,6 +25,7 @@ export interface DashboardPanel {
 export interface DashboardDescriptorInput {
   port?: number;
   requestedHost?: string;
+  buildIdentity?: DashboardBuildIdentity;
 }
 
 export interface DashboardDescriptor {
@@ -43,6 +46,9 @@ export interface DashboardDescriptor {
   eventStore: {
     mode: "append-only";
     requiredForExecution: false;
+  };
+  runtime: {
+    buildIdentity: DashboardBuildIdentity;
   };
   panels: DashboardPanel[];
 }
@@ -207,6 +213,12 @@ export function createDashboardDescriptor(
     eventStore: {
       mode: "append-only",
       requiredForExecution: false
+    },
+    runtime: {
+      buildIdentity: input.buildIdentity ?? {
+        schemaVersion: 1,
+        fingerprint: "unknown"
+      }
     },
     panels: createDashboardPanels()
   };

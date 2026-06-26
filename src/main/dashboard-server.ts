@@ -47,6 +47,9 @@ import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION
 } from "./runtime-snapshot.js";
 import {
+  createDashboardBuildIdentity
+} from "./dashboard-runtime-identity.js";
+import {
   readInitialAssistantAgentSettings,
   readAssistantAgentProviderStates,
   type AssistantAgentExecutableResolver,
@@ -592,7 +595,10 @@ function createDescriptorFromOptions(
     ...descriptorInput
   } = options;
 
-  return createDescriptor(descriptorInput);
+  return createDescriptor({
+    ...descriptorInput,
+    buildIdentity: createDashboardBuildIdentity({ rootDir: options.rootDir })
+  });
 }
 
 export async function createDashboardProviderSettingsResponse(
