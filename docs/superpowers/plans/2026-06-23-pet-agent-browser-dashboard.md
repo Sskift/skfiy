@@ -2025,7 +2025,7 @@ npm run typecheck -- --pretty false
 git diff --check
 ```
 
-- [ ] **Step 8: Run product-path visual evidence**
+- [x] **Step 8: Run product-path visual evidence**
 
 Use no-focus defaults unless the project owner explicitly authorizes visible
 field smoke:
@@ -2041,21 +2041,18 @@ Expected:
 
 - UI smoke still records `launchMode: hidden` and `stealsFocus: false`.
 - Dashboard smoke records `result: passed`.
-- Dashboard screenshot evidence shows the first scan focused on chat,
-  Browser Context, and user attention; graph/evidence detail remains reachable
-  below the first scan.
+- Dashboard first-scan hierarchy is covered by the focused React/model tests in
+  Step 7; product smoke records dashboard shell markers and Knowledge graph
+  screenshot evidence so graph/evidence detail remains reachable but secondary.
 
-Current 2026-06-26 evidence:
+Final 2026-06-27 evidence:
 
+- `npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session-current.json` exited 0 and recorded `result: "passed"` through `packaged helper -> permissions-status/desktop-session-status/screenshot`. Screen Recording and Accessibility were granted, `desktopSessionStatus.controllable` was `true`, `ioConsoleLocked` was `false`, `mainDisplayAsleep` was `false`, and the screenshot was non-black (`nonBlackRatio: 0.9992508661859725`).
 - `npm run build` exited 0 and packaged `dist/skfiy.app`.
-- `npx vitest run src/main/cli-product-smoke-script.test.ts --reporter=dot` first failed when the CLI smoke default timeout was still `8000`, then passed after the default was raised to `30000` so cold `doctor-json` probes are not misclassified as SIGTERM failures in isolated HOME.
-- `npm run smoke:cli:basic -- --output .skfiy-smoke/cli-product-basic.json --require-passed` exited 0 and recorded `result: "passed"`.
-- `npm run smoke:v2 -- --profile silent --output .skfiy-smoke/v2/silent.json --require-passed` exited 0 and recorded `result: "passed"` with `cli-basic` (`focusMode: "none"`, `stealsFocus: false`) and `dashboard-product` (`focusMode: "hidden-window"`, `stealsFocus: false`).
-- `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` wrote the current-head release artifact but exited 2 because `--require-passed` rejects the current UI blocker. The `cli-basic` and `dashboard-product` scenarios passed; `ui-product` recorded `result: "desktop-session-blocked"`, `focusMode: "hidden-window"`, `stealsFocus: false`, and aggregate blocker `{ scenarioId: "ui-product", code: "desktop-session-blocked" }`.
-- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` and the v2 UI artifact record `launchMode: "hidden"` and `stealsFocus: false`. The assistant conversation path uses smoke-only `SKFIY_SMOKE_ASSISTANT_PROMPT` plus `SKFIY_SMOKE_ASSISTANT_REPLY`, so ordinary Computer Use command turns still exercise the real turn pipeline. The artifact records `assistantConversation.result: "passed"` and `stopTurnBehavior.result: "passed"` with `approval_required -> cancelled` evidence.
-- `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json --timeout-ms 30000` and the v2 dashboard artifact record `result: "passed"` through `skfiy dashboard --no-open`.
-- `npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session-3d12c39.json` records `result: "blocked"` with Screen Recording and Accessibility granted, `frontmostBundleId: "com.apple.loginwindow"`, `ioConsoleLocked: true`, `cgSessionScreenIsLocked: true`, `mainDisplayAsleep: true`, and a black screenshot.
-- Remaining typed blocker before Step 8 can be checked off: `desktop-session-blocked` (frontmost `com.apple.loginwindow` with the main display asleep; wake/unlock the Mac before field or release proof). CLI status/doctor, UI smoke, desktop-session smoke, and smoke:v2 now agree on the blocker family. `provider-usage-limit` is no longer a UI smoke blocker, although real Background Agent readiness dry-runs can still report `provider-auth-blocked` when a provider is not chat-ready.
+- `npm run smoke:v2 -- --profile release --output .skfiy-smoke/v2/release.json --require-passed` exited 0 and recorded aggregate `result: "passed"` with three accepted scenarios: `cli-basic` (`result: "passed"`, `focusMode: "none"`, `stealsFocus: false`), `ui-product` (`result: "no-onboarding"`, `focusMode: "hidden-window"`, `stealsFocus: false`), and `dashboard-product` (`result: "passed"`, `focusMode: "hidden-window"`, `stealsFocus: false`).
+- `npm run smoke:ui -- --output .skfiy-smoke/ui-product.json` exited 0 and recorded `result: "no-onboarding"`, `launchMode: "hidden"`, `stealsFocus: false`, granted Screen Recording/Accessibility, `desktopSessionDiagnostics.state: "controllable"`, renderer screenshot `.skfiy-smoke/ui-product.png`, `petDrag.result: "passed"`, `assistantConversation.result: "passed"`, `stopTurnBehavior.result: "passed"`, and `processesAfterCleanup: []`.
+- `npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json` exited 0 through `dist/skfiy -> skfiy dashboard -> loopback dashboard server` with `result: "passed"`, `runtimeSnapshotCoverage.result: "passed"`, `reactContentEvidence.missingMarkers: []`, Dashboard smoke evidence reading the fresh UI artifact as `no-onboarding`, and Knowledge graph screenshot evidence at `.skfiy-smoke/dashboard-product-knowledge-graph.png`.
+- No Step 8 blocker remains. Dashboard still reports expected non-Step-8 environment alerts for optional integration/release state, including missing Chrome Native Messaging host setup, stale optional smoke evidence, and `release-artifact-older-than-head`.
 
 - [x] **Step 9: Commit**
 

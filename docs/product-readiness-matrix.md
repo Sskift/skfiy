@@ -1,6 +1,6 @@
 # skfiy Product Readiness Matrix
 
-Updated: 2026-06-26
+Updated: 2026-06-27
 Cleanup baseline commit: `d97f542`
 Latest local alpha evidence recorded during the earlier cleanup: `7666314`
 
@@ -140,27 +140,29 @@ The old Chrome extension architecture note was removed after its durable setup,
 permission, and Browser Context recovery details were folded into
 `docs/chrome-extension-setup.md`, Browser Context tests, and the active plan.
 
-Current Task 12 verification status on 2026-06-26: focused UI smoke and
-smoke:v2 script tests pass, typecheck/build/diff verification has been run for
-the branch, and Dashboard smoke passes through the no-open product path. The CLI
-smoke default timeout is now 30 seconds so `doctor-json` has enough room for
-read-only desktop-session, Dashboard, Chrome, and money-run probes in a cold
-isolated HOME. `npm run smoke:v2 -- --profile silent --output
-.skfiy-smoke/v2/silent.json --require-passed` records `result: "passed"` with
-`cli-basic` and `dashboard-product` both reporting `stealsFocus: false`. Hidden
-UI product smoke no longer depends on a live Background Agent quota because the
-smoke launch injects a prompt-scoped `SKFIY_SMOKE_ASSISTANT_PROMPT` plus
-`SKFIY_SMOKE_ASSISTANT_REPLY`; ordinary Computer Use command turns still use
-the real turn pipeline. UI smoke now records
-`assistantConversation.result: "passed"` and
-`stopTurnBehavior.result: "passed"` with `approval_required -> cancelled`
-evidence. The remaining UI product blocker is the current locked/asleep desktop
-state (`desktop-session-blocked`, frontmost `com.apple.loginwindow`); the smoke
-artifacts still record `stealsFocus: false`, and `smoke:v2 --profile release`
-now promotes that UI blocker into the aggregate `blockers` list. CLI
-status/doctor readiness now uses the same typed blocker language for
-desktop-session, Browser Context host policy, and money-run attention states
-instead of collapsing them into generic readiness failures.
+Current Task 12 verification status on 2026-06-27: the final product-path
+visual evidence has passed. `npm run smoke:desktop-session -- --output
+.skfiy-smoke/desktop-session-current.json` records `result: "passed"` with
+Screen Recording and Accessibility granted, a controllable desktop session,
+`ioConsoleLocked: false`, `mainDisplayAsleep: false`, and a non-black screenshot.
+`npm run build` packages `dist/skfiy.app`. `npm run smoke:v2 -- --profile
+release --output .skfiy-smoke/v2/release.json --require-passed` records
+aggregate `result: "passed"` with accepted `cli-basic`, `ui-product`, and
+`dashboard-product` scenarios, all no-focus where applicable
+(`stealsFocus: false`). The individual UI smoke records the already-authorized
+`result: "no-onboarding"` state, `launchMode: "hidden"`, pet drag proof,
+assistant conversation proof, stop-turn proof, and cleanup with no remaining
+app processes. The individual Dashboard smoke records `result: "passed"` through
+`skfiy dashboard --no-open`, fresh UI evidence as `no-onboarding`,
+`runtimeSnapshotCoverage.result: "passed"`, and Knowledge graph screenshot
+evidence. The first-scan hierarchy is protected by the focused React/model tests
+from the active plan; Dashboard product smoke verifies the shell markers and
+keeps graph/evidence detail reachable as a secondary operator surface.
+
+No Task 12 Step 8 blocker remains. Current Dashboard warnings for Chrome Native
+Messaging host setup, stale optional smoke evidence, Finder Automation unknown,
+and `release-artifact-older-than-head` are typed environment/release follow-ups,
+not blockers for the completed product-surface simplification package.
 
 ## Current Branch Hardening Evidence
 
