@@ -378,6 +378,39 @@ describe("runGhosttyCommandTask", () => {
     expect((initEnter?.timestamp ?? 0) - (initType?.timestamp ?? 0)).toBeGreaterThanOrEqual(70);
   });
 
+  it("waits after activating Ghostty before pasting the shell initialization command", async () => {
+    const client = createDesktopClient();
+    const originalExecuteAction = client.executeAction.getMockImplementation() as
+      | ((action: DesktopExecutableAction) => Promise<DesktopActionResult>)
+      | undefined;
+    const actionTimes: Array<{ action: DesktopExecutableAction; timestamp: number }> = [];
+
+    client.executeAction.mockImplementation(async (action: DesktopExecutableAction) => {
+      actionTimes.push({ action, timestamp: Date.now() });
+      if (!originalExecuteAction) {
+        throw new Error("Missing executeAction test implementation.");
+      }
+
+      return originalExecuteAction(action);
+    });
+
+    await collectEvents(runGhosttyCommandTask(client, "pwd", { createScreenshotPath }));
+
+    const activation = actionTimes.find(
+      ({ action }) => action.type === "activate_app" && action.bundleId === "com.mitchellh.ghostty"
+    );
+    const initType = actionTimes.find(
+      ({ action, timestamp }) =>
+        action.type === "type_text"
+        && action.text.includes("SKFIY_SESSION=1")
+        && timestamp >= (activation?.timestamp ?? 0)
+    );
+
+    expect(activation).toBeDefined();
+    expect(initType).toBeDefined();
+    expect((initType?.timestamp ?? 0) - (activation?.timestamp ?? 0)).toBeGreaterThanOrEqual(250);
+  });
+
   it("does not type the user command until the Ghostty shell ready marker is visible", async () => {
     const client = createDesktopClient();
     client.ocrImage.mockResolvedValue({ labels: [] });
@@ -599,7 +632,7 @@ describe("runGhosttyCommandTask", () => {
     expect(userTypeIndex).toBeGreaterThan(
       actions.findIndex((action) => action.type === "activate_app" && action.pid === 54599)
     );
-  });
+  }, 10000);
 
   it("plans an agent request into the terminal command before typing", async () => {
     const client = createDesktopClient();

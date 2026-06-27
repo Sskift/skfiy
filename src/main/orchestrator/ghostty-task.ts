@@ -32,6 +32,7 @@ const SKFIY_GHOSTTY_INIT_COMMAND = [
   `printf '\\n${SKFIY_GHOSTTY_READY_MARKER}\\n'`,
   `printf '\\033]0;${SKFIY_GHOSTTY_SESSION_TITLE}\\007'`
 ].join("; ");
+const INITIAL_INPUT_FOCUS_SETTLE_WAIT_MS = 350;
 const SESSION_INIT_SETTLE_WAIT_MS = 90;
 const TYPE_SETTLE_WAIT_MS = 90;
 const SUBMIT_SETTLE_WAIT_MS = 300;
@@ -758,6 +759,7 @@ async function initializeGhosttySession(
   return readPlanFailure(await runDesktopActionPlan(
     client,
     [
+      { type: "wait", ms: INITIAL_INPUT_FOCUS_SETTLE_WAIT_MS },
       { type: "type_text", text: SKFIY_GHOSTTY_INIT_COMMAND },
       { type: "wait", ms: TYPE_SETTLE_WAIT_MS },
       { type: "press_key", key: "enter" },
