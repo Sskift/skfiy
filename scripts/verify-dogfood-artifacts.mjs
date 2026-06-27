@@ -702,8 +702,8 @@ function verifyGhosttySmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "ghostty.desktopPreflight",
-    !artifact.desktopPreflight || desktopPreflightBlocked,
-    "Ghostty blocked desktop preflight must prove loginwindow/frontmost session is not controllable"
+    !artifact.desktopPreflight || hasDesktopPreflightPassedEvidence(artifact) || desktopPreflightBlocked,
+    "Ghostty desktop preflight must be passed for passed smokes or prove loginwindow/frontmost session is not controllable for blocked smokes"
   );
   check(
     checks,
@@ -984,8 +984,8 @@ function verifyFinderSmoke(artifact, expectedPath, options, checks) {
   check(
     checks,
     "finder.desktopPreflight",
-    !artifact.desktopPreflight || desktopPreflightBlocked,
-    "Finder blocked desktop preflight must prove loginwindow/frontmost session is not controllable"
+    !artifact.desktopPreflight || hasDesktopPreflightPassedEvidence(artifact) || desktopPreflightBlocked,
+    "Finder desktop preflight must be passed for passed smokes or prove loginwindow/frontmost session is not controllable for blocked smokes"
   );
 }
 
@@ -1244,6 +1244,20 @@ function hasDesktopPreflightBlockedEvidence(artifact) {
         )
       )
   );
+}
+
+function hasDesktopPreflightPassedEvidence(artifact) {
+  const preflight = artifact?.desktopPreflight;
+  return artifact?.result === "passed"
+    && Boolean(preflight)
+    && typeof preflight === "object"
+    && preflight.result === "passed"
+    && preflight.controllable === true
+    && preflight.productPath === "packaged helper -> desktop-session-status"
+    && typeof preflight.frontmost?.bundleId === "string"
+    && typeof preflight.frontmost?.processIdentifier === "number"
+    && typeof preflight.appPath === "string"
+    && typeof preflight.helperPath === "string";
 }
 
 function isDesktopPreflightBlockedReason(preflight) {

@@ -537,6 +537,23 @@ describe("dogfood artifact verifier", () => {
     result: "blocked",
     reason: "Desktop session is not controllable before target app launch: frontmostBundleId=com.apple.loginwindow frontmostProcessIdentifier=591. Unlock the Mac and keep the display awake, then retry."
   });
+  const createDesktopPreflightPassedEvidence = () => ({
+    timestamp: "2026-06-19T08:33:23.556Z",
+    appPath: "/repo/dist/skfiy.app",
+    helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+    productPath: "packaged helper -> desktop-session-status",
+    frontmost: {
+      bundleId: "com.openai.codex",
+      localizedName: "Codex",
+      processIdentifier: 958
+    },
+    display: {
+      mainDisplayAsleep: false
+    },
+    controllable: true,
+    result: "passed",
+    reason: "Desktop session preflight passed."
+  });
   const createDisplayAsleepPreflightBlockedEvidence = () => ({
     ...createDesktopPreflightBlockedEvidence(),
     display: {
@@ -881,6 +898,58 @@ describe("dogfood artifact verifier", () => {
         expect.objectContaining({ id: "finder.desktopPreflight", ok: true }),
         expect.objectContaining({ id: "ghostty.processesAfterCleanup", ok: true }),
         expect.objectContaining({ id: "finder.processesAfterCleanup", ok: true })
+      ])
+    });
+  });
+
+  it("accepts passed desktop-session preflight evidence on passed Ghostty and Finder smokes", async () => {
+    const {
+      verifyDogfoodArtifacts
+    } = await import(pathToFileURL(modulePath).href) as {
+      verifyDogfoodArtifacts: (
+        input: Record<string, unknown>,
+        io?: Record<string, unknown>
+      ) => Promise<Record<string, unknown>>;
+    };
+    const manifestPath = "/repo/.skfiy-alpha/skfiy.json";
+    const uiSmokePath = "/repo/.skfiy-smoke/ui.json";
+    const ghosttySmokePath = "/repo/.skfiy-smoke/ghostty.json";
+    const chromeSmokePath = "/repo/.skfiy-smoke/chrome.json";
+    const finderSmokePath = "/repo/.skfiy-smoke/finder.json";
+    const zipPath = "/repo/.skfiy-alpha/skfiy.zip";
+
+    await expect(verifyDogfoodArtifacts({
+      manifestPath,
+      requirePassed: true
+    }, createMemoryIo({
+      [manifestPath]: {
+        schemaVersion: 1,
+        appName: "skfiy",
+        commitSha: "abc123",
+        bundleIdentifier: "com.sskift.skfiy",
+        zip: { path: zipPath, bytes: 42, sha256: empty42ByteZipSha256 },
+        uiSmokeArtifactPath: uiSmokePath,
+        smokeArtifactPath: ghosttySmokePath,
+        chromeSmokeArtifactPath: chromeSmokePath,
+        finderSmokeArtifactPath: finderSmokePath,
+        requiredDogfoodEvidence: requiredManifestEvidence
+      },
+      [zipPath]: Buffer.alloc(42),
+      [uiSmokePath]: createUiSmokeArtifact(uiSmokePath),
+      [ghosttySmokePath]: {
+        ...createPassedGhosttySmokeArtifact(ghosttySmokePath),
+        desktopPreflight: createDesktopPreflightPassedEvidence()
+      },
+      [chromeSmokePath]: createChromeSmokeArtifact(chromeSmokePath),
+      [finderSmokePath]: {
+        ...createFinderSmokeArtifact(finderSmokePath),
+        desktopPreflight: createDesktopPreflightPassedEvidence()
+      }
+    }))).resolves.toMatchObject({
+      result: "passed",
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: "ghostty.desktopPreflight", ok: true }),
+        expect.objectContaining({ id: "finder.desktopPreflight", ok: true })
       ])
     });
   });
