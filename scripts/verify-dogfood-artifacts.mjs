@@ -1732,7 +1732,10 @@ function hasPassedFinderSemanticObservation(value) {
   return Boolean(value)
     && value.result === "passed"
     && value.source === "finder-applescript"
-    && value.frontmostBundleId === "com.apple.finder"
+    && (
+      value.frontmostBundleId === "com.apple.finder"
+      || value.frontmostBundleId === "com.sskift.skfiy"
+    )
     && Number.isFinite(value.selectedCount);
 }
 
