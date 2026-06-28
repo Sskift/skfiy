@@ -6,6 +6,9 @@ export const DEFAULT_SETTLE_MS = 500;
 export const PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> fs -> Finder";
 export const DRAG_PROBE_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper drag -> fs -> Finder";
 export const ITEM_DRAG_DROP_PRODUCT_PATH = "renderer -> preload -> main -> helper observe_app -> helper finder item layout -> helper drag -> fs -> Finder";
+export const FINDER_FOCUS_STEAL_MESSAGE =
+  "smoke:finder product path requires frontmost app control. "
+  + "Re-run with --allow-focus-steal only when it is acceptable to focus Finder/skfiy and use the active desktop.";
 export const FINDER_TARGET_MODES = new Set([
   "explicit-path",
   "current-finder-folder",
@@ -27,6 +30,7 @@ export function createDefaultFinderSmokeOptions(rootDir) {
     settleMs: DEFAULT_SETTLE_MS,
     keepExisting: false,
     keepOpen: false,
+    allowFocusSteal: false,
     requirePassed: false,
     targetMode: "explicit-path",
     targetDir: undefined,
@@ -64,6 +68,9 @@ export function parseFinderSmokeArgs(argv, defaults) {
       case "--keep-open":
         options.keepOpen = true;
         break;
+      case "--allow-focus-steal":
+        options.allowFocusSteal = true;
+        break;
       case "--require-passed":
         options.requirePassed = true;
         break;
@@ -99,6 +106,23 @@ export function parseFinderSmokeArgs(argv, defaults) {
   return options;
 }
 
+export function assertFinderFocusStealAllowed(options) {
+  const blocker = readFinderFocusStealBlocker(options);
+  if (!blocker) {
+    return;
+  }
+
+  throw new Error(blocker);
+}
+
+export function readFinderFocusStealBlocker(options) {
+  if (options.allowFocusSteal === true) {
+    return null;
+  }
+
+  return FINDER_FOCUS_STEAL_MESSAGE;
+}
+
 export function createHelpText(defaults) {
   return `Usage: npm run smoke:finder -- [options]
 
@@ -118,6 +142,7 @@ Options:
   --target-dir <path>   Create the isolated Finder fixture inside this existing directory.
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
+  --allow-focus-steal   Allow this field smoke to focus Finder/skfiy and use active pointer/keyboard input.
   -h, --help            Show this help.
 `;
 }

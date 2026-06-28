@@ -14,6 +14,7 @@ import {
   formatLaunchCommand,
   parseSmokeArgs,
   PRODUCT_PATH,
+  readGhosttyFocusStealBlocker,
   STRICT_APPROVAL_ENV,
   writeSmokeEvidence
 } from "./smoke-ghostty-plan.mjs";
@@ -72,6 +73,17 @@ async function main() {
   let shouldCleanupGhosttySessions = false;
 
   try {
+    const focusStealBlocker = readGhosttyFocusStealBlocker(options);
+    if (focusStealBlocker) {
+      evidence.appLaunchViaOpen = false;
+      evidence.launchSkipped = true;
+      evidence.result = "blocked";
+      evidence.reason = focusStealBlocker;
+      if (options.requirePassed) {
+        process.exitCode = 2;
+      }
+      return;
+    }
     assertSmokeReady(options);
     smokeLock = await acquireSmokeLock({
       rootDir: ROOT_DIR,

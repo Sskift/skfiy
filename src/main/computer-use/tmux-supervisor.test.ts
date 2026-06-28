@@ -378,7 +378,31 @@ describe("money-run supervision smoke script", () => {
     expect(stdout).toContain("--output <path>");
     expect(stdout).toContain("--require-passed");
     expect(stdout).toContain("--direct-tmux");
+    expect(stdout).toContain("--allow-focus-steal");
     expect(stdout).toContain("This script does not create sessions, send keys, kill panes");
+  });
+
+  it("requires an explicit focus-steal opt-in for the packaged app money-run smoke", async () => {
+    const { stdout } = await runMoneyRunModuleExpression(`
+      const defaults = moneyRun.createDefaultMoneyRunSupervisionOptions("/repo");
+      const parsed = moneyRun.parseMoneyRunSupervisionArgs(["--allow-focus-steal"], defaults);
+      const checks = {
+        defaultAllowFocusSteal: defaults.allowFocusSteal,
+        parsedAllowFocusSteal: parsed.allowFocusSteal,
+        directTmuxAllowed: moneyRun.readMoneyRunFocusStealBlocker({ ...defaults, directTmux: true }),
+        productBlocked: moneyRun.readMoneyRunFocusStealBlocker(defaults),
+        productAllowed: moneyRun.readMoneyRunFocusStealBlocker(parsed)
+      };
+      console.log(JSON.stringify(checks));
+    `);
+
+    expect(JSON.parse(stdout)).toEqual({
+      defaultAllowFocusSteal: false,
+      parsedAllowFocusSteal: true,
+      directTmuxAllowed: null,
+      productBlocked: "smoke:money-run product path requires frontmost app control. Re-run with --allow-focus-steal only when it is acceptable to focus skfiy and use the active desktop.",
+      productAllowed: null
+    });
   });
 
   it("accepts release-gate output and require-passed flags", async () => {

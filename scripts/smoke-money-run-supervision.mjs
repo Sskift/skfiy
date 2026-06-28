@@ -16,6 +16,9 @@ const PRODUCT_PATH = "LaunchServices -> renderer -> preload -> main -> tmux supe
 const DEFAULT_CDP_PORT = 9250;
 const WINDOW_FORMAT = "#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_panes}";
 const PANE_FORMAT = "#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_dead}\t#{pane_current_command}\t#{pane_title}";
+const MONEY_RUN_FOCUS_STEAL_MESSAGE =
+  "smoke:money-run product path requires frontmost app control. "
+  + "Re-run with --allow-focus-steal only when it is acceptable to focus skfiy and use the active desktop.";
 
 export function createDefaultMoneyRunSupervisionOptions(rootDir = DEFAULT_ROOT_DIR) {
   return {
@@ -30,6 +33,7 @@ export function createDefaultMoneyRunSupervisionOptions(rootDir = DEFAULT_ROOT_D
     jsonOutputPath: undefined,
     modulePath: path.join(rootDir, "dist/main/computer-use/tmux-supervisor.js"),
     requirePassed: false,
+    allowFocusSteal: false,
     directTmux: false,
     dryRun: false,
     help: false
@@ -75,6 +79,9 @@ export function parseMoneyRunSupervisionArgs(argv, defaults) {
         break;
       case "--require-passed":
         options.requirePassed = true;
+        break;
+      case "--allow-focus-steal":
+        options.allowFocusSteal = true;
         break;
       case "--module":
         options.modulePath = path.resolve(readValue(argv, index, arg));
@@ -145,7 +152,7 @@ export function createTmuxProbePlan(options) {
 
 export function createMoneyRunSupervisionHelpText(defaults) {
   return [
-    "Usage: npm run smoke:money-run -- [--session <name>] [--app <path>] [--tail-lines <count>] [--output <path>] [--require-passed] [--direct-tmux] [--dry-run]",
+    "Usage: npm run smoke:money-run -- [--session <name>] [--app <path>] [--tail-lines <count>] [--output <path>] [--require-passed] [--allow-focus-steal] [--direct-tmux] [--dry-run]",
     "",
     "Product-path read-only supervision smoke for the money-run session.",
     "By default it launches the compiled skfiy.app, sends the tmux supervision command through",
@@ -161,6 +168,7 @@ export function createMoneyRunSupervisionHelpText(defaults) {
     "  --output <path>        write the report JSON to a file instead of stdout only",
     "  --json-output <path>   compatibility alias for --output",
     "  --require-passed       exit non-zero unless the product-path smoke result is passed",
+    "  --allow-focus-steal    allow the packaged app product path to focus skfiy and use the active desktop",
     `  --module <path>        compiled supervisor module (default: ${defaults.modulePath})`,
     "  --direct-tmux          run the old direct tmux diagnostic path without launching skfiy.app",
     "  --dry-run              print the product-path probe plan without launching skfiy.app",
@@ -182,6 +190,7 @@ export function createMoneyRunProductDryRun(options) {
     productPath: PRODUCT_PATH,
     approvalRequired: true,
     requirePassed: options.requirePassed === true,
+    allowFocusSteal: options.allowFocusSteal === true,
     mutatesSession: false,
     probePlan: createTmuxProbePlan(options)
   };
@@ -237,6 +246,14 @@ export async function runMoneyRunSupervision(options, io = createDefaultIo()) {
     panesOutput: panesResult.stdout,
     paneTails
   });
+}
+
+export function readMoneyRunFocusStealBlocker(options) {
+  if (options.directTmux === true || options.dryRun === true || options.allowFocusSteal === true) {
+    return null;
+  }
+
+  return MONEY_RUN_FOCUS_STEAL_MESSAGE;
 }
 
 function createDefaultIo() {
@@ -361,6 +378,14 @@ async function runMoneyRunProductSmoke(options) {
     turnReplay: undefined,
     result: "not-run"
   };
+  const focusStealBlocker = readMoneyRunFocusStealBlocker(options);
+  if (focusStealBlocker) {
+    evidence.appLaunchViaOpen = false;
+    evidence.launchSkipped = true;
+    evidence.result = "blocked";
+    evidence.reason = focusStealBlocker;
+    return evidence;
+  }
   let smokeLock;
   let launchedSkfiy = false;
 

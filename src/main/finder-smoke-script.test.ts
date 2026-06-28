@@ -153,6 +153,36 @@ describe("Finder product smoke script", () => {
     expect(createHelpText(createDefaultFinderSmokeOptions("/repo"))).toContain("--target-dir <path>");
   });
 
+  it("requires an explicit focus-steal opt-in before running Finder product smoke", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
+    const {
+      assertFinderFocusStealAllowed,
+      createDefaultFinderSmokeOptions,
+      createHelpText,
+      parseFinderSmokeArgs
+    } = await import(pathToFileURL(modulePath).href) as {
+      assertFinderFocusStealAllowed: (options: Record<string, unknown>) => void;
+      createDefaultFinderSmokeOptions: (rootDir: string) => Record<string, unknown>;
+      createHelpText: (defaults: Record<string, unknown>) => string;
+      parseFinderSmokeArgs: (
+        argv: string[],
+        defaults: Record<string, unknown>
+      ) => Record<string, unknown>;
+    };
+    const defaults = createDefaultFinderSmokeOptions("/repo");
+
+    expect(defaults).toMatchObject({ allowFocusSteal: false });
+    expect(parseFinderSmokeArgs(["--allow-focus-steal"], defaults)).toMatchObject({
+      allowFocusSteal: true
+    });
+    expect(createHelpText(defaults)).toContain("--allow-focus-steal");
+    expect(() => assertFinderFocusStealAllowed(defaults)).toThrow(/frontmost app control/i);
+    expect(() => assertFinderFocusStealAllowed({
+      ...defaults,
+      allowFocusSteal: true
+    })).not.toThrow();
+  });
+
   it("requires target-dir Finder evidence to use an isolated fixture inside the requested directory", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-finder-plan.mjs");
     const {

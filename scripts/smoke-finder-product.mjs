@@ -15,6 +15,7 @@ import {
   createHelpText,
   parseProcessIds,
   parseFinderSmokeArgs,
+  readFinderFocusStealBlocker,
   readFinderSmokeEventEvidence,
   readFinderProductPath,
   withSmokeTimeout
@@ -76,6 +77,17 @@ async function main() {
   let launchedSkfiy = false;
 
   try {
+    const focusStealBlocker = readFinderFocusStealBlocker(options);
+    if (focusStealBlocker) {
+      evidence.appLaunchViaOpen = false;
+      evidence.launchSkipped = true;
+      evidence.result = "blocked";
+      evidence.reason = focusStealBlocker;
+      if (options.requirePassed) {
+        process.exitCode = 2;
+      }
+      return;
+    }
     assertSmokeReady(options);
     smokeLock = await acquireSmokeLock({
       rootDir: ROOT_DIR,

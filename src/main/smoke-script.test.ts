@@ -119,6 +119,33 @@ describe("Ghostty product smoke script", () => {
     expect(createHelpText(defaults)).toContain("--output <path>");
   });
 
+  it("requires an explicit focus-steal opt-in before running Ghostty product smoke", async () => {
+    const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
+    const {
+      assertGhosttyFocusStealAllowed,
+      createDefaultSmokeOptions,
+      createHelpText,
+      parseSmokeArgs
+    } = await import(pathToFileURL(modulePath).href) as {
+      assertGhosttyFocusStealAllowed: (options: Record<string, unknown>) => void;
+      createDefaultSmokeOptions: (rootDir: string) => Record<string, unknown>;
+      createHelpText: (defaults: Record<string, unknown>) => string;
+      parseSmokeArgs: (argv: string[], defaults: Record<string, unknown>) => Record<string, unknown>;
+    };
+    const defaults = createDefaultSmokeOptions("/repo");
+
+    expect(defaults).toMatchObject({ allowFocusSteal: false });
+    expect(parseSmokeArgs(["--allow-focus-steal"], defaults)).toMatchObject({
+      allowFocusSteal: true
+    });
+    expect(createHelpText(defaults)).toContain("--allow-focus-steal");
+    expect(() => assertGhosttyFocusStealAllowed(defaults)).toThrow(/frontmost app control/i);
+    expect(() => assertGhosttyFocusStealAllowed({
+      ...defaults,
+      allowFocusSteal: true
+    })).not.toThrow();
+  });
+
   it("writes persistent smoke evidence as formatted JSON and prepares its directory", async () => {
     const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
     const {

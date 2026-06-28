@@ -8,6 +8,9 @@ export const DEFAULT_SETTLE_MS = 500;
 export const STRICT_APPROVAL_ENV = "SKFIY_BYPASS_APPROVAL=strict";
 export const PRODUCT_PATH = "renderer -> preload -> main -> helper -> Ghostty";
 export const PLANNER_MODES = new Set(["local-deterministic", "external-cua", "disabled"]);
+export const GHOSTTY_FOCUS_STEAL_MESSAGE =
+  "smoke:ghostty product path requires frontmost app control. "
+  + "Re-run with --allow-focus-steal only when it is acceptable to focus Ghostty/skfiy and use the active desktop.";
 
 export const GHOSTTY_PRODUCT_SMOKE_MATRIX = [
   {
@@ -66,6 +69,7 @@ export function createDefaultSmokeOptions(rootDir) {
     matrix: false,
     keepExisting: false,
     keepOpen: false,
+    allowFocusSteal: false,
     requirePassed: false,
     outputPath: undefined,
     help: false
@@ -112,6 +116,9 @@ export function parseSmokeArgs(argv, defaults) {
       case "--keep-open":
         options.keepOpen = true;
         break;
+      case "--allow-focus-steal":
+        options.allowFocusSteal = true;
+        break;
       case "--require-passed":
         options.requirePassed = true;
         break;
@@ -129,6 +136,23 @@ export function parseSmokeArgs(argv, defaults) {
   }
 
   return options;
+}
+
+export function assertGhosttyFocusStealAllowed(options) {
+  const blocker = readGhosttyFocusStealBlocker(options);
+  if (!blocker) {
+    return;
+  }
+
+  throw new Error(blocker);
+}
+
+export function readGhosttyFocusStealBlocker(options) {
+  if (options.allowFocusSteal === true) {
+    return null;
+  }
+
+  return GHOSTTY_FOCUS_STEAL_MESSAGE;
 }
 
 export function buildSmokeRunPlan(options) {
@@ -303,6 +327,7 @@ Options:
   --planner-mode <mode> Set planner mode before running: local-deterministic, external-cua, disabled.
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
+  --allow-focus-steal   Allow this field smoke to focus Ghostty/skfiy and use active keyboard input.
   --require-passed      Exit non-zero unless the task or matrix reaches passed.
   --output <path>       Write the complete smoke JSON evidence to this file.
   -h, --help            Show this help.
