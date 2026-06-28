@@ -30,6 +30,7 @@ import {
   NATIVE_HOST_BRIDGE_PRODUCT_PATH,
   parseChromeSmokeArgs,
   PRODUCT_PATH,
+  readChromeFocusStealBlocker,
   readInstalledExtensionActionTargetTabs,
   selectInstalledExtensionActionTargetTab,
   selectInstalledExtensionChromeApp
@@ -121,6 +122,18 @@ async function main() {
   let smokeLock;
 
   try {
+    const focusStealBlocker = readChromeFocusStealBlocker(options);
+    if (focusStealBlocker) {
+      evidence.appLaunchViaOpen = false;
+      evidence.chromeLaunchViaOpen = false;
+      evidence.launchSkipped = true;
+      evidence.result = "blocked";
+      evidence.reason = focusStealBlocker;
+      if (options.requirePassed) {
+        process.exitCode = 2;
+      }
+      return;
+    }
     assertChromeSmokeReady(options);
     smokeLock = await acquireSmokeLock({
       rootDir: ROOT_DIR,

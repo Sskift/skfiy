@@ -38,9 +38,11 @@ describe("Chrome product smoke script", () => {
       classifyChromeFallbackSmokeEvidence,
       classifyChromeFallbackSwitchEvidence,
       PRODUCT_PATH,
+      assertChromeFocusStealAllowed,
       createDefaultChromeSmokeOptions,
       createHelpText,
       parseChromeSmokeArgs,
+      readChromeFocusStealBlocker,
       selectInstalledExtensionChromeApp
     } = await import(pathToFileURL(modulePath).href) as {
       FALLBACK_PRODUCT_PATH: string;
@@ -50,14 +52,17 @@ describe("Chrome product smoke script", () => {
       classifyChromeFallbackSmokeEvidence: (input: Record<string, unknown>) => string;
       classifyChromeFallbackSwitchEvidence: (input: Record<string, unknown>) => string;
       PRODUCT_PATH: string;
+      assertChromeFocusStealAllowed: (options: Record<string, unknown>) => void;
       createDefaultChromeSmokeOptions: (rootDir: string) => Record<string, unknown>;
       createHelpText: (defaults: Record<string, unknown>) => string;
       parseChromeSmokeArgs: (
         argv: string[],
         defaults: Record<string, unknown>
       ) => Record<string, unknown>;
+      readChromeFocusStealBlocker: (options: Record<string, unknown>) => string | null;
       selectInstalledExtensionChromeApp: (input: Record<string, unknown>) => Record<string, unknown>;
     };
+    const defaults = createDefaultChromeSmokeOptions("/repo");
 
     expect(PRODUCT_PATH).toBe("renderer -> preload -> main -> CDP -> Chrome");
     expect(FALLBACK_PRODUCT_PATH).toBe(
@@ -68,11 +73,23 @@ describe("Chrome product smoke script", () => {
     );
     expect(parseChromeSmokeArgs(
       ["--output", ".skfiy-smoke/chrome.json", "--chrome-port", "9444"],
-      createDefaultChromeSmokeOptions("/repo")
+      defaults
     )).toMatchObject({
+      allowFocusSteal: false,
       outputPath: path.resolve(".skfiy-smoke/chrome.json"),
       chromePort: 9444
     });
+    expect(parseChromeSmokeArgs(["--allow-focus-steal"], defaults)).toMatchObject({
+      allowFocusSteal: true
+    });
+    expect(readChromeFocusStealBlocker(defaults)).toBe(
+      "smoke:chrome product path requires launching or focusing Chrome/skfiy. Re-run with --allow-focus-steal only when it is acceptable to focus browser/skfiy windows and use the active desktop."
+    );
+    expect(() => assertChromeFocusStealAllowed(defaults)).toThrow(/focus browser\/skfiy/i);
+    expect(() => assertChromeFocusStealAllowed({
+      ...defaults,
+      allowFocusSteal: true
+    })).not.toThrow();
     expect(parseChromeSmokeArgs(
       [
         "--current-page-endpoint",
@@ -80,8 +97,9 @@ describe("Chrome product smoke script", () => {
         "--output",
         ".skfiy-smoke/chrome-real-page.json"
       ],
-      createDefaultChromeSmokeOptions("/repo")
+      defaults
     )).toMatchObject({
+      allowFocusSteal: false,
       currentPageEndpoint: "http://127.0.0.1:9222",
       outputPath: path.resolve(".skfiy-smoke/chrome-real-page.json")
     });
@@ -94,8 +112,9 @@ describe("Chrome product smoke script", () => {
         "--output",
         ".skfiy-smoke/chrome-cft.json"
       ],
-      createDefaultChromeSmokeOptions("/repo")
+      defaults
     )).toMatchObject({
+      allowFocusSteal: false,
       extensionChromeAppName: "Google Chrome for Testing",
       extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
       outputPath: path.resolve(".skfiy-smoke/chrome-cft.json")
@@ -132,6 +151,9 @@ describe("Chrome product smoke script", () => {
     );
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
       "--extension-id"
+    );
+    expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
+      "--allow-focus-steal"
     );
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
       "docs/chrome-extension-setup.md"

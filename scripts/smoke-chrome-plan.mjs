@@ -44,6 +44,9 @@ export const FALLBACK_PRODUCT_PATH =
   "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback";
 export const FALLBACK_SWITCH_PRODUCT_PATH =
   "renderer -> preload -> main -> CDP failure -> helper observe_app -> Chrome screenshot fallback";
+export const CHROME_FOCUS_STEAL_MESSAGE =
+  "smoke:chrome product path requires launching or focusing Chrome/skfiy. "
+  + "Re-run with --allow-focus-steal only when it is acceptable to focus browser/skfiy windows and use the active desktop.";
 
 export function createDefaultChromeSmokeOptions(rootDir) {
   return {
@@ -58,6 +61,7 @@ export function createDefaultChromeSmokeOptions(rootDir) {
     settleMs: DEFAULT_SETTLE_MS,
     keepExisting: false,
     keepOpen: false,
+    allowFocusSteal: false,
     requirePassed: false,
     currentPageEndpoint: undefined,
     outputPath: undefined,
@@ -114,6 +118,9 @@ export function parseChromeSmokeArgs(argv, defaults) {
       case "--keep-open":
         options.keepOpen = true;
         break;
+      case "--allow-focus-steal":
+        options.allowFocusSteal = true;
+        break;
       case "--require-passed":
         options.requirePassed = true;
         break;
@@ -137,6 +144,23 @@ export function parseChromeSmokeArgs(argv, defaults) {
   return options;
 }
 
+export function assertChromeFocusStealAllowed(options) {
+  const blocker = readChromeFocusStealBlocker(options);
+  if (!blocker) {
+    return;
+  }
+
+  throw new Error(blocker);
+}
+
+export function readChromeFocusStealBlocker(options) {
+  if (options.allowFocusSteal === true) {
+    return null;
+  }
+
+  return CHROME_FOCUS_STEAL_MESSAGE;
+}
+
 export function createHelpText(defaults) {
   return `Usage: npm run smoke:chrome -- [options]
 
@@ -156,6 +180,7 @@ Options:
   --settle-ms <number>  Delay after renderer actions. Default: ${defaults.settleMs}
   --output <path>       Persist smoke evidence JSON.
   --require-passed      Exit non-zero unless the smoke result is passed.
+  --allow-focus-steal   Allow this field smoke to launch/focus Chrome/skfiy and use the active desktop.
   --current-page-endpoint <url>
                         Attach to an existing Chrome CDP endpoint and observe the current page only.
   --keep-existing       Do not quit an existing skfiy app before launch.
