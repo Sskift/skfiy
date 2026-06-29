@@ -44,9 +44,8 @@ export const FALLBACK_PRODUCT_PATH =
   "renderer -> preload -> main -> helper observe_app -> Chrome screenshot fallback";
 export const FALLBACK_SWITCH_PRODUCT_PATH =
   "renderer -> preload -> main -> CDP failure -> helper observe_app -> Chrome screenshot fallback";
-export const CHROME_FOCUS_STEAL_MESSAGE =
-  "smoke:chrome product path requires launching or focusing Chrome/skfiy. "
-  + "Re-run with --allow-focus-steal only when it is acceptable to focus browser/skfiy windows and use the active desktop.";
+export const CHROME_QUIET_LAUNCH_MODE = "quiet-background";
+export const CHROME_FOCUS_STEAL_LAUNCH_MODE = "focus-stealing-field";
 
 export function createDefaultChromeSmokeOptions(rootDir) {
   return {
@@ -62,6 +61,7 @@ export function createDefaultChromeSmokeOptions(rootDir) {
     keepExisting: false,
     keepOpen: false,
     allowFocusSteal: false,
+    launchMode: CHROME_QUIET_LAUNCH_MODE,
     requirePassed: false,
     currentPageEndpoint: undefined,
     outputPath: undefined,
@@ -120,6 +120,7 @@ export function parseChromeSmokeArgs(argv, defaults) {
         break;
       case "--allow-focus-steal":
         options.allowFocusSteal = true;
+        options.launchMode = CHROME_FOCUS_STEAL_LAUNCH_MODE;
         break;
       case "--require-passed":
         options.requirePassed = true;
@@ -154,11 +155,7 @@ export function assertChromeFocusStealAllowed(options) {
 }
 
 export function readChromeFocusStealBlocker(options) {
-  if (options.allowFocusSteal === true) {
-    return null;
-  }
-
-  return CHROME_FOCUS_STEAL_MESSAGE;
+  return null;
 }
 
 export function createHelpText(defaults) {
@@ -166,6 +163,7 @@ export function createHelpText(defaults) {
 
 Runs the packaged skfiy app through a Chrome test-page product path.
 Chrome extension setup guide: ${CHROME_EXTENSION_SETUP_GUIDE_PATH}
+Default: quiet background Chromium/skfiy launch without focus or keyboard input.
 
 Options:
   --app <path>          App bundle path. Default: ${defaults.appPath}
@@ -180,7 +178,7 @@ Options:
   --settle-ms <number>  Delay after renderer actions. Default: ${defaults.settleMs}
   --output <path>       Persist smoke evidence JSON.
   --require-passed      Exit non-zero unless the smoke result is passed.
-  --allow-focus-steal   Allow this field smoke to launch/focus Chrome/skfiy and use the active desktop.
+  --allow-focus-steal   Use the old visible field lane that may focus Chrome/skfiy.
   --current-page-endpoint <url>
                         Attach to an existing Chrome CDP endpoint and observe the current page only.
   --keep-existing       Do not quit an existing skfiy app before launch.

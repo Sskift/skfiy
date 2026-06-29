@@ -95,7 +95,11 @@ import {
   readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
-import type { CommandRoute, ExecutableCommandRoute } from "./task-routing.js";
+import {
+  selectCommandRoute,
+  type CommandRoute,
+  type ExecutableCommandRoute
+} from "./task-routing.js";
 import { readStartupWarnings } from "./startup-guard.js";
 import {
   readStopTurnHotkeyStatus,
@@ -652,6 +656,44 @@ async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAge
 }
 
 function createSmokeAssistantAgentTaskTurn(input: string): AssistantAgentTurnResult | undefined {
+  const smokeComputerUse = process.env.SKFIY_SMOKE_ASSISTANT_COMPUTER_USE === "1";
+  if (smokeComputerUse) {
+    const route = selectCommandRoute(input);
+    if (
+      route.kind !== "chrome"
+      && route.kind !== "finder"
+      && route.kind !== "ghostty"
+      && route.kind !== "tmux_supervision"
+    ) {
+      return undefined;
+    }
+
+    const createdAt = new Date().toISOString();
+    const id = `assistant-smoke-turn-${randomUUID()}`;
+    return {
+      id,
+      createdAt,
+      status: "completed",
+      providerLabel: "Codex",
+      message: "我会通过 skfiy 的 smoke Background Agent fixture 请求受控的 Computer Use。",
+      route,
+      toolCalls: [
+        {
+          id: `${id}-tool-1`,
+          type: "computer-use",
+          name: "desktop-control",
+          status: "planned",
+          createdAt,
+          input: {
+            command: input.trim(),
+            route
+          }
+        }
+      ],
+      cancellation: { requested: false }
+    };
+  }
+
   const smokePrompt = process.env.SKFIY_SMOKE_ASSISTANT_PROMPT?.trim();
   const smokeReply = process.env.SKFIY_SMOKE_ASSISTANT_REPLY?.trim();
   if (!smokePrompt || !smokeReply || input.trim() !== smokePrompt) {

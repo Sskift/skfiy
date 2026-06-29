@@ -1324,6 +1324,11 @@ describe("DashboardApp", () => {
     const selectorInput = within(form).getByLabelText("Chrome action selector");
     const textInput = within(form).getByLabelText("Chrome fill text");
     const scrollInput = within(form).getByLabelText("Chrome scroll delta");
+    const expectChromeActionFeedback = async (action: string) => {
+      await waitFor(() => {
+        expect(within(form).getByText(`Chrome ${action}: verified`)).toBeInTheDocument();
+      });
+    };
 
     fireEvent.click(within(form).getByRole("button", { name: "Click selector" }));
     expect(within(form).getByText("Enter a selector before launching this action.")).toBeInTheDocument();
@@ -1344,7 +1349,7 @@ describe("DashboardApp", () => {
       selector: "#name",
       text: "skfiy dashboard"
     });
-    expect(within(form).getByText("Chrome fill: verified")).toBeInTheDocument();
+    await expectChromeActionFeedback("fill");
 
     fireEvent.click(within(form).getByRole("button", { name: "Observe current tab" }));
     await waitFor(() => expect(actionRequests).toHaveLength(2));
@@ -1353,6 +1358,7 @@ describe("DashboardApp", () => {
       extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
       targetTabId: 42
     });
+    await expectChromeActionFeedback("observe");
 
     fireEvent.click(within(form).getByRole("button", { name: "Screenshot current tab" }));
     await waitFor(() => expect(actionRequests).toHaveLength(3));
@@ -1361,6 +1367,7 @@ describe("DashboardApp", () => {
       extensionId: "plcpkkhlcacihjfohlojdknnkademlno",
       targetTabId: 42
     });
+    await expectChromeActionFeedback("screenshot");
 
     fireEvent.click(within(form).getByRole("button", { name: "Click selector" }));
     await waitFor(() => expect(actionRequests).toHaveLength(4));
@@ -1370,6 +1377,7 @@ describe("DashboardApp", () => {
       targetTabId: 42,
       selector: "#name"
     });
+    await expectChromeActionFeedback("click");
 
     fireEvent.change(selectorInput, { target: { value: "" } });
     fireEvent.click(within(form).getByRole("button", { name: "Submit form" }));
@@ -1380,6 +1388,7 @@ describe("DashboardApp", () => {
       targetTabId: 42,
       selector: "form"
     });
+    await expectChromeActionFeedback("submit");
 
     fireEvent.change(scrollInput, { target: { value: "" } });
     fireEvent.click(within(form).getByRole("button", { name: "Scroll page" }));
@@ -1390,6 +1399,7 @@ describe("DashboardApp", () => {
       targetTabId: 42,
       dy: 600
     });
+    await expectChromeActionFeedback("scroll");
     expect(loadSnapshot).toHaveBeenCalledTimes(7);
   });
 

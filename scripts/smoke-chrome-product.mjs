@@ -30,7 +30,6 @@ import {
   NATIVE_HOST_BRIDGE_PRODUCT_PATH,
   parseChromeSmokeArgs,
   PRODUCT_PATH,
-  readChromeFocusStealBlocker,
   readInstalledExtensionActionTargetTabs,
   selectInstalledExtensionActionTargetTab,
   selectInstalledExtensionChromeApp
@@ -45,6 +44,8 @@ const ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
 const BUNDLE_IDENTIFIER = "com.sskift.skfiy";
 const FIXTURE_EXTENSION_ID = "abcdefghijklmnopabcdefghijklmnop";
 const STRICT_APPROVAL_ENV = "SKFIY_BYPASS_APPROVAL=strict";
+const SMOKE_ASSISTANT_ENV = "SKFIY_SMOKE_ASSISTANT_COMPUTER_USE=1";
+const SMOKE_APP_ENVS = [STRICT_APPROVAL_ENV, SMOKE_ASSISTANT_ENV];
 const FORM_FIELDS = [
   { selector: "#name", value: "skfiy" },
   { selector: "#email", value: "agent@skfiy.test" },
@@ -74,6 +75,8 @@ async function main() {
     timestamp: new Date().toISOString(),
     appPath: options.appPath,
     chromeAppName: options.chromeAppName,
+    launchMode: options.launchMode,
+    stealsFocus: options.allowFocusSteal === true,
     launch: formatLaunchCommand(options, chromeEndpoint),
     fallbackLaunch: formatFallbackLaunchCommand(options),
     chromeLaunch: options.currentPageEndpoint
@@ -84,6 +87,7 @@ async function main() {
     runnerHasTmux: Boolean(process.env.TMUX),
     productPath: PRODUCT_PATH,
     approvalBypassEnv: STRICT_APPROVAL_ENV,
+    assistantSmokeEnv: SMOKE_ASSISTANT_ENV,
     fallbackProductPath: FALLBACK_PRODUCT_PATH,
     fallbackSwitchProductPath: FALLBACK_SWITCH_PRODUCT_PATH,
     targetMode: options.currentPageEndpoint ? "bring-your-own-current-page" : "fixture-suite",
@@ -122,18 +126,6 @@ async function main() {
   let smokeLock;
 
   try {
-    const focusStealBlocker = readChromeFocusStealBlocker(options);
-    if (focusStealBlocker) {
-      evidence.appLaunchViaOpen = false;
-      evidence.chromeLaunchViaOpen = false;
-      evidence.launchSkipped = true;
-      evidence.result = "blocked";
-      evidence.reason = focusStealBlocker;
-      if (options.requirePassed) {
-        process.exitCode = 2;
-      }
-      return;
-    }
     assertChromeSmokeReady(options);
     smokeLock = await acquireSmokeLock({
       rootDir: ROOT_DIR,
@@ -210,7 +202,7 @@ async function main() {
     if (!options.keepExisting) {
       await quitSkfiy();
       await killChromeSmokeProcesses(fixture.chromeUserDataDir);
-      await sleep(700);
+      await waitForChromeSmokeProcessesExit(fixture.chromeUserDataDir);
     }
 
     await launchChrome(options, fixture.chromeUserDataDir);
@@ -355,62 +347,75 @@ async function main() {
         evidence.result = "failed";
       }
 
-      const fallback = await runChromeFallbackProductCommand(
-        options,
-        evidence.command
-      );
-      evidence.fallbackRun = {
-        command: evidence.command,
-        productPath: FALLBACK_PRODUCT_PATH,
-        appLaunchViaOpen: true,
-        runnerHasTmux: Boolean(process.env.TMUX),
-        events: fallback.events,
-        processesAfterLaunch: fallback.processesAfterLaunch,
-        result: classifyChromeFallbackSmokeEvidence({
+      if (options.allowFocusSteal === true) {
+        const fallback = await runChromeFallbackProductCommand(
+          options,
+          evidence.command
+        );
+        evidence.fallbackRun = {
+          command: evidence.command,
+          productPath: FALLBACK_PRODUCT_PATH,
+          appLaunchViaOpen: true,
+          runnerHasTmux: Boolean(process.env.TMUX),
           events: fallback.events,
-          appLaunchViaOpen: true,
-          runnerHasTmux: Boolean(process.env.TMUX),
-          productPath: FALLBACK_PRODUCT_PATH
-        })
-      };
+          processesAfterLaunch: fallback.processesAfterLaunch,
+          result: classifyChromeFallbackSmokeEvidence({
+            events: fallback.events,
+            appLaunchViaOpen: true,
+            runnerHasTmux: Boolean(process.env.TMUX),
+            productPath: FALLBACK_PRODUCT_PATH
+          })
+        };
 
-      if (
-        evidence.result === "passed"
-        && !["fallback-observed", "fallback-blocked"].includes(evidence.fallbackRun.result)
-      ) {
-        evidence.result = "failed";
-      }
+        if (
+          evidence.result === "passed"
+          && !["fallback-observed", "fallback-blocked"].includes(evidence.fallbackRun.result)
+        ) {
+          evidence.result = "failed";
+        }
 
-      const fallbackSwitch = await runChromeFallbackSwitchProductCommand(
-        options,
-        evidence.command
-      );
-      evidence.fallbackSwitchRun = {
-        command: evidence.command,
-        productPath: FALLBACK_SWITCH_PRODUCT_PATH,
-        configuredEndpoint: fallbackSwitch.configuredEndpoint,
-        launch: fallbackSwitch.launch,
-        appLaunchViaOpen: true,
-        runnerHasTmux: Boolean(process.env.TMUX),
-        events: fallbackSwitch.events,
-        processesAfterLaunch: fallbackSwitch.processesAfterLaunch,
-        result: classifyChromeFallbackSwitchEvidence({
-          events: fallbackSwitch.events,
-          appLaunchViaOpen: true,
-          runnerHasTmux: Boolean(process.env.TMUX),
+        const fallbackSwitch = await runChromeFallbackSwitchProductCommand(
+          options,
+          evidence.command
+        );
+        evidence.fallbackSwitchRun = {
+          command: evidence.command,
           productPath: FALLBACK_SWITCH_PRODUCT_PATH,
-          configuredEndpoint: fallbackSwitch.configuredEndpoint
-        })
-      };
+          configuredEndpoint: fallbackSwitch.configuredEndpoint,
+          launch: fallbackSwitch.launch,
+          appLaunchViaOpen: true,
+          runnerHasTmux: Boolean(process.env.TMUX),
+          events: fallbackSwitch.events,
+          processesAfterLaunch: fallbackSwitch.processesAfterLaunch,
+          result: classifyChromeFallbackSwitchEvidence({
+            events: fallbackSwitch.events,
+            appLaunchViaOpen: true,
+            runnerHasTmux: Boolean(process.env.TMUX),
+            productPath: FALLBACK_SWITCH_PRODUCT_PATH,
+            configuredEndpoint: fallbackSwitch.configuredEndpoint
+          })
+        };
 
-       if (
-         evidence.result === "passed"
-         && !["fallback-switched-observed", "fallback-switched-blocked"].includes(
-           evidence.fallbackSwitchRun.result
-         )
-       ) {
-         evidence.result = "failed";
-       }
+        if (
+          evidence.result === "passed"
+          && !["fallback-switched-observed", "fallback-switched-blocked"].includes(
+            evidence.fallbackSwitchRun.result
+          )
+        ) {
+          evidence.result = "failed";
+        }
+      } else {
+        evidence.fallbackRun = createFocusStealingLaneSkippedRun({
+          command: evidence.command,
+          productPath: FALLBACK_PRODUCT_PATH
+        });
+        evidence.fallbackSwitchRun = createFocusStealingLaneSkippedRun({
+          command: evidence.command,
+          productPath: FALLBACK_SWITCH_PRODUCT_PATH,
+          configuredEndpoint: readBrokenChromeEndpoint(options),
+          launch: formatFallbackSwitchLaunchCommand(options, readBrokenChromeEndpoint(options))
+        });
+      }
 
       if (
         evidence.result === "passed"
@@ -437,8 +442,7 @@ async function main() {
     }
     if (evidence.fixtureRoot) {
       await killChromeSmokeProcesses(path.join(evidence.fixtureRoot, "chrome-profile"));
-      await sleep(500);
-      evidence.chromeProcessesAfterCleanup = await readChromeSmokeProcesses(
+      evidence.chromeProcessesAfterCleanup = await waitForChromeSmokeProcessesExit(
         path.join(evidence.fixtureRoot, "chrome-profile")
       );
       await rm(evidence.fixtureRoot, { recursive: true, force: true });
@@ -473,6 +477,24 @@ function assertChromeSmokeReady(options) {
   if (CURRENT_PAGE_COMMAND !== EXPECTED_CURRENT_PAGE_COMMAND) {
     throw new Error("Chrome current-page smoke command changed without updating product evidence.");
   }
+}
+
+function createFocusStealingLaneSkippedRun({
+  command,
+  productPath,
+  configuredEndpoint,
+  launch
+}) {
+  return {
+    command,
+    productPath,
+    ...(configuredEndpoint ? { configuredEndpoint } : {}),
+    ...(launch ? { launch } : {}),
+    result: "skipped",
+    requiresFocusSteal: true,
+    reason: "quiet-background-mode",
+    nextAction: "Re-run with --allow-focus-steal to exercise the screenshot fallback lane."
+  };
 }
 
 async function runChromeNativeHostBridgeSmoke(options) {
@@ -613,13 +635,14 @@ async function runInstalledChromeExtensionSmoke(options) {
   let pageControlHealth;
 
   try {
-    await launchChromeWithExtension({
+    const firstWorker = await launchChromeWithExtensionAndFindWorker({
       chromeAppName: extensionChromeAppName,
       chromeUserDataDir,
       chromePort,
-      extensionPath
+      extensionPath,
+      allowFocusSteal: options.allowFocusSteal,
+      timeoutMs: options.timeoutMs
     });
-    const firstWorker = await findSkfiyExtensionWorker(chromePort, options.timeoutMs);
     if (!firstWorker.worker) {
       return createInstalledExtensionLoadBlockedRun({
         chromeAppName: extensionChromeAppName,
@@ -627,6 +650,7 @@ async function runInstalledChromeExtensionSmoke(options) {
         chromePort,
         chromeUserDataDir,
         extensionPath,
+        allowFocusSteal: options.allowFocusSteal,
         heartbeatPath,
         diagnostic: firstWorker
       });
@@ -636,7 +660,7 @@ async function runInstalledChromeExtensionSmoke(options) {
     extensionId = readExtensionIdFromUrl(loadedWorker.url);
     launchOrigin = `chrome-extension://${extensionId}/`;
     await killChromeSmokeProcesses(chromeUserDataDir);
-    await sleep(500);
+    await waitForChromeSmokeProcessesExit(chromeUserDataDir);
 
     manifestPath = createNativeMessagingHostManifestPath(homeDir, extensionChromeAppName);
     manifestBackup = await readOptionalFile(manifestPath);
@@ -653,14 +677,14 @@ async function runInstalledChromeExtensionSmoke(options) {
       extensionId
     });
 
-    await launchChromeWithExtension({
+    const secondWorker = await launchChromeWithExtensionAndFindWorker({
       chromeAppName: extensionChromeAppName,
       chromeUserDataDir,
       chromePort,
-      extensionPath
+      extensionPath,
+      allowFocusSteal: options.allowFocusSteal,
+      timeoutMs: options.timeoutMs
     });
-    await waitForChromeEndpoint(chromePort, options.timeoutMs);
-    const secondWorker = await findSkfiyExtensionWorker(chromePort, options.timeoutMs);
     if (!secondWorker.worker) {
       return createInstalledExtensionLoadBlockedRun({
         chromeAppName: extensionChromeAppName,
@@ -668,6 +692,7 @@ async function runInstalledChromeExtensionSmoke(options) {
         chromePort,
         chromeUserDataDir,
         extensionPath,
+        allowFocusSteal: options.allowFocusSteal,
         heartbeatPath,
         manifestPath,
         diagnostic: secondWorker
@@ -745,7 +770,8 @@ async function runInstalledChromeExtensionSmoke(options) {
         extensionChromeAppName,
         chromePort,
         chromeUserDataDir,
-        extensionPath
+        extensionPath,
+        options.allowFocusSteal
       ),
       browserSelection,
       chromePort,
@@ -754,6 +780,10 @@ async function runInstalledChromeExtensionSmoke(options) {
       extensionId,
       launchOrigin,
       firstWorkerUrl: loadedWorker.url,
+      launchAttempts: {
+        first: firstWorker.launchAttempts,
+        second: secondWorker.launchAttempts
+      },
       response,
       extensionStatus,
       pageControlHealth,
@@ -785,7 +815,7 @@ async function runInstalledChromeExtensionSmoke(options) {
     };
   } finally {
     await killChromeSmokeProcesses(chromeUserDataDir);
-    await sleep(500);
+    await waitForChromeSmokeProcessesExit(chromeUserDataDir);
     if (manifestPath && manifestBackup) {
       await restoreOptionalFile(manifestPath, manifestBackup);
     }
@@ -1222,6 +1252,61 @@ async function createInstalledExtensionActionFixture() {
 }
 
 async function openInstalledExtensionActionFixture(options, url) {
+  if (options.allowFocusSteal !== true) {
+    return openInstalledExtensionActionFixtureWithCdp(options, url);
+  }
+
+  return openInstalledExtensionActionFixtureWithAppleEvents(options, url);
+}
+
+async function openInstalledExtensionActionFixtureWithCdp(options, url) {
+  const endpoint = `http://127.0.0.1:${options.chromePort}`;
+  const command = ["cdp", "Target.createTarget", endpoint, url];
+
+  try {
+    const response = await fetch(`${endpoint}/json/version`);
+    if (!response.ok) {
+      throw new Error(`Chrome CDP returned HTTP ${response.status}.`);
+    }
+    const version = await response.json();
+    const cdp = await createCdpClient(version.webSocketDebuggerUrl);
+    try {
+      const target = await cdp.send("Target.createTarget", {
+        url,
+        background: true
+      });
+      return {
+        command,
+        result: "launched",
+        launchStrategy: "cdp-target-create",
+        openedTab: {
+          id: target.targetId,
+          url,
+          title: "",
+          eligible: true,
+          state: "eligible",
+          source: "cdp-target-create"
+        },
+        stdout: JSON.stringify(target),
+        stderr: ""
+      };
+    } finally {
+      cdp.close();
+    }
+  } catch (error) {
+    return {
+      command,
+      result: "error",
+      launchStrategy: "cdp-target-create",
+      exitCode: 1,
+      stdout: "",
+      stderr: "",
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+async function openInstalledExtensionActionFixtureWithAppleEvents(options, url) {
   const script = `
 tell application "${options.chromeAppName}"
   if not running then launch
@@ -1551,10 +1636,13 @@ async function launchChromeWithExtension({
   chromeAppName,
   chromeUserDataDir,
   chromePort,
-  extensionPath
+  extensionPath,
+  allowFocusSteal = false
 }) {
   await execFileAsync("open", [
-    "-na",
+    "-n",
+    ...(allowFocusSteal === true ? [] : ["-g"]),
+    "-a",
     chromeAppName,
     "--args",
     `--remote-debugging-port=${chromePort}`,
@@ -1565,6 +1653,44 @@ async function launchChromeWithExtension({
     `--load-extension=${extensionPath}`,
     "about:blank"
   ]);
+}
+
+async function launchChromeWithExtensionAndFindWorker({
+  chromeAppName,
+  chromeUserDataDir,
+  chromePort,
+  extensionPath,
+  allowFocusSteal = false,
+  timeoutMs
+}) {
+  let diagnostic;
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await launchChromeWithExtension({
+      chromeAppName,
+      chromeUserDataDir,
+      chromePort,
+      extensionPath,
+      allowFocusSteal
+    });
+    diagnostic = await findSkfiyExtensionWorker(chromePort, timeoutMs);
+    if (diagnostic.worker) {
+      return {
+        ...diagnostic,
+        launchAttempts: attempt
+      };
+    }
+
+    if (attempt < 2) {
+      await killChromeSmokeProcesses(chromeUserDataDir);
+      await waitForChromeSmokeProcessesExit(chromeUserDataDir);
+    }
+  }
+
+  return {
+    ...diagnostic,
+    launchAttempts: 2
+  };
 }
 
 async function writeNativeMessagingHostManifest({
@@ -1664,8 +1790,15 @@ function isMacAppInstalled(appName) {
   ].some((appPath) => existsSync(appPath));
 }
 
-function formatChromeExtensionLaunchCommand(chromeAppName, chromePort, chromeUserDataDir, extensionPath) {
-  return `open -na ${chromeAppName} --args --remote-debugging-port=${chromePort} --user-data-dir=${chromeUserDataDir} --load-extension=${extensionPath}`;
+function formatChromeExtensionLaunchCommand(
+  chromeAppName,
+  chromePort,
+  chromeUserDataDir,
+  extensionPath,
+  allowFocusSteal = false
+) {
+  const noFocusFlag = allowFocusSteal === true ? "" : " -g";
+  return `open -n${noFocusFlag} -a ${chromeAppName} --args --remote-debugging-port=${chromePort} --user-data-dir=${chromeUserDataDir} --load-extension=${extensionPath}`;
 }
 
 async function readOptionalFile(targetPath) {
@@ -1695,6 +1828,7 @@ function createInstalledExtensionLoadBlockedRun({
   chromePort,
   chromeUserDataDir,
   extensionPath,
+  allowFocusSteal = false,
   heartbeatPath,
   manifestPath,
   diagnostic
@@ -1726,7 +1860,8 @@ function createInstalledExtensionLoadBlockedRun({
       chromeAppName,
       chromePort,
       chromeUserDataDir,
-      extensionPath
+      extensionPath,
+      allowFocusSteal
     ),
     browserSelection,
     chromePort,
@@ -1734,6 +1869,7 @@ function createInstalledExtensionLoadBlockedRun({
     extensionPath,
     heartbeatPath,
     ...(manifestPath ? { manifestPath } : {}),
+    ...(diagnostic.launchAttempts ? { launchAttempts: diagnostic.launchAttempts } : {}),
     blockedReason,
     blockers,
     remediation,
@@ -2448,19 +2584,35 @@ function readNativeHostResponse(stdout) {
 }
 
 function formatLaunchCommand(options, chromeEndpoint) {
-  return `open -na ${options.appPath} --env ${STRICT_APPROVAL_ENV} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${chromeEndpoint}`;
+  return `open -n${formatBackgroundOpenFlag(options)} -a ${options.appPath}${formatOpenEnvFlags()} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${chromeEndpoint}`;
 }
 
 function formatFallbackLaunchCommand(options) {
-  return `open -na ${options.appPath} --env ${STRICT_APPROVAL_ENV} --args --remote-debugging-port=${options.port}`;
+  return `open -n${formatBackgroundOpenFlag(options)} -a ${options.appPath}${formatOpenEnvFlags()} --args --remote-debugging-port=${options.port}`;
 }
 
 function formatFallbackSwitchLaunchCommand(options, configuredEndpoint) {
-  return `open -na ${options.appPath} --env ${STRICT_APPROVAL_ENV} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${configuredEndpoint}`;
+  return `open -n${formatBackgroundOpenFlag(options)} -a ${options.appPath}${formatOpenEnvFlags()} --args --remote-debugging-port=${options.port} --skfiy-chrome-cdp-endpoint=${configuredEndpoint}`;
 }
 
 function formatChromeLaunchCommand(options) {
-  return `open -na ${options.chromeAppName} --args --remote-debugging-port=${options.chromePort}`;
+  return `open -n${formatBackgroundOpenFlag(options)} -a ${options.chromeAppName} --args --remote-debugging-port=${options.chromePort}`;
+}
+
+function formatBackgroundOpenFlag(options) {
+  return options.allowFocusSteal === true ? "" : " -g";
+}
+
+function createBackgroundOpenArgs(options) {
+  return options.allowFocusSteal === true ? [] : ["-g"];
+}
+
+function formatOpenEnvFlags() {
+  return SMOKE_APP_ENVS.map((value) => ` --env ${value}`).join("");
+}
+
+function createOpenEnvArgs() {
+  return SMOKE_APP_ENVS.flatMap((value) => ["--env", value]);
 }
 
 async function createChromeFixture() {
@@ -2522,6 +2674,7 @@ function formatFormAssignments(fields) {
 async function launchChrome(options, chromeUserDataDir) {
   await execFileAsync("open", [
     "-n",
+    ...createBackgroundOpenArgs(options),
     "-a",
     options.chromeAppName,
     "--args",
@@ -2536,10 +2689,10 @@ async function launchChrome(options, chromeUserDataDir) {
 async function launchSkfiy(options, chromeEndpoint) {
   await execFileAsync("open", [
     "-n",
+    ...createBackgroundOpenArgs(options),
     "-a",
     options.appPath,
-    "--env",
-    STRICT_APPROVAL_ENV,
+    ...createOpenEnvArgs(),
     "--args",
     `--remote-debugging-port=${options.port}`,
     `--skfiy-chrome-cdp-endpoint=${chromeEndpoint}`
@@ -2549,10 +2702,10 @@ async function launchSkfiy(options, chromeEndpoint) {
 async function launchSkfiyWithoutChromeEndpoint(options) {
   await execFileAsync("open", [
     "-n",
+    ...createBackgroundOpenArgs(options),
     "-a",
     options.appPath,
-    "--env",
-    STRICT_APPROVAL_ENV,
+    ...createOpenEnvArgs(),
     "--args",
     `--remote-debugging-port=${options.port}`
   ]);
@@ -2882,6 +3035,18 @@ async function quitSkfiy() {
 
 async function killChromeSmokeProcesses(chromeUserDataDir) {
   await execFileAsync("pkill", ["-f", chromeUserDataDir]).catch(() => undefined);
+}
+
+async function waitForChromeSmokeProcessesExit(chromeUserDataDir, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  let processes = await readChromeSmokeProcesses(chromeUserDataDir);
+
+  while (processes.length > 0 && Date.now() < deadline) {
+    await sleep(250);
+    processes = await readChromeSmokeProcesses(chromeUserDataDir);
+  }
+
+  return processes;
 }
 
 async function readSkfiyProcesses() {

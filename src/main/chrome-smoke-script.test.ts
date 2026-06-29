@@ -12,6 +12,10 @@ describe("Chrome product smoke script", () => {
       path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
       "utf8"
     );
+    const mainSource = readFileSync(
+      path.join(process.cwd(), "src/main/main.ts"),
+      "utf8"
+    );
 
     expect(packageJson.scripts).toMatchObject({
       "smoke:chrome": "node scripts/smoke-chrome-product.mjs"
@@ -21,6 +25,8 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("window.skfiy.getAppPolicySettings()");
     expect(source).toContain("--env");
     expect(source).toContain("SKFIY_BYPASS_APPROVAL=strict");
+    expect(source).toContain("SKFIY_SMOKE_ASSISTANT_COMPUTER_USE=1");
+    expect(mainSource).toContain("process.env.SKFIY_SMOKE_ASSISTANT_COMPUTER_USE");
     expect(source).toContain("readInstalledExtensionHeartbeatForRequest");
     expect(source).toContain("heartbeat?.latestCommand?.requestId === requestId");
   });
@@ -38,7 +44,6 @@ describe("Chrome product smoke script", () => {
       classifyChromeFallbackSmokeEvidence,
       classifyChromeFallbackSwitchEvidence,
       PRODUCT_PATH,
-      assertChromeFocusStealAllowed,
       createDefaultChromeSmokeOptions,
       createHelpText,
       parseChromeSmokeArgs,
@@ -52,7 +57,6 @@ describe("Chrome product smoke script", () => {
       classifyChromeFallbackSmokeEvidence: (input: Record<string, unknown>) => string;
       classifyChromeFallbackSwitchEvidence: (input: Record<string, unknown>) => string;
       PRODUCT_PATH: string;
-      assertChromeFocusStealAllowed: (options: Record<string, unknown>) => void;
       createDefaultChromeSmokeOptions: (rootDir: string) => Record<string, unknown>;
       createHelpText: (defaults: Record<string, unknown>) => string;
       parseChromeSmokeArgs: (
@@ -76,20 +80,18 @@ describe("Chrome product smoke script", () => {
       defaults
     )).toMatchObject({
       allowFocusSteal: false,
+      launchMode: "quiet-background",
       outputPath: path.resolve(".skfiy-smoke/chrome.json"),
       chromePort: 9444
     });
     expect(parseChromeSmokeArgs(["--allow-focus-steal"], defaults)).toMatchObject({
       allowFocusSteal: true
     });
-    expect(readChromeFocusStealBlocker(defaults)).toBe(
-      "smoke:chrome product path requires launching or focusing Chrome/skfiy. Re-run with --allow-focus-steal only when it is acceptable to focus browser/skfiy windows and use the active desktop."
-    );
-    expect(() => assertChromeFocusStealAllowed(defaults)).toThrow(/focus browser\/skfiy/i);
-    expect(() => assertChromeFocusStealAllowed({
+    expect(readChromeFocusStealBlocker(defaults)).toBeNull();
+    expect(readChromeFocusStealBlocker({
       ...defaults,
       allowFocusSteal: true
-    })).not.toThrow();
+    })).toBeNull();
     expect(parseChromeSmokeArgs(
       [
         "--current-page-endpoint",
@@ -154,6 +156,9 @@ describe("Chrome product smoke script", () => {
     );
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
       "--allow-focus-steal"
+    );
+    expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
+      "Default: quiet background Chromium/skfiy launch without focus or keyboard input."
     );
     expect(createHelpText(createDefaultChromeSmokeOptions("/repo"))).toContain(
       "docs/chrome-extension-setup.md"
@@ -324,6 +329,9 @@ describe("Chrome product smoke script", () => {
     );
 
     expect(source).toContain("fallbackSwitchRun");
+    expect(source).toContain("createFocusStealingLaneSkippedRun");
+    expect(source).toContain("requiresFocusSteal: true");
+    expect(source).toContain("options.allowFocusSteal === true");
     expect(source).toContain("runChromeFallbackSwitchProductCommand");
     expect(source).toContain("classifyChromeFallbackSwitchEvidence");
   });
@@ -368,6 +376,10 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("chrome-readiness.js");
     expect(source).toContain("runInstalledChromeExtensionSmoke");
     expect(source).toContain("--load-extension=");
+    expect(source).toContain('"-g"');
+    expect(source).toContain("waitForChromeSmokeProcessesExit");
+    expect(source).toContain("launchChromeWithExtensionAndFindWorker");
+    expect(source).toContain("launchAttempts");
     expect(source).toContain("chrome.runtime.connectNative");
     expect(source).toContain("selectInstalledExtensionChromeApp");
     expect(source).toContain("discoverInstalledExtensionChromeAppNames");
@@ -411,6 +423,8 @@ describe("Chrome product smoke script", () => {
     expect(source).toContain("readChromeSmokePageControlFromInstalledExtensionAction");
     expect(source).toContain("extensionConnection.pageControl");
     expect(source).toContain("selectInstalledExtensionActionTargetTab");
+    expect(source).toContain("openInstalledExtensionActionFixtureWithCdp");
+    expect(source).toContain("cdp-target-create");
     expect(source).toContain("make new tab at end of tabs");
     expect(source).toContain("apple-events-new-tab");
     expect(source).toContain("openedTab");
