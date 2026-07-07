@@ -1,6 +1,6 @@
 # Pet Agent Browser Dashboard Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** This is the single active plan and historical task log. Implement new work task-by-task, keep edits scoped, and prefer default smoke runs without `--output`; add `.skfiy-smoke` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
 **Goal:** Make skfiy feel like one coherent local pet product: the pet stays usable on screen, can select and call a real local background agent provider, can receive real Chrome page context through the extension bridge, and has a useful local dashboard for operator visibility.
 
@@ -12,8 +12,8 @@
 
 ## Current Baseline And Gaps
 
-- The useless diamond marker is the assistant bubble arrow in `src/renderer/styles.css`; it should be removed.
-- Pet dragging is currently bounded by a transparent Electron window, not the visible pet hitbox, so it does not align with the real screen.
+- Completed: the obsolete assistant bubble diamond marker was removed from `src/renderer/styles.css`.
+- Completed: pet dragging now uses visible pet anchor geometry instead of treating the transparent Electron window as the movement boundary.
 - Background Agent currently supports `codex`, `claude-code`, and `hermes` in `src/main/assistant-agent.ts`; legacy `local` and `built-in` provider language has been removed.
 - The user wants Hermes as a third Background Agent backend. Hermes' `--oneshot` path auto-bypasses approvals, so skfiy must not wire it as a raw full-tool agent. The acceptable integration is a bounded chat backend invocation that injects skfiy identity, disables or excludes mutating Hermes toolsets, and keeps Computer Use inside skfiy.
 - Real Backend Agent turns must inject the skfiy identity before the user request. Claude Code must receive it through the primary `--system-prompt` channel; Codex and Hermes must receive it in the bounded prompt/query because their current CLI chat surfaces do not expose a separate system-prompt flag. The identity block must explicitly say that the active identity in real user-facing interaction is skfiy, while Codex, Claude Code, and Hermes remain backend providers.
@@ -282,7 +282,7 @@ Run:
 
 ```bash
 npm run build
-npm run smoke:ui -- --output .skfiy-smoke/ui-pet-bounds.json --keep-open
+npm run smoke:ui -- --keep-open
 ```
 
 Then use CDP or a small smoke script to drag the pet to top, bottom, left, and right. Record:
@@ -1007,7 +1007,7 @@ Focused verification:
 
 ```bash
 npx vitest run src/main/cli-product-smoke-script.test.ts --reporter=dot
-npm run smoke:cli:basic -- --output .skfiy-smoke/cli-memory-prompt-sanitization.json --require-passed
+npm run smoke:cli:basic -- --require-passed
 ```
 
 ---
@@ -1117,7 +1117,7 @@ Run:
 npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/dashboard/DashboardApp.test.tsx src/main/dashboard-data.test.ts src/main/dashboard-smoke-script.test.ts --reporter=dot
 npm run typecheck -- --pretty false
 npm run build
-npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-knowledge-graph.json
+npm run smoke:dashboard
 ```
 
 Then commit:
@@ -1523,7 +1523,7 @@ npx vitest run src/dashboard/KnowledgeGraph.test.tsx src/dashboard/DashboardApp.
 
 **Files:**
 - Modify only when tests reveal real defects.
-- Create smoke artifacts under `.skfiy-smoke/` when commands support `--output`.
+- Run default smoke commands without `--output`; create `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
 - [x] **Step 1: Run full unit and type gates**
 
@@ -1554,14 +1554,14 @@ Expected:
 - [x] **Step 3: Run product smoke gates**
 
 ```bash
-npm run smoke:ui -- --output .skfiy-smoke/ui-product.json
-npm run smoke:cli -- --profile basic --output .skfiy-smoke/cli-product-basic.json
-npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json
+npm run smoke:ui
+npm run smoke:cli -- --profile basic
+npm run smoke:dashboard
 ./dist/skfiy status --json
 ./dist/skfiy chrome extension-info --json
 ```
 
-CLI smoke must collect `providerPromptContract.result === "passed"` evidence for Codex, Claude Code, and Hermes:
+CLI smoke must report `providerPromptContract.result === "passed"` for Codex, Claude Code, and Hermes:
 
 - skfiy identity appears before the real user input,
 - the identity block explicitly says the active real user-facing identity is skfiy while Codex, Claude Code, and Hermes are only backend providers,
@@ -1641,7 +1641,7 @@ Validation evidence from 2026-06-24:
 
 Typed blockers after this validation:
 
-- `finder-automation-permission-blocked`: fresh default Finder smoke now reaches the packaged product path and organizes the isolated fixture, but semantic Finder selection evidence is blocked by macOS Automation permission for Finder. Grant skfiy permission to control Finder, then rerun `npm run smoke:finder -- --output .skfiy-smoke/finder-current.json --require-passed`.
+- `finder-automation-permission-blocked`: fresh default Finder smoke now reaches the packaged product path and organizes the isolated fixture, but semantic Finder selection is blocked by macOS Automation permission for Finder. Grant skfiy permission to control Finder, then rerun `npm run smoke:finder -- --require-passed`.
 - `release-artifact-older-than-head`: latest published alpha is older than current `main`; publish a fresh alpha after product acceptance.
 
 - [x] **Step 6: Manual acceptance checklist**

@@ -544,7 +544,7 @@ dist/skfiy -> skfiy dashboard --no-open --port 0 --json -> loopback dashboard se
 Options:
   --cli <path>          Built CLI path. Default: ${defaults.cliPath}
   --timeout-ms <ms>     Wait time for CLI output and dashboard fetches. Default: ${defaults.timeoutMs}
-  --output <path>       Persist JSON evidence to a file.
+  --output <path>       Optional: write the full JSON result to a file.
   --extension-id <id>   Exercise /api/chrome-control-action against this installed Chrome extension id.
   --extension-chrome-app <name>
                         Browser app for installed-extension dashboard action smoke. Use "Chromium" for dogfood.

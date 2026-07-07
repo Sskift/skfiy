@@ -1,5 +1,6 @@
 import type { DashboardSnapshot } from "./dashboard-data.js";
 import type { DashboardDescriptor } from "./dashboard-status.js";
+import { readRecord } from "./record-utils.js";
 
 export interface DashboardOperatorEvidenceInput {
   descriptor: DashboardDescriptor;
@@ -256,12 +257,6 @@ function countStrings(values: string[]): Record<string, number> {
     counts[value] = (counts[value] ?? 0) + 1;
     return counts;
   }, {});
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 function readSafeString(value: unknown, fallback?: string): string | undefined {

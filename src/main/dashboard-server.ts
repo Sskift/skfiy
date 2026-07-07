@@ -39,6 +39,7 @@ import {
   createRuntimeSnapshotStatePath,
   RUNTIME_SNAPSHOT_SCHEMA_VERSION
 } from "./runtime-snapshot.js";
+import { readRecord } from "./record-utils.js";
 import {
   readInitialAssistantAgentSettings,
   readAssistantAgentProviderStates,
@@ -3194,12 +3195,6 @@ function escapeHtml(value: string): string {
         return "&#39;";
     }
   });
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 type DashboardChromeControlAction =

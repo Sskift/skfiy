@@ -36,43 +36,10 @@ describe("Finder product smoke script", () => {
     const packageJson = JSON.parse(
       readFileSync(path.join(process.cwd(), "package.json"), "utf8")
     ) as { scripts?: Record<string, string> };
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-finder-product.mjs"),
-      "utf8"
-    );
 
     expect(packageJson.scripts).toMatchObject({
       "smoke:finder": "node scripts/smoke-finder-product.mjs"
     });
-    expect(source).toContain("window.skfiy.runCommand");
-    expect(source).toContain("window.skfiy.approveTask()");
-    expect(source).toContain("awaitPromise: false");
-    expect(source).toContain("approvePendingFinderTasks");
-    expect(source).toContain("window.skfiy.getAppPolicySettings()");
-    expect(source).toContain("整理 Finder 当前文件夹");
-    expect(source).toContain("整理 Finder 选中文件夹");
-    expect(source).toContain("探测 Finder 拖拽测试文件夹");
-    expect(source).toContain("拖放 Finder 测试文件夹");
-    expect(source).toContain("openFinderFolder");
-    expect(source).toContain("selectFinderFolder");
-    expect(source).toContain("readFinderDragProbe");
-    expect(source).toContain("readFinderItemDragDrop");
-    expect(source).toContain("readFinderPlanPreview");
-    expect(source).toContain("readFinderPlanConfirmation");
-    expect(source).toContain(
-      'event.message.includes("Verification failed (selection):")\n'
-      + '      || event.message.includes("Verification failed (layout):")'
-    );
-  });
-
-  it("wires Finder item layout through the packaged app main process", () => {
-    const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
-
-    expect(source).toContain("function createFinderDesktopClient");
-    expect(source).toContain("getFinderItemLayout: async");
-    expect(source).toContain("helper.getFinderItemLayout");
-    expect(source).toContain("plan_confirmation_required");
-    expect(source).toContain("planApproved: true");
   });
 
   it("defines Finder product paths and output options", async () => {

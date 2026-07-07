@@ -5,6 +5,7 @@ import type {
   TurnTranscriptAction,
   TurnTranscriptScreenshot
 } from "./computer-use/turn-transcript.js";
+import { readRecord } from "./record-utils.js";
 
 export const RUNTIME_SNAPSHOT_SCHEMA_VERSION = 1;
 export const RUNTIME_TURN_MARKER_SCHEMA_VERSION = 1;
@@ -578,10 +579,4 @@ function createDefaultRuntimeSnapshotIo(): RuntimeSnapshotIo {
     writeFile,
     rename
   };
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }

@@ -1,5 +1,6 @@
 import type { DashboardSnapshot } from "./dashboard-data.js";
 import type { DashboardDescriptor } from "./dashboard-status.js";
+import { readRecord } from "./record-utils.js";
 
 export const DASHBOARD_EVIDENCE_SUMMARY_ENDPOINT = "/api/evidence-summary";
 
@@ -718,12 +719,6 @@ function countAlerts(alerts: Array<Record<string, unknown>>): {
     error: alerts.filter((alert) => alert.severity === "error").length,
     warning: alerts.filter((alert) => alert.severity === "warning").length
   };
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 function readString(value: unknown, fallback?: string): string | undefined {

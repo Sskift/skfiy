@@ -139,7 +139,7 @@ Runs the packaged skfiy app through the real desktop UI path:
 
 Options:
   --app <path>          App bundle path. Default: ${defaults.appPath}
-  --output <path>       Persist JSON evidence to a file.
+  --output <path>       Optional: write the full JSON result to a file.
   --port <number>       Electron remote debugging port. Default: ${defaults.port}
   --timeout-ms <ms>     Wait time for the renderer CDP page. Default: ${defaults.timeoutMs}
   --settle-ms <ms>      Wait after clicking the pet. Default: ${defaults.settleMs}

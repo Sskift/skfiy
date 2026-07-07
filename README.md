@@ -2,13 +2,13 @@
 
 skfiy is an agent-first macOS Computer Use runtime with a pixel desktop pet,
 packaged CLI, local dashboard, and app adapters for local experiments. It is
-designed around explicit, evidence-backed desktop routes: observe supported
+designed around explicit desktop routes: observe supported
 macOS app fixtures, decide the next action, execute clicks, typing, dragging,
 and hotkeys, then verify the result from screenshots, OCR, accessibility
 metadata, and replay events. Ghostty, Chromium/Chrome, Finder, screenshots, and
 tmux supervision are the current product routes; generic visible-app control
 remains a design direction until it has an adapter contract and real smoke
-evidence.
+result.
 
 The first version keeps the public surface narrow while the control loop is
 hardened: the desktop pet opens the background agent, app policy gates any
@@ -19,52 +19,33 @@ manifest-driven and separate from the backend: skfiy first looks for a local
 then falls back to bundled original skins when no local origin art has been
 imported.
 
-## Current Local Evidence
+## Smoke Policy
 
-Use the short git commit in local artifact file names. For the current machine,
-the latest Finder smoke is currently blocked before Finder launch because the
-desktop session is at `com.apple.loginwindow`; older Finder evidence also shows
-that Finder item drag/drop still needs an unlocked, awake desktop to prove the
-compiled `skfiy.app` Automation path.
+Default smoke runs are output-free and report typed results on stdout. Use
+`--output .skfiy-smoke/<name>.json` only for explicit release, dogfood, or
+debugging evidence capture.
 
-- UI permission and pet drag smoke: passed,
-  `.skfiy-smoke/ui-<commit>.json`.
-- Ghostty terminal-adapter smoke: passed,
-  `.skfiy-smoke/ghostty-<commit>.json`.
-- Chromium/Chrome Computer Use smoke: passed,
-  `.skfiy-smoke/chrome-<commit>.json`.
-- Binary CLI command matrix smoke: repeatable product gate,
-  `.skfiy-smoke/cli-<commit>.json`.
-- Dashboard CLI smoke: repeatable product gate,
-  `.skfiy-smoke/dashboard-<commit>.json`.
-- Codex plugin MCP smoke: packaged CLI product gate,
-  `.skfiy-smoke/codex-plugin-<commit>.json`.
-- Long-horizon `money-run` tmux supervision smoke: passed,
-  `.skfiy-smoke/money-run-<commit>.json`.
-- Finder item drag/drop smoke: blocked by desktop preflight on the latest run,
-  `.skfiy-smoke/finder-<commit>.json`.
-
-The latest Finder blocker is separate from Screen Recording, Accessibility, and
-Finder Automation. If the artifact reports `com.apple.loginwindow`, unlock the
-Mac and keep the display awake first; if it then reports an Automation blocker,
-grant the compiled `skfiy.app` permission to control Finder and rerun:
+Run Finder smoke from an unlocked, awake desktop. If it reports
+`com.apple.loginwindow`, unlock the Mac and keep the display awake first; if it
+then reports an Automation blocker, grant the compiled `skfiy.app` permission to
+control Finder and rerun:
 
 ```bash
-npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-<commit>.json
+npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed
 ```
 
-Alpha artifact generation is intentionally separate from local smoke evidence.
-After the required smokes pass for a commit, generate release/dogfood artifacts
-with the alpha script instead of keeping stale zips around:
+Alpha artifact generation is intentionally separate from default local smoke
+runs. After the required smokes pass for a commit, generate release/dogfood
+artifacts with the alpha script instead of keeping stale zips around:
 
 ```bash
 npm run alpha:artifact
 ```
 
-Generated evidence directories are ignored by git. Keep only the current commit
-artifacts needed for active debugging and dogfood status; old alpha zips,
-historic smoke output, stale dogfood downloads, `.DS_Store`, and helper build
-caches can be deleted locally.
+Generated evidence directories are ignored by git. Keep only the files needed
+for active debugging, release, or dogfood status; old alpha zips, historic
+smoke output, stale dogfood downloads, `.DS_Store`, and helper build caches can
+be deleted locally.
 
 ## Documentation Map
 
@@ -408,16 +389,23 @@ npm run build
 ./dist/skfiy commands --json
 ./dist/skfiy status --json
 ./dist/skfiy doctor --json
-npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session.json
-npm run smoke:ui -- --output .skfiy-smoke/ui-permission-onboarding.json
-npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-matrix.json
-npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json
-npm run smoke:cli:basic -- --output .skfiy-smoke/cli-basic.json
-npm run smoke:cli -- --output .skfiy-smoke/cli-command-matrix.json
-npm run smoke:dashboard -- --output .skfiy-smoke/dashboard.json
-npm run smoke:codex-plugin -- --output .skfiy-smoke/codex-plugin.json
-npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-item-drag-drop.json
-npm run smoke:money-run -- --json-output .skfiy-smoke/money-run-supervision.json
+npm run smoke:desktop-session
+npm run smoke:ui
+npm run smoke:ghostty -- --matrix
+npm run smoke:chrome
+npm run smoke:cli:basic
+npm run smoke:cli
+npm run smoke:dashboard
+npm run smoke:codex-plugin
+npm run smoke:finder -- --item-drag-drop
+npm run smoke:money-run
+```
+
+For release or dogfood evidence capture, rerun the required smoke commands with
+commit-scoped `--output .skfiy-smoke/...` paths, then generate the alpha
+artifact:
+
+```bash
 npm run alpha:artifact -- \
   --ui-smoke-artifact .skfiy-smoke/ui-permission-onboarding.json \
   --smoke-artifact .skfiy-smoke/ghostty-matrix.json \

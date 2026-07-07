@@ -24,14 +24,16 @@ skfiy only handles agent requests and authorized desktop actions. OS-level input
 
 Use these active smoke targets:
 
-- `npm run smoke:ui -- --output .skfiy-smoke/ui-current.json`
-- `npm run smoke:desktop-session -- --output .skfiy-smoke/desktop-session-current.json`
-- `npm run smoke:ghostty -- --matrix --output .skfiy-smoke/ghostty-current.json`
-- `npm run smoke:chrome -- --output .skfiy-smoke/chrome-current.json`
-- `npm run smoke:finder -- --item-drag-drop --output .skfiy-smoke/finder-current.json`
-- `npm run smoke:money-run -- --require-passed --output .skfiy-smoke/money-run-current.json`
+- `npm run smoke:ui`
+- `npm run smoke:desktop-session`
+- `npm run smoke:ghostty -- --matrix`
+- `npm run smoke:chrome`
+- `npm run smoke:finder -- --item-drag-drop`
+- `npm run smoke:money-run -- --require-passed`
 
 `--require-passed` is only appropriate after `smoke:desktop-session` passes and Screen Recording plus Accessibility are granted to the packaged `skfiy.app` identity.
+Default smoke runs should not pass `--output`; use `.skfiy-smoke` artifacts only
+for explicit release, dogfood, or debugging evidence capture.
 
 ## Dogfood Flow
 

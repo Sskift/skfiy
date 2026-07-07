@@ -1,4 +1,5 @@
 import { decideChromeBrowserDataExposure } from "./chrome-host-policy.js";
+import { readRecord } from "./record-utils.js";
 
 export const CHROME_BROWSER_OBSERVE_TYPE = "skfiy.page.observe";
 export const CHROME_BROWSER_ACTION_TYPE = "skfiy.page.action";
@@ -252,12 +253,6 @@ function normalizePageActionMessage(
       }
     }
   };
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 function hasActionTarget(action: Record<string, unknown>): boolean {

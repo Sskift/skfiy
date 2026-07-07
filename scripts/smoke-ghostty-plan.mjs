@@ -291,7 +291,7 @@ Options:
   --keep-existing       Do not quit an existing skfiy app before launch.
   --keep-open           Leave skfiy open after the smoke run.
   --require-passed      Exit non-zero unless the task or matrix reaches passed.
-  --output <path>       Write the complete smoke JSON evidence to this file.
+  --output <path>       Optional: write the full JSON result to a file.
   -h, --help            Show this help.
 `;
 }

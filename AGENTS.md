@@ -35,9 +35,12 @@ npm run build
 For product-facing UI or macOS behavior, also run the relevant smoke command:
 
 ```bash
-npm run smoke:ui -- --output .skfiy-smoke/ui-product.json
-npm run smoke:dashboard -- --output .skfiy-smoke/dashboard-product.json
+npm run smoke:ui
+npm run smoke:dashboard
 ```
+
+Keep default smoke runs output-free. Use `--output .skfiy-smoke/...` only for
+explicit release, dogfood, or debugging evidence capture.
 
 ## Subagent Supervision
 
@@ -79,7 +82,7 @@ Do not describe Computer Use as a competing chat mode. Do not imply Codex or Cla
 - Do not silently broaden Chrome host permissions.
 - Do not bypass macOS Screen Recording or Accessibility requirements.
 - Do not let Background Agent CLI providers execute local mutations directly from pet chat.
-- Do not claim screen-boundary fixes are complete without packaged-app visual evidence.
+- Do not claim screen-boundary fixes are complete without a packaged-app visual smoke result.
 - Do not leave mixed half-working experiments uncommitted in the worktree. If an experiment is not accepted, revert it or isolate it in a named patch outside the repo.
 
 ## Commit Style
@@ -96,5 +99,5 @@ Before final handoff, report:
 
 - commits created,
 - verification commands run,
-- smoke artifacts produced,
+- smoke commands run and typed blockers observed,
 - remaining blockers with exact typed reason.

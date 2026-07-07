@@ -45,8 +45,6 @@ export const CLI_COMMAND_MATRIX = [
     args: [
       "smoke",
       "dashboard",
-      "--output",
-      "__CLI_SMOKE_DASHBOARD_JSON__",
       "--require-passed",
       "--json"
     ],
@@ -174,7 +172,7 @@ Options:
   --isolated-home <path>  Temporary HOME for Chrome host status. Default: ${defaults.isolatedHomeDir}
   --timeout-ms <ms>       Wait time for each CLI command. Default: ${defaults.timeoutMs}
   --profile <full|basic>  Matrix profile. basic skips release/alpha/nested dashboard smoke.
-  --output <path>         Persist JSON evidence to a file.
+  --output <path>         Optional: write the full JSON result to a file.
   --require-passed        Exit 2 unless the CLI smoke result is passed.
   -h, --help              Show this help.
 `;
@@ -195,10 +193,6 @@ function replaceCommandPlaceholder(arg, options) {
   if (arg === "__CLI_SMOKE_RELEASE_JSON__") {
     return path.join(options.scratchDir, "release-check.json");
   }
-  if (arg === "__CLI_SMOKE_DASHBOARD_JSON__") {
-    return path.join(options.scratchDir, "dashboard-smoke.json");
-  }
-
   return arg;
 }
 

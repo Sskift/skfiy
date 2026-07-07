@@ -44,13 +44,13 @@ describe("implementation plan status docs", () => {
     expect(activePlanFiles).toEqual(["2026-06-23-pet-agent-browser-dashboard.md"]);
   });
 
-  it("documents the current local packaged-app evidence in README instead of plan archives", () => {
+  it("documents output-free default smoke runs in README instead of plan archives", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
 
-    expect(readme).toContain("## Current Local Evidence");
-    expect(readme).toContain("<commit>");
-    expect(readme).toContain("Finder Automation");
-    expect(readme).toContain(".skfiy-smoke/finder-<commit>.json");
+    expect(readme).toContain("## Smoke Policy");
+    expect(readme).toContain("Default smoke runs are output-free");
+    expect(readme).toContain("npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed");
+    expect(readme).toContain("For release or dogfood evidence capture");
     expect(readme).not.toContain("skfiy-alpha-2e292e9");
   });
 

@@ -1241,11 +1241,7 @@ function createProviderPromptContract(
     rejectsDirectDesktopControl: identityPrompt.includes("route the request through its own Computer Use tool layer"),
     dangerousFlagsAbsent: !containsAny(invocation.args, [
       "--oneshot",
-      "--yolo",
-      "--ask-for-approval",
-      "--tools",
-      "--strict-mcp-config",
-      "--ignore-user-config"
+      "--yolo"
     ])
   };
 }

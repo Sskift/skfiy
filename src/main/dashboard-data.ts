@@ -28,6 +28,7 @@ import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
   RUNTIME_TURN_MARKER_SCHEMA_VERSION
 } from "./runtime-snapshot.js";
+import { readRecord } from "./record-utils.js";
 import {
   readInitialAssistantAgentSettings,
   type AssistantAgentProviderId,
@@ -4285,12 +4286,6 @@ function sanitizeDashboardChromeExtensionConnection(
   } = connection;
 
   return safeConnection;
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 function cloneRecord(record: Record<string, unknown>): Record<string, unknown> {

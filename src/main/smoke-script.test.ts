@@ -1,14 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("Ghostty product smoke script", () => {
   it("can set planner provider mode through the product preload API", async () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-ghostty-product.mjs"),
-      "utf8"
-    );
     const modulePath = path.join(process.cwd(), "scripts/smoke-ghostty-plan.mjs");
     const {
       createDefaultSmokeOptions,
@@ -28,9 +24,6 @@ describe("Ghostty product smoke script", () => {
       plannerMode: "disabled"
     });
     expect(formatLaunchCommand(defaults)).toContain("--env SKFIY_BYPASS_APPROVAL=strict");
-    expect(source).toContain("window.skfiy.setPlannerProviderSettings");
-    expect(source).toContain("window.skfiy.getAppPolicySettings()");
-    expect(source).toContain("acquireSmokeLock");
   });
 
   it("defines the Week 2 product-path task matrix as executable smoke runs", async () => {

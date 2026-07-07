@@ -1,3 +1,5 @@
+import { readRecord } from "./record-utils.js";
+
 export const SKFIY_MCP_TOOL_NAMES = [
   "skfiy.status",
   "skfiy.doctor"
@@ -295,10 +297,4 @@ function normalizeToolInput(value: unknown): SkfiyMcpToolCallInput {
     ...(extensionIds ? { extensionIds } : {}),
     ...(typeof record.dashboardUrl === "string" ? { dashboardUrl: record.dashboardUrl } : {})
   };
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }

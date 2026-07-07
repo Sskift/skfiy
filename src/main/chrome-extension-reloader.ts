@@ -16,6 +16,7 @@ import {
   type ChromeExtensionConnectionStatus,
   type ChromeNativeHostIo
 } from "./chrome-native-host.js";
+import { readRecord } from "./record-utils.js";
 
 export const CHROME_EXTENSION_MANAGER_BUNDLE_ID = "com.google.Chrome";
 export const CHROME_EXTENSION_RELOAD_PRODUCT_PATH =
@@ -474,12 +475,6 @@ async function pollChromeExtensionConnection({
   }
 
   return latest;
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
 }
 
 function readNumber(value: unknown): number | undefined {

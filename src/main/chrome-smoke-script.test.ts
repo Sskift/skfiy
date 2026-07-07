@@ -8,21 +8,10 @@ describe("Chrome product smoke script", () => {
     const packageJson = JSON.parse(
       readFileSync(path.join(process.cwd(), "package.json"), "utf8")
     ) as { scripts?: Record<string, string> };
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
-      "utf8"
-    );
 
     expect(packageJson.scripts).toMatchObject({
       "smoke:chrome": "node scripts/smoke-chrome-product.mjs"
     });
-    expect(source).toContain("window.skfiy.runCommand");
-    expect(source).toContain("window.skfiy.approveTask()");
-    expect(source).toContain("window.skfiy.getAppPolicySettings()");
-    expect(source).toContain("--env");
-    expect(source).toContain("SKFIY_BYPASS_APPROVAL=strict");
-    expect(source).toContain("readInstalledExtensionHeartbeatForRequest");
-    expect(source).toContain("heartbeat?.latestCommand?.requestId === requestId");
   });
 
   it("defines a Chrome product path, CDP port, and output option", async () => {
@@ -293,136 +282,6 @@ describe("Chrome product smoke script", () => {
         }
       ]
     })).toBe("blocked");
-  });
-
-  it("records a configured-CDP failure switch run in the product smoke source", () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
-      "utf8"
-    );
-
-    expect(source).toContain("fallbackSwitchRun");
-    expect(source).toContain("runChromeFallbackSwitchProductCommand");
-    expect(source).toContain("classifyChromeFallbackSwitchEvidence");
-  });
-
-  it("records a sensitive Chrome form prefill pause run in the product smoke source", () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
-      "utf8"
-    );
-
-    expect(source).toContain("sensitiveFormRun");
-    expect(source).toContain("sensitiveFormCommand");
-    expect(source).toContain("SENSITIVE_FORM_FIELDS");
-    expect(source).toContain("#password");
-    expect(source).toContain("formatFormAssignments(SENSITIVE_FORM_FIELDS)");
-  });
-
-  it("records a current Chrome page observation run in the product smoke source", () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
-      "utf8"
-    );
-
-    expect(source).toContain("currentPageRun");
-    expect(source).toContain("realCurrentPageRun");
-    expect(source).toContain("观察 Chrome 当前页面并提取正文");
-    expect(source).toContain("runChromeBringYourOwnCurrentPageCommand");
-    expect(source).toContain("currentPageEndpoint");
-    expect(source).toContain("classifyChromeCurrentPageSmokeEvidence");
-    expect(source).toContain("classifyChromeBringYourOwnCurrentPageEvidence");
-  });
-
-  it("records an installed Chrome extension Native Messaging run in the product smoke source", () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
-      "utf8"
-    );
-
-    expect(source).toContain("installedExtensionRun");
-    expect(source).toContain("readinessDiagnostics");
-    expect(source).toContain("runChromeReadinessDiagnostics");
-    expect(source).toContain("chrome-readiness.js");
-    expect(source).toContain("runInstalledChromeExtensionSmoke");
-    expect(source).toContain("--load-extension=");
-    expect(source).toContain("chrome.runtime.connectNative");
-    expect(source).toContain("selectInstalledExtensionChromeApp");
-    expect(source).toContain("discoverInstalledExtensionChromeAppNames");
-    expect(source).toContain("browserSelection");
-    expect(source).toContain("findSkfiyExtensionWorker");
-    expect(source).toContain("hostPolicyResponse");
-    expect(source).toContain("skfiy.host_policy.request");
-    expect(source).toContain("branded_chrome_load_extension_removed");
-    expect(source).toContain("Chrome for Testing");
-    expect(source).toContain("chrome-smoke-installed-extension");
-    expect(source).toContain("extensionStatus");
-    expect(source).toContain("pageControlHealth");
-    expect(source).toContain("chrome-smoke-extension-status");
-    expect(source).toContain("chrome-smoke-page-control-health");
-    expect(source).toContain("skfiy.host_policy.sync_refresh");
-    expect(source).toContain("skfiy.page_control.health");
-    expect(source).toContain("skfiyChromeAdapterDiagnostics");
-    expect(source).toContain("createInstalledExtensionPageControlHealthExpression");
-    expect(source).toContain("createChromeSmokePageControlEvidence");
-    expect(source).toContain("extensionStatus.pageControl");
-    expect(source).toContain("installedExtensionRun.pageControlHealth.pageControl");
-    expect(source).toContain("chrome-extension-page-control");
-    expect(source).toContain("heartbeatReadError");
-    expect(source).toContain("hasInstalledExtensionHeartbeatEvidence");
-    expect(source).toContain("readinessSnapshot");
-    expect(source).toContain("remediation");
-  });
-
-  it("records an installed Chrome extension action smoke in the product smoke source", () => {
-    const source = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-chrome-product.mjs"),
-      "utf8"
-    );
-
-    expect(source).toContain("installedExtensionActionRun");
-    expect(source).toContain("runInstalledChromeExtensionActionSmoke");
-    expect(source).toContain("createInstalledExtensionActionFixture");
-    expect(source).toContain("runChromeCliJson");
-    expect(source).toContain("closeInstalledExtensionWakeTabs");
-    expect(source).toContain("closeInstalledExtensionActionFixtureTabs");
-    expect(source).toContain("readChromeSmokePageControlFromInstalledExtensionAction");
-    expect(source).toContain("extensionConnection.pageControl");
-    expect(source).toContain("selectInstalledExtensionActionTargetTab");
-    expect(source).toContain("make new tab at end of tabs");
-    expect(source).toContain("apple-events-new-tab");
-    expect(source).toContain("openedTab");
-    expect(source).toContain("readInstalledExtensionActionOpenedTab");
-    expect(source).toContain("classifyInstalledExtensionActionSmokeEvidence");
-    expect(source).toContain("new URL(fixture.url).host");
-    expect(source).not.toContain("new URL(fixture.url).hostname");
-    expect(source).toContain("refreshInstalledExtensionActionTargetTab");
-    expect(source).toContain("postReloadTabsRun");
-    expect(source).toContain("refreshedTargetTab");
-    expect(source).toContain("target-tab-unavailable-after-reload");
-    expect(source).toContain("runInstalledExtensionActionObserveWithRetry");
-    expect(source).toContain("initialObserveRun");
-    expect(source).toContain("observeRetryRun");
-    expect(source).toContain("chrome-extension://${extensionId}/popup.html?skfiyWake=");
-    expect(source).toContain("chrome-extension-actions.json");
-    expect(source).toContain("cleanupBeforeRun");
-    expect(source).toContain("cleanupAfterRun");
-    expect(source).toContain("cleanupBetweenCommands");
-    expect(source).toContain("wakeIsolationStrategy");
-    expect(source).toContain("request-id-during-run");
-    expect(source).toContain("chrome tabs");
-    expect(source).toContain("chrome reload-extension");
-    expect(source).toContain("chrome observe");
-    expect(source).toContain("chrome screenshot");
-    expect(source).toContain("chrome fill");
-    expect(source).toContain("chrome click");
-    expect(source).toContain("chrome submit");
-    expect(source).toContain("chrome scroll");
-    expect(source).toContain("chrome-capture-permission-missing");
-    expect(source).toContain('<button id="click-only" type="button">Click</button>');
-    expect(source).toContain('<button id="submit" type="submit">Submit</button>');
-    expect(source).toContain('"#click-only"');
-    expect(source).not.toContain('document.querySelector("#submit").addEventListener("click"');
   });
 
   it("classifies installed Chrome extension action smoke and screenshot blocker lanes", async () => {

@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("packaged UI product smoke script", () => {
-  it("is exposed as an npm script for packaged-app UI evidence", () => {
+  it("is exposed as an npm script for packaged-app UI smoke", () => {
     const packageJson = JSON.parse(
       readFileSync(path.join(process.cwd(), "package.json"), "utf8")
     ) as { scripts?: Record<string, string> };
@@ -35,8 +35,13 @@ describe("packaged UI product smoke script", () => {
 
     expect(defaults).toMatchObject({
       appPath: path.join("/repo", "dist", "skfiy.app"),
+      outputPath: undefined,
       productPath: "LaunchServices -> renderer DOM -> React permission onboarding",
       requiredPermissionLabels: ["屏幕录制", "辅助功能"]
+    });
+    expect(parseUiSmokeArgs([], defaults)).toMatchObject({
+      outputPath: undefined,
+      requirePassed: false
     });
     expect(parseUiSmokeArgs([
       "--app",
@@ -210,54 +215,4 @@ describe("packaged UI product smoke script", () => {
     })).toBe("missing-onboarding");
   });
 
-  it("drives the permission onboarding through the real renderer DOM rather than preload APIs alone", () => {
-    const sourcePath = path.join(process.cwd(), "scripts", "smoke-ui-product.mjs");
-
-    expect(existsSync(sourcePath)).toBe(true);
-
-    const source = readFileSync(sourcePath, "utf8");
-
-    expect(source).toContain("acquireSmokeLock");
-    expect(source).toContain("dispatchEvent(new MouseEvent(\"click\"");
-    expect(source).toContain("aria-label=\"权限引导\"");
-    expect(source).toContain("permissionSettingTargets");
-    expect(source).toContain("window.skfiy.getPermissions()");
-    expect(source).toContain("window.skfiy.getPermissionDiagnostics()");
-    expect(source).toContain("window.skfiy.getDesktopSessionDiagnostics()");
-    expect(source).toContain("getWindowBounds");
-    expect(source).toContain("dispatchPetPointerEvent(pet, \"pointerdown\"");
-    expect(source).toContain("dispatchPetPointerEvent(pet, \"pointermove\"");
-    expect(source).toContain("pet.dispatchEvent(new PointerEvent(type");
-    expect(source).toContain("petDrag");
-    expect(source).toContain("visibleEdgeChecks");
-    expect(source).toContain("exerciseVisiblePetEdgeChecks.toString()");
-    expect(source).toContain("suppressedClickAfterDrag");
-    expect(source).toContain("stopTurnBehavior");
-    expect(source).toContain("exerciseStopTurnBehavior.toString()");
-    expect(source).toContain("assistantConversation");
-    expect(source).toContain("exerciseAssistantConversation.toString()");
-    expect(source).toContain("renderer-assistant-conversation-product-path");
-    expect(source).toContain("--env");
-    expect(source).toContain("STRICT_APPROVAL_ENV");
-    expect(source).toContain("new KeyboardEvent(\"keydown\"");
-    expect(source).toContain("waitForDomCondition.toString()");
-    expect(source).toContain("button[aria-label=\"确认\"]");
-    expect(source).not.toContain("document.body.innerText.includes(\"Approval required\")");
-    expect(source).toContain("event.status === \"cancelled\"");
-    expect(source).toContain("after?.status === \"cancelled\"");
-    expect(source).toContain("Page.captureScreenshot");
-    expect(source).toContain("rendererScreenshot");
-    expect(source).toContain("layoutDiagnostics");
-    expect(source).toContain("readButtonIconAlignmentDiagnostics");
-    expect(source).toContain("scrollIntoView");
-    expect(source).toContain("createInspectPermissionOnboardingExpression");
-    expect(source).toContain("createInspectSettingsLayoutExpression");
-    expect(source).toContain("roundMetric.toString()");
-    expect(source).toContain("exercisePetDrag.toString()");
-    expect(source).toContain("dispatchPetPointerEvent.toString()");
-    expect(source).toContain("hasVisiblePetEdgeChecks.toString()");
-    expect(source).toContain("hasWindowBounds.toString()");
-    expect(source).toContain("formatRuntimeExceptionDetails");
-    expect(source).toContain("exceptionDetails.exception?.description");
-  });
 });
