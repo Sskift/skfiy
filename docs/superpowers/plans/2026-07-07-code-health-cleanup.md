@@ -95,6 +95,7 @@ Progress:
 - 2026-07-07: extracted runtime, dashboard, money-run, and binary readiness JSON assembly into `src/main/cli-status-readiness.ts`. Chrome extension readiness still stays in `cli-command-surface.ts` because it depends on Chrome setup-guide shaping.
 - 2026-07-07: extracted CLI Chrome setup-guide/readiness shaping into `src/main/cli-chrome-readiness.ts`. Remaining Task 1 work is now mostly command dispatch and side-effect orchestration.
 - 2026-07-07: extracted the static CLI command surface definition table into `src/main/cli-command-definitions.ts`, keeping `cli-command-surface.ts` focused on normalization, output assembly, and execution wiring.
+- 2026-07-07: extracted pure CLI command normalization into `src/main/cli-command-normalization.ts`, including invocation types, permission targets, option parsing, Chrome page-control subcommand guards, and Chrome policy host normalization. `cli-command-surface.ts` now keeps the compatibility export while dispatch and IO remain in place.
 
 - [ ] **Map responsibilities**
 
