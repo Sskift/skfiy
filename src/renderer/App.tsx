@@ -67,6 +67,7 @@ import {
   createAssistantSubmissionFailureTaskView,
   createAssistantSubmissionTaskView,
   createTaskViewFromEvent,
+  createTaskStatusView,
   isAssistantConversationReplyEvent,
   updateReplayRecordsForTaskEvent,
   type AssistantConversationMessage,
@@ -1016,18 +1017,12 @@ export default function App() {
   const stopCurrentTurn = useCallback(async () => {
     if (canStopTurn(task.status)) {
       transitionPanelState({ type: "non-idle-task-event" });
-      setTask({
-        status: "cancelled",
-        message: STATUS_COPY.cancelled.message
-      });
+      setTask(createTaskStatusView("cancelled"));
 
       try {
         await api.stopTask();
       } catch {
-        setTask({
-          status: "failed",
-          message: "停止任务失败."
-        });
+        setTask(createTaskStatusView("failed", "停止任务失败."));
       }
     }
   }, [api, task.status, transitionPanelState]);
@@ -1058,10 +1053,7 @@ export default function App() {
     try {
       await api.approveTask();
     } catch {
-      setTask({
-        status: "failed",
-        message: "确认请求失败."
-      });
+      setTask(createTaskStatusView("failed", "确认请求失败."));
     }
   }
 
@@ -1071,10 +1063,7 @@ export default function App() {
     try {
       await api.denyTask();
     } catch {
-      setTask({
-        status: "failed",
-        message: "拒绝请求失败."
-      });
+      setTask(createTaskStatusView("failed", "拒绝请求失败."));
     }
   }
 
@@ -1089,10 +1078,7 @@ export default function App() {
         transitionPanelState({ type: "close-permission-onboarding" });
       }
     } catch {
-      setTask({
-        status: "failed",
-        message: "打开系统设置失败."
-      });
+      setTask(createTaskStatusView("failed", "打开系统设置失败."));
     }
   }
 
@@ -1100,10 +1086,7 @@ export default function App() {
     const nextPermissions = await refreshPermissions();
     if (readMissingPermissionRows(nextPermissions).length === 0) {
       transitionPanelState({ type: "close-permission-onboarding" });
-      setTask({
-        status: "idle",
-        message: "权限已就绪."
-      });
+      setTask(createTaskStatusView("idle", "权限已就绪."));
     }
   }
 
@@ -1111,10 +1094,7 @@ export default function App() {
     try {
       setAppPolicySettings(await api.setAppPolicy({ bundleId, policy }));
     } catch {
-      setTask({
-        status: "failed",
-        message: "切换应用策略失败."
-      });
+      setTask(createTaskStatusView("failed", "切换应用策略失败."));
     }
   }
 
@@ -1122,10 +1102,7 @@ export default function App() {
     try {
       setAssistantAgentSettings(await api.setAssistantAgentSettings({ mode }));
     } catch {
-      setTask({
-        status: "failed",
-        message: "切换 Background Agent 失败."
-      });
+      setTask(createTaskStatusView("failed", "切换 Background Agent 失败."));
     }
   }
 
@@ -1133,10 +1110,7 @@ export default function App() {
     try {
       setPlannerProviderSettings(await api.setPlannerProviderSettings({ mode }));
     } catch {
-      setTask({
-        status: "failed",
-        message: "切换规划模式失败."
-      });
+      setTask(createTaskStatusView("failed", "切换规划模式失败."));
     }
   }
 
@@ -1240,11 +1214,7 @@ export default function App() {
     }
 
     if (canDismissTaskBubble(task.status)) {
-      setTask({
-        status: "idle",
-        message: STATUS_COPY.idle.message,
-        finderPlanPreview: undefined
-      });
+      setTask(createTaskStatusView("idle"));
       setReplayRecords([]);
       transitionPanelState({ type: "open-assistant" });
       return;

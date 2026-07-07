@@ -7,6 +7,7 @@ import {
   createInitialTaskView,
   createAssistantSubmissionFailureTaskView,
   createAssistantSubmissionTaskView,
+  createTaskStatusView,
   createTaskViewFromEvent,
   isAssistantConversationReplyEvent,
   readAssistantConversationReply,
@@ -55,6 +56,22 @@ describe("app task state", () => {
       status: "approval_required",
       message: "Needs a human check",
       finderPlanPreview
+    });
+  });
+
+  it("creates direct task status views for transient UI updates", () => {
+    expect(createTaskStatusView("cancelled")).toEqual({
+      status: "cancelled",
+      message: "任务已停止."
+    });
+    expect(createTaskStatusView("failed", "停止任务失败.")).toEqual({
+      status: "failed",
+      message: "停止任务失败."
+    });
+    expect(createTaskStatusView("idle", "权限已就绪.")).toEqual({
+      status: "idle",
+      message: "权限已就绪.",
+      finderPlanPreview: undefined
     });
   });
 

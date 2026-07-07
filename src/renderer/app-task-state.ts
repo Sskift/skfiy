@@ -88,6 +88,17 @@ export function createInitialTaskView(): TaskView {
   };
 }
 
+export function createTaskStatusView(
+  status: TaskStatus,
+  message = STATUS_COPY[status].message
+): TaskView {
+  return {
+    status,
+    message,
+    ...(status === "idle" ? { finderPlanPreview: undefined } : {})
+  };
+}
+
 export function createTaskViewFromEvent(event: TaskEvent): TaskView {
   return {
     status: event.status,
