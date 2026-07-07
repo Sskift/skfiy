@@ -1,8 +1,8 @@
 # skfiy Docs
 
-This directory separates current operator instructions from historical research.
-When a workflow changes, update the canonical document first and leave old
-research notes as dated context unless they contain a still-open product gap.
+This directory separates current operator instructions from archival context.
+When a workflow changes, update the canonical document first. Dated research
+and decision records are references, not active implementation plans.
 
 ## Canonical Docs
 
@@ -27,7 +27,7 @@ research notes as dated context unless they contain a still-open product gap.
 - `decisions/`: durable decision records that should stay stable unless the
   decision changes.
 - `research/`: dated research, architecture notes, and implementation logs.
-  These files are archival context, not active task lists.
+  These files are archival context, not active task lists or plans.
 - `superpowers/plans/`: active implementation plans for agentic work. Keep
   exactly one active plan unless the project owner explicitly asks for a
   temporary split.

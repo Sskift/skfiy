@@ -12,9 +12,9 @@ Use the single active plan:
 
 - `docs/superpowers/plans/2026-07-07-code-health-cleanup.md`
 
-Historical long-form implementation plans were removed so this file is the
-planning source of truth. If future scope changes, update this active plan or
-replace it with exactly one newer active plan.
+Historical implementation material is archival reference only, not active
+planning scope. If future scope changes, update this active plan or replace it
+with exactly one newer active plan.
 
 ## Development Loop
 

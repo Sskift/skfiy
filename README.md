@@ -59,7 +59,7 @@ be deleted locally.
   unpacked extension install, native host setup, and bridge diagnostics.
 - [docs/research/](docs/research/): historical research and implementation
   notes. Fold durable operational instructions back into the README or workflow
-  docs instead of treating old plans as live checklists.
+  docs instead of using archival notes as live checklists.
 
 ## MVP Scope
 
