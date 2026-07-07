@@ -1,10 +1,30 @@
 import type {
   AppPolicy,
   AppPolicySettings,
+  AssistantAgentMode,
   AssistantAgentSettings,
   AssistantAgentSettingsResponse,
+  PlannerProviderMode,
   PlannerProviderSettings
 } from "./App";
+
+export const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
+  { policy: "allow", label: "允许" },
+  { policy: "ask", label: "询问" },
+  { policy: "deny", label: "拒绝" }
+];
+
+export const ASSISTANT_AGENT_OPTIONS: Array<{ mode: AssistantAgentMode; label: string; aria: string }> = [
+  { mode: "codex", label: "Codex", aria: "选择 Codex background agent" },
+  { mode: "claude-code", label: "Claude Code", aria: "选择 Claude Code background agent" },
+  { mode: "hermes", label: "Hermes", aria: "选择 Hermes background agent" }
+];
+
+export const PLANNER_PROVIDER_OPTIONS: Array<{ mode: PlannerProviderMode; label: string; aria: string }> = [
+  { mode: "local-deterministic", label: "本地确定性", aria: "选择本地确定性规划" },
+  { mode: "external-cua", label: "External CUA", aria: "选择 External CUA 规划" },
+  { mode: "disabled", label: "关闭", aria: "选择关闭规划" }
+];
 
 export const DEFAULT_APP_POLICY_SETTINGS: AppPolicySettings = {
   apps: [

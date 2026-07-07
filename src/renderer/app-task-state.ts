@@ -4,6 +4,7 @@ import type {
   TaskEvent,
   TaskStatus
 } from "./App";
+import { canStopTurn } from "./app-view-model";
 
 export interface TaskView {
   status: TaskStatus;
@@ -282,4 +283,53 @@ export function appendAssistantConversationSubmissionFailure(
       state: "error"
     }
   ];
+}
+
+export interface StopTurnUiTransition {
+  task: TaskView;
+  panelAction: "non-idle-task-event";
+}
+
+export function createStopTurnUiTransition(status: TaskStatus): StopTurnUiTransition | null {
+  if (!canStopTurn(status)) {
+    return null;
+  }
+
+  return {
+    task: createTaskStatusView("cancelled"),
+    panelAction: "non-idle-task-event"
+  };
+}
+
+export type AssistantInputSubmissionTransition =
+  | {
+    type: "blocked";
+    focusInput: true;
+  }
+  | {
+    type: "submit";
+    command: string;
+    task: TaskView;
+    panelAction: "open-assistant";
+  };
+
+export function createAssistantInputSubmissionTransition(
+  input: string,
+  submitting: boolean
+): AssistantInputSubmissionTransition {
+  const command = input.trim();
+
+  if (!command || submitting) {
+    return {
+      type: "blocked",
+      focusInput: true
+    };
+  }
+
+  return {
+    type: "submit",
+    command,
+    task: createAssistantSubmissionTaskView(),
+    panelAction: "open-assistant"
+  };
 }

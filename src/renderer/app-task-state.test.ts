@@ -4,10 +4,12 @@ import {
   appendAssistantConversationReply,
   appendAssistantConversationSubmission,
   appendAssistantConversationSubmissionFailure,
+  createAssistantInputSubmissionTransition,
   createTaskEventUiTransition,
   createInitialTaskView,
   createAssistantSubmissionFailureTaskView,
   createAssistantSubmissionTaskView,
+  createStopTurnUiTransition,
   createTaskStatusView,
   createTaskViewFromEvent,
   isAssistantConversationReplyEvent,
@@ -238,5 +240,42 @@ describe("app task state", () => {
       { role: "user", text: "run this" },
       { role: "assistant", text: "发送给 Background Agent 失败.", state: "error" }
     ]);
+  });
+
+  it("derives stop-turn UI transition only for stoppable task states", () => {
+    expect(createStopTurnUiTransition("running")).toEqual({
+      task: {
+        status: "cancelled",
+        message: "任务已停止."
+      },
+      panelAction: "non-idle-task-event"
+    });
+    expect(createStopTurnUiTransition("approval_required")).toMatchObject({
+      task: {
+        status: "cancelled"
+      }
+    });
+    expect(createStopTurnUiTransition("idle")).toBeNull();
+    expect(createStopTurnUiTransition("completed")).toBeNull();
+  });
+
+  it("derives assistant input submission transitions from input and submitting state", () => {
+    expect(createAssistantInputSubmissionTransition("", false)).toEqual({
+      type: "blocked",
+      focusInput: true
+    });
+    expect(createAssistantInputSubmissionTransition("  run it  ", true)).toEqual({
+      type: "blocked",
+      focusInput: true
+    });
+    expect(createAssistantInputSubmissionTransition("  run it  ", false)).toEqual({
+      type: "submit",
+      command: "run it",
+      task: {
+        status: "planned",
+        message: "已交给 Background Agent."
+      },
+      panelAction: "open-assistant"
+    });
   });
 });

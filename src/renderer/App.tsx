@@ -59,10 +59,11 @@ import {
   STATUS_COPY,
   appendAssistantConversationSubmission,
   appendAssistantConversationSubmissionFailure,
+  createAssistantInputSubmissionTransition,
   createInitialTaskView,
   createAssistantSubmissionFailureTaskView,
-  createAssistantSubmissionTaskView,
   createTaskEventUiTransition,
+  createStopTurnUiTransition,
   createTaskStatusView,
   updateAssistantConversationForTaskEvent,
   updateReplayRecordsForTaskEvent,
@@ -90,9 +91,12 @@ import {
   type PetDragState
 } from "./app-pet-drag-state";
 import {
+  APP_POLICY_OPTIONS,
+  ASSISTANT_AGENT_OPTIONS,
   DEFAULT_APP_POLICY_SETTINGS,
   DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
   DEFAULT_PLANNER_PROVIDER_SETTINGS,
+  PLANNER_PROVIDER_OPTIONS,
   reduceAppPolicySettings,
   reduceAssistantAgentSettingsResponse,
   reducePlannerProviderSettings
@@ -410,24 +414,6 @@ declare global {
     skfiy?: DesktopApi;
   }
 }
-
-const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
-  { policy: "allow", label: "允许" },
-  { policy: "ask", label: "询问" },
-  { policy: "deny", label: "拒绝" }
-];
-
-const ASSISTANT_AGENT_OPTIONS: Array<{ mode: AssistantAgentMode; label: string; aria: string }> = [
-  { mode: "codex", label: "Codex", aria: "选择 Codex background agent" },
-  { mode: "claude-code", label: "Claude Code", aria: "选择 Claude Code background agent" },
-  { mode: "hermes", label: "Hermes", aria: "选择 Hermes background agent" }
-];
-
-const PLANNER_PROVIDER_OPTIONS: Array<{ mode: PlannerProviderMode; label: string; aria: string }> = [
-  { mode: "local-deterministic", label: "本地确定性", aria: "选择本地确定性规划" },
-  { mode: "external-cua", label: "External CUA", aria: "选择 External CUA 规划" },
-  { mode: "disabled", label: "关闭", aria: "选择关闭规划" }
-];
 
 const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
@@ -929,15 +915,18 @@ export default function App() {
   }, [detailsOpen, refreshAssistantAgentSettings, refreshPermissions, refreshTurnReplay]);
 
   const stopCurrentTurn = useCallback(async () => {
-    if (canStopTurn(task.status)) {
-      transitionPanelState({ type: "non-idle-task-event" });
-      setTask(createTaskStatusView("cancelled"));
+    const transition = createStopTurnUiTransition(task.status);
+    if (!transition) {
+      return;
+    }
 
-      try {
-        await api.stopTask();
-      } catch {
-        setTask(createTaskStatusView("failed", "停止任务失败."));
-      }
+    transitionPanelState({ type: transition.panelAction });
+    setTask(transition.task);
+
+    try {
+      await api.stopTask();
+    } catch {
+      setTask(createTaskStatusView("failed", "停止任务失败."));
     }
   }, [api, task.status, transitionPanelState]);
 
@@ -1030,22 +1019,25 @@ export default function App() {
 
   async function submitAssistantInput(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    const command = assistantInput.trim();
+    const transition = createAssistantInputSubmissionTransition(
+      assistantInput,
+      assistantInputSubmitting
+    );
 
-    if (!command || assistantInputSubmitting) {
+    if (transition.type === "blocked") {
       assistantInputRef.current?.focus();
       return;
     }
 
-    pendingAssistantPromptRef.current = command;
-    setAssistantConversation((messages) => appendAssistantConversationSubmission(messages, command));
+    pendingAssistantPromptRef.current = transition.command;
+    setAssistantConversation((messages) => appendAssistantConversationSubmission(messages, transition.command));
     setAssistantInputSubmitting(true);
-    transitionPanelState({ type: "open-assistant" });
-    setTask(createAssistantSubmissionTaskView());
+    transitionPanelState({ type: transition.panelAction });
+    setTask(transition.task);
     setAssistantInput("");
 
     try {
-      await api.runCommand(command, { mode: "active" });
+      await api.runCommand(transition.command, { mode: "active" });
     } catch {
       pendingAssistantPromptRef.current = null;
       setAssistantConversation(appendAssistantConversationSubmissionFailure);
