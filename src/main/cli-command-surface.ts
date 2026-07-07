@@ -39,15 +39,10 @@ import {
 import {
   readErrorMessage
 } from "./cli-record-utils.js";
-import { withCliStatusEvidence } from "./cli-status-evidence.js";
-import {
-  createStatusReaderInput,
-  type StatusReaderInput
-} from "./cli-status-reader-input.js";
+import type { StatusReaderInput } from "./cli-status-reader-input.js";
 import {
   createCliStatusReader
 } from "./cli-status-reader.js";
-import { formatStatusTextOutput } from "./cli-status-output.js";
 import {
   createCliCommandSurface,
   type CliCommandDefinition,
@@ -70,13 +65,16 @@ import {
   createPermissionSettingsOpenOutput,
   createPermissionSettingsOpenUrl
 } from "./cli-permission-settings-output.js";
-import { createOperatorStatusOutput } from "./cli-operator-status-output.js";
 import { createCliOutputSkeleton } from "./cli-output-skeleton.js";
 import {
-  createCliStatusReadinessSummary,
-  withStatusReadiness
-} from "./cli-status-capabilities.js";
-import { createDoctorOutput } from "./cli-doctor-output.js";
+  runDoctorCli,
+  runOperatorStatusCli,
+  runStatusCli,
+  type SignatureReader,
+  type SignatureReaderInput,
+  type SignatureStatus,
+  type StatusReader
+} from "./cli-status-command-runner.js";
 import {
   createChromeExtensionInfoOutputForRoot,
   runChromeHostPolicyCli,
@@ -130,23 +128,14 @@ export interface SkfiyCliIo {
   write: (chunk: string) => unknown;
 }
 
-export type StatusReader = (input: StatusReaderInput) => Promise<Record<string, unknown>>;
-
-export interface SignatureReaderInput {
-  appPath: string;
-}
-
-export interface SignatureStatus {
-  state: "valid" | "invalid" | "unknown";
-  reason?: string;
-}
-
-export type SignatureReader = (input: SignatureReaderInput) => Promise<SignatureStatus>;
-
 export type {
+  SignatureReader,
+  SignatureReaderInput,
+  SignatureStatus,
   SkfiyMcpServer,
   SkfiyMcpServerStarter,
-  SkfiyMcpServerStarterInput
+  SkfiyMcpServerStarterInput,
+  StatusReader
 };
 
 export interface RunSkfiyCliInput {
@@ -423,166 +412,6 @@ async function runPermissionSettingsOpenCli({
       result: "error",
       error: message
     }), null, 2)}\n`);
-    return 1;
-  }
-}
-
-async function runStatusCli({
-  invocation,
-  generatedAt,
-  rootDir,
-  homeDir,
-  statusReader,
-  stdout,
-  stderr
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "status" }>;
-  generatedAt?: string;
-  rootDir: string;
-  homeDir: string;
-  statusReader: StatusReader;
-  stdout: SkfiyCliIo;
-  stderr: SkfiyCliIo;
-}): Promise<number> {
-  const input = createStatusReaderInput({
-    rootDir,
-    homeDir,
-    invocation
-  });
-
-  try {
-    const effectiveGeneratedAt = generatedAt ?? new Date().toISOString();
-    const status = withCliStatusEvidence(
-      withStatusReadiness(await statusReader(input), input),
-      {
-        ...input,
-        generatedAt: effectiveGeneratedAt
-      }
-    );
-    const output = {
-      schemaVersion: 1,
-      command: "status",
-      generatedAt: effectiveGeneratedAt,
-      ...status
-    };
-
-    stdout.write(invocation.json
-      ? `${JSON.stringify(output, null, 2)}\n`
-      : formatStatusTextOutput(output));
-    return 0;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    stderr.write(`${message}\n`);
-    stdout.write(`${JSON.stringify({
-      ...createCliOutput(invocation, { generatedAt }),
-      result: "error",
-      error: message
-    }, null, 2)}\n`);
-    return 1;
-  }
-}
-
-async function runDoctorCli({
-  invocation,
-  generatedAt,
-  rootDir,
-  homeDir,
-  statusReader,
-  signatureReader,
-  stdout,
-  stderr
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "doctor" }>;
-  generatedAt?: string;
-  rootDir: string;
-  homeDir: string;
-  statusReader: StatusReader;
-  signatureReader: SignatureReader;
-  stdout: SkfiyCliIo;
-  stderr: SkfiyCliIo;
-}): Promise<number> {
-  const input = createStatusReaderInput({
-    rootDir,
-    homeDir,
-    invocation
-  });
-
-  try {
-    const [status, signature] = await Promise.all([
-      statusReader(input),
-      signatureReader({ appPath: input.appPath })
-    ]);
-    const doctor = createDoctorOutput({
-      status,
-      signature,
-      statusInput: input
-    });
-
-    stdout.write(`${JSON.stringify({
-      schemaVersion: 1,
-      command: "doctor",
-      generatedAt: generatedAt ?? new Date().toISOString(),
-      ...doctor
-    }, null, 2)}\n`);
-    return 0;
-  } catch (error) {
-    const message = readErrorMessage(error);
-
-    stderr.write(`${message}\n`);
-    stdout.write(`${JSON.stringify({
-      ...createCliOutput(invocation, { generatedAt }),
-      result: "error",
-      error: message
-    }, null, 2)}\n`);
-    return 1;
-  }
-}
-
-async function runOperatorStatusCli({
-  invocation,
-  generatedAt,
-  rootDir,
-  homeDir,
-  statusReader,
-  stdout,
-  stderr
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "operator-status" }>;
-  generatedAt?: string;
-  rootDir: string;
-  homeDir: string;
-  statusReader: StatusReader;
-  stdout: SkfiyCliIo;
-  stderr: SkfiyCliIo;
-}): Promise<number> {
-  const input = createStatusReaderInput({
-    rootDir,
-    homeDir,
-    invocation
-  });
-
-  try {
-    const status = withStatusReadiness(await statusReader(input), input);
-    const output = createOperatorStatusOutput({
-      invocation,
-      generatedAt: generatedAt ?? new Date().toISOString(),
-      status,
-      result: "probed",
-      createReadinessSummary: createCliStatusReadinessSummary
-    });
-
-    stdout.write(`${JSON.stringify(output, null, 2)}\n`);
-    return invocation.options.requireReady && output.result !== "ready" ? 1 : 0;
-  } catch (error) {
-    const message = readErrorMessage(error);
-
-    stderr.write(`${message}\n`);
-    stdout.write(`${JSON.stringify({
-      ...createCliOutput(invocation, { generatedAt }),
-      result: "error",
-      error: message
-    }, null, 2)}\n`);
     return 1;
   }
 }
