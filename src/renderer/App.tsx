@@ -26,7 +26,6 @@ import {
 import {
   getConfiguredPetAtlas,
   getPetSpriteStyle,
-  getPetStateForTask,
   isPetAtlasManifest,
   resolvePetAtlas,
   type PetAtlas,
@@ -40,7 +39,7 @@ import {
   formatFinderPreviewMove,
   formatReplayAction,
   formatReplayPlanner,
-  getPanelVisibilityState,
+  getAppRootViewModel,
   getPolicySummary,
   getReplayAccessibilityLabel,
   getReplayOcrLabel,
@@ -48,12 +47,10 @@ import {
   readAssistantAgentProviderDetail,
   readAssistantAgentReadinessLabel,
   readDesktopSessionPermissionState,
-  readExternalCuaStatusLabel,
-  readSelectedAssistantAgentProvider
+  readExternalCuaStatusLabel
 } from "./app-view-model";
 import { getDesktopApi } from "./app-desktop-api";
 import {
-  STATUS_COPY,
   appendAssistantConversationSubmission,
   appendAssistantConversationSubmissionFailure,
   createAssistantInputSubmissionTransition,
@@ -77,8 +74,7 @@ import {
   UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS,
   UNKNOWN_PERMISSIONS,
   createUnknownPermissionRefreshState,
-  isPermissionOnboardingComplete,
-  readPermissionOnboardingRows
+  isPermissionOnboardingComplete
 } from "./app-permission-state";
 import {
   createPetDragState,
@@ -1059,22 +1055,21 @@ export default function App() {
     transitionPanelState({ type: "toggle-details" });
   }
 
-  const status = STATUS_COPY[task.status];
-  const petState = getPetStateForTask(task.status);
-  const startupWarning = startupWarnings[0];
-  const panelVisibility = getPanelVisibilityState({
-    assistantPanelOpen,
-    detailsOpen,
-    hasStartupWarning: Boolean(startupWarning),
-    permissionOnboardingOpen,
+  const {
+    panelVisibility,
+    permissionOnboardingRows,
+    petState,
+    selectedAssistantAgentProvider,
+    startupWarning,
+    status
+  } = getAppRootViewModel({
+    assistantAgentSettings,
+    fallbackAssistantAgentProvider: DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.providers[0],
+    panelState,
+    permissions,
+    startupWarnings,
     taskStatus: task.status
   });
-  const selectedAssistantAgentProvider = readSelectedAssistantAgentProvider(
-    assistantAgentSettings.providers,
-    assistantAgentSettings.settings.mode,
-    DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.providers[0]
-  );
-  const permissionOnboardingRows = readPermissionOnboardingRows(permissions);
 
   useEffect(() => {
     api.setWindowMode(panelVisibility.showPanel ? "expanded" : "compact");

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatReplayAction,
   formatReplayPlanner,
+  getAppRootViewModel,
   getPanelVisibilityState,
   getReplayAccessibilityLabel,
   getReplayOcrLabel,
@@ -86,6 +87,52 @@ describe("app view model", () => {
       .toEqual({ id: "claude-code", label: "Claude Code" });
     expect(readSelectedAssistantAgentProvider(providers.slice(0, 1), "hermes", fallbackProvider))
       .toBe(fallbackProvider);
+  });
+
+  it("derives the app root view model from renderer state", () => {
+    const fallbackProvider = { id: "codex", label: "Codex" };
+    const claudeProvider = { id: "claude-code", label: "Claude Code" };
+    const startupWarning = {
+      title: "Launch warning",
+      message: "Started outside bundle"
+    };
+
+    expect(getAppRootViewModel({
+      assistantAgentSettings: {
+        providers: [fallbackProvider, claudeProvider],
+        settings: { mode: "claude-code" }
+      },
+      fallbackAssistantAgentProvider: fallbackProvider,
+      panelState: {
+        assistantPanelOpen: false,
+        detailsOpen: false,
+        permissionOnboardingOpen: false
+      },
+      permissions: {
+        screenRecording: { state: "granted" },
+        accessibility: { state: "not-determined" }
+      },
+      startupWarnings: [startupWarning],
+      taskStatus: "idle"
+    })).toEqual({
+      panelVisibility: {
+        bubbleAriaLabel: "skfiy task status",
+        settingsBubble: false,
+        showPanel: true,
+        showStartupWarning: true
+      },
+      permissionOnboardingRows: [
+        { key: "accessibility", settingsTarget: "accessibility", label: "辅助功能" }
+      ],
+      petState: "idle",
+      selectedAssistantAgentProvider: claudeProvider,
+      startupWarning,
+      status: {
+        label: "Idle",
+        message: "待命中.",
+        pulse: "Tucked"
+      }
+    });
   });
 
   it("derives the user dashboard panel view model", () => {

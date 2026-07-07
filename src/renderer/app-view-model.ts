@@ -1,3 +1,8 @@
+import {
+  getPetStateForTask,
+  type PetAtlasState
+} from "./pet-atlas";
+
 export type PermissionKey = "screenRecording" | "accessibility";
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
 export type DesktopSessionDiagnosticState = "controllable" | "blocked" | "unknown";
@@ -25,6 +30,69 @@ export type TurnTranscriptOutcome =
   | "cancelled"
   | "failed"
   | "running";
+
+export const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
+  idle: {
+    label: "Idle",
+    message: "待命中.",
+    pulse: "Tucked"
+  },
+  planned: {
+    label: "Planned",
+    message: "已规划，等待执行.",
+    pulse: "Review"
+  },
+  observing: {
+    label: "Observing",
+    message: "正在看桌面.",
+    pulse: "Review"
+  },
+  executing: {
+    label: "Executing",
+    message: "正在执行.",
+    pulse: "Running"
+  },
+  running: {
+    label: "Running",
+    message: "正在运行.",
+    pulse: "Running"
+  },
+  approval_required: {
+    label: "Approval required",
+    message: "需要确认.",
+    pulse: "Waiting"
+  },
+  needs_confirmation: {
+    label: "Needs confirmation",
+    message: "需要人工确认.",
+    pulse: "Waiting"
+  },
+  completed: {
+    label: "Completed",
+    message: "完成了.",
+    pulse: "Waving"
+  },
+  denied: {
+    label: "Denied",
+    message: "请求已拒绝，未执行动作.",
+    pulse: "Review"
+  },
+  blocked: {
+    label: "Blocked",
+    message: "环境阻塞，无法继续执行.",
+    pulse: "Blocked"
+  },
+  failed: {
+    label: "Failed",
+    message: "执行失败.",
+    pulse: "Fault"
+  },
+  cancelled: {
+    label: "Cancelled",
+    message: "任务已停止.",
+    pulse: "Stopped"
+  }
+};
 
 export interface PermissionRow {
   key: PermissionKey;
@@ -368,6 +436,60 @@ export function getUserDashboardPanelViewModel({
     recent: getRecentExecutionCopy(turnReplay),
     risk: getRiskCopy(turnReplay?.transcript.risk),
     status: getDashboardStatusCopy(task)
+  };
+}
+
+export function getAppRootViewModel<
+  TProvider extends { id: string; selected?: boolean },
+  TStartupWarning
+>({
+  assistantAgentSettings,
+  fallbackAssistantAgentProvider,
+  panelState,
+  permissions,
+  startupWarnings,
+  taskStatus
+}: {
+  assistantAgentSettings: {
+    providers: TProvider[];
+    settings: { mode: string };
+  };
+  fallbackAssistantAgentProvider: TProvider;
+  panelState: {
+    assistantPanelOpen: boolean;
+    detailsOpen: boolean;
+    permissionOnboardingOpen: boolean;
+  };
+  permissions: Record<PermissionKey, { state: PermissionState }>;
+  startupWarnings: TStartupWarning[];
+  taskStatus: TaskStatus;
+}): {
+  panelVisibility: ReturnType<typeof getPanelVisibilityState>;
+  permissionOnboardingRows: PermissionRow[];
+  petState: PetAtlasState;
+  selectedAssistantAgentProvider: TProvider;
+  startupWarning: TStartupWarning | undefined;
+  status: { label: string; message: string; pulse: string };
+} {
+  const startupWarning = startupWarnings[0];
+
+  return {
+    panelVisibility: getPanelVisibilityState({
+      assistantPanelOpen: panelState.assistantPanelOpen,
+      detailsOpen: panelState.detailsOpen,
+      hasStartupWarning: Boolean(startupWarning),
+      permissionOnboardingOpen: panelState.permissionOnboardingOpen,
+      taskStatus
+    }),
+    permissionOnboardingRows: readMissingPermissionRows(permissions),
+    petState: getPetStateForTask(taskStatus),
+    selectedAssistantAgentProvider: readSelectedAssistantAgentProvider(
+      assistantAgentSettings.providers,
+      assistantAgentSettings.settings.mode,
+      fallbackAssistantAgentProvider
+    ),
+    startupWarning,
+    status: STATUS_COPY[taskStatus]
   };
 }
 

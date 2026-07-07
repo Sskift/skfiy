@@ -4,7 +4,7 @@ import type {
   TaskEvent,
   TaskStatus
 } from "./App";
-import { canStopTurn } from "./app-view-model";
+import { STATUS_COPY, canStopTurn } from "./app-view-model";
 
 export interface TaskView {
   status: TaskStatus;
@@ -17,69 +17,6 @@ export interface AssistantConversationMessage {
   text: string;
   state?: "pending" | "error";
 }
-
-export const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
-  idle: {
-    label: "Idle",
-    message: "待命中.",
-    pulse: "Tucked"
-  },
-  planned: {
-    label: "Planned",
-    message: "已规划，等待执行.",
-    pulse: "Review"
-  },
-  observing: {
-    label: "Observing",
-    message: "正在看桌面.",
-    pulse: "Review"
-  },
-  executing: {
-    label: "Executing",
-    message: "正在执行.",
-    pulse: "Running"
-  },
-  running: {
-    label: "Running",
-    message: "正在运行.",
-    pulse: "Running"
-  },
-  approval_required: {
-    label: "Approval required",
-    message: "需要确认.",
-    pulse: "Waiting"
-  },
-  needs_confirmation: {
-    label: "Needs confirmation",
-    message: "需要人工确认.",
-    pulse: "Waiting"
-  },
-  completed: {
-    label: "Completed",
-    message: "完成了.",
-    pulse: "Waving"
-  },
-  denied: {
-    label: "Denied",
-    message: "请求已拒绝，未执行动作.",
-    pulse: "Review"
-  },
-  blocked: {
-    label: "Blocked",
-    message: "环境阻塞，无法继续执行.",
-    pulse: "Blocked"
-  },
-  failed: {
-    label: "Failed",
-    message: "执行失败.",
-    pulse: "Fault"
-  },
-  cancelled: {
-    label: "Cancelled",
-    message: "任务已停止.",
-    pulse: "Stopped"
-  }
-};
 
 export function createInitialTaskView(): TaskView {
   return {
