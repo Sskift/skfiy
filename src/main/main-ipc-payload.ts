@@ -1,0 +1,69 @@
+import type {
+  PermissionSettingsTarget,
+  PermissionState
+} from "./computer-use/types.js";
+import type { ManualMode } from "./task-event-view.js";
+
+export type PetWindowMode = "compact" | "expanded";
+
+export interface VisiblePetRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export function readMode(value: unknown): ManualMode {
+  return value === "quiet" || value === "active" ? value : "active";
+}
+
+export function isEnabledEnvFlag(value: string | undefined): boolean {
+  return value === "1" || value === "true" || value === "on";
+}
+
+export function readPetWindowMode(value: unknown): PetWindowMode | undefined {
+  return value === "compact" || value === "expanded" ? value : undefined;
+}
+
+export function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget | undefined {
+  return value === "screen-recording"
+    || value === "accessibility"
+    ? value
+    : undefined;
+}
+
+export function readElectronMediaPermissionState(
+  state: "not-determined" | "granted" | "denied" | "restricted" | "unknown"
+): PermissionState {
+  if (state === "restricted") {
+    return "denied";
+  }
+
+  return state;
+}
+
+export function readFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+export function readVisiblePetRect(value: unknown): VisiblePetRect | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const rect = value as Partial<VisiblePetRect>;
+  const x = readFiniteNumber(rect.x);
+  const y = readFiniteNumber(rect.y);
+  const width = readFiniteNumber(rect.width);
+  const height = readFiniteNumber(rect.height);
+
+  if (x === undefined || y === undefined || width === undefined || height === undefined) {
+    return undefined;
+  }
+
+  if (width <= 0 || height <= 0) {
+    return undefined;
+  }
+
+  return { x, y, width, height };
+}

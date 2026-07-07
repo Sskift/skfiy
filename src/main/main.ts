@@ -9,9 +9,7 @@ import {
 } from "./computer-use/turn-replay-store.js";
 import type {
   DesktopActionResult,
-  PermissionState,
-  PermissionSummary,
-  PermissionSettingsTarget
+  PermissionSummary
 } from "./computer-use/types.js";
 import {
   createAppPolicySettingsStore,
@@ -50,7 +48,6 @@ import {
 } from "./browser-page-context.js";
 import {
   createAssistantComputerUseExecutor,
-  type AssistantComputerUseTerminalStatus,
   type AssistantComputerUseToolIdentity,
   type AssistantComputerUseToolResult
 } from "./assistant-computer-use-executor.js";
@@ -108,6 +105,21 @@ import {
 import { readDefaultLocalOriginPetSkin } from "./pet-skin.js";
 import { readDefaultApprovalBypass } from "./approval-bypass.js";
 import {
+  isEnabledEnvFlag,
+  readElectronMediaPermissionState,
+  readFiniteNumber,
+  readMode,
+  readPermissionSettingsTarget,
+  readPetWindowMode,
+  readVisiblePetRect,
+  type PetWindowMode
+} from "./main-ipc-payload.js";
+import {
+  createToolResult,
+  createToolResultFromTaskEvent,
+  isSameComputerUseToolIdentity
+} from "./main-computer-use-tool-result.js";
+import {
   createTaskEvent,
   readTurnReplayTaskEvent,
   type ComputerUseTaskEvent,
@@ -115,7 +127,6 @@ import {
   type TaskEvent
 } from "./task-event-view.js";
 
-type PetWindowMode = "compact" | "expanded";
 type ComputerUseCommandRoute = ExecutableCommandRoute;
 
 interface PendingApproval extends AssistantComputerUseToolIdentity {
@@ -124,8 +135,6 @@ interface PendingApproval extends AssistantComputerUseToolIdentity {
   route: ComputerUseCommandRoute;
   planApproved?: boolean;
 }
-
-interface VisiblePetRect extends Point, Size {}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -274,25 +283,6 @@ function createDesktopHelper(): DesktopHelperClient {
   });
 }
 
-function readMode(value: unknown): ManualMode {
-  return value === "quiet" || value === "active" ? value : "active";
-}
-
-function isEnabledEnvFlag(value: string | undefined): boolean {
-  return value === "1" || value === "true" || value === "on";
-}
-
-function readPetWindowMode(value: unknown): PetWindowMode | undefined {
-  return value === "compact" || value === "expanded" ? value : undefined;
-}
-
-function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget | undefined {
-  return value === "screen-recording"
-    || value === "accessibility"
-    ? value
-    : undefined;
-}
-
 function readAppProcessPermissions(): PermissionSummary {
   return {
     screenRecording: {
@@ -302,42 +292,6 @@ function readAppProcessPermissions(): PermissionSummary {
       state: systemPreferences.isTrustedAccessibilityClient(false) ? "granted" : "denied"
     }
   };
-}
-
-function readElectronMediaPermissionState(
-  state: "not-determined" | "granted" | "denied" | "restricted" | "unknown"
-): PermissionState {
-  if (state === "restricted") {
-    return "denied";
-  }
-
-  return state;
-}
-
-function readFiniteNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function readVisiblePetRect(value: unknown): VisiblePetRect | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-
-  const rect = value as Partial<VisiblePetRect>;
-  const x = readFiniteNumber(rect.x);
-  const y = readFiniteNumber(rect.y);
-  const width = readFiniteNumber(rect.width);
-  const height = readFiniteNumber(rect.height);
-
-  if (x === undefined || y === undefined || width === undefined || height === undefined) {
-    return undefined;
-  }
-
-  if (width <= 0 || height <= 0) {
-    return undefined;
-  }
-
-  return { x, y, width, height };
 }
 
 function clampWindowBoundsToNearestDisplay(bounds: PetWindowBounds): PetWindowBounds {
@@ -536,50 +490,6 @@ function cancelActiveComputerUseToolCall(reason: string): void {
   if (isSameComputerUseToolIdentity(activeComputerUseToolIdentity, identity)) {
     activeComputerUseToolIdentity = null;
   }
-}
-
-function isSameComputerUseToolIdentity(
-  left: AssistantComputerUseToolIdentity | null,
-  right: AssistantComputerUseToolIdentity
-): boolean {
-  return Boolean(left && left.turnId === right.turnId && left.toolCallId === right.toolCallId);
-}
-
-function createToolResultFromTaskEvent(event: ComputerUseTaskEvent): AssistantComputerUseToolResult | undefined {
-  if (event.type === "completed") {
-    return {
-      status: "completed",
-      summary: event.summary,
-      evidence: {
-        summary: "Computer Use route completed with replayed orchestration events."
-      }
-    };
-  }
-
-  if (event.type === "verification_failed") {
-    return {
-      status: "failed",
-      summary: event.reason,
-      evidence: {
-        summary: `Computer Use route stopped during ${event.stage} verification.`
-      }
-    };
-  }
-
-  return undefined;
-}
-
-function createToolResult(
-  status: AssistantComputerUseTerminalStatus,
-  summary: string
-): AssistantComputerUseToolResult {
-  return {
-    status,
-    summary,
-    evidence: {
-      summary
-    }
-  };
 }
 
 async function resumePendingApprovalTask(

@@ -26,10 +26,10 @@ This plan is not a feature expansion plan. The next work is project slimming:
 
 ## Next Work Order
 
-1. Finish Task 1 by separating the remaining command dispatch and side-effect orchestration in `src/main/cli-command-surface.ts`.
-2. Do Task 2 only after the CLI surface is smaller: consolidate repeated fixtures in `src/main/chrome-extension-background.test.js`, then delete tests that only restate listener registration or implementation order.
-3. Do Task 3 after the test diet: extract pure renderer state transitions from `src/renderer/App.tsx` and pure main-process mapping helpers from `src/main/main.ts`, without changing UI behavior or preload APIs.
-4. Run Task 4 gates after one or more cleanup commits land, keeping smoke defaults output-free unless release, dogfood, or debugging evidence is explicitly requested.
+1. Continue Task 3 by extracting the remaining pure main-process mapping helpers from `src/main/main.ts`: runtime snapshot adaptation, provider status mapping, and Browser Context status mapping. Keep Electron BrowserWindow lifecycle, IPC registration, and OS side effects in `main.ts`.
+2. Continue Task 3 renderer cleanup by extracting the remaining settings, panel, and transient-status reducers from `src/renderer/App.tsx`. Keep UI copy, layout, pointer behavior, keyboard behavior, and preload API shape unchanged.
+3. Treat Task 1 and Task 2 as complete for the current cleanup pass. Do not add back source-string tests, listener-count tests, duplicate Chrome background fixtures, stale smoke artifact defaults, or retired plan files.
+4. Run Task 4 gates after the next focused cleanup commit, keeping smoke defaults output-free unless release, dogfood, or debugging evidence is explicitly requested.
 
 ## File Ownership Map
 
@@ -188,6 +188,7 @@ Progress:
 
 - 2026-07-07: extracted renderer task event state transitions, replay record merging, assistant reply detection, and task status copy into `src/renderer/app-task-state.ts` with focused pure helper coverage. `src/renderer/App.tsx` now keeps the task-event subscription and React state wiring while the pure state updates live in the helper.
 - 2026-07-07: extracted replay summary formatting, replay accessibility/OCR labels, and panel visibility derivation into `src/renderer/app-view-model.ts` with focused pure helper coverage. `src/renderer/App.tsx` now keeps component rendering and event wiring while this pure view-model logic lives in tested helpers.
+- 2026-07-07: extracted main-process IPC payload normalization and Computer Use tool-result mapping into `src/main/main-ipc-payload.ts` and `src/main/main-computer-use-tool-result.ts` with focused pure helper coverage. `src/main/main.ts` now keeps the Electron IPC handlers and side effects while these pure mapping helpers live outside the runtime wiring file.
 
 - [ ] **Extract renderer state reducers**
 
@@ -220,6 +221,7 @@ Progress:
 - 2026-07-07: after the Chrome background test diet, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. `npm run smoke:dashboard` was rerun output-free and remained typed-blocked by the current desktop and Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `chrome-native-host-missing`, and `chrome-extension-not-connected`.
 - 2026-07-07: after popup wake fixture consolidation, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 - 2026-07-07: after renderer view-model extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
+- 2026-07-07: after main IPC payload helper extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 
 - [ ] **Run full gates**
 
