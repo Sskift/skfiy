@@ -67,6 +67,11 @@ import {
   type AssistantConversationMessage,
   type TaskView
 } from "./app-task-state";
+import {
+  INITIAL_PANEL_STATE,
+  reducePanelState,
+  type PanelStateAction
+} from "./app-panel-state";
 
 export type TaskStatus =
   | "idle"
@@ -825,12 +830,10 @@ function DesktopPet({
 export default function App() {
   const api = useMemo(getDesktopApi, []);
   const [petAtlas, setPetAtlas] = useState<PetAtlas>(() => getConfiguredPetAtlas());
-  const [assistantPanelOpen, setAssistantPanelOpen] = useState(false);
+  const [panelState, setPanelState] = useState(INITIAL_PANEL_STATE);
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantInputSubmitting, setAssistantInputSubmitting] = useState(false);
   const [assistantConversation, setAssistantConversation] = useState<AssistantConversationMessage[]>([]);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [permissionOnboardingOpen, setPermissionOnboardingOpen] = useState(false);
   const [permissions, setPermissions] = useState<PermissionSummary>(UNKNOWN_PERMISSIONS);
   const [desktopSessionDiagnostics, setDesktopSessionDiagnostics] =
     useState<DesktopSessionDiagnostics>(UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS);
@@ -850,6 +853,11 @@ export default function App() {
   const petDragRef = useRef<PetDragState | null>(null);
   const pendingAssistantPromptRef = useRef<string | null>(null);
   const suppressNextPetClickRef = useRef(false);
+  const { assistantPanelOpen, detailsOpen, permissionOnboardingOpen } = panelState;
+
+  const transitionPanelState = useCallback((action: PanelStateAction) => {
+    setPanelState((state) => reducePanelState(state, action));
+  }, []);
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
@@ -865,9 +873,7 @@ export default function App() {
         pendingAssistantPromptRef.current = null;
         setAssistantConversation((messages) => appendAssistantConversationReply(messages, event));
         setAssistantInputSubmitting(false);
-        setAssistantPanelOpen(true);
-        setDetailsOpen(false);
-        setPermissionOnboardingOpen(false);
+        transitionPanelState({ type: "assistant-reply" });
         return;
       }
 
@@ -876,11 +882,10 @@ export default function App() {
           pendingAssistantPromptRef.current = null;
           setAssistantConversation((messages) => messages.filter((message) => message.state !== "pending"));
         }
-        setAssistantPanelOpen(false);
-        setDetailsOpen(false);
+        transitionPanelState({ type: "non-idle-task-event" });
       }
     });
-  }, [api]);
+  }, [api, transitionPanelState]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1005,8 +1010,7 @@ export default function App() {
 
   const stopCurrentTurn = useCallback(async () => {
     if (canStopTurn(task.status)) {
-      setDetailsOpen(false);
-      setAssistantPanelOpen(false);
+      transitionPanelState({ type: "non-idle-task-event" });
       setTask({
         status: "cancelled",
         message: STATUS_COPY.cancelled.message
@@ -1021,7 +1025,7 @@ export default function App() {
         });
       }
     }
-  }, [api, task.status]);
+  }, [api, task.status, transitionPanelState]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1044,7 +1048,7 @@ export default function App() {
   }, [api, stopCurrentTurn]);
 
   async function approveTask() {
-    setDetailsOpen(false);
+    transitionPanelState({ type: "close-details" });
 
     try {
       await api.approveTask();
@@ -1057,7 +1061,7 @@ export default function App() {
   }
 
   async function denyTask() {
-    setDetailsOpen(false);
+    transitionPanelState({ type: "close-details" });
 
     try {
       await api.denyTask();
@@ -1077,7 +1081,7 @@ export default function App() {
         permissionOnboardingOpen
         && readMissingPermissionRows(nextPermissions).length === 0
       ) {
-        setPermissionOnboardingOpen(false);
+        transitionPanelState({ type: "close-permission-onboarding" });
       }
     } catch {
       setTask({
@@ -1090,7 +1094,7 @@ export default function App() {
   async function refreshPermissionOnboarding() {
     const nextPermissions = await refreshPermissions();
     if (readMissingPermissionRows(nextPermissions).length === 0) {
-      setPermissionOnboardingOpen(false);
+      transitionPanelState({ type: "close-permission-onboarding" });
       setTask({
         status: "idle",
         message: "权限已就绪."
@@ -1154,9 +1158,7 @@ export default function App() {
       }
     ]);
     setAssistantInputSubmitting(true);
-    setAssistantPanelOpen(true);
-    setDetailsOpen(false);
-    setPermissionOnboardingOpen(false);
+    transitionPanelState({ type: "open-assistant" });
     setTask({
       status: "planned",
       message: "已交给 Background Agent."
@@ -1229,9 +1231,7 @@ export default function App() {
     };
 
     if (!drag.moved) {
-      setDetailsOpen(false);
-      setPermissionOnboardingOpen(false);
-      setAssistantPanelOpen(false);
+      transitionPanelState({ type: "close-for-drag" });
     }
 
     api.moveWindowBy(deltaX, deltaY, drag.visibleRect);
@@ -1265,23 +1265,16 @@ export default function App() {
         finderPlanPreview: undefined
       });
       setReplayRecords([]);
-      setDetailsOpen(false);
-      setPermissionOnboardingOpen(false);
-      setAssistantPanelOpen(true);
+      transitionPanelState({ type: "open-assistant" });
       return;
     }
 
-    setDetailsOpen(false);
-    setPermissionOnboardingOpen(false);
-    setAssistantPanelOpen((open) => !open);
+    transitionPanelState({ type: "toggle-assistant" });
   }
 
   function toggleDetailsFromPet(event: ReactMouseEvent<HTMLDivElement>) {
     event.preventDefault();
-    setPermissionOnboardingOpen(false);
-    setAssistantPanelOpen(false);
-
-    setDetailsOpen((open) => !open);
+    transitionPanelState({ type: "toggle-details" });
   }
 
   const status = STATUS_COPY[task.status];
