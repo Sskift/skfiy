@@ -59,10 +59,6 @@ import {
   type SkfiyMcpProviders,
   type SkfiyMcpToolCallInput
 } from "./skfiy-mcp-server.js";
-import {
-  createTmuxSupervisionReport,
-  parseTmuxPaneList
-} from "./computer-use/tmux-supervisor.js";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type {
   PermissionSummary
@@ -97,9 +93,6 @@ import {
 } from "./cli-status-reader-input.js";
 import { formatStatusTextOutput } from "./cli-status-output.js";
 import {
-  MONEY_RUN_SESSION_NAME
-} from "./cli-status-readiness.js";
-import {
   createChromeSetupGuideFields
 } from "./cli-chrome-readiness.js";
 import {
@@ -132,10 +125,7 @@ import {
   createDashboardStatusSnapshotSummary
 } from "./cli-dashboard-probe-output.js";
 import {
-  createMoneyRunProbeFailure,
-  createMoneyRunSnapshot,
-  formatTmuxCommand,
-  readCommandResultMessage
+  readMoneyRunStatusForStatus
 } from "./cli-money-run-status.js";
 import {
   createPermissionSettingsOpenOutput,
@@ -203,11 +193,6 @@ export type {
   ChromeExtensionTabDiscoveryResult
 };
 export type { StatusReaderInput };
-
-const TMUX_TAIL_LINES = 120;
-const TMUX_PROBE_TIMEOUT_MS = 1_500;
-const TMUX_WINDOW_FORMAT = "#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_panes}";
-const TMUX_PANE_FORMAT = "#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_dead}\t#{pane_current_command}\t#{pane_title}";
 
 export interface CreateCliOutputOptions {
   generatedAt?: string;
@@ -845,92 +830,6 @@ async function runOperatorStatusCli({
   }
 }
 
-async function readMoneyRunStatusForStatus(): Promise<Record<string, unknown>> {
-  const probeCommands: string[] = [];
-  const runTmux = async (args: string[]) => {
-    probeCommands.push(formatTmuxCommand(args));
-    try {
-      return await runCommand("tmux", args, { timeoutMs: TMUX_PROBE_TIMEOUT_MS });
-    } catch (error) {
-      return {
-        exitCode: 1,
-        stdout: "",
-        stderr: readErrorMessage(error)
-      };
-    }
-  };
-
-  try {
-    const hasSession = await runTmux(["has-session", "-t", MONEY_RUN_SESSION_NAME]);
-    if (hasSession.exitCode !== 0) {
-      return createMoneyRunSnapshot(
-        createTmuxSupervisionReport({
-          sessionName: MONEY_RUN_SESSION_NAME,
-          hasSession: false,
-          commandError: readCommandResultMessage(hasSession, "tmux session was not found.")
-        }),
-        probeCommands,
-        {
-          probeError: readCommandResultMessage(hasSession, "tmux session was not found.")
-        }
-      );
-    }
-
-    const [windows, panes] = await Promise.all([
-      runTmux([
-        "list-windows",
-        "-t",
-        MONEY_RUN_SESSION_NAME,
-        "-F",
-        TMUX_WINDOW_FORMAT
-      ]),
-      runTmux([
-        "list-panes",
-        "-t",
-        MONEY_RUN_SESSION_NAME,
-        "-s",
-        "-F",
-        TMUX_PANE_FORMAT
-      ])
-    ]);
-
-    if (windows.exitCode !== 0 || panes.exitCode !== 0) {
-      const failed = windows.exitCode !== 0 ? windows : panes;
-
-      return createMoneyRunProbeFailure(
-        probeCommands,
-        readCommandResultMessage(failed, "tmux session state could not be listed.")
-      );
-    }
-
-    const paneTails: Record<string, string> = {};
-    for (const pane of parseTmuxPaneList(panes.stdout)) {
-      const tail = await runTmux([
-        "capture-pane",
-        "-p",
-        "-t",
-        pane.id,
-        "-S",
-        `-${TMUX_TAIL_LINES}`
-      ]);
-      paneTails[pane.id] = tail.stdout || tail.stderr;
-    }
-
-    return createMoneyRunSnapshot(
-      createTmuxSupervisionReport({
-        sessionName: MONEY_RUN_SESSION_NAME,
-        hasSession: true,
-        windowsOutput: windows.stdout,
-        panesOutput: panes.stdout,
-        paneTails
-      }),
-      probeCommands
-    );
-  } catch (error) {
-    return createMoneyRunProbeFailure(probeCommands, readErrorMessage(error));
-  }
-}
-
 async function readCliStatus(input: StatusReaderInput): Promise<Record<string, unknown>> {
   const appExists = existsSync(input.appPath);
   const helperExists = existsSync(input.helperPath);
@@ -954,7 +853,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
     const hostPolicy = await readChromeHostPolicyForStatus(effectiveInput);
     const [dashboard, moneyRun] = await Promise.all([
       readDashboardStatus(input.dashboardUrl, input.homeDir),
-      readMoneyRunStatusForStatus()
+      readMoneyRunStatusForStatus(runCommand)
     ]);
 
     return {
@@ -985,7 +884,7 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
     readPermissionStatesForStatus(desktopHelper),
     readDesktopSessionForStatus(desktopHelper),
     readDashboardStatus(input.dashboardUrl, input.homeDir),
-    readMoneyRunStatusForStatus()
+    readMoneyRunStatusForStatus(runCommand)
   ]);
 
   return {
