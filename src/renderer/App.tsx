@@ -55,6 +55,7 @@ import {
   readExternalCuaStatusLabel,
   readSelectedAssistantAgentProvider
 } from "./app-view-model";
+import { getDesktopApi } from "./app-desktop-api";
 import {
   STATUS_COPY,
   appendAssistantConversationSubmission,
@@ -96,10 +97,7 @@ import {
   DEFAULT_APP_POLICY_SETTINGS,
   DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
   DEFAULT_PLANNER_PROVIDER_SETTINGS,
-  PLANNER_PROVIDER_OPTIONS,
-  reduceAppPolicySettings,
-  reduceAssistantAgentSettingsResponse,
-  reducePlannerProviderSettings
+  PLANNER_PROVIDER_OPTIONS
 } from "./app-settings-state";
 
 export type TaskStatus =
@@ -407,63 +405,6 @@ export interface DesktopApi {
   setWindowMode: (mode: PetWindowMode) => void;
   onStopTurnHotkey: (callback: () => void) => () => void;
   onTaskEvent: (callback: (event: TaskEvent) => void) => () => void;
-}
-
-declare global {
-  interface Window {
-    skfiy?: DesktopApi;
-  }
-}
-
-const fallbackApi: DesktopApi = {
-  runCommand: async () => undefined,
-  approveTask: async () => undefined,
-  denyTask: async () => undefined,
-  takeScreenshot: async () => undefined,
-  stopTask: async () => undefined,
-  getPermissions: async () => UNKNOWN_PERMISSIONS,
-  getPermissionDiagnostics: async () => ({
-    active: UNKNOWN_PERMISSIONS,
-    appProcess: UNKNOWN_PERMISSIONS,
-    helperProcess: UNKNOWN_PERMISSIONS,
-    mismatches: [],
-    identity: {
-      appPath: "",
-      executablePath: "",
-      helperPath: "",
-      resourcesPath: "",
-      isPackaged: false
-    }
-  }),
-  getDesktopSessionDiagnostics: async () => UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS,
-  openPermissionSettings: async () => undefined,
-  getStartupWarnings: async () => [],
-  getAppPolicySettings: async () => DEFAULT_APP_POLICY_SETTINGS,
-  setAppPolicy: async (update) => reduceAppPolicySettings(DEFAULT_APP_POLICY_SETTINGS, update),
-  getAssistantAgentSettings: async () => DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
-  setAssistantAgentSettings: async (update) =>
-    reduceAssistantAgentSettingsResponse(DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE, update),
-  getPlannerProviderSettings: async () => DEFAULT_PLANNER_PROVIDER_SETTINGS,
-  setPlannerProviderSettings: async (update) =>
-    reducePlannerProviderSettings(DEFAULT_PLANNER_PROVIDER_SETTINGS, update),
-  getTurnReplay: async () => null,
-  getRuntimeStatus: async () => ({
-    stopTurnHotkey: {
-      accelerator: "",
-      label: "",
-      registered: false
-    }
-  }),
-  getPetSkin: async () => null,
-  getWindowBounds: async () => null,
-  moveWindowBy: () => undefined,
-  setWindowMode: () => undefined,
-  onStopTurnHotkey: () => () => undefined,
-  onTaskEvent: () => () => undefined
-};
-
-function getDesktopApi(): DesktopApi {
-  return window.skfiy ?? fallbackApi;
 }
 
 function TaskReplay({ records }: { records: ObserveAppReplayRecord[] }) {
