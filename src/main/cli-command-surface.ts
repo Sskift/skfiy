@@ -111,9 +111,7 @@ import {
   type StatusReadinessContext
 } from "./cli-status-readiness.js";
 import {
-  createChromeSetupGuideFields,
-  createCopyableCommandsFromSetupGuide,
-  formatCommandLine
+  createChromeSetupGuideFields
 } from "./cli-chrome-readiness.js";
 import {
   CHROME_EXTENSION_PAGE_CONTROL_CAPABILITY,
@@ -165,6 +163,7 @@ import {
   readConnectionState
 } from "./cli-chrome-capabilities.js";
 import { createOperatorStatusOutput } from "./cli-operator-status-output.js";
+import { createChromeExtensionInfoOutput } from "./cli-chrome-extension-info-output.js";
 
 export { SMOKE_TARGETS };
 export {
@@ -443,7 +442,7 @@ export function createCliOutput(
 
   if (invocation.kind === "chrome") {
     if (invocation.subcommand === "extension-info") {
-      return createChromeExtensionInfoOutput({
+      return createChromeExtensionInfoOutputForRoot({
         invocation,
         generatedAt,
         rootDir: inferRootDirFromCliShimPath(invocation.options.cliShimPath)
@@ -2607,7 +2606,7 @@ async function waitForMcpShutdown(server: SkfiyMcpServer): Promise<void> {
   });
 }
 
-function createChromeExtensionInfoOutput({
+function createChromeExtensionInfoOutputForRoot({
   invocation,
   generatedAt,
   rootDir
@@ -2618,100 +2617,14 @@ function createChromeExtensionInfoOutput({
 }): Record<string, unknown> {
   const extensionPath = path.join(rootDir, "chrome-extension");
   const manifestPath = path.join(extensionPath, "manifest.json");
-  const manifest = readChromeExtensionManifest(manifestPath);
-  const extensionIdArgs = invocation.options.extensionIds.length > 0
-    ? invocation.options.extensionIds.flatMap((extensionId) => ["--extension-id", extensionId])
-    : ["--extension-id", "<extension-id>"];
-  const installHostCommand = [
-    "skfiy",
-    "chrome",
-    "install-host",
-    "--cli",
-    invocation.options.cliShimPath,
-    ...extensionIdArgs
-  ];
-  const verifyStatusCommand = [
-    "skfiy",
-    "chrome",
-    "status",
-    "--cli",
-    invocation.options.cliShimPath,
-    ...extensionIdArgs
-  ];
-  const smokeCommand = [
-    "skfiy",
-    "smoke",
-    "chrome",
-    "--output",
-    ".skfiy-smoke/chrome.json"
-  ];
-  const copyableCommands = createCopyableCommandsFromSetupGuide({
-    installHostCommand,
-    verifyStatusCommand,
-    smokeCommand
-  });
 
-  return {
-    schemaVersion: 1,
-    command: "chrome extension-info",
+  return createChromeExtensionInfoOutput({
+    invocation,
     generatedAt: generatedAt ?? new Date().toISOString(),
-    plannedMutation: false,
-    executesSystemMutation: false,
-    result: manifest.state === "available" ? "available" : "needs-action",
-    productPath: "chrome-extension -> Chrome unpacked extension -> Native Messaging -> dist/skfiy",
-    extension: {
-      state: manifest.state,
-      path: extensionPath,
-      manifestPath,
-      idState: invocation.options.extensionIds.length > 0 ? "provided" : "unknown-until-loaded",
-      extensionIds: invocation.options.extensionIds,
-      ...(manifest.reason ? { reason: manifest.reason } : {}),
-      ...(manifest.manifest ? { manifest: manifest.manifest } : {})
-    },
-    browserSetup: {
-      state: "manual-required",
-      chromeUrl: "chrome://extensions/",
-      reason: "Chrome requires the user to load unpacked extensions from Chrome Extension Manager.",
-      loadUnpackedPath: extensionPath,
-      automationBoundary: "skfiy CLI does not mutate Chrome extension manager settings."
-    },
-    actionPlan: [
-      {
-        step: "open-extension-manager",
-        owner: "user",
-        target: "chrome://extensions/"
-      },
-      {
-        step: "enable-developer-mode",
-        owner: "user"
-      },
-      {
-        step: "load-unpacked-extension",
-        owner: "user",
-        path: extensionPath
-      },
-      {
-        step: "copy-extension-id",
-        owner: "user",
-        result: "<extension-id>"
-      },
-      {
-        step: "install-native-host",
-        owner: "skfiy",
-        command: installHostCommand
-      },
-      {
-        step: "verify-extension-bridge",
-        owner: "skfiy",
-        command: verifyStatusCommand
-      }
-    ],
-    installHostCommand,
-    verifyStatusCommand,
-    smokeCommand,
-    nextAction: `Open chrome://extensions/, load unpacked extension from ${extensionPath}, copy the extension id, then run \`${formatCommandLine(installHostCommand)}\`.`,
-    copyableCommands
-  };
+    extensionPath,
+    manifestPath,
+    manifest: readChromeExtensionManifest(manifestPath)
+  });
 }
 
 function readChromeExtensionManifest(manifestPath: string): Record<string, unknown> {
@@ -2913,7 +2826,7 @@ async function runChromeNativeHostCli({
   stderr: SkfiyCliIo;
 }): Promise<number> {
   if (invocation.subcommand === "extension-info") {
-    stdout.write(`${JSON.stringify(createChromeExtensionInfoOutput({
+    stdout.write(`${JSON.stringify(createChromeExtensionInfoOutputForRoot({
       invocation,
       generatedAt,
       rootDir

@@ -101,6 +101,7 @@ Progress:
 - 2026-07-07: extracted permission settings URL and action-plan output shaping into `src/main/cli-permission-settings-output.ts`. Opening System Settings and error handling stay in `cli-command-surface.ts`.
 - 2026-07-07: extracted Chrome page-safety/page-control capability and adapter status shaping into `src/main/cli-chrome-capabilities.ts`. Native host, connection, and host-policy reads remain in `cli-command-surface.ts`.
 - 2026-07-07: extracted operator-status token-free supervisor summary and recommended read-only command shaping into `src/main/cli-operator-status-output.ts`. Status probing and exit-code handling stay in `cli-command-surface.ts`.
+- 2026-07-07: extracted Chrome extension-info output and setup command shaping into `src/main/cli-chrome-extension-info-output.ts`. Manifest file reading remains in `cli-command-surface.ts`.
 
 - [ ] **Map responsibilities**
 
