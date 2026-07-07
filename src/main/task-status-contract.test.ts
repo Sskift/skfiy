@@ -20,7 +20,7 @@ const CANONICAL_TASK_STATUSES = [
 describe("task status boundary contract", () => {
   it("keeps main, preload, renderer, and pet status maps aligned", () => {
     const sources = {
-      main: readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8"),
+      mainTaskEvents: readFileSync(path.join(process.cwd(), "src/main/task-event-view.ts"), "utf8"),
       preload: readFileSync(path.join(process.cwd(), "src/main/preload.cts"), "utf8"),
       renderer: readFileSync(path.join(process.cwd(), "src/renderer/App.tsx"), "utf8"),
       petAtlas: readFileSync(path.join(process.cwd(), "src/renderer/pet-atlas.ts"), "utf8")

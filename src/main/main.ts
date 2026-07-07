@@ -5,18 +5,14 @@ import { fileURLToPath } from "node:url";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import {
   createTurnReplayStore,
-  type TurnReplay,
-  type TurnReplayTaskEvent
+  type TurnReplay
 } from "./computer-use/turn-replay-store.js";
 import type {
   DesktopActionResult,
-  DesktopAppState,
-  FinderSelectionResult,
   PermissionState,
   PermissionSummary,
   PermissionSettingsTarget
 } from "./computer-use/types.js";
-import type { TmuxSupervisionReport } from "./computer-use/tmux-supervisor.js";
 import {
   createAppPolicySettingsStore,
   decideAppPolicy,
@@ -74,21 +70,14 @@ import { readDesktopSessionDiagnosticsForRenderer } from "./desktop-session-diag
 import { resolveHelperPath as resolveDesktopHelperPath } from "./helper-path.js";
 import {
   runChromePageTask,
-  type ChromeDesktopClient,
-  type ChromeTaskEvent
+  type ChromeDesktopClient
 } from "./orchestrator/chrome-task.js";
-import type { GhosttyTaskEvent } from "./orchestrator/events.js";
 import {
   runFinderOrganizationTask,
-  type FinderDesktopClient,
-  type FinderPlanPreview,
-  type FinderTaskEvent
+  type FinderDesktopClient
 } from "./orchestrator/finder-task.js";
 import { runGhosttyCommandTask, type DesktopClient } from "./orchestrator/ghostty-task.js";
-import {
-  runTmuxSupervisionTask,
-  type TmuxSupervisionTaskEvent
-} from "./orchestrator/tmux-supervision-task.js";
+import { runTmuxSupervisionTask } from "./orchestrator/tmux-supervision-task.js";
 import {
   readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
@@ -118,49 +107,22 @@ import {
 } from "./runtime-snapshot.js";
 import { readDefaultLocalOriginPetSkin } from "./pet-skin.js";
 import { readDefaultApprovalBypass } from "./approval-bypass.js";
+import {
+  createTaskEvent,
+  readTurnReplayTaskEvent,
+  type ComputerUseTaskEvent,
+  type ManualMode,
+  type TaskEvent
+} from "./task-event-view.js";
 
-type ManualMode = "active" | "quiet";
-type TaskStatus =
-  | "idle"
-  | "planned"
-  | "observing"
-  | "executing"
-  | "running"
-  | "approval_required"
-  | "needs_confirmation"
-  | "completed"
-  | "denied"
-  | "blocked"
-  | "failed"
-  | "cancelled";
 type PetWindowMode = "compact" | "expanded";
-type ComputerUseTaskEvent =
-  | GhosttyTaskEvent
-  | ChromeTaskEvent
-  | FinderTaskEvent
-  | TmuxSupervisionTaskEvent;
 type ComputerUseCommandRoute = ExecutableCommandRoute;
-
-interface TaskEvent {
-  status: TaskStatus;
-  message?: string;
-  command?: string;
-  replayReset?: boolean;
-  replayRecord?: ObserveAppReplayRecord;
-  finderSelection?: FinderSelectionResult;
-  finderPlanPreview?: FinderPlanPreview;
-  tmuxSupervisionReport?: TmuxSupervisionReport;
-}
 
 interface PendingApproval extends AssistantComputerUseToolIdentity {
   command: string;
   mode: ManualMode;
   route: ComputerUseCommandRoute;
   planApproved?: boolean;
-}
-
-interface ObserveAppReplayRecord extends DesktopAppState {
-  stage: "before" | "after";
 }
 
 interface VisiblePetRect extends Point, Size {}
@@ -306,151 +268,6 @@ function assertDesktopActionResult(result: DesktopActionResult, label: string): 
   }
 }
 
-function createTaskEvent(event: ComputerUseTaskEvent, mode: ManualMode): TaskEvent {
-  const prefix = mode === "quiet" ? "Quiet mode: " : "";
-
-  switch (event.type) {
-    case "started":
-      return {
-        status: "executing",
-        message: `${prefix}Risk ${event.risk.level}: ${event.risk.reason}`,
-        replayReset: true
-      };
-    case "approval_required":
-      return {
-        status: "approval_required",
-        message: `Approval required (${event.risk.level}): ${event.risk.reason}`,
-        command: "command" in event ? event.command : `监督 tmux ${event.sessionName}`
-      };
-    case "observing":
-      return {
-        status: "observing",
-        message: `${prefix}${event.message}`
-      };
-    case "locating_app":
-      return {
-        status: "observing",
-        message: `${prefix}Finding ${event.appName}.`
-      };
-    case "session_opened":
-      return {
-        status: "observing",
-        message: `${prefix}Opened ${event.appName} session: ${event.title}.`
-      };
-    case "app_activated":
-      return {
-        status: "executing",
-        message: `${prefix}Activated ${event.appName}.`
-      };
-    case "fallback_switch":
-      return {
-        status: "executing",
-        message: `${prefix}Switching Chrome control from ${formatControlChannel(event.from)} to ${event.to} (${event.stage}): ${event.reason}`
-      };
-    case "session_initialized":
-      return {
-        status: "executing",
-        message: `${prefix}Initialized Ghostty session marker: ${event.title}.`
-      };
-    case "action_verified":
-      return {
-        status: event.status === "passed" ? "executing" : "needs_confirmation",
-        message: event.status === "passed"
-          ? `${prefix}Verified ${event.actionType}: ${event.message ?? "passed."}`
-          : `${prefix}Verification needs confirmation for ${event.actionType}: ${event.reason ?? event.status}`
-      };
-    case "verification_failed":
-      if (event.stage === "permissions") {
-        return {
-          status: "failed",
-          message: `${prefix}${event.reason}`
-        };
-      }
-
-      return {
-        status: "needs_confirmation",
-        message: `${prefix}Verification failed (${event.stage}): ${event.reason}`
-      };
-    case "recovery_attempted":
-      return {
-        status: "executing",
-        message: `${prefix}Recovering ${event.stage} observation with ${event.action}: ${event.reason}`
-      };
-    case "screenshot_before":
-      return {
-        status: "observing",
-        message: `${prefix}Captured before screenshot: ${event.path}`,
-        replayRecord: createObserveAppReplayRecord("before", event.observation)
-      };
-    case "finder_selection_observed":
-      return {
-        status: "observing",
-        message: `${prefix}Observed Finder selection: ${formatFinderSelectionSummary(event.context)}`,
-        finderSelection: event.context
-      };
-    case "plan_preview":
-      return {
-        status: "executing",
-        message: `${prefix}Finder plan preview: ${event.preview.createFolders.length} folders, ${event.preview.moveFiles.length} moves, ${event.preview.destructiveOperationCount} destructive operations.`,
-        finderPlanPreview: event.preview
-      };
-    case "plan_confirmation_required":
-      return {
-        status: "approval_required",
-        message: `${prefix}Finder plan confirmation required: ${event.reason}`,
-        command: event.command,
-        finderPlanPreview: event.preview
-      };
-    case "typing":
-      return {
-        status: "executing",
-        message: `${prefix}Typing command in Ghostty.`
-      };
-    case "submitted":
-      return {
-        status: "executing",
-        message: `${prefix}Submitted command with ${event.key}.`
-      };
-    case "screenshot_after":
-      return {
-        status: "observing",
-        message: `${prefix}Captured after screenshot: ${event.path}`,
-        replayRecord: createObserveAppReplayRecord("after", event.observation)
-      };
-    case "completed":
-      return {
-        status: "completed",
-        message: event.summary,
-        ...("report" in event ? { tmuxSupervisionReport: event.report } : {})
-      };
-  }
-
-  return {
-    status: "failed",
-    message: "Unknown task event."
-  };
-}
-
-function formatFinderSelectionSummary(context: FinderSelectionResult): string {
-  const target = context.targetPath ?? "unknown folder";
-  const count = context.selection.length;
-  return `${count} selected item${count === 1 ? "" : "s"} in ${target}.`;
-}
-
-function formatControlChannel(channel: string): string {
-  return channel.toLowerCase() === "cdp" ? "CDP" : channel;
-}
-
-function createObserveAppReplayRecord(
-  stage: "before" | "after",
-  observation: DesktopAppState
-): ObserveAppReplayRecord {
-  return {
-    ...observation,
-    stage
-  };
-}
-
 function createDesktopHelper(): DesktopHelperClient {
   return new DesktopHelperClient({
     helperPath: resolveHelperPath()
@@ -467,14 +284,6 @@ function isEnabledEnvFlag(value: string | undefined): boolean {
 
 function readPetWindowMode(value: unknown): PetWindowMode | undefined {
   return value === "compact" || value === "expanded" ? value : undefined;
-}
-
-function readTurnReplayTaskEvent(event: TaskEvent): TurnReplayTaskEvent {
-  return {
-    status: event.status,
-    message: event.message,
-    command: event.command
-  };
 }
 
 function readPermissionSettingsTarget(value: unknown): PermissionSettingsTarget | undefined {

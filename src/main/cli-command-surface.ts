@@ -57,11 +57,6 @@ import {
   type ChromeExtensionTabDiscoveryResult
 } from "./chrome-extension-page-control.js";
 import {
-  createRuntimeSnapshotStatePath,
-  createRuntimeTurnMarkerStatePath,
-  RUNTIME_TURN_MARKER_SCHEMA_VERSION
-} from "./runtime-snapshot.js";
-import {
   LOCAL_ORIGIN_PET_SKIN_DISPLAY_NAME,
   LOCAL_ORIGIN_PET_SKIN_SLUG,
   importPetSkin
@@ -82,17 +77,51 @@ import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type {
   PermissionSummary
 } from "./computer-use/types.js";
+import {
+  SMOKE_TARGETS,
+  createSmokeScriptArgs,
+  createSmokeScriptPath,
+  isSmokeTarget,
+  parseSmokeJson,
+  runSmokeScript,
+  type SmokeRunnerInput,
+  type SmokeRunnerResult,
+  type SmokeTarget
+} from "./cli-smoke-command.js";
+import {
+  compactRecord,
+  readBoolean,
+  readErrorMessage,
+  readNumber,
+  readRecord,
+  readString,
+  readStringArray
+} from "./cli-record-utils.js";
+import {
+  sanitizeDashboardUrlForOutput,
+  sanitizeSensitiveString,
+  sanitizeTokenFree
+} from "./cli-output-sanitize.js";
+import {
+  createFinderAutomationPermissionDiagnosticMessage,
+  createFinderAutomationState,
+  createFinderDesktopPreflightDiagnosticMessage,
+  createFinderSmokeRerunAction,
+  isFinderSmokeDesktopPreflightBlocked,
+  readLatestFinderSmokeEvidence,
+  withFinderSmokeStatus
+} from "./cli-finder-smoke-status.js";
+import {
+  readLatestDashboardSmokeEvidence,
+  readRuntimeSnapshotEvidence
+} from "./cli-status-evidence.js";
 
-export const SMOKE_TARGETS = [
-  "ui",
-  "desktop-session",
-  "ghostty",
-  "chrome",
-  "dashboard",
-  "codex-plugin",
-  "finder",
-  "money-run"
-] as const;
+export { SMOKE_TARGETS };
+export type {
+  SmokeRunnerInput,
+  SmokeRunnerResult,
+  SmokeTarget
+};
 
 export const PERMISSION_SETTINGS_TARGETS = [
   "screen-recording",
@@ -100,7 +129,6 @@ export const PERMISSION_SETTINGS_TARGETS = [
   "automation-finder"
 ] as const;
 
-export type SmokeTarget = typeof SMOKE_TARGETS[number];
 export type PermissionSettingsTarget = typeof PERMISSION_SETTINGS_TARGETS[number];
 export type DashboardProbeSubcommand = "status" | "snapshot";
 export type ChromeSubcommand =
@@ -131,19 +159,6 @@ export type {
   ChromeExtensionTabDiscoveryInvoker,
   ChromeExtensionTabDiscoveryResult
 };
-
-const SMOKE_SCRIPT_FILES: Record<SmokeTarget, string> = {
-  ui: "scripts/smoke-ui-product.mjs",
-  "desktop-session": "scripts/smoke-desktop-session.mjs",
-  ghostty: "scripts/smoke-ghostty-product.mjs",
-  chrome: "scripts/smoke-chrome-product.mjs",
-  dashboard: "scripts/smoke-dashboard-product.mjs",
-  "codex-plugin": "scripts/smoke-codex-plugin-product.mjs",
-  finder: "scripts/smoke-finder-product.mjs",
-  "money-run": "scripts/smoke-money-run-supervision.mjs"
-};
-const RUNTIME_EVIDENCE_RECENT_SECONDS = 300;
-const RUNTIME_EVIDENCE_SKEW_SECONDS = 5;
 
 const SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX =
   "x-apple.systempreferences:com.apple.preference.security?";
@@ -362,19 +377,6 @@ export interface CreateCliOutputOptions {
 
 export interface SkfiyCliIo {
   write: (chunk: string) => unknown;
-}
-
-export interface SmokeRunnerInput {
-  target: SmokeTarget;
-  cwd: string;
-  scriptPath: string;
-  args: string[];
-}
-
-export interface SmokeRunnerResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
 }
 
 export interface StatusReaderInput {
@@ -1595,77 +1597,6 @@ function createDashboardProbeEndpoints(dashboardUrl: string): Record<string, str
   return endpoints;
 }
 
-function sanitizeTokenFree(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeTokenFree(item));
-  }
-
-  const record = readRecord(value);
-  if (record) {
-    const sanitized: Record<string, unknown> = {};
-
-    for (const [key, item] of Object.entries(record)) {
-      if (item === undefined) {
-        continue;
-      }
-      sanitized[key] = isSensitiveFieldName(key)
-        ? "[redacted]"
-        : sanitizeTokenFree(item);
-    }
-
-    return sanitized;
-  }
-
-  return typeof value === "string" ? sanitizeSensitiveString(value) : value;
-}
-
-function sanitizeDashboardUrlForOutput(value: string): string {
-  try {
-    const url = new URL(value);
-
-    url.hash = "";
-    for (const key of [...url.searchParams.keys()]) {
-      if (isSensitiveFieldName(key)) {
-        url.searchParams.delete(key);
-      }
-    }
-
-    return url.toString();
-  } catch {
-    return sanitizeSensitiveString(value);
-  }
-}
-
-function sanitizeSensitiveString(value: string): string {
-  return value
-    .replace(
-      /\b(?:token|access_token|refresh_token|id_token|api_key|authorization|cookie)=([^&\s"']+)/gi,
-      "redacted=[redacted]"
-    )
-    .replace(
-      /\b(?:authorization|bearer|basic)\s+[-._~+/=A-Za-z0-9]+/gi,
-      "redacted [redacted]"
-    );
-}
-
-function isSensitiveFieldName(value: string): boolean {
-  const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, "");
-
-  return new Set([
-    "token",
-    "accesstoken",
-    "refreshtoken",
-    "idtoken",
-    "apikey",
-    "authorization",
-    "cookie",
-    "setcookie",
-    "secret",
-    "clientsecret",
-    "password"
-  ]).has(normalized);
-}
-
 function createPermissionSettingsOpenOutput({
   invocation,
   generatedAt,
@@ -2761,403 +2692,6 @@ function createBinaryReadinessEvidence(
   };
 }
 
-function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string): Record<string, unknown> {
-  if (!homeDir) {
-    return {
-      state: "not-probed",
-      currentTurn: {
-        state: "unknown",
-        source: "runtime-snapshot"
-      },
-      reason: "Home directory is required to locate the runtime snapshot."
-    };
-  }
-
-  const snapshotPath = createRuntimeSnapshotStatePath(homeDir);
-  const turnMarker = readRuntimeTurnMarkerEvidence(homeDir, generatedAt);
-  if (!existsSync(snapshotPath)) {
-    const markerState = readString(turnMarker?.state);
-    if (markerState === "recent" || markerState === "stale") {
-      const state = markerState === "recent" ? "missing-after-turn" : "stale-after-turn";
-      const emptyReasonCode = state === "missing-after-turn"
-        ? "runtime-snapshot-missing-after-turn"
-        : "runtime-snapshot-stale-after-turn";
-      const reason = markerState === "recent"
-        ? "Runtime snapshot is missing even though a recent runtime turn marker exists."
-        : "Runtime snapshot is missing and the last runtime turn marker is stale.";
-      const currentTurn = readRecord(turnMarker?.currentTurn);
-
-      return compactRecord({
-        state,
-        path: snapshotPath,
-        marker: turnMarker,
-        markerPath: readString(turnMarker?.path),
-        markerObservedAt: readString(turnMarker?.observedAt),
-        markerAgeSeconds: readNumber(turnMarker?.ageSeconds),
-        emptyReasonCode,
-        reason,
-        currentTurn: {
-          ...(currentTurn ?? {
-            state: "unknown",
-            source: "runtime-turn-marker"
-          }),
-          emptyReasonCode,
-          reason
-        },
-        replay: {
-          state: "empty",
-          source: "runtime-snapshot",
-          emptyReasonCode,
-          reason
-        }
-      });
-    }
-
-    return {
-      state: "missing",
-      path: snapshotPath,
-      freshInstall: true,
-      emptyReasonCode: "runtime-snapshot-missing",
-      reason: "Runtime snapshot has not been recorded yet.",
-      currentTurn: {
-        state: "idle",
-        source: "runtime-snapshot",
-        freshInstall: true,
-        emptyReasonCode: "runtime-snapshot-missing"
-      },
-      replay: {
-        state: "empty",
-        source: "runtime-snapshot",
-        freshInstall: true,
-        emptyReasonCode: "runtime-snapshot-missing"
-      }
-    };
-  }
-
-  try {
-    const parsed = readRecord(JSON.parse(readFileSync(snapshotPath, "utf8")));
-    const currentTurn = readRecord(parsed?.currentTurn);
-    const replay = readRecord(parsed?.replay);
-
-    if (parsed?.schemaVersion !== 1 || !currentTurn || !replay) {
-      return {
-        state: "invalid",
-        path: snapshotPath,
-        currentTurn: {
-          state: "unknown",
-          source: "runtime-snapshot"
-        },
-        reason: "Runtime snapshot is not a valid skfiy snapshot."
-      };
-    }
-
-    const observedAt = readString(parsed.observedAt);
-    const ageSeconds = readObservedAgeSeconds(observedAt, generatedAt);
-    const staleByAge = ageSeconds !== undefined && ageSeconds > RUNTIME_EVIDENCE_RECENT_SECONDS;
-    const staleByMarker = isRuntimeMarkerNewerThanSnapshot(turnMarker, observedAt);
-    const state = staleByAge || staleByMarker ? "stale-after-turn" : "available";
-
-    return compactRecord({
-      state,
-      path: snapshotPath,
-      observedAt,
-      ageSeconds,
-      marker: turnMarker,
-      markerPath: readString(turnMarker?.path),
-      markerObservedAt: readString(turnMarker?.observedAt),
-      markerAgeSeconds: readNumber(turnMarker?.ageSeconds),
-      reason: state === "stale-after-turn"
-        ? "Runtime snapshot is older than the latest runtime turn evidence."
-        : undefined,
-      currentTurn: summarizeRuntimeCurrentTurn(currentTurn),
-      replay: summarizeRuntimeReplay(replay)
-    });
-  } catch (error) {
-    return {
-      state: "invalid",
-      path: snapshotPath,
-      currentTurn: {
-        state: "unknown",
-        source: "runtime-snapshot"
-      },
-      reason: readErrorMessage(error)
-    };
-  }
-}
-
-function readRuntimeTurnMarkerEvidence(
-  homeDir: string,
-  generatedAt: string
-): Record<string, unknown> | undefined {
-  const markerPath = createRuntimeTurnMarkerStatePath(homeDir);
-  if (!existsSync(markerPath)) {
-    return undefined;
-  }
-
-  try {
-    const parsed = readRecord(JSON.parse(readFileSync(markerPath, "utf8")));
-    if (!parsed) {
-      return {
-        state: "invalid",
-        path: markerPath,
-        reason: "Runtime turn marker is not a JSON object."
-      };
-    }
-    if (parsed.schemaVersion !== RUNTIME_TURN_MARKER_SCHEMA_VERSION) {
-      return {
-        state: "invalid",
-        path: markerPath,
-        reason: "Runtime turn marker is not a valid skfiy marker."
-      };
-    }
-
-    const stat = statSync(markerPath);
-    const observedAt =
-      readString(parsed.observedAt)
-      ?? readString(parsed.updatedAt)
-      ?? readString(parsed.lastTurnAt);
-    const ageSeconds =
-      readObservedAgeSeconds(observedAt, generatedAt)
-      ?? readArtifactAgeSeconds(stat.mtimeMs, generatedAt);
-    const currentTurn = summarizeRuntimeTurnMarkerCurrentTurn(parsed);
-    const recent = ageSeconds !== undefined && ageSeconds <= RUNTIME_EVIDENCE_RECENT_SECONDS;
-
-    return compactRecord({
-      state: recent ? "recent" : "stale",
-      path: markerPath,
-      observedAt,
-      mtimeMs: stat.mtimeMs,
-      ageSeconds,
-      recent,
-      currentTurn
-    });
-  } catch (error) {
-    return {
-      state: "invalid",
-      path: markerPath,
-      reason: readErrorMessage(error)
-    };
-  }
-}
-
-function summarizeRuntimeTurnMarkerCurrentTurn(marker: Record<string, unknown>): Record<string, unknown> {
-  const nestedTurn =
-    readRecord(marker.currentTurn)
-    ?? readRecord(marker.turn)
-    ?? readRecord(marker.event)
-    ?? marker;
-  const state = readString(nestedTurn.state) ?? readString(nestedTurn.status) ?? "unknown";
-  const latestMessage = readString(nestedTurn.latestMessage) ?? readString(nestedTurn.message);
-
-  return summarizeRuntimeCurrentTurn({
-    ...nestedTurn,
-    state,
-    source: "runtime-turn-marker",
-    ...(latestMessage ? { latestMessage } : {})
-  });
-}
-
-function isRuntimeMarkerNewerThanSnapshot(
-  marker: Record<string, unknown> | undefined,
-  snapshotObservedAt: string | undefined
-): boolean {
-  const markerObservedAt = readString(marker?.observedAt);
-  if (readString(marker?.state) !== "recent" || !markerObservedAt || !snapshotObservedAt) {
-    return false;
-  }
-
-  const markerMs = Date.parse(markerObservedAt);
-  const snapshotMs = Date.parse(snapshotObservedAt);
-  if (!Number.isFinite(markerMs) || !Number.isFinite(snapshotMs)) {
-    return false;
-  }
-
-  return markerMs - snapshotMs > RUNTIME_EVIDENCE_SKEW_SECONDS * 1000;
-}
-
-function summarizeRuntimeCurrentTurn(currentTurn: Record<string, unknown>): Record<string, unknown> {
-  return compactRecord({
-    state: readString(currentTurn.state) ?? "unknown",
-    source: readString(currentTurn.source) ?? "runtime-snapshot",
-    command: sanitizeStatusEvidenceString(readString(currentTurn.command)),
-    targetApp: sanitizeStatusEvidenceString(readString(currentTurn.targetApp)),
-    targetBundleId: readString(currentTurn.targetBundleId),
-    risk: readString(currentTurn.risk),
-    approvalRequired: readBoolean(currentTurn.approvalRequired),
-    approvalState: readString(currentTurn.approvalState),
-    stopState: readString(currentTurn.stopState),
-    updateSource: readString(currentTurn.updateSource),
-    latestMessage: sanitizeStatusEvidenceString(readString(currentTurn.latestMessage)),
-    latestAction: summarizeNamedStatusRecord(readRecord(currentTurn.latestAction), ["type", "action", "stage", "status"]),
-    latestVerification: summarizeNamedStatusRecord(readRecord(currentTurn.latestVerification), ["actionType", "status", "message", "reason"]),
-    latestScreenshot: summarizeNamedStatusRecord(readRecord(currentTurn.latestScreenshot), ["stage", "bundleId", "recommendation", "sourceCount"])
-  });
-}
-
-function summarizeRuntimeReplay(replay: Record<string, unknown>): Record<string, unknown> {
-  return compactRecord({
-    state: readString(replay.state) ?? "unknown",
-    source: readString(replay.source) ?? "runtime-snapshot",
-    outcome: readString(replay.outcome),
-    screenshotCount: readNumber(replay.screenshotCount),
-    actionCount: readNumber(replay.actionCount),
-    verificationCount: readNumber(replay.verificationCount),
-    timelineCount: readNumber(replay.timelineCount),
-    latestMessage: sanitizeStatusEvidenceString(readString(replay.latestMessage))
-  });
-}
-
-function summarizeNamedStatusRecord(
-  record: Record<string, unknown> | undefined,
-  keys: string[]
-): Record<string, unknown> | undefined {
-  if (!record) {
-    return undefined;
-  }
-
-  const summary: Record<string, unknown> = {};
-  for (const key of keys) {
-    const value = record[key];
-
-    if (typeof value === "string") {
-      summary[key] = sanitizeStatusEvidenceString(value);
-    } else if (typeof value === "number" || typeof value === "boolean") {
-      summary[key] = value;
-    }
-  }
-
-  return Object.keys(summary).length > 0 ? summary : undefined;
-}
-
-function readLatestDashboardSmokeEvidence(
-  rootDir: string,
-  generatedAt: string
-): Record<string, unknown> {
-  const smokeDir = path.join(rootDir, ".skfiy-smoke");
-
-  if (!existsSync(smokeDir)) {
-    return {
-      state: "missing",
-      directory: smokeDir,
-      reason: "No dashboard smoke artifact has been collected yet."
-    };
-  }
-
-  const candidates: Array<{
-    artifact: Record<string, unknown>;
-    filePath: string;
-    mtimeMs: number;
-  }> = [];
-
-  try {
-    for (const entry of readdirSync(smokeDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) {
-        continue;
-      }
-
-      const filePath = path.join(smokeDir, entry.name);
-      const artifact = readSmokeArtifactFile(filePath);
-
-      if (!artifact || !isDashboardSmokeArtifact(entry.name, artifact)) {
-        continue;
-      }
-
-      candidates.push({
-        artifact,
-        filePath,
-        mtimeMs: statSync(filePath).mtimeMs
-      });
-    }
-  } catch (error) {
-    return {
-      state: "unavailable",
-      directory: smokeDir,
-      reason: readErrorMessage(error)
-    };
-  }
-
-  const latest = candidates.sort((left, right) => right.mtimeMs - left.mtimeMs)[0];
-
-  if (!latest) {
-    return {
-      state: "missing",
-      directory: smokeDir,
-      reason: "No dashboard smoke artifact has been collected yet."
-    };
-  }
-
-  return createDashboardSmokeEvidenceSummary(latest, generatedAt);
-}
-
-function isDashboardSmokeArtifact(fileName: string, artifact: Record<string, unknown>): boolean {
-  return fileName.startsWith("dashboard") || readString(artifact.target) === "dashboard";
-}
-
-function createDashboardSmokeEvidenceSummary(
-  latest: {
-    artifact: Record<string, unknown>;
-    filePath: string;
-    mtimeMs: number;
-  },
-  generatedAt: string
-): Record<string, unknown> {
-  const snapshot = readRecord(readRecord(latest.artifact.snapshotResponse)?.body);
-  const runtimeSnapshot = readRecord(readRecord(snapshot?.runtimeHealth)?.runtimeSnapshot);
-  const smokeEvidence = readRecord(snapshot?.smokeEvidence);
-  const artifacts = Array.isArray(smokeEvidence?.artifacts)
-    ? smokeEvidence.artifacts.filter((item): item is Record<string, unknown> => Boolean(readRecord(item)))
-    : [];
-  const ageSeconds = readArtifactAgeSeconds(latest.mtimeMs, generatedAt);
-  const result = readString(latest.artifact.result) ?? "unknown";
-
-  return compactRecord({
-    state: result,
-    result,
-    path: latest.filePath,
-    timestamp: readString(latest.artifact.timestamp),
-    productPath: readString(latest.artifact.productPath),
-    mtimeMs: latest.mtimeMs,
-    ageSeconds,
-    runtimeSnapshotCoverage: summarizeNamedStatusRecord(
-      readRecord(latest.artifact.runtimeSnapshotCoverage),
-      ["result", "reason"]
-    ),
-    dashboardSnapshot: compactRecord({
-      state: readString(readRecord(snapshot?.runtimeHealth)?.dashboard ? "available" : undefined),
-      runtimeSnapshotState: readString(runtimeSnapshot?.state),
-      currentTurn: summarizeRuntimeCurrentTurn(readRecord(snapshot?.currentTurn) ?? {}),
-      replay: summarizeRuntimeReplay(readRecord(snapshot?.replay) ?? {}),
-      smokeTargets: artifacts.map((artifact) => readString(artifact.target)).filter(Boolean),
-      alertCount: Array.isArray(snapshot?.alerts) ? snapshot.alerts.length : undefined
-    })
-  });
-}
-
-function readArtifactAgeSeconds(mtimeMs: number, generatedAt: string): number | undefined {
-  const generatedAtMs = Date.parse(generatedAt);
-
-  return Number.isFinite(generatedAtMs)
-    ? Math.max(0, Math.floor((generatedAtMs - mtimeMs) / 1000))
-    : undefined;
-}
-
-function readObservedAgeSeconds(observedAt: string | undefined, generatedAt: string): number | undefined {
-  if (!observedAt) {
-    return undefined;
-  }
-
-  const observedAtMs = Date.parse(observedAt);
-  const generatedAtMs = Date.parse(generatedAt);
-
-  return Number.isFinite(observedAtMs) && Number.isFinite(generatedAtMs)
-    ? Math.max(0, Math.round((generatedAtMs - observedAtMs) / 1000))
-    : undefined;
-}
-
-function sanitizeStatusEvidenceString(value: string | undefined): string | undefined {
-  return value ? sanitizeSensitiveString(value) : undefined;
-}
-
 function formatStatusTextOutput(output: Record<string, unknown>): string {
   const evidence = readRecord(output.evidence);
   const readiness = readRecord(output.readiness);
@@ -3231,37 +2765,6 @@ function formatDashboardSmokeText(dashboardSmoke: Record<string, unknown> | unde
   return parts.join(" ");
 }
 
-function withFinderSmokeStatus<TStatus extends Record<string, unknown>>(
-  status: TStatus,
-  context: { rootDir: string }
-): TStatus & { finder: Record<string, unknown> } {
-  const permissions = readRecord(status.permissions);
-  const finder = readRecord(status.finder);
-  const existingLatestSmoke = readRecord(finder?.latestSmoke);
-  const latestSmoke = existingLatestSmoke ?? readLatestFinderSmokeEvidence(context.rootDir);
-  const existingAutomation = readRecord(finder?.automation);
-  const permissionState =
-    readString(existingAutomation?.permissionState)
-    ?? readString(permissions?.finderAutomation)
-    ?? "unknown";
-  const evidence = readString(latestSmoke.automationEvidence) ?? "unknown";
-
-  return {
-    ...status,
-    finder: {
-      ...finder,
-      automation: {
-        ...existingAutomation,
-        state: readString(existingAutomation?.state)
-          ?? createFinderAutomationState(permissionState, latestSmoke),
-        permissionState,
-        evidence
-      },
-      latestSmoke
-    }
-  };
-}
-
 function withChromePageCapabilityStatus<TStatus extends Record<string, unknown>>(
   status: TStatus,
   context: {
@@ -3282,301 +2785,6 @@ function withChromePageCapabilityStatus<TStatus extends Record<string, unknown>>
       }
     )
   };
-}
-
-function readLatestFinderSmokeEvidence(rootDir: string): Record<string, unknown> {
-  const smokeDir = path.join(rootDir, ".skfiy-smoke");
-
-  if (!existsSync(smokeDir)) {
-    return {
-      state: "missing",
-      automationEvidence: "unknown",
-      directory: smokeDir,
-      reason: "No Finder smoke artifact has been collected yet."
-    };
-  }
-
-  const candidates: Array<{
-    artifact: Record<string, unknown>;
-    filePath: string;
-    mtimeMs: number;
-  }> = [];
-
-  try {
-    for (const entry of readdirSync(smokeDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) {
-        continue;
-      }
-
-      const filePath = path.join(smokeDir, entry.name);
-      const artifact = readSmokeArtifactFile(filePath);
-
-      if (!artifact || !isFinderSmokeArtifact(entry.name, artifact)) {
-        continue;
-      }
-
-      candidates.push({
-        artifact,
-        filePath,
-        mtimeMs: statSync(filePath).mtimeMs
-      });
-    }
-  } catch (error) {
-    return {
-      state: "unavailable",
-      automationEvidence: "unknown",
-      directory: smokeDir,
-      reason: readErrorMessage(error)
-    };
-  }
-
-  const latest = candidates.sort((left, right) => right.mtimeMs - left.mtimeMs)[0];
-
-  if (!latest) {
-    return {
-      state: "missing",
-      automationEvidence: "unknown",
-      directory: smokeDir,
-      reason: "No Finder smoke artifact has been collected yet."
-    };
-  }
-
-  return createFinderSmokeEvidenceSummary(latest);
-}
-
-function readSmokeArtifactFile(filePath: string): Record<string, unknown> | undefined {
-  try {
-    return readRecord(JSON.parse(readFileSync(filePath, "utf8")));
-  } catch {
-    return undefined;
-  }
-}
-
-function isFinderSmokeArtifact(fileName: string, artifact: Record<string, unknown>): boolean {
-  return fileName.startsWith("finder") || readString(artifact.target) === "finder";
-}
-
-function createFinderSmokeEvidenceSummary({
-  artifact,
-  filePath,
-  mtimeMs
-}: {
-  artifact: Record<string, unknown>;
-  filePath: string;
-  mtimeMs: number;
-}): Record<string, unknown> {
-  const desktopPreflight = readFinderDesktopPreflightSummary(readRecord(artifact.desktopPreflight));
-  const finderObservation = readFinderStepSummary(readRecord(artifact.finderObservation));
-  const finderSemanticObservation = readFinderStepSummary(readRecord(artifact.finderSemanticObservation));
-  const finderItemDragDrop = readFinderStepSummary(readRecord(artifact.finderItemDragDrop));
-  const result = readString(artifact.result) ?? "unknown";
-  const automationEvidence = readFinderAutomationEvidence({
-    result,
-    desktopPreflight,
-    finderObservation,
-    finderSemanticObservation,
-    finderItemDragDrop
-  });
-  const state = createFinderSmokeState({ result, automationEvidence, desktopPreflight });
-
-  return compactRecord({
-    state,
-    result,
-    automationEvidence,
-    path: filePath,
-    mtimeMs,
-    timestamp: readString(artifact.timestamp),
-    productPath: readString(artifact.productPath),
-    desktopPreflight,
-    finderObservation,
-    finderSemanticObservation,
-    finderItemDragDrop,
-    nextAction: createFinderSmokeNextAction(state, automationEvidence)
-  });
-}
-
-function readFinderDesktopPreflightSummary(
-  desktopPreflight: Record<string, unknown> | undefined
-): Record<string, unknown> | undefined {
-  if (!desktopPreflight) {
-    return undefined;
-  }
-
-  const frontmost = readRecord(desktopPreflight.frontmost);
-  const display = readRecord(desktopPreflight.display);
-
-  return compactRecord({
-    result: readString(desktopPreflight.result),
-    reason: readString(desktopPreflight.reason),
-    controllable: readBoolean(desktopPreflight.controllable),
-    frontmostBundleId: readString(frontmost?.bundleId),
-    frontmostLocalizedName: readString(frontmost?.localizedName),
-    frontmostProcessIdentifier: readNumber(frontmost?.processIdentifier),
-    mainDisplayAsleep: readBoolean(display?.mainDisplayAsleep)
-  });
-}
-
-function readFinderStepSummary(step: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-  if (!step) {
-    return undefined;
-  }
-
-  return compactRecord({
-    result: readString(step.result),
-    reason: readString(step.reason),
-    accessibilityTrusted: readBoolean(step.accessibilityTrusted)
-  });
-}
-
-function readFinderAutomationEvidence({
-  result,
-  desktopPreflight,
-  finderObservation,
-  finderSemanticObservation,
-  finderItemDragDrop
-}: {
-  result: string;
-  desktopPreflight?: Record<string, unknown>;
-  finderObservation?: Record<string, unknown>;
-  finderSemanticObservation?: Record<string, unknown>;
-  finderItemDragDrop?: Record<string, unknown>;
-}): "proven" | "blocked" | "unproven" | "unknown" {
-  if (
-    result === "passed"
-    || readString(finderObservation?.result) === "passed"
-    || readString(finderSemanticObservation?.result) === "passed"
-    || readString(finderItemDragDrop?.result) === "passed"
-  ) {
-    return "proven";
-  }
-
-  if (hasFinderAutomationPermissionReason([
-    readString(finderObservation?.reason),
-    readString(finderSemanticObservation?.reason),
-    readString(finderItemDragDrop?.reason)
-  ])) {
-    return "blocked";
-  }
-
-  if (isFinderSmokeDesktopPreflightBlocked({ desktopPreflight })) {
-    return "unproven";
-  }
-
-  return result === "unknown" ? "unknown" : "unproven";
-}
-
-function createFinderSmokeState({
-  result,
-  automationEvidence,
-  desktopPreflight
-}: {
-  result: string;
-  automationEvidence: string;
-  desktopPreflight?: Record<string, unknown>;
-}): string {
-  if (automationEvidence === "proven") {
-    return "proven";
-  }
-
-  if (automationEvidence === "blocked") {
-    return "blocked-by-permission";
-  }
-
-  if (isFinderSmokeDesktopPreflightBlocked({ desktopPreflight })) {
-    return "blocked-by-desktop-preflight";
-  }
-
-  return result;
-}
-
-function createFinderAutomationState(
-  permissionState: string | undefined,
-  latestSmoke: Record<string, unknown> | undefined
-): string {
-  if (permissionState === "granted") {
-    return "granted";
-  }
-
-  if (readString(latestSmoke?.automationEvidence) === "proven") {
-    return "proven-by-smoke";
-  }
-
-  if (readString(latestSmoke?.automationEvidence) === "blocked") {
-    return "blocked-by-permission";
-  }
-
-  return "unknown";
-}
-
-function isFinderSmokeDesktopPreflightBlocked(latestSmoke: Record<string, unknown> | undefined): boolean {
-  const desktopPreflight = readRecord(latestSmoke?.desktopPreflight);
-
-  return readString(desktopPreflight?.result) === "blocked"
-    && (
-      readBoolean(desktopPreflight?.controllable) === false
-      || readString(desktopPreflight?.frontmostBundleId) === "com.apple.loginwindow"
-      || readBoolean(desktopPreflight?.mainDisplayAsleep) === true
-      || /desktop session|loginwindow|display.*asleep|unlock/i.test(readString(desktopPreflight?.reason) ?? "")
-    );
-}
-
-function hasFinderAutomationPermissionReason(reasons: Array<string | undefined>): boolean {
-  return reasons.some((reason) => Boolean(
-    reason
-    && /(finder automation|automation permission|apple events?|not authorized to send apple events|not permitted to control finder|tcc)/i.test(reason)
-  ));
-}
-
-function createFinderDesktopPreflightDiagnosticMessage(latestSmoke: Record<string, unknown>): string {
-  const desktopPreflight = readRecord(latestSmoke.desktopPreflight);
-  const details = [
-    readString(desktopPreflight?.frontmostBundleId)
-      ? `frontmostBundleId=${readString(desktopPreflight?.frontmostBundleId)}`
-      : undefined,
-    readBoolean(desktopPreflight?.mainDisplayAsleep) === true
-      ? "mainDisplayAsleep=true"
-      : undefined,
-    readBoolean(desktopPreflight?.controllable) === false
-      ? "controllable=false"
-      : undefined
-  ].filter(Boolean).join(", ");
-  const suffix = details ? ` (${details})` : "";
-
-  return `Finder Automation has not been proven because the latest Finder smoke was blocked by desktop preflight${suffix}.`;
-}
-
-function createFinderAutomationPermissionDiagnosticMessage(latestSmoke: Record<string, unknown>): string {
-  const reason = [
-    readString(readRecord(latestSmoke.finderObservation)?.reason),
-    readString(readRecord(latestSmoke.finderSemanticObservation)?.reason),
-    readString(readRecord(latestSmoke.finderItemDragDrop)?.reason)
-  ].find(Boolean);
-
-  return reason
-    ? `Finder Automation appears blocked by macOS Automation permission: ${reason}`
-    : "Finder Automation appears blocked by macOS Automation permission.";
-}
-
-function createFinderSmokeNextAction(state: string, automationEvidence: string): string {
-  if (automationEvidence === "blocked") {
-    return "Open System Settings > Privacy & Security > Automation and grant skfiy permission to control Finder, then rerun the Finder smoke.";
-  }
-
-  if (state === "blocked-by-desktop-preflight") {
-    return createFinderSmokeRerunAction();
-  }
-
-  return "Run a Finder smoke once and grant Finder Automation when macOS prompts.";
-}
-
-function createFinderSmokeRerunAction(): string {
-  return "Wake and unlock the Mac, keep the display awake, then rerun `npm run smoke:finder -- --output .skfiy-smoke/finder-current.json --require-passed`.";
-}
-
-function compactRecord(record: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(record).filter(([, value]) => value !== undefined)
-  );
 }
 
 function createStatusReadinessSummary(
@@ -3902,24 +3110,6 @@ function addStateBlocker(
 function readBlockers(check: Record<string, unknown>): Array<Record<string, unknown>> {
   return Array.isArray(check.blockers)
     ? check.blockers.filter((item): item is Record<string, unknown> => Boolean(readRecord(item)))
-    : [];
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
-}
-
-function readNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function readStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
     : [];
 }
 
@@ -5564,16 +4754,6 @@ function runCommand(command: string, args: string[], options: {
   });
 }
 
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
-}
-
-function readErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function inferRootDirFromCliShimPath(cliShimPath: string): string {
   const cliDir = path.dirname(cliShimPath);
 
@@ -5805,37 +4985,6 @@ async function runSmokeCli({
   }, null, 2)}\n`);
 
   return smokeResult.exitCode;
-}
-
-function runSmokeScript(input: SmokeRunnerInput): Promise<SmokeRunnerResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [
-      input.scriptPath,
-      ...input.args
-    ], {
-      cwd: input.cwd,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.once("error", reject);
-    child.once("exit", (code) => {
-      resolve({
-        exitCode: code ?? 1,
-        stdout,
-        stderr
-      });
-    });
-  });
 }
 
 function openDashboardUrl(url: string): Promise<void> {
@@ -6624,60 +5773,6 @@ function normalizeChromePolicyHostForCli(value: string | undefined): string | un
 
 function isPermissionSettingsTarget(value: string | undefined): value is PermissionSettingsTarget {
   return PERMISSION_SETTINGS_TARGETS.includes(value as PermissionSettingsTarget);
-}
-
-function isSmokeTarget(value: string | undefined): value is SmokeTarget {
-  return SMOKE_TARGETS.includes(value as SmokeTarget);
-}
-
-function createSmokeScriptPath(target: SmokeTarget, rootDir: string): string {
-  return path.join(rootDir, ...SMOKE_SCRIPT_FILES[target].split("/"));
-}
-
-function createSmokeScriptArgs(target: SmokeTarget, argv: string[], rootDir: string): string[] {
-  const args: string[] = [];
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-
-    if (arg === "--json") {
-      continue;
-    }
-
-    if (arg === "--output") {
-      const value = argv[index + 1];
-
-      if (value === undefined || value.startsWith("--")) {
-        args.push("--output");
-      } else {
-        args.push("--output", path.isAbsolute(value) ? value : path.resolve(rootDir, value));
-        index += 1;
-      }
-      continue;
-    }
-
-    args.push(arg);
-  }
-
-  return args;
-}
-
-function parseSmokeJson(stdout: string): Record<string, unknown> | undefined {
-  const trimmed = stdout.trim();
-
-  if (!trimmed) {
-    return undefined;
-  }
-
-  try {
-    const parsed = JSON.parse(trimmed);
-
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function readNumberOption(argv: string[], name: string, fallback: number): number {
