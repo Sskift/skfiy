@@ -152,20 +152,6 @@ export function readDesktopSessionPermissionState(
   return "unknown";
 }
 
-export function readVisiblePetRect(rect: {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}): { x: number; y: number; width: number; height: number } {
-  return {
-    x: rect.x,
-    y: rect.y,
-    width: rect.width,
-    height: rect.height
-  };
-}
-
 export function canStopTurn(status: TaskStatus): boolean {
   return (
     status === "planned"

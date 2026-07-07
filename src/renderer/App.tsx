@@ -54,8 +54,7 @@ import {
   readAssistantAgentReadinessLabel,
   readDesktopSessionPermissionState,
   readExternalCuaStatusLabel,
-  readSelectedAssistantAgentProvider,
-  readVisiblePetRect
+  readSelectedAssistantAgentProvider
 } from "./app-view-model";
 import {
   STATUS_COPY,
@@ -84,6 +83,13 @@ import {
   isPermissionOnboardingComplete,
   readPermissionOnboardingRows
 } from "./app-permission-state";
+import {
+  createPetDragState,
+  readVisiblePetRect,
+  shouldSuppressPetClickAfterDrag,
+  updatePetDragStateForPointerMove,
+  type PetDragState
+} from "./app-pet-drag-state";
 import {
   DEFAULT_APP_POLICY_SETTINGS,
   DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
@@ -404,14 +410,6 @@ declare global {
   interface Window {
     skfiy?: DesktopApi;
   }
-}
-
-interface PetDragState {
-  pointerId: number;
-  lastScreenX: number;
-  lastScreenY: number;
-  moved: boolean;
-  visibleRect: VisiblePetRect;
 }
 
 const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
@@ -1075,13 +1073,11 @@ export default function App() {
       return;
     }
 
-    petDragRef.current = {
+    petDragRef.current = createPetDragState({
       pointerId: event.pointerId,
-      lastScreenX: event.screenX,
-      lastScreenY: event.screenY,
-      moved: false,
-      visibleRect: readVisiblePetRect(event.currentTarget.getBoundingClientRect())
-    };
+      screenX: event.screenX,
+      screenY: event.screenY
+    }, readVisiblePetRect(event.currentTarget.getBoundingClientRect()));
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
@@ -1092,26 +1088,23 @@ export default function App() {
       return;
     }
 
-    const deltaX = event.screenX - drag.lastScreenX;
-    const deltaY = event.screenY - drag.lastScreenY;
+    const move = updatePetDragStateForPointerMove(drag, {
+      pointerId: event.pointerId,
+      screenX: event.screenX,
+      screenY: event.screenY
+    });
 
-    if (deltaX === 0 && deltaY === 0) {
+    if (!move) {
       return;
     }
 
-    petDragRef.current = {
-      pointerId: drag.pointerId,
-      lastScreenX: event.screenX,
-      lastScreenY: event.screenY,
-      moved: true,
-      visibleRect: drag.visibleRect
-    };
+    petDragRef.current = move.nextDrag;
 
-    if (!drag.moved) {
+    if (move.startedMoving) {
       transitionPanelState({ type: "close-for-drag" });
     }
 
-    api.moveWindowBy(deltaX, deltaY, drag.visibleRect);
+    api.moveWindowBy(move.deltaX, move.deltaY, move.nextDrag.visibleRect);
   }
 
   function stopPetDrag(event: ReactPointerEvent<HTMLDivElement>) {
@@ -1124,7 +1117,7 @@ export default function App() {
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     petDragRef.current = null;
 
-    if (drag.moved) {
+    if (shouldSuppressPetClickAfterDrag(drag)) {
       suppressNextPetClickRef.current = true;
     }
   }
