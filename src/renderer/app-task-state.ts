@@ -168,6 +168,77 @@ export function appendAssistantConversationReply(
   ];
 }
 
+export function removePendingAssistantConversationMessages(
+  messages: AssistantConversationMessage[]
+): AssistantConversationMessage[] {
+  return messages.filter((message) => message.state !== "pending");
+}
+
+export type TaskEventConversationAction =
+  | "append-assistant-reply"
+  | "remove-pending"
+  | "none";
+
+export type TaskEventPanelAction = "assistant-reply" | "non-idle-task-event";
+
+export interface TaskEventUiTransition {
+  task: TaskView;
+  conversationAction: TaskEventConversationAction;
+  clearPendingAssistantPrompt: boolean;
+  finishAssistantInputSubmitting: boolean;
+  panelAction?: TaskEventPanelAction;
+}
+
+export function createTaskEventUiTransition(
+  event: TaskEvent,
+  pendingPrompt: string | null
+): TaskEventUiTransition {
+  const task = createTaskViewFromEvent(event);
+
+  if (isAssistantConversationReplyEvent(event, pendingPrompt)) {
+    return {
+      task,
+      conversationAction: "append-assistant-reply",
+      clearPendingAssistantPrompt: true,
+      finishAssistantInputSubmitting: true,
+      panelAction: "assistant-reply"
+    };
+  }
+
+  if (event.status !== "idle") {
+    return {
+      task,
+      conversationAction: event.command ? "remove-pending" : "none",
+      clearPendingAssistantPrompt: Boolean(event.command),
+      finishAssistantInputSubmitting: false,
+      panelAction: "non-idle-task-event"
+    };
+  }
+
+  return {
+    task,
+    conversationAction: "none",
+    clearPendingAssistantPrompt: false,
+    finishAssistantInputSubmitting: false
+  };
+}
+
+export function updateAssistantConversationForTaskEvent(
+  messages: AssistantConversationMessage[],
+  event: TaskEvent,
+  action: TaskEventConversationAction
+): AssistantConversationMessage[] {
+  if (action === "append-assistant-reply") {
+    return appendAssistantConversationReply(messages, event);
+  }
+
+  if (action === "remove-pending") {
+    return removePendingAssistantConversationMessages(messages);
+  }
+
+  return messages;
+}
+
 export function createAssistantSubmissionTaskView(): TaskView {
   return {
     status: "planned",

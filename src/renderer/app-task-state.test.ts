@@ -4,6 +4,7 @@ import {
   appendAssistantConversationReply,
   appendAssistantConversationSubmission,
   appendAssistantConversationSubmissionFailure,
+  createTaskEventUiTransition,
   createInitialTaskView,
   createAssistantSubmissionFailureTaskView,
   createAssistantSubmissionTaskView,
@@ -11,6 +12,8 @@ import {
   createTaskViewFromEvent,
   isAssistantConversationReplyEvent,
   readAssistantConversationReply,
+  removePendingAssistantConversationMessages,
+  updateAssistantConversationForTaskEvent,
   updateReplayRecordsForTaskEvent,
   type AssistantConversationMessage
 } from "./app-task-state";
@@ -124,6 +127,84 @@ describe("app task state", () => {
       { role: "user", text: "run this" },
       { role: "assistant", text: "provider unavailable", state: "error" }
     ]);
+  });
+
+  it("removes pending assistant messages without changing settled messages", () => {
+    const messages: AssistantConversationMessage[] = [
+      { role: "user", text: "run this" },
+      { role: "assistant", text: "Thinking", state: "pending" },
+      { role: "assistant", text: "Previous result" }
+    ];
+
+    expect(removePendingAssistantConversationMessages(messages)).toEqual([
+      { role: "user", text: "run this" },
+      { role: "assistant", text: "Previous result" }
+    ]);
+  });
+
+  it("updates assistant conversation from task-event transition actions", () => {
+    const messages: AssistantConversationMessage[] = [
+      { role: "user", text: "run this" },
+      { role: "assistant", text: "Thinking", state: "pending" }
+    ];
+
+    expect(updateAssistantConversationForTaskEvent(messages, {
+      status: "completed",
+      message: "Codex: done"
+    }, "append-assistant-reply")).toEqual([
+      { role: "user", text: "run this" },
+      { role: "assistant", text: "done" }
+    ]);
+    expect(updateAssistantConversationForTaskEvent(messages, {
+      status: "running",
+      command: "observe_app"
+    }, "remove-pending")).toEqual([
+      { role: "user", text: "run this" }
+    ]);
+    expect(updateAssistantConversationForTaskEvent(messages, { status: "idle" }, "none")).toBe(messages);
+  });
+
+  it("derives renderer task-event transitions without React state", () => {
+    expect(createTaskEventUiTransition({
+      status: "completed",
+      message: "Codex: done"
+    }, "pending prompt")).toEqual({
+      task: {
+        status: "completed",
+        message: "Codex: done",
+        finderPlanPreview: undefined
+      },
+      conversationAction: "append-assistant-reply",
+      clearPendingAssistantPrompt: true,
+      finishAssistantInputSubmitting: true,
+      panelAction: "assistant-reply"
+    });
+
+    expect(createTaskEventUiTransition({
+      status: "running",
+      command: "observe_app"
+    }, "pending prompt")).toEqual({
+      task: {
+        status: "running",
+        message: "正在运行.",
+        finderPlanPreview: undefined
+      },
+      conversationAction: "remove-pending",
+      clearPendingAssistantPrompt: true,
+      finishAssistantInputSubmitting: false,
+      panelAction: "non-idle-task-event"
+    });
+
+    expect(createTaskEventUiTransition({ status: "idle" }, "pending prompt")).toEqual({
+      task: {
+        status: "idle",
+        message: "待命中.",
+        finderPlanPreview: undefined
+      },
+      conversationAction: "none",
+      clearPendingAssistantPrompt: false,
+      finishAssistantInputSubmitting: false
+    });
   });
 
   it("creates assistant submission task and conversation state", () => {

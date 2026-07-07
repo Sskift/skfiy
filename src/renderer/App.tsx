@@ -58,15 +58,14 @@ import {
 } from "./app-view-model";
 import {
   STATUS_COPY,
-  appendAssistantConversationReply,
   appendAssistantConversationSubmission,
   appendAssistantConversationSubmissionFailure,
   createInitialTaskView,
   createAssistantSubmissionFailureTaskView,
   createAssistantSubmissionTaskView,
-  createTaskViewFromEvent,
+  createTaskEventUiTransition,
   createTaskStatusView,
-  isAssistantConversationReplyEvent,
+  updateAssistantConversationForTaskEvent,
   updateReplayRecordsForTaskEvent,
   type AssistantConversationMessage,
   type TaskView
@@ -786,28 +785,23 @@ export default function App() {
 
   useEffect(() => {
     return api.onTaskEvent((event) => {
-      const assistantConversationReply = isAssistantConversationReplyEvent(
-        event,
-        pendingAssistantPromptRef.current
-      );
+      const transition = createTaskEventUiTransition(event, pendingAssistantPromptRef.current);
 
-      setTask(createTaskViewFromEvent(event));
+      setTask(transition.task);
       setReplayRecords((records) => updateReplayRecordsForTaskEvent(records, event));
 
-      if (assistantConversationReply) {
-        pendingAssistantPromptRef.current = null;
-        setAssistantConversation((messages) => appendAssistantConversationReply(messages, event));
-        setAssistantInputSubmitting(false);
-        transitionPanelState({ type: "assistant-reply" });
-        return;
+      if (transition.clearPendingAssistantPrompt) pendingAssistantPromptRef.current = null;
+
+      if (transition.conversationAction !== "none") {
+        setAssistantConversation((messages) =>
+          updateAssistantConversationForTaskEvent(messages, event, transition.conversationAction)
+        );
       }
 
-      if (event.status !== "idle") {
-        if (event.command) {
-          pendingAssistantPromptRef.current = null;
-          setAssistantConversation((messages) => messages.filter((message) => message.state !== "pending"));
-        }
-        transitionPanelState({ type: "non-idle-task-event" });
+      if (transition.finishAssistantInputSubmitting) setAssistantInputSubmitting(false);
+
+      if (transition.panelAction) {
+        transitionPanelState({ type: transition.panelAction });
       }
     });
   }, [api, transitionPanelState]);
