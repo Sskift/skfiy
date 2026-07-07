@@ -60,7 +60,11 @@ import {
 import {
   STATUS_COPY,
   appendAssistantConversationReply,
+  appendAssistantConversationSubmission,
+  appendAssistantConversationSubmissionFailure,
   createInitialTaskView,
+  createAssistantSubmissionFailureTaskView,
+  createAssistantSubmissionTaskView,
   createTaskViewFromEvent,
   isAssistantConversationReplyEvent,
   updateReplayRecordsForTaskEvent,
@@ -1145,42 +1149,18 @@ export default function App() {
     }
 
     pendingAssistantPromptRef.current = command;
-    setAssistantConversation((messages) => [
-      ...messages.filter((message) => message.state !== "pending"),
-      {
-        role: "user",
-        text: command
-      },
-      {
-        role: "assistant",
-        text: "Background Agent 正在回复...",
-        state: "pending"
-      }
-    ]);
+    setAssistantConversation((messages) => appendAssistantConversationSubmission(messages, command));
     setAssistantInputSubmitting(true);
     transitionPanelState({ type: "open-assistant" });
-    setTask({
-      status: "planned",
-      message: "已交给 Background Agent."
-    });
+    setTask(createAssistantSubmissionTaskView());
     setAssistantInput("");
 
     try {
       await api.runCommand(command, { mode: "active" });
     } catch {
       pendingAssistantPromptRef.current = null;
-      setAssistantConversation((messages) => [
-        ...messages.filter((message) => message.state !== "pending"),
-        {
-          role: "assistant",
-          text: "发送给 Background Agent 失败.",
-          state: "error"
-        }
-      ]);
-      setTask({
-        status: "failed",
-        message: "发送给 Background Agent 失败."
-      });
+      setAssistantConversation(appendAssistantConversationSubmissionFailure);
+      setTask(createAssistantSubmissionFailureTaskView());
     } finally {
       setAssistantInputSubmitting(false);
     }

@@ -156,3 +156,48 @@ export function appendAssistantConversationReply(
     }
   ];
 }
+
+export function createAssistantSubmissionTaskView(): TaskView {
+  return {
+    status: "planned",
+    message: "已交给 Background Agent."
+  };
+}
+
+export function createAssistantSubmissionFailureTaskView(): TaskView {
+  return {
+    status: "failed",
+    message: "发送给 Background Agent 失败."
+  };
+}
+
+export function appendAssistantConversationSubmission(
+  messages: AssistantConversationMessage[],
+  command: string
+): AssistantConversationMessage[] {
+  return [
+    ...messages.filter((message) => message.state !== "pending"),
+    {
+      role: "user",
+      text: command
+    },
+    {
+      role: "assistant",
+      text: "Background Agent 正在回复...",
+      state: "pending"
+    }
+  ];
+}
+
+export function appendAssistantConversationSubmissionFailure(
+  messages: AssistantConversationMessage[]
+): AssistantConversationMessage[] {
+  return [
+    ...messages.filter((message) => message.state !== "pending"),
+    {
+      role: "assistant",
+      text: "发送给 Background Agent 失败.",
+      state: "error"
+    }
+  ];
+}

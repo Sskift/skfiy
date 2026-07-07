@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   appendAssistantConversationReply,
+  appendAssistantConversationSubmission,
+  appendAssistantConversationSubmissionFailure,
   createInitialTaskView,
+  createAssistantSubmissionFailureTaskView,
+  createAssistantSubmissionTaskView,
   createTaskViewFromEvent,
   isAssistantConversationReplyEvent,
   readAssistantConversationReply,
@@ -102,6 +106,39 @@ describe("app task state", () => {
     })).toEqual([
       { role: "user", text: "run this" },
       { role: "assistant", text: "provider unavailable", state: "error" }
+    ]);
+  });
+
+  it("creates assistant submission task and conversation state", () => {
+    const messages: AssistantConversationMessage[] = [
+      { role: "user", text: "old prompt" },
+      { role: "assistant", text: "Thinking", state: "pending" }
+    ];
+
+    expect(createAssistantSubmissionTaskView()).toEqual({
+      status: "planned",
+      message: "已交给 Background Agent."
+    });
+    expect(appendAssistantConversationSubmission(messages, "new prompt")).toEqual([
+      { role: "user", text: "old prompt" },
+      { role: "user", text: "new prompt" },
+      { role: "assistant", text: "Background Agent 正在回复...", state: "pending" }
+    ]);
+  });
+
+  it("creates assistant submission failure task and conversation state", () => {
+    const messages: AssistantConversationMessage[] = [
+      { role: "user", text: "run this" },
+      { role: "assistant", text: "Thinking", state: "pending" }
+    ];
+
+    expect(createAssistantSubmissionFailureTaskView()).toEqual({
+      status: "failed",
+      message: "发送给 Background Agent 失败."
+    });
+    expect(appendAssistantConversationSubmissionFailure(messages)).toEqual([
+      { role: "user", text: "run this" },
+      { role: "assistant", text: "发送给 Background Agent 失败.", state: "error" }
     ]);
   });
 });
