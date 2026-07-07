@@ -88,7 +88,6 @@ import {
   readWindowPositionOverride,
   resizePetWindowBoundsKeepingBottom,
   resizePetWindowBoundsKeepingPetAnchor,
-  type PetWindowBounds,
   type Point,
   type Size
 } from "./window-position.js";
@@ -300,24 +299,6 @@ function readAppProcessPermissions(): PermissionSummary {
       state: systemPreferences.isTrustedAccessibilityClient(false) ? "granted" : "denied"
     }
   };
-}
-
-function clampWindowBoundsToNearestDisplay(bounds: PetWindowBounds): PetWindowBounds {
-  const display = screen.getDisplayNearestPoint({
-    x: bounds.x + bounds.width / 2,
-    y: bounds.y + bounds.height / 2
-  });
-  const displayBounds = display.bounds;
-
-  return {
-    ...bounds,
-    x: Math.round(clampNumber(bounds.x, displayBounds.x, displayBounds.x + displayBounds.width - bounds.width)),
-    y: Math.round(clampNumber(bounds.y, displayBounds.y, displayBounds.y + displayBounds.height - bounds.height))
-  };
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(value, Math.max(min, max)));
 }
 
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
