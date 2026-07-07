@@ -333,3 +333,119 @@ export function getRecentExecutionCopy(replay: {
     tone
   };
 }
+
+export function getPanelVisibilityState({
+  assistantPanelOpen,
+  detailsOpen,
+  hasStartupWarning,
+  permissionOnboardingOpen,
+  taskStatus
+}: {
+  assistantPanelOpen: boolean;
+  detailsOpen: boolean;
+  hasStartupWarning: boolean;
+  permissionOnboardingOpen: boolean;
+  taskStatus: TaskStatus;
+}): {
+  bubbleAriaLabel: string;
+  settingsBubble: boolean;
+  showPanel: boolean;
+  showStartupWarning: boolean;
+} {
+  const showStartupWarning = hasStartupWarning
+    && !detailsOpen
+    && !permissionOnboardingOpen
+    && taskStatus === "idle";
+  const showPanel =
+    assistantPanelOpen
+    || detailsOpen
+    || permissionOnboardingOpen
+    || taskStatus !== "idle"
+    || showStartupWarning;
+  const bubbleAriaLabel = detailsOpen
+    ? "skfiy settings"
+    : permissionOnboardingOpen
+      ? "权限引导"
+      : assistantPanelOpen
+        ? "skfiy assistant panel"
+        : "skfiy task status";
+
+  return {
+    bubbleAriaLabel,
+    settingsBubble: detailsOpen || permissionOnboardingOpen,
+    showPanel,
+    showStartupWarning
+  };
+}
+
+export function getReplayAccessibilityLabel(record: { accessibilityTrusted?: boolean }): string {
+  if (record.accessibilityTrusted === true) {
+    return "AX ok";
+  }
+
+  if (record.accessibilityTrusted === false) {
+    return "AX denied";
+  }
+
+  return "AX unknown";
+}
+
+export function getReplayOcrLabel(record: { ocrLabels?: unknown[] }): string | null {
+  if (!record.ocrLabels) {
+    return null;
+  }
+
+  return `OCR ${record.ocrLabels.length}`;
+}
+
+export function formatReplayPlanner(planner: {
+  providerLabel: string;
+  command: string;
+  rationale?: string;
+}): string {
+  return `${planner.providerLabel}: ${planner.command}`
+    + (planner.rationale ? ` (${planner.rationale})` : "");
+}
+
+export function formatReplayAction(action: {
+  type: string;
+  appName?: string;
+  bundleId?: string;
+  text?: string;
+  key?: string;
+  action?: string;
+  actionType?: string;
+  status?: string;
+  stage?: string;
+  message?: string;
+  reason?: string;
+  providerLabel?: string;
+  command?: string;
+}): string {
+  if (action.type === "plan") {
+    return `${action.type}: ${action.providerLabel ?? ""} ${action.command ?? ""}`.trim();
+  }
+
+  if (action.type === "type_text") {
+    return `${action.type}: ${action.text ?? ""}`;
+  }
+
+  if (action.type === "press_key") {
+    return `${action.type}: ${action.key ?? ""}`;
+  }
+
+  if (action.type === "activate_app" || action.type === "open_session") {
+    return `${action.type}: ${action.appName ?? action.bundleId ?? ""}`;
+  }
+
+  if (action.type === "recover") {
+    return `${action.type}: ${action.action ?? ""} ${action.stage ?? ""}`.trim();
+  }
+
+  if (action.type === "verify") {
+    const detail = action.reason ?? action.message ?? "";
+    return `${action.type}: ${action.actionType ?? ""} ${action.status ?? ""} ${detail}`.trim();
+  }
+
+  return action.type;
+}

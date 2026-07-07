@@ -159,11 +159,11 @@ Progress:
 - 2026-07-07: consolidated repeated native-response envelopes in `src/main/chrome-extension-background.test.js` behind `createNativeResponse`, and removed the popup-delegated action test that only asserted response ordering already covered by action execution and dedupe behavior tests.
 - 2026-07-07: consolidated popup wake URL construction, localhost wake background setup, and repeated fill wake directives behind local helpers; removed the no-target popup heartbeat negative test while preserving target-tab, page observe, action, screenshot, dedupe, and blocker behavior coverage.
 
-- [ ] **Consolidate fixtures**
+- [x] **Consolidate fixtures**
 
 Merge repeated Chrome API, tab, permission, and native-message setup into a tiny helper. Keep it local to the test file unless a separate helper clearly removes substantial duplication.
 
-- [ ] **Delete low-value coverage**
+- [x] **Delete low-value coverage**
 
 Remove tests that only restate listener registration, duplicated constants, or implementation order. Preserve coverage for permission recovery, page observe, native-message forwarding, target-tab popup behavior, and blocked-state classification.
 
@@ -187,6 +187,7 @@ npm run typecheck -- --pretty false
 Progress:
 
 - 2026-07-07: extracted renderer task event state transitions, replay record merging, assistant reply detection, and task status copy into `src/renderer/app-task-state.ts` with focused pure helper coverage. `src/renderer/App.tsx` now keeps the task-event subscription and React state wiring while the pure state updates live in the helper.
+- 2026-07-07: extracted replay summary formatting, replay accessibility/OCR labels, and panel visibility derivation into `src/renderer/app-view-model.ts` with focused pure helper coverage. `src/renderer/App.tsx` now keeps component rendering and event wiring while this pure view-model logic lives in tested helpers.
 
 - [ ] **Extract renderer state reducers**
 
@@ -218,6 +219,7 @@ Progress:
 
 - 2026-07-07: after the Chrome background test diet, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. `npm run smoke:dashboard` was rerun output-free and remained typed-blocked by the current desktop and Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `chrome-native-host-missing`, and `chrome-extension-not-connected`.
 - 2026-07-07: after popup wake fixture consolidation, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
+- 2026-07-07: after renderer view-model extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 
 - [ ] **Run full gates**
 

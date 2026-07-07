@@ -40,11 +40,16 @@ import {
   canDismissTaskBubble,
   canStopTurn,
   formatFinderPreviewMove,
+  formatReplayAction,
+  formatReplayPlanner,
   getDashboardStatusCopy,
   getPermissionHealthCopy,
+  getPanelVisibilityState,
   getPolicySummary,
   getRecentExecutionCopy,
   getRiskCopy,
+  getReplayAccessibilityLabel,
+  getReplayOcrLabel,
   readAssistantAgentProviderDetail,
   readAssistantAgentReadinessLabel,
   readDesktopSessionPermissionState,
@@ -546,26 +551,6 @@ function getDesktopApi(): DesktopApi {
   return window.skfiy ?? fallbackApi;
 }
 
-function getReplayAccessibilityLabel(record: ObserveAppReplayRecord): string {
-  if (record.accessibilityTrusted === true) {
-    return "AX ok";
-  }
-
-  if (record.accessibilityTrusted === false) {
-    return "AX denied";
-  }
-
-  return "AX unknown";
-}
-
-function getReplayOcrLabel(record: ObserveAppReplayRecord): string | null {
-  if (!record.ocrLabels) {
-    return null;
-  }
-
-  return `OCR ${record.ocrLabels.length}`;
-}
-
 function TaskReplay({ records }: { records: ObserveAppReplayRecord[] }) {
   if (records.length === 0) {
     return null;
@@ -665,40 +650,6 @@ function ReplayList({ title, items }: { title: string; items: string[] }) {
       ))}
     </div>
   );
-}
-
-function formatReplayPlanner(planner: NonNullable<TurnTranscript["planner"]>): string {
-  return `${planner.providerLabel}: ${planner.command}`
-    + (planner.rationale ? ` (${planner.rationale})` : "");
-}
-
-function formatReplayAction(action: TurnTranscript["actions"][number]): string {
-  if (action.type === "plan") {
-    return `${action.type}: ${action.providerLabel ?? ""} ${action.command ?? ""}`.trim();
-  }
-
-  if (action.type === "type_text") {
-    return `${action.type}: ${action.text ?? ""}`;
-  }
-
-  if (action.type === "press_key") {
-    return `${action.type}: ${action.key ?? ""}`;
-  }
-
-  if (action.type === "activate_app" || action.type === "open_session") {
-    return `${action.type}: ${action.appName ?? action.bundleId ?? ""}`;
-  }
-
-  if (action.type === "recover") {
-    return `${action.type}: ${action.action ?? ""} ${action.stage ?? ""}`.trim();
-  }
-
-  if (action.type === "verify") {
-    const detail = action.reason ?? action.message ?? "";
-    return `${action.type}: ${action.actionType ?? ""} ${action.status ?? ""} ${detail}`.trim();
-  }
-
-  return action.type;
 }
 
 function DashboardSignal({
@@ -1336,16 +1287,13 @@ export default function App() {
   const status = STATUS_COPY[task.status];
   const petState = getPetStateForTask(task.status);
   const startupWarning = startupWarnings[0];
-  const showStartupWarning = Boolean(startupWarning)
-    && !detailsOpen
-    && !permissionOnboardingOpen
-    && task.status === "idle";
-  const showPanel =
-    assistantPanelOpen
-    || detailsOpen
-    || permissionOnboardingOpen
-    || task.status !== "idle"
-    || showStartupWarning;
+  const panelVisibility = getPanelVisibilityState({
+    assistantPanelOpen,
+    detailsOpen,
+    hasStartupWarning: Boolean(startupWarning),
+    permissionOnboardingOpen,
+    taskStatus: task.status
+  });
   const selectedAssistantAgentProvider =
     assistantAgentSettings.providers.find((provider) => provider.selected)
     ?? assistantAgentSettings.providers.find((provider) => provider.id === assistantAgentSettings.settings.mode)
@@ -1353,12 +1301,12 @@ export default function App() {
   const permissionOnboardingRows = readMissingPermissionRows(permissions);
 
   useEffect(() => {
-    api.setWindowMode(showPanel ? "expanded" : "compact");
-  }, [api, showPanel]);
+    api.setWindowMode(panelVisibility.showPanel ? "expanded" : "compact");
+  }, [api, panelVisibility.showPanel]);
 
   return (
     <main
-      className={`pet-stage status-${task.status}${showPanel ? " panel-open" : ""}`}
+      className={`pet-stage status-${task.status}${panelVisibility.showPanel ? " panel-open" : ""}`}
       aria-label="skfiy desktop pet"
     >
       <div className="status-orb" role="status" aria-label="Task status">
@@ -1366,18 +1314,10 @@ export default function App() {
         <span>{status.pulse}</span>
       </div>
 
-      {showPanel ? (
+      {panelVisibility.showPanel ? (
         <section
-          className={`assistant-bubble${detailsOpen || permissionOnboardingOpen ? " settings-bubble" : ""}`}
-          aria-label={
-            detailsOpen
-              ? "skfiy settings"
-              : permissionOnboardingOpen
-                ? "权限引导"
-                : assistantPanelOpen
-                  ? "skfiy assistant panel"
-                  : "skfiy task status"
-          }
+          className={`assistant-bubble${panelVisibility.settingsBubble ? " settings-bubble" : ""}`}
+          aria-label={panelVisibility.bubbleAriaLabel}
         >
           {detailsOpen ? (
             <>
@@ -1637,7 +1577,7 @@ export default function App() {
                 </button>
               </div>
             </>
-          ) : showStartupWarning && startupWarning ? (
+          ) : panelVisibility.showStartupWarning && startupWarning ? (
             <div className="startup-warning" aria-label="启动警告">
               <strong>{startupWarning.title}</strong>
               <span>{startupWarning.message}</span>
