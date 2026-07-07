@@ -82,6 +82,10 @@ npm run release:mac:check -- --json-output .skfiy-release/mac-release-check.json
 - focused `src/main/cli-*.ts` helpers
 - `src/main/cli-command-surface.test.ts`
 
+Progress:
+
+- 2026-07-07: extracted pure status text formatting into `src/main/cli-status-output.ts` with direct behavior coverage. Remaining Task 1 work should continue with JSON readiness/status assembly and command dispatch separation.
+
 - [ ] **Map responsibilities**
 
 Classify the remaining blocks in `src/main/cli-command-surface.ts` into command dispatch, pure status assembly, provider/browser/dashboard formatting, smoke command orchestration, and direct process side effects. Do not move behavior while mapping.
