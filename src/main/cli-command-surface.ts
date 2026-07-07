@@ -89,14 +89,15 @@ import {
   sanitizeSensitiveString,
   sanitizeTokenFree
 } from "./cli-output-sanitize.js";
+import { withCliStatusEvidence } from "./cli-status-evidence.js";
 import {
-  readLatestDashboardSmokeEvidence,
-  readRuntimeSnapshotEvidence
-} from "./cli-status-evidence.js";
+  createStatusReaderInput,
+  createStatusReaderInputWithInferredChromeExtensionIds,
+  type StatusReaderInput
+} from "./cli-status-reader-input.js";
 import { formatStatusTextOutput } from "./cli-status-output.js";
 import {
-  MONEY_RUN_SESSION_NAME,
-  createBinaryReadinessEvidence
+  MONEY_RUN_SESSION_NAME
 } from "./cli-status-readiness.js";
 import {
   createChromeSetupGuideFields
@@ -142,7 +143,6 @@ import {
 } from "./cli-permission-settings-output.js";
 import {
   createChromeExtensionAdapterStatus,
-  createChromePageControlCapability,
   readConnectionState
 } from "./cli-chrome-capabilities.js";
 import { createOperatorStatusOutput } from "./cli-operator-status-output.js";
@@ -202,6 +202,7 @@ export type {
   ChromeExtensionTabDiscoveryInvoker,
   ChromeExtensionTabDiscoveryResult
 };
+export type { StatusReaderInput };
 
 const TMUX_TAIL_LINES = 120;
 const TMUX_PROBE_TIMEOUT_MS = 1_500;
@@ -214,16 +215,6 @@ export interface CreateCliOutputOptions {
 
 export interface SkfiyCliIo {
   write: (chunk: string) => unknown;
-}
-
-export interface StatusReaderInput {
-  rootDir: string;
-  homeDir: string;
-  appPath: string;
-  helperPath: string;
-  cliShimPath: string;
-  extensionIds: string[];
-  dashboardUrl?: string;
 }
 
 export type StatusReader = (input: StatusReaderInput) => Promise<Record<string, unknown>>;
@@ -854,86 +845,6 @@ async function runOperatorStatusCli({
   }
 }
 
-function createStatusReaderInput({
-  rootDir,
-  homeDir,
-  invocation
-}: {
-  rootDir: string;
-  homeDir: string;
-  invocation: Extract<CliCommandInvocation, { kind: "status" | "doctor" | "operator-status" }>;
-}): StatusReaderInput {
-  const appPath = path.join(rootDir, "dist", "skfiy.app");
-
-  return {
-    rootDir,
-    homeDir,
-    appPath,
-    helperPath: path.join(appPath, "Contents", "MacOS", "skfiy-helper"),
-    cliShimPath: invocation.options.cliShimPath,
-    extensionIds: invocation.options.extensionIds,
-    dashboardUrl: invocation.options.dashboardUrl
-  };
-}
-
-function withCliStatusEvidence<TStatus extends Record<string, unknown>>(
-  status: TStatus,
-  context: {
-    rootDir: string;
-    homeDir: string;
-    appPath: string;
-    helperPath: string;
-    cliShimPath: string;
-    extensionIds: string[];
-    generatedAt: string;
-  }
-): TStatus & { evidence: Record<string, unknown>; runtimeSnapshot: Record<string, unknown> } {
-  const evidence = createCliStatusEvidence(status, context);
-  const runtimeSnapshot = readRecord(evidence.runtimeSnapshot) ?? {
-    state: "unknown",
-    reason: "CLI status evidence did not include runtime snapshot details."
-  };
-
-  return {
-    ...status,
-    evidence,
-    runtimeSnapshot
-  };
-}
-
-function createCliStatusEvidence(
-  status: Record<string, unknown>,
-  context: {
-    rootDir: string;
-    homeDir: string;
-    appPath: string;
-    helperPath: string;
-    cliShimPath: string;
-    extensionIds: string[];
-    generatedAt: string;
-  }
-): Record<string, unknown> {
-  const extension = readRecord(status.extension);
-  const runtimeSnapshot = readRuntimeSnapshotEvidence(context.homeDir, context.generatedAt);
-  const dashboardSmoke = readLatestDashboardSmokeEvidence(context.rootDir, context.generatedAt);
-
-  return {
-    schemaVersion: 1,
-    source: "skfiy-status-local-evidence",
-    binaryReadiness: createBinaryReadinessEvidence(status, context),
-    extensionPageControl: readRecord(extension?.pageControl)
-      ?? createChromePageControlCapability({
-        extensionState: "unknown",
-        nativeHostState: "unknown",
-        liveConnection: "unknown",
-        extensionIds: context.extensionIds
-      }),
-    runtimeSnapshot,
-    currentTurn: runtimeSnapshot.currentTurn,
-    dashboardSmoke
-  };
-}
-
 async function readMoneyRunStatusForStatus(): Promise<Record<string, unknown>> {
   const probeCommands: string[] = [];
   const runTmux = async (args: string[]) => {
@@ -1137,38 +1048,6 @@ async function readDesktopSessionForStatus(
       reason: readErrorMessage(error)
     };
   }
-}
-
-function createStatusReaderInputWithInferredChromeExtensionIds(
-  input: StatusReaderInput,
-  extensionConnection: ChromeExtensionConnectionStatus | undefined
-): StatusReaderInput {
-  if (input.extensionIds.length > 0) {
-    return input;
-  }
-
-  const extensionIds = readChromeExtensionIdsFromConnection(extensionConnection);
-
-  return extensionIds.length > 0
-    ? { ...input, extensionIds }
-    : input;
-}
-
-function readChromeExtensionIdsFromConnection(
-  extensionConnection: ChromeExtensionConnectionStatus | undefined
-): string[] {
-  const candidates = [
-    extensionConnection?.launchOrigin,
-    extensionConnection?.latestCommand?.launchOrigin
-  ];
-
-  return [...new Set(candidates.map(readChromeExtensionIdFromLaunchOrigin).filter(Boolean))];
-}
-
-function readChromeExtensionIdFromLaunchOrigin(launchOrigin: string | undefined): string {
-  const match = launchOrigin?.match(/^chrome-extension:\/\/([a-p]{32})\/$/);
-
-  return match?.[1] ?? "";
 }
 
 async function readNativeHostStatusForStatus(

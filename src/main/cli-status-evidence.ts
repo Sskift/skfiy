@@ -19,9 +19,63 @@ import {
   readString
 } from "./cli-record-utils.js";
 import { sanitizeSensitiveString } from "./cli-output-sanitize.js";
+import { createChromePageControlCapability } from "./cli-chrome-capabilities.js";
+import { createBinaryReadinessEvidence } from "./cli-status-readiness.js";
 
 const RUNTIME_EVIDENCE_RECENT_SECONDS = 300;
 const RUNTIME_EVIDENCE_SKEW_SECONDS = 5;
+
+export interface CliStatusEvidenceContext {
+  rootDir: string;
+  homeDir: string;
+  appPath: string;
+  helperPath: string;
+  cliShimPath: string;
+  extensionIds: string[];
+  generatedAt: string;
+}
+
+export function withCliStatusEvidence<TStatus extends Record<string, unknown>>(
+  status: TStatus,
+  context: CliStatusEvidenceContext
+): TStatus & { evidence: Record<string, unknown>; runtimeSnapshot: Record<string, unknown> } {
+  const evidence = createCliStatusEvidence(status, context);
+  const runtimeSnapshot = readRecord(evidence.runtimeSnapshot) ?? {
+    state: "unknown",
+    reason: "CLI status evidence did not include runtime snapshot details."
+  };
+
+  return {
+    ...status,
+    evidence,
+    runtimeSnapshot
+  };
+}
+
+export function createCliStatusEvidence(
+  status: Record<string, unknown>,
+  context: CliStatusEvidenceContext
+): Record<string, unknown> {
+  const extension = readRecord(status.extension);
+  const runtimeSnapshot = readRuntimeSnapshotEvidence(context.homeDir, context.generatedAt);
+  const dashboardSmoke = readLatestDashboardSmokeEvidence(context.rootDir, context.generatedAt);
+
+  return {
+    schemaVersion: 1,
+    source: "skfiy-status-local-evidence",
+    binaryReadiness: createBinaryReadinessEvidence(status, context),
+    extensionPageControl: readRecord(extension?.pageControl)
+      ?? createChromePageControlCapability({
+        extensionState: "unknown",
+        nativeHostState: "unknown",
+        liveConnection: "unknown",
+        extensionIds: context.extensionIds
+      }),
+    runtimeSnapshot,
+    currentTurn: runtimeSnapshot.currentTurn,
+    dashboardSmoke
+  };
+}
 
 export function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string): Record<string, unknown> {
   if (!homeDir) {
