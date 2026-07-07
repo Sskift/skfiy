@@ -99,6 +99,7 @@ Progress:
 - 2026-07-07: extracted dashboard probe URL, fetch summary, not-run output, and snapshot summary shaping into `src/main/cli-dashboard-probe-output.ts`. Dashboard network probing and stdout writing stay in `cli-command-surface.ts`.
 - 2026-07-07: extracted money-run tmux status formatting and snapshot/failure shaping into `src/main/cli-money-run-status.ts`. The actual tmux probe process execution remains in `cli-command-surface.ts`.
 - 2026-07-07: extracted permission settings URL and action-plan output shaping into `src/main/cli-permission-settings-output.ts`. Opening System Settings and error handling stay in `cli-command-surface.ts`.
+- 2026-07-07: extracted Chrome page-safety/page-control capability and adapter status shaping into `src/main/cli-chrome-capabilities.ts`. Native host, connection, and host-policy reads remain in `cli-command-surface.ts`.
 
 - [ ] **Map responsibilities**
 
