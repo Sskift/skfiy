@@ -27,10 +27,6 @@ export function createUnknownPermissionRefreshState(): PermissionRefreshState {
   };
 }
 
-export function readPermissionOnboardingRows(permissions: PermissionSummary) {
-  return readMissingPermissionRows(permissions);
-}
-
 export function isPermissionOnboardingComplete(permissions: PermissionSummary): boolean {
-  return readPermissionOnboardingRows(permissions).length === 0;
+  return readMissingPermissionRows(permissions).length === 0;
 }

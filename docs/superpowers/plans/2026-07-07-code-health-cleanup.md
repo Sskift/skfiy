@@ -16,7 +16,8 @@
 
 - CLI command-surface slimming is complete for the current pass. Status formatting, readiness JSON, Chrome readiness, Dashboard probing, money-run status, permission output, Chrome capability envelopes, operator status output, extension info output, doctor output, status capabilities, skeleton output, status-reader inputs, local evidence, Chrome files, desktop status, default status reading, Chrome command execution, MCP serve, Dashboard command execution, status/doctor/operator execution, smoke/skin execution, permission opening, code-signature reading, and child-process execution now live in focused helpers.
 - Chrome extension background test diet is complete for the current pass. Repeated Chrome globals, runtime message dispatch, tab lifecycle helpers, host-policy fixtures, page-control wake envelopes, native-response envelopes, and popup wake setup were consolidated. Low-value listener-count, duplicated-order, and redundant negative tests were removed while preserving behavior coverage.
-- Main and renderer pure-logic extraction is mostly complete for the current pass. Renderer task state, panel state, settings state, permission fallback state, pet drag state, desktop API fallback, and view-model decisions now live behind focused helpers. Main-process IPC payloads, runtime snapshot payloads, renderer payloads, Browser Context reading, Background Agent settings responses, Computer Use tool-result mapping, and duplicate window-bound clamping have been extracted or removed.
+- Main and renderer pure-logic extraction is complete for the current pass. Renderer task state, panel state, settings state, permission fallback state, pet drag state, desktop API fallback, and view-model decisions now live behind focused helpers. Main-process IPC payloads, runtime snapshot payloads, renderer payloads, Browser Context reading, Background Agent settings responses, Computer Use tool-result mapping, and duplicate window-bound clamping have been extracted or removed.
+- The final Task 3 opportunistic pass removed the unused renderer permission-onboarding row forwarding helper and its forwarding-only test. Permission-onboarding completion now calls the shared missing-permission row helper directly, while onboarding row display remains covered through the root view-model tests.
 - Project hygiene pass removed stale smoke artifact defaults, temporary smoke directories, source-string smoke tests, duplicate record helpers, and extra active-plan files.
 
 ## Active Scope
@@ -31,7 +32,7 @@ This is not a feature expansion plan. The remaining work is project slimming:
 ## Next Work Order
 
 1. Keep planning single-source. If a stale plan file reappears under `docs/superpowers/plans/`, delete it in the same cleanup change or replace this file with exactly one newer active plan.
-2. Run one final Task 3 scan for obvious pure renderer/main cleanup. Good candidates are unused thin wrappers, repeated transition/view-model assembly, or tests that only cover forwarding layers. Do not split JSX components just to reduce line count.
+2. Treat the final Task 3 opportunistic scan as complete for this pass. Do not split JSX components just to reduce line count.
 3. Treat `src/main/cli-command-surface.ts` and `src/main/main.ts` as mostly slimmed for this pass. Only move more code if the extracted unit is pure, named, tested, and keeps Electron/CLI side effects easier to follow.
 4. Treat `src/main/chrome-extension-background.test.js` as slimmed for this pass. Do not add back listener-count tests, source-string assertions, duplicate fixtures, or redundant negative coverage.
 5. After each focused cleanup commit, run Task 4 gates. If no clear pure extraction remains, pause code-health slimming and only address typed smoke blockers when the local macOS/Chrome environment is available.
@@ -97,9 +98,9 @@ npm run typecheck -- --pretty false
 
 ## Task 3: Main And Renderer Pure Logic
 
-Status: mostly complete; one final opportunistic pass is allowed.
+Status: complete for the current cleanup pass.
 
-Remaining scope:
+Future scope, only if new obvious cleanup appears:
 
 - Remove unused forwarding helpers only when direct callers and tests confirm the behavior is covered elsewhere.
 - Extract repeated renderer state/view-model assembly only if the extracted helper is clearer than the inline React code.
@@ -131,6 +132,8 @@ env -u TMUX npx vitest run --reporter=dot
 npm run build
 env -u TMUX npm run smoke:cli:basic -- --require-passed
 ```
+
+`npm run build` must still produce `dist/skfiy.app` and `dist/skfiy`.
 
 For Dashboard smoke, keep the default no-artifact path. When a compact status is needed, run:
 

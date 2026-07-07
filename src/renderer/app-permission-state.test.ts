@@ -4,8 +4,7 @@ import {
   UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS,
   UNKNOWN_PERMISSIONS,
   createUnknownPermissionRefreshState,
-  isPermissionOnboardingComplete,
-  readPermissionOnboardingRows
+  isPermissionOnboardingComplete
 } from "./app-permission-state";
 import type {
   PermissionSummary
@@ -27,17 +26,6 @@ describe("app permission state", () => {
       permissions: UNKNOWN_PERMISSIONS,
       desktopSessionDiagnostics: UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS
     });
-  });
-
-  it("reads permission onboarding rows from blocking permission states", () => {
-    expect(readPermissionOnboardingRows(blockedPermissions).map((row) => row.key)).toEqual([
-      "screenRecording",
-      "accessibility"
-    ]);
-    expect(readPermissionOnboardingRows({
-      screenRecording: { state: "unknown" },
-      accessibility: { state: "granted" }
-    })).toEqual([]);
   });
 
   it("detects when permission onboarding is complete", () => {

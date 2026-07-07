@@ -48,8 +48,9 @@ describe("implementation plan status docs", () => {
     const agents = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8");
 
     expect(agents).toContain("docs/superpowers/plans/2026-07-07-code-health-cleanup.md");
-    expect(agents).toContain("Historical long-form implementation plans were removed");
-    expect(agents).toContain("replace it with exactly one newer active plan");
+    expect(agents).toContain("Historical implementation material is archival reference only");
+    expect(agents).toContain("not active");
+    expect(agents).toContain("with exactly one newer active plan");
   });
 
   it("documents output-free default smoke runs in README instead of plan archives", () => {
@@ -116,15 +117,14 @@ describe("implementation plan status docs", () => {
 
     expect(activePlan).toContain("# skfiy Code Health Cleanup Plan");
     expect(activePlan).toContain("For agentic workers");
-    expect(activePlan).toContain("Previous long-form implementation logs were retired");
-    expect(activePlan).toContain("Do not restore retired historical plans");
-    expect(activePlan).toContain("Slim The CLI Command Surface");
-    expect(activePlan).toContain("Finish Chrome Extension Background Test Diet");
-    expect(activePlan).toContain("Extract Pure Logic From Main And Renderer");
-    expect(activePlan).toContain("Refresh Product Readiness After Cleanup");
-    expect(activePlan).toContain("Codex");
-    expect(activePlan).toContain("Claude Code");
-    expect(activePlan).toContain("bounded Hermes (`hermes`)");
+    expect(activePlan).toContain("only active implementation plan");
+    expect(activePlan).toContain("Dated research and decision records");
+    expect(activePlan).toContain("Task 1: CLI Command Surface");
+    expect(activePlan).toContain("Task 2: Chrome Extension Background Test Diet");
+    expect(activePlan).toContain("Task 3: Main And Renderer Pure Logic");
+    expect(activePlan).toContain("Task 4: Product Readiness Gates");
+    expect(activePlan).toContain("Background Agent");
+    expect(activePlan).toContain("Computer Use Planner");
     expect(activePlan).toContain("Computer Use");
     expect(activePlan).toContain("Chrome extension");
     expect(activePlan).toContain("Dashboard");
