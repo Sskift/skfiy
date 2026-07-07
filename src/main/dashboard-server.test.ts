@@ -1758,7 +1758,7 @@ describe("dashboard loopback HTTP response helper", () => {
       },
       readdir: () => [],
       stat: (targetPath: string) => ({
-        mtimeMs: Object.hasOwn(files, targetPath) ? Date.parse("2026-06-23T10:00:00.000Z") : 0
+        mtimeMs: Object.hasOwn(files, targetPath) ? Date.parse("2026-07-07T10:00:00.000Z") : 0
       }),
       homeDir: () => "/Users/tester",
       pid: () => 4242,

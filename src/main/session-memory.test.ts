@@ -16,7 +16,7 @@ describe("session memory", () => {
 
     store.append({
       turnId: "turn-1",
-      createdAt: "2026-06-23T10:00:00.000Z",
+      createdAt: "2026-07-07T10:00:00.000Z",
       userInput: "以后进度更新短一点",
       assistantReply: "我会更简洁。",
       providerLabel: "Hermes",
@@ -39,14 +39,14 @@ describe("session memory", () => {
     const records = [
       {
         turnId: "turn-1",
-        createdAt: "2026-06-23T10:00:00.000Z",
+        createdAt: "2026-07-07T10:00:00.000Z",
         userInput: "喜欢 Obsidian 风格 dashboard",
         assistantReply: "我会偏知识图谱和深色画布。",
         providerLabel: "Codex"
       },
       {
         turnId: "turn-2",
-        createdAt: "2026-06-23T10:05:00.000Z",
+        createdAt: "2026-07-07T10:05:00.000Z",
         userInput: "帮我打开 Chrome",
         assistantReply: "我会走 Computer Use。",
         providerLabel: "Codex"
@@ -65,7 +65,7 @@ describe("session memory", () => {
     const recalled = searchSessionMemory([
       {
         turnId: "turn-1",
-        createdAt: "2026-06-23T10:00:00.000Z",
+        createdAt: "2026-07-07T10:00:00.000Z",
         userInput: "喜欢 Obsidian 风格 dashboard",
         assistantReply: "我会偏知识图谱和深色画布。",
         providerLabel: "Codex"
@@ -81,7 +81,7 @@ describe("session memory", () => {
     const block = createSessionMemoryPromptBlock([
       {
         turnId: "turn-1",
-        createdAt: "2026-06-23T10:00:00.000Z",
+        createdAt: "2026-07-07T10:00:00.000Z",
         userInput: "以后进度更新短一点，token sk-test-1234567890abcdef 不要展示",
         assistantReply: "我会用中文短句更新。",
         providerLabel: "Hermes",

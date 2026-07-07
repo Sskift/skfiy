@@ -156,7 +156,7 @@ describe("dashboard snapshot data", () => {
         writes: [
           {
             id: "pmw-safe",
-            createdAt: "2026-06-23T10:05:00.000Z",
+            createdAt: "2026-07-07T10:05:00.000Z",
             source: "post-turn-review",
             action: "add",
             target: "user",
@@ -164,7 +164,7 @@ describe("dashboard snapshot data", () => {
           },
           {
             id: "pmw-secret",
-            createdAt: "2026-06-23T10:06:00.000Z",
+            createdAt: "2026-07-07T10:06:00.000Z",
             source: "post-turn-review",
             action: "add",
             target: "user",
@@ -175,14 +175,14 @@ describe("dashboard snapshot data", () => {
       "/Users/tester/Library/Application Support/skfiy/memory/sessions.jsonl": [
         JSON.stringify({
           turnId: "turn-0",
-          createdAt: "2026-06-23T09:55:00.000Z",
+          createdAt: "2026-07-07T09:55:00.000Z",
           userInput: "以后进度更新短一点",
           assistantReply: "会用更短的中文更新。",
           providerLabel: "Hermes"
         }),
         JSON.stringify({
           turnId: "turn-1",
-          createdAt: "2026-06-23T10:00:00.000Z",
+          createdAt: "2026-07-07T10:00:00.000Z",
           userInput: "喜欢 Obsidian dashboard token=secret",
           assistantReply: "会保留这个偏好。",
           providerLabel: "Codex",
@@ -195,7 +195,7 @@ describe("dashboard snapshot data", () => {
       "/Users/tester/Library/Application Support/skfiy/memory/memory-journal.jsonl": [
         JSON.stringify({
           id: "pmj-20260623T100200000Z-1",
-          createdAt: "2026-06-23T10:02:00.000Z",
+          createdAt: "2026-07-07T10:02:00.000Z",
           source: "post-turn-review",
           stage: "durable",
           turnId: "turn-1",
@@ -207,7 +207,7 @@ describe("dashboard snapshot data", () => {
         }),
         JSON.stringify({
           id: "pmj-20260623T100500000Z-1",
-          createdAt: "2026-06-23T10:05:00.000Z",
+          createdAt: "2026-07-07T10:05:00.000Z",
           source: "post-turn-review",
           stage: "pending",
           turnId: "turn-2",
@@ -224,12 +224,12 @@ describe("dashboard snapshot data", () => {
     const snapshot = createDashboardWorkspaceSnapshot({
       rootDir: "/repo",
       descriptor: createDashboardDescriptor({ port: 8787 }),
-      generatedAt: "2026-06-23T10:10:00.000Z",
+      generatedAt: "2026-07-07T10:10:00.000Z",
       io: {
         exists: (targetPath) => targetPath === "/repo/package.json" || targetPath in files,
         readFile: (targetPath) => files[targetPath],
         readdir: () => [],
-        stat: () => ({ mtimeMs: Date.parse("2026-06-23T10:00:00.000Z") }),
+        stat: () => ({ mtimeMs: Date.parse("2026-07-07T10:00:00.000Z") }),
         homeDir: () => "/Users/tester"
       }
     });
@@ -238,7 +238,7 @@ describe("dashboard snapshot data", () => {
       userEntryCount: 2,
       agentEntryCount: 1,
       sessionCount: 2,
-      latestUpdatedAt: "2026-06-23T10:00:00.000Z",
+      latestUpdatedAt: "2026-07-07T10:00:00.000Z",
       usage: {
         user: {
           usedChars: 90,
@@ -262,7 +262,7 @@ describe("dashboard snapshot data", () => {
       pendingWrites: [
         {
           id: "pmw-safe",
-          createdAt: "2026-06-23T10:05:00.000Z",
+          createdAt: "2026-07-07T10:05:00.000Z",
           source: "post-turn-review",
           action: "add",
           target: "user",
@@ -270,7 +270,7 @@ describe("dashboard snapshot data", () => {
         }
       ],
       latestSession: {
-        createdAt: "2026-06-23T10:00:00.000Z",
+        createdAt: "2026-07-07T10:00:00.000Z",
         providerLabel: "Codex",
         userInput: "[redacted sensitive memory]",
         browserTitle: "Obsidian help",
@@ -278,7 +278,7 @@ describe("dashboard snapshot data", () => {
       },
       recentSessions: [
         {
-          createdAt: "2026-06-23T10:00:00.000Z",
+          createdAt: "2026-07-07T10:00:00.000Z",
           providerLabel: "Codex",
           userInput: "[redacted sensitive memory]",
           recallBasis: "matched terms: dashboard, obsidian; score: 2",
@@ -286,7 +286,7 @@ describe("dashboard snapshot data", () => {
           browserUrl: "https://obsidian.md"
         },
         {
-          createdAt: "2026-06-23T09:55:00.000Z",
+          createdAt: "2026-07-07T09:55:00.000Z",
           providerLabel: "Hermes",
           userInput: "以后进度更新短一点"
         }
@@ -294,7 +294,7 @@ describe("dashboard snapshot data", () => {
       memoryJournal: [
         {
           id: "pmj-20260623T100500000Z-1",
-          createdAt: "2026-06-23T10:05:00.000Z",
+          createdAt: "2026-07-07T10:05:00.000Z",
           source: "post-turn-review",
           stage: "pending",
           turnId: "turn-2",
@@ -307,7 +307,7 @@ describe("dashboard snapshot data", () => {
         },
         {
           id: "pmj-20260623T100200000Z-1",
-          createdAt: "2026-06-23T10:02:00.000Z",
+          createdAt: "2026-07-07T10:02:00.000Z",
           source: "post-turn-review",
           stage: "durable",
           turnId: "turn-1",
@@ -477,7 +477,7 @@ describe("dashboard snapshot data", () => {
 
   it("adds ready Browser Context summary without exposing page text", () => {
     const snapshot = createDashboardSnapshot({
-      generatedAt: "2026-06-23T00:00:00.000Z",
+      generatedAt: "2026-07-07T00:00:00.000Z",
       descriptor: createDashboardDescriptor({ port: 8787 }),
       status: createPageControlStatus({
         extension: {
@@ -486,7 +486,7 @@ describe("dashboard snapshot data", () => {
             url: "https://example.test/form",
             title: "Example Form",
             visibleText: "token=page-secret should not be exposed",
-            observedAt: "2026-06-23T00:00:00.000Z",
+            observedAt: "2026-07-07T00:00:00.000Z",
             pageControl: {
               state: "ready"
             }
@@ -502,7 +502,7 @@ describe("dashboard snapshot data", () => {
         source: "runtime-health",
         url: "https://example.test/form",
         title: "Example Form",
-        observedAt: "2026-06-23T00:00:00.000Z"
+        observedAt: "2026-07-07T00:00:00.000Z"
       }
     });
     expect(JSON.stringify(snapshot)).not.toContain("visibleText");
@@ -512,7 +512,7 @@ describe("dashboard snapshot data", () => {
 
   it("adds blocked Browser Context summary from pageControl blockers", () => {
     const snapshot = createDashboardSnapshot({
-      generatedAt: "2026-06-23T00:00:00.000Z",
+      generatedAt: "2026-07-07T00:00:00.000Z",
       descriptor: createDashboardDescriptor({ port: 8787 }),
       status: createPageControlStatus({
         extension: {
@@ -539,7 +539,7 @@ describe("dashboard snapshot data", () => {
 
   it("expands Chrome pageControl machine next actions for dashboard operators", () => {
     const snapshot = createDashboardSnapshot({
-      generatedAt: "2026-06-23T00:00:00.000Z",
+      generatedAt: "2026-07-07T00:00:00.000Z",
       descriptor: createDashboardDescriptor({ port: 8787 }),
       status: createPageControlStatus({
         extension: {

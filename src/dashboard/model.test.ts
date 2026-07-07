@@ -260,7 +260,7 @@ describe("readChromeControlState", () => {
 function createSnapshot(): DashboardSnapshot {
   return {
     schemaVersion: 1,
-    generatedAt: "2026-06-23T12:00:00.000Z",
+    generatedAt: "2026-07-07T12:00:00.000Z",
     descriptor: {
       schemaVersion: 1,
       bind: { host: "127.0.0.1", port: 51234 },
@@ -357,14 +357,14 @@ function createSnapshot(): DashboardSnapshot {
       },
       recentSessions: [
         {
-          createdAt: "2026-06-23T12:00:00.000Z",
+          createdAt: "2026-07-07T12:00:00.000Z",
           providerLabel: "Codex",
           userInput: "summarize dashboard",
           recallBasis: "matched terms: dashboard; score: 1",
           browserTitle: "Dashboard"
         },
         {
-          createdAt: "2026-06-23T11:55:00.000Z",
+          createdAt: "2026-07-07T11:55:00.000Z",
           providerLabel: "Hermes",
           userInput: "remember concise updates",
           recallBasis: "matched terms: concise, updates; score: 2"
@@ -373,7 +373,7 @@ function createSnapshot(): DashboardSnapshot {
       memoryJournal: [
         {
           id: "pmj-20260623T120000000Z-1",
-          createdAt: "2026-06-23T12:00:00.000Z",
+          createdAt: "2026-07-07T12:00:00.000Z",
           source: "post-turn-review",
           stage: "durable",
           turnId: "turn-1",
@@ -385,7 +385,7 @@ function createSnapshot(): DashboardSnapshot {
         },
         {
           id: "pmj-20260623T120500000Z-1",
-          createdAt: "2026-06-23T12:05:00.000Z",
+          createdAt: "2026-07-07T12:05:00.000Z",
           source: "post-turn-review",
           stage: "pending",
           turnId: "turn-2",

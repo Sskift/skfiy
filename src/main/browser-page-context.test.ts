@@ -12,7 +12,7 @@ describe("browser page context", () => {
       url: "https://example.test/form",
       title: "Example Form",
       visibleText: "Name Email Submit ".repeat(200),
-      observedAt: "2026-06-23T00:00:00.000Z"
+      observedAt: "2026-07-07T00:00:00.000Z"
     });
     const promptBlock = createBrowserPageContextPromptBlock(context);
 
@@ -36,7 +36,7 @@ describe("browser page context", () => {
   it("expands pageControl machine next actions before prompt injection", () => {
     const context = createBrowserPageContextFromConnection({
       state: "connected",
-      observedAt: "2026-06-23T00:00:00.000Z",
+      observedAt: "2026-07-07T00:00:00.000Z",
       pageControl: {
         state: "blocked_by_host_policy",
         reason: "Host policy has not allowed this page.",
@@ -77,7 +77,7 @@ describe("browser page context", () => {
   it("reads the latest Chrome connection page observation", () => {
     const context = createBrowserPageContextFromConnection({
       state: "connected",
-      observedAt: "2026-06-23T00:00:00.000Z",
+      observedAt: "2026-07-07T00:00:00.000Z",
       pageObservation: {
         url: "https://example.test/dashboard",
         title: "Example Dashboard",
@@ -93,7 +93,7 @@ describe("browser page context", () => {
       url: "https://example.test/dashboard",
       title: "Example Dashboard",
       visibleText: "Revenue Pending Tasks",
-      observedAt: "2026-06-23T00:00:00.000Z"
+      observedAt: "2026-07-07T00:00:00.000Z"
     });
   });
 

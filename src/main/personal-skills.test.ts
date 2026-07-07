@@ -21,14 +21,14 @@ describe("personal skill cards", () => {
       sessions: [
         {
           turnId: "turn-1",
-          createdAt: "2026-06-23T10:00:00.000Z",
+          createdAt: "2026-07-07T10:00:00.000Z",
           userInput: "以后进度更新短一点，先给结论",
           assistantReply: "我会用更短的中文更新。",
           providerLabel: "Hermes"
         },
         {
           turnId: "turn-2",
-          createdAt: "2026-06-23T10:05:00.000Z",
+          createdAt: "2026-07-07T10:05:00.000Z",
           userInput: "Dashboard 要像 Obsidian，有知识图谱和双链",
           assistantReply: "我会做成本地知识画布。",
           providerLabel: "Codex"
@@ -71,7 +71,7 @@ describe("personal skill cards", () => {
       sessions: [
         {
           turnId: "turn-secret",
-          createdAt: "2026-06-23T10:00:00.000Z",
+          createdAt: "2026-07-07T10:00:00.000Z",
           userInput: "remember bearer abcdefghijklmnopqrstuvwxyz",
           assistantReply: "不会泄漏。",
           providerLabel: "Codex"

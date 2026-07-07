@@ -13,6 +13,7 @@
 - Default smoke runs are output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 - 2026-07-07 cleanup removed stale smoke artifact defaults, low-value smoke source-string tests, duplicated record helpers, and temporary smoke directories.
 - 2026-07-07 plan audit confirmed `docs/superpowers/plans/` contains only this active plan. Historical long-form plans have been removed from `docs/`.
+- 2026-07-07 stale-date audit confirmed no retired June plan files or plan references remain; remaining stale-date hits were only deterministic test/smoke fixture timestamps and were refreshed to the active plan date.
 
 ## Active Scope
 

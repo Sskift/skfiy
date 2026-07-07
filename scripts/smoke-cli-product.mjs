@@ -114,7 +114,7 @@ async function collectProviderPromptContract() {
     url: "https://example.test/skfiy-provider-contract",
     title: "skfiy provider contract",
     visibleText: "Provider contract page with bounded browser context.",
-    observedAt: "2026-06-23T00:00:00.000Z"
+    observedAt: "2026-07-07T00:00:00.000Z"
   };
   const personalMemory = {
     userEntries: ["User prefers concise Chinese progress updates."],
@@ -123,7 +123,7 @@ async function collectProviderPromptContract() {
   const recalledSessions = searchSessionMemory([
     {
       turnId: "provider-contract-recall",
-      createdAt: "2026-06-23T00:05:00.000Z",
+      createdAt: "2026-07-07T00:05:00.000Z",
       userInput: "我喜欢 Obsidian 风格 dashboard，token sk-provider-contract-secret-123456 不要泄漏",
       assistantReply: "我会使用知识图谱、backlinks 和深色画布。",
       providerLabel: "Hermes",

@@ -173,7 +173,7 @@ const snapshot: DashboardSnapshot = {
     userEntryCount: 1,
     agentEntryCount: 1,
     sessionCount: 2,
-    latestUpdatedAt: "2026-06-23T10:00:00.000Z",
+    latestUpdatedAt: "2026-07-07T10:00:00.000Z",
     usage: {
       user: {
         usedChars: 37,
@@ -246,14 +246,14 @@ const snapshot: DashboardSnapshot = {
     },
     recentSessions: [
       {
-        createdAt: "2026-06-23T10:00:00.000Z",
+        createdAt: "2026-07-07T10:00:00.000Z",
         providerLabel: "Codex",
         userInput: "Summarize current dashboard state.",
         recallBasis: "matched terms: dashboard; score: 1",
         browserTitle: "skfiy Dashboard"
       },
       {
-        createdAt: "2026-06-23T09:55:00.000Z",
+        createdAt: "2026-07-07T09:55:00.000Z",
         providerLabel: "Hermes",
         userInput: "以后进度更新短一点",
         recallBasis: "matched terms: concise, updates; score: 2"
@@ -262,7 +262,7 @@ const snapshot: DashboardSnapshot = {
     memoryJournal: [
       {
         id: "pmj-20260623T100000000Z-1",
-        createdAt: "2026-06-23T10:00:00.000Z",
+        createdAt: "2026-07-07T10:00:00.000Z",
         source: "post-turn-review",
         stage: "durable",
         turnId: "turn-1",
@@ -274,7 +274,7 @@ const snapshot: DashboardSnapshot = {
       },
       {
         id: "pmj-20260623T100500000Z-1",
-        createdAt: "2026-06-23T10:05:00.000Z",
+        createdAt: "2026-07-07T10:05:00.000Z",
         source: "post-turn-review",
         stage: "pending",
         turnId: "turn-2",
