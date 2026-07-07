@@ -198,6 +198,7 @@ Progress:
 - 2026-07-07: extracted main-process Browser Context status reading and success/failure mapping into `src/main/main-browser-context-reader.ts` with injected Chrome connection reads. `src/main/main.ts` now only supplies `homeDir` and the real Chrome extension connection reader before passing Browser Context into the Background Agent turn.
 - 2026-07-07: extracted main-process Background Agent settings response assembly into `src/main/main-assistant-agent-settings-response.ts`, including settings update normalization and injected provider-state reads. `src/main/main.ts` now keeps only the Electron IPC handlers and settings store delegation for Background Agent settings.
 - 2026-07-07: extracted renderer settings default state and fallback update reducers into `src/renderer/app-settings-state.ts`, covering app policy updates, Background Agent provider selection state, and Computer Use Planner mode updates. `src/renderer/App.tsx` now imports these settings defaults/reducers while keeping settings UI rendering and API calls unchanged.
+- 2026-07-07: extracted renderer permission fallback state and permission-onboarding completion checks into `src/renderer/app-permission-state.ts`. `src/renderer/App.tsx` now keeps permission API calls and UI rendering while unknown permission defaults and onboarding row/completion derivation live in a tested helper.
 
 - [ ] **Extract renderer state reducers**
 

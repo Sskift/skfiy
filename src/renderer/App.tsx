@@ -54,7 +54,6 @@ import {
   readAssistantAgentReadinessLabel,
   readDesktopSessionPermissionState,
   readExternalCuaStatusLabel,
-  readMissingPermissionRows,
   readSelectedAssistantAgentProvider,
   readVisiblePetRect
 } from "./app-view-model";
@@ -78,6 +77,13 @@ import {
   reducePanelState,
   type PanelStateAction
 } from "./app-panel-state";
+import {
+  UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS,
+  UNKNOWN_PERMISSIONS,
+  createUnknownPermissionRefreshState,
+  isPermissionOnboardingComplete,
+  readPermissionOnboardingRows
+} from "./app-permission-state";
 import {
   DEFAULT_APP_POLICY_SETTINGS,
   DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
@@ -425,17 +431,6 @@ const PLANNER_PROVIDER_OPTIONS: Array<{ mode: PlannerProviderMode; label: string
   { mode: "external-cua", label: "External CUA", aria: "选择 External CUA 规划" },
   { mode: "disabled", label: "关闭", aria: "选择关闭规划" }
 ];
-
-const UNKNOWN_PERMISSIONS: PermissionSummary = {
-  screenRecording: { state: "unknown" },
-  accessibility: { state: "unknown" }
-};
-
-const UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS: DesktopSessionDiagnostics = {
-  state: "unknown",
-  status: null,
-  reason: "Desktop session status is unknown."
-};
 
 const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
@@ -904,9 +899,10 @@ export default function App() {
       setDesktopSessionDiagnostics(nextDesktopSessionDiagnostics);
       return nextPermissions;
     } catch {
-      setPermissions(UNKNOWN_PERMISSIONS);
-      setDesktopSessionDiagnostics(UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS);
-      return UNKNOWN_PERMISSIONS;
+      const fallbackState = createUnknownPermissionRefreshState();
+      setPermissions(fallbackState.permissions);
+      setDesktopSessionDiagnostics(fallbackState.desktopSessionDiagnostics);
+      return fallbackState.permissions;
     } finally {
       setPermissionsLoading(false);
     }
@@ -999,7 +995,7 @@ export default function App() {
       const nextPermissions = await refreshPermissions();
       if (
         permissionOnboardingOpen
-        && readMissingPermissionRows(nextPermissions).length === 0
+        && isPermissionOnboardingComplete(nextPermissions)
       ) {
         transitionPanelState({ type: "close-permission-onboarding" });
       }
@@ -1010,7 +1006,7 @@ export default function App() {
 
   async function refreshPermissionOnboarding() {
     const nextPermissions = await refreshPermissions();
-    if (readMissingPermissionRows(nextPermissions).length === 0) {
+    if (isPermissionOnboardingComplete(nextPermissions)) {
       transitionPanelState({ type: "close-permission-onboarding" });
       setTask(createTaskStatusView("idle", "权限已就绪."));
     }
@@ -1169,7 +1165,7 @@ export default function App() {
     assistantAgentSettings.settings.mode,
     DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.providers[0]
   );
-  const permissionOnboardingRows = readMissingPermissionRows(permissions);
+  const permissionOnboardingRows = readPermissionOnboardingRows(permissions);
 
   useEffect(() => {
     api.setWindowMode(panelVisibility.showPanel ? "expanded" : "compact");
