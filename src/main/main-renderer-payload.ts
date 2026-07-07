@@ -5,13 +5,11 @@ import type {
   AssistantAgentTurnResult
 } from "./assistant-agent.js";
 import {
-  createBrowserPageContextFromConnection,
-  type BrowserPageContext
-} from "./browser-page-context.js";
-import {
   readStopTurnHotkeyStatus,
   type StopTurnHotkeyStatus
 } from "./stop-turn-hotkey.js";
+
+export { createBrowserPageContextReadFailure } from "./main-browser-context-reader.js";
 
 export interface AssistantAgentSettingsResponse {
   settings: AssistantAgentSettings;
@@ -38,15 +36,6 @@ export function createRuntimeStatusResponse(
   return {
     stopTurnHotkey: readStopTurnHotkeyStatus(stopTurnHotkeyRegistered)
   };
-}
-
-export function createBrowserPageContextReadFailure(error: unknown): BrowserPageContext {
-  return createBrowserPageContextFromConnection({
-    state: "unavailable",
-    reason: error instanceof Error
-      ? error.message
-      : "Chrome extension diagnostics could not be read."
-  });
 }
 
 export function createAssistantAgentTaskMessage(turn: AssistantAgentTurnResult): string {

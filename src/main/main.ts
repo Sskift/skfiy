@@ -41,10 +41,8 @@ import {
   searchSessionMemory
 } from "./session-memory.js";
 import { summarizeAssistantToolPlan } from "./assistant-tools.js";
-import {
-  createBrowserPageContextFromConnection,
-  type BrowserPageContext
-} from "./browser-page-context.js";
+import type { BrowserPageContext } from "./browser-page-context.js";
+import { readLatestBrowserPageContext } from "./main-browser-context-reader.js";
 import {
   createAssistantComputerUseExecutor,
   type AssistantComputerUseToolIdentity,
@@ -120,7 +118,6 @@ import {
 import {
   createAssistantAgentSettingsResponse,
   createAssistantAgentTaskMessage,
-  createBrowserPageContextReadFailure,
   createRuntimeStatusResponse,
   readAssistantComputerUseToolCall
 } from "./main-renderer-payload.js";
@@ -321,17 +318,11 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, Math.max(min, max)));
 }
 
-async function readLatestBrowserPageContext(): Promise<BrowserPageContext> {
-  try {
-    const connection = await readChromeExtensionConnectionStatus({ homeDir: os.homedir() });
-    return createBrowserPageContextFromConnection(connection);
-  } catch (error) {
-    return createBrowserPageContextReadFailure(error);
-  }
-}
-
 async function createAssistantAgentTaskTurn(input: string): Promise<AssistantAgentTurnResult> {
-  const browserPageContext = await readLatestBrowserPageContext();
+  const browserPageContext = await readLatestBrowserPageContext({
+    homeDir: os.homedir(),
+    readConnectionStatus: readChromeExtensionConnectionStatus
+  });
   const personalMemory = personalMemoryStore.read();
   const personalSkillSettings = personalSkillSettingsStore.read();
   const recalledSessions = searchSessionMemory(sessionMemoryStore.readAll(), input, 3);
