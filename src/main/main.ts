@@ -18,7 +18,6 @@ import {
 } from "./app-policy-settings.js";
 import {
   AssistantAgentTurnRuntimeError,
-  readAssistantAgentProviderStates,
   runAssistantAgentTurn,
   type AssistantAgentTurnResult
 } from "./assistant-agent.js";
@@ -116,11 +115,14 @@ import {
   isSameComputerUseToolIdentity
 } from "./main-computer-use-tool-result.js";
 import {
-  createAssistantAgentSettingsResponse,
   createAssistantAgentTaskMessage,
   createRuntimeStatusResponse,
   readAssistantComputerUseToolCall
 } from "./main-renderer-payload.js";
+import {
+  readAssistantAgentSettingsResponse,
+  updateAssistantAgentSettingsResponse
+} from "./main-assistant-agent-settings-response.js";
 import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-snapshot-payload.js";
 import {
   createTaskEvent,
@@ -1309,23 +1311,16 @@ ipcMain.handle("skfiy:set-planner-provider-settings", (_event, update: unknown) 
 });
 
 ipcMain.handle("skfiy:get-assistant-agent-settings", async () => {
-  const settings = assistantAgentSettingsStore.get();
-
-  return createAssistantAgentSettingsResponse(
-    settings,
-    await readAssistantAgentProviderStates(settings)
-  );
+  return readAssistantAgentSettingsResponse({
+    store: assistantAgentSettingsStore
+  });
 });
 
 ipcMain.handle("skfiy:set-assistant-agent-settings", async (_event, update: unknown) => {
-  const settings = assistantAgentSettingsStore.set(
-    update && typeof update === "object" ? update : {}
-  );
-
-  return createAssistantAgentSettingsResponse(
-    settings,
-    await readAssistantAgentProviderStates(settings)
-  );
+  return updateAssistantAgentSettingsResponse({
+    store: assistantAgentSettingsStore,
+    update
+  });
 });
 
 ipcMain.handle("skfiy:get-turn-replay", () => {

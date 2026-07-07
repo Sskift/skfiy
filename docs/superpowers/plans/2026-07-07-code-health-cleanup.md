@@ -27,8 +27,8 @@ This plan is not a feature expansion plan. The next work is project slimming:
 
 ## Next Work Order
 
-1. Continue Task 3 by extracting the remaining pure main-process mapping helpers from `src/main/main.ts`: runtime snapshot adaptation, provider status mapping, and Browser Context status mapping. Keep Electron BrowserWindow lifecycle, IPC registration, and OS side effects in `main.ts`.
-2. Continue Task 3 renderer cleanup by extracting the remaining settings, panel, and transient-status reducers from `src/renderer/App.tsx`. Keep UI copy, layout, pointer behavior, keyboard behavior, and preload API shape unchanged.
+1. Continue Task 3 renderer cleanup by extracting the remaining settings reducers from `src/renderer/App.tsx`. Keep UI copy, layout, pointer behavior, keyboard behavior, and preload API shape unchanged.
+2. Treat Task 3 main-process mapping cleanup as mostly complete for the current pass. Runtime snapshot adaptation, provider status response assembly, Browser Context status mapping, and IPC payload normalization now live behind focused helpers; only extract more main-process code if it is clearly pure and reduces `src/main/main.ts` without obscuring Electron lifecycle wiring.
 3. Treat Task 1 and Task 2 as complete for the current cleanup pass. Do not add back source-string tests, listener-count tests, duplicate Chrome background fixtures, stale smoke artifact defaults, or retired plan files.
 4. Run Task 4 gates after the next focused cleanup commit, keeping smoke defaults output-free unless release, dogfood, or debugging evidence is explicitly requested.
 
@@ -196,12 +196,13 @@ Progress:
 - 2026-07-07: extracted runtime snapshot current-turn adaptation into `src/main/main-runtime-snapshot-payload.ts` and Background Agent provider selection into `src/renderer/app-view-model.ts`. `src/main/main.ts` now explicitly adapts task events before writing runtime markers, and `src/renderer/App.tsx` no longer owns provider fallback selection rules.
 - 2026-07-07: extracted transient renderer task-status view creation into `src/renderer/app-task-state.ts`, covering stop-task cancellation, settings/approval failure messages, permission-ready idle state, and terminal-bubble dismissal. `src/renderer/App.tsx` now keeps the async command handlers while repeated TaskView object construction lives in a tested helper.
 - 2026-07-07: extracted main-process Browser Context status reading and success/failure mapping into `src/main/main-browser-context-reader.ts` with injected Chrome connection reads. `src/main/main.ts` now only supplies `homeDir` and the real Chrome extension connection reader before passing Browser Context into the Background Agent turn.
+- 2026-07-07: extracted main-process Background Agent settings response assembly into `src/main/main-assistant-agent-settings-response.ts`, including settings update normalization and injected provider-state reads. `src/main/main.ts` now keeps only the Electron IPC handlers and settings store delegation for Background Agent settings.
 
 - [ ] **Extract renderer state reducers**
 
 Move pure task, panel, settings, and transient-status transitions out of `src/renderer/App.tsx`. Keep markup, labels, controls, keyboard behavior, pointer behavior, and visual layout unchanged.
 
-- [ ] **Extract main-process mapping helpers**
+- [x] **Extract main-process mapping helpers**
 
 Move pure IPC payload normalization, runtime snapshot adaptation, provider status mapping, and Browser Context status mapping out of `src/main/main.ts`. Keep BrowserWindow lifecycle and Electron side effects in `main.ts`.
 
@@ -235,6 +236,7 @@ Progress:
 - 2026-07-07: after runtime snapshot and provider-selection helper extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 - 2026-07-07: after renderer task-status helper extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 - 2026-07-07: after Browser Context reader extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
+- 2026-07-07: after Background Agent settings response extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 
 - [ ] **Run full gates**
 
