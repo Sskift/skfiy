@@ -78,6 +78,14 @@ import {
   reducePanelState,
   type PanelStateAction
 } from "./app-panel-state";
+import {
+  DEFAULT_APP_POLICY_SETTINGS,
+  DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
+  DEFAULT_PLANNER_PROVIDER_SETTINGS,
+  reduceAppPolicySettings,
+  reduceAssistantAgentSettingsResponse,
+  reducePlannerProviderSettings
+} from "./app-settings-state";
 
 export type TaskStatus =
   | "idle"
@@ -429,67 +437,6 @@ const UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS: DesktopSessionDiagnostics = {
   reason: "Desktop session status is unknown."
 };
 
-const DEFAULT_APP_POLICY_SETTINGS: AppPolicySettings = {
-  apps: [
-    { name: "Ghostty", bundleId: "com.mitchellh.ghostty", policy: "allow" },
-    { name: "Chrome", bundleId: "com.google.Chrome", policy: "ask" },
-    { name: "Finder", bundleId: "com.apple.finder", policy: "ask" }
-  ]
-};
-
-const DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE: AssistantAgentSettingsResponse = {
-  settings: {
-    mode: "codex",
-    codexBinary: "codex",
-    codexBinarySource: "default",
-    claudeCodeBinary: "claude",
-    claudeCodeBinarySource: "default",
-    hermesBinary: "hermes",
-    hermesBinarySource: "default",
-    cwd: "",
-    timeoutMs: 45_000
-  },
-  providers: [
-    {
-      provider: "assistant",
-      id: "codex",
-      label: "Codex",
-      selected: true,
-      configured: true,
-      executablePath: "codex",
-      executableSource: "default",
-      readiness: "unavailable"
-    },
-    {
-      provider: "assistant",
-      id: "claude-code",
-      label: "Claude Code",
-      selected: false,
-      configured: true,
-      executablePath: "claude",
-      executableSource: "default",
-      readiness: "unavailable"
-    },
-    {
-      provider: "assistant",
-      id: "hermes",
-      label: "Hermes",
-      selected: false,
-      configured: true,
-      executablePath: "hermes",
-      executableSource: "default",
-      readiness: "unavailable"
-    }
-  ]
-};
-
-const DEFAULT_PLANNER_PROVIDER_SETTINGS: PlannerProviderSettings = {
-  mode: "local-deterministic",
-  externalProviderLabel: "External CUA",
-  externalEndpoint: undefined,
-  externalApiKeyConfigured: false
-};
-
 const fallbackApi: DesktopApi = {
   runCommand: async () => undefined,
   approveTask: async () => undefined,
@@ -514,34 +461,13 @@ const fallbackApi: DesktopApi = {
   openPermissionSettings: async () => undefined,
   getStartupWarnings: async () => [],
   getAppPolicySettings: async () => DEFAULT_APP_POLICY_SETTINGS,
-  setAppPolicy: async (update) => ({
-    apps: DEFAULT_APP_POLICY_SETTINGS.apps.map((entry) =>
-      entry.bundleId === update.bundleId
-        ? { ...entry, policy: update.policy }
-        : entry
-    )
-  }),
+  setAppPolicy: async (update) => reduceAppPolicySettings(DEFAULT_APP_POLICY_SETTINGS, update),
   getAssistantAgentSettings: async () => DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
-  setAssistantAgentSettings: async (update) => {
-    const mode = update.mode ?? DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.settings.mode;
-
-    return {
-      ...DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE,
-      settings: {
-        ...DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.settings,
-        mode
-      },
-      providers: DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.providers.map((provider) => ({
-        ...provider,
-        selected: provider.id === mode
-      }))
-    };
-  },
+  setAssistantAgentSettings: async (update) =>
+    reduceAssistantAgentSettingsResponse(DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE, update),
   getPlannerProviderSettings: async () => DEFAULT_PLANNER_PROVIDER_SETTINGS,
-  setPlannerProviderSettings: async (update) => ({
-    ...DEFAULT_PLANNER_PROVIDER_SETTINGS,
-    mode: update.mode ?? DEFAULT_PLANNER_PROVIDER_SETTINGS.mode
-  }),
+  setPlannerProviderSettings: async (update) =>
+    reducePlannerProviderSettings(DEFAULT_PLANNER_PROVIDER_SETTINGS, update),
   getTurnReplay: async () => null,
   getRuntimeStatus: async () => ({
     stopTurnHotkey: {
