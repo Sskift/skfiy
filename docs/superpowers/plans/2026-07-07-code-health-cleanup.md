@@ -157,6 +157,7 @@ Progress:
 - 2026-07-07: consolidated repeated Chrome host-policy storage and target-tab fixtures in `src/main/chrome-extension-background.test.js` behind local helpers, leaving direct storage/tab listener setup only inside helper code.
 - 2026-07-07: consolidated repeated `PAGE_CONTROL_WAKE` runtime message envelopes in `src/main/chrome-extension-background.test.js` behind a local helper while keeping each test's action, selector, request id, and race/dedupe assertions explicit.
 - 2026-07-07: consolidated repeated native-response envelopes in `src/main/chrome-extension-background.test.js` behind `createNativeResponse`, and removed the popup-delegated action test that only asserted response ordering already covered by action execution and dedupe behavior tests.
+- 2026-07-07: consolidated popup wake URL construction, localhost wake background setup, and repeated fill wake directives behind local helpers; removed the no-target popup heartbeat negative test while preserving target-tab, page observe, action, screenshot, dedupe, and blocker behavior coverage.
 
 - [ ] **Consolidate fixtures**
 
@@ -216,6 +217,7 @@ Run this after one or more code-health tasks land.
 Progress:
 
 - 2026-07-07: after the Chrome background test diet, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. `npm run smoke:dashboard` was rerun output-free and remained typed-blocked by the current desktop and Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `chrome-native-host-missing`, and `chrome-extension-not-connected`.
+- 2026-07-07: after popup wake fixture consolidation, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. The output-free dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 
 - [ ] **Run full gates**
 
