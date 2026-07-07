@@ -116,6 +116,7 @@ Progress:
 - 2026-07-07: moved MCP serve execution into `src/main/cli-mcp-command-runner.ts`, including JSON server startup output, stdio transport, status/doctor provider wiring, and MCP shutdown handling. `cli-command-surface.ts` now delegates MCP command execution.
 - 2026-07-07: moved Dashboard command-family execution into `src/main/cli-dashboard-command-runner.ts`, including dashboard server startup output, state-file writes, loopback probe fetching, URL opening, and shutdown handling. `cli-command-surface.ts` now delegates both `dashboard` and `dashboard status/snapshot` execution.
 - 2026-07-07: moved `status`, `doctor`, and `operator status` execution into `src/main/cli-status-command-runner.ts`, including status evidence decoration, doctor status/signature fanout, operator readiness output, and error fallback shaping. `cli-command-surface.ts` now injects readers and delegates the status command family.
+- 2026-07-07: moved `smoke *` execution into `src/main/cli-smoke-command-runner.ts` and `skin import` execution into `src/main/cli-skin-command-runner.ts`. `cli-command-surface.ts` now keeps those branches as top-level delegation only.
 
 - [ ] **Map responsibilities**
 

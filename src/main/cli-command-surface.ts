@@ -26,11 +26,7 @@ import {
   type ChromeExtensionTabDiscoveryResult
 } from "./chrome-extension-page-control.js";
 import {
-  importPetSkin
-} from "./pet-skin.js";
-import {
   SMOKE_TARGETS,
-  parseSmokeJson,
   runSmokeScript,
   type SmokeRunnerInput,
   type SmokeRunnerResult,
@@ -75,6 +71,8 @@ import {
   type SignatureStatus,
   type StatusReader
 } from "./cli-status-command-runner.js";
+import { runSmokeCli } from "./cli-smoke-command-runner.js";
+import { runSkinImportCli } from "./cli-skin-command-runner.js";
 import {
   createChromeExtensionInfoOutputForRoot,
   runChromeHostPolicyCli,
@@ -285,45 +283,13 @@ export async function runSkfiyCli({
   }
 
   if (result.invocation.kind === "skin-import") {
-    if (!effectiveHomeDir) {
-      stderr.write("Home directory is required to import a pet skin.\n");
-      return 2;
-    }
-
-    try {
-      const importResult = await importPetSkin({
-        homeDir: effectiveHomeDir,
-        sourcePath: result.invocation.options.sourcePath,
-        slug: result.invocation.options.slug,
-        displayName: result.invocation.options.displayName,
-        licenseSource: result.invocation.options.licenseSource,
-        importedAt: generatedAt
-      });
-
-      stdout.write(`${JSON.stringify({
-        schemaVersion: 1,
-        command: result.invocation.path,
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        plannedMutation: true,
-        executesSystemMutation: true,
-        ...importResult
-      }, null, 2)}\n`);
-      return 0;
-    } catch (error) {
-      stdout.write(`${JSON.stringify({
-        schemaVersion: 1,
-        command: result.invocation.path,
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        plannedMutation: true,
-        executesSystemMutation: true,
-        result: "blocked",
-        sourcePath: result.invocation.options.sourcePath,
-        reason: "pet-skin-import-failed",
-        error: readErrorMessage(error),
-        nextAction: "Export a local PNG, GIF, WebP, SVG, or JPEG from an authorized Luo Xiaohei source, then retry `skfiy skin import --source <path>`."
-      }, null, 2)}\n`);
-      return 1;
-    }
+    return runSkinImportCli({
+      invocation: result.invocation,
+      generatedAt,
+      homeDir: effectiveHomeDir,
+      stdout,
+      stderr
+    });
   }
 
   if (result.invocation.kind === "smoke") {
@@ -516,57 +482,6 @@ function inferRootDirFromCliShimPath(cliShimPath: string): string {
   return path.basename(cliDir) === "dist"
     ? path.dirname(cliDir)
     : process.cwd();
-}
-
-async function runSmokeCli({
-  invocation,
-  generatedAt,
-  rootDir,
-  smokeRunner,
-  stdout,
-  stderr
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "smoke" }>;
-  generatedAt?: string;
-  rootDir: string;
-  smokeRunner: (input: SmokeRunnerInput) => Promise<SmokeRunnerResult>;
-  stdout: SkfiyCliIo;
-  stderr: SkfiyCliIo;
-}): Promise<number> {
-  let smokeResult: SmokeRunnerResult;
-
-  try {
-    smokeResult = await smokeRunner({
-      target: invocation.target,
-      cwd: rootDir,
-      scriptPath: invocation.options.scriptPath,
-      args: invocation.options.scriptArgs
-    });
-  } catch (error) {
-    stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    stdout.write(`${JSON.stringify({
-      ...createCliOutput(invocation, { generatedAt }),
-      result: "error",
-      exitCode: 1,
-      error: error instanceof Error ? error.message : String(error)
-    }, null, 2)}\n`);
-    return 1;
-  }
-
-  const smoke = parseSmokeJson(smokeResult.stdout);
-  const result = typeof smoke?.result === "string"
-    ? smoke.result
-    : smokeResult.exitCode === 0 ? "completed" : "failed";
-
-  stdout.write(`${JSON.stringify({
-    ...createCliOutput(invocation, { generatedAt }),
-    result,
-    exitCode: smokeResult.exitCode,
-    smoke,
-    smokeStderr: smokeResult.stderr
-  }, null, 2)}\n`);
-
-  return smokeResult.exitCode;
 }
 
 function openPermissionSettingsUrl(url: string): Promise<void> {
