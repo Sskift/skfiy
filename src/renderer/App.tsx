@@ -36,12 +36,11 @@ import {
   DESKTOP_SESSION_STATE_COPY,
   PERMISSION_ROWS,
   PERMISSION_STATE_COPY,
-  formatFinderPreviewMove,
+  getFinderPlanPreviewSummaryViewModel,
   getAppRootViewModel,
   getLocalReplayViewModel,
   getPolicySummary,
-  getReplayAccessibilityLabel,
-  getReplayOcrLabel,
+  getTaskReplayRows,
   getUserDashboardPanelViewModel,
   readAssistantAgentProviderDetail,
   readAssistantAgentReadinessLabel,
@@ -399,22 +398,20 @@ export interface DesktopApi {
 }
 
 function TaskReplay({ records }: { records: ObserveAppReplayRecord[] }) {
-  if (records.length === 0) {
-    return null;
-  }
+  const rows = getTaskReplayRows(records);
+
+  if (rows.length === 0) return null;
 
   return (
     <div className="task-replay" aria-label="Computer Use replay">
-      {records.map((record) => (
-        <div className="task-replay-row" key={record.stage}>
-          <strong>{record.stage}</strong>
-          <span title={record.screenshotPath}>{record.screenshotPath}</span>
-          <em data-state={record.accessibilityTrusted === false ? "denied" : "ok"}>
-            {getReplayAccessibilityLabel(record)}
+      {rows.map((row) => (
+        <div className="task-replay-row" key={row.key}>
+          <strong>{row.stage}</strong>
+          <span title={row.screenshotPath}>{row.screenshotPath}</span>
+          <em data-state={row.accessibilityState}>
+            {row.accessibilityLabel}
           </em>
-          {getReplayOcrLabel(record) ? (
-            <em data-state="ok">{getReplayOcrLabel(record)}</em>
-          ) : null}
+          {row.ocrLabel ? <em data-state="ok">{row.ocrLabel}</em> : null}
         </div>
       ))}
     </div>
@@ -422,20 +419,18 @@ function TaskReplay({ records }: { records: ObserveAppReplayRecord[] }) {
 }
 
 function FinderPlanPreviewSummary({ preview }: { preview: FinderPlanPreview }) {
+  const previewViewModel = getFinderPlanPreviewSummaryViewModel(preview);
+
   return (
     <div className="finder-plan-preview" aria-label="Finder plan preview">
       <strong>Finder plan preview</strong>
       <div className="finder-plan-stats">
-        <span>{preview.operationCount} operations</span>
-        <span>{preview.destructiveOperationCount} destructive</span>
-        <span>{preview.moveFiles.length} moves</span>
+        <span>{previewViewModel.operationCount} operations</span>
+        <span>{previewViewModel.destructiveOperationCount} destructive</span>
+        <span>{previewViewModel.moveCount} moves</span>
       </div>
       <div className="finder-plan-moves">
-        {preview.moveFiles.slice(0, 3).map((move) => (
-          <em key={`${move.from}->${move.to}`}>
-            {formatFinderPreviewMove(move, preview.rootPath)}
-          </em>
-        ))}
+        {previewViewModel.moveItems.map((move) => <em key={move.key}>{move.label}</em>)}
       </div>
     </div>
   );

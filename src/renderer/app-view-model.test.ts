@@ -4,10 +4,12 @@ import {
   formatReplayAction,
   formatReplayPlanner,
   getAppRootViewModel,
+  getFinderPlanPreviewSummaryViewModel,
   getLocalReplayViewModel,
   getPanelVisibilityState,
   getReplayAccessibilityLabel,
   getReplayOcrLabel,
+  getTaskReplayRows,
   getUserDashboardPanelViewModel,
   readSelectedAssistantAgentProvider
 } from "./app-view-model";
@@ -72,6 +74,63 @@ describe("app view model", () => {
 
     expect(getReplayOcrLabel({})).toBeNull();
     expect(getReplayOcrLabel({ ocrLabels: [{ text: "Open" }, { text: "Save" }] })).toBe("OCR 2");
+  });
+
+  it("derives task replay rows for display", () => {
+    expect(getTaskReplayRows([])).toEqual([]);
+    expect(getTaskReplayRows([
+      {
+        stage: "before",
+        screenshotPath: "/tmp/before.png",
+        accessibilityTrusted: false,
+        ocrLabels: [{ text: "Open" }]
+      },
+      {
+        stage: "after",
+        screenshotPath: "/tmp/after.png",
+        accessibilityTrusted: true
+      }
+    ])).toEqual([
+      {
+        accessibilityLabel: "AX denied",
+        accessibilityState: "denied",
+        key: "before",
+        ocrLabel: "OCR 1",
+        screenshotPath: "/tmp/before.png",
+        stage: "before"
+      },
+      {
+        accessibilityLabel: "AX ok",
+        accessibilityState: "ok",
+        key: "after",
+        ocrLabel: null,
+        screenshotPath: "/tmp/after.png",
+        stage: "after"
+      }
+    ]);
+  });
+
+  it("derives the Finder plan preview summary model", () => {
+    expect(getFinderPlanPreviewSummaryViewModel({
+      rootPath: "/Users/me/Desktop",
+      operationCount: 4,
+      destructiveOperationCount: 1,
+      moveFiles: [
+        { from: "/Users/me/Desktop/a.txt", to: "/Users/me/Desktop/folder/a.txt" },
+        { from: "/Users/me/Desktop/b.txt", to: "/Users/me/Desktop/folder/b.txt" },
+        { from: "/Users/me/Desktop/c.txt", to: "/Users/me/Desktop/folder/c.txt" },
+        { from: "/Users/me/Desktop/d.txt", to: "/Users/me/Desktop/folder/d.txt" }
+      ]
+    })).toEqual({
+      destructiveOperationCount: 1,
+      moveCount: 4,
+      moveItems: [
+        { key: "/Users/me/Desktop/a.txt->/Users/me/Desktop/folder/a.txt", label: "a.txt -> folder/a.txt" },
+        { key: "/Users/me/Desktop/b.txt->/Users/me/Desktop/folder/b.txt", label: "b.txt -> folder/b.txt" },
+        { key: "/Users/me/Desktop/c.txt->/Users/me/Desktop/folder/c.txt", label: "c.txt -> folder/c.txt" }
+      ],
+      operationCount: 4
+    });
   });
 
   it("selects the assistant agent provider by selected flag, mode, then fallback", () => {

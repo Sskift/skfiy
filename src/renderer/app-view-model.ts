@@ -192,6 +192,28 @@ export function formatFinderPreviewMove(
   return `${readPathPreview(move.from, rootPath)} -> ${readPathPreview(move.to, rootPath)}`;
 }
 
+export function getFinderPlanPreviewSummaryViewModel(preview: {
+  rootPath: string;
+  operationCount: number;
+  destructiveOperationCount: number;
+  moveFiles: Array<{ from: string; to: string }>;
+}): {
+  destructiveOperationCount: number;
+  moveCount: number;
+  moveItems: Array<{ key: string; label: string }>;
+  operationCount: number;
+} {
+  return {
+    destructiveOperationCount: preview.destructiveOperationCount,
+    moveCount: preview.moveFiles.length,
+    moveItems: preview.moveFiles.slice(0, 3).map((move) => ({
+      key: `${move.from}->${move.to}`,
+      label: formatFinderPreviewMove(move, preview.rootPath)
+    })),
+    operationCount: preview.operationCount
+  };
+}
+
 export function readPathPreview(filePath: string, rootPath: string): string {
   const normalizedRoot = rootPath.endsWith("/") ? rootPath : `${rootPath}/`;
   return filePath.startsWith(normalizedRoot)
@@ -634,6 +656,29 @@ export function getReplayOcrLabel(record: { ocrLabels?: unknown[] }): string | n
   }
 
   return `OCR ${record.ocrLabels.length}`;
+}
+
+export function getTaskReplayRows(records: Array<{
+  accessibilityTrusted?: boolean;
+  ocrLabels?: unknown[];
+  screenshotPath: string;
+  stage: string;
+}>): Array<{
+  accessibilityLabel: string;
+  accessibilityState: "denied" | "ok";
+  key: string;
+  ocrLabel: string | null;
+  screenshotPath: string;
+  stage: string;
+}> {
+  return records.map((record) => ({
+    accessibilityLabel: getReplayAccessibilityLabel(record),
+    accessibilityState: record.accessibilityTrusted === false ? "denied" : "ok",
+    key: record.stage,
+    ocrLabel: getReplayOcrLabel(record),
+    screenshotPath: record.screenshotPath,
+    stage: record.stage
+  }));
 }
 
 export function formatReplayPlanner(planner: {

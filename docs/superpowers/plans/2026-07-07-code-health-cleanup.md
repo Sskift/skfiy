@@ -1,6 +1,6 @@
 # skfiy Code Health Cleanup Plan
 
-> **For agentic workers:** This is the single active plan as of 2026-07-07. Previous long-form implementation logs were retired because the pet, Background Agent, Browser Context, Dashboard, personalization, and validation milestones are already complete. New work should be small, code-health focused, and verified through behavior tests rather than source-string assertions.
+> **For agentic workers:** This is the single active plan as of 2026-07-07. Previous long-form implementation logs, including retired browser and Dashboard planning material, were removed because the pet, Background Agent, Browser Context, Dashboard, personalization, and validation milestones are already complete. New work should be small, code-health focused, and verified through behavior tests rather than source-string assertions.
 
 ## Current Baseline
 
@@ -12,9 +12,8 @@
 - Dashboard is the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, and dogfood/release state.
 - Default smoke runs are output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 - 2026-07-07 cleanup removed stale smoke artifact defaults, low-value smoke source-string tests, duplicated record helpers, and temporary smoke directories.
-- 2026-07-07 plan audit confirmed `docs/superpowers/plans/` contains only this active plan. Historical long-form plans have been removed from `docs/`.
-- 2026-07-07 stale-date audit confirmed no retired June plan files or plan references remain; remaining stale-date hits were only deterministic test/smoke fixture timestamps and were refreshed to the active plan date.
-- 2026-07-07 follow-up plan audit confirmed no retired June planning material or references remain in the repository; keep this directory as a one-file active-plan source of truth.
+- 2026-07-07 plan audit confirmed `docs/superpowers/plans/` contains only this active plan. Historical long-form plans have been removed from `docs/`, and no old-date planning markers remain.
+- Keep this directory as a one-file active-plan source of truth. If future scope changes, update this plan or replace it with exactly one newer active plan in the same cleanup change.
 
 ## Active Scope
 
@@ -27,10 +26,11 @@ This plan is not a feature expansion plan. The next work is project slimming:
 
 ## Next Work Order
 
-1. Continue Task 3 renderer cleanup only where a remaining pure reducer, transition, option table, or view-model decision is obvious. Do not split JSX components solely to chase line count; keep UI copy, layout, pointer behavior, keyboard behavior, and preload API shape unchanged.
-2. Treat Task 3 main-process mapping cleanup as mostly complete for the current pass. Runtime snapshot adaptation, provider status response assembly, Browser Context status mapping, and IPC payload normalization now live behind focused helpers; only extract more main-process code if it is clearly pure and reduces `src/main/main.ts` without obscuring Electron lifecycle wiring.
-3. Treat Task 1 and Task 2 as complete for the current cleanup pass. Do not add back source-string tests, listener-count tests, duplicate Chrome background fixtures, stale smoke artifact defaults, or retired plan files.
-4. Run Task 4 gates after the next focused cleanup commit, keeping smoke defaults output-free unless release, dogfood, or debugging evidence is explicitly requested.
+1. Do not restore or continue retired historical plans. New cleanup work must come from this active plan, and `docs/superpowers/plans/` should stay one-file.
+2. Continue Task 3 renderer cleanup only where a remaining pure reducer, transition, option table, or view-model decision is obvious. Do not split JSX components solely to chase line count; keep UI copy, layout, pointer behavior, keyboard behavior, and preload API shape unchanged.
+3. Treat Task 3 main-process mapping cleanup as mostly complete for the current pass. Runtime snapshot adaptation, provider status response assembly, Browser Context status mapping, and IPC payload normalization now live behind focused helpers; only extract more main-process code if it is clearly pure and reduces `src/main/main.ts` without obscuring Electron lifecycle wiring.
+4. Treat Task 1 and Task 2 as complete for the current cleanup pass. Do not add back source-string tests, listener-count tests, duplicate Chrome background fixtures, stale smoke artifact defaults, or retired plan files.
+5. Run Task 4 gates after each focused cleanup commit, keeping smoke defaults output-free unless release, dogfood, or debugging evidence is explicitly requested. If no clear pure extraction remains, pause code-health slimming and only address typed smoke blockers when the local macOS/Chrome environment is available.
 
 ## File Ownership Map
 
@@ -207,6 +207,7 @@ Progress:
 - 2026-07-07: extracted user dashboard panel view-model derivation into `src/renderer/app-view-model.ts`, covering task status copy, permission health, risk, recent execution, stop availability, and approval availability. `src/renderer/App.tsx` now keeps the dashboard JSX and button callbacks while the panel's pure status model is directly tested.
 - 2026-07-07: extracted renderer root view-model derivation into `src/renderer/app-view-model.ts`, covering status copy, pet animation state, startup warning visibility, panel visibility, selected Background Agent provider, and permission-onboarding rows. `src/renderer/App.tsx` now consumes one tested root view-model instead of assembling those display decisions inline.
 - 2026-07-07: extracted local replay viewer summary/list derivation into `src/renderer/app-view-model.ts`, covering empty replay state, transcript command/risk labels, planner/action formatting, screenshot grounding labels, and timeline labels. `src/renderer/App.tsx` now keeps replay markup while the replay display model is directly tested.
+- 2026-07-07: extracted TaskReplay row derivation and Finder plan preview summary derivation into `src/renderer/app-view-model.ts`, covering accessibility/OCR row state, screenshot paths, Finder plan counts, and the first-three move labels. `src/renderer/App.tsx` keeps the small replay/preview markup while those display rows are directly tested.
 
 - [ ] **Extract renderer state reducers**
 
@@ -256,6 +257,7 @@ Progress:
 - 2026-07-07: after dashboard panel view-model extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed silently without artifacts. The no-output-path dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 - 2026-07-07: after renderer root view-model extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed silently without artifacts. The no-output-path dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 - 2026-07-07: after local replay view-model extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed silently without artifacts. The no-output-path dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
+- 2026-07-07: after replay preview view-model extraction, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed silently without artifacts. The no-output-path dashboard smoke remained typed-blocked by current desktop/Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `finder-automation-unknown`, `chrome-native-host-missing`, `chrome-extension-not-connected`, and `release-artifact-older-than-head`; Knowledge Graph evidence was skipped because no output path was provided.
 
 - [ ] **Run full gates**
 
