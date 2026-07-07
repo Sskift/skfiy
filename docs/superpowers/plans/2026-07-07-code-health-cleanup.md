@@ -141,6 +141,7 @@ Progress:
 - 2026-07-07: consolidated repeated `runtime.onMessage` test dispatch in `src/main/chrome-extension-background.test.js` behind a local `sendRuntimeMessage` helper while preserving behavior assertions for policy status, page-control wake, native heartbeat, reload, and native-message forwarding.
 - 2026-07-07: consolidated runtime lifecycle and tab created/updated event dispatch in `src/main/chrome-extension-background.test.js` behind local helpers, and removed `tabs.onUpdated` listener-count assertions that only restated registration.
 - 2026-07-07: consolidated repeated Chrome host-policy storage and target-tab fixtures in `src/main/chrome-extension-background.test.js` behind local helpers, leaving direct storage/tab listener setup only inside helper code.
+- 2026-07-07: consolidated repeated `PAGE_CONTROL_WAKE` runtime message envelopes in `src/main/chrome-extension-background.test.js` behind a local helper while keeping each test's action, selector, request id, and race/dedupe assertions explicit.
 
 - [ ] **Consolidate fixtures**
 

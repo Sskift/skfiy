@@ -286,6 +286,15 @@ function sendRuntimeMessage(mock, message, sender = {}, sendResponse = vi.fn()) 
   };
 }
 
+function sendPageControlWake(mock, directive, { requestId = directive.requestId, sender = {}, sendResponse } = {}) {
+  return sendRuntimeMessage(mock, {
+    type: PAGE_CONTROL_WAKE,
+    schemaVersion: 1,
+    requestId,
+    directive
+  }, sender, sendResponse);
+}
+
 function dispatchRuntimeInstalled(mock) {
   mock.chrome.runtime.onInstalled.listeners[0]();
 }
@@ -467,18 +476,14 @@ describe("Chrome extension background page routing", () => {
     storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
     await loadBackground(mock);
 
-    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
-      type: PAGE_CONTROL_WAKE,
-      requestId: "wake-fill-current",
-      directive: {
-        wakeId: "wake-fill-current",
-        requestId: "page-control-fill-cli-current",
-        targetTabId: 42,
-        wakeAction: "fill",
-        selector: "#name",
-        text: "skfiy"
-      }
-    });
+    const { keepChannelOpen, sendResponse } = sendPageControlWake(mock, {
+      wakeId: "wake-fill-current",
+      requestId: "page-control-fill-cli-current",
+      targetTabId: 42,
+      wakeAction: "fill",
+      selector: "#name",
+      text: "skfiy"
+    }, { requestId: "wake-fill-current" });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -2067,19 +2072,14 @@ describe("Chrome extension background policy sync", () => {
     mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
-    const { sendResponse } = sendRuntimeMessage(mock, {
-      type: PAGE_CONTROL_WAKE,
-      schemaVersion: 1,
+    const { sendResponse } = sendPageControlWake(mock, {
+      wakeId: "popup-fill",
       requestId: "page-control-fill-cli-1",
-      directive: {
-        wakeId: "popup-fill",
-        requestId: "page-control-fill-cli-1",
-        targetTabId: 42,
-        wakeAction: "fill",
-        selector: "#name",
-        text: "skfiy",
-        dy: 0
-      }
+      targetTabId: 42,
+      wakeAction: "fill",
+      selector: "#name",
+      text: "skfiy",
+      dy: 0
     });
 
     await waitForAssertion(() => {
@@ -2118,19 +2118,14 @@ describe("Chrome extension background policy sync", () => {
       }
     });
 
-    sendRuntimeMessage(mock, {
-      type: PAGE_CONTROL_WAKE,
-      schemaVersion: 1,
+    sendPageControlWake(mock, {
+      wakeId: "popup-fill",
       requestId: "page-control-fill-cli-1",
-      directive: {
-        wakeId: "popup-fill",
-        requestId: "page-control-fill-cli-1",
-        targetTabId: 42,
-        wakeAction: "fill",
-        selector: "#name",
-        text: "skfiy",
-        dy: 0
-      }
+      targetTabId: 42,
+      wakeAction: "fill",
+      selector: "#name",
+      text: "skfiy",
+      dy: 0
     });
     await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -2154,19 +2149,14 @@ describe("Chrome extension background policy sync", () => {
     const wakeUrl = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=popup-fill-race&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiyRequestId=page-control-fill-cli-race&skfiySelector=%23name&skfiyText=skfiy";
     dispatchWakeTabUpdated(mock, wakeUrl);
 
-    const { sendResponse } = sendRuntimeMessage(mock, {
-      type: PAGE_CONTROL_WAKE,
-      schemaVersion: 1,
+    const { sendResponse } = sendPageControlWake(mock, {
+      wakeId: "popup-fill-race",
       requestId: "page-control-fill-cli-race",
-      directive: {
-        wakeId: "popup-fill-race",
-        requestId: "page-control-fill-cli-race",
-        targetTabId: 42,
-        wakeAction: "fill",
-        selector: "#name",
-        text: "skfiy",
-        dy: 0
-      }
+      targetTabId: 42,
+      wakeAction: "fill",
+      selector: "#name",
+      text: "skfiy",
+      dy: 0
     });
 
     await waitForAssertion(() => {
@@ -2221,20 +2211,15 @@ describe("Chrome extension background policy sync", () => {
         }
       });
     });
-    sendRuntimeMessage(mock, {
-      type: PAGE_CONTROL_WAKE,
-      schemaVersion: 1,
+    sendPageControlWake(mock, {
+      wakeId: "popup-click",
       requestId: "page-control-click-cli-1",
-      directive: {
-        wakeId: "popup-click",
-        requestId: "page-control-click-cli-1",
-        targetTabId: 42,
-        wakeAction: "click",
-        selector: "#click-only",
-        text: "",
-        dy: 0
-      }
-    }, {}, sendResponse);
+      targetTabId: 42,
+      wakeAction: "click",
+      selector: "#click-only",
+      text: "",
+      dy: 0
+    }, { sendResponse });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
