@@ -85,6 +85,7 @@ npm run release:mac:check -- --json-output .skfiy-release/mac-release-check.json
 Progress:
 
 - 2026-07-07: extracted pure status text formatting into `src/main/cli-status-output.ts` with direct behavior coverage. Remaining Task 1 work should continue with JSON readiness/status assembly and command dispatch separation.
+- 2026-07-07: extracted runtime, dashboard, money-run, and binary readiness JSON assembly into `src/main/cli-status-readiness.ts`. Chrome extension readiness still stays in `cli-command-surface.ts` because it depends on Chrome setup-guide shaping.
 
 - [ ] **Map responsibilities**
 
