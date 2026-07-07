@@ -1,6 +1,6 @@
 # skfiy Code Health Cleanup Plan
 
-> **For agentic workers:** This is the single active plan as of 2026-07-07. The previous long-form implementation log was retired because the pet, Background Agent, Browser Context, Dashboard, personalization, and validation milestones are already complete. New work should be small, code-health focused, and verified through behavior tests rather than source-string assertions.
+> **For agentic workers:** This is the single active plan as of 2026-07-07. The previous long-form implementation log, including the 2026-06-23 browser/dashboard plan, was retired because the pet, Background Agent, Browser Context, Dashboard, personalization, and validation milestones are already complete. New work should be small, code-health focused, and verified through behavior tests rather than source-string assertions.
 
 ## Current Baseline
 
@@ -21,6 +21,13 @@ This plan is not a feature expansion plan. The next work is project slimming:
 - remove duplicated or low-value tests,
 - extract pure logic from broad integration files,
 - keep product behavior, UI copy, preload APIs, Chrome permissions, and provider boundaries stable.
+
+## Next Work Order
+
+1. Finish Task 1 by separating the remaining command dispatch and side-effect orchestration in `src/main/cli-command-surface.ts`.
+2. Do Task 2 only after the CLI surface is smaller: consolidate repeated fixtures in `src/main/chrome-extension-background.test.js`, then delete tests that only restate listener registration or implementation order.
+3. Do Task 3 after the test diet: extract pure renderer state transitions from `src/renderer/App.tsx` and pure main-process mapping helpers from `src/main/main.ts`, without changing UI behavior or preload APIs.
+4. Run Task 4 gates after one or more cleanup commits land, keeping smoke defaults output-free unless release, dogfood, or debugging evidence is explicitly requested.
 
 ## File Ownership Map
 
@@ -43,7 +50,7 @@ This plan is not a feature expansion plan. The next work is project slimming:
 - Prefer behavior tests over source-string assertions.
 - Extract pure helpers before changing integration wiring.
 - Do not change UI behavior, product language, preload API shape, Chrome host permissions, or macOS permission boundaries unless the task explicitly requires it.
-- Do not keep old long-form plans in `docs/superpowers/plans/`; this directory must contain exactly one active plan.
+- Do not keep old long-form plans in `docs/superpowers/plans/`; this directory must contain exactly one active plan. Do not restore the retired 2026-06-23 plan.
 - Run the task-specific focused verification before committing.
 - Before final handoff for code changes, run:
 

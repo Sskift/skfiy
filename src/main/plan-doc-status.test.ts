@@ -44,6 +44,14 @@ describe("implementation plan status docs", () => {
     expect(activePlanFiles).toEqual(["2026-07-07-code-health-cleanup.md"]);
   });
 
+  it("keeps AGENTS pointed at the current active plan", () => {
+    const agents = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8");
+
+    expect(agents).toContain("docs/superpowers/plans/2026-07-07-code-health-cleanup.md");
+    expect(agents).toContain("retired 2026-06-23 browser/dashboard plan");
+    expect(agents).not.toContain("docs/superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md");
+  });
+
   it("documents output-free default smoke runs in README instead of plan archives", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
 
@@ -108,7 +116,9 @@ describe("implementation plan status docs", () => {
 
     expect(activePlan).toContain("# skfiy Code Health Cleanup Plan");
     expect(activePlan).toContain("For agentic workers");
-    expect(activePlan).toContain("previous long-form implementation log was retired");
+    expect(activePlan).toContain("previous long-form implementation log");
+    expect(activePlan).toContain("including the 2026-06-23 browser/dashboard plan");
+    expect(activePlan).toContain("was retired");
     expect(activePlan).toContain("Slim The CLI Command Surface");
     expect(activePlan).toContain("Finish Chrome Extension Background Test Diet");
     expect(activePlan).toContain("Extract Pure Logic From Main And Renderer");
