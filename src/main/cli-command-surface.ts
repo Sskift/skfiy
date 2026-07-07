@@ -32,9 +32,6 @@ import {
   type SmokeRunnerResult,
   type SmokeTarget
 } from "./cli-smoke-command.js";
-import {
-  readErrorMessage
-} from "./cli-record-utils.js";
 import type { StatusReaderInput } from "./cli-status-reader-input.js";
 import {
   createCliStatusReader
@@ -57,11 +54,12 @@ import {
   type PermissionSettingsTarget,
   type SkinSubcommand
 } from "./cli-command-normalization.js";
-import {
-  createPermissionSettingsOpenOutput,
-  createPermissionSettingsOpenUrl
-} from "./cli-permission-settings-output.js";
 import { createCliOutputSkeleton } from "./cli-output-skeleton.js";
+import {
+  openPermissionSettingsUrl,
+  runPermissionSettingsOpenCli,
+  type PermissionSettingsOpener
+} from "./cli-permission-command-runner.js";
 import {
   runDoctorCli,
   runOperatorStatusCli,
@@ -152,7 +150,7 @@ export interface RunSkfiyCliInput {
   mcpServerStarter?: SkfiyMcpServerStarter;
   dashboardServerStarter?: DashboardServerStarter;
   dashboardOpener?: DashboardOpener;
-  permissionSettingsOpener?: (url: string) => Promise<void>;
+  permissionSettingsOpener?: PermissionSettingsOpener;
   keepDashboardAlive?: boolean;
   keepMcpServerAlive?: boolean;
   stdout: SkfiyCliIo;
@@ -344,44 +342,6 @@ export async function runSkfiyCli({
   return 0;
 }
 
-async function runPermissionSettingsOpenCli({
-  invocation,
-  generatedAt,
-  permissionSettingsOpener,
-  stdout,
-  stderr
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "permissions-open" }>;
-  generatedAt?: string;
-  permissionSettingsOpener: (url: string) => Promise<void>;
-  stdout: SkfiyCliIo;
-  stderr: SkfiyCliIo;
-}): Promise<number> {
-  const effectiveGeneratedAt = generatedAt ?? new Date().toISOString();
-  const url = createPermissionSettingsOpenUrl(invocation.target);
-
-  try {
-    await permissionSettingsOpener(url);
-    stdout.write(`${JSON.stringify(createPermissionSettingsOpenOutput({
-      invocation,
-      generatedAt: effectiveGeneratedAt,
-      result: "opened"
-    }), null, 2)}\n`);
-    return 0;
-  } catch (error) {
-    const message = readErrorMessage(error);
-
-    stderr.write(`${message}\n`);
-    stdout.write(`${JSON.stringify(createPermissionSettingsOpenOutput({
-      invocation,
-      generatedAt: effectiveGeneratedAt,
-      result: "error",
-      error: message
-    }), null, 2)}\n`);
-    return 1;
-  }
-}
-
 async function readCodeSignatureStatus({
   appPath
 }: SignatureReaderInput): Promise<SignatureStatus> {
@@ -482,25 +442,4 @@ function inferRootDirFromCliShimPath(cliShimPath: string): string {
   return path.basename(cliDir) === "dist"
     ? path.dirname(cliDir)
     : process.cwd();
-}
-
-function openPermissionSettingsUrl(url: string): Promise<void> {
-  return openMacosUrl(url);
-}
-
-function openMacosUrl(url: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn("open", [url], {
-      stdio: "ignore"
-    });
-
-    child.once("error", reject);
-    child.once("exit", (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`open exited with code ${code ?? "null"}.`));
-      }
-    });
-  });
 }
