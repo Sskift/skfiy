@@ -12,25 +12,9 @@ import {
   createDashboardServerState,
   writeDashboardServerState
 } from "./dashboard-server-state.js";
+import type { ChromeNativeHostIo } from "./chrome-native-host.js";
 import {
-  installChromeNativeHost,
-  readChromeExtensionConnectionStatus,
-  readChromeNativeHostStatus,
-  uninstallChromeNativeHost,
-  type ChromeNativeHostIo
-} from "./chrome-native-host.js";
-import {
-  applyChromeHostPolicyAction,
-  readChromeHostPolicyState,
-  resetChromeHostPolicyState,
-  writeChromeHostPolicyState
-} from "./chrome-host-policy.js";
-import {
-  CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
-  readChromeExtensionOpenerAppName,
-  reloadChromeExtensionWithDesktopControl,
-  type ChromeExtensionReloadInput,
-  type ChromeExtensionReloadResult
+  reloadChromeExtensionWithDesktopControl
 } from "./chrome-extension-reloader.js";
 import {
   invokeChromeExtensionTabDiscovery,
@@ -60,13 +44,10 @@ import {
   type SmokeTarget
 } from "./cli-smoke-command.js";
 import {
-  readBoolean,
   readErrorMessage,
-  readRecord,
-  readString
+  readRecord
 } from "./cli-record-utils.js";
 import {
-  sanitizeDashboardUrlForOutput,
   sanitizeSensitiveString,
   sanitizeTokenFree
 } from "./cli-output-sanitize.js";
@@ -77,12 +58,8 @@ import {
 } from "./cli-status-reader-input.js";
 import {
   createCliStatusReader,
-  readChromeHostPolicyForStatus
 } from "./cli-status-reader.js";
 import { formatStatusTextOutput } from "./cli-status-output.js";
-import {
-  createChromeSetupGuideFields
-} from "./cli-chrome-readiness.js";
 import {
   createCliCommandSurface,
   type CliCommandDefinition,
@@ -90,8 +67,6 @@ import {
 } from "./cli-command-definitions.js";
 import {
   PERMISSION_SETTINGS_TARGETS,
-  isChromePageControlSubcommand,
-  normalizeChromePolicyHostForCli,
   normalizeCliCommand,
   type ChromePolicySubcommand,
   type ChromeSubcommand,
@@ -118,12 +93,7 @@ import {
   createPermissionSettingsOpenOutput,
   createPermissionSettingsOpenUrl
 } from "./cli-permission-settings-output.js";
-import {
-  createChromeExtensionAdapterStatus,
-  readConnectionState
-} from "./cli-chrome-capabilities.js";
 import { createOperatorStatusOutput } from "./cli-operator-status-output.js";
-import { createChromeExtensionInfoOutput } from "./cli-chrome-extension-info-output.js";
 import { createCliOutputSkeleton } from "./cli-output-skeleton.js";
 import {
   createCliStatusReadinessSummary,
@@ -131,22 +101,11 @@ import {
 } from "./cli-status-capabilities.js";
 import { createDoctorOutput } from "./cli-doctor-output.js";
 import {
-  createChromeExtensionReloadErrorOutput,
-  createChromeExtensionReloadOutput,
-  createChromeHostPolicyResetOutput,
-  createChromeHostPolicySetOutput,
-  createChromeHostPolicyShowOutput,
-  createChromeNativeHostMutationOutput,
-  createChromePageControlErrorOutput,
-  createChromePageControlOutput,
-  createChromeStatusOutput,
-  createChromeTabsErrorOutput,
-  createChromeTabsOutput
-} from "./cli-chrome-command-output.js";
-import {
-  readChromeExtensionManifest,
-  readChromeExtensionRegistrationStatus
-} from "./cli-chrome-extension-files.js";
+  createChromeExtensionInfoOutputForRoot,
+  runChromeHostPolicyCli,
+  runChromeNativeHostCli,
+  type ChromeExtensionReloader
+} from "./cli-chrome-command-runner.js";
 
 export { SMOKE_TARGETS };
 export {
@@ -168,13 +127,8 @@ export type {
   SkinSubcommand,
   SmokeRunnerInput,
   SmokeRunnerResult,
-  SmokeTarget
-};
-
-export type ChromeExtensionReloader = (
-  input: ChromeExtensionReloadInput
-) => Promise<ChromeExtensionReloadResult>;
-export type {
+  SmokeTarget,
+  ChromeExtensionReloader,
   ChromeExtensionPageControlInput,
   ChromeExtensionPageControlInvoker,
   ChromeExtensionPageControlResult,
@@ -1199,326 +1153,4 @@ async function waitForMcpShutdown(server: SkfiyMcpServer): Promise<void> {
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
   });
-}
-
-function createChromeExtensionInfoOutputForRoot({
-  invocation,
-  generatedAt,
-  rootDir
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "chrome" }>;
-  generatedAt?: string;
-  rootDir: string;
-}): Record<string, unknown> {
-  const extensionPath = path.join(rootDir, "chrome-extension");
-  const manifestPath = path.join(extensionPath, "manifest.json");
-
-  return createChromeExtensionInfoOutput({
-    invocation,
-    generatedAt: generatedAt ?? new Date().toISOString(),
-    extensionPath,
-    manifestPath,
-    manifest: readChromeExtensionManifest(manifestPath)
-  });
-}
-
-async function runChromeNativeHostCli({
-  invocation,
-  generatedAt,
-  rootDir,
-  homeDir,
-  io,
-  chromeExtensionReloader,
-  chromeExtensionPageControlInvoker,
-  chromeExtensionTabDiscoveryInvoker,
-  stdout,
-  stderr
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "chrome" }>;
-  generatedAt?: string;
-  rootDir: string;
-  homeDir: string;
-  io?: ChromeNativeHostIo;
-  chromeExtensionReloader: ChromeExtensionReloader;
-  chromeExtensionPageControlInvoker: ChromeExtensionPageControlInvoker;
-  chromeExtensionTabDiscoveryInvoker: ChromeExtensionTabDiscoveryInvoker;
-  stdout: SkfiyCliIo;
-  stderr: SkfiyCliIo;
-}): Promise<number> {
-  if (invocation.subcommand === "extension-info") {
-    stdout.write(`${JSON.stringify(createChromeExtensionInfoOutputForRoot({
-      invocation,
-      generatedAt,
-      rootDir
-    }), null, 2)}\n`);
-    return 0;
-  }
-
-  if (invocation.options.extensionIds.length === 0) {
-    stderr.write("Chrome extension id is required. Pass --extension-id <id>.\n");
-    return 2;
-  }
-  if (!homeDir) {
-    stderr.write("Home directory is required to locate the Chrome Native Messaging host manifest.\n");
-    return 2;
-  }
-
-  if (invocation.subcommand === "status") {
-    const nativeHost = await readChromeNativeHostStatus({
-      homeDir,
-      cliShimPath: invocation.options.cliShimPath,
-      extensionIds: invocation.options.extensionIds,
-      io
-    });
-    const extensionConnection = await readChromeExtensionConnectionStatus({
-      homeDir,
-      generatedAt,
-      io
-    });
-    const hostPolicy = await readChromeHostPolicyForStatus({
-      homeDir
-    }, io);
-    const extension = createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy);
-    const setupGuideFields = createChromeSetupGuideFields({
-      extensionState: readString(extension.state) ?? "unknown",
-      nativeHostState: nativeHost.state,
-      liveConnection: readString(extension.liveConnection) ?? readConnectionState(extensionConnection),
-      extensionIds: invocation.options.extensionIds,
-      cliShimPath: invocation.options.cliShimPath,
-      manifestPath: nativeHost.manifestPath,
-      allowedOrigins: nativeHost.allowedOrigins,
-      expectedAllowedOrigins: nativeHost.expectedAllowedOrigins,
-      nativeHostReason: nativeHost.reason,
-      hostPolicy,
-      connectionPath: extensionConnection.path,
-      connectionState: extensionConnection.state,
-      connectionReason: extensionConnection.reason,
-      extensionPath: path.join(rootDir, "chrome-extension")
-    });
-
-    stdout.write(`${JSON.stringify(createChromeStatusOutput({
-      invocation,
-      generatedAt,
-      extension,
-      nativeHost,
-      setupGuideFields
-    }), null, 2)}\n`);
-    return 0;
-  }
-
-  if (invocation.subcommand === "tabs") {
-    try {
-      const tabDiscoveryResult = await chromeExtensionTabDiscoveryInvoker({
-        extensionId: invocation.options.extensionIds[0],
-        homeDir,
-        chromeAppName: readChromeExtensionOpenerAppName(),
-        generatedAt,
-        io
-      });
-      const extensionRegistration = tabDiscoveryResult.result === "blocked"
-        ? await readChromeExtensionRegistrationStatus({
-          rootDir,
-          homeDir,
-          extensionId: invocation.options.extensionIds[0],
-          io
-        })
-        : undefined;
-      stdout.write(`${JSON.stringify(createChromeTabsOutput({
-        invocation,
-        generatedAt,
-        tabDiscoveryResult,
-        extensionRegistration
-      }), null, 2)}\n`);
-      return tabDiscoveryResult.result === "blocked" ? 1 : 0;
-    } catch (error) {
-      stdout.write(`${JSON.stringify(createChromeTabsErrorOutput({
-        invocation,
-        generatedAt,
-        error
-      }), null, 2)}\n`);
-      return 1;
-    }
-  }
-
-  if (invocation.subcommand === "reload-extension") {
-    try {
-      const reloadResult = await chromeExtensionReloader({
-        extensionId: invocation.options.extensionIds[0],
-        targetTabId: invocation.options.targetTabId,
-        homeDir,
-        generatedAt,
-        io
-      });
-      const extensionRegistration = reloadResult.result === "blocked"
-        ? await readChromeExtensionRegistrationStatus({
-          rootDir,
-          homeDir,
-          extensionId: invocation.options.extensionIds[0],
-          io
-        })
-        : undefined;
-      stdout.write(`${JSON.stringify(createChromeExtensionReloadOutput({
-        invocation,
-        generatedAt,
-        reloadResult,
-        extensionRegistration
-      }), null, 2)}\n`);
-      return reloadResult.result === "blocked" ? 1 : 0;
-    } catch (error) {
-      stdout.write(`${JSON.stringify(createChromeExtensionReloadErrorOutput({
-        invocation,
-        generatedAt,
-        error,
-        productPath: CHROME_EXTENSION_RELOAD_PRODUCT_PATH
-      }), null, 2)}\n`);
-      return 1;
-    }
-  }
-
-  if (isChromePageControlSubcommand(invocation.subcommand)) {
-    try {
-      const requestId = createChromePageControlRequestId(invocation.subcommand, generatedAt);
-      const pageControlResult = await chromeExtensionPageControlInvoker({
-        action: invocation.subcommand,
-        extensionId: invocation.options.extensionIds[0],
-        targetTabId: invocation.options.targetTabId,
-        selector: invocation.options.selector,
-        text: invocation.options.text,
-        dy: invocation.options.dy,
-        requestId,
-        homeDir,
-        generatedAt,
-        io
-      });
-      stdout.write(`${JSON.stringify(createChromePageControlOutput({
-        invocation,
-        generatedAt,
-        pageControlResult
-      }), null, 2)}\n`);
-      return pageControlResult.result === "blocked" ? 1 : 0;
-    } catch (error) {
-      stdout.write(`${JSON.stringify(createChromePageControlErrorOutput({
-        invocation,
-        generatedAt,
-        error
-      }), null, 2)}\n`);
-      return 1;
-    }
-  }
-
-  if (invocation.subcommand === "install-host") {
-    const installResult = await installChromeNativeHost({
-      homeDir,
-      cliShimPath: invocation.options.cliShimPath,
-      extensionIds: invocation.options.extensionIds,
-      io
-    });
-    stdout.write(`${JSON.stringify(createChromeNativeHostMutationOutput({
-      invocation,
-      generatedAt,
-      result: installResult
-    }), null, 2)}\n`);
-    return 0;
-  }
-
-  const uninstallResult = await uninstallChromeNativeHost({
-    homeDir,
-    cliShimPath: invocation.options.cliShimPath,
-    extensionIds: invocation.options.extensionIds,
-    io
-  });
-  stdout.write(`${JSON.stringify(createChromeNativeHostMutationOutput({
-    invocation,
-    generatedAt,
-    result: uninstallResult
-  }), null, 2)}\n`);
-  return 0;
-}
-
-function createChromePageControlRequestId(
-  action: string,
-  generatedAt: string | undefined
-): string {
-  const generatedAtMs = generatedAt ? Date.parse(generatedAt) : NaN;
-  const suffix = Number.isFinite(generatedAtMs)
-    ? Math.trunc(generatedAtMs)
-    : Date.now();
-  return `page-control-${action}-cli-${suffix}`;
-}
-
-async function runChromeHostPolicyCli({
-  invocation,
-  generatedAt,
-  homeDir,
-  io,
-  stdout,
-  stderr
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "chrome-policy" }>;
-  generatedAt?: string;
-  homeDir: string;
-  io?: ChromeNativeHostIo;
-  stdout: SkfiyCliIo;
-  stderr: SkfiyCliIo;
-}): Promise<number> {
-  if (!homeDir) {
-    stderr.write("Home directory is required to locate the Chrome host policy state.\n");
-    return 2;
-  }
-
-  if (invocation.subcommand === "show") {
-    const hostPolicy = await readChromeHostPolicyState({
-      homeDir,
-      io
-    });
-
-    stdout.write(`${JSON.stringify(createChromeHostPolicyShowOutput({
-      invocation,
-      generatedAt,
-      hostPolicy
-    }), null, 2)}\n`);
-    return 0;
-  }
-
-  if (invocation.subcommand === "reset") {
-    const hostPolicy = await resetChromeHostPolicyState({
-      homeDir,
-      io
-    });
-
-    stdout.write(`${JSON.stringify(createChromeHostPolicyResetOutput({
-      invocation,
-      generatedAt,
-      hostPolicy
-    }), null, 2)}\n`);
-    return 0;
-  }
-
-  const host = normalizeChromePolicyHostForCli(invocation.options.host);
-  if (!host || !invocation.options.action) {
-    stderr.write("Chrome policy set requires --host <host> and --action <always-allow|allow-current-turn|block|ask>.\n");
-    return 2;
-  }
-
-  const current = await readChromeHostPolicyState({
-    homeDir,
-    io
-  });
-  const policy = applyChromeHostPolicyAction(current.policy, {
-    action: invocation.options.action,
-    host
-  });
-  const hostPolicy = await writeChromeHostPolicyState({
-    homeDir,
-    policy,
-    io
-  });
-
-  stdout.write(`${JSON.stringify(createChromeHostPolicySetOutput({
-    invocation,
-    generatedAt,
-    host,
-    hostPolicy
-  }), null, 2)}\n`);
-  return 0;
 }
