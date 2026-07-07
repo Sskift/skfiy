@@ -1,6 +1,6 @@
 # skfiy Code Health Cleanup Plan
 
-> **For agentic workers:** This is the single active plan as of 2026-07-07. The previous long-form implementation log, including the 2026-06-23 browser/dashboard plan, was retired because the pet, Background Agent, Browser Context, Dashboard, personalization, and validation milestones are already complete. New work should be small, code-health focused, and verified through behavior tests rather than source-string assertions.
+> **For agentic workers:** This is the single active plan as of 2026-07-07. Previous long-form implementation logs were retired because the pet, Background Agent, Browser Context, Dashboard, personalization, and validation milestones are already complete. New work should be small, code-health focused, and verified through behavior tests rather than source-string assertions.
 
 ## Current Baseline
 
@@ -50,7 +50,7 @@ This plan is not a feature expansion plan. The next work is project slimming:
 - Prefer behavior tests over source-string assertions.
 - Extract pure helpers before changing integration wiring.
 - Do not change UI behavior, product language, preload API shape, Chrome host permissions, or macOS permission boundaries unless the task explicitly requires it.
-- Do not keep old long-form plans in `docs/superpowers/plans/`; this directory must contain exactly one active plan. Do not restore the retired 2026-06-23 plan.
+- Do not keep old long-form plans in `docs/superpowers/plans/`; this directory must contain exactly one active plan. Do not restore retired historical plans.
 - Run the task-specific focused verification before committing.
 - Before final handoff for code changes, run:
 
