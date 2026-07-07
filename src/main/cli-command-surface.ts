@@ -153,6 +153,10 @@ import {
   formatTmuxCommand,
   readCommandResultMessage
 } from "./cli-money-run-status.js";
+import {
+  createPermissionSettingsOpenOutput,
+  createPermissionSettingsOpenUrl
+} from "./cli-permission-settings-output.js";
 
 export { SMOKE_TARGETS };
 export {
@@ -189,8 +193,6 @@ export type {
   ChromeExtensionTabDiscoveryResult
 };
 
-const SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX =
-  "x-apple.systempreferences:com.apple.preference.security?";
 const TMUX_TAIL_LINES = 120;
 const TMUX_PROBE_TIMEOUT_MS = 1_500;
 const TMUX_WINDOW_FORMAT = "#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_panes}";
@@ -209,28 +211,6 @@ type ChromeExtensionRegistrationStatus = {
   manifestPath?: string;
   preferencesPath?: string;
   reason?: string;
-};
-
-const PERMISSION_SETTINGS_TARGET_DETAILS: Record<PermissionSettingsTarget, {
-  label: string;
-  anchor: string;
-  guidance: string;
-}> = {
-  "screen-recording": {
-    label: "Screen Recording",
-    anchor: "Privacy_ScreenCapture",
-    guidance: "Grant skfiy Screen Recording access."
-  },
-  accessibility: {
-    label: "Accessibility",
-    anchor: "Privacy_Accessibility",
-    guidance: "Grant skfiy Accessibility access."
-  },
-  "automation-finder": {
-    label: "Automation",
-    anchor: "Privacy_Automation",
-    guidance: "Grant skfiy permission to control Finder in Automation."
-  }
 };
 
 export interface CreateCliOutputOptions {
@@ -776,52 +756,6 @@ async function createDashboardProbeRunOutput({
   };
 }
 
-function createPermissionSettingsOpenOutput({
-  invocation,
-  generatedAt,
-  result,
-  error
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "permissions-open" }>;
-  generatedAt: string;
-  result: "not-run" | "opened" | "error";
-  error?: string;
-}): Record<string, unknown> {
-  const targetDetails = PERMISSION_SETTINGS_TARGET_DETAILS[invocation.target];
-  const url = `${SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX}${targetDetails.anchor}`;
-
-  return {
-    schemaVersion: 1,
-    command: "permissions open",
-    generatedAt,
-    target: invocation.target,
-    executesSystemMutation: true,
-    result,
-    ...(error ? { error } : {}),
-    systemSettings: {
-      app: "System Settings",
-      pane: "Privacy & Security",
-      label: targetDetails.label,
-      anchor: targetDetails.anchor,
-      url
-    },
-    actionPlan: [
-      {
-        step: "open-system-settings",
-        executor: "skfiy-cli",
-        command: "open",
-        args: [url]
-      },
-      {
-        step: "grant-permission",
-        executor: "user",
-        target: invocation.target,
-        guidance: targetDetails.guidance
-      }
-    ]
-  };
-}
-
 export async function runSkfiyCli({
   argv,
   rootDir,
@@ -1083,8 +1017,7 @@ async function runPermissionSettingsOpenCli({
   stderr: SkfiyCliIo;
 }): Promise<number> {
   const effectiveGeneratedAt = generatedAt ?? new Date().toISOString();
-  const targetDetails = PERMISSION_SETTINGS_TARGET_DETAILS[invocation.target];
-  const url = `${SYSTEM_SETTINGS_PRIVACY_PANE_URL_PREFIX}${targetDetails.anchor}`;
+  const url = createPermissionSettingsOpenUrl(invocation.target);
 
   try {
     await permissionSettingsOpener(url);
