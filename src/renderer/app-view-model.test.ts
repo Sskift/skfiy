@@ -6,6 +6,7 @@ import {
   getPanelVisibilityState,
   getReplayAccessibilityLabel,
   getReplayOcrLabel,
+  getUserDashboardPanelViewModel,
   readSelectedAssistantAgentProvider
 } from "./app-view-model";
 
@@ -85,6 +86,57 @@ describe("app view model", () => {
       .toEqual({ id: "claude-code", label: "Claude Code" });
     expect(readSelectedAssistantAgentProvider(providers.slice(0, 1), "hermes", fallbackProvider))
       .toBe(fallbackProvider);
+  });
+
+  it("derives the user dashboard panel view model", () => {
+    expect(getUserDashboardPanelViewModel({
+      desktopSessionDiagnostics: {
+        state: "blocked",
+        reason: "Desktop is locked."
+      },
+      permissions: {
+        screenRecording: { state: "granted" },
+        accessibility: { state: "denied" }
+      },
+      task: {
+        status: "approval_required",
+        message: "Need approval."
+      },
+      turnReplay: {
+        transcript: {
+          outcome: "verification_failed",
+          command: "move files",
+          risk: {
+            level: "medium",
+            reason: "Moving files needs review.",
+            requiresApproval: true
+          }
+        }
+      }
+    })).toEqual({
+      canApprove: true,
+      canStop: true,
+      permissionHealth: {
+        label: "桌面暂不可控",
+        detail: "Desktop is locked.",
+        tone: "danger"
+      },
+      recent: {
+        label: "需要确认",
+        detail: "move files",
+        tone: "danger"
+      },
+      risk: {
+        label: "中风险，需要审批",
+        detail: "Moving files needs review.",
+        tone: "warning"
+      },
+      status: {
+        label: "等待审批",
+        detail: "Need approval.",
+        tone: "warning"
+      }
+    });
   });
 
   it("formats replay planner and action summaries", () => {

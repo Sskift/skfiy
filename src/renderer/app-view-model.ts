@@ -333,6 +333,44 @@ export function getRecentExecutionCopy(replay: {
   };
 }
 
+export function getUserDashboardPanelViewModel({
+  desktopSessionDiagnostics,
+  permissions,
+  task,
+  turnReplay
+}: {
+  desktopSessionDiagnostics: { state: DesktopSessionDiagnosticState; reason: string };
+  permissions: Record<PermissionKey, { state: PermissionState }>;
+  task: { status: TaskStatus; message: string };
+  turnReplay: {
+    transcript: {
+      outcome: TurnTranscriptOutcome;
+      command?: string;
+      risk?: {
+        level: "low" | "medium" | "high" | "blocked";
+        reason: string;
+        requiresApproval: boolean;
+      };
+    };
+  } | null;
+}): {
+  canApprove: boolean;
+  canStop: boolean;
+  permissionHealth: { label: string; detail: string; tone: Tone };
+  recent: { label: string; detail: string; tone: Tone };
+  risk: { label: string; detail: string; tone: Tone };
+  status: { label: string; detail: string; tone: Tone };
+} {
+  return {
+    canApprove: task.status === "approval_required",
+    canStop: canStopTurn(task.status),
+    permissionHealth: getPermissionHealthCopy(permissions, desktopSessionDiagnostics),
+    recent: getRecentExecutionCopy(turnReplay),
+    risk: getRiskCopy(turnReplay?.transcript.risk),
+    status: getDashboardStatusCopy(task)
+  };
+}
+
 export function getPanelVisibilityState({
   assistantPanelOpen,
   detailsOpen,

@@ -37,18 +37,14 @@ import {
   DESKTOP_SESSION_STATE_COPY,
   PERMISSION_ROWS,
   PERMISSION_STATE_COPY,
-  canStopTurn,
   formatFinderPreviewMove,
   formatReplayAction,
   formatReplayPlanner,
-  getDashboardStatusCopy,
-  getPermissionHealthCopy,
   getPanelVisibilityState,
   getPolicySummary,
-  getRecentExecutionCopy,
-  getRiskCopy,
   getReplayAccessibilityLabel,
   getReplayOcrLabel,
+  getUserDashboardPanelViewModel,
   readAssistantAgentProviderDetail,
   readAssistantAgentReadinessLabel,
   readDesktopSessionPermissionState,
@@ -555,12 +551,8 @@ function UserDashboardPanel({
   task: TaskView;
   turnReplay: TurnReplay | null;
 }) {
-  const status = getDashboardStatusCopy(task);
-  const permissionHealth = getPermissionHealthCopy(permissions, desktopSessionDiagnostics);
-  const risk = getRiskCopy(turnReplay?.transcript.risk);
-  const recent = getRecentExecutionCopy(turnReplay);
-  const canStop = canStopTurn(task.status);
-  const canApprove = task.status === "approval_required";
+  const { canApprove, canStop, permissionHealth, recent, risk, status } =
+    getUserDashboardPanelViewModel({ desktopSessionDiagnostics, permissions, task, turnReplay });
 
   return (
     <section className="dashboard-panel" aria-label="用户态 dashboard">
