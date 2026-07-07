@@ -527,20 +527,6 @@ describe("money-run supervision smoke script", () => {
     });
   });
 
-  it("copies the renderer tmux report into the product smoke evidence", () => {
-    const scriptSource = readFileSync(
-      path.join(process.cwd(), "scripts/smoke-money-run-supervision.mjs"),
-      "utf8"
-    );
-
-    expect(scriptSource).toContain("tmuxSupervisionReport");
-    expect(scriptSource).toContain("readFinalTmuxSupervisionReport");
-    expect(scriptSource).toContain("event.status === \"completed\"");
-    expect(scriptSource).toContain("artifactPath: options.jsonOutputPath");
-    expect(scriptSource).toContain("evidence.events = cdp.events.slice(startIndex)");
-    expect(scriptSource).toContain("mutatesSession: false");
-  });
-
   it("supports a custom session in dry-run mode", async () => {
     const { stdout } = await runMoneyRunScript([
       "--session",

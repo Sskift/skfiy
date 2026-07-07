@@ -1,6 +1,4 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, {
   type AppPolicySettings,
@@ -207,20 +205,6 @@ afterEach(() => {
 });
 
 describe("App", () => {
-  it("does not render the obsolete assistant bubble diamond marker", () => {
-    const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
-
-    expect(css).not.toContain(".assistant-bubble::after");
-  });
-
-  it("anchors the pet to the bottom of expanded panels so bubbles do not pull it upward", () => {
-    const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
-
-    expect(css).toContain(".pet-stage.panel-open .skfiy-pet");
-    expect(css).toContain("bottom: 1px");
-    expect(css).toContain("bottom: 92px");
-  });
-
   it("starts as a Codex-style pet overlay with controls tucked away", () => {
     render(<App />);
 
@@ -1176,15 +1160,4 @@ describe("App", () => {
     expect(screen.queryByLabelText("Computer Use replay")).not.toBeInTheDocument();
   });
 
-  it("keeps permission icon buttons visually centered", () => {
-    const css = readFileSync(path.join(process.cwd(), "src", "renderer", "styles.css"), "utf8");
-
-    expect(css).toContain(".permissions-heading button,\n.permission-row button");
-    expect(css).toContain("padding: 0;");
-    expect(css).toContain("line-height: 0;");
-    expect(css).toContain(".permissions-heading button svg,\n.permission-row button svg");
-    expect(css).toContain("display: block;");
-    expect(css).toContain(".dashboard-actions button svg,\n.approval-actions button svg");
-    expect(css).toContain("flex: 0 0 auto;");
-  });
 });

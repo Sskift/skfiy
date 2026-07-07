@@ -19,6 +19,7 @@
 - Chrome extension manifest coverage now checks manifest structure and declared files instead of source-string snapshots of background, content-script, popup HTML, and popup JS internals. Message, host-policy, native-bridge, page-control, and popup behavior remain covered by focused behavior tests.
 - Main and renderer pure-logic extraction is complete for the current pass. Renderer task state, panel state, settings state, permission fallback state, pet drag state, desktop API fallback, and view-model decisions now live behind focused helpers. Main-process IPC payloads, runtime snapshot payloads, renderer payloads, Browser Context reading, Background Agent settings responses, Computer Use tool-result mapping, and duplicate window-bound clamping have been extracted or removed.
 - The final Task 3 opportunistic pass removed the unused renderer permission-onboarding row forwarding helper and its forwarding-only test. Permission-onboarding completion now calls the shared missing-permission row helper directly, while onboarding row display remains covered through the root view-model tests.
+- Remaining source-string cleanup removed renderer CSS implementation assertions and a money-run smoke script source snapshot assertion. App behavior and money-run dry-run/product-path behavior remain covered through observable tests.
 - Project hygiene pass removed stale smoke artifact defaults, temporary smoke directories, source-string smoke tests, duplicate record helpers, and extra active-plan files.
 
 ## Active Scope
