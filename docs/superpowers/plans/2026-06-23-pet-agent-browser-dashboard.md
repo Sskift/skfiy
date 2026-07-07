@@ -14,17 +14,18 @@
 
 - Completed: the obsolete assistant bubble diamond marker was removed from `src/renderer/styles.css`.
 - Completed: pet dragging now uses visible pet anchor geometry instead of treating the transparent Electron window as the movement boundary.
-- Background Agent currently supports `codex`, `claude-code`, and `hermes` in `src/main/assistant-agent.ts`; legacy `local` and `built-in` provider language has been removed.
-- The user wants Hermes as a third Background Agent backend. Hermes' `--oneshot` path auto-bypasses approvals, so skfiy must not wire it as a raw full-tool agent. The acceptable integration is a bounded chat backend invocation that injects skfiy identity, disables or excludes mutating Hermes toolsets, and keeps Computer Use inside skfiy.
-- Real Backend Agent turns must inject the skfiy identity before the user request. Claude Code must receive it through the primary `--system-prompt` channel; Codex and Hermes must receive it in the bounded prompt/query because their current CLI chat surfaces do not expose a separate system-prompt flag. The identity block must explicitly say that the active identity in real user-facing interaction is skfiy, while Codex, Claude Code, and Hermes remain backend providers.
-- Pet settings currently expose Computer Use planner modes from `src/main/planner-provider-settings.ts`; that is not the same as selecting the Background Agent Provider.
-- Chrome extension pageControl can report current tab readiness and run observe/click/fill/submit/scroll paths, but Pet Agent prompts do not yet receive bounded real webpage context.
-- Dashboard already has snapshot/provider/browser panels, but it needs to become the readable operator surface for these capabilities, not a raw diagnostics page.
+- Completed: Background Agent provider selection is separate from Computer Use Planner selection. `codex`, `claude-code`, and bounded `hermes` are the supported Background Agent providers in `src/main/assistant-agent.ts`; legacy `local` and `built-in` provider language has been removed.
+- Completed: real Background Agent turns inject the skfiy identity before the user request. Claude Code receives it through the primary `--system-prompt` channel; Codex and Hermes receive it in the bounded prompt/query because their current CLI chat surfaces do not expose a separate system-prompt flag.
+- Completed: Chrome extension pageControl can report current-tab readiness, run observe/click/fill/submit/scroll paths, and pass bounded Browser Context into Background Agent prompts when the bridge is ready.
+- Completed: Dashboard has moved beyond raw diagnostics into an operator surface with provider status, Browser Context readiness, Computer Use state, personal memory, session recall, prompt stack, and an Obsidian-inspired local knowledge graph.
+- Completed: Task 7 and Task 9 added durable user preference storage, post-turn review, explicit `记住:` / `remember:` and `忘记:` / `forget:` fallback operations, prompt-safe Working profile injection, pending-memory review, exact polluted-memory removal, and append-only learning receipts.
+- Current product boundary: Hermes remains a bounded chat backend only. Hermes' `--oneshot` path auto-bypasses approvals, so skfiy must never wire it as a raw full-tool agent. Computer Use stays inside skfiy's policy, approval, and replay layer.
+- Current smoke policy: default smoke commands are output-free. `.skfiy-smoke/` artifacts are for explicit release, dogfood, or debugging evidence capture only.
+- Current cleanup state as of 2026-07-07: stale plan/archive instructions and low-value smoke source-string tests have been cleaned; duplicate record helpers were centralized in `src/main/record-utils.ts`; the largest remaining local code-health risks are oversized orchestration surfaces rather than missing product features.
+- Remaining code-health gap: `src/main/cli-command-surface.ts` is still the largest file and mixes CLI command dispatch, status assembly, provider/browser/dashboard state shaping, and output formatting.
+- Remaining code-health gap: `src/main/main.ts` and `src/renderer/App.tsx` are still broad integration files. Future work should peel off pure state reducers and wiring helpers without changing UI behavior.
+- Remaining test-health gap: `src/main/chrome-extension-background.test.js` still contains repeated fixture/setup patterns. Keep meaningful bridge behavior coverage, but remove duplicated fixtures and tests that only restate implementation details.
 - Hermes research basis: official repository `NousResearch/hermes-agent` and local shallow clones `5ecf3bf` / `3c75e11` show a useful split between Background Agent, toolsets, memory, skills, session search, and dashboard themes. Distill the pattern, do not embed Hermes' unrestricted tool loop. Current notes: `docs/research/2026-06-24-hermes-personalization-distillation.md`.
-- Personalization gap: Task 7 added durable user preference storage, post-turn review, session search, Dashboard visibility, Hermes-style atomic memory batch writes, prompt-load memory sanitization, and a derived prompt-safe Working profile that makes learned habits portable, reviewable, and available to real provider prompts; Task 9 adds user-visible removal for incorrect remembered preferences plus append-only learning receipts for durable and pending memory changes. Atomic batches now reject over-budget or unsafe writes without partial durable mutations while still allowing remove+add batches validated against the final budget. End-to-end live validation remains required.
-- Personalization hardening: unsafe manually polluted memory is still blocked from provider prompts, but Dashboard/store removal must remain able to forget the exact polluted entry so users can correct bad sediment instead of getting stuck with an invisible prompt-safe placeholder.
-- Personalization follow-up: explicit `记住:` / `remember:` and `忘记:` / `forget:` local fallback operations are required so users can directly teach or correct skfiy even when the Background Agent memory reviewer is unavailable.
-- Obsidian-inspired dashboard gap: Dashboard is still a control plane. It should gain a knowledge surface that shows remembered preferences, sessions, skills, Browser Context, and Computer Use evidence as linked local-first nodes with a local graph/canvas feel.
 
 ## File Ownership Map
 
@@ -1676,6 +1677,122 @@ git log --oneline -5
 ```
 
 The project owner requested direct merges to `main`; verified commits were pushed directly without a PR.
+
+---
+
+## Next Work Queue
+
+Use this queue for new work after the completed Task 1-10 history above. Pick one task, keep the diff scoped, and commit only after the focused verification passes. Default smoke runs stay output-free unless the task explicitly enters release, dogfood, or debugging evidence capture.
+
+### Task 11: Continue Slimming The CLI Command Surface
+
+**Files likely to change:**
+- Modify: `src/main/cli-command-surface.ts`
+- Modify or create: `src/main/cli-status-evidence.ts`
+- Modify or create: `src/main/cli-smoke-command.ts`
+- Modify or create narrow pure helpers under `src/main/cli-*.ts`
+- Modify: `src/main/cli-command-surface.test.ts`
+
+- [ ] **Step 1: Map command-surface responsibilities before editing**
+
+Identify which blocks in `src/main/cli-command-surface.ts` are pure status assembly, command dispatch, provider/browser/dashboard formatting, smoke command orchestration, or direct process side effects. Do not move behavior yet.
+
+- [ ] **Step 2: Extract pure status/output assembly**
+
+Move pure JSON/status shaping into small helpers that can be tested without spawning the packaged CLI or Electron runtime. Keep `cli-command-surface.ts` responsible for parsing, dispatching, and wiring IO.
+
+Acceptance:
+
+- `status`, `doctor`, Chrome readiness, dashboard readiness, and smoke summary JSON fields stay backward compatible.
+- New helpers take typed inputs and return plain objects or strings.
+- `cli-command-surface.ts` loses meaningful line count without gaining broad new abstractions.
+
+- [ ] **Step 3: Keep command dispatch behavior stable**
+
+Add focused regressions around the extracted helpers and keep existing `cli-command-surface` command tests passing. Avoid source-string assertions; tests should assert observable command output, parsed options, returned status, or typed blockers.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/cli-command-surface.test.ts src/main/dashboard-status.test.ts src/main/chrome-readiness.test.ts --reporter=dot
+npm run typecheck -- --pretty false
+```
+
+### Task 12: Finish Chrome Extension Background Test Diet
+
+**Files likely to change:**
+- Modify: `src/main/chrome-extension-background.test.js`
+- Modify or create: `src/main/chrome-extension-background-fixtures.test.js` only if shared fixture extraction materially reduces duplication
+- Do not change: `chrome-extension/background.js` unless a real behavior defect is found
+
+- [ ] **Step 1: Remove repeated fixture setup**
+
+Consolidate duplicated Chrome API/native-message setup into a tiny fixture helper inside the test file first. Split to a separate test helper only if it removes substantial repetition.
+
+- [ ] **Step 2: Delete low-value implementation restatements**
+
+Remove tests that only assert internal listener registration, duplicated constants, or implementation order. Preserve coverage for permission recovery, page observe, native message forwarding, target-tab popup behavior, and blocked-state classification.
+
+Focused verification:
+
+```bash
+npx vitest run src/main/chrome-extension-background.test.js src/main/chrome-extension-popup.test.js src/main/chrome-extension-page-control.test.ts --reporter=dot
+npm run typecheck -- --pretty false
+```
+
+### Task 13: Peel Pure Logic Out Of Main And Renderer Without UI Changes
+
+**Files likely to change:**
+- Modify: `src/main/main.ts`
+- Modify: `src/renderer/App.tsx`
+- Modify or create: `src/main/*-main-wiring.ts`
+- Modify or create: `src/renderer/*state*.ts`
+- Modify: `src/renderer/App.test.tsx`
+- Modify focused main wiring tests only where behavior is already covered
+
+- [ ] **Step 1: Extract renderer state reducers**
+
+Move pure task/panel/settings state transitions out of `src/renderer/App.tsx` into renderer-local helpers. Keep component markup, labels, controls, and keyboard/pointer behavior unchanged.
+
+- [ ] **Step 2: Extract main-process wiring helpers**
+
+Move pure IPC payload normalization, runtime snapshot adaptation, and provider/browser status mapping out of `src/main/main.ts`. Do not change BrowserWindow lifecycle, preload API shape, or Electron side effects while extracting.
+
+Acceptance:
+
+- No UI copy or layout behavior changes.
+- No preload API broadening.
+- App and main files get smaller because pure logic moved behind tested helpers.
+- Existing product language remains: Background Agent, Computer Use, Computer Use Planner, Browser Context.
+
+Focused verification:
+
+```bash
+npx vitest run src/renderer/App.test.tsx src/main/runtime-snapshot-main-wiring.test.ts src/main/assistant-tools-main-wiring.test.ts --reporter=dot
+npm run typecheck -- --pretty false
+```
+
+### Task 14: Refresh Product Readiness After Code-Health Work
+
+Run this only after one or more code-health tasks above have landed.
+
+- [ ] **Step 1: Run full local gates**
+
+```bash
+git diff --check
+npm run typecheck -- --pretty false
+env -u TMUX npx vitest run --reporter=dot
+npm run build
+```
+
+- [ ] **Step 2: Run output-free smoke only where the changed surface needs it**
+
+```bash
+env -u TMUX npm run smoke:cli:basic -- --require-passed
+npm run smoke:dashboard
+```
+
+If a smoke is blocked by macOS, Chrome, or local desktop state, record the typed blocker and rerun command. Do not create `.skfiy-smoke/` output unless release, dogfood, or debugging requires a persisted artifact.
 
 ---
 
