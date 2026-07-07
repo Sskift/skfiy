@@ -4,6 +4,7 @@ import {
   formatReplayAction,
   formatReplayPlanner,
   getAppRootViewModel,
+  getLocalReplayViewModel,
   getPanelVisibilityState,
   getReplayAccessibilityLabel,
   getReplayOcrLabel,
@@ -183,6 +184,66 @@ describe("app view model", () => {
         detail: "Need approval.",
         tone: "warning"
       }
+    });
+  });
+
+  it("derives the local replay viewer model", () => {
+    expect(getLocalReplayViewModel(null)).toEqual({
+      actionItems: [],
+      command: "未记录",
+      hasTranscript: false,
+      headingOutcome: "empty",
+      plannerItems: [],
+      riskLevel: "unknown",
+      screenshotItems: [],
+      timelineItems: []
+    });
+
+    expect(getLocalReplayViewModel({
+      transcript: {
+        outcome: "completed",
+        command: "open Finder",
+        risk: { level: "low" },
+        planner: {
+          providerLabel: "Local",
+          command: "click Downloads",
+          rationale: "Need file context"
+        },
+        actions: [
+          { type: "activate_app", appName: "Finder" },
+          { type: "press_key", key: "Enter" }
+        ],
+        screenshots: [
+          { stage: "before", path: "/tmp/before.png" },
+          {
+            stage: "after",
+            path: "/tmp/after.png",
+            grounding: { recommendation: "high confidence" }
+          }
+        ]
+      },
+      timeline: [
+        { status: "observing", message: "Looking at Finder" },
+        { status: "executing", command: "click Downloads" }
+      ]
+    })).toEqual({
+      actionItems: [
+        "activate_app: Finder",
+        "press_key: Enter"
+      ],
+      command: "open Finder",
+      hasTranscript: true,
+      headingOutcome: "completed",
+      plannerItems: ["Local: click Downloads (Need file context)"],
+      riskLevel: "low",
+      screenshotItems: [
+        "before: /tmp/before.png",
+        "after: /tmp/after.png (high confidence)"
+      ],
+      timelineItems: [
+        "observing: Looking at Finder",
+        "executing: click Downloads"
+      ]
     });
   });
 

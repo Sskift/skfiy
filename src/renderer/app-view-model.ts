@@ -30,6 +30,7 @@ export type TurnTranscriptOutcome =
   | "cancelled"
   | "failed"
   | "running";
+export type RiskLevel = "low" | "medium" | "high" | "blocked";
 
 export const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
   idle: {
@@ -274,7 +275,7 @@ export function getDashboardStatusCopy(task: {
 }
 
 export function getRiskCopy(risk?: {
-  level: "low" | "medium" | "high" | "blocked";
+  level: RiskLevel;
   reason: string;
   requiresApproval: boolean;
 }): { label: string; detail: string; tone: Tone } {
@@ -415,7 +416,7 @@ export function getUserDashboardPanelViewModel({
       outcome: TurnTranscriptOutcome;
       command?: string;
       risk?: {
-        level: "low" | "medium" | "high" | "blocked";
+        level: RiskLevel;
         reason: string;
         requiresApproval: boolean;
       };
@@ -490,6 +491,84 @@ export function getAppRootViewModel<
     ),
     startupWarning,
     status: STATUS_COPY[taskStatus]
+  };
+}
+
+export function getLocalReplayViewModel(replay: {
+  transcript?: {
+    outcome: TurnTranscriptOutcome;
+    command?: string;
+    risk?: { level: RiskLevel };
+    planner?: {
+      providerLabel: string;
+      command: string;
+      rationale?: string;
+    };
+    actions: Array<{
+      type: string;
+      appName?: string;
+      bundleId?: string;
+      text?: string;
+      key?: string;
+      action?: string;
+      actionType?: string;
+      status?: string;
+      stage?: string;
+      message?: string;
+      reason?: string;
+      providerLabel?: string;
+      command?: string;
+    }>;
+    screenshots: Array<{
+      stage: string;
+      path: string;
+      grounding?: { recommendation: string };
+    }>;
+  };
+  timeline?: Array<{
+    status: TaskStatus;
+    message?: string;
+    command?: string;
+  }>;
+} | null): {
+  actionItems: string[];
+  command: string;
+  hasTranscript: boolean;
+  headingOutcome: string;
+  plannerItems: string[];
+  riskLevel: string;
+  screenshotItems: string[];
+  timelineItems: string[];
+} {
+  const transcript = replay?.transcript;
+
+  if (!transcript) {
+    return {
+      actionItems: [],
+      command: "未记录",
+      hasTranscript: false,
+      headingOutcome: "empty",
+      plannerItems: [],
+      riskLevel: "unknown",
+      screenshotItems: [],
+      timelineItems: []
+    };
+  }
+
+  return {
+    actionItems: transcript.actions.map(formatReplayAction),
+    command: transcript.command ?? "未记录",
+    hasTranscript: true,
+    headingOutcome: transcript.outcome,
+    plannerItems: transcript.planner ? [formatReplayPlanner(transcript.planner)] : [],
+    riskLevel: transcript.risk?.level ?? "unknown",
+    screenshotItems: transcript.screenshots.map((screenshot) =>
+      `${screenshot.stage}: ${screenshot.path}`
+        + (screenshot.grounding ? ` (${screenshot.grounding.recommendation})` : "")
+    ),
+    timelineItems: (replay?.timeline ?? []).map((event) =>
+      `${event.status}: ${event.message ?? event.command ?? ""}`
+    )
   };
 }
 

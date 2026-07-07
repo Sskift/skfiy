@@ -37,9 +37,8 @@ import {
   PERMISSION_ROWS,
   PERMISSION_STATE_COPY,
   formatFinderPreviewMove,
-  formatReplayAction,
-  formatReplayPlanner,
   getAppRootViewModel,
+  getLocalReplayViewModel,
   getPolicySummary,
   getReplayAccessibilityLabel,
   getReplayOcrLabel,
@@ -443,40 +442,26 @@ function FinderPlanPreviewSummary({ preview }: { preview: FinderPlanPreview }) {
 }
 
 function LocalReplayViewer({ replay }: { replay: TurnReplay | null }) {
-  const transcript = replay?.transcript;
+  const replayViewModel = getLocalReplayViewModel(replay);
 
   return (
     <div className="turn-replay-panel" aria-label="本地回放">
       <div className="turn-replay-heading">
         <strong>本地回放</strong>
-        <span>{transcript?.outcome ?? "empty"}</span>
+        <span>{replayViewModel.headingOutcome}</span>
       </div>
-      {transcript ? (
+      {replayViewModel.hasTranscript ? (
         <>
           <div className="turn-replay-summary">
             <span>命令</span>
-            <strong>{transcript.command ?? "未记录"}</strong>
+            <strong>{replayViewModel.command}</strong>
             <span>风险</span>
-            <strong>{transcript.risk?.level ?? "unknown"}</strong>
+            <strong>{replayViewModel.riskLevel}</strong>
           </div>
-          <ReplayList
-            title="规划"
-            items={transcript.planner ? [formatReplayPlanner(transcript.planner)] : []}
-          />
-          <ReplayList title="动作" items={transcript.actions.map(formatReplayAction)} />
-          <ReplayList
-            title="截图"
-            items={transcript.screenshots.map((screenshot) =>
-              `${screenshot.stage}: ${screenshot.path}`
-                + (screenshot.grounding ? ` (${screenshot.grounding.recommendation})` : "")
-            )}
-          />
-          <ReplayList
-            title="时间线"
-            items={(replay?.timeline ?? []).map((event) =>
-              `${event.status}: ${event.message ?? event.command ?? ""}`
-            )}
-          />
+          <ReplayList title="规划" items={replayViewModel.plannerItems} />
+          <ReplayList title="动作" items={replayViewModel.actionItems} />
+          <ReplayList title="截图" items={replayViewModel.screenshotItems} />
+          <ReplayList title="时间线" items={replayViewModel.timelineItems} />
         </>
       ) : (
         <p>暂无回放</p>
