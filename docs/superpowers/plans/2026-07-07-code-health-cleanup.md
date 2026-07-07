@@ -114,6 +114,7 @@ Progress:
 - 2026-07-07: moved default CLI status-reader orchestration into `src/main/cli-status-reader.ts`, including helper-missing fallbacks, Chrome native-host/connection/policy reads, Dashboard state, and money-run status probing. `cli-command-surface.ts` now injects that reader instead of owning the status assembly.
 - 2026-07-07: moved Chrome command-family execution into `src/main/cli-chrome-command-runner.ts`, including Chrome status, tabs, reload, page-control actions, native-host install/uninstall, extension-info, and host-policy commands. `cli-command-surface.ts` now keeps only top-level command dispatch for the Chrome family.
 - 2026-07-07: moved MCP serve execution into `src/main/cli-mcp-command-runner.ts`, including JSON server startup output, stdio transport, status/doctor provider wiring, and MCP shutdown handling. `cli-command-surface.ts` now delegates MCP command execution.
+- 2026-07-07: moved Dashboard command-family execution into `src/main/cli-dashboard-command-runner.ts`, including dashboard server startup output, state-file writes, loopback probe fetching, URL opening, and shutdown handling. `cli-command-surface.ts` now delegates both `dashboard` and `dashboard status/snapshot` execution.
 
 - [ ] **Map responsibilities**
 
