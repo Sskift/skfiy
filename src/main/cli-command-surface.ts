@@ -13,7 +13,6 @@ import {
 } from "./dashboard-server.js";
 import {
   createDashboardServerState,
-  readDashboardServerState,
   writeDashboardServerState
 } from "./dashboard-server-state.js";
 import {
@@ -75,7 +74,6 @@ import {
   compactRecord,
   readBoolean,
   readErrorMessage,
-  readNumber,
   readRecord,
   readString,
   readStringArray
@@ -116,7 +114,6 @@ import {
   type SkinSubcommand
 } from "./cli-command-normalization.js";
 import {
-  createDashboardApiUrl,
   createDashboardDescriptorUrl,
   createDashboardFetchSummary,
   createDashboardOperatorEvidenceUrl,
@@ -124,6 +121,10 @@ import {
   createDashboardSnapshotUrl,
   createDashboardStatusSnapshotSummary
 } from "./cli-dashboard-probe-output.js";
+import {
+  fetchDashboardJson,
+  readDashboardStatus
+} from "./cli-dashboard-status-reader.js";
 import {
   readMoneyRunStatusForStatus
 } from "./cli-money-run-status.js";
@@ -1037,156 +1038,6 @@ async function readChromeHostPolicyForStatus(
       },
       reason: readErrorMessage(error)
     };
-  }
-}
-
-async function readDashboardStatus(
-  dashboardUrl: string | undefined,
-  homeDir?: string
-): Promise<Record<string, unknown>> {
-  const discovered = dashboardUrl
-    ? undefined
-    : readDashboardStatusFromState(homeDir);
-  const effectiveDashboardUrl = dashboardUrl ?? readString(discovered?.url);
-
-  if (!effectiveDashboardUrl) {
-    return discovered ?? { state: "not-running" };
-  }
-
-  const descriptorUrl = createDashboardDescriptorUrl(effectiveDashboardUrl);
-  const chromeHostPolicyApiUrl = createDashboardApiUrl(effectiveDashboardUrl);
-
-  if (!descriptorUrl || !chromeHostPolicyApiUrl) {
-    return {
-      state: "not-running",
-      url: effectiveDashboardUrl,
-      ...(discovered ? { source: "dashboard-server-state" } : {}),
-      ...(readString(discovered?.statePath) ? { statePath: readString(discovered?.statePath) } : {}),
-      reason: `Invalid dashboard URL: ${effectiveDashboardUrl}`,
-      api: {
-        chromeHostPolicy: {
-          state: "not-probed",
-          url: chromeHostPolicyApiUrl,
-          reason: "Invalid dashboard URL."
-        }
-      }
-    };
-  }
-
-  const descriptorProbe = await fetchDashboardJson(descriptorUrl);
-
-  if (descriptorProbe.state !== "reachable") {
-    return {
-      state: descriptorProbe.state === "blocked" ? "blocked" : "not-running",
-      url: effectiveDashboardUrl,
-      ...(discovered ? { source: "dashboard-server-state" } : {}),
-      ...(readString(discovered?.statePath) ? { statePath: readString(discovered?.statePath) } : {}),
-      ...(readNumber(discovered?.pid) !== undefined ? { pid: readNumber(discovered?.pid) } : {}),
-      ...(readString(discovered?.startedAt) ? { startedAt: readString(discovered?.startedAt) } : {}),
-      status: descriptorProbe.status,
-      reason: descriptorProbe.reason,
-      api: {
-        chromeHostPolicy: {
-          state: "not-probed",
-          url: chromeHostPolicyApiUrl,
-          reason: "Dashboard descriptor is not reachable."
-        }
-      }
-    };
-  }
-
-  return {
-    state: "running",
-    url: effectiveDashboardUrl,
-    ...(discovered ? { source: "dashboard-server-state" } : {}),
-    ...(readString(discovered?.statePath) ? { statePath: readString(discovered?.statePath) } : {}),
-    ...(readNumber(discovered?.pid) !== undefined ? { pid: readNumber(discovered?.pid) } : {}),
-    ...(readString(discovered?.startedAt) ? { startedAt: readString(discovered?.startedAt) } : {}),
-    descriptor: descriptorProbe.body,
-    api: {
-      chromeHostPolicy: await fetchDashboardJson(chromeHostPolicyApiUrl)
-    }
-  };
-}
-
-function readDashboardStatusFromState(homeDir: string | undefined): Record<string, unknown> | undefined {
-  const result = readDashboardServerState(homeDir);
-  if (!result.state) {
-    return {
-      state: "not-running",
-      ...(result.statePath ? { statePath: result.statePath } : {}),
-      ...(result.reason ? { reason: result.reason } : {})
-    };
-  }
-
-  if (!isPidRunning(result.state.pid)) {
-    return {
-      state: "not-running",
-      source: "dashboard-server-state",
-      statePath: result.statePath,
-      url: result.state.url,
-      pid: result.state.pid,
-      startedAt: result.state.startedAt,
-      reason: "Recorded dashboard process is no longer running."
-    };
-  }
-
-  return {
-    state: "unknown",
-    source: "dashboard-server-state",
-    statePath: result.statePath,
-    url: result.state.url,
-    pid: result.state.pid,
-    startedAt: result.state.startedAt,
-    bind: result.state.bind
-  };
-}
-
-function isPidRunning(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function fetchDashboardJson(
-  targetUrl: string,
-  options: { timeoutMs?: number } = {}
-): Promise<Record<string, unknown>> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 1_000);
-
-  try {
-    const response = await fetch(targetUrl, {
-      signal: controller.signal
-    });
-
-    if (!response.ok) {
-      return {
-        state: "blocked",
-        url: targetUrl,
-        status: response.status
-      };
-    }
-
-    const body = await response.json() as unknown;
-
-    return {
-      state: "reachable",
-      url: targetUrl,
-      status: response.status,
-      body
-    };
-  } catch (error) {
-    return {
-      state: "not-running",
-      url: targetUrl,
-      reason: readErrorMessage(error)
-    };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

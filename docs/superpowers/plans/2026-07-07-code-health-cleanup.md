@@ -107,6 +107,7 @@ Progress:
 - 2026-07-07: extracted generic CLI not-run/skeleton output shaping into `src/main/cli-output-skeleton.ts`. `cli-command-surface.ts` now keeps only the wrapper that supplies generated timestamps and manifest-reading callback for `chrome extension-info`.
 - 2026-07-07: extracted status-reader input path construction and Chrome extension-id inference into `src/main/cli-status-reader-input.ts`, and moved status local-evidence assembly into `src/main/cli-status-evidence.ts`. `cli-command-surface.ts` still owns the actual status probe orchestration.
 - 2026-07-07: moved the money-run tmux read-only probe orchestration into `src/main/cli-money-run-status.ts` behind an injected command runner. `cli-command-surface.ts` now only supplies the shared process runner when assembling status.
+- 2026-07-07: moved Dashboard status discovery, state-file fallback, and loopback JSON fetch helpers into `src/main/cli-dashboard-status-reader.ts`. `cli-command-surface.ts` reuses that reader for status assembly and dashboard probe fetches.
 
 - [ ] **Map responsibilities**
 
