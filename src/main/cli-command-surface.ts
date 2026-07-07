@@ -13,21 +13,17 @@ import {
   writeDashboardServerState
 } from "./dashboard-server-state.js";
 import {
-  createChromeExtensionConnectionStatePath,
   installChromeNativeHost,
   readChromeExtensionConnectionStatus,
   readChromeNativeHostStatus,
   uninstallChromeNativeHost,
-  type ChromeExtensionConnectionStatus,
   type ChromeNativeHostIo
 } from "./chrome-native-host.js";
 import {
   applyChromeHostPolicyAction,
-  createChromeHostPolicyStatePath,
   readChromeHostPolicyState,
   resetChromeHostPolicyState,
-  writeChromeHostPolicyState,
-  type ChromeHostPolicyState
+  writeChromeHostPolicyState
 } from "./chrome-host-policy.js";
 import {
   CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
@@ -55,7 +51,6 @@ import {
   type SkfiyMcpProviders,
   type SkfiyMcpToolCallInput
 } from "./skfiy-mcp-server.js";
-import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import {
   SMOKE_TARGETS,
   parseSmokeJson,
@@ -78,9 +73,12 @@ import {
 import { withCliStatusEvidence } from "./cli-status-evidence.js";
 import {
   createStatusReaderInput,
-  createStatusReaderInputWithInferredChromeExtensionIds,
   type StatusReaderInput
 } from "./cli-status-reader-input.js";
+import {
+  createCliStatusReader,
+  readChromeHostPolicyForStatus
+} from "./cli-status-reader.js";
 import { formatStatusTextOutput } from "./cli-status-output.js";
 import {
   createChromeSetupGuideFields
@@ -114,12 +112,8 @@ import {
   createDashboardStatusSnapshotSummary
 } from "./cli-dashboard-probe-output.js";
 import {
-  fetchDashboardJson,
-  readDashboardStatus
+  fetchDashboardJson
 } from "./cli-dashboard-status-reader.js";
-import {
-  readMoneyRunStatusForStatus
-} from "./cli-money-run-status.js";
 import {
   createPermissionSettingsOpenOutput,
   createPermissionSettingsOpenUrl
@@ -153,11 +147,6 @@ import {
   readChromeExtensionManifest,
   readChromeExtensionRegistrationStatus
 } from "./cli-chrome-extension-files.js";
-import {
-  createUnknownPermissionStates,
-  readDesktopSessionForStatus,
-  readPermissionStatesForStatus
-} from "./cli-desktop-status.js";
 
 export { SMOKE_TARGETS };
 export {
@@ -392,7 +381,7 @@ export async function runSkfiyCli({
   homeDir,
   generatedAt,
   chromeNativeHostIo,
-  statusReader = readCliStatus,
+  statusReader,
   signatureReader = readCodeSignatureStatus,
   chromeExtensionReloader = reloadChromeExtensionWithDesktopControl,
   chromeExtensionPageControlInvoker = invokeChromeExtensionPageControl,
@@ -410,6 +399,9 @@ export async function runSkfiyCli({
 }: RunSkfiyCliInput): Promise<number> {
   const normalizedRootDir = rootDir ?? process.cwd();
   const effectiveHomeDir = homeDir ?? process.env.HOME ?? "";
+  const effectiveStatusReader = statusReader ?? createCliStatusReader({
+    commandRunner: runCommand
+  });
   const result = normalizeCliCommand(argv, { rootDir: normalizedRootDir });
 
   if (!result.ok) {
@@ -423,7 +415,7 @@ export async function runSkfiyCli({
       generatedAt,
       rootDir: normalizedRootDir,
       homeDir: effectiveHomeDir,
-      statusReader,
+      statusReader: effectiveStatusReader,
       stdout,
       stderr
     });
@@ -435,7 +427,7 @@ export async function runSkfiyCli({
       generatedAt,
       rootDir: normalizedRootDir,
       homeDir: effectiveHomeDir,
-      statusReader,
+      statusReader: effectiveStatusReader,
       signatureReader,
       stdout,
       stderr
@@ -448,7 +440,7 @@ export async function runSkfiyCli({
       generatedAt,
       rootDir: normalizedRootDir,
       homeDir: effectiveHomeDir,
-      statusReader,
+      statusReader: effectiveStatusReader,
       stdout,
       stderr
     });
@@ -551,7 +543,7 @@ export async function runSkfiyCli({
       homeDir: effectiveHomeDir,
       mcpServerStarter,
       mcpStdin,
-      statusReader,
+      statusReader: effectiveStatusReader,
       signatureReader,
       keepMcpServerAlive,
       stdout,
@@ -828,167 +820,6 @@ async function runOperatorStatusCli({
       error: message
     }, null, 2)}\n`);
     return 1;
-  }
-}
-
-async function readCliStatus(input: StatusReaderInput): Promise<Record<string, unknown>> {
-  const appExists = existsSync(input.appPath);
-  const helperExists = existsSync(input.helperPath);
-  const app = {
-    state: appExists ? "installed" : "missing",
-    path: input.appPath
-  };
-  const cli = {
-    state: existsSync(input.cliShimPath) ? "installed" : "missing",
-    path: input.cliShimPath
-  };
-  const helper = {
-    state: helperExists ? "installed" : "missing",
-    path: input.helperPath
-  };
-
-  if (!helperExists) {
-    const extensionConnection = await readChromeExtensionConnectionForStatus(input);
-    const effectiveInput = createStatusReaderInputWithInferredChromeExtensionIds(input, extensionConnection);
-    const nativeHost = await readNativeHostStatusForStatus(effectiveInput);
-    const hostPolicy = await readChromeHostPolicyForStatus(effectiveInput);
-    const [dashboard, moneyRun] = await Promise.all([
-      readDashboardStatus(input.dashboardUrl, input.homeDir),
-      readMoneyRunStatusForStatus(runCommand)
-    ]);
-
-    return {
-      app,
-      cli,
-      helper,
-      permissions: createUnknownPermissionStates(),
-      desktopSession: {
-        state: "unknown",
-        reason: `skfiy helper is missing at ${input.helperPath}.`
-      },
-      extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy),
-      nativeHost,
-      dashboard,
-      moneyRun
-    };
-  }
-
-  const desktopHelper = new DesktopHelperClient({
-    helperPath: input.helperPath
-  });
-
-  const extensionConnection = await readChromeExtensionConnectionForStatus(input);
-  const effectiveInput = createStatusReaderInputWithInferredChromeExtensionIds(input, extensionConnection);
-  const nativeHost = await readNativeHostStatusForStatus(effectiveInput);
-  const hostPolicy = await readChromeHostPolicyForStatus(effectiveInput);
-  const [permissions, desktopSession, dashboard, moneyRun] = await Promise.all([
-    readPermissionStatesForStatus(desktopHelper),
-    readDesktopSessionForStatus(desktopHelper),
-    readDashboardStatus(input.dashboardUrl, input.homeDir),
-    readMoneyRunStatusForStatus(runCommand)
-  ]);
-
-  return {
-    app,
-    cli,
-    helper,
-    permissions,
-    desktopSession,
-    extension: createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy),
-    nativeHost,
-    dashboard,
-    moneyRun
-  };
-}
-
-async function readNativeHostStatusForStatus(
-  input: StatusReaderInput
-): Promise<Record<string, unknown>> {
-  if (input.extensionIds.length === 0) {
-    return {
-      state: "unknown",
-      cliShimPath: input.cliShimPath,
-      extensionIds: [],
-      reason: "Pass --extension-id <id> to include Chrome Native Messaging host status."
-    };
-  }
-
-  if (!input.homeDir) {
-    return {
-      state: "unknown",
-      cliShimPath: input.cliShimPath,
-      extensionIds: input.extensionIds,
-      reason: "Home directory is required to locate the Chrome Native Messaging host manifest."
-    };
-  }
-
-  try {
-    const nativeHost = await readChromeNativeHostStatus({
-      homeDir: input.homeDir,
-      cliShimPath: input.cliShimPath,
-      extensionIds: input.extensionIds
-    });
-
-    return {
-      ...nativeHost
-    };
-  } catch (error) {
-    return {
-      state: "unknown",
-      cliShimPath: input.cliShimPath,
-      extensionIds: input.extensionIds,
-      reason: readErrorMessage(error)
-    };
-  }
-}
-
-async function readChromeExtensionConnectionForStatus(
-  input: StatusReaderInput
-): Promise<ChromeExtensionConnectionStatus | undefined> {
-  if (!input.homeDir) {
-    return undefined;
-  }
-
-  try {
-    return await readChromeExtensionConnectionStatus({
-      homeDir: input.homeDir
-    });
-  } catch (error) {
-    return {
-      state: "unknown",
-      liveConnection: "unknown",
-      path: createChromeExtensionConnectionStatePath(input.homeDir),
-      reason: readErrorMessage(error)
-    };
-  }
-}
-
-async function readChromeHostPolicyForStatus(
-  input: StatusReaderInput,
-  io?: ChromeNativeHostIo
-): Promise<ChromeHostPolicyState | undefined> {
-  if (!input.homeDir) {
-    return undefined;
-  }
-
-  try {
-    return await readChromeHostPolicyState({
-      homeDir: input.homeDir,
-      io
-    });
-  } catch (error) {
-    return {
-      schemaVersion: 1,
-      state: "invalid",
-      path: createChromeHostPolicyStatePath(input.homeDir),
-      policy: {
-        defaultMode: "ask",
-        allowedHosts: [],
-        currentTurnAllowedHosts: [],
-        blockedHosts: []
-      },
-      reason: readErrorMessage(error)
-    };
   }
 }
 
@@ -1445,12 +1276,7 @@ async function runChromeNativeHostCli({
       io
     });
     const hostPolicy = await readChromeHostPolicyForStatus({
-      rootDir,
-      homeDir,
-      appPath: "",
-      helperPath: "",
-      cliShimPath: invocation.options.cliShimPath,
-      extensionIds: invocation.options.extensionIds
+      homeDir
     }, io);
     const extension = createChromeExtensionAdapterStatus(nativeHost, extensionConnection, hostPolicy);
     const setupGuideFields = createChromeSetupGuideFields({
