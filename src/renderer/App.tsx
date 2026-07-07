@@ -55,6 +55,7 @@ import {
   readDesktopSessionPermissionState,
   readExternalCuaStatusLabel,
   readMissingPermissionRows,
+  readSelectedAssistantAgentProvider,
   readVisiblePetRect
 } from "./app-view-model";
 import {
@@ -1267,10 +1268,11 @@ export default function App() {
     permissionOnboardingOpen,
     taskStatus: task.status
   });
-  const selectedAssistantAgentProvider =
-    assistantAgentSettings.providers.find((provider) => provider.selected)
-    ?? assistantAgentSettings.providers.find((provider) => provider.id === assistantAgentSettings.settings.mode)
-    ?? DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.providers[0];
+  const selectedAssistantAgentProvider = readSelectedAssistantAgentProvider(
+    assistantAgentSettings.providers,
+    assistantAgentSettings.settings.mode,
+    DEFAULT_ASSISTANT_AGENT_SETTINGS_RESPONSE.providers[0]
+  );
   const permissionOnboardingRows = readMissingPermissionRows(permissions);
 
   useEffect(() => {

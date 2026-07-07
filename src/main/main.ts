@@ -124,6 +124,7 @@ import {
   createRuntimeStatusResponse,
   readAssistantComputerUseToolCall
 } from "./main-renderer-payload.js";
+import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-snapshot-payload.js";
 import {
   createTaskEvent,
   readTurnReplayTaskEvent,
@@ -196,9 +197,12 @@ let stopTurnHotkeyRegistered = false;
 
 function persistRuntimeSnapshot(
   replay: TurnReplay | null,
-  currentTurn?: RuntimeSnapshotCurrentTurnInput
+  currentTurnEvent?: TaskEvent
 ): void {
   const homeDir = os.homedir();
+  const currentTurn: RuntimeSnapshotCurrentTurnInput | undefined = currentTurnEvent
+    ? createRuntimeSnapshotCurrentTurnFromTaskEvent(currentTurnEvent)
+    : undefined;
 
   void (async () => {
     await writeRuntimeSnapshot({

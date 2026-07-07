@@ -5,7 +5,8 @@ import {
   formatReplayPlanner,
   getPanelVisibilityState,
   getReplayAccessibilityLabel,
-  getReplayOcrLabel
+  getReplayOcrLabel,
+  readSelectedAssistantAgentProvider
 } from "./app-view-model";
 
 describe("app view model", () => {
@@ -68,6 +69,22 @@ describe("app view model", () => {
 
     expect(getReplayOcrLabel({})).toBeNull();
     expect(getReplayOcrLabel({ ocrLabels: [{ text: "Open" }, { text: "Save" }] })).toBe("OCR 2");
+  });
+
+  it("selects the assistant agent provider by selected flag, mode, then fallback", () => {
+    const fallbackProvider = { id: "codex", label: "Codex" };
+    const providers = [
+      fallbackProvider,
+      { id: "claude-code", label: "Claude Code" },
+      { id: "hermes", label: "Hermes", selected: true }
+    ];
+
+    expect(readSelectedAssistantAgentProvider(providers, "claude-code", fallbackProvider))
+      .toEqual({ id: "hermes", label: "Hermes", selected: true });
+    expect(readSelectedAssistantAgentProvider(providers.slice(0, 2), "claude-code", fallbackProvider))
+      .toEqual({ id: "claude-code", label: "Claude Code" });
+    expect(readSelectedAssistantAgentProvider(providers.slice(0, 1), "hermes", fallbackProvider))
+      .toBe(fallbackProvider);
   });
 
   it("formats replay planner and action summaries", () => {

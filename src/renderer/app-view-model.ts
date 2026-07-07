@@ -103,6 +103,19 @@ export function readAssistantAgentProviderDetail(
   ].join(" · ");
 }
 
+export function readSelectedAssistantAgentProvider<TProvider extends {
+  id: string;
+  selected?: boolean;
+}>(
+  providers: TProvider[],
+  mode: string,
+  fallbackProvider: TProvider
+): TProvider {
+  return providers.find((provider) => provider.selected)
+    ?? providers.find((provider) => provider.id === mode)
+    ?? fallbackProvider;
+}
+
 export function formatFinderPreviewMove(
   move: { from: string; to: string },
   rootPath: string
