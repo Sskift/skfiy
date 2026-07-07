@@ -168,6 +168,10 @@ npm run typecheck -- --pretty false
 - `src/renderer/App.test.tsx`
 - focused main wiring tests where behavior is already covered
 
+Progress:
+
+- 2026-07-07: extracted renderer task event state transitions, replay record merging, assistant reply detection, and task status copy into `src/renderer/app-task-state.ts` with focused pure helper coverage. `src/renderer/App.tsx` now keeps the task-event subscription and React state wiring while the pure state updates live in the helper.
+
 - [ ] **Extract renderer state reducers**
 
 Move pure task, panel, settings, and transient-status transitions out of `src/renderer/App.tsx`. Keep markup, labels, controls, keyboard behavior, pointer behavior, and visual layout unchanged.

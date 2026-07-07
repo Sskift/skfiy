@@ -52,6 +52,16 @@ import {
   readMissingPermissionRows,
   readVisiblePetRect
 } from "./app-view-model";
+import {
+  STATUS_COPY,
+  appendAssistantConversationReply,
+  createInitialTaskView,
+  createTaskViewFromEvent,
+  isAssistantConversationReplyEvent,
+  updateReplayRecordsForTaskEvent,
+  type AssistantConversationMessage,
+  type TaskView
+} from "./app-task-state";
 
 export type TaskStatus =
   | "idle"
@@ -366,18 +376,6 @@ declare global {
   }
 }
 
-interface TaskView {
-  status: TaskStatus;
-  message: string;
-  finderPlanPreview?: FinderPlanPreview;
-}
-
-interface AssistantConversationMessage {
-  role: "user" | "assistant";
-  text: string;
-  state?: "pending" | "error";
-}
-
 interface PetDragState {
   pointerId: number;
   lastScreenX: number;
@@ -385,69 +383,6 @@ interface PetDragState {
   moved: boolean;
   visibleRect: VisiblePetRect;
 }
-
-const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
-  idle: {
-    label: "Idle",
-    message: "待命中.",
-    pulse: "Tucked"
-  },
-  planned: {
-    label: "Planned",
-    message: "已规划，等待执行.",
-    pulse: "Review"
-  },
-  observing: {
-    label: "Observing",
-    message: "正在看桌面.",
-    pulse: "Review"
-  },
-  executing: {
-    label: "Executing",
-    message: "正在执行.",
-    pulse: "Running"
-  },
-  running: {
-    label: "Running",
-    message: "正在运行.",
-    pulse: "Running"
-  },
-  approval_required: {
-    label: "Approval required",
-    message: "需要确认.",
-    pulse: "Waiting"
-  },
-  needs_confirmation: {
-    label: "Needs confirmation",
-    message: "需要人工确认.",
-    pulse: "Waiting"
-  },
-  completed: {
-    label: "Completed",
-    message: "完成了.",
-    pulse: "Waving"
-  },
-  denied: {
-    label: "Denied",
-    message: "请求已拒绝，未执行动作.",
-    pulse: "Review"
-  },
-  blocked: {
-    label: "Blocked",
-    message: "环境阻塞，无法继续执行.",
-    pulse: "Blocked"
-  },
-  failed: {
-    label: "Failed",
-    message: "执行失败.",
-    pulse: "Fault"
-  },
-  cancelled: {
-    label: "Cancelled",
-    message: "任务已停止.",
-    pulse: "Stopped"
-  }
-};
 
 const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
   { policy: "allow", label: "允许" },
@@ -611,23 +546,6 @@ function getDesktopApi(): DesktopApi {
   return window.skfiy ?? fallbackApi;
 }
 
-function mergeReplayRecord(
-  records: ObserveAppReplayRecord[],
-  nextRecord: ObserveAppReplayRecord
-): ObserveAppReplayRecord[] {
-  const byStage = new Map<ObserveAppReplayRecord["stage"], ObserveAppReplayRecord>();
-
-  for (const record of records) {
-    byStage.set(record.stage, record);
-  }
-
-  byStage.set(nextRecord.stage, nextRecord);
-  return ["before", "after"].flatMap((stage) => {
-    const record = byStage.get(stage as ObserveAppReplayRecord["stage"]);
-    return record ? [record] : [];
-  });
-}
-
 function getReplayAccessibilityLabel(record: ObserveAppReplayRecord): string {
   if (record.accessibilityTrusted === true) {
     return "AX ok";
@@ -781,21 +699,6 @@ function formatReplayAction(action: TurnTranscript["actions"][number]): string {
   }
 
   return action.type;
-}
-
-function isAssistantConversationReplyEvent(
-  event: TaskEvent,
-  pendingPrompt: string | null
-): boolean {
-  return Boolean(pendingPrompt)
-    && !event.command
-    && (event.status === "completed" || event.status === "failed");
-}
-
-function readAssistantConversationReply(message: string | undefined, status: TaskStatus): string {
-  const fallback = status === "failed" ? "Background Agent 暂时不可用." : STATUS_COPY.completed.message;
-  const text = message?.trim() || fallback;
-  return text.replace(/^(?:Codex|Claude Code|Hermes):\s*/u, "").trim() || fallback;
 }
 
 function DashboardSignal({
@@ -990,11 +893,7 @@ export default function App() {
   const [plannerProviderSettings, setPlannerProviderSettings] =
     useState<PlannerProviderSettings>(DEFAULT_PLANNER_PROVIDER_SETTINGS);
   const [turnReplay, setTurnReplay] = useState<TurnReplay | null>(null);
-  const [task, setTask] = useState<TaskView>({
-    status: "idle",
-    message: STATUS_COPY.idle.message,
-    finderPlanPreview: undefined
-  });
+  const [task, setTask] = useState<TaskView>(() => createInitialTaskView());
   const [replayRecords, setReplayRecords] = useState<ObserveAppReplayRecord[]>([]);
   const assistantInputRef = useRef<HTMLTextAreaElement | null>(null);
   const petDragRef = useRef<PetDragState | null>(null);
@@ -1008,33 +907,12 @@ export default function App() {
         pendingAssistantPromptRef.current
       );
 
-      setTask({
-        status: event.status,
-        message: event.message ?? STATUS_COPY[event.status].message,
-        finderPlanPreview: event.finderPlanPreview
-      });
-      setReplayRecords((records) => {
-        if (event.replayReset) {
-          return event.replayRecord ? [event.replayRecord] : [];
-        }
-
-        if (event.replayRecord) {
-          return mergeReplayRecord(records, event.replayRecord);
-        }
-
-        return event.status === "idle" ? [] : records;
-      });
+      setTask(createTaskViewFromEvent(event));
+      setReplayRecords((records) => updateReplayRecordsForTaskEvent(records, event));
 
       if (assistantConversationReply) {
         pendingAssistantPromptRef.current = null;
-        setAssistantConversation((messages) => [
-          ...messages.filter((message) => message.state !== "pending"),
-          {
-            role: "assistant",
-            text: readAssistantConversationReply(event.message, event.status),
-            ...(event.status === "failed" ? { state: "error" as const } : {})
-          }
-        ]);
+        setAssistantConversation((messages) => appendAssistantConversationReply(messages, event));
         setAssistantInputSubmitting(false);
         setAssistantPanelOpen(true);
         setDetailsOpen(false);
