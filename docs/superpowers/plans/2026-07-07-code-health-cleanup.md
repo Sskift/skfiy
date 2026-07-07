@@ -192,6 +192,10 @@ npm run typecheck -- --pretty false
 
 Run this after one or more code-health tasks land.
 
+Progress:
+
+- 2026-07-07: after the Chrome background test diet, full gates passed with `git diff --check`, `npm run typecheck -- --pretty false`, `env -u TMUX npx vitest run --reporter=dot`, and `npm run build`. `env -u TMUX npm run smoke:cli:basic -- --require-passed` passed. `npm run smoke:dashboard` was rerun output-free and remained typed-blocked by the current desktop and Chrome state: `screen-recording-missing`, `accessibility-missing`, `desktop-session-blocked`, `desktop-session-loginwindow`, `desktop-display-asleep`, `chrome-native-host-missing`, and `chrome-extension-not-connected`.
+
 - [ ] **Run full gates**
 
 ```bash
