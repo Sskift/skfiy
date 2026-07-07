@@ -61,9 +61,7 @@ import {
 } from "./skfiy-mcp-server.js";
 import {
   createTmuxSupervisionReport,
-  parseTmuxPaneList,
-  type TmuxPaneSummary,
-  type TmuxSupervisionReport
+  parseTmuxPaneList
 } from "./computer-use/tmux-supervisor.js";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
 import type {
@@ -149,6 +147,12 @@ import {
   createDashboardSnapshotUrl,
   createDashboardStatusSnapshotSummary
 } from "./cli-dashboard-probe-output.js";
+import {
+  createMoneyRunProbeFailure,
+  createMoneyRunSnapshot,
+  formatTmuxCommand,
+  readCommandResultMessage
+} from "./cli-money-run-status.js";
 
 export { SMOKE_TARGETS };
 export {
@@ -2046,97 +2050,6 @@ async function readMoneyRunStatusForStatus(): Promise<Record<string, unknown>> {
   } catch (error) {
     return createMoneyRunProbeFailure(probeCommands, readErrorMessage(error));
   }
-}
-
-function createMoneyRunProbeFailure(
-  probeCommands: string[],
-  reason: string
-): Record<string, unknown> {
-  return {
-    state: "blocked",
-    session: MONEY_RUN_SESSION_NAME,
-    source: "tmux-read-only-probe",
-    mutatesSession: false,
-    summary: {
-      windowCount: 0,
-      paneCount: 0,
-      activePaneIds: [],
-      deadPaneIds: []
-    },
-    signals: [
-      {
-        type: "probe-error",
-        severity: "blocked",
-        message: reason
-      }
-    ],
-    recommendation: {
-      action: "inspect_state",
-      reason,
-      mutatesSession: false
-    },
-    probeCommands,
-    probeError: reason
-  };
-}
-
-function createMoneyRunSnapshot(
-  report: TmuxSupervisionReport,
-  probeCommands: string[],
-  extra: Record<string, unknown> = {}
-): Record<string, unknown> {
-  const activePane = report.panes.find((pane) => pane.active);
-
-  return {
-    state: report.status,
-    session: report.sessionName,
-    source: "tmux-read-only-probe",
-    mutatesSession: false,
-    summary: report.summary,
-    ...(activePane ? { activePane: createMoneyRunActivePaneSummary(activePane) } : {}),
-    signals: report.signals,
-    recommendation: report.recommendation,
-    probeCommands,
-    ...extra
-  };
-}
-
-function createMoneyRunActivePaneSummary(pane: TmuxPaneSummary): Record<string, unknown> {
-  return {
-    id: pane.id,
-    windowName: pane.windowName,
-    currentCommand: pane.currentCommand,
-    title: pane.title,
-    recentTailPreview: createTailPreview(pane.recentTail)
-  };
-}
-
-function createTailPreview(value: string): string {
-  const trimmed = value.trim();
-
-  return trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
-}
-
-function readCommandResultMessage(
-  result: {
-    stdout: string;
-    stderr: string;
-  },
-  fallback: string
-): string {
-  const message = (result.stderr || result.stdout || "").trim();
-
-  return message || fallback;
-}
-
-function formatTmuxCommand(args: string[]): string {
-  return ["tmux", ...args.map(formatCommandArg)].join(" ");
-}
-
-function formatCommandArg(arg: string): string {
-  return /^[A-Za-z0-9_./:@%#{}=-]+$/.test(arg)
-    ? arg
-    : JSON.stringify(arg);
 }
 
 async function readCliStatus(input: StatusReaderInput): Promise<Record<string, unknown>> {
