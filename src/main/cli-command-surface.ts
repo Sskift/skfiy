@@ -156,6 +156,20 @@ import {
   withStatusReadiness
 } from "./cli-status-capabilities.js";
 import { createDoctorOutput } from "./cli-doctor-output.js";
+import {
+  createChromeExtensionReloadErrorOutput,
+  createChromeExtensionReloadOutput,
+  createChromeHostPolicyResetOutput,
+  createChromeHostPolicySetOutput,
+  createChromeHostPolicyShowOutput,
+  createChromeNativeHostMutationOutput,
+  createChromePageControlErrorOutput,
+  createChromePageControlOutput,
+  createChromeStatusOutput,
+  createChromeTabsErrorOutput,
+  createChromeTabsOutput,
+  type ChromeExtensionRegistrationStatus
+} from "./cli-chrome-command-output.js";
 
 export { SMOKE_TARGETS };
 export {
@@ -196,20 +210,6 @@ const TMUX_TAIL_LINES = 120;
 const TMUX_PROBE_TIMEOUT_MS = 1_500;
 const TMUX_WINDOW_FORMAT = "#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_panes}";
 const TMUX_PANE_FORMAT = "#{session_name}\t#{window_id}\t#{window_index}\t#{window_name}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_dead}\t#{pane_current_command}\t#{pane_title}";
-const CHROME_EXTENSION_REGISTRATION_STALE_NEXT_ACTION =
-  "Reload the skfiy extension card in Chrome Extension Manager so Chrome re-registers the MV3 service worker, then retry `skfiy chrome tabs`.";
-const CHROME_EXTENSION_CARD_RELOAD_REQUIRED_NEXT_ACTION =
-  "Open chrome://extensions on an unlocked desktop, click the skfiy extension reload button, then retry `skfiy chrome reload-extension`.";
-
-type ChromeExtensionRegistrationStatus = {
-  state: "fresh" | "stale" | "missing" | "unknown" | "invalid";
-  localManifestVersion?: string;
-  registeredVersion?: string;
-  extensionPath?: string;
-  manifestPath?: string;
-  preferencesPath?: string;
-  reason?: string;
-};
 
 export interface CreateCliOutputOptions {
   generatedAt?: string;
@@ -2411,21 +2411,13 @@ async function runChromeNativeHostCli({
       extensionPath: path.join(rootDir, "chrome-extension")
     });
 
-    stdout.write(`${JSON.stringify({
-      schemaVersion: 1,
-      command: invocation.path,
-      generatedAt: generatedAt ?? new Date().toISOString(),
-      executesSystemMutation: false,
-      extension: {
-        ...extension,
-        ...setupGuideFields
-      },
-      nativeHost: {
-        ...nativeHost,
-        ...setupGuideFields
-      },
-      setupGuide: setupGuideFields.setupGuide
-    }, null, 2)}\n`);
+    stdout.write(`${JSON.stringify(createChromeStatusOutput({
+      invocation,
+      generatedAt,
+      extension,
+      nativeHost,
+      setupGuideFields
+    }), null, 2)}\n`);
     return 0;
   }
 
@@ -2446,33 +2438,19 @@ async function runChromeNativeHostCli({
           io
         })
         : undefined;
-      const tabDiscoveryOutput = extensionRegistration?.state === "stale"
-        ? {
-          ...tabDiscoveryResult,
-          reason: "extension-registration-stale",
-          extensionRegistration,
-          nextAction: CHROME_EXTENSION_REGISTRATION_STALE_NEXT_ACTION
-        }
-        : tabDiscoveryResult;
-      stdout.write(`${JSON.stringify({
-        command: invocation.path,
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        executesSystemMutation: true,
-        ...tabDiscoveryOutput
-      }, null, 2)}\n`);
+      stdout.write(`${JSON.stringify(createChromeTabsOutput({
+        invocation,
+        generatedAt,
+        tabDiscoveryResult,
+        extensionRegistration
+      }), null, 2)}\n`);
       return tabDiscoveryResult.result === "blocked" ? 1 : 0;
     } catch (error) {
-      stdout.write(`${JSON.stringify({
-        schemaVersion: 1,
-        command: invocation.path,
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        executesSystemMutation: true,
-        result: "blocked",
-        extensionId: invocation.options.extensionIds[0],
-        reason: "chrome-tabs-command-error",
-        error: readErrorMessage(error),
-        nextAction: "Check that the skfiy Chrome extension is installed, connected to the native host, then retry `skfiy chrome tabs`."
-      }, null, 2)}\n`);
+      stdout.write(`${JSON.stringify(createChromeTabsErrorOutput({
+        invocation,
+        generatedAt,
+        error
+      }), null, 2)}\n`);
       return 1;
     }
   }
@@ -2494,40 +2472,20 @@ async function runChromeNativeHostCli({
           io
         })
         : undefined;
-      const reloadOutput = extensionRegistration?.state === "stale"
-        ? {
-          ...reloadResult,
-          reason: "extension-card-reload-required",
-          extensionRegistration,
-          desktopFallback: compactRecord({
-            reason: reloadResult.reason,
-            nextAction: reloadResult.nextAction,
-            observedWindowTitle: reloadResult.observedWindowTitle,
-            screenshotPath: reloadResult.screenshotPath
-          }),
-          nextAction: CHROME_EXTENSION_CARD_RELOAD_REQUIRED_NEXT_ACTION
-        }
-        : reloadResult;
-      stdout.write(`${JSON.stringify({
-        command: invocation.path,
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        executesSystemMutation: true,
-        ...reloadOutput
-      }, null, 2)}\n`);
+      stdout.write(`${JSON.stringify(createChromeExtensionReloadOutput({
+        invocation,
+        generatedAt,
+        reloadResult,
+        extensionRegistration
+      }), null, 2)}\n`);
       return reloadResult.result === "blocked" ? 1 : 0;
     } catch (error) {
-      stdout.write(`${JSON.stringify({
-        schemaVersion: 1,
-        command: invocation.path,
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        executesSystemMutation: true,
-        result: "blocked",
-        extensionId: invocation.options.extensionIds[0],
-        productPath: CHROME_EXTENSION_RELOAD_PRODUCT_PATH,
-        reason: "reload-command-error",
-        error: readErrorMessage(error),
-        nextAction: "Check that Chrome is installed, Screen Recording and Accessibility are granted for skfiy, then retry."
-      }, null, 2)}\n`);
+      stdout.write(`${JSON.stringify(createChromeExtensionReloadErrorOutput({
+        invocation,
+        generatedAt,
+        error,
+        productPath: CHROME_EXTENSION_RELOAD_PRODUCT_PATH
+      }), null, 2)}\n`);
       return 1;
     }
   }
@@ -2547,26 +2505,18 @@ async function runChromeNativeHostCli({
         generatedAt,
         io
       });
-      stdout.write(`${JSON.stringify({
-        command: invocation.path,
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        executesSystemMutation: true,
-        ...pageControlResult
-      }, null, 2)}\n`);
+      stdout.write(`${JSON.stringify(createChromePageControlOutput({
+        invocation,
+        generatedAt,
+        pageControlResult
+      }), null, 2)}\n`);
       return pageControlResult.result === "blocked" ? 1 : 0;
     } catch (error) {
-      stdout.write(`${JSON.stringify({
-        schemaVersion: 1,
-        command: invocation.path,
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        executesSystemMutation: true,
-        result: "blocked",
-        action: invocation.subcommand,
-        extensionId: invocation.options.extensionIds[0],
-        reason: "page-control-command-error",
-        error: readErrorMessage(error),
-        nextAction: "Check that the skfiy Chrome extension is installed, connected to the native host, and allowed on the target page, then retry."
-      }, null, 2)}\n`);
+      stdout.write(`${JSON.stringify(createChromePageControlErrorOutput({
+        invocation,
+        generatedAt,
+        error
+      }), null, 2)}\n`);
       return 1;
     }
   }
@@ -2578,13 +2528,11 @@ async function runChromeNativeHostCli({
       extensionIds: invocation.options.extensionIds,
       io
     });
-    stdout.write(`${JSON.stringify({
-      schemaVersion: 1,
-      command: invocation.path,
-      generatedAt: generatedAt ?? new Date().toISOString(),
-      executesSystemMutation: true,
-      ...installResult
-    }, null, 2)}\n`);
+    stdout.write(`${JSON.stringify(createChromeNativeHostMutationOutput({
+      invocation,
+      generatedAt,
+      result: installResult
+    }), null, 2)}\n`);
     return 0;
   }
 
@@ -2594,13 +2542,11 @@ async function runChromeNativeHostCli({
     extensionIds: invocation.options.extensionIds,
     io
   });
-  stdout.write(`${JSON.stringify({
-    schemaVersion: 1,
-    command: invocation.path,
-    generatedAt: generatedAt ?? new Date().toISOString(),
-    executesSystemMutation: true,
-    ...uninstallResult
-  }, null, 2)}\n`);
+  stdout.write(`${JSON.stringify(createChromeNativeHostMutationOutput({
+    invocation,
+    generatedAt,
+    result: uninstallResult
+  }), null, 2)}\n`);
   return 0;
 }
 
@@ -2641,13 +2587,11 @@ async function runChromeHostPolicyCli({
       io
     });
 
-    stdout.write(`${JSON.stringify({
-      schemaVersion: 1,
-      command: invocation.path,
-      generatedAt: generatedAt ?? new Date().toISOString(),
-      executesSystemMutation: false,
+    stdout.write(`${JSON.stringify(createChromeHostPolicyShowOutput({
+      invocation,
+      generatedAt,
       hostPolicy
-    }, null, 2)}\n`);
+    }), null, 2)}\n`);
     return 0;
   }
 
@@ -2657,15 +2601,11 @@ async function runChromeHostPolicyCli({
       io
     });
 
-    stdout.write(`${JSON.stringify({
-      schemaVersion: 1,
-      command: invocation.path,
-      generatedAt: generatedAt ?? new Date().toISOString(),
-      plannedMutation: true,
-      executesSystemMutation: true,
-      result: "reset",
+    stdout.write(`${JSON.stringify(createChromeHostPolicyResetOutput({
+      invocation,
+      generatedAt,
       hostPolicy
-    }, null, 2)}\n`);
+    }), null, 2)}\n`);
     return 0;
   }
 
@@ -2689,16 +2629,11 @@ async function runChromeHostPolicyCli({
     io
   });
 
-  stdout.write(`${JSON.stringify({
-    schemaVersion: 1,
-    command: invocation.path,
-    generatedAt: generatedAt ?? new Date().toISOString(),
-    plannedMutation: true,
-    executesSystemMutation: true,
-    result: "configured",
-    action: invocation.options.action,
+  stdout.write(`${JSON.stringify(createChromeHostPolicySetOutput({
+    invocation,
+    generatedAt,
     host,
     hostPolicy
-  }, null, 2)}\n`);
+  }), null, 2)}\n`);
   return 0;
 }

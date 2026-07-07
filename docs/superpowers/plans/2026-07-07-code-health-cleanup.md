@@ -103,6 +103,7 @@ Progress:
 - 2026-07-07: extracted operator-status token-free supervisor summary and recommended read-only command shaping into `src/main/cli-operator-status-output.ts`. Status probing and exit-code handling stay in `cli-command-surface.ts`.
 - 2026-07-07: extracted Chrome extension-info output and setup command shaping into `src/main/cli-chrome-extension-info-output.ts`. Manifest file reading remains in `cli-command-surface.ts`.
 - 2026-07-07: extracted doctor diagnostics/preflight JSON shaping into `src/main/cli-doctor-output.ts` and shared status readiness/page-capability assembly into `src/main/cli-status-capabilities.ts`. Status/signature probing, process IO, and command dispatch remain in `cli-command-surface.ts`.
+- 2026-07-07: extracted Chrome CLI status, tabs, reload, page-control, native-host mutation, and host-policy JSON envelopes into `src/main/cli-chrome-command-output.ts`. Native host reads/writes, extension invocations, Chrome reload, and host-policy mutations remain in `cli-command-surface.ts`.
 
 - [ ] **Map responsibilities**
 
