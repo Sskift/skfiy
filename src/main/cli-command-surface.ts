@@ -30,12 +30,6 @@ import {
   importPetSkin
 } from "./pet-skin.js";
 import {
-  SKFIY_MCP_TOOL_NAMES,
-  runSkfiyMcpStdioServer,
-  type SkfiyMcpProviders,
-  type SkfiyMcpToolCallInput
-} from "./skfiy-mcp-server.js";
-import {
   SMOKE_TARGETS,
   parseSmokeJson,
   runSmokeScript,
@@ -106,6 +100,13 @@ import {
   runChromeNativeHostCli,
   type ChromeExtensionReloader
 } from "./cli-chrome-command-runner.js";
+import {
+  runMcpServeCli,
+  startSkfiyMcpServer,
+  type SkfiyMcpServer,
+  type SkfiyMcpServerStarter,
+  type SkfiyMcpServerStarterInput
+} from "./cli-mcp-command-runner.js";
 
 export { SMOKE_TARGETS };
 export {
@@ -159,21 +160,11 @@ export interface SignatureStatus {
 
 export type SignatureReader = (input: SignatureReaderInput) => Promise<SignatureStatus>;
 
-export interface SkfiyMcpServer {
-  transport: McpTransport;
-  tools: string[];
-  close: () => Promise<void>;
-}
-
-export interface SkfiyMcpServerStarterInput {
-  rootDir: string;
-  homeDir: string;
-  transport: McpTransport;
-}
-
-export type SkfiyMcpServerStarter = (
-  input: SkfiyMcpServerStarterInput
-) => Promise<SkfiyMcpServer>;
+export type {
+  SkfiyMcpServer,
+  SkfiyMcpServerStarter,
+  SkfiyMcpServerStarterInput
+};
 
 export interface RunSkfiyCliInput {
   argv: string[];
@@ -879,180 +870,6 @@ function inferRootDirFromCliShimPath(cliShimPath: string): string {
     : process.cwd();
 }
 
-async function runMcpServeCli({
-  invocation,
-  generatedAt,
-  rootDir,
-  homeDir,
-  mcpServerStarter,
-  mcpStdin,
-  statusReader,
-  signatureReader,
-  keepMcpServerAlive,
-  stdout,
-  stderr
-}: {
-  invocation: Extract<CliCommandInvocation, { kind: "mcp-serve" }>;
-  generatedAt?: string;
-  rootDir: string;
-  homeDir: string;
-  mcpServerStarter: SkfiyMcpServerStarter;
-  mcpStdin: AsyncIterable<Buffer | Uint8Array | string> | Iterable<Buffer | Uint8Array | string>;
-  statusReader: StatusReader;
-  signatureReader: SignatureReader;
-  keepMcpServerAlive: boolean;
-  stdout: SkfiyCliIo;
-  stderr: SkfiyCliIo;
-}): Promise<number> {
-  if (!invocation.json) {
-    return runSkfiyMcpStdioServer({
-      stdin: mcpStdin,
-      stdout,
-      stderr,
-      providers: createMcpProviders({
-        rootDir,
-        homeDir,
-        generatedAt,
-        statusReader,
-        signatureReader
-      })
-    });
-  }
-
-  let server: SkfiyMcpServer;
-
-  try {
-    server = await mcpServerStarter({
-      rootDir,
-      homeDir,
-      transport: invocation.options.transport
-    });
-  } catch (error) {
-    stderr.write(`${readErrorMessage(error)}\n`);
-    stdout.write(`${JSON.stringify({
-      ...createCliOutput(invocation, { generatedAt }),
-      result: "error",
-      error: readErrorMessage(error)
-    }, null, 2)}\n`);
-    return 1;
-  }
-
-  if (invocation.json) {
-    stdout.write(`${JSON.stringify({
-      ...createCliOutput(invocation, { generatedAt }),
-      result: "running",
-      transport: server.transport,
-      tools: server.tools
-    }, null, 2)}\n`);
-  }
-
-  if (!keepMcpServerAlive || invocation.json) {
-    await server.close();
-    return 0;
-  }
-
-  await waitForMcpShutdown(server);
-  return 0;
-}
-
-function createMcpProviders({
-  rootDir,
-  homeDir,
-  generatedAt,
-  statusReader,
-  signatureReader
-}: {
-  rootDir: string;
-  homeDir: string;
-  generatedAt?: string;
-  statusReader: StatusReader;
-  signatureReader: SignatureReader;
-}): SkfiyMcpProviders {
-  return {
-    readStatus: async (input) => {
-      const invocation = createMcpStatusInvocation(rootDir, input);
-      const statusInput = createStatusReaderInput({
-        rootDir,
-        homeDir,
-        invocation
-      });
-      const status = withStatusReadiness(await statusReader(statusInput), statusInput);
-
-      return {
-        schemaVersion: 1,
-        command: "status",
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        ...status
-      };
-    },
-    readDoctor: async (input) => {
-      const invocation = createMcpDoctorInvocation(rootDir, input);
-      const statusInput = createStatusReaderInput({
-        rootDir,
-        homeDir,
-        invocation
-      });
-      const [status, signature] = await Promise.all([
-        statusReader(statusInput),
-        signatureReader({ appPath: statusInput.appPath })
-      ]);
-
-      return {
-        schemaVersion: 1,
-        command: "doctor",
-        generatedAt: generatedAt ?? new Date().toISOString(),
-        ...createDoctorOutput({
-          status,
-          signature,
-          statusInput
-        })
-      };
-    }
-  };
-}
-
-function createMcpStatusInvocation(
-  rootDir: string,
-  input: SkfiyMcpToolCallInput
-): Extract<CliCommandInvocation, { kind: "status" }> {
-  return {
-    kind: "status",
-    path: "status",
-    json: true,
-    options: {
-      extensionIds: input.extensionIds ?? [],
-      cliShimPath: path.join(rootDir, "dist", "skfiy"),
-      ...(input.dashboardUrl ? { dashboardUrl: input.dashboardUrl } : {})
-    }
-  };
-}
-
-function createMcpDoctorInvocation(
-  rootDir: string,
-  input: SkfiyMcpToolCallInput
-): Extract<CliCommandInvocation, { kind: "doctor" }> {
-  return {
-    kind: "doctor",
-    path: "doctor",
-    json: true,
-    options: {
-      extensionIds: input.extensionIds ?? [],
-      cliShimPath: path.join(rootDir, "dist", "skfiy"),
-      ...(input.dashboardUrl ? { dashboardUrl: input.dashboardUrl } : {})
-    }
-  };
-}
-
-async function startSkfiyMcpServer(
-  input: SkfiyMcpServerStarterInput
-): Promise<SkfiyMcpServer> {
-  return {
-    transport: input.transport,
-    tools: [...SKFIY_MCP_TOOL_NAMES],
-    close: async () => undefined
-  };
-}
-
 async function runSmokeCli({
   invocation,
   generatedAt,
@@ -1135,19 +952,6 @@ async function waitForDashboardShutdown(dashboard: DashboardServer): Promise<voi
       process.off("SIGINT", shutdown);
       process.off("SIGTERM", shutdown);
       void dashboard.close().finally(resolve);
-    };
-
-    process.once("SIGINT", shutdown);
-    process.once("SIGTERM", shutdown);
-  });
-}
-
-async function waitForMcpShutdown(server: SkfiyMcpServer): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const shutdown = () => {
-      process.off("SIGINT", shutdown);
-      process.off("SIGTERM", shutdown);
-      void server.close().finally(resolve);
     };
 
     process.once("SIGINT", shutdown);
