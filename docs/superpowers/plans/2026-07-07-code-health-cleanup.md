@@ -12,7 +12,7 @@
 - Dashboard is the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, and dogfood/release state.
 - Default smoke runs are output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 - 2026-07-07 cleanup removed stale smoke artifact defaults, low-value smoke source-string tests, duplicated record helpers, and temporary smoke directories.
-- 2026-07-07 plan audit confirmed `docs/superpowers/plans/` contains only this active plan. No 2026-06-23 long-form plan remains in `docs/`.
+- 2026-07-07 plan audit confirmed `docs/superpowers/plans/` contains only this active plan. Historical long-form plans have been removed from `docs/`.
 
 ## Active Scope
 
