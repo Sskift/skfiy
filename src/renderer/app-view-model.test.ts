@@ -7,6 +7,9 @@ import {
   getFinderPlanPreviewSummaryViewModel,
   getLocalReplayViewModel,
   getPanelVisibilityState,
+  getPermissionDisplayRows,
+  getPermissionsPanelViewModel,
+  getPlannerProviderDisplayViewModel,
   getReplayAccessibilityLabel,
   getReplayOcrLabel,
   getTaskReplayRows,
@@ -192,6 +195,80 @@ describe("app view model", () => {
         message: "待命中.",
         pulse: "Tucked"
       }
+    });
+  });
+
+  it("derives permission panel display rows", () => {
+    expect(getPermissionsPanelViewModel({
+      desktopSessionDiagnostics: {
+        state: "blocked",
+        reason: "Desktop is locked."
+      },
+      permissions: {
+        screenRecording: { state: "granted" },
+        accessibility: { state: "denied" }
+      },
+      permissionsLoading: false
+    })).toEqual({
+      desktopSession: {
+        reason: "Desktop is locked.",
+        showReason: true,
+        state: "denied",
+        stateLabel: "不可控"
+      },
+      permissionRows: [
+        {
+          key: "screenRecording",
+          label: "屏幕录制",
+          settingsTarget: "screen-recording",
+          state: "granted",
+          stateLabel: "已授权"
+        },
+        {
+          key: "accessibility",
+          label: "辅助功能",
+          settingsTarget: "accessibility",
+          state: "denied",
+          stateLabel: "未授权"
+        }
+      ]
+    });
+
+    expect(getPermissionDisplayRows({
+      loading: true,
+      permissions: {
+        screenRecording: { state: "not-determined" },
+        accessibility: { state: "unknown" }
+      },
+      rows: [{ key: "accessibility", label: "辅助功能", settingsTarget: "accessibility" }]
+    })).toEqual([
+      {
+        key: "accessibility",
+        label: "辅助功能",
+        settingsTarget: "accessibility",
+        state: "unknown",
+        stateLabel: "检查中"
+      }
+    ]);
+  });
+
+  it("derives planner provider display labels", () => {
+    expect(getPlannerProviderDisplayViewModel({
+      mode: "external-cua",
+      externalProviderLabel: "Claude Desktop"
+    })).toEqual({
+      runtimeLabel: "规划可用",
+      settingsHeading: "Claude Desktop",
+      showExternalStatus: true
+    });
+
+    expect(getPlannerProviderDisplayViewModel({
+      mode: "disabled",
+      externalProviderLabel: "Claude Desktop"
+    })).toEqual({
+      runtimeLabel: "规划已关闭",
+      settingsHeading: "Computer Use",
+      showExternalStatus: false
     });
   });
 

@@ -33,18 +33,17 @@ import {
   type PetAtlasState
 } from "./pet-atlas";
 import {
-  DESKTOP_SESSION_STATE_COPY,
-  PERMISSION_ROWS,
-  PERMISSION_STATE_COPY,
   getFinderPlanPreviewSummaryViewModel,
   getAppRootViewModel,
   getLocalReplayViewModel,
+  getPermissionDisplayRows,
+  getPermissionsPanelViewModel,
+  getPlannerProviderDisplayViewModel,
   getPolicySummary,
   getTaskReplayRows,
   getUserDashboardPanelViewModel,
   readAssistantAgentProviderDetail,
   readAssistantAgentReadinessLabel,
-  readDesktopSessionPermissionState,
   readExternalCuaStatusLabel
 } from "./app-view-model";
 import { getDesktopApi } from "./app-desktop-api";
@@ -527,6 +526,7 @@ function UserDashboardPanel({
   task: TaskView;
   turnReplay: TurnReplay | null;
 }) {
+  const plannerProviderDisplay = getPlannerProviderDisplayViewModel(plannerProviderSettings);
   const { canApprove, canStop, permissionHealth, recent, risk, status } =
     getUserDashboardPanelViewModel({ desktopSessionDiagnostics, permissions, task, turnReplay });
 
@@ -598,7 +598,7 @@ function UserDashboardPanel({
 
       <div className="dashboard-runtime-strip" aria-label="运行偏好">
         <span>agent</span>
-        <span>{plannerProviderSettings.mode === "disabled" ? "规划已关闭" : "规划可用"}</span>
+        <span>{plannerProviderDisplay.runtimeLabel}</span>
       </div>
     </section>
   );
@@ -1050,6 +1050,17 @@ export default function App() {
     startupWarnings,
     taskStatus: task.status
   });
+  const permissionPanelViewModel = getPermissionsPanelViewModel({
+    desktopSessionDiagnostics,
+    permissions,
+    permissionsLoading
+  });
+  const permissionOnboardingDisplayRows = getPermissionDisplayRows({
+    loading: permissionsLoading,
+    permissions,
+    rows: permissionOnboardingRows
+  });
+  const plannerProviderDisplay = getPlannerProviderDisplayViewModel(plannerProviderSettings);
 
   useEffect(() => {
     api.setWindowMode(panelVisibility.showPanel ? "expanded" : "compact");
@@ -1156,11 +1167,7 @@ export default function App() {
                     <div className="app-policy-panel" aria-label="Computer Use Planner">
                       <div className="app-policy-heading">
                         <strong>Computer Use Planner</strong>
-                        <span>
-                          {plannerProviderSettings.mode === "external-cua"
-                            ? plannerProviderSettings.externalProviderLabel
-                            : "Computer Use"}
-                        </span>
+                        <span>{plannerProviderDisplay.settingsHeading}</span>
                       </div>
                       <div className="provider-switch" role="group" aria-label="Computer Use planner">
                         {PLANNER_PROVIDER_OPTIONS.map((option) => (
@@ -1175,7 +1182,7 @@ export default function App() {
                           </button>
                         ))}
                       </div>
-                      {plannerProviderSettings.mode === "external-cua" ? (
+                      {plannerProviderDisplay.showExternalStatus ? (
                         <div className="provider-status-card" aria-label="External CUA 连接状态">
                           <strong>{readExternalCuaStatusLabel(plannerProviderSettings)}</strong>
                           <p>在 dashboard 中配置</p>
@@ -1195,35 +1202,28 @@ export default function App() {
                   <div className="permissions-list">
                     <div className="permission-row desktop-session-row">
                       <span>桌面会话</span>
-                      <strong data-state={readDesktopSessionPermissionState(desktopSessionDiagnostics)}>
-                        {permissionsLoading
-                          ? "检查中"
-                          : DESKTOP_SESSION_STATE_COPY[desktopSessionDiagnostics.state]}
+                      <strong data-state={permissionPanelViewModel.desktopSession.state}>
+                        {permissionPanelViewModel.desktopSession.stateLabel}
                       </strong>
                     </div>
-                    {desktopSessionDiagnostics.state === "blocked" ? (
+                    {permissionPanelViewModel.desktopSession.showReason ? (
                       <p className="permission-hint" aria-label="桌面会话阻塞原因">
-                        {desktopSessionDiagnostics.reason}
+                        {permissionPanelViewModel.desktopSession.reason}
                       </p>
                     ) : null}
-                    {PERMISSION_ROWS.map((permission) => {
-                      const state = permissions[permission.key].state;
-                      return (
-                        <div className="permission-row" key={permission.key}>
-                          <span>{permission.label}</span>
-                          <strong data-state={state}>
-                            {permissionsLoading ? "检查中" : PERMISSION_STATE_COPY[state]}
-                          </strong>
-                          <button
-                            type="button"
-                            aria-label={`打开${permission.label}设置`}
-                            onClick={() => void openPermissionSettings(permission.settingsTarget)}
-                          >
-                            <ExternalLink size={12} aria-hidden="true" />
-                          </button>
-                        </div>
-                      );
-                    })}
+                    {permissionPanelViewModel.permissionRows.map((permission) => (
+                      <div className="permission-row" key={permission.key}>
+                        <span>{permission.label}</span>
+                        <strong data-state={permission.state}>{permission.stateLabel}</strong>
+                        <button
+                          type="button"
+                          aria-label={`打开${permission.label}设置`}
+                          onClick={() => void openPermissionSettings(permission.settingsTarget)}
+                        >
+                          <ExternalLink size={12} aria-hidden="true" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1243,24 +1243,19 @@ export default function App() {
                   </button>
                 </div>
                 <div className="permissions-list">
-                  {permissionOnboardingRows.map((permission) => {
-                    const state = permissions[permission.key].state;
-                    return (
-                      <div className="permission-row" key={permission.key}>
-                        <span>{permission.label}</span>
-                        <strong data-state={state}>
-                          {permissionsLoading ? "检查中" : PERMISSION_STATE_COPY[state]}
-                        </strong>
-                        <button
-                          type="button"
-                          aria-label={`打开${permission.label}设置`}
-                          onClick={() => void openPermissionSettings(permission.settingsTarget)}
-                        >
-                          <ExternalLink size={12} aria-hidden="true" />
-                        </button>
-                      </div>
-                    );
-                  })}
+                  {permissionOnboardingDisplayRows.map((permission) => (
+                    <div className="permission-row" key={permission.key}>
+                      <span>{permission.label}</span>
+                      <strong data-state={permission.state}>{permission.stateLabel}</strong>
+                      <button
+                        type="button"
+                        aria-label={`打开${permission.label}设置`}
+                        onClick={() => void openPermissionSettings(permission.settingsTarget)}
+                      >
+                        <ExternalLink size={12} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </>

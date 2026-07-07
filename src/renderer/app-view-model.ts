@@ -101,6 +101,11 @@ export interface PermissionRow {
   label: string;
 }
 
+export interface PermissionDisplayRow extends PermissionRow {
+  state: PermissionState;
+  stateLabel: string;
+}
+
 export const PERMISSION_ROWS: PermissionRow[] = [
   { key: "screenRecording", settingsTarget: "screen-recording", label: "屏幕录制" },
   { key: "accessibility", settingsTarget: "accessibility", label: "辅助功能" }
@@ -241,6 +246,76 @@ export function readDesktopSessionPermissionState(
   }
 
   return "unknown";
+}
+
+export function getPermissionDisplayRows({
+  loading,
+  permissions,
+  rows = PERMISSION_ROWS
+}: {
+  loading: boolean;
+  permissions: Record<PermissionKey, { state: PermissionState }>;
+  rows?: PermissionRow[];
+}): PermissionDisplayRow[] {
+  return rows.map((row) => {
+    const state = permissions[row.key].state;
+
+    return {
+      ...row,
+      state,
+      stateLabel: loading ? "检查中" : PERMISSION_STATE_COPY[state]
+    };
+  });
+}
+
+export function getPermissionsPanelViewModel({
+  desktopSessionDiagnostics,
+  permissions,
+  permissionsLoading
+}: {
+  desktopSessionDiagnostics: { state: DesktopSessionDiagnosticState; reason: string };
+  permissions: Record<PermissionKey, { state: PermissionState }>;
+  permissionsLoading: boolean;
+}): {
+  desktopSession: {
+    reason: string;
+    showReason: boolean;
+    state: PermissionState;
+    stateLabel: string;
+  };
+  permissionRows: PermissionDisplayRow[];
+} {
+  return {
+    desktopSession: {
+      reason: desktopSessionDiagnostics.reason,
+      showReason: desktopSessionDiagnostics.state === "blocked",
+      state: readDesktopSessionPermissionState(desktopSessionDiagnostics),
+      stateLabel: permissionsLoading
+        ? "检查中"
+        : DESKTOP_SESSION_STATE_COPY[desktopSessionDiagnostics.state]
+    },
+    permissionRows: getPermissionDisplayRows({
+      loading: permissionsLoading,
+      permissions
+    })
+  };
+}
+
+export function getPlannerProviderDisplayViewModel(settings: {
+  externalProviderLabel: string;
+  mode: string;
+}): {
+  runtimeLabel: string;
+  settingsHeading: string;
+  showExternalStatus: boolean;
+} {
+  return {
+    runtimeLabel: settings.mode === "disabled" ? "规划已关闭" : "规划可用",
+    settingsHeading: settings.mode === "external-cua"
+      ? settings.externalProviderLabel
+      : "Computer Use",
+    showExternalStatus: settings.mode === "external-cua"
+  };
 }
 
 export function canStopTurn(status: TaskStatus): boolean {
