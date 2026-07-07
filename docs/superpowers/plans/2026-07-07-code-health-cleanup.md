@@ -135,6 +135,10 @@ npm run typecheck -- --pretty false
 - `src/main/chrome-extension-background.test.js`
 - optional local test fixture helper only if it materially reduces duplication
 
+Progress:
+
+- 2026-07-07: consolidated repeated background import/global Chrome setup in `src/main/chrome-extension-background.test.js` behind a local `loadBackground` helper, and removed lifecycle listener-count assertions that only restated listener registration while preserving install/startup behavior coverage.
+
 - [ ] **Consolidate fixtures**
 
 Merge repeated Chrome API, tab, permission, and native-message setup into a tiny helper. Keep it local to the test file unless a separate helper clearly removes substantial duplication.

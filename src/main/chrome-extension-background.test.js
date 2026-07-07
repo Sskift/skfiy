@@ -268,6 +268,13 @@ async function importBackground({ autoHeartbeat = false } = {}) {
   return import(backgroundUrl.href);
 }
 
+async function loadBackground(mock, options) {
+  globalThis.chrome = mock.chrome;
+  const background = await importBackground(options);
+
+  return { mock, background };
+}
+
 async function waitForAssertion(assertion) {
   let lastError;
   for (let index = 0; index < 25; index += 1) {
@@ -303,8 +310,7 @@ describe("Chrome extension background page routing", () => {
       windowId: 2,
       url: "https://allowed.example/dashboard"
     }]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -367,8 +373,7 @@ describe("Chrome extension background page routing", () => {
       currentTurnAllowedHosts: [],
       blockedHosts: []
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -502,8 +507,7 @@ describe("Chrome extension background page routing", () => {
       currentTurnAllowedHosts: [],
       blockedHosts: ["blocked.example"]
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -619,8 +623,7 @@ describe("Chrome extension background policy sync", () => {
       requestId: "host-policy-sync-runtime_startup-1",
       hostPolicyState: "configured"
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -711,8 +714,7 @@ describe("Chrome extension background policy sync", () => {
       updatedAt: "2026-06-20T10:05:00.000Z",
       lastError: "Specified native messaging host not found."
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -830,8 +832,7 @@ describe("Chrome extension background policy sync", () => {
       currentTurnAllowedHosts: [],
       blockedHosts: []
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -918,8 +919,7 @@ describe("Chrome extension background policy sync", () => {
       currentTurnAllowedHosts: [],
       blockedHosts: []
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     mock.chrome.runtime.onMessage.listeners[0]({
@@ -1028,8 +1028,7 @@ describe("Chrome extension background policy sync", () => {
       currentTurnAllowedHosts: [],
       blockedHosts: []
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     mock.chrome.runtime.onMessage.listeners[0]({
@@ -1093,8 +1092,7 @@ describe("Chrome extension background policy sync", () => {
       currentTurnAllowedHosts: [],
       blockedHosts: []
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     mock.chrome.runtime.onMessage.listeners[0]({
@@ -1176,8 +1174,7 @@ describe("Chrome extension background policy sync", () => {
       currentTurnAllowedHosts: [],
       blockedHosts: []
     };
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     mock.chrome.runtime.onMessage.listeners[0]({
@@ -1216,8 +1213,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("syncs host policy through the native host and records sync status", async () => {
     const mock = createChromeMock([createPolicyResponse()]);
-    globalThis.chrome = mock.chrome;
-    const background = await importBackground();
+    const { background } = await loadBackground(mock);
 
     await expect(background.syncHostPolicy("runtime_startup")).resolves.toMatchObject({
       result: "accepted",
@@ -1265,11 +1261,7 @@ describe("Chrome extension background policy sync", () => {
       createPolicyResponse({ allowedHosts: ["startup.example"] }),
       createPageObserveResponse()
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
-
-    expect(mock.chrome.runtime.onInstalled.addListener).toHaveBeenCalledTimes(1);
-    expect(mock.chrome.runtime.onStartup.addListener).toHaveBeenCalledTimes(1);
+    await loadBackground(mock);
 
     mock.chrome.runtime.onInstalled.listeners[0]();
     await waitForAssertion(() => {
@@ -1313,8 +1305,7 @@ describe("Chrome extension background policy sync", () => {
       createPolicyResponse({ allowedHosts: ["loaded.example"] }),
       createPageObserveResponse()
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground({ autoHeartbeat: true });
+    await loadBackground(mock, { autoHeartbeat: true });
 
     await waitForAssertion(() => {
       expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
@@ -1370,8 +1361,7 @@ describe("Chrome extension background policy sync", () => {
         }
       ]
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground({ autoHeartbeat: true });
+    await loadBackground(mock, { autoHeartbeat: true });
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     await waitForAssertion(() => {
@@ -1413,8 +1403,7 @@ describe("Chrome extension background policy sync", () => {
     ], {
       queryTabsError: "Tabs cannot be queried in this context"
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     mock.chrome.runtime.onMessage.listeners[0]({
@@ -1472,8 +1461,7 @@ describe("Chrome extension background policy sync", () => {
         }
       ]
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     mock.chrome.tabs.onCreated.listeners[0]({
       id: 99,
@@ -1521,8 +1509,7 @@ describe("Chrome extension background policy sync", () => {
         }
       ]
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     mock.chrome.tabs.onCreated.listeners[0]({
       id: 99,
@@ -1593,8 +1580,7 @@ describe("Chrome extension background policy sync", () => {
         currentTurnAllowedHosts: [],
         blockedHosts: []
       };
-      globalThis.chrome = mock.chrome;
-      await importBackground();
+      await loadBackground(mock);
 
       mock.chrome.runtime.onMessage.listeners[0](
         {
@@ -1653,8 +1639,7 @@ describe("Chrome extension background policy sync", () => {
         }
       ]
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     mock.chrome.tabs.onUpdated.listeners[0](99, { status: "complete" }, {
       id: 99,
@@ -1700,8 +1685,7 @@ describe("Chrome extension background policy sync", () => {
         url: "http://127.0.0.1:63852/"
       }
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     expect(mock.chrome.tabs.onUpdated.addListener).toHaveBeenCalledTimes(1);
     mock.chrome.tabs.onUpdated.listeners[0](42, { status: "complete" });
@@ -1734,8 +1718,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("does not record page-control heartbeat for the extension popup tab", async () => {
     const mock = createChromeMock([]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     expect(mock.chrome.tabs.onUpdated.addListener).toHaveBeenCalledTimes(1);
     mock.chrome.tabs.onUpdated.listeners[0](99, {
@@ -1790,8 +1773,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     mock.chrome.tabs.onUpdated.listeners[0](99, {
       status: "complete"
@@ -1853,8 +1835,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     mock.chrome.tabs.onUpdated.listeners[0](99, {
       status: "complete"
@@ -1913,8 +1894,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const wakeUrls = [
       "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot&skfiyRequestId=cli-screenshot-current",
@@ -2072,8 +2052,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const wakeUrls = [
       "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=submit-no-response&skfiyTargetTabId=42&skfiyWakeAction=submit&skfiyRequestId=page-control-submit-cli-1&skfiySelector=form",
@@ -2151,8 +2130,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     mock.chrome.runtime.onMessage.listeners[0]({
@@ -2251,8 +2229,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const wakeUrl = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=popup-fill-race&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiyRequestId=page-control-fill-cli-race&skfiySelector=%23name&skfiyText=skfiy";
     mock.chrome.tabs.onUpdated.listeners[0](99, {
@@ -2330,8 +2307,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn(() => {
       expect(mock.postedMessages).toHaveLength(1);
@@ -2394,8 +2370,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const url = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=dedupe-1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=skfiy";
     mock.chrome.tabs.onUpdated.listeners[0](99, {
@@ -2454,8 +2429,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const staleUrl = `chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=${now - 600_000}&skfiyTargetTabId=42&skfiyWakeAction=click&skfiyRequestId=page-control-click-cli-stale&skfiySelector=%23click-only`;
     const currentUrl = `chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=${now}&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiyRequestId=page-control-fill-cli-current&skfiySelector=%23name&skfiyText=skfiy`;
@@ -2511,8 +2485,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     mock.chrome.tabs.onUpdated.listeners[0](99, {
       status: "complete"
@@ -2565,8 +2538,7 @@ describe("Chrome extension background policy sync", () => {
       }
       return undefined;
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     mock.chrome.tabs.onUpdated.listeners[0](99, {
       status: "complete"
@@ -2607,8 +2579,7 @@ describe("Chrome extension background policy sync", () => {
     const mock = createChromeMock([
       createPolicyResponse({ allowedHosts: ["manual.example"], blockedHosts: [] })
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -2678,8 +2649,7 @@ describe("Chrome extension background policy sync", () => {
       createPolicyResponse({ allowedHosts: ["heartbeat.example"], currentTurnAllowedHosts: [], blockedHosts: [] }),
       createPageObserveResponse()
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -2776,8 +2746,7 @@ describe("Chrome extension background policy sync", () => {
         }
       ]
     });
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -2838,8 +2807,7 @@ describe("Chrome extension background policy sync", () => {
       createPolicyResponse({ allowedHosts: ["reload.example"], currentTurnAllowedHosts: [], blockedHosts: [] }),
       createPageObserveResponse()
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -2912,8 +2880,7 @@ describe("Chrome extension background policy sync", () => {
       },
       createPolicyResponse({ allowedHosts: ["native-connect.example"] })
     ]);
-    globalThis.chrome = mock.chrome;
-    await importBackground();
+    await loadBackground(mock);
 
     const sendResponse = vi.fn();
     const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
@@ -2961,8 +2928,7 @@ describe("Chrome extension background policy sync", () => {
         error: "Specified native messaging host not found."
       }
     ]);
-    globalThis.chrome = mock.chrome;
-    const background = await importBackground();
+    const { background } = await loadBackground(mock);
 
     await expect(background.syncHostPolicy("runtime_installed")).resolves.toMatchObject({
       ok: false,
@@ -2989,8 +2955,7 @@ describe("Chrome extension background policy sync", () => {
       },
       createPolicyResponse({ allowedHosts: ["recovered.example"], currentTurnAllowedHosts: [], blockedHosts: [] })
     ]);
-    globalThis.chrome = mock.chrome;
-    const background = await importBackground();
+    const { background } = await loadBackground(mock);
 
     await expect(background.syncHostPolicy("popup_manual")).resolves.toMatchObject({
       result: "accepted"
