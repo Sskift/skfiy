@@ -14,6 +14,8 @@ const PAGE_OBSERVE = "skfiy.page.observe";
 const PAGE_ACTION = "skfiy.page.action";
 const PAGE_SCREENSHOT = "skfiy.page.screenshot";
 const TABS_DISCOVER = "skfiy.tabs.discover";
+const LOCALHOST_TEST_HOST = "127.0.0.1:63852";
+const LOCALHOST_TEST_URL = `http://${LOCALHOST_TEST_HOST}/`;
 
 function createEvent() {
   const listeners = [];
@@ -323,6 +325,59 @@ function dispatchWakeTabUpdated(mock, url, { tabId = 99, changeInfo = { status: 
   });
 }
 
+function storeHostPolicy(mock, policy = {}) {
+  mock.storage[HOST_POLICY_STORAGE_KEY] = {
+    defaultMode: "ask",
+    allowedHosts: [],
+    currentTurnAllowedHosts: [],
+    blockedHosts: [],
+    ...policy
+  };
+
+  return mock.storage[HOST_POLICY_STORAGE_KEY];
+}
+
+function storeLocalhostHostPolicy(mock) {
+  return storeHostPolicy(mock, {
+    allowedHosts: [LOCALHOST_TEST_HOST]
+  });
+}
+
+function mockTabsGet(mock, tabsById, fallback) {
+  mock.chrome.tabs.get.mockImplementation(async (tabId) => {
+    if (Object.hasOwn(tabsById, tabId)) {
+      return tabsById[tabId];
+    }
+    return typeof fallback === "function" ? fallback(tabId) : fallback;
+  });
+}
+
+function mockLocalhostTargetTab(mock, { tabId = 42, windowId = 7 } = {}) {
+  const targetTab = {
+    id: tabId,
+    windowId,
+    url: LOCALHOST_TEST_URL
+  };
+  mockTabsGet(mock, { [tabId]: targetTab });
+
+  return targetTab;
+}
+
+function mockWakeAndLocalhostTargetTabs(mock, wakeUrl, { wakeTabId = 99, targetTabId = 42 } = {}) {
+  mockTabsGet(mock, {
+    [wakeTabId]: {
+      id: wakeTabId,
+      windowId: 7,
+      url: wakeUrl
+    },
+    [targetTabId]: {
+      id: targetTabId,
+      windowId: 7,
+      url: LOCALHOST_TEST_URL
+    }
+  });
+}
+
 async function waitForAssertion(assertion) {
   let lastError;
   for (let index = 0; index < 25; index += 1) {
@@ -347,12 +402,7 @@ afterEach(() => {
 describe("Chrome extension background page routing", () => {
   it("blocks script injection when host policy allows a host but Chrome host permission is missing", async () => {
     const mock = createChromeMock();
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
+    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
     mock.chrome.tabs.query.mockResolvedValue([{
       id: 17,
       windowId: 2,
@@ -414,12 +464,7 @@ describe("Chrome extension background page routing", () => {
         url: "https://allowed.example/dashboard"
       }
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
+    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
     await loadBackground(mock);
 
     const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
@@ -547,12 +592,10 @@ describe("Chrome extension background page routing", () => {
         }
       ]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
+    storeHostPolicy(mock, {
       allowedHosts: ["allowed.example", "missing-permission.example", "content-missing.example"],
-      currentTurnAllowedHosts: [],
       blockedHosts: ["blocked.example"]
-    };
+    });
     await loadBackground(mock);
 
     const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
@@ -653,12 +696,11 @@ describe("Chrome extension background page routing", () => {
 describe("Chrome extension background policy sync", () => {
   it("returns stored policy sync status with a normalized entry count", async () => {
     const mock = createChromeMock();
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
+    storeHostPolicy(mock, {
       allowedHosts: ["example.com"],
       currentTurnAllowedHosts: ["turn.example"],
       blockedHosts: ["blocked.example"]
-    };
+    });
     mock.storage[HOST_POLICY_SYNC_STORAGE_KEY] = {
       schemaVersion: 1,
       state: "synced",
@@ -745,12 +787,7 @@ describe("Chrome extension background policy sync", () => {
         url: "https://allowed.example/dashboard"
       }
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
+    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
     mock.storage[HOST_POLICY_SYNC_STORAGE_KEY] = {
       schemaVersion: 1,
       state: "error",
@@ -848,33 +885,22 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("uses the requested target tab for popup policy status diagnostics", async () => {
-    const mock = createChromeMock([], {
-      activeTab: {
-        id: 99,
-        windowId: 7,
-        url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyTargetTabId=42"
-      }
-    });
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "https://target.example/dashboard"
-        };
-      }
-      return {
-        id: 99,
-        windowId: 7,
-        url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyTargetTabId=42"
-      };
-    });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["target.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
+    const popupTab = {
+      id: 99,
+      windowId: 7,
+      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyTargetTabId=42"
     };
+    const mock = createChromeMock([], {
+      activeTab: popupTab
+    });
+    mockTabsGet(mock, {
+      42: {
+        id: 42,
+        windowId: 7,
+        url: "https://target.example/dashboard"
+      }
+    }, popupTab);
+    storeHostPolicy(mock, { allowedHosts: ["target.example"] });
     await loadBackground(mock);
 
     const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
@@ -955,12 +981,7 @@ describe("Chrome extension background policy sync", () => {
         observedAt: "2026-06-20T10:07:00.000Z"
       }
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
+    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
     await loadBackground(mock);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
@@ -1063,12 +1084,7 @@ describe("Chrome extension background policy sync", () => {
         observedAt: "2026-06-20T10:08:00.000Z"
       }
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
+    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
     await loadBackground(mock);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
@@ -1126,12 +1142,7 @@ describe("Chrome extension background policy sync", () => {
       },
       grantedOrigins: ["https://allowed.example/*", "<all_urls>"]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
+    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
     await loadBackground(mock);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
@@ -1207,12 +1218,7 @@ describe("Chrome extension background policy sync", () => {
         }
       }
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["allowed.example"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
+    storeHostPolicy(mock, { allowedHosts: ["allowed.example"] });
     await loadBackground(mock);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
@@ -1606,13 +1612,10 @@ describe("Chrome extension background policy sync", () => {
           }
         ]
       });
-      mock.storage[HOST_POLICY_STORAGE_KEY] = {
+      storeHostPolicy(mock, {
         schemaVersion: 1,
-        defaultMode: "ask",
         allowedHosts: ["127.0.0.1:60329", "127.0.0.1:63852"],
-        currentTurnAllowedHosts: [],
-        blockedHosts: []
-      };
+      });
       await loadBackground(mock);
 
       sendRuntimeMessage(mock, {
@@ -1704,13 +1707,13 @@ describe("Chrome extension background policy sync", () => {
 
   it("refreshes page-control heartbeat when the active tab finishes loading", async () => {
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["127.0.0.1:63852"], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createPolicyResponse({ allowedHosts: [LOCALHOST_TEST_HOST], currentTurnAllowedHosts: [], blockedHosts: [] }),
       createPageObserveResponse()
     ], {
       activeTab: {
         id: 42,
         windowId: 7,
-        url: "http://127.0.0.1:63852/"
+        url: LOCALHOST_TEST_URL
       }
     });
     await loadBackground(mock);
@@ -1759,7 +1762,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("routes extension wake tab heartbeats to the requested target tab", async () => {
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["127.0.0.1:63852"], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createPolicyResponse({ allowedHosts: [LOCALHOST_TEST_HOST], currentTurnAllowedHosts: [], blockedHosts: [] }),
       createPageObserveResponse()
     ], {
       grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
@@ -1779,23 +1782,10 @@ describe("Chrome extension background policy sync", () => {
         }
       }
     });
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 99) {
-        return {
-          id: 99,
-          windowId: 7,
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42"
-        };
-      }
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    mockWakeAndLocalhostTargetTabs(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42"
+    );
     await loadBackground(mock);
 
     dispatchWakeTabUpdated(
@@ -1823,7 +1813,7 @@ describe("Chrome extension background policy sync", () => {
     const pageObserveSnapshot = {
       schemaVersion: 1,
       title: "skfiy observe smoke",
-      url: "http://127.0.0.1:63852/",
+      url: LOCALHOST_TEST_URL,
       visibleText: "skfiy observe live smoke 2026-06-21 compiled binary path"
     };
     const mock = createChromeMock([
@@ -1832,29 +1822,11 @@ describe("Chrome extension background policy sync", () => {
       grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
       pageObserveSnapshot
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 99) {
-        return {
-          id: 99,
-          windowId: 7,
-          url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe"
-        };
-      }
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockWakeAndLocalhostTargetTabs(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe"
+    );
     await loadBackground(mock);
 
     dispatchWakeTabUpdated(
@@ -1895,22 +1867,8 @@ describe("Chrome extension background policy sync", () => {
         { result: "passed", action: "scroll" }
       ]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
     const wakeUrls = [
@@ -2047,22 +2005,8 @@ describe("Chrome extension background policy sync", () => {
     ], {
       grantedOrigins: ["http://127.0.0.1/*"]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
     const wakeUrls = [
@@ -2119,22 +2063,8 @@ describe("Chrome extension background policy sync", () => {
         { result: "passed", action: "fill" }
       ]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
@@ -2217,22 +2147,8 @@ describe("Chrome extension background policy sync", () => {
         { result: "passed", action: "fill" }
       ]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
     const wakeUrl = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=popup-fill-race&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiyRequestId=page-control-fill-cli-race&skfiySelector=%23name&skfiyText=skfiy";
@@ -2288,22 +2204,8 @@ describe("Chrome extension background policy sync", () => {
         { result: "passed", action: "click" }
       ]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
     const sendResponse = vi.fn(() => {
@@ -2351,22 +2253,8 @@ describe("Chrome extension background policy sync", () => {
         { result: "passed", action: "fill" }
       ]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
     const url = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=dedupe-1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=skfiy";
@@ -2398,22 +2286,8 @@ describe("Chrome extension background policy sync", () => {
         { result: "passed", action: "fill" }
       ]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
     const staleUrl = `chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=${now - 600_000}&skfiyTargetTabId=42&skfiyWakeAction=click&skfiyRequestId=page-control-click-cli-stale&skfiySelector=%23click-only`;
@@ -2446,22 +2320,8 @@ describe("Chrome extension background policy sync", () => {
       grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
       captureVisibleTabError: "The active tab cannot be captured"
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
     dispatchWakeTabUpdated(
@@ -2496,22 +2356,8 @@ describe("Chrome extension background policy sync", () => {
     ], {
       grantedOrigins: ["http://127.0.0.1/*"]
     });
-    mock.storage[HOST_POLICY_STORAGE_KEY] = {
-      defaultMode: "ask",
-      allowedHosts: ["127.0.0.1:63852"],
-      currentTurnAllowedHosts: [],
-      blockedHosts: []
-    };
-    mock.chrome.tabs.get.mockImplementation(async (tabId) => {
-      if (tabId === 42) {
-        return {
-          id: 42,
-          windowId: 7,
-          url: "http://127.0.0.1:63852/"
-        };
-      }
-      return undefined;
-    });
+    storeLocalhostHostPolicy(mock);
+    mockLocalhostTargetTab(mock);
     await loadBackground(mock);
 
     dispatchWakeTabUpdated(
@@ -2683,13 +2529,13 @@ describe("Chrome extension background policy sync", () => {
 
   it("injects the content script before page-control heartbeat when a granted page has no receiver yet", async () => {
     const mock = createChromeMock([
-      createPolicyResponse({ allowedHosts: ["127.0.0.1:63852"], currentTurnAllowedHosts: [], blockedHosts: [] }),
+      createPolicyResponse({ allowedHosts: [LOCALHOST_TEST_HOST], currentTurnAllowedHosts: [], blockedHosts: [] }),
       createPageObserveResponse()
     ], {
       activeTab: {
         id: 42,
         windowId: 7,
-        url: "http://127.0.0.1:63852/"
+        url: LOCALHOST_TEST_URL
       },
       grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
       contentScriptSessions: [
