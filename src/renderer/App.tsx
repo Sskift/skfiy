@@ -37,7 +37,6 @@ import {
   DESKTOP_SESSION_STATE_COPY,
   PERMISSION_ROWS,
   PERMISSION_STATE_COPY,
-  canDismissTaskBubble,
   canStopTurn,
   formatFinderPreviewMove,
   formatReplayAction,
@@ -72,6 +71,7 @@ import {
 } from "./app-task-state";
 import {
   INITIAL_PANEL_STATE,
+  createPetClickPanelTransition,
   reducePanelState,
   type PanelStateAction
 } from "./app-panel-state";
@@ -1117,19 +1117,16 @@ export default function App() {
   }
 
   function openAssistantPanelFromPet() {
-    if (suppressNextPetClickRef.current) {
-      suppressNextPetClickRef.current = false;
-      return;
-    }
+    const transition = createPetClickPanelTransition({
+      suppressNextClick: suppressNextPetClickRef.current,
+      taskStatus: task.status
+    });
 
-    if (canDismissTaskBubble(task.status)) {
-      setTask(createTaskStatusView("idle"));
-      setReplayRecords([]);
-      transitionPanelState({ type: "open-assistant" });
-      return;
-    }
+    suppressNextPetClickRef.current = transition.nextSuppressNextClick;
 
-    transitionPanelState({ type: "toggle-assistant" });
+    if (transition.resetTaskBubble) setTask(createTaskStatusView("idle"));
+    if (transition.clearReplayRecords) setReplayRecords([]);
+    if (transition.panelAction) transitionPanelState(transition.panelAction);
   }
 
   function toggleDetailsFromPet(event: ReactMouseEvent<HTMLDivElement>) {

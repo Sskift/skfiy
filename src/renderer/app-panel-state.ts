@@ -1,3 +1,8 @@
+import {
+  canDismissTaskBubble,
+  type TaskStatus
+} from "./app-view-model";
+
 export interface PanelState {
   assistantPanelOpen: boolean;
   detailsOpen: boolean;
@@ -63,4 +68,43 @@ export function reducePanelState(
         permissionOnboardingOpen: false
       };
   }
+}
+
+export interface PetClickPanelTransition {
+  nextSuppressNextClick: boolean;
+  resetTaskBubble: boolean;
+  clearReplayRecords: boolean;
+  panelAction?: PanelStateAction;
+}
+
+export function createPetClickPanelTransition({
+  suppressNextClick,
+  taskStatus
+}: {
+  suppressNextClick: boolean;
+  taskStatus: TaskStatus;
+}): PetClickPanelTransition {
+  if (suppressNextClick) {
+    return {
+      nextSuppressNextClick: false,
+      resetTaskBubble: false,
+      clearReplayRecords: false
+    };
+  }
+
+  if (canDismissTaskBubble(taskStatus)) {
+    return {
+      nextSuppressNextClick: false,
+      resetTaskBubble: true,
+      clearReplayRecords: true,
+      panelAction: { type: "open-assistant" }
+    };
+  }
+
+  return {
+    nextSuppressNextClick: false,
+    resetTaskBubble: false,
+    clearReplayRecords: false,
+    panelAction: { type: "toggle-assistant" }
+  };
 }

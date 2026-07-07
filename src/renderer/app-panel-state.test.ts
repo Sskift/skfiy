@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   INITIAL_PANEL_STATE,
+  createPetClickPanelTransition,
   reducePanelState,
   type PanelState
 } from "./app-panel-state";
@@ -76,6 +77,37 @@ describe("app panel state", () => {
       assistantPanelOpen: true,
       detailsOpen: true,
       permissionOnboardingOpen: false
+    });
+  });
+
+  it("derives pet click panel transitions without React refs", () => {
+    expect(createPetClickPanelTransition({
+      suppressNextClick: true,
+      taskStatus: "idle"
+    })).toEqual({
+      nextSuppressNextClick: false,
+      resetTaskBubble: false,
+      clearReplayRecords: false
+    });
+
+    expect(createPetClickPanelTransition({
+      suppressNextClick: false,
+      taskStatus: "completed"
+    })).toEqual({
+      nextSuppressNextClick: false,
+      resetTaskBubble: true,
+      clearReplayRecords: true,
+      panelAction: { type: "open-assistant" }
+    });
+
+    expect(createPetClickPanelTransition({
+      suppressNextClick: false,
+      taskStatus: "running"
+    })).toEqual({
+      nextSuppressNextClick: false,
+      resetTaskBubble: false,
+      clearReplayRecords: false,
+      panelAction: { type: "toggle-assistant" }
     });
   });
 });
