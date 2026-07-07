@@ -275,6 +275,15 @@ async function loadBackground(mock, options) {
   return { mock, background };
 }
 
+function sendRuntimeMessage(mock, message, sender = {}, sendResponse = vi.fn()) {
+  const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0](message, sender, sendResponse);
+
+  return {
+    keepChannelOpen,
+    sendResponse
+  };
+}
+
 async function waitForAssertion(assertion) {
   let lastError;
   for (let index = 0; index < 25; index += 1) {
@@ -312,11 +321,10 @@ describe("Chrome extension background page routing", () => {
     }]);
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: "skfiy.page.observe",
       requestId: "observe-allowed"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -375,8 +383,7 @@ describe("Chrome extension background page routing", () => {
     };
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: PAGE_CONTROL_WAKE,
       requestId: "wake-fill-current",
       directive: {
@@ -387,7 +394,7 @@ describe("Chrome extension background page routing", () => {
         selector: "#name",
         text: "skfiy"
       }
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -509,11 +516,10 @@ describe("Chrome extension background page routing", () => {
     };
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: TABS_DISCOVER,
       requestId: "tabs-discover-test"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -625,11 +631,10 @@ describe("Chrome extension background policy sync", () => {
     };
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -716,11 +721,10 @@ describe("Chrome extension background policy sync", () => {
     };
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-missing-permission"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -834,12 +838,11 @@ describe("Chrome extension background policy sync", () => {
     };
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-target",
       tabId: 42
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -921,11 +924,10 @@ describe("Chrome extension background policy sync", () => {
     };
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-session"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -1030,11 +1032,10 @@ describe("Chrome extension background policy sync", () => {
     };
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: PAGE_CONTROL_HEALTH,
       requestId: "health-smoke"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -1094,11 +1095,10 @@ describe("Chrome extension background policy sync", () => {
     };
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-no-content-script"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -1176,11 +1176,10 @@ describe("Chrome extension background policy sync", () => {
     };
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_STATUS,
       requestId: "popup-status-no-screenshot"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -1405,11 +1404,10 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: TABS_DISCOVER,
       requestId: "tabs-query-error"
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toEqual(expect.arrayContaining([
@@ -1582,15 +1580,11 @@ describe("Chrome extension background policy sync", () => {
       };
       await loadBackground(mock);
 
-      mock.chrome.runtime.onMessage.listeners[0](
-        {
-          type: TABS_DISCOVER,
-          schemaVersion: 1,
-          requestId: "tabs-discover-stalled-diagnostics"
-        },
-        {},
-        vi.fn()
-      );
+      sendRuntimeMessage(mock, {
+        type: TABS_DISCOVER,
+        schemaVersion: 1,
+        requestId: "tabs-discover-stalled-diagnostics"
+      });
 
       await vi.advanceTimersByTimeAsync(1_000);
 
@@ -2132,8 +2126,7 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: PAGE_CONTROL_WAKE,
       schemaVersion: 1,
       requestId: "page-control-fill-cli-1",
@@ -2146,7 +2139,7 @@ describe("Chrome extension background policy sync", () => {
         text: "skfiy",
         dy: 0
       }
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -2184,7 +2177,7 @@ describe("Chrome extension background policy sync", () => {
       }
     });
 
-    mock.chrome.runtime.onMessage.listeners[0]({
+    sendRuntimeMessage(mock, {
       type: PAGE_CONTROL_WAKE,
       schemaVersion: 1,
       requestId: "page-control-fill-cli-1",
@@ -2197,7 +2190,7 @@ describe("Chrome extension background policy sync", () => {
         text: "skfiy",
         dy: 0
       }
-    }, {}, vi.fn());
+    });
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
@@ -2240,8 +2233,7 @@ describe("Chrome extension background policy sync", () => {
       url: wakeUrl
     });
 
-    const sendResponse = vi.fn();
-    mock.chrome.runtime.onMessage.listeners[0]({
+    const { sendResponse } = sendRuntimeMessage(mock, {
       type: PAGE_CONTROL_WAKE,
       schemaVersion: 1,
       requestId: "page-control-fill-cli-race",
@@ -2254,7 +2246,7 @@ describe("Chrome extension background policy sync", () => {
         text: "skfiy",
         dy: 0
       }
-    }, {}, sendResponse);
+    });
 
     await waitForAssertion(() => {
       expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
@@ -2322,7 +2314,7 @@ describe("Chrome extension background policy sync", () => {
         }
       });
     });
-    mock.chrome.runtime.onMessage.listeners[0]({
+    sendRuntimeMessage(mock, {
       type: PAGE_CONTROL_WAKE,
       schemaVersion: 1,
       requestId: "page-control-click-cli-1",
@@ -2581,11 +2573,10 @@ describe("Chrome extension background policy sync", () => {
     ]);
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: HOST_POLICY_SYNC_REFRESH,
       requestId: "popup-refresh"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -2651,11 +2642,10 @@ describe("Chrome extension background policy sync", () => {
     ]);
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: NATIVE_HEARTBEAT,
       requestId: "popup-heartbeat"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -2748,12 +2738,11 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: NATIVE_HEARTBEAT,
       requestId: "popup-heartbeat-target",
       tabId: 42
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -2809,11 +2798,10 @@ describe("Chrome extension background policy sync", () => {
     ]);
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: DEV_RELOAD_REQUEST,
       requestId: "popup-dev-reload"
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {
@@ -2882,8 +2870,7 @@ describe("Chrome extension background policy sync", () => {
     ]);
     await loadBackground(mock);
 
-    const sendResponse = vi.fn();
-    const keepChannelOpen = mock.chrome.runtime.onMessage.listeners[0]({
+    const { keepChannelOpen, sendResponse } = sendRuntimeMessage(mock, {
       type: "skfiy.native.message",
       requestId: "outer-request",
       payload: {
@@ -2891,7 +2878,7 @@ describe("Chrome extension background policy sync", () => {
         type: "skfiy.page.observe",
         requestId: "observe-native"
       }
-    }, {}, sendResponse);
+    });
 
     expect(keepChannelOpen).toBe(true);
     await waitForAssertion(() => {

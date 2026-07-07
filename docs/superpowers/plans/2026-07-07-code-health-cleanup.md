@@ -138,6 +138,7 @@ npm run typecheck -- --pretty false
 Progress:
 
 - 2026-07-07: consolidated repeated background import/global Chrome setup in `src/main/chrome-extension-background.test.js` behind a local `loadBackground` helper, and removed lifecycle listener-count assertions that only restated listener registration while preserving install/startup behavior coverage.
+- 2026-07-07: consolidated repeated `runtime.onMessage` test dispatch in `src/main/chrome-extension-background.test.js` behind a local `sendRuntimeMessage` helper while preserving behavior assertions for policy status, page-control wake, native heartbeat, reload, and native-message forwarding.
 
 - [ ] **Consolidate fixtures**
 
