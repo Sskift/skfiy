@@ -18,17 +18,16 @@ research notes as dated context unless they contain a still-open product gap.
   workstream ownership, real-scenario acceptance, and QA/SRE gate.
 - `release-evidence/latest-alpha.json`: latest published alpha pointer used by
   dashboard and dogfood readiness checks.
-- `superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md`: the single
-  active implementation plan for Pet usability, Background Agent provider
-  selection, Chrome browser context, Dashboard visibility, and validation.
+- `superpowers/plans/2026-07-07-code-health-cleanup.md`: the single
+  active implementation plan for current code-health cleanup, CLI slimming,
+  test diet, and pure-logic extraction.
 
 ## Reference Docs
 
 - `decisions/`: durable decision records that should stay stable unless the
   decision changes.
 - `research/`: dated research, architecture notes, and implementation logs.
-  Most files are archival, not active task lists. The dated long plan above is
-  the one exception while these workstreams are still open.
+  These files are archival context, not active task lists.
 - `superpowers/plans/`: active implementation plans for agentic work. Keep
   exactly one active plan unless the project owner explicitly asks for a
   temporary split.

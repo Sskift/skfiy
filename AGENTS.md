@@ -10,7 +10,7 @@ skfiy is a local-first macOS desktop pet that fronts a Background Agent. The pet
 
 Use the single active plan:
 
-- `docs/superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md`
+- `docs/superpowers/plans/2026-07-07-code-health-cleanup.md`
 
 Old long-form plans were removed so this file is the planning source of truth. If future scope changes, update this active plan or replace it with exactly one newer active plan.
 

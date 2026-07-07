@@ -1,13 +1,14 @@
 # skfiy Product Readiness Matrix
 
-Updated: 2026-06-23
+Updated: 2026-07-07
 Cleanup baseline commit: `d97f542`
 Latest local alpha evidence recorded during this cleanup: `7666314`
 
 This document is the supervisor-facing convergence checklist for the active
 agent and Computer Use work. It does not replace
-`docs/superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md`; it turns that plan
-into grouped ownership, QA/SRE gates, and real-scenario acceptance evidence.
+`docs/superpowers/plans/2026-07-07-code-health-cleanup.md`; the active plan now
+tracks current code-health cleanup, while this matrix keeps grouped ownership,
+QA/SRE gates, and real-scenario acceptance evidence.
 
 ## Supervisor Workflow
 

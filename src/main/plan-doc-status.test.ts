@@ -22,7 +22,7 @@ const activePlanPath = path.join(
   "docs",
   "superpowers",
   "plans",
-  "2026-06-23-pet-agent-browser-dashboard.md"
+  "2026-07-07-code-health-cleanup.md"
 );
 
 function readLatestAlphaEvidence(): LatestAlphaEvidence {
@@ -41,7 +41,7 @@ describe("implementation plan status docs", () => {
       ? readdirSync(planDir).filter((entry) => entry.endsWith(".md"))
       : [];
 
-    expect(activePlanFiles).toEqual(["2026-06-23-pet-agent-browser-dashboard.md"]);
+    expect(activePlanFiles).toEqual(["2026-07-07-code-health-cleanup.md"]);
   });
 
   it("documents output-free default smoke runs in README instead of plan archives", () => {
@@ -103,19 +103,19 @@ describe("implementation plan status docs", () => {
     expect(readiness).not.toContain("app-agnostic observe any visible app");
   });
 
-  it("keeps the active plan focused on pet usability, agent providers, browser context, and dashboard", () => {
+  it("keeps the active plan focused on current code-health cleanup", () => {
     const activePlan = readFileSync(activePlanPath, "utf8");
 
-    expect(activePlan).toContain("# Pet Agent Browser Dashboard Implementation Plan");
+    expect(activePlan).toContain("# skfiy Code Health Cleanup Plan");
     expect(activePlan).toContain("For agentic workers");
-    expect(activePlan).toContain("Pet Visual Cleanup And Stable Click Behavior");
-    expect(activePlan).toContain("Screen-Aligned Pet Drag Bounds");
-    expect(activePlan).toContain("Background Agent Provider Selection In Pet Settings");
-    expect(activePlan).toContain("Chrome Extension Page Context For Background Agent");
-    expect(activePlan).toContain("Dashboard MVP Polish And Useful Runtime Visibility");
-    expect(activePlan).toContain("End-To-End Product Validation");
+    expect(activePlan).toContain("previous long-form implementation log was retired");
+    expect(activePlan).toContain("Slim The CLI Command Surface");
+    expect(activePlan).toContain("Finish Chrome Extension Background Test Diet");
+    expect(activePlan).toContain("Extract Pure Logic From Main And Renderer");
+    expect(activePlan).toContain("Refresh Product Readiness After Cleanup");
     expect(activePlan).toContain("Codex");
     expect(activePlan).toContain("Claude Code");
+    expect(activePlan).toContain("bounded Hermes (`hermes`)");
     expect(activePlan).toContain("Computer Use");
     expect(activePlan).toContain("Chrome extension");
     expect(activePlan).toContain("Dashboard");

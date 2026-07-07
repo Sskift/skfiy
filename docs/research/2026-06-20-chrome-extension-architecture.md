@@ -45,9 +45,10 @@ tab claiming/finalization protocol, screenshot transport, host policy storage,
 history filtering, debugger usage, cleanup behavior, and sensitive-action
 classifiers. skfiy should not copy or infer those details.
 
-The local long plan also records that the current Codex Chrome surface exposes a
-controllable-tab model with explicit user-tab claiming and session cleanup. Treat
-that as a product-level reference point only: skfiy should support clear session
+The active plan keeps the current skfiy cleanup direction, while this research
+note records that the Codex Chrome surface exposes a controllable-tab model with
+explicit user-tab claiming and session cleanup. Treat that as a product-level
+reference point only: skfiy should support clear session
 ownership and cleanup, but the private Codex claiming/finalization protocol is
 unknown.
 
@@ -55,8 +56,8 @@ Sources:
 
 - OpenAI Codex manual, `Codex Chrome extension`, fetched 2026-06-20 from
   `https://developers.openai.com/codex/app/chrome-extension`.
-- Active implementation plan:
-  `docs/superpowers/plans/2026-06-23-pet-agent-browser-dashboard.md`.
+- Current active implementation plan:
+  `docs/superpowers/plans/2026-07-07-code-health-cleanup.md`.
 
 ## skfiy Responsibilities
 
