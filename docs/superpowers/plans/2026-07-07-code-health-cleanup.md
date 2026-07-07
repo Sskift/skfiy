@@ -118,12 +118,13 @@ Progress:
 - 2026-07-07: moved `status`, `doctor`, and `operator status` execution into `src/main/cli-status-command-runner.ts`, including status evidence decoration, doctor status/signature fanout, operator readiness output, and error fallback shaping. `cli-command-surface.ts` now injects readers and delegates the status command family.
 - 2026-07-07: moved `smoke *` execution into `src/main/cli-smoke-command-runner.ts` and `skin import` execution into `src/main/cli-skin-command-runner.ts`. `cli-command-surface.ts` now keeps those branches as top-level delegation only.
 - 2026-07-07: moved `permissions open` execution and its default macOS settings opener into `src/main/cli-permission-command-runner.ts`. `cli-command-surface.ts` now injects the opener and delegates permission settings commands.
+- 2026-07-07: moved the default `codesign` signature reader into `src/main/cli-code-signature-reader.ts` and the shared child-process command runner into `src/main/cli-process-command-runner.ts`. `cli-command-surface.ts` now has no direct process spawning and is mostly compatibility exports plus top-level dispatch.
 
-- [ ] **Map responsibilities**
+- [x] **Map responsibilities**
 
 Classify the remaining blocks in `src/main/cli-command-surface.ts` into command dispatch, pure status assembly, provider/browser/dashboard formatting, smoke command orchestration, and direct process side effects. Do not move behavior while mapping.
 
-- [ ] **Extract pure status and output assembly**
+- [x] **Extract pure status and output assembly**
 
 Move pure JSON/status shaping into small typed helpers. Keep command parsing, dispatch, process IO, and side effects in `cli-command-surface.ts`.
 

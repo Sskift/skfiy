@@ -1,9 +1,5 @@
 import path from "node:path";
 import {
-  existsSync
-} from "node:fs";
-import { spawn } from "node:child_process";
-import {
   openDashboardUrl,
   runDashboardCli,
   runDashboardProbeCli,
@@ -55,6 +51,7 @@ import {
   type SkinSubcommand
 } from "./cli-command-normalization.js";
 import { createCliOutputSkeleton } from "./cli-output-skeleton.js";
+import { readCodeSignatureStatus } from "./cli-code-signature-reader.js";
 import {
   openPermissionSettingsUrl,
   runPermissionSettingsOpenCli,
@@ -69,6 +66,7 @@ import {
   type SignatureStatus,
   type StatusReader
 } from "./cli-status-command-runner.js";
+import { runCommand } from "./cli-process-command-runner.js";
 import { runSmokeCli } from "./cli-smoke-command-runner.js";
 import { runSkinImportCli } from "./cli-skin-command-runner.js";
 import {
@@ -340,100 +338,6 @@ export async function runSkfiyCli({
 
   stdout.write(`${JSON.stringify(createCliOutput(result.invocation, { generatedAt }), null, 2)}\n`);
   return 0;
-}
-
-async function readCodeSignatureStatus({
-  appPath
-}: SignatureReaderInput): Promise<SignatureStatus> {
-  if (!existsSync(appPath)) {
-    return {
-      state: "unknown",
-      reason: `skfiy.app is missing at ${appPath}.`
-    };
-  }
-
-  const verify = await runCommand("codesign", [
-    "--verify",
-    "--deep",
-    "--strict",
-    "--verbose=2",
-    appPath
-  ]);
-
-  if (verify.exitCode !== 0) {
-    return {
-      state: "invalid",
-      reason: (verify.stderr || verify.stdout || "codesign verification failed.").trim()
-    };
-  }
-
-  const details = await runCommand("codesign", [
-    "-dv",
-    "--verbose=4",
-    appPath
-  ]);
-  const detailText = `${details.stdout}\n${details.stderr}`;
-
-  if (!detailText.includes("Identifier=com.sskift.skfiy")) {
-    return {
-      state: "invalid",
-      reason: "designated requirement does not include com.sskift.skfiy"
-    };
-  }
-
-  return {
-    state: "valid"
-  };
-}
-
-function runCommand(command: string, args: string[], options: {
-  timeoutMs?: number;
-} = {}): Promise<{
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    let stdout = "";
-    let stderr = "";
-    let timedOut = false;
-    const timeout = options.timeoutMs
-      ? setTimeout(() => {
-          timedOut = true;
-          child.kill("SIGTERM");
-        }, options.timeoutMs)
-      : undefined;
-
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.once("error", (error) => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-      reject(error);
-    });
-    child.once("exit", (code) => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-      resolve({
-        exitCode: code ?? 1,
-        stdout,
-        stderr: timedOut
-          ? `${stderr}${stderr ? "\n" : ""}${command} timed out after ${options.timeoutMs}ms.`
-          : stderr
-      });
-    });
-  });
 }
 
 function inferRootDirFromCliShimPath(cliShimPath: string): string {
