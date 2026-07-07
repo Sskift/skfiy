@@ -20,7 +20,6 @@ import {
   AssistantAgentTurnRuntimeError,
   readAssistantAgentProviderStates,
   runAssistantAgentTurn,
-  type AssistantAgentPlannedToolCall,
   type AssistantAgentTurnResult
 } from "./assistant-agent.js";
 import {
@@ -82,7 +81,6 @@ import {
 import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
 import { readStartupWarnings } from "./startup-guard.js";
 import {
-  readStopTurnHotkeyStatus,
   registerStopTurnHotkey,
   STOP_TURN_ACCELERATOR
 } from "./stop-turn-hotkey.js";
@@ -119,6 +117,13 @@ import {
   createToolResultFromTaskEvent,
   isSameComputerUseToolIdentity
 } from "./main-computer-use-tool-result.js";
+import {
+  createAssistantAgentSettingsResponse,
+  createAssistantAgentTaskMessage,
+  createBrowserPageContextReadFailure,
+  createRuntimeStatusResponse,
+  readAssistantComputerUseToolCall
+} from "./main-renderer-payload.js";
 import {
   createTaskEvent,
   readTurnReplayTaskEvent,
@@ -317,13 +322,7 @@ async function readLatestBrowserPageContext(): Promise<BrowserPageContext> {
     const connection = await readChromeExtensionConnectionStatus({ homeDir: os.homedir() });
     return createBrowserPageContextFromConnection(connection);
   } catch (error) {
-    return createBrowserPageContextFromConnection({
-      state: "unavailable",
-      reason: error instanceof Error
-        ? error.message
-        : "Chrome extension diagnostics could not be read.",
-      nextAction: "Pet chat will continue without Browser Context."
-    });
+    return createBrowserPageContextReadFailure(error);
   }
 }
 
@@ -379,14 +378,6 @@ function schedulePersonalMemoryPostTurnReview(
   });
 }
 
-function createAssistantAgentTaskMessage(turn: AssistantAgentTurnResult): string {
-  if (turn.status === "completed") {
-    return `${turn.providerLabel}: ${turn.message}`;
-  }
-
-  return `Assistant agent failed: ${turn.error?.message ?? "unknown error"}`;
-}
-
 function emitAssistantToolPlanTaskEvent(
   window: BrowserWindow | null,
   turn: AssistantAgentTurnResult,
@@ -402,17 +393,6 @@ function emitAssistantToolPlanTaskEvent(
     message: summary.message,
     command
   });
-}
-
-function readAssistantComputerUseToolCall(turn: AssistantAgentTurnResult): AssistantAgentPlannedToolCall {
-  const toolCall = turn.toolCalls.find((candidate) =>
-    candidate.type === "computer-use" && candidate.name === "desktop-control"
-  );
-  if (!toolCall) {
-    throw new Error(`Assistant turn ${turn.id} did not plan a Computer Use tool call.`);
-  }
-
-  return toolCall;
 }
 
 function createPendingApproval(
@@ -1336,10 +1316,10 @@ ipcMain.handle("skfiy:set-planner-provider-settings", (_event, update: unknown) 
 ipcMain.handle("skfiy:get-assistant-agent-settings", async () => {
   const settings = assistantAgentSettingsStore.get();
 
-  return {
+  return createAssistantAgentSettingsResponse(
     settings,
-    providers: await readAssistantAgentProviderStates(settings)
-  };
+    await readAssistantAgentProviderStates(settings)
+  );
 });
 
 ipcMain.handle("skfiy:set-assistant-agent-settings", async (_event, update: unknown) => {
@@ -1347,10 +1327,10 @@ ipcMain.handle("skfiy:set-assistant-agent-settings", async (_event, update: unkn
     update && typeof update === "object" ? update : {}
   );
 
-  return {
+  return createAssistantAgentSettingsResponse(
     settings,
-    providers: await readAssistantAgentProviderStates(settings)
-  };
+    await readAssistantAgentProviderStates(settings)
+  );
 });
 
 ipcMain.handle("skfiy:get-turn-replay", () => {
@@ -1358,9 +1338,7 @@ ipcMain.handle("skfiy:get-turn-replay", () => {
 });
 
 ipcMain.handle("skfiy:get-runtime-status", () => {
-  return {
-    stopTurnHotkey: readStopTurnHotkeyStatus(stopTurnHotkeyRegistered)
-  };
+  return createRuntimeStatusResponse(stopTurnHotkeyRegistered);
 });
 
 ipcMain.handle("skfiy:get-pet-skin", async () => {
