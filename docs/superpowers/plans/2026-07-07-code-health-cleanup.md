@@ -109,6 +109,7 @@ Progress:
 - 2026-07-07: moved the money-run tmux read-only probe orchestration into `src/main/cli-money-run-status.ts` behind an injected command runner. `cli-command-surface.ts` now only supplies the shared process runner when assembling status.
 - 2026-07-07: moved Dashboard status discovery, state-file fallback, and loopback JSON fetch helpers into `src/main/cli-dashboard-status-reader.ts`. `cli-command-surface.ts` reuses that reader for status assembly and dashboard probe fetches.
 - 2026-07-07: moved Chrome extension manifest summary and Chrome Preferences registration checks into `src/main/cli-chrome-extension-files.ts`. `cli-command-surface.ts` now keeps the Chrome command dispatch while local extension file parsing lives in the helper.
+- 2026-07-07: moved Computer Use permission and desktop-session status fallback shaping into `src/main/cli-desktop-status.ts`. `cli-command-surface.ts` now creates the helper client and delegates status reads to the helper.
 
 - [ ] **Map responsibilities**
 

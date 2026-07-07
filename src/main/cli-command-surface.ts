@@ -56,9 +56,6 @@ import {
   type SkfiyMcpToolCallInput
 } from "./skfiy-mcp-server.js";
 import { DesktopHelperClient } from "./computer-use/desktop-helper.js";
-import type {
-  PermissionSummary
-} from "./computer-use/types.js";
 import {
   SMOKE_TARGETS,
   parseSmokeJson,
@@ -156,6 +153,11 @@ import {
   readChromeExtensionManifest,
   readChromeExtensionRegistrationStatus
 } from "./cli-chrome-extension-files.js";
+import {
+  createUnknownPermissionStates,
+  readDesktopSessionForStatus,
+  readPermissionStatesForStatus
+} from "./cli-desktop-status.js";
 
 export { SMOKE_TARGETS };
 export {
@@ -897,55 +899,6 @@ async function readCliStatus(input: StatusReaderInput): Promise<Record<string, u
     dashboard,
     moneyRun
   };
-}
-
-async function readPermissionStatesForStatus(
-  helper: Pick<DesktopHelperClient, "getPermissions">
-): Promise<Record<string, unknown>> {
-  try {
-    const permissions = await helper.getPermissions();
-
-    return createPermissionStates(permissions);
-  } catch (error) {
-    return {
-      ...createUnknownPermissionStates(),
-      reason: readErrorMessage(error)
-    };
-  }
-}
-
-function createPermissionStates(permissions: PermissionSummary): Record<string, unknown> {
-  return {
-    screenRecording: permissions.screenRecording.state,
-    accessibility: permissions.accessibility.state,
-    finderAutomation: "unknown"
-  };
-}
-
-function createUnknownPermissionStates(): Record<string, "unknown"> {
-  return {
-    screenRecording: "unknown",
-    accessibility: "unknown",
-    finderAutomation: "unknown"
-  };
-}
-
-async function readDesktopSessionForStatus(
-  helper: Pick<DesktopHelperClient, "getDesktopSessionStatus">
-): Promise<Record<string, unknown>> {
-  try {
-    const status = await helper.getDesktopSessionStatus();
-
-    return {
-      state: status.controllable ? "controllable" : "blocked",
-      ...status
-    };
-  } catch (error) {
-    return {
-      state: "unknown",
-      reason: readErrorMessage(error)
-    };
-  }
 }
 
 async function readNativeHostStatusForStatus(
