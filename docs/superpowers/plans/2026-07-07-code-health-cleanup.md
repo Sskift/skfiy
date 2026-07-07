@@ -155,6 +155,7 @@ Progress:
 - 2026-07-07: consolidated runtime lifecycle and tab created/updated event dispatch in `src/main/chrome-extension-background.test.js` behind local helpers, and removed `tabs.onUpdated` listener-count assertions that only restated registration.
 - 2026-07-07: consolidated repeated Chrome host-policy storage and target-tab fixtures in `src/main/chrome-extension-background.test.js` behind local helpers, leaving direct storage/tab listener setup only inside helper code.
 - 2026-07-07: consolidated repeated `PAGE_CONTROL_WAKE` runtime message envelopes in `src/main/chrome-extension-background.test.js` behind a local helper while keeping each test's action, selector, request id, and race/dedupe assertions explicit.
+- 2026-07-07: consolidated repeated native-response envelopes in `src/main/chrome-extension-background.test.js` behind `createNativeResponse`, and removed the popup-delegated action test that only asserted response ordering already covered by action execution and dedupe behavior tests.
 
 - [ ] **Consolidate fixtures**
 

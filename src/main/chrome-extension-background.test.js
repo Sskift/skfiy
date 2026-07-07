@@ -48,15 +48,22 @@ function readStorageSelection(storage, keys) {
   return { ...storage };
 }
 
-function createPolicyResponse(policy = {}) {
+function createNativeResponse(messageType, requestId, overrides = {}) {
   return {
     schemaVersion: 1,
     type: "skfiy.native.response",
-    requestId: "policy-sync-response",
+    requestId,
     result: "accepted",
     bridgeState: "connected",
     launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-    messageType: "skfiy.host_policy.request",
+    messageType,
+    ...overrides
+  };
+}
+
+function createPolicyResponse(policy = {}) {
+  return {
+    ...createNativeResponse("skfiy.host_policy.request", "policy-sync-response"),
     hostPolicy: {
       schemaVersion: 1,
       state: "configured",
@@ -73,15 +80,7 @@ function createPolicyResponse(policy = {}) {
 }
 
 function createPageObserveResponse() {
-  return {
-    schemaVersion: 1,
-    type: "skfiy.native.response",
-    requestId: "page-control-heartbeat-response",
-    result: "accepted",
-    bridgeState: "connected",
-    launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-    messageType: "skfiy.page.observe"
-  };
+  return createNativeResponse(PAGE_OBSERVE, "page-control-heartbeat-response");
 }
 
 function createChromeMock(nativeResponses = [], options = {}) {
@@ -457,15 +456,7 @@ describe("Chrome extension background page routing", () => {
 
   it("preserves structured site-access blockers in wake action native evidence", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "page-control-fill-cli-current",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: PAGE_ACTION
-      }
+      createNativeResponse(PAGE_ACTION, "page-control-fill-cli-current")
     ], {
       activeTab: {
         id: 42,
@@ -1383,15 +1374,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("runs tab discovery when the service worker starts after a tabs wake page already loaded", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-response",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      },
+      createNativeResponse(TABS_DISCOVER, "tabs-discover-response"),
       createPolicyResponse({ allowedHosts: ["loaded.example"] }),
       createPageObserveResponse()
     ], {
@@ -1440,15 +1423,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("records tab discovery blocker evidence when Chrome tab query fails", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-response",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      }
+      createNativeResponse(TABS_DISCOVER, "tabs-discover-response")
     ], {
       queryTabsError: "Tabs cannot be queried in this context"
     });
@@ -1484,15 +1459,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("runs tab discovery from created wake tabs without relying on delayed timers", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-immediate",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      }
+      createNativeResponse(TABS_DISCOVER, "tabs-discover-immediate")
     ], {
       allTabs: [
         {
@@ -1530,15 +1497,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("closes tabs-discovery wake tabs after native evidence is recorded", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-close-wake",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      }
+      createNativeResponse(TABS_DISCOVER, "tabs-discover-close-wake")
     ], {
       allTabs: [
         {
@@ -1581,15 +1540,7 @@ describe("Chrome extension background policy sync", () => {
     vi.useFakeTimers();
     try {
       const mock = createChromeMock([
-        {
-          schemaVersion: 1,
-          type: "skfiy.native.response",
-          requestId: "tabs-discover-stalled-diagnostics",
-          result: "accepted",
-          bridgeState: "connected",
-          launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-          messageType: TABS_DISCOVER
-        }
+        createNativeResponse(TABS_DISCOVER, "tabs-discover-stalled-diagnostics")
       ], {
         grantedOrigins: ["http://127.0.0.1/*"],
         stalledDiagnosticTabIds: [41],
@@ -1651,15 +1602,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("recovers tab discovery when an extension wake update omits the query string", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "tabs-discover-response",
-        result: "accepted",
-        bridgeState: "connected",
-        launchOrigin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
-        messageType: TABS_DISCOVER
-      }
+      createNativeResponse(TABS_DISCOVER, "tabs-discover-response")
     ], {
       allTabs: [
         {
@@ -2185,50 +2128,6 @@ describe("Chrome extension background policy sync", () => {
     });
   });
 
-  it("executes popup-delegated page action wake before responding to the popup", async () => {
-    const mock = createChromeMock([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: ["http://127.0.0.1/*"],
-      pageActionResults: [
-        { result: "passed", action: "click" }
-      ]
-    });
-    storeLocalhostHostPolicy(mock);
-    mockLocalhostTargetTab(mock);
-    await loadBackground(mock);
-
-    const sendResponse = vi.fn(() => {
-      expect(mock.postedMessages).toHaveLength(1);
-      expect(mock.postedMessages[0]).toMatchObject({
-        type: PAGE_ACTION,
-        requestId: "page-control-click-cli-1",
-        payload: {
-          pageActionResult: {
-            action: "click",
-            requestId: "page-control-click-cli-1"
-          }
-        }
-      });
-    });
-    sendPageControlWake(mock, {
-      wakeId: "popup-click",
-      requestId: "page-control-click-cli-1",
-      targetTabId: 42,
-      wakeAction: "click",
-      selector: "#click-only",
-      text: "",
-      dy: 0
-    }, { sendResponse });
-
-    await waitForAssertion(() => {
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        type: PAGE_CONTROL_WAKE,
-        result: "executed"
-      }));
-    });
-  });
-
   it("deduplicates repeated tab update events for the same action wake URL", async () => {
     const mock = createChromeMock([
       createPageObserveResponse()
@@ -2670,12 +2569,7 @@ describe("Chrome extension background policy sync", () => {
 
   it("schedules a host policy sync when forwarding a native host message", async () => {
     const mock = createChromeMock([
-      {
-        schemaVersion: 1,
-        type: "skfiy.native.response",
-        requestId: "observe-native",
-        result: "accepted"
-      },
+      createNativeResponse(PAGE_OBSERVE, "observe-native"),
       createPolicyResponse({ allowedHosts: ["native-connect.example"] })
     ]);
     await loadBackground(mock);
