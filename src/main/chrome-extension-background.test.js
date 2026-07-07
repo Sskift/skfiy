@@ -284,6 +284,45 @@ function sendRuntimeMessage(mock, message, sender = {}, sendResponse = vi.fn()) 
   };
 }
 
+function dispatchRuntimeInstalled(mock) {
+  mock.chrome.runtime.onInstalled.listeners[0]();
+}
+
+function dispatchRuntimeStartup(mock) {
+  mock.chrome.runtime.onStartup.listeners[0]();
+}
+
+function dispatchTabCreated(mock, tab) {
+  mock.chrome.tabs.onCreated.listeners[0](tab);
+}
+
+function dispatchTabUpdated(mock, tabId, changeInfo, tab) {
+  const listener = mock.chrome.tabs.onUpdated.listeners[0];
+  if (arguments.length > 3) {
+    listener(tabId, changeInfo, tab);
+    return;
+  }
+  listener(tabId, changeInfo);
+}
+
+function dispatchWakeTabCreated(mock, url, { tabId = 99, active = true } = {}) {
+  dispatchTabCreated(mock, {
+    id: tabId,
+    windowId: 7,
+    active,
+    url
+  });
+}
+
+function dispatchWakeTabUpdated(mock, url, { tabId = 99, changeInfo = { status: "complete" }, active } = {}) {
+  dispatchTabUpdated(mock, tabId, changeInfo, {
+    id: tabId,
+    windowId: 7,
+    ...(active === undefined ? {} : { active }),
+    url
+  });
+}
+
 async function waitForAssertion(assertion) {
   let lastError;
   for (let index = 0; index < 25; index += 1) {
@@ -1262,7 +1301,7 @@ describe("Chrome extension background policy sync", () => {
     ]);
     await loadBackground(mock);
 
-    mock.chrome.runtime.onInstalled.listeners[0]();
+    dispatchRuntimeInstalled(mock);
     await waitForAssertion(() => {
       expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
         state: "synced",
@@ -1270,7 +1309,7 @@ describe("Chrome extension background policy sync", () => {
       });
     });
 
-    mock.chrome.runtime.onStartup.listeners[0]();
+    dispatchRuntimeStartup(mock);
     await waitForAssertion(() => {
       expect(mock.storage[HOST_POLICY_SYNC_STORAGE_KEY]).toMatchObject({
         state: "synced",
@@ -1461,12 +1500,10 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    mock.chrome.tabs.onCreated.listeners[0]({
-      id: 99,
-      windowId: 7,
-      active: true,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs-immediate&skfiyWakeAction=tabs&skfiyRequestId=tabs-discover-immediate"
-    });
+    dispatchWakeTabCreated(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs-immediate&skfiyWakeAction=tabs&skfiyRequestId=tabs-discover-immediate"
+    );
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
@@ -1509,12 +1546,10 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    mock.chrome.tabs.onCreated.listeners[0]({
-      id: 99,
-      windowId: 7,
-      active: true,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs-close&skfiyWakeAction=tabs&skfiyRequestId=tabs-discover-close-wake"
-    });
+    dispatchWakeTabCreated(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=created-tabs-close&skfiyWakeAction=tabs&skfiyRequestId=tabs-discover-close-wake"
+    );
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
@@ -1635,12 +1670,11 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, { status: "complete" }, {
-      id: 99,
-      windowId: 7,
-      active: true,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html"
-    });
+    dispatchWakeTabUpdated(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html",
+      { active: true }
+    );
     await new Promise((resolve) => setTimeout(resolve, 450));
 
     await waitForAssertion(() => {
@@ -1681,8 +1715,7 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    expect(mock.chrome.tabs.onUpdated.addListener).toHaveBeenCalledTimes(1);
-    mock.chrome.tabs.onUpdated.listeners[0](42, { status: "complete" });
+    dispatchTabUpdated(mock, 42, { status: "complete" });
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     await waitForAssertion(() => {
@@ -1714,14 +1747,10 @@ describe("Chrome extension background policy sync", () => {
     const mock = createChromeMock([]);
     await loadBackground(mock);
 
-    expect(mock.chrome.tabs.onUpdated.addListener).toHaveBeenCalledTimes(1);
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1"
-    });
+    dispatchWakeTabUpdated(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1"
+    );
 
     await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -1769,13 +1798,10 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42"
-    });
+    dispatchWakeTabUpdated(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42"
+    );
 
     await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -1831,13 +1857,10 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe"
-    });
+    dispatchWakeTabUpdated(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=observe"
+    );
 
     await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -1899,13 +1922,7 @@ describe("Chrome extension background policy sync", () => {
     ];
 
     for (const [index, url] of wakeUrls.entries()) {
-      mock.chrome.tabs.onUpdated.listeners[0](99, {
-        status: "complete"
-      }, {
-        id: 99,
-        windowId: 7,
-        url
-      });
+      dispatchWakeTabUpdated(mock, url);
       await new Promise((resolve) => setTimeout(resolve, 200));
       await waitForAssertion(() => {
         expect(mock.postedMessages).toHaveLength(index + 1);
@@ -2054,13 +2071,7 @@ describe("Chrome extension background policy sync", () => {
     ];
 
     for (const [index, url] of wakeUrls.entries()) {
-      mock.chrome.tabs.onUpdated.listeners[0](99, {
-        status: "complete"
-      }, {
-        id: 99,
-        windowId: 7,
-        url
-      });
+      dispatchWakeTabUpdated(mock, url);
       await new Promise((resolve) => setTimeout(resolve, 200));
       await waitForAssertion(() => {
         expect(mock.postedMessages).toHaveLength(index + 1);
@@ -2225,13 +2236,7 @@ describe("Chrome extension background policy sync", () => {
     await loadBackground(mock);
 
     const wakeUrl = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=popup-fill-race&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiyRequestId=page-control-fill-cli-race&skfiySelector=%23name&skfiyText=skfiy";
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: wakeUrl
-    });
+    dispatchWakeTabUpdated(mock, wakeUrl);
 
     const { sendResponse } = sendRuntimeMessage(mock, {
       type: PAGE_CONTROL_WAKE,
@@ -2365,20 +2370,8 @@ describe("Chrome extension background policy sync", () => {
     await loadBackground(mock);
 
     const url = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=dedupe-1&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiySelector=%23name&skfiyText=skfiy";
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      url
-    }, {
-      id: 99,
-      windowId: 7,
-      url
-    });
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url
-    });
+    dispatchWakeTabUpdated(mock, url, { changeInfo: { url } });
+    dispatchWakeTabUpdated(mock, url);
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
@@ -2426,16 +2419,8 @@ describe("Chrome extension background policy sync", () => {
     const staleUrl = `chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=${now - 600_000}&skfiyTargetTabId=42&skfiyWakeAction=click&skfiyRequestId=page-control-click-cli-stale&skfiySelector=%23click-only`;
     const currentUrl = `chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=${now}&skfiyTargetTabId=42&skfiyWakeAction=fill&skfiyRequestId=page-control-fill-cli-current&skfiySelector=%23name&skfiyText=skfiy`;
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, { status: "complete" }, {
-      id: 99,
-      windowId: 7,
-      url: staleUrl
-    });
-    mock.chrome.tabs.onUpdated.listeners[0](100, { status: "complete" }, {
-      id: 100,
-      windowId: 7,
-      url: currentUrl
-    });
+    dispatchWakeTabUpdated(mock, staleUrl);
+    dispatchWakeTabUpdated(mock, currentUrl, { tabId: 100 });
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
@@ -2479,13 +2464,10 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot"
-    });
+    dispatchWakeTabUpdated(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot"
+    );
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     await waitForAssertion(() => {
@@ -2532,13 +2514,10 @@ describe("Chrome extension background policy sync", () => {
     });
     await loadBackground(mock);
 
-    mock.chrome.tabs.onUpdated.listeners[0](99, {
-      status: "complete"
-    }, {
-      id: 99,
-      windowId: 7,
-      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot&skfiyRequestId=missing-capture-permission"
-    });
+    dispatchWakeTabUpdated(
+      mock,
+      "chrome-extension://abcdefghijklmnopabcdefghijklmnop/popup.html?skfiyWake=1&skfiyTargetTabId=42&skfiyWakeAction=screenshot&skfiyRequestId=missing-capture-permission"
+    );
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     await waitForAssertion(() => {
