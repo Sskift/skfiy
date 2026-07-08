@@ -77,6 +77,7 @@ import {
   readChromeSetupGuideSummary,
   readComputerUseReadiness,
   readDogfoodSummary,
+  readDashboardPanelSummary,
   readHomeSummary,
   readKnowledgeGraph,
   readLatestTaskSignal,
@@ -106,6 +107,7 @@ import {
   type DashboardChromeControlState,
   type DashboardChromeSetupGuideSummary,
   type DashboardComputerUseReadiness,
+  type DashboardPanelCatalogSummary,
   type DashboardDogfoodSummary,
   type DashboardHomeSummary,
   type DashboardLatestTaskSignal,
@@ -469,6 +471,7 @@ function DashboardContent({
   const readiness = useMemo(() => readReadinessSummary(snapshot), [snapshot]);
   const readinessChecks = useMemo(() => readOperatorReadinessChecks(snapshot), [snapshot]);
   const capabilities = useMemo(() => readCapabilitySummaries(snapshot), [snapshot]);
+  const panelCatalog = useMemo(() => readDashboardPanelSummary(snapshot), [snapshot]);
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
   const chromeSetupGuide = useMemo(() => readChromeSetupGuideSummary(snapshot), [snapshot]);
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
@@ -558,6 +561,7 @@ function DashboardContent({
         />
         <OperatorReadinessChecksCard summary={readinessChecks} />
         <RuntimeHealthCard summary={runtimeHealth} />
+        <DashboardPanelCatalogCard summary={panelCatalog} />
         <HomeSummaryCard summary={homeSummary} />
         <AppsSitesSummaryCard summary={appsSitesSummary} />
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--four">
@@ -1133,6 +1137,45 @@ function RuntimeHealthCard({ summary }: { summary: DashboardRuntimeHealthSummary
               <span>{item.label}</span>
               <strong>{item.value}</strong>
               <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function DashboardPanelCatalogCard({ summary }: { summary: DashboardPanelCatalogSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Local descriptor surface</Card.Description>
+        </div>
+        <FileSearch size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+          {summary.items.map((item) => (
+            <StatusChip key={`${item.label}-${item.value}`} tone={item.tone}>
+              {item.label} {item.value}
+            </StatusChip>
+          ))}
+        </div>
+        <ul className="skfiy-dashboard-evidence-list" aria-label="Dashboard panel catalog">
+          {summary.panels.map((panel) => (
+            <li key={panel.id}>
+              <StatusChip tone={panel.tone}>{panel.id}</StatusChip>
+              <strong>{panel.title}</strong>
+              <span>{panel.signalCount} signals · {panel.actionCount} actions</span>
+              <small>
+                {panel.actions.length > 0
+                  ? `actions: ${panel.actions.join(", ")}`
+                  : "read-only panel"}
+              </small>
             </li>
           ))}
         </ul>

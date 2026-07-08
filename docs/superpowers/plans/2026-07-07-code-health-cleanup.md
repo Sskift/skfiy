@@ -116,6 +116,7 @@ Completed in this pass:
 - React Overview now renders fallback runtime health details from the existing snapshot, showing version, app, helper, CLI, dashboard PID/uptime, extension, pageControl, next action, and desktop state without exposing local runtime paths.
 - React Browser control now renders fallback Chrome host-policy diagnostics from the existing snapshot, showing source, updated time, endpoint, and policy host groups without exposing local policy paths.
 - React Agent tools now render the fallback smoke artifact inventory from the existing snapshot, showing target, result, and stale state without exposing artifact paths.
+- React Overview now renders the local Dashboard descriptor panel catalog from the existing snapshot, showing panel, signal, and local action inventory without adding execution controls or exposing token-like descriptor fields.
 
 Acceptance:
 

@@ -18,7 +18,20 @@ const snapshot: DashboardSnapshot = {
     auth: { mode: "optional-token", tokenPrinted: false },
     updates: { transport: "sse", scope: "local-http" },
     eventStore: { mode: "append-only", requiredForExecution: false },
-    panels: []
+    panels: [
+      {
+        id: "runtime-health",
+        title: "Runtime health",
+        signals: ["app", "helper", "dashboard"],
+        actions: []
+      },
+      {
+        id: "app-policy",
+        title: "App policy",
+        signals: ["app-allow-ask-deny", "chrome-host-allow-ask-deny"],
+        actions: ["show-chrome-host-policy", "set-chrome-host-policy", "reset-chrome-host-policy"]
+      }
+    ]
   },
   runtimeHealth: {
     package: { version: "0.1.0" },
@@ -384,6 +397,16 @@ describe("DashboardApp", () => {
     expect(within(runtimeHealth).getByText("capable/ready")).toBeInTheDocument();
     expect(within(runtimeHealth).getByText("pageControl next")).toBeInTheDocument();
     expect(within(runtimeHealth).getByText("Use pageControl actions.")).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Dashboard panels" })).toBeInTheDocument();
+    const panelCatalog = within(overview).getByRole("list", { name: "Dashboard panel catalog" });
+    expect(within(panelCatalog).getByText("runtime-health")).toBeInTheDocument();
+    expect(within(panelCatalog).getByText("3 signals · 0 actions")).toBeInTheDocument();
+    expect(within(panelCatalog).getByText("read-only panel")).toBeInTheDocument();
+    expect(within(panelCatalog).getByText("app-policy")).toBeInTheDocument();
+    expect(within(panelCatalog).getByText("2 signals · 3 actions")).toBeInTheDocument();
+    expect(within(panelCatalog).getByText(
+      "actions: show-chrome-host-policy, set-chrome-host-policy, reset-chrome-host-policy"
+    )).toBeInTheDocument();
 
     const provider = screen.getByRole("region", { name: "Background Agent" });
     expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();

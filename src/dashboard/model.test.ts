@@ -10,6 +10,7 @@ import {
   readChromeControlState,
   readChromeSetupGuideSummary,
   readComputerUseReadiness,
+  readDashboardPanelSummary,
   readDogfoodSummary,
   readHomeSummary,
   readKnowledgeGraph,
@@ -25,6 +26,63 @@ import {
   readSmokeArtifactInventory,
   readSmokeArtifactDetails
 } from "./model";
+
+describe("readDashboardPanelSummary", () => {
+  it("summarizes local descriptor panels without exposing token-like descriptor fields", () => {
+    const snapshot = createSnapshot();
+    const summary = readDashboardPanelSummary({
+      ...snapshot,
+      descriptor: {
+        ...snapshot.descriptor,
+        auth: { mode: "optional-token", token: "secret-dashboard-token" },
+        panels: [
+          {
+            id: "runtime-health",
+            title: "Runtime health",
+            signals: ["app", "helper", "dashboard"],
+            actions: []
+          },
+          {
+            id: "app-policy",
+            title: "App policy",
+            signals: ["app-allow-ask-deny", "chrome-host-allow-ask-deny"],
+            actions: ["show-chrome-host-policy", "set-chrome-host-policy", "reset-chrome-host-policy"]
+          }
+        ]
+      }
+    });
+
+    expect(summary).toMatchObject({
+      title: "Dashboard panels",
+      value: "2 panels",
+      detail: "5 signals and 3 local actions are advertised by the local descriptor.",
+      tone: "success",
+      panels: [
+        {
+          id: "runtime-health",
+          title: "Runtime health",
+          signalCount: 3,
+          actionCount: 0,
+          tone: "neutral"
+        },
+        {
+          id: "app-policy",
+          title: "App policy",
+          signalCount: 2,
+          actionCount: 3,
+          tone: "warning"
+        }
+      ]
+    });
+    expect(summary.items).toEqual(expect.arrayContaining([
+      { label: "bind", value: "127.0.0.1:51234", tone: "neutral" },
+      { label: "auth", value: "optional-token", tone: "neutral" },
+      { label: "updates", value: "sse", tone: "neutral" },
+      { label: "actions", value: "3", tone: "warning" }
+    ]));
+    expect(JSON.stringify(summary)).not.toContain("secret-dashboard-token");
+  });
+});
 
 describe("readKnowledgeGraph", () => {
   it("connects memory, sessions, provider, browser context, Computer Use, and alerts", () => {

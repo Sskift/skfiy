@@ -147,6 +147,25 @@ export interface DashboardCapabilitySummary {
   tone: Tone;
 }
 
+export interface DashboardPanelCatalogItem {
+  id: string;
+  title: string;
+  signalCount: number;
+  actionCount: number;
+  signals: string[];
+  actions: string[];
+  tone: Tone;
+}
+
+export interface DashboardPanelCatalogSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+  panels: DashboardPanelCatalogItem[];
+}
+
 export interface DashboardRecentActivity {
   latestMessage: string;
   turnState: string;
@@ -2349,6 +2368,52 @@ export function readCapabilitySummaries(snapshot: DashboardSnapshot): DashboardC
       tone: latestSignal.tone
     }
   ];
+}
+
+export function readDashboardPanelSummary(snapshot: DashboardSnapshot): DashboardPanelCatalogSummary {
+  const panels = readRecordArray(snapshot.descriptor.panels).map(readDashboardPanelCatalogItem);
+  const signalCount = panels.reduce((total, panel) => total + panel.signalCount, 0);
+  const actionCount = panels.reduce((total, panel) => total + panel.actionCount, 0);
+  const auth = readRecord(snapshot.descriptor.auth);
+  const updates = readRecord(snapshot.descriptor.updates);
+  const eventStore = readRecord(snapshot.descriptor.eventStore);
+  const bind = snapshot.descriptor.bind;
+  const tone: Tone = panels.length > 0 ? "success" : "warning";
+
+  return {
+    title: "Dashboard panels",
+    value: panels.length === 0 ? "no panels" : `${panels.length} panels`,
+    detail: panels.length === 0
+      ? "The dashboard descriptor did not advertise any operator panels."
+      : `${signalCount} signals and ${actionCount} local action${actionCount === 1 ? "" : "s"} are advertised by the local descriptor.`,
+    tone,
+    items: [
+      createStatusItem("bind", `${bind.host}:${bind.port}`),
+      createStatusItem("auth", readString(auth?.mode) ?? "unknown"),
+      createStatusItem("updates", readString(updates?.transport) ?? "unknown"),
+      createStatusItem("event store", readString(eventStore?.mode) ?? "unknown"),
+      createStatusItem("signals", signalCount),
+      createStatusItem("actions", actionCount, actionCount > 0 ? "warning" : "neutral")
+    ],
+    panels
+  };
+}
+
+function readDashboardPanelCatalogItem(panel: Record<string, unknown>): DashboardPanelCatalogItem {
+  const id = readString(panel.id) ?? "unknown-panel";
+  const title = readString(panel.title) ?? titleize(id);
+  const signals = readStringArray(panel.signals);
+  const actions = readStringArray(panel.actions);
+
+  return {
+    id,
+    title,
+    signalCount: signals.length,
+    actionCount: actions.length,
+    signals,
+    actions,
+    tone: actions.length > 0 ? "warning" : "neutral"
+  };
 }
 
 export function readAssistantProviderView(snapshot: DashboardSnapshot): DashboardAssistantProviderView {
