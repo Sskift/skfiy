@@ -80,6 +80,7 @@ export interface DashboardSnapshot {
   operatorReadiness: Record<string, unknown>;
   permissions: Record<string, unknown>;
   currentTurn: Record<string, unknown>;
+  routeOutcome?: Record<string, unknown>;
   replay: Record<string, unknown>;
   smokeEvidence: {
     artifacts: Array<Record<string, unknown>>;

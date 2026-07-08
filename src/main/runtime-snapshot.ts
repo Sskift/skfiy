@@ -7,6 +7,8 @@ import type {
 } from "./computer-use/turn-transcript.js";
 import { readRecord } from "./record-utils.js";
 import {
+  isRouteOutcomeKind,
+  isRouteOutcomeTone,
   readRouteOutcome,
   type RouteOutcome
 } from "../shared/route-outcome.js";
@@ -273,6 +275,7 @@ export function readRuntimeSnapshotPanels({
   io
 }: RuntimeSnapshotReadInput): {
   currentTurn: Record<string, unknown>;
+  routeOutcome?: RouteOutcome;
   replay: Record<string, unknown>;
 } {
   if (!homeDir) {
@@ -288,6 +291,7 @@ export function readRuntimeSnapshotPanels({
     const parsed = JSON.parse(io.readFile(snapshotPath)) as unknown;
     const snapshot = readRecord(parsed);
     const currentTurn = readRecord(snapshot?.currentTurn);
+    const routeOutcome = readRuntimeRouteOutcomeRecord(snapshot?.routeOutcome);
     const replay = readRecord(snapshot?.replay);
 
     if (snapshot?.schemaVersion !== RUNTIME_SNAPSHOT_SCHEMA_VERSION || !currentTurn || !replay) {
@@ -296,6 +300,7 @@ export function readRuntimeSnapshotPanels({
 
     return {
       currentTurn: { ...currentTurn },
+      ...(routeOutcome ? { routeOutcome } : {}),
       replay: { ...replay }
     };
   } catch (error) {
@@ -304,6 +309,51 @@ export function readRuntimeSnapshotPanels({
       snapshotPath
     );
   }
+}
+
+function readRuntimeRouteOutcomeRecord(value: unknown): RouteOutcome | undefined {
+  const record = readRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  const kind = readRuntimeRouteOutcomeKind(record.kind);
+  const title = readRuntimeRouteOutcomeString(record.title);
+  const outcomeValue = readRuntimeRouteOutcomeString(record.value);
+  const detail = readRuntimeRouteOutcomeString(record.detail);
+  const tone = readRuntimeRouteOutcomeTone(record.tone);
+  const source = readRuntimeRouteOutcomeString(record.source);
+  const routeLabel = readRuntimeRouteOutcomeString(record.routeLabel);
+  const state = readRuntimeRouteOutcomeString(record.state);
+
+  if (!kind || !title || !outcomeValue || !detail || !tone || !source || !routeLabel || !state) {
+    return undefined;
+  }
+
+  return {
+    kind,
+    title,
+    value: outcomeValue,
+    detail,
+    tone,
+    source,
+    routeLabel,
+    state
+  };
+}
+
+function readRuntimeRouteOutcomeKind(value: unknown): RouteOutcome["kind"] | undefined {
+  return isRouteOutcomeKind(value) ? value : undefined;
+}
+
+function readRuntimeRouteOutcomeTone(value: unknown): RouteOutcome["tone"] | undefined {
+  return isRouteOutcomeTone(value) ? value : undefined;
+}
+
+function readRuntimeRouteOutcomeString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0
+    ? sanitizeRuntimeSnapshotText(value)
+    : undefined;
 }
 
 function createMissingRuntimePanels(

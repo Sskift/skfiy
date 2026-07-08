@@ -202,6 +202,62 @@ describe("dashboard evidence summary", () => {
     expect(JSON.stringify(lane)).not.toContain("secret-token");
   });
 
+  it("uses explicit runtime route outcome in the operator evidence lane", () => {
+    const descriptor = createDashboardDescriptor({ port: 8787 });
+    const snapshot: DashboardSnapshot = {
+      schemaVersion: 1,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      descriptor,
+      runtimeHealth: {
+        dashboard: { state: "running", url: descriptor.url },
+        extension: { state: "connected", liveConnection: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      operatorReadiness: { state: "ready" },
+      permissions: {},
+      currentTurn: {
+        state: "executing",
+        command: "still running"
+      },
+      routeOutcome: {
+        kind: "needs_confirmation",
+        title: "Route needs confirmation",
+        value: "needs_confirmation",
+        detail: "Runtime replay needs a human verification check for token=secret-token.",
+        tone: "warning",
+        source: "runtime-snapshot",
+        routeLabel: "Ghostty",
+        state: "needs_confirmation"
+      },
+      replay: { state: "available" },
+      smokeEvidence: { artifacts: [] },
+      dogfoodRelease: { state: "unknown" },
+      longHorizon: { state: "observing" },
+      alerts: []
+    };
+
+    const lane = createDashboardEvidenceSummary({ descriptor, snapshot }).lanes
+      .find((entry) => entry.id === "computer-use-operator");
+
+    expect(lane).toMatchObject({
+      checks: expect.arrayContaining([
+        {
+          id: "route-outcome",
+          label: "Route outcome",
+          state: "needs-evidence",
+          value: "needs_confirmation"
+        },
+        {
+          id: "route-detail",
+          label: "Route detail",
+          state: "needs-evidence",
+          value: "Runtime replay needs a human verification check for token=redacted-secret"
+        }
+      ])
+    });
+    expect(JSON.stringify(lane)).not.toContain("secret-token");
+  });
+
   it("keeps Chrome host policy denial distinct in the operator evidence lane", () => {
     const descriptor = createDashboardDescriptor({ port: 8787 });
     const snapshot: DashboardSnapshot = {

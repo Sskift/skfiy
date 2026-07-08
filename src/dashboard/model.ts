@@ -11,6 +11,8 @@ import type {
   DashboardSnapshot
 } from "./contracts";
 import {
+  isRouteOutcomeKind,
+  isRouteOutcomeTone,
   readRouteOutcome as readSharedRouteOutcome,
   type RouteOutcome,
   type RouteOutcomeKind
@@ -2990,12 +2992,55 @@ function readHomeNextAction(
 }
 
 export function readRouteOutcome(snapshot: DashboardSnapshot): DashboardRouteOutcome {
+  const explicit = readDashboardRouteOutcome(snapshot.routeOutcome);
+  if (explicit) {
+    return explicit;
+  }
+
   return readSharedRouteOutcome({
     currentTurn: snapshot.currentTurn,
     replay: snapshot.replay,
     defaultSource: "Current turn",
     includeCommandDetail: true
   });
+}
+
+function readDashboardRouteOutcome(value: unknown): DashboardRouteOutcome | undefined {
+  const record = readRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  const kind = readRouteOutcomeKind(record.kind);
+  const title = readString(record.title);
+  const outcomeValue = readString(record.value);
+  const detail = readString(record.detail);
+  const tone = readRouteOutcomeTone(record.tone);
+  const source = readString(record.source);
+  const routeLabel = readString(record.routeLabel);
+  const state = readString(record.state);
+  if (!kind || !title || !outcomeValue || !detail || !tone || !source || !routeLabel || !state) {
+    return undefined;
+  }
+
+  return {
+    kind,
+    title,
+    value: outcomeValue,
+    detail,
+    tone,
+    source,
+    routeLabel,
+    state
+  };
+}
+
+function readRouteOutcomeKind(value: unknown): RouteOutcomeKind | undefined {
+  return isRouteOutcomeKind(value) ? value : undefined;
+}
+
+function readRouteOutcomeTone(value: unknown): RouteOutcome["tone"] | undefined {
+  return isRouteOutcomeTone(value) ? value : undefined;
 }
 
 export function readLatestTaskSignal(snapshot: DashboardSnapshot): DashboardLatestTaskSignal {

@@ -675,6 +675,11 @@ describe("runtime snapshot", () => {
         command: "pwd",
         source: "runtime-snapshot"
       },
+      routeOutcome: {
+        kind: "approval_required",
+        state: "approval_required",
+        routeLabel: "Ghostty"
+      },
       replay: {
         state: "available",
         screenshotCount: 1,

@@ -2143,6 +2143,36 @@ describe("readPersonalMutationReceipt", () => {
 });
 
 describe("readRouteOutcome", () => {
+  it("uses an explicit snapshot route outcome before reclassifying current turn fields", () => {
+    const outcome = readRouteOutcome({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "executing",
+        command: "still running"
+      },
+      routeOutcome: {
+        kind: "needs_confirmation",
+        title: "Route needs confirmation",
+        value: "needs_confirmation",
+        detail: "Runtime replay needs a human verification check.",
+        tone: "warning",
+        source: "runtime-snapshot",
+        routeLabel: "Ghostty",
+        state: "needs_confirmation"
+      }
+    });
+
+    expect(outcome).toMatchObject({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Runtime replay needs a human verification check.",
+      source: "runtime-snapshot",
+      routeLabel: "Ghostty",
+      state: "needs_confirmation"
+    });
+  });
+
   it.each([
     [
       "app-policy denial",

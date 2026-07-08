@@ -16,6 +16,30 @@ export type RouteOutcomeKind =
   | "completed"
   | "unknown";
 
+export const ROUTE_OUTCOME_KINDS: readonly RouteOutcomeKind[] = [
+  "idle",
+  "running",
+  "approval_required",
+  "needs_confirmation",
+  "needs_clarification",
+  "app_policy_denied",
+  "chrome_host_policy_denied",
+  "user_denied",
+  "blocked",
+  "cancelled",
+  "stopped",
+  "failed",
+  "completed",
+  "unknown"
+];
+
+export const ROUTE_OUTCOME_TONES: readonly RouteOutcomeTone[] = [
+  "success",
+  "warning",
+  "danger",
+  "neutral"
+];
+
 export interface RouteOutcome {
   kind: RouteOutcomeKind;
   title: string;
@@ -33,6 +57,14 @@ export interface RouteOutcomeInput {
   defaultSource?: string;
   includeCommandDetail?: boolean;
   sanitizeString?: (value: string) => string | undefined;
+}
+
+export function isRouteOutcomeKind(value: unknown): value is RouteOutcomeKind {
+  return typeof value === "string" && ROUTE_OUTCOME_KINDS.includes(value as RouteOutcomeKind);
+}
+
+export function isRouteOutcomeTone(value: unknown): value is RouteOutcomeTone {
+  return typeof value === "string" && ROUTE_OUTCOME_TONES.includes(value as RouteOutcomeTone);
 }
 
 export function readRouteOutcome({

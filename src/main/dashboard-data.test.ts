@@ -627,6 +627,16 @@ describe("dashboard snapshot data", () => {
         risk: "medium",
         agentProvider: "Codex"
       },
+      routeOutcome: {
+        kind: "approval_required",
+        title: "Route approval required",
+        value: "approval_required",
+        detail: "整理 Finder 当前文件夹",
+        tone: "warning",
+        source: "Current turn",
+        routeLabel: "Finder",
+        state: "approval_required"
+      },
       replay: {
         state: "available",
         screenshotCount: 2,
@@ -753,6 +763,16 @@ describe("dashboard snapshot data", () => {
         targetApp: "Finder",
         risk: "medium",
         agentProvider: "Codex"
+      },
+      routeOutcome: {
+        kind: "approval_required",
+        title: "Route approval required",
+        value: "approval_required",
+        detail: "整理 Finder 当前文件夹",
+        tone: "warning",
+        source: "Current turn",
+        routeLabel: "Finder",
+        state: "approval_required"
       },
       replay: {
         state: "available",
@@ -1536,6 +1556,16 @@ describe("dashboard snapshot data", () => {
           latestMessage: "Approval required (low): Read-only terminal command.",
           source: "runtime-snapshot"
         },
+        routeOutcome: {
+          kind: "needs_confirmation",
+          title: "Route needs confirmation",
+          value: "needs_confirmation",
+          detail: "Runtime replay needs a human verification check.",
+          tone: "warning",
+          source: "runtime-snapshot",
+          routeLabel: "Ghostty",
+          state: "needs_confirmation"
+        },
         replay: {
           state: "available",
           outcome: "running",
@@ -1864,6 +1894,16 @@ describe("dashboard snapshot data", () => {
       approvalRequired: true,
       latestMessage: "Approval required (low): Read-only terminal command.",
       source: "runtime-snapshot"
+    });
+    expect(snapshot.routeOutcome).toEqual({
+      kind: "needs_confirmation",
+      title: "Route needs confirmation",
+      value: "needs_confirmation",
+      detail: "Runtime replay needs a human verification check.",
+      tone: "warning",
+      source: "runtime-snapshot",
+      routeLabel: "Ghostty",
+      state: "needs_confirmation"
     });
     expect(snapshot.replay).toMatchObject({
       state: "available",
