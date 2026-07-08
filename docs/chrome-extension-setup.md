@@ -316,7 +316,7 @@ the heartbeat file matches the loaded `chrome-extension://.../` origin. The
 `skfiy.page_control.health` protocol. `installedExtensionRun.readinessSnapshot`
 summarizes manifest id/version, Native Messaging handshake state, health
 protocol state, content-script state, and pageControl state in one small
-contract for dashboards or handoff reports.
+contract for dashboards or dogfood reports.
 
 ## Chromium Dashboard Dogfood
 

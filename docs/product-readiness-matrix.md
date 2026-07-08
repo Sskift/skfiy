@@ -29,7 +29,7 @@ QA/SRE gates, and real-scenario acceptance rules.
    passing or explicitly blocked by a manual macOS authorization/preflight state.
 5. Keep exactly one active plan under `docs/superpowers/plans/`. Keep
    `docs/decisions/` limited to ADR context; fold operational steps into the
-   active plan or canonical docs so stale handoffs do not compete with current
+   active plan or canonical docs so stale local reports do not compete with current
    direction.
 
 ## Product Boundary
@@ -115,7 +115,7 @@ workstream is ready to claim:
 ## Release Evidence Policy
 
 `docs/release-evidence/latest-alpha.json` is the only checked-in release
-pointer. Local smoke artifacts, alpha zips, handoffs, and dogfood downloads are
+pointer. Local smoke artifacts, alpha zips, and dogfood downloads are
 workspace artifacts, not durable planning docs. Keep them ignored by git unless
 the release workflow explicitly records a new canonical pointer.
 
@@ -137,19 +137,17 @@ npm run build
 ```
 
 Add focused tests for the touched workstream before the full gate. For default
-development verification, run packaged smokes without `--output`; add
-commit-scoped output paths only when product behavior or release evidence
-requires an artifact:
+development verification, run packaged smokes without `--output`:
 
 ```bash
-npm run smoke:ui -- --app dist/skfiy.app --require-passed --output .skfiy-smoke/ui-<commit>.json
-npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed --output .skfiy-smoke/ghostty-<commit>.json
-npm run smoke:chrome -- --app dist/skfiy.app --extension-chrome-app "Chromium" --extension-id <id> --require-passed --output .skfiy-smoke/chrome-<commit>.json
-npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed --output .skfiy-smoke/finder-<commit>.json
-npm run smoke:dashboard -- --cli dist/skfiy --extension-chrome-app "Chromium" --extension-id <id> --require-passed --output .skfiy-smoke/dashboard-<commit>.json
-npm run smoke:money-run -- --app dist/skfiy.app --session money-run --require-passed --output .skfiy-smoke/money-run-<commit>.json
+npm run smoke:ui -- --app dist/skfiy.app --require-passed
+npm run smoke:ghostty -- --app dist/skfiy.app --matrix --require-passed
+npm run smoke:chrome -- --app dist/skfiy.app --extension-chrome-app "Chromium" --extension-id <id> --require-passed
+npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed
+npm run smoke:dashboard -- --cli dist/skfiy --extension-chrome-app "Chromium" --extension-id <id> --require-passed
+npm run smoke:money-run -- --app dist/skfiy.app --session money-run --require-passed
 ```
 
-If a smoke is skipped for manual authorization, record the exact blocker,
-artifact path if produced, and next rerun command in the handoff or dogfood
-status output.
+Add commit-scoped output paths only for explicit release, dogfood, or debugging
+evidence capture. If a smoke is skipped for manual authorization, record the
+exact typed blocker in the release or dogfood status output.

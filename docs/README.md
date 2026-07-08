@@ -43,4 +43,4 @@ are ignored by git. Preserve current smoke/release evidence while an issue,
 release, or dogfood run is active. Old alpha packages, stale local smoke copies,
 dogfood downloads for superseded commits, `.DS_Store`, and helper build caches
 can be deleted locally once they are no longer referenced by
-`release-evidence/latest-alpha.json` or an active handoff.
+`release-evidence/latest-alpha.json` or an active release/dogfood run.

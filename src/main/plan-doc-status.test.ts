@@ -192,7 +192,8 @@ describe("implementation plan status docs", () => {
       /^\s*Latest local alpha evidence recorded during this cleanup:/im,
       /\bcurrent supervisor queue\b/i,
       /\bcleanup batch\b/i,
-      /\bsubagent audits converged\b/i
+      /\bsubagent audits converged\b/i,
+      /\bactive handoff\b/i
     ];
     const staleDocs = canonicalDocPaths.filter((docPath) => {
       const contents = readFileSync(path.join(process.cwd(), docPath), "utf8");
@@ -237,6 +238,19 @@ describe("implementation plan status docs", () => {
     expect(readme).toContain("npm run smoke:finder -- --app dist/skfiy.app --item-drag-drop --require-passed");
     expect(readme).toContain("For release or dogfood evidence capture");
     expect(readme).not.toContain("skfiy-alpha-2e292e9");
+  });
+
+  it("keeps product readiness default smoke examples output-free", () => {
+    const readiness = readFileSync(
+      path.join(process.cwd(), "docs", "product-readiness-matrix.md"),
+      "utf8"
+    );
+
+    expect(readiness).toContain("For default\ndevelopment verification, run packaged smokes without `--output`");
+    expect(readiness).toContain("npm run smoke:dashboard -- --cli dist/skfiy");
+    expect(readiness).toContain("Add commit-scoped output paths only for explicit release, dogfood, or debugging");
+    expect(readiness).not.toContain("--output .skfiy-smoke");
+    expect(readiness).not.toContain("active handoff");
   });
 
   it("keeps latest published alpha release evidence internally consistent without voice artifacts", () => {
