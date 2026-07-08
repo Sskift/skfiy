@@ -9,7 +9,7 @@
 - Background Agent provider selection remains separate from Computer Use Planner selection.
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
-- The current code-health pass has already removed the old retired-plan doc shape, slimmed the CLI command surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
+- The current code-health pass has already removed the old retired-plan doc shape, deleted retired dated implementation plans from live docs, slimmed the CLI command surface down to an export-only surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
 ## Plan Hygiene
@@ -19,6 +19,7 @@
 - Dated decision records under `docs/decisions/` are ADR-only context. They must not contain active plan sections, task status blocks, next-work queues, checklists, focused verification blocks, or references to active plan paths.
 - Date-stamped Markdown in the repository is allowed only for this active plan and durable ADRs under `docs/decisions/`.
 - Markdown dated before the active plan date is retired implementation material unless it is a durable ADR under `docs/decisions/`; delete it from the live repo tree instead of renaming, archiving, or parking it.
+- Old 2026-06 implementation plans, including 2026-06-23-era plan material, must remain absent from the live repo tree. Keep only durable ADRs under `docs/decisions/` and current canonical docs.
 - Treat plan cleanup as a file-tree and reference invariant: one active plan file, zero retired dated implementation Markdown files, zero stale handoff/checklist Markdown files, and zero stale workflow references to old plan paths across docs, scripts, tests, package metadata, and AGENTS.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.
 
@@ -36,11 +37,12 @@ Keep changes product-facing but narrow:
 ## Next Work Order
 
 1. Keep plan/doc hygiene green before code-health work: one active plan, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no workflow references to old plan paths.
-2. Keep slimming the large code-health hotspots in small cuts: `src/main/cli-command-surface.ts`, low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
-3. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
-4. Finish the remaining safe Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage.
-5. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
-6. Run product readiness gates after each focused feature commit. If a product smoke is blocked by local macOS/Chrome state, report the exact typed blocker.
+2. Treat `src/main/cli-command-surface.ts` as already slimmed unless a regression reintroduces dispatch/status assembly there. Keep new CLI behavior in owned modules with focused tests.
+3. Keep slimming remaining code-health hotspots in small cuts: low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
+4. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
+5. Finish the remaining safe Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage.
+6. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
+7. Run product readiness gates after each focused feature commit. If a product smoke is blocked by local macOS/Chrome state, report the exact typed blocker.
 
 ## File Ownership Map
 
@@ -113,7 +115,7 @@ Status: in progress.
 
 Keep slimming scoped to product-owned hotspots and pure logic extraction:
 
-- further split `src/main/cli-command-surface.ts` status assembly and command dispatch,
+- keep `src/main/cli-command-surface.ts` as a thin export surface; do not move command dispatch or status assembly back into it,
 - remove repeated fixtures and low-value coverage from `src/main/chrome-extension-background.test.js`,
 - extract pure helpers from `src/renderer/App.tsx` and `src/main/main.ts` without changing UI behavior,
 - keep default smoke runs silent and avoid new evidence/artifact output unless explicitly requested.
