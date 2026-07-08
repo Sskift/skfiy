@@ -87,6 +87,7 @@ import {
   readOperatorReadinessChecks,
   readPersonalMutationReceipt,
   readProviderSummaries,
+  readPromptStackSummary,
   readReadinessSummary,
   readRecentActivity,
   readRouteOutcome,
@@ -116,6 +117,7 @@ import {
   type DashboardNextAction,
   type DashboardOperatorEvidenceSummary,
   type DashboardOperatorReadinessChecks,
+  type DashboardPromptStackSummary,
   type DashboardReadinessSummary,
   type DashboardRecentActivity,
   type DashboardRouteOutcome,
@@ -481,6 +483,7 @@ function DashboardContent({
   const smokeArtifactDetails = useMemo(() => readSmokeArtifactDetails(snapshot), [snapshot]);
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
+  const promptStack = useMemo(() => readPromptStackSummary(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
   const homeSummary = useMemo(() => readHomeSummary(snapshot), [snapshot]);
   const appsSitesSummary = useMemo(() => readAppsSitesSummary(snapshot), [snapshot]);
@@ -604,6 +607,7 @@ function DashboardContent({
             isSaving={isProviderSettingsSaving}
             onSubmit={onSubmitPlannerProviderSettings}
           />
+          <PromptStackCard summary={promptStack} />
         </div>
       </section>
 
@@ -2222,6 +2226,40 @@ function ProviderCard({
             ) : null}
           </div>
         ) : null}
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function PromptStackCard({ summary }: { summary: DashboardPromptStackSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>Background Agent context</Card.Description>
+          <Card.Title>{summary.title}</Card.Title>
+        </div>
+        <Bot size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+          {summary.items.map((item) => (
+            <StatusChip key={`${item.label}-${item.value}`} tone={item.tone}>
+              {item.label} {item.value}
+            </StatusChip>
+          ))}
+        </div>
+        <ul className="skfiy-dashboard-evidence-list" aria-label="Prompt stack blocks">
+          {summary.blocks.map((block) => (
+            <li key={block.id}>
+              <StatusChip tone={block.tone}>{block.value}</StatusChip>
+              <strong>{block.label}</strong>
+              <span>{block.detail}</span>
+            </li>
+          ))}
+        </ul>
       </Card.Content>
     </Card.Root>
   );

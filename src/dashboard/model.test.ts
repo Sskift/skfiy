@@ -20,12 +20,75 @@ import {
   readOperatorEvidenceSummary,
   readOperatorReadinessChecks,
   readPersonalMutationReceipt,
+  readPromptStackSummary,
   readRouteOutcome,
   readRuntimeSnapshotDetails,
   readRuntimeHealthSummary,
   readSmokeArtifactInventory,
   readSmokeArtifactDetails
 } from "./model";
+
+describe("readPromptStackSummary", () => {
+  it("summarizes prompt context blocks without echoing memory text or provider secrets", () => {
+    const snapshot = createSnapshot();
+    const summary = readPromptStackSummary({
+      ...snapshot,
+      providers: {
+        ...snapshot.providers,
+        assistant: {
+          provider: "assistant",
+          mode: "codex",
+          label: "Codex",
+          health: "available",
+          endpoint: "https://provider.example.test/chat?token=secret-provider-token"
+        }
+      }
+    });
+
+    expect(summary).toMatchObject({
+      title: "Prompt stack",
+      value: "6/7 ready",
+      detail: "Snapshot-backed Background Agent prompt context inventory.",
+      tone: "warning"
+    });
+    expect(summary.items).toEqual(expect.arrayContaining([
+      { label: "memory", value: "2 durable entries", tone: "success" },
+      { label: "session recall", value: "2 recent", tone: "success" },
+      { label: "skills", value: "2", tone: "success" },
+      { label: "working profile", value: "present", tone: "success" },
+      { label: "Browser Context", value: "ready", tone: "success" },
+      { label: "route", value: "approval_required", tone: "warning" }
+    ]));
+    expect(summary.blocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "identity",
+        label: "Background Agent identity",
+        value: "Codex (codex)",
+        tone: "success"
+      }),
+      expect.objectContaining({
+        id: "memory",
+        label: "Personal memory",
+        value: "1 user / 1 agent",
+        detail: "1 pending write stays outside durable prompt memory."
+      }),
+      expect.objectContaining({
+        id: "session-recall",
+        label: "Session recall",
+        value: "2/3 recent"
+      }),
+      expect.objectContaining({
+        id: "route-context",
+        label: "Route context",
+        value: "approval_required",
+        tone: "warning"
+      })
+    ]));
+    expect(JSON.stringify(summary)).not.toContain("User prefers concise Chinese updates.");
+    expect(JSON.stringify(summary)).not.toContain("Summarize current dashboard state.");
+    expect(JSON.stringify(summary)).not.toContain("secret-provider-token");
+  });
+});
 
 describe("readDashboardPanelSummary", () => {
   it("summarizes local descriptor panels without exposing token-like descriptor fields", () => {

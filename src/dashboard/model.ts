@@ -166,6 +166,23 @@ export interface DashboardPanelCatalogSummary {
   panels: DashboardPanelCatalogItem[];
 }
 
+export interface DashboardPromptStackBlock {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+}
+
+export interface DashboardPromptStackSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+  blocks: DashboardPromptStackBlock[];
+}
+
 export interface DashboardRecentActivity {
   latestMessage: string;
   turnState: string;
@@ -2396,6 +2413,100 @@ export function readDashboardPanelSummary(snapshot: DashboardSnapshot): Dashboar
       createStatusItem("actions", actionCount, actionCount > 0 ? "warning" : "neutral")
     ],
     panels
+  };
+}
+
+export function readPromptStackSummary(snapshot: DashboardSnapshot): DashboardPromptStackSummary {
+  const providers = readProviderSummaries(snapshot);
+  const assistant = providers.find((provider) => provider.provider === "assistant") ?? providers[0];
+  const memory = snapshot.personalMemory;
+  const browserContext = readBrowserContextSummary(snapshot);
+  const routeOutcome = readRouteOutcome(snapshot);
+  const userEntryCount = memory?.userEntryCount ?? 0;
+  const agentEntryCount = memory?.agentEntryCount ?? 0;
+  const sessionCount = memory?.sessionCount ?? 0;
+  const recalledSessionCount = memory?.recentSessions?.length ?? (memory?.latestSession ? 1 : 0);
+  const skillCount = memory?.personalSkills?.length ?? 0;
+  const pendingWriteCount = memory?.pendingWriteCount ?? memory?.pendingWrites?.length ?? 0;
+  const workingProfile = memory?.workingProfile;
+  const blocks: DashboardPromptStackBlock[] = [
+    {
+      id: "identity",
+      label: "Background Agent identity",
+      value: assistant ? `${assistant.label} (${assistant.mode})` : "unknown",
+      detail: "Provider identity is tracked separately from Computer Use Planner settings.",
+      tone: assistant && assistant.health !== "unavailable" ? "success" : "warning"
+    },
+    {
+      id: "memory",
+      label: "Personal memory",
+      value: `${userEntryCount} user / ${agentEntryCount} agent`,
+      detail: pendingWriteCount > 0
+        ? `${pendingWriteCount} pending ${pendingWriteCount === 1 ? "write stays" : "writes stay"} outside durable prompt memory.`
+        : "Durable memory counts are available for prompt context.",
+      tone: userEntryCount + agentEntryCount > 0 ? "success" : "neutral"
+    },
+    {
+      id: "session-recall",
+      label: "Session recall",
+      value: `${recalledSessionCount}/${sessionCount} recent`,
+      detail: recalledSessionCount > 0
+        ? "Recent session recall is available without echoing session text."
+        : "No recalled sessions are present in the snapshot.",
+      tone: recalledSessionCount > 0 ? "success" : "neutral"
+    },
+    {
+      id: "personal-skills",
+      label: "Personal skills",
+      value: `${skillCount} skill${skillCount === 1 ? "" : "s"}`,
+      detail: skillCount > 0
+        ? "Distilled skill hints are available without exposing raw evidence text."
+        : "No distilled personal skills are available yet.",
+      tone: skillCount > 0 ? "success" : "neutral"
+    },
+    {
+      id: "working-profile",
+      label: "Working profile",
+      value: workingProfile ? workingProfile.source : "missing",
+      detail: workingProfile
+        ? `${workingProfile.skillCount} skills, ${workingProfile.sessionCount} sessions, ${workingProfile.memoryEntryCount} memory entries shape the portable profile.`
+        : "No derived working profile is present in the snapshot.",
+      tone: workingProfile ? "success" : "neutral"
+    },
+    {
+      id: "browser-context",
+      label: "Browser Context",
+      value: browserContext.state,
+      detail: browserContext.title ?? browserContext.url ?? browserContext.reason,
+      tone: browserContext.tone
+    },
+    {
+      id: "route-context",
+      label: "Route context",
+      value: routeOutcome.value,
+      detail: routeOutcome.detail,
+      tone: routeOutcome.kind === "idle" ? "success" : routeOutcome.tone
+    }
+  ];
+  const warningCount = blocks.filter((block) => block.tone === "warning").length;
+  const dangerCount = blocks.filter((block) => block.tone === "danger").length;
+  const readyCount = blocks.filter((block) => block.tone === "success").length;
+  const tone: Tone = dangerCount > 0 ? "danger" : warningCount > 0 ? "warning" : "success";
+
+  return {
+    title: "Prompt stack",
+    value: `${readyCount}/${blocks.length} ready`,
+    detail: "Snapshot-backed Background Agent prompt context inventory.",
+    tone,
+    items: [
+      createStatusItem("memory", `${userEntryCount + agentEntryCount} durable entries`, userEntryCount + agentEntryCount > 0 ? "success" : "neutral"),
+      createStatusItem("session recall", `${recalledSessionCount} recent`, recalledSessionCount > 0 ? "success" : "neutral"),
+      createStatusItem("skills", skillCount, skillCount > 0 ? "success" : "neutral"),
+      createStatusItem("working profile", workingProfile ? "present" : "missing", workingProfile ? "success" : "neutral"),
+      createStatusItem("Browser Context", browserContext.state, browserContext.tone),
+      createStatusItem("route", routeOutcome.value, routeOutcome.kind === "idle" ? "success" : routeOutcome.tone)
+    ],
+    blocks
   };
 }
 

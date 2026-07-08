@@ -413,6 +413,20 @@ describe("DashboardApp", () => {
     expect(within(provider).getByText("planner · external-cua")).toBeInTheDocument();
     expect(within(provider).getByText("External CUA endpoint and API key are configured.")).toBeInTheDocument();
     expect(within(provider).getAllByText("api key configured").length).toBeGreaterThan(0);
+    expect(within(provider).getByRole("heading", { name: "Prompt stack" })).toBeInTheDocument();
+    expect(within(provider).getByText("7/7 ready")).toBeInTheDocument();
+    const promptStack = within(provider).getByRole("list", { name: "Prompt stack blocks" });
+    expect(within(promptStack).getByText("Background Agent identity")).toBeInTheDocument();
+    expect(within(promptStack).getByText("Codex (codex)")).toBeInTheDocument();
+    expect(within(promptStack).getByText("Personal memory")).toBeInTheDocument();
+    expect(within(promptStack).getByText("1 user / 1 agent")).toBeInTheDocument();
+    expect(within(promptStack).getByText("2 pending writes stay outside durable prompt memory.")).toBeInTheDocument();
+    expect(within(promptStack).getByText("Session recall")).toBeInTheDocument();
+    expect(within(promptStack).getByText("2/2 recent")).toBeInTheDocument();
+    expect(within(promptStack).getByText("Browser Context")).toBeInTheDocument();
+    expect(within(promptStack).getByText("Route context")).toBeInTheDocument();
+    expect(within(promptStack).queryByText("User prefers concise Chinese updates.")).not.toBeInTheDocument();
+    expect(within(promptStack).queryByText("Summarize current dashboard state.")).not.toBeInTheDocument();
 
     const assistantHealth = within(provider).getByRole("region", { name: "Assistant provider health" });
     expect(within(assistantHealth).getByText("selected codex")).toBeInTheDocument();
