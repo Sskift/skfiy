@@ -1,8 +1,9 @@
 import type { AssistantAgentTurnResult } from "./assistant-agent.js";
-import type { CommandRoute } from "./task-routing.js";
+import type { CommandRoute, ExecutableCommandRoute } from "./task-routing.js";
 import {
   withRouteTaskEventMetadata,
-  type TaskEvent
+  type TaskEvent,
+  type TaskStatus
 } from "./task-event-view.js";
 
 export function createAssistantChatRouteTaskEvent({
@@ -71,4 +72,141 @@ export function createNeedsConfirmationRouteTaskEvent({
     message: route.reason,
     command
   }, route);
+}
+
+export function createAppPolicyBlockedTaskEvent({
+  command,
+  reason,
+  route
+}: {
+  command: string;
+  reason: string;
+  route: ExecutableCommandRoute;
+}): TaskEvent {
+  return withRouteTaskEventMetadata({
+    status: "blocked",
+    message: reason,
+    command
+  }, route, {
+    routeReason: reason,
+    denialKind: "app_policy",
+    policyKind: "app-policy"
+  });
+}
+
+export function createAppPolicyApprovalRequiredTaskEvent({
+  command,
+  reason,
+  route
+}: {
+  command: string;
+  reason: string;
+  route: ExecutableCommandRoute;
+}): TaskEvent {
+  return withRouteTaskEventMetadata({
+    status: "approval_required",
+    message: `Approval required (app policy): ${reason}`,
+    command
+  }, route, {
+    routeReason: reason,
+    policyKind: "app-policy"
+  });
+}
+
+export function createChromeHostPolicyBlockedTaskEvent({
+  command,
+  host,
+  route
+}: {
+  command: string;
+  host: string;
+  route: Extract<ExecutableCommandRoute, { kind: "chrome" }>;
+}): TaskEvent {
+  const message = `Chrome host policy blocked this approved task: ${host}`;
+  return withRouteTaskEventMetadata({
+    status: "blocked",
+    message,
+    command
+  }, route, {
+    routeReason: message,
+    policyKind: "chrome-host-policy"
+  });
+}
+
+export function createChromeHostPolicyApprovalFailedTaskEvent({
+  command,
+  message,
+  route
+}: {
+  command: string;
+  message: string;
+  route: Extract<ExecutableCommandRoute, { kind: "chrome" }>;
+}): TaskEvent {
+  const failureMessage = `Chrome host policy approval failed: ${message}`;
+  return withRouteTaskEventMetadata({
+    status: "failed",
+    message: failureMessage,
+    command
+  }, route, {
+    routeReason: failureMessage,
+    policyKind: "chrome-host-policy"
+  });
+}
+
+export function createChromeHostPolicyAllowedTaskEvent({
+  command,
+  host,
+  route
+}: {
+  command: string;
+  host: string;
+  route: Extract<ExecutableCommandRoute, { kind: "chrome" }>;
+}): TaskEvent {
+  const message = `Chrome host policy allowed for current turn: ${host}`;
+  return withRouteTaskEventMetadata({
+    status: "executing",
+    message,
+    command
+  }, route, {
+    routeReason: message,
+    policyKind: "chrome-host-policy"
+  });
+}
+
+export function createPlannerUnavailableTaskEvent({
+  command,
+  message,
+  route,
+  status
+}: {
+  command: string;
+  message: string;
+  route: ExecutableCommandRoute;
+  status: TaskStatus;
+}): TaskEvent {
+  return withRouteTaskEventMetadata({
+    status,
+    message,
+    command
+  }, route, {
+    routeReason: message
+  });
+}
+
+export function createComputerUseFailureTaskEvent({
+  command,
+  message,
+  route
+}: {
+  command: string;
+  message: string;
+  route: ExecutableCommandRoute;
+}): TaskEvent {
+  return withRouteTaskEventMetadata({
+    status: "failed",
+    message,
+    command
+  }, route, {
+    routeReason: message
+  });
 }

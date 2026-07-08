@@ -130,10 +130,17 @@ import {
   type PendingApproval
 } from "./main-pending-approval.js";
 import {
+  createAppPolicyApprovalRequiredTaskEvent,
+  createAppPolicyBlockedTaskEvent,
   createAssistantChatRouteTaskEvent,
   createAssistantTurnFailedRouteTaskEvent,
+  createChromeHostPolicyAllowedTaskEvent,
+  createChromeHostPolicyApprovalFailedTaskEvent,
+  createChromeHostPolicyBlockedTaskEvent,
+  createComputerUseFailureTaskEvent,
   createNeedsClarificationRouteTaskEvent,
   createNeedsConfirmationRouteTaskEvent,
+  createPlannerUnavailableTaskEvent,
   createTerminalRouteTaskEvent
 } from "./main-route-task-events.js";
 import {
@@ -469,16 +476,13 @@ async function continueComputerUseTask({
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
+    const taskEvent = createAppPolicyBlockedTaskEvent({
+      command,
+      reason: appPolicy.reason,
+      route
+    });
     completeComputerUseToolCall(toolIdentity, createToolResult("blocked", appPolicy.reason));
-    emitTaskEvent(window, withRouteTaskEventMetadata({
-      status: "blocked",
-      message: appPolicy.reason,
-      command
-    }, route, {
-      routeReason: appPolicy.reason,
-      denialKind: "app_policy",
-      policyKind: "app-policy"
-    }));
+    emitTaskEvent(window, taskEvent);
     return;
   }
 
@@ -493,13 +497,10 @@ async function continueComputerUseTask({
       toolIdentity,
       reason: appPolicy.reason
     });
-    emitTaskEvent(window, withRouteTaskEventMetadata({
-      status: "approval_required",
-      message: `Approval required (app policy): ${appPolicy.reason}`,
-      command
-    }, route, {
-      routeReason: appPolicy.reason,
-      policyKind: "app-policy"
+    emitTaskEvent(window, createAppPolicyApprovalRequiredTaskEvent({
+      command,
+      reason: appPolicy.reason,
+      route
     }));
     return;
   }
@@ -512,53 +513,46 @@ async function continueComputerUseTask({
     });
 
     if (hostPolicyApproval.status === "blocked") {
+      const taskEvent = createChromeHostPolicyBlockedTaskEvent({
+        command,
+        host: hostPolicyApproval.host,
+        route
+      });
       pendingApproval = null;
       activeTaskController?.abort();
       activeTaskController = null;
       currentTaskId += 1;
       completeComputerUseToolCall(
         toolIdentity,
-        createToolResult("blocked", `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`)
+        createToolResult("blocked", taskEvent.message ?? `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`)
       );
-      emitTaskEvent(window, withRouteTaskEventMetadata({
-        status: "blocked",
-        message: `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`,
-        command
-      }, route, {
-        routeReason: `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`,
-        policyKind: "chrome-host-policy"
-      }));
+      emitTaskEvent(window, taskEvent);
       return;
     }
 
     if (hostPolicyApproval.status === "failed") {
+      const taskEvent = createChromeHostPolicyApprovalFailedTaskEvent({
+        command,
+        message: hostPolicyApproval.message,
+        route
+      });
       pendingApproval = null;
       activeTaskController?.abort();
       activeTaskController = null;
       currentTaskId += 1;
       completeComputerUseToolCall(
         toolIdentity,
-        createToolResult("failed", `Chrome host policy approval failed: ${hostPolicyApproval.message}`)
+        createToolResult("failed", taskEvent.message ?? `Chrome host policy approval failed: ${hostPolicyApproval.message}`)
       );
-      emitTaskEvent(window, withRouteTaskEventMetadata({
-        status: "failed",
-        message: `Chrome host policy approval failed: ${hostPolicyApproval.message}`,
-        command
-      }, route, {
-        routeReason: `Chrome host policy approval failed: ${hostPolicyApproval.message}`,
-        policyKind: "chrome-host-policy"
-      }));
+      emitTaskEvent(window, taskEvent);
       return;
     }
 
     if (hostPolicyApproval.status === "updated") {
-      emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
-        status: "executing",
-        message: `Chrome host policy allowed for current turn: ${hostPolicyApproval.host}`,
-        command
-      }, route, {
-        routeReason: `Chrome host policy allowed for current turn: ${hostPolicyApproval.host}`,
-        policyKind: "chrome-host-policy"
+      emitTurnReplayTaskEvent(window, createChromeHostPolicyAllowedTaskEvent({
+        command,
+        host: hostPolicyApproval.host,
+        route
       }));
     }
   }
@@ -669,12 +663,11 @@ async function continueComputerUseTask({
       activeTaskController = null;
       currentTaskId += 1;
       completeComputerUseToolCall(toolIdentity, createToolResult("failed", plannerRuntime.message));
-      emitTaskEvent(window, withRouteTaskEventMetadata({
-        status: plannerRuntime.status,
+      emitTaskEvent(window, createPlannerUnavailableTaskEvent({
+        command,
         message: plannerRuntime.message,
-        command
-      }, route, {
-        routeReason: plannerRuntime.message
+        route,
+        status: plannerRuntime.status
       }));
       return;
     }
@@ -743,12 +736,10 @@ async function continueComputerUseTask({
 
     const message = error instanceof Error ? error.message : "Task failed.";
     completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
-    emitTaskEvent(window, withRouteTaskEventMetadata({
-      status: "failed",
+    emitTaskEvent(window, createComputerUseFailureTaskEvent({
+      command,
       message,
-      command
-    }, route, {
-      routeReason: message
+      route
     }));
   } finally {
     if (activeTaskController === controller) {
@@ -817,12 +808,10 @@ async function runTmuxSupervisionCommandTask(
 
     const message = error instanceof Error ? error.message : "tmux supervision failed.";
     completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
-    emitTaskEvent(window, withRouteTaskEventMetadata({
-      status: "failed",
+    emitTaskEvent(window, createComputerUseFailureTaskEvent({
+      command,
       message,
-      command
-    }, route, {
-      routeReason: message
+      route
     }));
   } finally {
     if (activeTaskController === controller) {
