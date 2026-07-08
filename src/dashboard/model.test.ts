@@ -1112,15 +1112,15 @@ describe("readHomeSummary", () => {
 
     expect(summary).toMatchObject({
       title: "Home",
-      value: "Waiting",
-      detail: "Approval required",
+      value: "Confirm",
+      detail: "Route needs confirmation",
       tone: "warning",
       items: [
-        { label: "assistant", value: "Approval required", tone: "warning" },
+        { label: "assistant", value: "Route needs confirmation", tone: "warning" },
         { label: "current task", value: "organize Downloads", tone: "neutral" },
         { label: "target", value: "Finder", tone: "neutral" },
         { label: "risk", value: "high", tone: "neutral" },
-        { label: "next", value: "Review the pending approval.", tone: "warning" },
+        { label: "next", value: "Confirm route", tone: "warning" },
         { label: "stop", value: "armed", tone: "neutral" }
       ]
     });
@@ -1177,6 +1177,29 @@ describe("readHomeSummary", () => {
         { label: "assistant", value: "Route stopped", tone: "neutral" },
         { label: "current task", value: "Task stopped.", tone: "neutral" },
         { label: "next", value: "Task stopped", tone: "neutral" }
+      ])
+    });
+  });
+
+  it("keeps route confirmation distinct from approval in the Home summary", () => {
+    const summary = readHomeSummary({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "needs_confirmation",
+        targetRoute: { kind: "finder", bundleId: "com.apple.finder" },
+        reason: "Confirm before organizing Finder.",
+        latestMessage: "Confirm before organizing Finder."
+      },
+      alerts: []
+    });
+
+    expect(summary).toMatchObject({
+      value: "Confirm",
+      detail: "Route needs confirmation",
+      tone: "warning",
+      items: expect.arrayContaining([
+        { label: "assistant", value: "Route needs confirmation", tone: "warning" },
+        { label: "next", value: "Confirm route", tone: "warning" }
       ])
     });
   });
@@ -1246,6 +1269,76 @@ describe("readLatestTaskSignal", () => {
       value: "stopped",
       detail: "Task stopped.",
       tone: "neutral",
+      source: "Current turn"
+    });
+  });
+
+  it.each([
+    [
+      "confirmation",
+      {
+        state: "needs_confirmation",
+        targetRoute: { kind: "finder", bundleId: "com.apple.finder" },
+        reason: "Confirm before organizing Finder."
+      },
+      {
+        title: "Confirm route",
+        value: "needs_confirmation",
+        detail: "Confirm before organizing Finder.",
+        tone: "warning"
+      }
+    ],
+    [
+      "clarification",
+      {
+        state: "needs_clarification",
+        route: "chrome",
+        reason: "Clarify which browser tab to use."
+      },
+      {
+        title: "Clarify route",
+        value: "needs_clarification",
+        detail: "Clarify which browser tab to use.",
+        tone: "warning"
+      }
+    ],
+    [
+      "running",
+      {
+        state: "executing",
+        route: "ghostty",
+        latestMessage: "Typing command."
+      },
+      {
+        title: "Route in progress",
+        value: "executing",
+        detail: "Typing command.",
+        tone: "warning"
+      }
+    ],
+    [
+      "completion",
+      {
+        state: "completed",
+        route: "finder",
+        latestMessage: "Finder organization completed."
+      },
+      {
+        title: "Latest outcome",
+        value: "completed",
+        detail: "Finder organization completed.",
+        tone: "success"
+      }
+    ]
+  ])("surfaces %s as the latest route signal", (_label, currentTurn, expected) => {
+    const signal = readLatestTaskSignal({
+      ...createSnapshot(),
+      alerts: [],
+      currentTurn
+    });
+
+    expect(signal).toEqual({
+      ...expected,
       source: "Current turn"
     });
   });

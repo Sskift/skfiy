@@ -791,14 +791,14 @@ describe("DashboardApp", () => {
 
     const overview = await screen.findByRole("region", { name: "Overview" });
     expect(within(overview).getByRole("heading", { name: "Home" })).toBeInTheDocument();
-    expect(within(overview).getAllByText("Approval required").length).toBeGreaterThan(0);
-    expect(within(overview).getByText("Waiting")).toBeInTheDocument();
+    expect(within(overview).getAllByText("Route needs confirmation").length).toBeGreaterThan(0);
+    expect(within(overview).getByText("Confirm")).toBeInTheDocument();
     const details = within(overview).getByRole("list", { name: "Home summary details" });
     expect(within(details).getByText("current task")).toBeInTheDocument();
     expect(within(details).getByText("organize Downloads")).toBeInTheDocument();
     expect(within(details).getByText("Finder")).toBeInTheDocument();
     expect(within(details).getByText("high")).toBeInTheDocument();
-    expect(within(details).getByText("Review the pending approval.")).toBeInTheDocument();
+    expect(within(details).getByText("Confirm route")).toBeInTheDocument();
     expect(within(details).getByText("armed")).toBeInTheDocument();
     expect(within(overview).queryByText("planner-secret")).not.toBeInTheDocument();
   });

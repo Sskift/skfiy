@@ -2874,19 +2874,18 @@ function readHomeAssistantState(
   }
 
   const turnState = readString(turn.state);
-  if (turnState === "approval_required" || turnState === "needs_confirmation") {
+  if (turnState === "approval_required") {
     return { label: "Waiting", detail: "Approval required", tone: "warning" };
+  }
+  const routeAssistant = readHomeAssistantStateFromRouteOutcome(routeOutcome);
+  if (routeAssistant) {
+    return routeAssistant;
   }
   if (turnState === "executing") {
     return { label: "Acting", detail: "Executing a task", tone: "warning" };
   }
   if (turnState === "observing") {
     return { label: "Watching", detail: "Reading the desktop", tone: "warning" };
-  }
-
-  const routeAssistant = readHomeAssistantStateFromRouteOutcome(routeOutcome);
-  if (routeAssistant) {
-    return routeAssistant;
   }
 
   if (turnState === "failed") {
@@ -2903,6 +2902,10 @@ function readHomeAssistantStateFromRouteOutcome(
   routeOutcome: DashboardRouteOutcome
 ): { label: string; detail: string; tone: Tone } | undefined {
   switch (routeOutcome.kind) {
+    case "needs_confirmation":
+      return { label: "Confirm", detail: routeOutcome.title, tone: "warning" };
+    case "needs_clarification":
+      return { label: "Clarify", detail: routeOutcome.title, tone: "warning" };
     case "app_policy_denied":
       return { label: "Policy denied", detail: routeOutcome.title, tone: "danger" };
     case "user_denied":
@@ -2913,6 +2916,10 @@ function readHomeAssistantStateFromRouteOutcome(
       return { label: "Cancelled", detail: routeOutcome.title, tone: "neutral" };
     case "stopped":
       return { label: "Stopped", detail: routeOutcome.title, tone: "neutral" };
+    case "failed":
+      return { label: "Failed", detail: routeOutcome.title, tone: "danger" };
+    case "completed":
+      return { label: "Done", detail: routeOutcome.title, tone: "success" };
     default:
       return undefined;
   }
@@ -2933,11 +2940,15 @@ function readHomeNextAction(
     };
   }
 
+  const routeNextAction = readNextActionFromRouteOutcome(routeOutcome);
+  if (routeNextAction && routeOutcome.kind !== "approval_required") {
+    return { detail: routeNextAction.title, tone: routeNextAction.tone };
+  }
+
   if (readString(snapshot.currentTurn.approvalState) === "required") {
     return { detail: "Review the pending approval.", tone: "warning" };
   }
 
-  const routeNextAction = readNextActionFromRouteOutcome(routeOutcome);
   if (routeNextAction) {
     return { detail: routeNextAction.title, tone: routeNextAction.tone };
   }
@@ -3037,6 +3048,30 @@ export function readLatestTaskSignal(snapshot: DashboardSnapshot): DashboardLate
 
 function readLatestRouteOutcomeSignal(routeOutcome: DashboardRouteOutcome): DashboardLatestTaskSignal | undefined {
   switch (routeOutcome.kind) {
+    case "approval_required":
+      return {
+        title: "Review pending approval",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    case "needs_confirmation":
+      return {
+        title: "Confirm route",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    case "needs_clarification":
+      return {
+        title: "Clarify route",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
     case "app_policy_denied":
     case "blocked":
     case "failed":
@@ -3050,8 +3085,17 @@ function readLatestRouteOutcomeSignal(routeOutcome: DashboardRouteOutcome): Dash
     case "user_denied":
     case "cancelled":
     case "stopped":
+    case "completed":
       return {
         title: "Latest outcome",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    case "running":
+      return {
+        title: "Route in progress",
         value: routeOutcome.value,
         detail: routeOutcome.detail,
         tone: routeOutcome.tone,
