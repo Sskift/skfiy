@@ -1,8 +1,10 @@
 # skfiy Docs
 
 This directory separates current operator instructions from archival context.
-When a workflow changes, update the canonical document first. Dated research
-and decision records are references, not active implementation plans.
+When a workflow changes, update the canonical document first. Dated decision
+records are references, not active implementation plans. Historical research
+and implementation notes should be folded into canonical docs or left in git
+history, not kept as live repo checklists.
 
 ## Canonical Docs
 
@@ -26,8 +28,6 @@ and decision records are references, not active implementation plans.
 
 - `decisions/`: durable decision records that should stay stable unless the
   decision changes.
-- `research/`: dated research, architecture notes, and implementation logs.
-  These files are archival context, not active task lists or plans.
 - `superpowers/plans/`: the current active implementation plan for agentic
   work. Keep exactly one plan file here. Retired dated plans belong outside the
   active plan directory and must not be restored.

@@ -79,6 +79,19 @@ describe("implementation plan status docs", () => {
     expect(retiredPlanLikeDocs).toEqual([]);
   });
 
+  it("keeps dated research and implementation logs out of docs", () => {
+    const docsRoot = path.join(process.cwd(), "docs");
+    const markdownDocs = collectMarkdownDocs(docsRoot).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const datedResearchOrLogs = markdownDocs.filter((docPath) => (
+      /(^|\/)research\//i.test(docPath)
+      || /(^|[-_.])(research|implementation-log|work-log|handoff)($|[-_.])/i.test(path.basename(docPath))
+    ));
+
+    expect(datedResearchOrLogs).toEqual([]);
+  });
+
   it("keeps workflow docs pointed at the current active plan path only", () => {
     const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
     const planReferencePattern = /docs\/superpowers\/plans\/[^\s`),]+\.md/g;
@@ -175,7 +188,8 @@ describe("implementation plan status docs", () => {
     expect(activePlan).toContain("# skfiy Feature Enrichment Plan");
     expect(activePlan).toContain("For agentic workers");
     expect(activePlan).toContain("only active implementation plan");
-    expect(activePlan).toContain("Dated research and decision records");
+    expect(activePlan).toContain("Dated decision records");
+    expect(activePlan).toContain("dated research/log checklists stay out of the repo");
     expect(activePlan).toContain("Task 1: React Dashboard Operator Evidence");
     expect(activePlan).toContain("Task 2: Dashboard Advanced Control Migration");
     expect(activePlan).toContain("Task 3: Route State Semantics");

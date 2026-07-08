@@ -57,9 +57,9 @@ be deleted locally.
   artifact, GitHub pre-release, dogfood, and cohort workflow.
 - [docs/chrome-extension-setup.md](docs/chrome-extension-setup.md): manual
   unpacked extension install, native host setup, and bridge diagnostics.
-- [docs/research/](docs/research/): historical research and implementation
-  notes. Fold durable operational instructions back into the README or workflow
-  docs instead of using archival notes as live checklists.
+- Historical research and implementation notes are not kept as live repo
+  checklists. Fold durable operational instructions back into the README or
+  workflow docs.
 
 ## MVP Scope
 
