@@ -79,6 +79,7 @@ import {
   readRecentActivity,
   readRouteOutcome,
   readRuntimeEvidenceSummary,
+  readRuntimeSnapshotDetails,
   readSmokeArtifactDetails,
   readSnapshotState,
   readUnsupportedSmokeEvidence,
@@ -94,6 +95,7 @@ import {
   type DashboardRecentActivity,
   type DashboardRouteOutcome,
   type DashboardRuntimeEvidenceSummary,
+  type DashboardRuntimeSnapshotDetail,
   type DashboardSmokeArtifactDetail,
   type DashboardStatusItem,
   type Tone
@@ -451,6 +453,7 @@ function DashboardContent({
   const routeOutcome = useMemo(() => readRouteOutcome(snapshot), [snapshot]);
   const latestSignal = useMemo(() => readLatestTaskSignal(snapshot), [snapshot]);
   const runtimeEvidence = useMemo(() => readRuntimeEvidenceSummary(snapshot), [snapshot]);
+  const runtimeSnapshotDetails = useMemo(() => readRuntimeSnapshotDetails(snapshot), [snapshot]);
   const dogfood = useMemo(() => readDogfoodSummary(snapshot), [snapshot]);
   const nextAction = useMemo(() => readNextAction(snapshot), [snapshot]);
   const alerts = useMemo(() => readAlertMessages(snapshot), [snapshot]);
@@ -811,6 +814,7 @@ function DashboardContent({
           <RouteOutcomeCard outcome={routeOutcome} />
           <LatestSignalCard signal={latestSignal} />
           <RuntimeEvidenceCard evidence={runtimeEvidence} />
+          <RuntimeSnapshotDetailsCard details={runtimeSnapshotDetails} />
           <EvidenceSummaryCard
             error={evidenceSummaryError}
             isLoading={isLoadingEvidenceSummary}
@@ -2645,6 +2649,46 @@ function RuntimeEvidenceCard({ evidence }: { evidence: DashboardRuntimeEvidenceS
         <div className="skfiy-dashboard-inline-list">
           <StatusChip tone={evidence.tone}>{evidence.value}</StatusChip>
         </div>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function RuntimeSnapshotDetailsCard({ details }: { details: DashboardRuntimeSnapshotDetail[] }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>Runtime snapshots</Card.Title>
+          <Card.Description>Current turn and replay freshness</Card.Description>
+        </div>
+        <History size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">
+          Latest runtime snapshot details from the local operator state.
+        </p>
+        <ul className="skfiy-dashboard-evidence-list" aria-label="Runtime snapshot panels">
+          {details.map((detail) => (
+            <li key={detail.id}>
+              <span>{detail.title}</span>
+              <strong>{detail.value}</strong>
+              <small>{detail.id}</small>
+              <ul
+                aria-label={`${detail.title} details`}
+                className="skfiy-dashboard-evidence-detail-list"
+              >
+                {detail.items.map((item) => (
+                  <li key={`${detail.id}-${item.label}`}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <small>{item.tone}</small>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
       </Card.Content>
     </Card.Root>
   );

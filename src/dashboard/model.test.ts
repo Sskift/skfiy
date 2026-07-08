@@ -7,6 +7,7 @@ import {
   readKnowledgeGraph,
   readPersonalMutationReceipt,
   readRouteOutcome,
+  readRuntimeSnapshotDetails,
   readSmokeArtifactDetails
 } from "./model";
 
@@ -265,6 +266,50 @@ describe("readSmokeArtifactDetails", () => {
       })
     ]);
     expect(JSON.stringify(details)).not.toContain("/repo/.skfiy-smoke");
+  });
+});
+
+describe("readRuntimeSnapshotDetails", () => {
+  it("summarizes current-turn and replay snapshot freshness without leaking screenshot paths", () => {
+    const details = readRuntimeSnapshotDetails(createRuntimeSnapshotDetailFixture());
+    const currentTurn = details.find((detail) => detail.id === "current-turn");
+    const replay = details.find((detail) => detail.id === "replay");
+
+    expect(currentTurn).toMatchObject({
+      title: "Current turn snapshot",
+      value: "Stale",
+      tone: "warning",
+      items: expect.arrayContaining([
+        { label: "snapshot freshness", value: "stale", tone: "warning" },
+        { label: "snapshot age", value: "40s old (2026-06-20T00:00:20.000Z)", tone: "neutral" },
+        { label: "target", value: "Ghostty", tone: "neutral" },
+        { label: "risk", value: "low", tone: "neutral" },
+        { label: "approval", value: "approved", tone: "neutral" },
+        { label: "latest action", value: "type_text: 3 chars", tone: "neutral" },
+        { label: "latest verify", value: "press_key: passed - enter accepted", tone: "neutral" },
+        { label: "latest screenshot", value: "after (structured_first 2 sources)", tone: "neutral" }
+      ])
+    });
+    expect(replay).toMatchObject({
+      title: "Replay snapshot",
+      value: "Stale",
+      tone: "warning",
+      items: expect.arrayContaining([
+        { label: "screenshots", value: "2", tone: "neutral" },
+        { label: "actions", value: "3", tone: "neutral" },
+        { label: "verifications", value: "1", tone: "neutral" },
+        { label: "latest action", value: "type_text: 3 chars", tone: "neutral" },
+        { label: "latest verify", value: "press_key: passed - enter accepted", tone: "neutral" },
+        { label: "latest screenshot", value: "after (structured_first 2 sources)", tone: "neutral" },
+        {
+          label: "timeline tail",
+          value: "executing: Typing command. | completed: pwd",
+          tone: "neutral"
+        }
+      ])
+    });
+
+    expect(JSON.stringify(details)).not.toContain("/tmp/after.png");
   });
 });
 
@@ -665,6 +710,81 @@ describe("readRouteOutcome", () => {
     expect(outcome).toMatchObject(expected);
   });
 });
+
+function createRuntimeSnapshotDetailFixture(): DashboardSnapshot {
+  const base = createSnapshot();
+
+  return {
+    ...base,
+    generatedAt: "2026-06-20T00:01:00.000Z",
+    runtimeHealth: {
+      ...base.runtimeHealth,
+      runtimeSnapshot: {
+        state: "available",
+        source: "runtime-snapshot",
+        observedAt: "2026-06-20T00:00:20.000Z"
+      }
+    },
+    currentTurn: {
+      state: "executing",
+      source: "runtime-snapshot",
+      observedAt: "2026-06-20T00:00:20.000Z",
+      command: "pwd",
+      targetApp: "Ghostty",
+      risk: "low",
+      approvalState: "approved",
+      stopState: "armed",
+      agentProvider: "Codex",
+      latestAction: { type: "type_text", textLength: 3 },
+      latestVerification: {
+        type: "verify",
+        actionType: "press_key",
+        status: "passed",
+        message: "enter accepted"
+      },
+      latestScreenshot: {
+        stage: "after",
+        path: "/tmp/after.png",
+        recommendation: "structured_first",
+        sourceCount: 2
+      },
+      latestMessage: "Typing command."
+    },
+    replay: {
+      state: "available",
+      source: "runtime-snapshot",
+      observedAt: "2026-06-20T00:00:20.000Z",
+      screenshotCount: 2,
+      actionCount: 3,
+      verificationCount: 1,
+      screenshots: [
+        { stage: "before", path: "/tmp/before.png" },
+        {
+          stage: "after",
+          path: "/tmp/after.png",
+          recommendation: "structured_first",
+          sourceCount: 2
+        }
+      ],
+      actions: [
+        { type: "plan", providerLabel: "External CUA", command: "pwd" },
+        { type: "type_text", textLength: 3 }
+      ],
+      verifications: [
+        {
+          type: "verify",
+          actionType: "press_key",
+          status: "passed",
+          message: "enter accepted"
+        }
+      ],
+      timelineTail: [
+        { status: "executing", message: "Typing command." },
+        { status: "completed", command: "pwd" }
+      ]
+    }
+  };
+}
 
 function createSnapshot(): DashboardSnapshot {
   return {

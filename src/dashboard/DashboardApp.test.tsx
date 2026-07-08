@@ -583,6 +583,30 @@ describe("DashboardApp", () => {
     expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
   });
 
+  it("shows runtime snapshot freshness and latest replay details in Activity without screenshot paths", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createRuntimeSnapshotDashboardSnapshot())} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Runtime snapshots" })).toBeInTheDocument();
+    expect(within(activity).getByText("Current turn snapshot")).toBeInTheDocument();
+    expect(within(activity).getByText("Replay snapshot")).toBeInTheDocument();
+
+    const currentTurnDetails = within(activity).getByRole("list", {
+      name: "Current turn snapshot details"
+    });
+    expect(within(currentTurnDetails).getByText("40s old (2026-06-20T00:00:20.000Z)")).toBeInTheDocument();
+    expect(within(currentTurnDetails).getByText("type_text: 3 chars")).toBeInTheDocument();
+    expect(within(currentTurnDetails).getByText("press_key: passed - enter accepted")).toBeInTheDocument();
+    expect(within(currentTurnDetails).getByText("after (structured_first 2 sources)")).toBeInTheDocument();
+
+    const replayDetails = within(activity).getByRole("list", {
+      name: "Replay snapshot details"
+    });
+    expect(within(replayDetails).getByText("executing: Typing command. | completed: pwd")).toBeInTheDocument();
+    expect(within(replayDetails).getByText("2")).toBeInTheDocument();
+    expect(within(activity).queryByText("/tmp/after.png")).not.toBeInTheDocument();
+  });
+
   it("shows a browser context access checklist for the current tab permission chain", async () => {
     const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
     const blockedSnapshot: DashboardSnapshot = {
@@ -1669,6 +1693,79 @@ function createSmokeArtifactDashboardSnapshot(): DashboardSnapshot {
             reason: "Desktop session is not controllable before target app launch."
           }
         }
+      ]
+    }
+  };
+}
+
+function createRuntimeSnapshotDashboardSnapshot(): DashboardSnapshot {
+  return {
+    ...snapshot,
+    generatedAt: "2026-06-20T00:01:00.000Z",
+    runtimeHealth: {
+      ...snapshot.runtimeHealth,
+      runtimeSnapshot: {
+        state: "available",
+        source: "runtime-snapshot",
+        observedAt: "2026-06-20T00:00:20.000Z"
+      }
+    },
+    currentTurn: {
+      state: "executing",
+      source: "runtime-snapshot",
+      observedAt: "2026-06-20T00:00:20.000Z",
+      command: "pwd",
+      targetApp: "Ghostty",
+      risk: "low",
+      approvalState: "approved",
+      stopState: "armed",
+      agentProvider: "Codex",
+      latestAction: { type: "type_text", textLength: 3 },
+      latestVerification: {
+        type: "verify",
+        actionType: "press_key",
+        status: "passed",
+        message: "enter accepted"
+      },
+      latestScreenshot: {
+        stage: "after",
+        path: "/tmp/after.png",
+        recommendation: "structured_first",
+        sourceCount: 2
+      },
+      latestMessage: "Typing command."
+    },
+    replay: {
+      state: "available",
+      source: "runtime-snapshot",
+      observedAt: "2026-06-20T00:00:20.000Z",
+      screenshotCount: 2,
+      actionCount: 3,
+      verificationCount: 1,
+      screenshots: [
+        { stage: "before", path: "/tmp/before.png" },
+        {
+          stage: "after",
+          path: "/tmp/after.png",
+          recommendation: "structured_first",
+          sourceCount: 2
+        }
+      ],
+      actions: [
+        { type: "plan", providerLabel: "External CUA", command: "pwd" },
+        { type: "type_text", textLength: 3 }
+      ],
+      verifications: [
+        {
+          type: "verify",
+          actionType: "press_key",
+          status: "passed",
+          message: "enter accepted"
+        }
+      ],
+      timelineTail: [
+        { status: "executing", message: "Typing command." },
+        { status: "completed", command: "pwd" }
       ]
     }
   };

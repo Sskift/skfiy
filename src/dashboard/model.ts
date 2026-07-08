@@ -15,6 +15,10 @@ import {
   type RouteOutcome,
   type RouteOutcomeKind
 } from "../shared/route-outcome.js";
+import {
+  DASHBOARD_RUNTIME_SNAPSHOT_STALE_SECONDS,
+  type DashboardRuntimeSnapshotFreshnessState
+} from "../shared/dashboard-runtime.js";
 
 export type Tone = "success" | "warning" | "danger" | "neutral";
 
@@ -122,6 +126,23 @@ export interface DashboardRuntimeEvidenceSummary {
   value: string;
   detail: string;
   tone: Tone;
+}
+
+export interface DashboardRuntimeSnapshotDetail {
+  id: "current-turn" | "replay";
+  title: string;
+  value: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+interface DashboardRuntimeSnapshotFreshness {
+  state: DashboardRuntimeSnapshotFreshnessState;
+  source: string;
+  observedAt?: string;
+  reason?: string;
+  ageSeconds?: number;
+  stale: boolean;
 }
 
 export interface DashboardNextAction {
@@ -1588,6 +1609,268 @@ export function readRuntimeEvidenceSummary(snapshot: DashboardSnapshot): Dashboa
         ? "warning"
         : "neutral"
   };
+}
+
+export function readRuntimeSnapshotDetails(snapshot: DashboardSnapshot): DashboardRuntimeSnapshotDetail[] {
+  const currentTurnFreshness = readRuntimeSnapshotFreshness(snapshot, snapshot.currentTurn);
+  const replayFreshness = readRuntimeSnapshotFreshness(snapshot, snapshot.replay);
+
+  return [
+    {
+      id: "current-turn",
+      title: "Current turn snapshot",
+      value: readRuntimePanelStatusLabel(snapshot.currentTurn, currentTurnFreshness, "current-turn"),
+      tone: readRuntimePanelTone(snapshot.currentTurn, currentTurnFreshness, "current-turn"),
+      items: [
+        createStatusItem("state", readString(snapshot.currentTurn.state) ?? "idle"),
+        createStatusItem(
+          "snapshot freshness",
+          currentTurnFreshness.state,
+          readRuntimeSnapshotFreshnessTone(currentTurnFreshness.state)
+        ),
+        createStatusItem("snapshot age", formatRuntimeSnapshotAge(currentTurnFreshness)),
+        createStatusItem("source", currentTurnFreshness.source),
+        createStatusItem("stale", currentTurnFreshness.stale),
+        createStatusItem("target", readString(snapshot.currentTurn.targetApp) ?? "unknown"),
+        createStatusItem("risk", readString(snapshot.currentTurn.risk) ?? "unknown"),
+        createStatusItem("approval", readString(snapshot.currentTurn.approvalState) ?? "unknown"),
+        createStatusItem("stop", readString(snapshot.currentTurn.stopState) ?? "unknown"),
+        createStatusItem("agent provider", readString(snapshot.currentTurn.agentProvider) ?? "unknown"),
+        createStatusItem("command", readString(snapshot.currentTurn.command) ?? "none"),
+        createStatusItem("latest action", formatRuntimeAction(readRecord(snapshot.currentTurn.latestAction))),
+        createStatusItem(
+          "latest verify",
+          formatRuntimeVerification(readRecord(snapshot.currentTurn.latestVerification))
+        ),
+        createStatusItem(
+          "latest screenshot",
+          formatRuntimeScreenshot(readRecord(snapshot.currentTurn.latestScreenshot))
+        ),
+        createStatusItem("message", readString(snapshot.currentTurn.latestMessage) ?? "none"),
+        createStatusItem("snapshot reason", currentTurnFreshness.reason ?? "none")
+      ]
+    },
+    {
+      id: "replay",
+      title: "Replay snapshot",
+      value: readRuntimePanelStatusLabel(snapshot.replay, replayFreshness, "replay"),
+      tone: readRuntimePanelTone(snapshot.replay, replayFreshness, "replay"),
+      items: [
+        createStatusItem("state", readString(snapshot.replay.state) ?? "empty"),
+        createStatusItem(
+          "snapshot freshness",
+          replayFreshness.state,
+          readRuntimeSnapshotFreshnessTone(replayFreshness.state)
+        ),
+        createStatusItem("snapshot age", formatRuntimeSnapshotAge(replayFreshness)),
+        createStatusItem("source", replayFreshness.source),
+        createStatusItem("stale", replayFreshness.stale),
+        createStatusItem("screenshots", formatUnknownNumber(readNumber(snapshot.replay.screenshotCount))),
+        createStatusItem("actions", formatUnknownNumber(readNumber(snapshot.replay.actionCount))),
+        createStatusItem("verifications", formatUnknownNumber(readNumber(snapshot.replay.verificationCount))),
+        createStatusItem(
+          "latest screenshot",
+          formatRuntimeScreenshot(readRecordArray(snapshot.replay.screenshots).at(-1))
+        ),
+        createStatusItem(
+          "latest action",
+          formatRuntimeAction(readRecordArray(snapshot.replay.actions).at(-1))
+        ),
+        createStatusItem(
+          "latest verify",
+          formatRuntimeVerification(readRecordArray(snapshot.replay.verifications).at(-1))
+        ),
+        createStatusItem("timeline tail", formatRuntimeTimelineTail(readRecordArray(snapshot.replay.timelineTail))),
+        createStatusItem("snapshot reason", replayFreshness.reason ?? "none")
+      ]
+    }
+  ];
+}
+
+function readRuntimeSnapshotFreshness(
+  snapshot: DashboardSnapshot,
+  panel: Record<string, unknown>
+): DashboardRuntimeSnapshotFreshness {
+  const runtimeSnapshot = readRecord(snapshot.runtimeHealth.runtimeSnapshot) ?? {};
+  const source = readString(panel.source) ?? readString(runtimeSnapshot.source) ?? "unknown";
+  const observedAt = readString(panel.observedAt) ?? readString(runtimeSnapshot.observedAt);
+  const reason = readString(panel.reason) ?? readString(runtimeSnapshot.reason);
+  const ageSeconds = readRuntimeSnapshotAgeSeconds(snapshot.generatedAt, observedAt);
+  const runtimeState = readString(runtimeSnapshot.state);
+  const afterTurnEvidenceLoss = runtimeState === "missing-after-turn" || runtimeState === "stale-after-turn";
+  const empty = !afterTurnEvidenceLoss && (
+    panel.freshInstall === true
+    || runtimeSnapshot.freshInstall === true
+    || Boolean(readString(panel.emptyReasonCode))
+    || Boolean(readString(runtimeSnapshot.emptyReasonCode))
+    || runtimeState === "missing"
+  );
+  const unavailable = runtimeState === "unavailable"
+    || runtimeState === "repair-failed"
+    || runtimeState === "isolated";
+  const stale = afterTurnEvidenceLoss
+    || panel.stale === true
+    || runtimeSnapshot.stale === true
+    || (
+      ageSeconds !== undefined
+      && ageSeconds > DASHBOARD_RUNTIME_SNAPSHOT_STALE_SECONDS
+    );
+  const state: DashboardRuntimeSnapshotFreshnessState = empty
+    ? "empty"
+    : unavailable
+      ? "unavailable"
+      : stale
+        ? "stale"
+        : observedAt
+          ? "fresh"
+          : "unknown";
+
+  return { state, source, observedAt, reason, ageSeconds, stale };
+}
+
+function readRuntimeSnapshotAgeSeconds(generatedAt: string, observedAt: string | undefined): number | undefined {
+  const generatedAtMs = Date.parse(generatedAt || "");
+  const observedAtMs = Date.parse(observedAt || "");
+  if (!Number.isFinite(generatedAtMs) || !Number.isFinite(observedAtMs)) {
+    return undefined;
+  }
+
+  return Math.max(0, Math.floor((generatedAtMs - observedAtMs) / 1000));
+}
+
+function formatRuntimeSnapshotAge(freshness: DashboardRuntimeSnapshotFreshness): string {
+  if (freshness.ageSeconds === undefined) {
+    return freshness.observedAt ?? "unknown";
+  }
+
+  return `${freshness.ageSeconds}s old${freshness.observedAt ? ` (${freshness.observedAt})` : ""}`;
+}
+
+function readRuntimePanelStatusLabel(
+  panel: Record<string, unknown>,
+  freshness: DashboardRuntimeSnapshotFreshness,
+  kind: DashboardRuntimeSnapshotDetail["id"]
+): string {
+  if (freshness.state === "stale") {
+    return "Stale";
+  }
+  if (freshness.state === "empty") {
+    return "Empty";
+  }
+  if (freshness.state === "unavailable") {
+    return "Unavailable";
+  }
+  if (kind === "current-turn") {
+    return readString(panel.state) === "idle" ? "Idle" : "Active";
+  }
+
+  return readString(panel.state) ?? "Loaded";
+}
+
+function readRuntimePanelTone(
+  panel: Record<string, unknown>,
+  freshness: DashboardRuntimeSnapshotFreshness,
+  kind: DashboardRuntimeSnapshotDetail["id"]
+): Tone {
+  if (freshness.state === "unavailable") {
+    return "danger";
+  }
+  if (freshness.state === "stale") {
+    return "warning";
+  }
+  if (freshness.state === "empty") {
+    return kind === "current-turn" ? "success" : "warning";
+  }
+  if (kind === "current-turn") {
+    return readString(panel.state) === "idle" ? "success" : "warning";
+  }
+
+  return readString(panel.state) === "available" ? "success" : "warning";
+}
+
+function readRuntimeSnapshotFreshnessTone(state: DashboardRuntimeSnapshotFreshnessState): Tone {
+  if (state === "fresh" || state === "empty") {
+    return "success";
+  }
+  if (state === "stale") {
+    return "warning";
+  }
+  if (state === "unavailable") {
+    return "danger";
+  }
+
+  return "neutral";
+}
+
+function formatRuntimeAction(action: Record<string, unknown> | undefined): string {
+  if (!action) {
+    return "none";
+  }
+
+  const type = readString(action.type);
+  if (type === "plan") {
+    return `plan: ${readString(action.providerLabel) ?? "planner"} ${readString(action.command) ?? ""}`.trim();
+  }
+  if (type === "type_text") {
+    return `type_text: ${readNumber(action.textLength) ?? 0} chars`;
+  }
+  if (type === "press_key") {
+    return `press_key: ${readString(action.key) ?? "unknown"}`;
+  }
+  if (type === "verify") {
+    return formatRuntimeVerification(action);
+  }
+  if (type === "activate_app" || type === "open_session") {
+    return `${type}: ${readString(action.appName) ?? readString(action.bundleId) ?? "unknown app"}`;
+  }
+  if (type === "recover" || type === "switch_control") {
+    const transition = [
+      readString(action.action) ?? readString(action.from) ?? "",
+      readString(action.to) ? `-> ${readString(action.to)}` : "",
+      readString(action.reason) ? `- ${readString(action.reason)}` : ""
+    ].filter(Boolean).join(" ");
+    return `${type}: ${transition}`.trim();
+  }
+
+  return `${type ?? "action"}${readString(action.message) ? `: ${readString(action.message)}` : ""}`;
+}
+
+function formatRuntimeVerification(verification: Record<string, unknown> | undefined): string {
+  if (!verification) {
+    return "none";
+  }
+
+  const action = readString(verification.actionType) ?? readString(verification.type) ?? "verification";
+  const status = readString(verification.status) ?? "unknown";
+  const detail = readString(verification.message) ?? readString(verification.reason);
+  return `${action}: ${status}${detail ? ` - ${detail}` : ""}`;
+}
+
+function formatRuntimeScreenshot(screenshot: Record<string, unknown> | undefined): string {
+  if (!screenshot) {
+    return "none";
+  }
+
+  const stage = readString(screenshot.stage) ?? "screenshot";
+  const recommendation = readString(screenshot.recommendation);
+  const sourceCount = readNumber(screenshot.sourceCount);
+  const detail = [
+    recommendation,
+    sourceCount !== undefined ? `${sourceCount} sources` : undefined
+  ].filter(Boolean).join(" ");
+
+  return detail ? `${stage} (${detail})` : stage;
+}
+
+function formatRuntimeTimelineTail(timelineTail: Array<Record<string, unknown>>): string {
+  const items = timelineTail.slice(-3);
+  if (items.length === 0) {
+    return "none";
+  }
+
+  return items
+    .map((event) => `${readString(event.status) ?? "event"}: ${readString(event.message) ?? readString(event.command) ?? ""}`.trim())
+    .join(" | ");
 }
 
 function readCurrentTurnDetail(snapshot: DashboardSnapshot): string {

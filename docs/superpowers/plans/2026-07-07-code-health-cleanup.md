@@ -98,6 +98,7 @@ Completed in this pass:
 - React personal memory controls now render the existing mutation safety receipt from `/api/personal-memory` and `/api/personal-skills`, showing planned/system mutation metadata without echoing memory content.
 - React Browser control now renders the fallback Chrome page-control CLI command hints for the actionable current tab, with read-only versus mutating action labels and no new endpoint or permission surface.
 - React Agent tools now render fallback smoke artifact probe details for Chrome page safety, Chrome pageControl, and Finder smoke state from the existing snapshot, without exposing artifact paths.
+- React Activity now renders fallback runtime snapshot freshness and latest current-turn/replay summaries from the existing snapshot, keeping local screenshot paths out of the React surface.
 
 Acceptance:
 
