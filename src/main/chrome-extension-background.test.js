@@ -108,6 +108,10 @@ function createPageObserveResponse() {
   return createNativeResponse(PAGE_OBSERVE, "page-control-heartbeat-response");
 }
 
+function createPageObserveResponses(count = 1) {
+  return Array.from({ length: count }, () => createPageObserveResponse());
+}
+
 function createChromeMock(nativeResponses = [], options = {}) {
   const storage = {};
   const postedMessages = [];
@@ -332,6 +336,16 @@ function createFillWakeDirective(overrides = {}) {
   };
 }
 
+function createFillWakeUrl(overrides = {}) {
+  return createWakeUrl({
+    targetTabId: 42,
+    wakeAction: "fill",
+    selector: "#name",
+    text: "skfiy",
+    ...overrides
+  });
+}
+
 function dispatchRuntimeInstalled(mock) {
   mock.chrome.runtime.onInstalled.listeners[0]();
 }
@@ -409,13 +423,30 @@ function mockLocalhostTargetTab(mock, { tabId = 42, windowId = 7 } = {}) {
   return targetTab;
 }
 
-async function loadLocalhostWakeBackground(nativeResponses, options = {}) {
+async function loadLocalhostWakeBackground(nativeResponses = createPageObserveResponses(), options = {}) {
   const mock = createChromeMock(nativeResponses, options);
   storeLocalhostHostPolicy(mock);
   mockLocalhostTargetTab(mock);
   await loadBackground(mock);
 
   return mock;
+}
+
+async function loadLocalhostPageControlWakeBackground(options = {}) {
+  const { responseCount = 1, ...mockOptions } = options;
+  return loadLocalhostWakeBackground(createPageObserveResponses(responseCount), {
+    grantedOrigins: LOCALHOST_PAGE_ACCESS,
+    ...mockOptions
+  });
+}
+
+async function loadLocalhostFillWakeBackground(options = {}) {
+  return loadLocalhostPageControlWakeBackground({
+    ...options,
+    pageActionResults: [
+      { result: "passed", action: "fill" }
+    ]
+  });
 }
 
 function mockWakeAndLocalhostTargetTabs(mock, wakeUrl, { wakeTabId = 99, targetTabId = 42 } = {}) {
@@ -449,6 +480,20 @@ async function waitForAssertion(assertion) {
 
 async function waitForWakeProcessing(delayMs = 200) {
   await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function dispatchWakeUrlAndWait(mock, url, options) {
+  dispatchWakeTabUpdated(mock, url, options);
+  await waitForWakeProcessing();
+}
+
+async function dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls) {
+  for (const [index, url] of wakeUrls.entries()) {
+    await dispatchWakeUrlAndWait(mock, url);
+    await waitForAssertion(() => {
+      expect(mock.postedMessages).toHaveLength(index + 1);
+    });
+  }
 }
 
 afterEach(() => {
@@ -1796,13 +1841,8 @@ describe("Chrome extension background policy sync", () => {
 
   it("routes screenshot and action wake URLs through bounded native heartbeats", async () => {
     const screenshotDataUrl = `data:image/png;base64,${"a".repeat(2048)}`;
-    const mock = await loadLocalhostWakeBackground([
-      createPageObserveResponse(),
-      createPageObserveResponse(),
-      createPageObserveResponse(),
-      createPageObserveResponse(),
-      createPageObserveResponse()
-    ], {
+    const mock = await loadLocalhostPageControlWakeBackground({
+      responseCount: 5,
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       captureVisibleTabDataUrl: screenshotDataUrl,
       pageActionResults: [
@@ -1816,18 +1856,12 @@ describe("Chrome extension background policy sync", () => {
     const wakeUrls = [
       createWakeUrl({ targetTabId: 42, wakeAction: "screenshot", requestId: "cli-screenshot-current" }),
       createWakeUrl({ targetTabId: 42, wakeAction: "click", selector: "#submit", requestId: "cli-click-current" }),
-      createWakeUrl({ targetTabId: 42, wakeAction: "fill", selector: "#name", text: "skfiy", requestId: "cli-fill-current" }),
+      createFillWakeUrl({ requestId: "cli-fill-current" }),
       createWakeUrl({ targetTabId: 42, wakeAction: "submit", selector: "form", requestId: "cli-submit-current" }),
       createWakeUrl({ targetTabId: 42, wakeAction: "scroll", dy: 600, requestId: "cli-scroll-current" })
     ];
 
-    for (const [index, url] of wakeUrls.entries()) {
-      dispatchWakeTabUpdated(mock, url);
-      await waitForWakeProcessing();
-      await waitForAssertion(() => {
-        expect(mock.postedMessages).toHaveLength(index + 1);
-      });
-    }
+    await dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls);
 
     expect(mock.chrome.tabs.captureVisibleTab).toHaveBeenCalledWith(7, {
       format: "png"
@@ -1835,48 +1869,16 @@ describe("Chrome extension background policy sync", () => {
     expect(mock.chrome.tabs.update).toHaveBeenCalledWith(42, {
       active: true
     });
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(1, 42, expect.objectContaining({
-      type: PAGE_ACTION,
-      tabId: 42,
-      payload: {
-        action: {
-          kind: "click",
-          selector: "#submit"
-        }
-      }
-    }));
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(2, 42, expect.objectContaining({
-      type: PAGE_ACTION,
-      tabId: 42,
-      payload: {
-        action: {
-          kind: "fill",
-          selector: "#name",
-          value: "skfiy"
-        }
-      }
-    }));
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(3, 42, expect.objectContaining({
-      type: PAGE_ACTION,
-      tabId: 42,
-      payload: {
-        action: {
-          kind: "submit",
-          selector: "form",
-          confirmed: true
-        }
-      }
-    }));
-    expect(mock.chrome.tabs.sendMessage).toHaveBeenNthCalledWith(4, 42, expect.objectContaining({
-      type: PAGE_ACTION,
-      tabId: 42,
-      payload: {
-        action: {
-          kind: "scroll",
-          deltaY: 600
-        }
-      }
-    }));
+    expect(mock.chrome.tabs.sendMessage.mock.calls.map(([tabId, message]) => ({
+      tabId,
+      type: message.type,
+      action: message.payload?.action
+    }))).toEqual([
+      { tabId: 42, type: PAGE_ACTION, action: { kind: "click", selector: "#submit" } },
+      { tabId: 42, type: PAGE_ACTION, action: { kind: "fill", selector: "#name", value: "skfiy" } },
+      { tabId: 42, type: PAGE_ACTION, action: { kind: "submit", selector: "form", confirmed: true } },
+      { tabId: 42, type: PAGE_ACTION, action: { kind: "scroll", deltaY: 600 } }
+    ]);
 
     expect(mock.postedMessages[0]).toMatchObject({
       schemaVersion: 1,
@@ -1941,11 +1943,8 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("records current request blockers when submit and scroll wake actions return no page response", async () => {
-    const mock = await loadLocalhostWakeBackground([
-      createPageObserveResponse(),
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: LOCALHOST_PAGE_ACCESS
+    const mock = await loadLocalhostPageControlWakeBackground({
+      responseCount: 2
     });
 
     const wakeUrls = [
@@ -1953,13 +1952,7 @@ describe("Chrome extension background policy sync", () => {
       createWakeUrl({ wake: "scroll-no-response", targetTabId: 42, wakeAction: "scroll", requestId: "page-control-scroll-cli-2", dy: 600 })
     ];
 
-    for (const [index, url] of wakeUrls.entries()) {
-      dispatchWakeTabUpdated(mock, url);
-      await waitForWakeProcessing();
-      await waitForAssertion(() => {
-        expect(mock.postedMessages).toHaveLength(index + 1);
-      });
-    }
+    await dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls);
 
     expect(mock.postedMessages[0]).toMatchObject({
       type: PAGE_ACTION,
@@ -1994,13 +1987,8 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("schedules popup-delegated page action wake directives through background dedupe", async () => {
-    const mock = await loadLocalhostWakeBackground([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
-      pageActionResults: [
-        { result: "passed", action: "fill" }
-      ]
+    const mock = await loadLocalhostFillWakeBackground({
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS
     });
 
     const { sendResponse } = sendPageControlWake(mock, createFillWakeDirective());
@@ -2049,16 +2037,9 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("does not let scheduled wake dedupe suppress an immediate popup delegated action", async () => {
-    const mock = await loadLocalhostWakeBackground([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: LOCALHOST_PAGE_ACCESS,
-      pageActionResults: [
-        { result: "passed", action: "fill" }
-      ]
-    });
+    const mock = await loadLocalhostFillWakeBackground();
 
-    const wakeUrl = createWakeUrl({ wake: "popup-fill-race", targetTabId: 42, wakeAction: "fill", requestId: "page-control-fill-cli-race", selector: "#name", text: "skfiy" });
+    const wakeUrl = createFillWakeUrl({ wake: "popup-fill-race", requestId: "page-control-fill-cli-race" });
     dispatchWakeTabUpdated(mock, wakeUrl);
 
     const { sendResponse } = sendPageControlWake(mock, createFillWakeDirective({
@@ -2093,16 +2074,9 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("deduplicates repeated tab update events for the same action wake URL", async () => {
-    const mock = await loadLocalhostWakeBackground([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: LOCALHOST_PAGE_ACCESS,
-      pageActionResults: [
-        { result: "passed", action: "fill" }
-      ]
-    });
+    const mock = await loadLocalhostFillWakeBackground();
 
-    const url = createWakeUrl({ wake: "dedupe-1", targetTabId: 42, wakeAction: "fill", selector: "#name", text: "skfiy" });
+    const url = createFillWakeUrl({ wake: "dedupe-1" });
     dispatchWakeTabUpdated(mock, url, { changeInfo: { url } });
     dispatchWakeTabUpdated(mock, url);
     await waitForWakeProcessing(250);
@@ -2123,17 +2097,10 @@ describe("Chrome extension background policy sync", () => {
 
   it("ignores stale timestamped action wake URLs when old extension tabs are still open", async () => {
     const now = Date.now();
-    const mock = await loadLocalhostWakeBackground([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: LOCALHOST_PAGE_ACCESS,
-      pageActionResults: [
-        { result: "passed", action: "fill" }
-      ]
-    });
+    const mock = await loadLocalhostFillWakeBackground();
 
     const staleUrl = createWakeUrl({ wake: now - 600_000, targetTabId: 42, wakeAction: "click", requestId: "page-control-click-cli-stale", selector: "#click-only" });
-    const currentUrl = createWakeUrl({ wake: now, targetTabId: 42, wakeAction: "fill", requestId: "page-control-fill-cli-current", selector: "#name", text: "skfiy" });
+    const currentUrl = createFillWakeUrl({ wake: now, requestId: "page-control-fill-cli-current" });
 
     dispatchWakeTabUpdated(mock, staleUrl);
     dispatchWakeTabUpdated(mock, currentUrl, { tabId: 100 });
@@ -2156,9 +2123,7 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("records a bounded screenshot blocker when Chrome captureVisibleTab fails", async () => {
-    const mock = await loadLocalhostWakeBackground([
-      createPageObserveResponse()
-    ], {
+    const mock = await loadLocalhostPageControlWakeBackground({
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       captureVisibleTabError: "The active tab cannot be captured"
     });
@@ -2190,11 +2155,7 @@ describe("Chrome extension background policy sync", () => {
   });
 
   it("does not call captureVisibleTab when the background wake lacks all-urls capture permission", async () => {
-    const mock = await loadLocalhostWakeBackground([
-      createPageObserveResponse()
-    ], {
-      grantedOrigins: LOCALHOST_PAGE_ACCESS
-    });
+    const mock = await loadLocalhostPageControlWakeBackground();
 
     dispatchWakeTabUpdated(
       mock,
