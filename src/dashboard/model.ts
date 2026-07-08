@@ -655,7 +655,9 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
   const extension = readRecord(snapshot.runtimeHealth.extension);
   const nativeHost = readRecord(snapshot.runtimeHealth.nativeHost);
   const desktopSession = readRecord(snapshot.runtimeHealth.desktopSession);
-  const pageControl = readRecord(extension?.pageControl);
+  const chromeArtifact = findSmokeArtifact(snapshot, "chrome");
+  const pageControl = readRecord(extension?.pageControl)
+    ?? readRecord(chromeArtifact?.pageControl);
   const activeTab = readRecord(pageControl?.activeTab);
   const capabilities = readRecord(pageControl?.capabilities);
   const contentScript = readRecord(pageControl?.contentScript);
@@ -681,7 +683,7 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
     ?? readString(extension?.nativeHostState)
     ?? "unknown";
   const screenshotLane = readChromeScreenshotLane(pageControl, capabilities);
-  const tabDiscovery = readChromeTabDiscoverySummary(extension);
+  const tabDiscovery = readChromeTabDiscoverySummary(extension, chromeArtifact);
   const hostPolicy = readChromeHostPolicySummary(
     readRecord(extension?.hostPolicy)
       ?? readRecord(snapshot.runtimeHealth.chromeHostPolicy)
@@ -1242,13 +1244,18 @@ function readChromeScreenshotLane(
   return "fallback available";
 }
 
-function readChromeTabDiscoverySummary(extension: Record<string, unknown> | undefined): {
+function readChromeTabDiscoverySummary(
+  extension: Record<string, unknown> | undefined,
+  chromeArtifact: Record<string, unknown> | undefined
+): {
   label: string;
   reason?: string;
 } {
   const candidate = [
     readRecord(extension?.tabDiscovery),
-    readRecord(extension?.pageTabs)
+    readRecord(extension?.pageTabs),
+    readRecord(chromeArtifact?.tabDiscovery),
+    readRecord(chromeArtifact?.pageTabs)
   ].find(Boolean);
   if (!candidate) {
     return { label: "not-probed" };

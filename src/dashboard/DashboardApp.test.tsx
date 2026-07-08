@@ -812,6 +812,77 @@ describe("DashboardApp", () => {
     expect(within(checklist).getByText("The popup observes the page automatically after access is granted.")).toBeInTheDocument();
   });
 
+  it("shows Chrome pageControl and tab discovery from smoke artifact fallback without artifact paths", async () => {
+    const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+    const artifactSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      runtimeHealth: {
+        ...snapshot.runtimeHealth,
+        extension: {
+          ...extension,
+          pageControl: undefined,
+          tabDiscovery: undefined,
+          pageTabs: undefined
+        }
+      },
+      smokeEvidence: {
+        artifacts: [
+          {
+            target: "chrome",
+            result: "passed",
+            path: "/repo/.skfiy-smoke/chrome-current.json",
+            pageControl: {
+              state: "ready",
+              capable: true,
+              activeTab: {
+                host: "artifact.example",
+                tabId: 77,
+                scheme: "https"
+              },
+              contentScript: {
+                state: "loaded"
+              },
+              capabilities: {
+                domActions: true,
+                observe: true,
+                screenshot: "background_required"
+              },
+              reason: "pageControl from smoke artifact.",
+              nextAction: "Use artifact pageControl."
+            },
+            tabDiscovery: {
+              state: "artifact",
+              tabs: [
+                { id: 77, host: "artifact.example" },
+                { id: 78, host: "docs.example" }
+              ],
+              fallbackReason: "Apple Events fallback discovered the tabs."
+            }
+          }
+        ]
+      }
+    };
+
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => artifactSnapshot)}
+    />);
+
+    const browser = await screen.findByRole("region", { name: "Browser" });
+    expect(within(browser).getByText("artifact.example tab 77")).toBeInTheDocument();
+    expect(within(browser).getByText("screenshot needs permission")).toBeInTheDocument();
+    expect(within(browser).getByText("artifact · 2 tabs")).toBeInTheDocument();
+    expect(within(browser).getByText("Apple Events fallback discovered the tabs.")).toBeInTheDocument();
+    expect(within(browser).getByText("pageControl from smoke artifact.")).toBeInTheDocument();
+    expect(within(browser).getByText("Use artifact pageControl.")).toBeInTheDocument();
+    expect(within(browser).queryByText(/\.skfiy-smoke/u)).not.toBeInTheDocument();
+  });
+
   it("opens the target-tab Chrome extension access page from blocked Browser Context recovery", async () => {
     const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
     const blockedSnapshot: DashboardSnapshot = {

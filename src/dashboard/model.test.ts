@@ -636,6 +636,74 @@ describe("readChromeControlState", () => {
     expect(readChromeControlCommandHints(readChromeControlState(createSnapshot()))).toEqual([]);
   });
 
+  it("falls back to Chrome smoke artifact pageControl and tab discovery without exposing artifact paths", () => {
+    const chromeControl = readChromeControlState({
+      ...createSnapshot(),
+      runtimeHealth: {
+        ...createSnapshot().runtimeHealth,
+        extension: {
+          state: "connected",
+          liveConnection: "connected",
+          extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"]
+        },
+        nativeHost: {
+          state: "installed"
+        },
+        desktopSession: {
+          state: "controllable"
+        }
+      },
+      smokeEvidence: {
+        artifacts: [
+          {
+            target: "chrome",
+            result: "passed",
+            path: "/repo/.skfiy-smoke/chrome-current.json",
+            pageControl: {
+              state: "ready",
+              capable: true,
+              activeTab: {
+                host: "artifact.example",
+                tabId: 77,
+                scheme: "https"
+              },
+              contentScript: {
+                state: "loaded"
+              },
+              capabilities: {
+                domActions: true,
+                observe: true,
+                screenshot: "background_required"
+              },
+              reason: "pageControl from smoke artifact.",
+              nextAction: "Use artifact pageControl."
+            },
+            tabDiscovery: {
+              state: "artifact",
+              tabs: [
+                { id: 77, host: "artifact.example" },
+                { id: 78, host: "docs.example" }
+              ],
+              fallbackReason: "Apple Events fallback discovered the tabs."
+            }
+          }
+        ]
+      }
+    });
+
+    expect(chromeControl).toMatchObject({
+      label: "ready",
+      activeTabLabel: "artifact.example tab 77",
+      contentScript: "loaded",
+      screenshotLane: "screenshot needs permission",
+      tabDiscoveryLabel: "artifact · 2 tabs",
+      tabDiscoveryReason: "Apple Events fallback discovered the tabs.",
+      reason: "pageControl from smoke artifact.",
+      nextAction: "Use artifact pageControl."
+    });
+    expect(JSON.stringify(chromeControl)).not.toContain(".skfiy-smoke");
+  });
+
   it("derives Chrome setup guide commands from the runtime snapshot without artifact output paths", () => {
     const setupGuide = readChromeSetupGuideSummary({
       ...createSnapshot(),
