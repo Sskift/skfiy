@@ -1508,10 +1508,10 @@ describe("Chrome extension background policy sync", () => {
     });
   });
 
-  it("runs tab discovery from created wake tabs without relying on delayed timers", async () => {
-    const wakeUrl = createWakeUrl({ wake: "created-tabs-immediate", wakeAction: "tabs", requestId: "tabs-discover-immediate" });
+  it("runs and closes tab-discovery wake tabs from created events without delayed timers", async () => {
+    const wakeUrl = createWakeUrl({ wake: "created-tabs", wakeAction: "tabs", requestId: "tabs-discover-created" });
     const mock = createChromeMock([
-      createNativeResponse(TABS_DISCOVER, "tabs-discover-immediate")
+      createNativeResponse(TABS_DISCOVER, "tabs-discover-created")
     ], {
       allTabs: [
         {
@@ -1523,8 +1523,8 @@ describe("Chrome extension background policy sync", () => {
         {
           id: 41,
           windowId: 7,
-          title: "Immediate app",
-          url: "https://immediate.example/dashboard"
+          title: "Created wake app",
+          url: "https://created.example/dashboard"
         }
       ]
     });
@@ -1540,50 +1540,9 @@ describe("Chrome extension background policy sync", () => {
 
     await waitForAssertion(() => {
       const discoveryMessage = mock.postedMessages.find((message) => message.type === TABS_DISCOVER);
-      expect(discoveryMessage?.requestId).toBe("tabs-discover-immediate");
+      expect(discoveryMessage?.requestId).toBe("tabs-discover-created");
       expect(discoveryMessage?.payload?.pageTabs?.tabs).toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: 41, host: "immediate.example" })
-      ]));
-    });
-  });
-
-  it("closes tabs-discovery wake tabs after native evidence is recorded", async () => {
-    const wakeUrl = createWakeUrl({ wake: "created-tabs-close", wakeAction: "tabs", requestId: "tabs-discover-close-wake" });
-    const mock = createChromeMock([
-      createNativeResponse(TABS_DISCOVER, "tabs-discover-close-wake")
-    ], {
-      allTabs: [
-        {
-          id: 99,
-          windowId: 7,
-          active: true,
-          url: wakeUrl
-        },
-        {
-          id: 41,
-          windowId: 7,
-          title: "Close wake app",
-          url: "https://close-wake.example/dashboard"
-        }
-      ]
-    });
-    await loadBackground(mock);
-
-    dispatchWakeTabCreated(
-      mock,
-      wakeUrl
-    );
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    await waitForAssertion(() => {
-      expect(mock.postedMessages).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          schemaVersion: 1,
-          type: TABS_DISCOVER,
-          requestId: "tabs-discover-close-wake"
-        })
+        expect.objectContaining({ id: 41, host: "created.example" })
       ]));
       expect(mock.chrome.tabs.remove).toHaveBeenCalledWith(99);
     });
