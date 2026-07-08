@@ -591,6 +591,10 @@ describe("DashboardApp", () => {
     expect(within(activity).getAllByText("app_policy_denied").length).toBeGreaterThan(0);
     expect(within(activity).getByText("state blocked")).toBeInTheDocument();
     expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText("App policy denied route").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("denied by app policy").length).toBeGreaterThan(0);
   });
 
   it("shows stop-turn route outcome semantics in Activity", async () => {
@@ -617,6 +621,10 @@ describe("DashboardApp", () => {
     expect(within(activity).getAllByText("stopped").length).toBeGreaterThan(0);
     expect(within(activity).getByText("state cancelled")).toBeInTheDocument();
     expect(within(activity).getByText("route chrome")).toBeInTheDocument();
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText("Route stopped").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("stopped route").length).toBeGreaterThan(0);
   });
 
   it("shows the fallback Home summary in Overview without provider secrets", async () => {

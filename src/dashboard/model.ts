@@ -281,6 +281,8 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
   const browserContext = readBrowserContextSummary(snapshot);
   const computerUse = readComputerUseReadiness(snapshot);
   const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
+  const routeOutcome = readRouteOutcome(snapshot);
+  const latestTaskSignal = readLatestTaskSignal(snapshot);
 
   pushNode(nodes, {
     id: providerId,
@@ -303,16 +305,29 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       id: "turn:current",
       label: "Current turn",
       kind: "turn",
-      tone: readLatestTaskSignal(snapshot).tone,
+      tone: latestTaskSignal.tone,
       detail: readString(snapshot.currentTurn.command) ?? readLatestMessage(snapshot)
     });
     pushEdge(edges, {
       from: "computer-use",
       to: "turn:current",
-      label: snapshot.currentTurn.approvalRequired === true || currentTurnState.includes("approval")
-        ? "requires approval"
-        : "routes action"
+      label: readCurrentTurnGraphEdgeLabel(routeOutcome, snapshot.currentTurn, currentTurnState)
     });
+    if (shouldShowRouteOutcomeGraphNode(routeOutcome)) {
+      pushNode(nodes, {
+        id: "route:current",
+        label: routeOutcome.title,
+        kind: "turn",
+        tone: routeOutcome.tone,
+        detail: createRouteOutcomeGraphDetail(routeOutcome)
+      });
+      pushEdge(edges, {
+        from: "computer-use",
+        to: "route:current",
+        label: readCurrentTurnGraphEdgeLabel(routeOutcome, snapshot.currentTurn, currentTurnState)
+      });
+      pushEdge(edges, { from: "route:current", to: "turn:current", label: "summarizes turn" });
+    }
   }
 
   if (personalMemory && (personalMemory.userEntryCount > 0 || personalMemory.recentUserEntries.length > 0)) {
@@ -531,6 +546,48 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       && nodes.some((node) => node.id === edge.to)
     ))
   };
+}
+
+function shouldShowRouteOutcomeGraphNode(routeOutcome: DashboardRouteOutcome): boolean {
+  return routeOutcome.kind !== "idle" && routeOutcome.kind !== "unknown";
+}
+
+function createRouteOutcomeGraphDetail(routeOutcome: DashboardRouteOutcome): string {
+  const route = routeOutcome.routeLabel === "unknown" ? "route unknown" : `route ${routeOutcome.routeLabel}`;
+  return `${routeOutcome.value} · state ${routeOutcome.state} · ${route} · ${routeOutcome.detail}`;
+}
+
+function readCurrentTurnGraphEdgeLabel(
+  routeOutcome: DashboardRouteOutcome,
+  currentTurn: Record<string, unknown>,
+  currentTurnState: string
+): string {
+  switch (routeOutcome.kind) {
+    case "approval_required":
+      return "requires approval";
+    case "needs_confirmation":
+      return "needs confirmation";
+    case "needs_clarification":
+      return "needs clarification";
+    case "app_policy_denied":
+      return "denied by app policy";
+    case "user_denied":
+      return "denied by user";
+    case "blocked":
+      return "blocked route";
+    case "cancelled":
+      return "cancelled route";
+    case "stopped":
+      return "stopped route";
+    case "failed":
+      return "failed route";
+    case "completed":
+      return "completed route";
+    default:
+      return currentTurn.approvalRequired === true || currentTurnState.includes("approval")
+        ? "requires approval"
+        : "routes action";
+  }
 }
 
 export function readPersonalMutationReceipt(

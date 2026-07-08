@@ -172,6 +172,64 @@ describe("readKnowledgeGraph", () => {
       })
     ]));
   });
+
+  it("keeps app-policy route denial explicit in the graph", () => {
+    const graph = readKnowledgeGraph({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy.",
+        latestMessage: "Ghostty is denied by app policy.",
+        command: "run pwd in Ghostty"
+      }
+    });
+
+    expect(graph.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "route:current",
+        kind: "turn",
+        label: "App policy denied route",
+        tone: "danger",
+        detail: "app_policy_denied · state blocked · route ghostty · Ghostty is denied by app policy."
+      })
+    ]));
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ from: "computer-use", to: "turn:current", label: "denied by app policy" }),
+      expect.objectContaining({ from: "computer-use", to: "route:current", label: "denied by app policy" }),
+      expect.objectContaining({ from: "route:current", to: "turn:current", label: "summarizes turn" })
+    ]));
+  });
+
+  it("keeps explicit stop-turn outcomes in the graph", () => {
+    const graph = readKnowledgeGraph({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      }
+    });
+
+    expect(graph.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "route:current",
+        kind: "turn",
+        label: "Route stopped",
+        tone: "neutral",
+        detail: "stopped · state cancelled · route chrome · Task stopped."
+      })
+    ]));
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ from: "computer-use", to: "turn:current", label: "stopped route" }),
+      expect.objectContaining({ from: "computer-use", to: "route:current", label: "stopped route" }),
+      expect.objectContaining({ from: "route:current", to: "turn:current", label: "summarizes turn" })
+    ]));
+  });
 });
 
 describe("readComputerUseReadiness", () => {
