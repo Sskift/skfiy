@@ -124,6 +124,14 @@ export interface DashboardHomeSummary {
   items: DashboardStatusItem[];
 }
 
+export interface DashboardAppsSitesSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardActivityFeedSummary {
   title: string;
   value: string;
@@ -1871,6 +1879,90 @@ export function readAssistantProviderView(snapshot: DashboardSnapshot): Dashboar
 
 export function readBrowserContextSummary(snapshot: DashboardSnapshot): DashboardBrowserContextSummary {
   return readChromeControlState(snapshot).browserContext;
+}
+
+export function readAppsSitesSummary(snapshot: DashboardSnapshot): DashboardAppsSitesSummary {
+  const chromeControl = readChromeControlState(snapshot);
+
+  return {
+    title: "Apps and sites",
+    value: readAppsSitesValue(chromeControl),
+    detail: readAppsSitesDetail(chromeControl),
+    tone: readAppsSitesTone(chromeControl),
+    items: [
+      createStatusItem(
+        "Chrome",
+        chromeControl.liveConnection === "connected" ? "Connected" : "Extension needs refresh",
+        chromeControl.liveConnection === "connected" ? "success" : "warning"
+      ),
+      createStatusItem(
+        "Native host",
+        chromeControl.nativeHostState,
+        chromeControl.nativeHostState === "installed" ? "success" : "warning"
+      ),
+      createStatusItem("Current page", chromeControl.activeTabLabel),
+      createStatusItem("Host policy", chromeControl.hostPolicy.state, chromeControl.hostPolicy.tone),
+      createStatusItem("Browser Context", chromeControl.browserContext.state, chromeControl.browserContext.tone),
+      createStatusItem("Screenshot", chromeControl.screenshotLane, readScreenshotLaneTone(chromeControl.screenshotLane)),
+      createStatusItem("Tab discovery", chromeControl.tabDiscoveryLabel)
+    ]
+  };
+}
+
+function readAppsSitesValue(chromeControl: DashboardChromeControlState): string {
+  if (chromeControl.actionable && chromeControl.screenshotLane !== "ready") {
+    return "Partial";
+  }
+  if (chromeControl.actionable && chromeControl.tone === "success") {
+    return "Ready";
+  }
+  if (chromeControl.actionable) {
+    return "Partial";
+  }
+  if (chromeControl.tone === "danger") {
+    return "Blocked";
+  }
+  if (chromeControl.liveConnection !== "connected" || chromeControl.nativeHostState !== "installed") {
+    return "Refresh";
+  }
+
+  return "Review";
+}
+
+function readAppsSitesTone(chromeControl: DashboardChromeControlState): Tone {
+  if (chromeControl.actionable && chromeControl.screenshotLane !== "ready") {
+    return "warning";
+  }
+
+  return chromeControl.tone;
+}
+
+function readAppsSitesDetail(chromeControl: DashboardChromeControlState): string {
+  if (chromeControl.actionable && chromeControl.screenshotLane === "ready") {
+    return "Chrome DOM actions and screenshot capture are ready for this HTTP(S) page.";
+  }
+  if (chromeControl.actionable) {
+    return "Chrome DOM actions are ready; screenshots may need Chrome capture permission or desktop fallback.";
+  }
+
+  return chromeControl.nextAction
+    ?? chromeControl.browserContext.nextAction
+    ?? chromeControl.reason
+    ?? chromeControl.browserContext.reason;
+}
+
+function readScreenshotLaneTone(value: string): Tone {
+  if (value === "ready") {
+    return "success";
+  }
+  if (value === "blocked") {
+    return "danger";
+  }
+  if (value.includes("permission") || value.includes("fallback")) {
+    return "warning";
+  }
+
+  return "neutral";
 }
 
 function readBrowserContextDetail(browserContext: DashboardBrowserContextSummary): string {

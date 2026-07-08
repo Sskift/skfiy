@@ -3,6 +3,7 @@ import type { DashboardSnapshot } from "./contracts";
 import {
   readActivityFeedSummary,
   readAgentSupervisionSummary,
+  readAppsSitesSummary,
   readApprovalQueueSummary,
   readChromeControlCommandHints,
   readChromeControlState,
@@ -931,6 +932,137 @@ describe("readChromeControlState", () => {
       nextAction: "Use artifact pageControl."
     });
     expect(JSON.stringify(chromeControl)).not.toContain(".skfiy-smoke");
+  });
+
+  it("summarizes current page access for the React Apps and Sites card", () => {
+    const summary = readAppsSitesSummary({
+      ...createSnapshot(),
+      runtimeHealth: {
+        ...createSnapshot().runtimeHealth,
+        extension: {
+          state: "connected",
+          liveConnection: "connected",
+          extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"],
+          hostPolicy: {
+            state: "configured",
+            reason: "Chrome host policy loaded from disk."
+          },
+          pageControl: {
+            state: "ready",
+            capable: true,
+            activeTab: {
+              host: "127.0.0.1:51234",
+              tabId: 42,
+              scheme: "http"
+            },
+            contentScript: {
+              state: "loaded"
+            },
+            capabilities: {
+              domActions: true,
+              observe: true,
+              click: true,
+              fill: true,
+              submit: true,
+              scroll: true,
+              screenshot: true
+            }
+          },
+          browserContext: {
+            state: "ready",
+            title: "skfiy Dashboard",
+            url: "http://127.0.0.1:51234/dashboard",
+            reason: "Current Chrome page context is ready."
+          }
+        },
+        nativeHost: {
+          state: "installed"
+        },
+        desktopSession: {
+          state: "controllable"
+        }
+      }
+    });
+
+    expect(summary).toEqual({
+      title: "Apps and sites",
+      value: "Ready",
+      detail: "Chrome DOM actions and screenshot capture are ready for this HTTP(S) page.",
+      tone: "success",
+      items: [
+        { label: "Chrome", value: "Connected", tone: "success" },
+        { label: "Native host", value: "installed", tone: "success" },
+        { label: "Current page", value: "127.0.0.1:51234 tab 42", tone: "neutral" },
+        { label: "Host policy", value: "configured", tone: "success" },
+        { label: "Browser Context", value: "ready", tone: "success" },
+        { label: "Screenshot", value: "ready", tone: "success" },
+        { label: "Tab discovery", value: "not-probed", tone: "neutral" }
+      ]
+    });
+  });
+
+  it("summarizes artifact pageControl fallback for Apps and Sites without artifact paths", () => {
+    const summary = readAppsSitesSummary({
+      ...createSnapshot(),
+      runtimeHealth: {
+        ...createSnapshot().runtimeHealth,
+        extension: {
+          state: "connected",
+          liveConnection: "connected",
+          extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"]
+        },
+        nativeHost: {
+          state: "installed"
+        },
+        desktopSession: {
+          state: "controllable"
+        }
+      },
+      smokeEvidence: {
+        artifacts: [
+          {
+            target: "chrome",
+            result: "passed",
+            path: "/repo/.skfiy-smoke/chrome-current.json",
+            pageControl: {
+              state: "ready",
+              capable: true,
+              activeTab: {
+                host: "artifact.example",
+                tabId: 77,
+                scheme: "https"
+              },
+              capabilities: {
+                domActions: true,
+                observe: true,
+                screenshot: "background_required"
+              }
+            },
+            tabDiscovery: {
+              state: "artifact",
+              tabs: [
+                { id: 77, host: "artifact.example" },
+                { id: 78, host: "docs.example" }
+              ],
+              fallbackReason: "Apple Events fallback discovered the tabs."
+            }
+          }
+        ]
+      }
+    });
+
+    expect(summary).toMatchObject({
+      title: "Apps and sites",
+      value: "Partial",
+      detail: "Chrome DOM actions are ready; screenshots may need Chrome capture permission or desktop fallback.",
+      tone: "warning",
+      items: expect.arrayContaining([
+        { label: "Current page", value: "artifact.example tab 77", tone: "neutral" },
+        { label: "Screenshot", value: "screenshot needs permission", tone: "warning" },
+        { label: "Tab discovery", value: "artifact · 2 tabs", tone: "neutral" }
+      ])
+    });
+    expect(JSON.stringify(summary)).not.toContain(".skfiy-smoke");
   });
 
   it("derives Chrome setup guide commands from the runtime snapshot without artifact output paths", () => {

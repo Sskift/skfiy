@@ -67,6 +67,7 @@ import {
   readAgentSupervisionSummary,
   readAlertMessages,
   readAppReadinessLanes,
+  readAppsSitesSummary,
   readApprovalQueueSummary,
   readCapabilitySummaries,
   readChromeControlCommandHints,
@@ -92,6 +93,7 @@ import {
   type DashboardAgentSupervisionSummary,
   type DashboardActivityFeedSummary,
   type DashboardAppReadinessLane,
+  type DashboardAppsSitesSummary,
   type DashboardApprovalQueueSummary,
   type DashboardCapabilitySummary,
   type DashboardChromeControlState,
@@ -465,6 +467,7 @@ function DashboardContent({
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
   const homeSummary = useMemo(() => readHomeSummary(snapshot), [snapshot]);
+  const appsSitesSummary = useMemo(() => readAppsSitesSummary(snapshot), [snapshot]);
   const activityFeed = useMemo(() => readActivityFeedSummary(snapshot), [snapshot]);
   const routeOutcome = useMemo(() => readRouteOutcome(snapshot), [snapshot]);
   const approvalQueue = useMemo(() => readApprovalQueueSummary(snapshot), [snapshot]);
@@ -538,6 +541,7 @@ function DashboardContent({
           stateItems={stateItems}
         />
         <HomeSummaryCard summary={homeSummary} />
+        <AppsSitesSummaryCard summary={appsSitesSummary} />
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--four">
           {capabilities.map((capability) => (
             <CapabilityCard key={capability.id} capability={capability} />
@@ -1081,6 +1085,35 @@ function HomeSummaryCard({ summary }: { summary: DashboardHomeSummary }) {
           <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
         </div>
         <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Home summary details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function AppsSitesSummaryCard({ summary }: { summary: DashboardAppsSitesSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Browser access snapshot</Card.Description>
+        </div>
+        <Chrome size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Apps and sites details">
           {summary.items.map((item) => (
             <li key={item.label}>
               <span>{item.label}</span>

@@ -917,6 +917,14 @@ describe("DashboardApp", () => {
     expect(within(browser).getByText("pageControl from smoke artifact.")).toBeInTheDocument();
     expect(within(browser).getByText("Use artifact pageControl.")).toBeInTheDocument();
     expect(within(browser).queryByText(/\.skfiy-smoke/u)).not.toBeInTheDocument();
+
+    const overview = screen.getByRole("region", { name: "Overview" });
+    expect(within(overview).getByRole("heading", { name: "Apps and sites" })).toBeInTheDocument();
+    const appsSitesDetails = within(overview).getByRole("list", { name: "Apps and sites details" });
+    expect(within(appsSitesDetails).getByText("artifact.example tab 77")).toBeInTheDocument();
+    expect(within(appsSitesDetails).getByText("screenshot needs permission")).toBeInTheDocument();
+    expect(within(appsSitesDetails).getByText("artifact · 2 tabs")).toBeInTheDocument();
+    expect(within(overview).queryByText(/\.skfiy-smoke/u)).not.toBeInTheDocument();
   });
 
   it("opens the target-tab Chrome extension access page from blocked Browser Context recovery", async () => {
