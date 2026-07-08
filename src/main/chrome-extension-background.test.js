@@ -346,6 +346,59 @@ function createFillWakeUrl(overrides = {}) {
   });
 }
 
+function createReadyLocalhostContentScriptSession(overrides = {}) {
+  const { pageControl = {}, ...sessionOverrides } = overrides;
+  const { capabilities = {}, ...pageControlOverrides } = pageControl;
+  return {
+    state: "loaded",
+    host: LOCALHOST_TEST_HOST,
+    ...sessionOverrides,
+    pageControl: {
+      state: "ready",
+      ...pageControlOverrides,
+      capabilities: {
+        observe: true,
+        domActions: true,
+        click: true,
+        fill: true,
+        submit: true,
+        scroll: true,
+        ...capabilities
+      }
+    }
+  };
+}
+
+function compactExpectedFields(fields) {
+  return Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined)
+  );
+}
+
+function createExpectedPageActionResult(fields) {
+  return expect.objectContaining(compactExpectedFields(fields));
+}
+
+function expectPostedPageActionResult(message, fields) {
+  expect(message).toMatchObject({
+    type: PAGE_ACTION,
+    ...(fields.requestId === undefined ? {} : { requestId: fields.requestId }),
+    payload: {
+      pageActionResult: createExpectedPageActionResult(fields)
+    }
+  });
+}
+
+function expectPostedFillActionResult(message, requestId) {
+  expectPostedPageActionResult(message, {
+    requestId,
+    result: "passed",
+    action: "fill",
+    targetTabId: 42,
+    selector: "#name"
+  });
+}
+
 function dispatchRuntimeInstalled(mock) {
   mock.chrome.runtime.onInstalled.listeners[0]();
 }
@@ -1722,21 +1775,7 @@ describe("Chrome extension background policy sync", () => {
       createPageObserveResponse()
     ], {
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
-      contentScriptSession: {
-        state: "loaded",
-        host: "127.0.0.1:63852",
-        pageControl: {
-          state: "ready",
-          capabilities: {
-            observe: true,
-            domActions: true,
-            click: true,
-            fill: true,
-            submit: true,
-            scroll: true
-          }
-        }
-      }
+      contentScriptSession: createReadyLocalhostContentScriptSession()
     });
     mockWakeAndLocalhostTargetTabs(
       mock,
@@ -1876,28 +1915,28 @@ describe("Chrome extension background policy sync", () => {
       "cli-scroll-current"
     ]);
     expect(mock.postedMessages.slice(1).map((message) => message.payload.pageActionResult)).toEqual([
-      expect.objectContaining({
+      createExpectedPageActionResult({
         requestId: "cli-click-current",
         result: "passed",
         action: "click",
         targetTabId: 42,
         selector: "#submit"
       }),
-      expect.objectContaining({
+      createExpectedPageActionResult({
         requestId: "cli-fill-current",
         result: "passed",
         action: "fill",
         targetTabId: 42,
         selector: "#name"
       }),
-      expect.objectContaining({
+      createExpectedPageActionResult({
         requestId: "cli-submit-current",
         result: "passed",
         action: "submit",
         targetTabId: 42,
         selector: "form"
       }),
-      expect.objectContaining({
+      createExpectedPageActionResult({
         requestId: "cli-scroll-current",
         result: "passed",
         action: "scroll",
@@ -1921,35 +1960,23 @@ describe("Chrome extension background policy sync", () => {
 
     await dispatchWakeUrlsAndWaitForPostedMessages(mock, wakeUrls);
 
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
+    expectPostedPageActionResult(mock.postedMessages[0], {
       requestId: "page-control-submit-cli-1",
-      payload: {
-        pageActionResult: {
-          type: "skfiy.page.action_result",
-          requestId: "page-control-submit-cli-1",
-          result: "blocked",
-          reason: "page_action_no_response",
-          action: "submit",
-          targetTabId: 42,
-          selector: "form"
-        }
-      }
+      type: "skfiy.page.action_result",
+      result: "blocked",
+      reason: "page_action_no_response",
+      action: "submit",
+      targetTabId: 42,
+      selector: "form"
     });
-    expect(mock.postedMessages[1]).toMatchObject({
-      type: PAGE_ACTION,
+    expectPostedPageActionResult(mock.postedMessages[1], {
       requestId: "page-control-scroll-cli-2",
-      payload: {
-        pageActionResult: {
-          type: "skfiy.page.action_result",
-          requestId: "page-control-scroll-cli-2",
-          result: "blocked",
-          reason: "page_action_no_response",
-          action: "scroll",
-          targetTabId: 42,
-          deltaY: 600
-        }
-      }
+      type: "skfiy.page.action_result",
+      result: "blocked",
+      reason: "page_action_no_response",
+      action: "scroll",
+      targetTabId: 42,
+      deltaY: 600
     });
   });
 
@@ -1982,19 +2009,7 @@ describe("Chrome extension background policy sync", () => {
       }
     }));
     expect(mock.postedMessages).toHaveLength(1);
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
-      requestId: "page-control-fill-cli-1",
-      payload: {
-        pageActionResult: {
-          requestId: "page-control-fill-cli-1",
-          result: "passed",
-          action: "fill",
-          targetTabId: 42,
-          selector: "#name"
-        }
-      }
-    });
+    expectPostedFillActionResult(mock.postedMessages[0], "page-control-fill-cli-1");
 
     sendPageControlWake(mock, createFillWakeDirective());
     await waitForWakeProcessing();
@@ -2025,19 +2040,7 @@ describe("Chrome extension background policy sync", () => {
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
     expect(mock.postedMessages).toHaveLength(1);
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
-      requestId: "page-control-fill-cli-race",
-      payload: {
-        pageActionResult: {
-          requestId: "page-control-fill-cli-race",
-          result: "passed",
-          action: "fill",
-          targetTabId: 42,
-          selector: "#name"
-        }
-      }
-    });
+    expectPostedFillActionResult(mock.postedMessages[0], "page-control-fill-cli-race");
   });
 
   it("deduplicates repeated tab update events for the same action wake URL", async () => {
@@ -2050,16 +2053,7 @@ describe("Chrome extension background policy sync", () => {
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
     expect(mock.postedMessages).toHaveLength(1);
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
-      payload: {
-        pageActionResult: {
-          action: "fill",
-          targetTabId: 42,
-          selector: "#name"
-        }
-      }
-    });
+    expectPostedFillActionResult(mock.postedMessages[0]);
   });
 
   it("ignores stale timestamped action wake URLs when old extension tabs are still open", async () => {
@@ -2075,17 +2069,11 @@ describe("Chrome extension background policy sync", () => {
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
     expect(mock.postedMessages).toHaveLength(1);
-    expect(mock.postedMessages[0]).toMatchObject({
-      type: PAGE_ACTION,
+    expectPostedPageActionResult(mock.postedMessages[0], {
       requestId: "page-control-fill-cli-current",
-      payload: {
-        pageActionResult: {
-          requestId: "page-control-fill-cli-current",
-          action: "fill",
-          targetTabId: 42,
-          selector: "#name"
-        }
-      }
+      action: "fill",
+      targetTabId: 42,
+      selector: "#name"
     });
   });
 
@@ -2304,25 +2292,14 @@ describe("Chrome extension background policy sync", () => {
       grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       contentScriptSessions: [
         undefined,
-        {
-          state: "loaded",
-          host: "127.0.0.1:63852",
+        createReadyLocalhostContentScriptSession({
           pageControl: {
-            state: "ready",
-            capabilities: {
-              observe: true,
-              domActions: true,
-              click: true,
-              fill: true,
-              submit: true,
-              scroll: true
-            },
             counts: {
               interactiveElements: 3,
               forms: 1
             }
           }
-        }
+        })
       ]
     });
     await loadBackground(mock);
