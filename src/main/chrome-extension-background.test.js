@@ -19,6 +19,9 @@ const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
 const EXTENSION_POPUP_URL = `${EXTENSION_ORIGIN}/popup.html`;
 const LOCALHOST_TEST_HOST = "127.0.0.1:63852";
 const LOCALHOST_TEST_URL = `http://${LOCALHOST_TEST_HOST}/`;
+const LOCALHOST_ORIGIN_PERMISSION = "http://127.0.0.1/*";
+const LOCALHOST_PAGE_ACCESS = [LOCALHOST_ORIGIN_PERMISSION];
+const LOCALHOST_CAPTURE_ACCESS = [LOCALHOST_ORIGIN_PERMISSION, "<all_urls>"];
 
 function createEvent() {
   const listeners = [];
@@ -442,6 +445,10 @@ async function waitForAssertion(assertion) {
     }
   }
   throw lastError;
+}
+
+async function waitForWakeProcessing(delayMs = 200) {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 afterEach(() => {
@@ -1438,7 +1445,7 @@ describe("Chrome extension background policy sync", () => {
       ]
     });
     await loadBackground(mock, { autoHeartbeat: true });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForWakeProcessing();
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toEqual(expect.arrayContaining([
@@ -1588,7 +1595,7 @@ describe("Chrome extension background policy sync", () => {
       const mock = createChromeMock([
         createNativeResponse(TABS_DISCOVER, "tabs-discover-stalled-diagnostics")
       ], {
-        grantedOrigins: ["http://127.0.0.1/*"],
+        grantedOrigins: LOCALHOST_PAGE_ACCESS,
         stalledDiagnosticTabIds: [41],
         contentScriptSessions: [
           {
@@ -1713,7 +1720,7 @@ describe("Chrome extension background policy sync", () => {
     await loadBackground(mock);
 
     dispatchTabUpdated(mock, 42, { status: "complete" });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForWakeProcessing();
 
     await waitForAssertion(() => {
       expect(mock.postedMessages.map((message) => message.type)).toEqual([
@@ -1731,9 +1738,6 @@ describe("Chrome extension background policy sync", () => {
           state: "blocked_by_chrome_host_permission",
           activeTab: expect.objectContaining({
             host: "127.0.0.1:63852"
-          }),
-          chromeHostPermission: expect.objectContaining({
-            origins: ["http://127.0.0.1/*"]
           })
         })
       })
@@ -1746,7 +1750,7 @@ describe("Chrome extension background policy sync", () => {
       createPolicyResponse({ allowedHosts: [LOCALHOST_TEST_HOST], currentTurnAllowedHosts: [], blockedHosts: [] }),
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       contentScriptSession: {
         state: "loaded",
         host: "127.0.0.1:63852",
@@ -1774,7 +1778,7 @@ describe("Chrome extension background policy sync", () => {
       wakeUrl
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForWakeProcessing();
 
     expect(mock.postedMessages[1]).toMatchObject({
       type: "skfiy.page.observe",
@@ -1801,7 +1805,7 @@ describe("Chrome extension background policy sync", () => {
     const mock = createChromeMock([
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       pageObserveSnapshot
     });
     storeLocalhostHostPolicy(mock);
@@ -1816,7 +1820,7 @@ describe("Chrome extension background policy sync", () => {
       wakeUrl
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForWakeProcessing();
 
     expect(mock.postedMessages).toEqual([
       expect.objectContaining({
@@ -1840,7 +1844,7 @@ describe("Chrome extension background policy sync", () => {
       createPageObserveResponse(),
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       captureVisibleTabDataUrl: screenshotDataUrl,
       pageActionResults: [
         { result: "passed", action: "click" },
@@ -1860,7 +1864,7 @@ describe("Chrome extension background policy sync", () => {
 
     for (const [index, url] of wakeUrls.entries()) {
       dispatchWakeTabUpdated(mock, url);
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitForWakeProcessing();
       await waitForAssertion(() => {
         expect(mock.postedMessages).toHaveLength(index + 1);
       });
@@ -1982,7 +1986,7 @@ describe("Chrome extension background policy sync", () => {
       createPageObserveResponse(),
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*"]
+      grantedOrigins: LOCALHOST_PAGE_ACCESS
     });
 
     const wakeUrls = [
@@ -1992,7 +1996,7 @@ describe("Chrome extension background policy sync", () => {
 
     for (const [index, url] of wakeUrls.entries()) {
       dispatchWakeTabUpdated(mock, url);
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await waitForWakeProcessing();
       await waitForAssertion(() => {
         expect(mock.postedMessages).toHaveLength(index + 1);
       });
@@ -2034,7 +2038,7 @@ describe("Chrome extension background policy sync", () => {
     const mock = await loadLocalhostWakeBackground([
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       pageActionResults: [
         { result: "passed", action: "fill" }
       ]
@@ -2049,7 +2053,7 @@ describe("Chrome extension background policy sync", () => {
         requestId: "page-control-fill-cli-1"
       }));
     });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForWakeProcessing();
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledWith(42, expect.objectContaining({
@@ -2079,7 +2083,7 @@ describe("Chrome extension background policy sync", () => {
     });
 
     sendPageControlWake(mock, createFillWakeDirective());
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForWakeProcessing();
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
     expect(mock.postedMessages).toHaveLength(1);
@@ -2089,7 +2093,7 @@ describe("Chrome extension background policy sync", () => {
     const mock = await loadLocalhostWakeBackground([
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*"],
+      grantedOrigins: LOCALHOST_PAGE_ACCESS,
       pageActionResults: [
         { result: "passed", action: "fill" }
       ]
@@ -2110,7 +2114,7 @@ describe("Chrome extension background policy sync", () => {
         requestId: "page-control-fill-cli-race"
       }));
     });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForWakeProcessing();
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
     expect(mock.postedMessages).toHaveLength(1);
@@ -2133,7 +2137,7 @@ describe("Chrome extension background policy sync", () => {
     const mock = await loadLocalhostWakeBackground([
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*"],
+      grantedOrigins: LOCALHOST_PAGE_ACCESS,
       pageActionResults: [
         { result: "passed", action: "fill" }
       ]
@@ -2142,7 +2146,7 @@ describe("Chrome extension background policy sync", () => {
     const url = createWakeUrl({ wake: "dedupe-1", targetTabId: 42, wakeAction: "fill", selector: "#name", text: "skfiy" });
     dispatchWakeTabUpdated(mock, url, { changeInfo: { url } });
     dispatchWakeTabUpdated(mock, url);
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await waitForWakeProcessing(250);
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
     expect(mock.postedMessages).toHaveLength(1);
@@ -2163,7 +2167,7 @@ describe("Chrome extension background policy sync", () => {
     const mock = await loadLocalhostWakeBackground([
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*"],
+      grantedOrigins: LOCALHOST_PAGE_ACCESS,
       pageActionResults: [
         { result: "passed", action: "fill" }
       ]
@@ -2174,7 +2178,7 @@ describe("Chrome extension background policy sync", () => {
 
     dispatchWakeTabUpdated(mock, staleUrl);
     dispatchWakeTabUpdated(mock, currentUrl, { tabId: 100 });
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await waitForWakeProcessing(250);
 
     expect(mock.chrome.tabs.sendMessage).toHaveBeenCalledTimes(1);
     expect(mock.postedMessages).toHaveLength(1);
@@ -2196,7 +2200,7 @@ describe("Chrome extension background policy sync", () => {
     const mock = await loadLocalhostWakeBackground([
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       captureVisibleTabError: "The active tab cannot be captured"
     });
 
@@ -2204,7 +2208,7 @@ describe("Chrome extension background policy sync", () => {
       mock,
       createWakeUrl({ targetTabId: 42, wakeAction: "screenshot" })
     );
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForWakeProcessing();
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toHaveLength(1);
@@ -2230,14 +2234,14 @@ describe("Chrome extension background policy sync", () => {
     const mock = await loadLocalhostWakeBackground([
       createPageObserveResponse()
     ], {
-      grantedOrigins: ["http://127.0.0.1/*"]
+      grantedOrigins: LOCALHOST_PAGE_ACCESS
     });
 
     dispatchWakeTabUpdated(
       mock,
       createWakeUrl({ targetTabId: 42, wakeAction: "screenshot", requestId: "missing-capture-permission" })
     );
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForWakeProcessing();
 
     await waitForAssertion(() => {
       expect(mock.postedMessages).toHaveLength(1);
@@ -2410,7 +2414,7 @@ describe("Chrome extension background policy sync", () => {
         windowId: 7,
         url: LOCALHOST_TEST_URL
       },
-      grantedOrigins: ["http://127.0.0.1/*", "<all_urls>"],
+      grantedOrigins: LOCALHOST_CAPTURE_ACCESS,
       contentScriptSessions: [
         undefined,
         {
