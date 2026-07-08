@@ -1950,7 +1950,7 @@ export function readHomeSummary(snapshot: DashboardSnapshot): DashboardHomeSumma
   const freshness = readRuntimeSnapshotFreshness(snapshot, snapshot.currentTurn);
   const routeOutcome = readRouteOutcome(snapshot);
   const assistant = readHomeAssistantState(snapshot, snapshot.currentTurn, freshness, routeOutcome);
-  const nextAction = readHomeNextAction(snapshot);
+  const nextAction = readHomeNextAction(snapshot, routeOutcome);
 
   return {
     title: "Home",
@@ -2036,7 +2036,10 @@ function readHomeAssistantStateFromRouteOutcome(
   }
 }
 
-function readHomeNextAction(snapshot: DashboardSnapshot): { detail: string; tone: Tone } {
+function readHomeNextAction(
+  snapshot: DashboardSnapshot,
+  routeOutcome: DashboardRouteOutcome
+): { detail: string; tone: Tone } {
   const blocker = snapshot.alerts.find((alert) => {
     const severity = readString(alert.severity);
     return severity === "error" || severity === "warning";
@@ -2050,6 +2053,11 @@ function readHomeNextAction(snapshot: DashboardSnapshot): { detail: string; tone
 
   if (readString(snapshot.currentTurn.approvalState) === "required") {
     return { detail: "Review the pending approval.", tone: "warning" };
+  }
+
+  const routeNextAction = readNextActionFromRouteOutcome(routeOutcome);
+  if (routeNextAction) {
+    return { detail: routeNextAction.title, tone: routeNextAction.tone };
   }
 
   const extension = readRecord(snapshot.runtimeHealth.extension) ?? {};

@@ -631,7 +631,32 @@ describe("readHomeSummary", () => {
       tone: "neutral",
       items: expect.arrayContaining([
         { label: "assistant", value: "Route stopped", tone: "neutral" },
-        { label: "current task", value: "Task stopped.", tone: "neutral" }
+        { label: "current task", value: "Task stopped.", tone: "neutral" },
+        { label: "next", value: "Task stopped", tone: "neutral" }
+      ])
+    });
+  });
+
+  it("keeps app-policy denial visible in the Home next action", () => {
+    const summary = readHomeSummary({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy.",
+        latestMessage: "Ghostty is denied by app policy.",
+        command: "run pwd in Ghostty"
+      },
+      alerts: []
+    });
+
+    expect(summary).toMatchObject({
+      value: "Policy denied",
+      detail: "App policy denied route",
+      tone: "danger",
+      items: expect.arrayContaining([
+        { label: "assistant", value: "App policy denied route", tone: "danger" },
+        { label: "next", value: "Review app policy denial", tone: "danger" }
       ])
     });
   });

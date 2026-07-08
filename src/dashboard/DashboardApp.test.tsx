@@ -602,6 +602,10 @@ describe("DashboardApp", () => {
     expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toHaveTextContent("app_policy_denied");
     expect(within(commandCenter).getAllByText("app_policy_denied").length).toBeGreaterThan(0);
 
+    const overview = screen.getByRole("region", { name: "Overview" });
+    const homeDetails = within(overview).getByRole("list", { name: "Home summary details" });
+    expect(within(homeDetails).getByText("Review app policy denial")).toBeInTheDocument();
+
     const nextAction = screen.getByRole("region", { name: "Next action" });
     expect(within(nextAction).getByRole("heading", { name: "Review app policy denial" })).toBeInTheDocument();
     expect(within(nextAction).getByText("Ghostty is denied by app policy.")).toBeInTheDocument();
@@ -640,6 +644,10 @@ describe("DashboardApp", () => {
     const commandCenter = screen.getByRole("region", { name: "Agent workspace" });
     expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toHaveTextContent("stopped");
     expect(within(commandCenter).getAllByText("stopped").length).toBeGreaterThan(0);
+
+    const overview = screen.getByRole("region", { name: "Overview" });
+    const homeDetails = within(overview).getByRole("list", { name: "Home summary details" });
+    expect(within(homeDetails).getByText("Task stopped")).toBeInTheDocument();
 
     const nextAction = screen.getByRole("region", { name: "Next action" });
     expect(within(nextAction).getByRole("heading", { name: "Task stopped" })).toBeInTheDocument();
