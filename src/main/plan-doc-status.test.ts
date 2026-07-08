@@ -59,6 +59,26 @@ describe("implementation plan status docs", () => {
     expect(activePlanFiles).toEqual(["2026-07-07-code-health-cleanup.md"]);
   });
 
+  it("keeps retired plan-like markdown files out of docs", () => {
+    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const docsRoot = path.join(process.cwd(), "docs");
+    const markdownDocs = collectMarkdownDocs(docsRoot).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const retiredPlanLikeDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference) {
+        return false;
+      }
+
+      const basename = path.basename(docPath);
+      return /(^|[-_.])plans?($|[-_.])/i.test(basename)
+        || /(^|[-_.])planning($|[-_.])/i.test(basename)
+        || /(^|\/)plans($|\/)/i.test(docPath);
+    });
+
+    expect(retiredPlanLikeDocs).toEqual([]);
+  });
+
   it("keeps workflow docs pointed at the current active plan path only", () => {
     const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
     const planReferencePattern = /docs\/superpowers\/plans\/[^\s`),]+\.md/g;

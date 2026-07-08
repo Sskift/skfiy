@@ -16,6 +16,7 @@
 
 - CLI command-surface slimming, Chrome extension background test diet, manifest source-string cleanup, and main/renderer pure-logic extraction are complete for the current code-health pass.
 - Plan hygiene is complete for the current pass: retired planning files are absent, Markdown docs point only at this active plan, date-specific retired-plan guard coverage has been removed, and the active plan directory is no longer a plan archive.
+- Plan hygiene guard coverage now also rejects retired plan-like Markdown files anywhere under `docs/`, while preserving `docs/research/` and `docs/decisions/` only as non-plan archival references.
 - Chrome extension background tests preserve permission recovery, page observe, native-message forwarding, target-tab popup behavior, and blocked-state classification without listener-count or source-string coverage.
 - React Dashboard already owns provider, Computer Use, Browser Context, Dogfood/release, replay, Chrome/Finder/Ghostty readiness, Chrome page action controls, Chrome host-policy controls, memory controls, and provider settings.
 - React Dashboard now exposes the existing read-only operator evidence JSON entry point from the Activity surface.
