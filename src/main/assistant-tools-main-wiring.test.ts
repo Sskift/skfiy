@@ -44,15 +44,15 @@ describe("assistant tool bridge main-process wiring", () => {
 
   it("does not report a failed chat provider turn as completed", () => {
     const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const helperSource = readFileSync(path.join(process.cwd(), "src/main/main-route-task-events.ts"), "utf8");
     const chatRouteStart = source.indexOf("if (route.kind === \"chat\")");
     const nextRouteStart = source.indexOf("if (assistantTurn.status !== \"completed\")", chatRouteStart);
     const chatRouteBlock = source.slice(chatRouteStart, nextRouteStart);
 
     expect(chatRouteStart).toBeGreaterThan(-1);
     expect(nextRouteStart).toBeGreaterThan(chatRouteStart);
-    expect(chatRouteBlock).toContain(
-      "status: assistantTurn.status === \"completed\" ? \"completed\" : \"failed\""
-    );
+    expect(chatRouteBlock).toContain("createAssistantChatRouteTaskEvent({");
+    expect(helperSource).toContain("status === \"completed\" ? \"completed\" : \"failed\"");
   });
 
   it("resumes approval, denial, and stop through the existing Computer Use continuation", () => {

@@ -130,6 +130,13 @@ import {
   type PendingApproval
 } from "./main-pending-approval.js";
 import {
+  createAssistantChatRouteTaskEvent,
+  createAssistantTurnFailedRouteTaskEvent,
+  createNeedsClarificationRouteTaskEvent,
+  createNeedsConfirmationRouteTaskEvent,
+  createTerminalRouteTaskEvent
+} from "./main-route-task-events.js";
+import {
   createTaskEvent,
   readTurnReplayTaskEvent,
   withRouteTaskEventMetadata,
@@ -843,10 +850,10 @@ async function runCommandTask(
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
-      status: assistantTurn.status === "completed" ? "completed" : "failed",
+    emitTurnReplayTaskEvent(window, createAssistantChatRouteTaskEvent({
+      status: assistantTurn.status,
       message: createAssistantAgentTaskMessage(assistantTurn)
-    });
+    }));
     return;
   }
 
@@ -855,12 +862,10 @@ async function runCommandTask(
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
-      status: "failed",
+    emitTurnReplayTaskEvent(window, createAssistantTurnFailedRouteTaskEvent({
+      command,
       message: createAssistantAgentTaskMessage(assistantTurn),
-      command
-    }, route, {
-      routeReason: createAssistantAgentTaskMessage(assistantTurn)
+      route
     }));
     return;
   }
@@ -870,10 +875,7 @@ async function runCommandTask(
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
-      status: "needs_clarification",
-      message: `${route.reason} 请明确目标应用和动作。`
-    }, route));
+    emitTurnReplayTaskEvent(window, createNeedsClarificationRouteTaskEvent(route));
     return;
   }
 
@@ -882,11 +884,10 @@ async function runCommandTask(
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
-      status: route.kind,
-      message: route.reason,
-      command
-    }, route));
+    emitTurnReplayTaskEvent(window, createTerminalRouteTaskEvent({
+      command,
+      route
+    }));
     return;
   }
 
@@ -917,11 +918,10 @@ async function runCommandTask(
       toolIdentity,
       reason: route.reason
     });
-    emitTaskEvent(window, withRouteTaskEventMetadata({
-      status: "needs_confirmation",
-      message: route.reason,
-      command
-    }, route));
+    emitTaskEvent(window, createNeedsConfirmationRouteTaskEvent({
+      command,
+      route
+    }));
     return;
   }
 
