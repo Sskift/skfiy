@@ -1,4 +1,4 @@
-# skfiy Feature Enrichment Plan
+# skfiy Active Code Health Plan
 
 > **For agentic workers:** This is the only active implementation plan as of 2026-07-08. `docs/superpowers/plans/` must contain exactly one active plan file. Retired dated implementation plans, research notes, handoff logs, and cleanup checklists must stay out of repo docs; use git history or canonical docs instead.
 
@@ -15,11 +15,11 @@
 ## Plan Hygiene
 
 - `docs/superpowers/plans/` must contain only this file unless this plan is replaced by exactly one newer active plan.
-- Retired dated plans, research notes, handoff notes, and cleanup checklists must not be restored under `docs/` or root-level Markdown, even in parking or reference folders.
+- Retired dated plans, research notes, handoff notes, and cleanup checklists must not be restored under `docs/`, root-level Markdown, parking folders, archive folders, or reference folders.
 - Dated decision records under `docs/decisions/` are ADR-only context. They must not contain active plan sections, task status blocks, next-work queues, checklists, focused verification blocks, or references to active plan paths.
-- Date-stamped Markdown under `docs/` is allowed only for this active plan and durable decision records.
-- Markdown dated before the active plan date is retired implementation material unless it is a durable ADR under `docs/decisions/`; keep it in git history, not in the live repo tree.
-- Treat plan cleanup as a file-tree invariant: one active plan file, zero retired plan-like Markdown files, zero stale handoff/checklist Markdown files, and zero workflow references to old plan paths.
+- Date-stamped Markdown in the repository is allowed only for this active plan and durable ADRs under `docs/decisions/`.
+- Markdown dated before the active plan date is retired implementation material unless it is a durable ADR under `docs/decisions/`; delete it from the live repo tree instead of renaming, archiving, or parking it.
+- Treat plan cleanup as a file-tree invariant: one active plan file, zero retired dated implementation Markdown files, zero stale handoff/checklist Markdown files, and zero workflow references to old plan paths.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.
 
 ## Active Scope
@@ -35,10 +35,10 @@ Keep changes product-facing but narrow:
 
 ## Next Work Order
 
-1. Finish the remaining safe Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage.
-2. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
-3. Keep slimming the large code-health hotspots in small cuts: `src/main/cli-command-surface.ts`, low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
-4. Keep plan/doc hygiene green before code-health work: one active plan, no retired dated plan docs, no stale handoff/checklist Markdown, and no workflow references to old plan paths.
+1. Keep plan/doc hygiene green before code-health work: one active plan, no retired dated implementation Markdown, no stale handoff/checklist Markdown, and no workflow references to old plan paths.
+2. Keep slimming the large code-health hotspots in small cuts: `src/main/cli-command-surface.ts`, low-value `src/main/chrome-extension-background.test.js` fixtures, and pure logic that can leave `src/renderer/App.tsx` or `src/main/main.ts` without changing UI behavior.
+3. Continue route-state enrichment for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
+4. Finish the remaining safe Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, endpoints, or secret leakage.
 5. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
 6. Run product readiness gates after each focused feature commit. If a product smoke is blocked by local macOS/Chrome state, report the exact typed blocker.
 

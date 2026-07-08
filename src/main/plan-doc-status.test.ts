@@ -81,6 +81,10 @@ function readLatestAlphaEvidence(): LatestAlphaEvidence {
   ) as LatestAlphaEvidence;
 }
 
+function findMarkdownBasenameDateStamp(docPath: string): string | null {
+  return /(?:^|[-_])(\d{4}-\d{2}-\d{2})(?:[-_]|$)/.exec(path.basename(docPath))?.[1] ?? null;
+}
+
 describe("implementation plan status docs", () => {
   it("keeps exactly one active implementation plan in repo docs", () => {
     const planDir = path.join(process.cwd(), "docs", "superpowers", "plans");
@@ -151,7 +155,7 @@ describe("implementation plan status docs", () => {
       }
 
       const basename = path.basename(docPath);
-      const hasDateStamp = /(?:^|[-_])\d{4}-\d{2}-\d{2}(?:[-_]|$)/.test(basename);
+      const hasDateStamp = findMarkdownBasenameDateStamp(docPath) !== null;
       const looksLikePlanningMaterial = /(^|[-_.])(plans?|planning|research|implementation-log|work-log|handoff|checklist|backlog)($|[-_.])/i.test(basename)
         || /(^|\/)(plans?|research|handoffs?|checklists?|backlogs?)($|\/)/i.test(docPath);
 
@@ -170,8 +174,8 @@ describe("implementation plan status docs", () => {
         return false;
       }
 
-      const dateMatch = /^(\d{4}-\d{2}-\d{2})-/.exec(path.basename(docPath));
-      return dateMatch ? Date.parse(`${dateMatch[1]}T00:00:00.000Z`) < activePlanDate : false;
+      const dateStamp = findMarkdownBasenameDateStamp(docPath);
+      return dateStamp ? Date.parse(`${dateStamp}T00:00:00.000Z`) < activePlanDate : false;
     });
 
     expect(staleDatedDocs).toEqual([]);
@@ -319,14 +323,15 @@ describe("implementation plan status docs", () => {
     expect(readiness).not.toContain("app-agnostic observe any visible app");
   });
 
-  it("keeps the active plan focused on current feature enrichment", () => {
+  it("keeps the active plan focused on current code health work", () => {
     const activePlan = readFileSync(activePlanPath, "utf8");
 
-    expect(activePlan).toContain("# skfiy Feature Enrichment Plan");
+    expect(activePlan).toContain("# skfiy Active Code Health Plan");
     expect(activePlan).toContain("For agentic workers");
     expect(activePlan).toContain("only active implementation plan");
     expect(activePlan).toContain("Retired dated implementation plans");
     expect(activePlan).toContain("must stay out of repo docs");
+    expect(activePlan).toContain("zero retired dated implementation Markdown");
     expect(activePlan).toContain("ADR-only context");
     expect(activePlan).toContain("Guard coverage must stay structural");
     expect(activePlan).toContain("Task 1: React Dashboard Operator Evidence");

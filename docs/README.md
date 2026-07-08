@@ -24,8 +24,8 @@ plans, handoffs, checklists, and research notes belong in git history only.
 - `release-evidence/latest-alpha.json`: latest published alpha pointer used by
   dashboard and dogfood readiness checks.
 - `superpowers/plans/2026-07-07-code-health-cleanup.md`: the single
-  active implementation plan for current feature enrichment, starting with
-  React Dashboard operator controls and evidence entry points.
+  active implementation plan for current plan hygiene, code-health slimming,
+  route-state semantics, and safe Dashboard follow-up work.
 
 ## Reference Docs
 
