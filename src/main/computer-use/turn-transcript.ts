@@ -177,6 +177,8 @@ export type TurnTranscriptAction =
 export type TurnTranscriptOutcome =
   | "completed"
   | "approval_required"
+  | "needs_confirmation"
+  | "needs_clarification"
   | "verification_failed"
   | "denied"
   | "blocked"
@@ -346,7 +348,7 @@ export function createTurnTranscript(
       case "plan_confirmation_required":
         command = event.command;
         approvalRequired = true;
-        outcome = "approval_required";
+        outcome = "needs_confirmation";
         actions.push({
           type: "confirm_finder_plan",
           rootPath: event.preview.rootPath,
@@ -374,12 +376,14 @@ export function createTurnTranscript(
           reason: event.reason
         });
 
-        if (event.status !== "passed") {
+        if (event.status === "needs_user_confirmation") {
+          outcome = "needs_confirmation";
+        } else if (event.status !== "passed") {
           outcome = "verification_failed";
         }
         break;
       case "verification_failed":
-        outcome = "verification_failed";
+        outcome = event.stage === "permissions" ? "failed" : "needs_confirmation";
         break;
       case "completed":
         command = event.command;

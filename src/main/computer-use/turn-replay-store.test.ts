@@ -83,6 +83,30 @@ describe("createTurnReplayStore", () => {
     expect(store.getReplay()?.transcript.outcome).toBe("failed");
   });
 
+  it("preserves route confirmation as a terminal task timeline outcome", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordTaskEvent({
+      status: "needs_confirmation",
+      message: "Verification failed (after): Completion marker was not observed.",
+      route: "ghostty"
+    });
+
+    expect(store.getReplay()).toMatchObject({
+      transcript: {
+        outcome: "needs_confirmation"
+      },
+      timeline: [
+        {
+          status: "needs_confirmation",
+          message: "Verification failed (after): Completion marker was not observed.",
+          route: "ghostty"
+        }
+      ]
+    });
+  });
+
   it("preserves unsupported route clarification as a terminal task timeline status", () => {
     const updates: unknown[] = [];
     const store = createTurnReplayStore({
@@ -100,7 +124,7 @@ describe("createTurnReplayStore", () => {
 
     expect(store.getReplay()).toMatchObject({
       transcript: {
-        outcome: "running"
+        outcome: "needs_clarification"
       },
       timeline: [
         {

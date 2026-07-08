@@ -204,6 +204,58 @@ describe("runtime snapshot", () => {
     });
   });
 
+  it("preserves replay confirmation and clarification outcomes in runtime route state", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: {
+        ...createReplay(),
+        transcript: {
+          ...createReplay().transcript,
+          outcome: "needs_confirmation"
+        },
+        timeline: []
+      },
+      observedAt: "2026-06-20T10:02:00.000Z"
+    })).toMatchObject({
+      currentTurn: {
+        state: "needs_confirmation",
+        approvalState: "not-required"
+      },
+      routeOutcome: {
+        kind: "needs_confirmation",
+        value: "needs_confirmation",
+        state: "needs_confirmation"
+      },
+      replay: {
+        outcome: "needs_confirmation"
+      }
+    });
+
+    expect(createRuntimeSnapshotFromReplay({
+      replay: {
+        ...createReplay(),
+        transcript: {
+          ...createReplay().transcript,
+          outcome: "needs_clarification"
+        },
+        timeline: []
+      },
+      observedAt: "2026-06-20T10:03:00.000Z"
+    })).toMatchObject({
+      currentTurn: {
+        state: "needs_clarification",
+        approvalState: "not-required"
+      },
+      routeOutcome: {
+        kind: "needs_clarification",
+        value: "needs_clarification",
+        state: "needs_clarification"
+      },
+      replay: {
+        outcome: "needs_clarification"
+      }
+    });
+  });
+
   it("records Task stopped as a stopped route outcome", () => {
     expect(createRuntimeSnapshotFromReplay({
       replay: null,

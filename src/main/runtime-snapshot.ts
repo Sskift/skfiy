@@ -333,6 +333,10 @@ function readTurnStateFromOutcome(outcome: string): string {
   switch (outcome) {
     case "approval_required":
       return "approval_required";
+    case "needs_confirmation":
+      return "needs_confirmation";
+    case "needs_clarification":
+      return "needs_clarification";
     case "verification_failed":
       return "needs_confirmation";
     case "failed":

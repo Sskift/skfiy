@@ -120,6 +120,8 @@ function createReplayTranscript(
     || finalStatus === "denied"
     || finalStatus === "blocked"
     || finalStatus === "cancelled"
+    || finalStatus === "needs_confirmation"
+    || finalStatus === "needs_clarification"
   ) {
     return {
       ...transcript,

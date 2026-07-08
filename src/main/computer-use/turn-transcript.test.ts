@@ -314,7 +314,29 @@ describe("createTurnTranscript", () => {
           reason: "Completion marker was not observed."
         }
       ],
-      outcome: "verification_failed"
+      outcome: "needs_confirmation"
+    });
+  });
+
+  it("keeps verification failures that need a human distinct from permission failures", () => {
+    expect(createTurnTranscript([
+      {
+        type: "verification_failed",
+        stage: "after",
+        reason: "Completion marker was not observed."
+      }
+    ])).toMatchObject({
+      outcome: "needs_confirmation"
+    });
+
+    expect(createTurnTranscript([
+      {
+        type: "verification_failed",
+        stage: "permissions",
+        reason: "Screen Recording permission is required."
+      }
+    ])).toMatchObject({
+      outcome: "failed"
     });
   });
 
@@ -415,7 +437,7 @@ describe("createTurnTranscript", () => {
     ])).toMatchObject({
       command: "Finder current folder",
       approvalRequired: true,
-      outcome: "approval_required",
+      outcome: "needs_confirmation",
       actions: [
         {
           type: "confirm_finder_plan",
