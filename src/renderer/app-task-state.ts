@@ -3,7 +3,7 @@ import type {
   ObserveAppReplayRecord,
   TaskEvent,
   TaskStatus
-} from "./App";
+} from "./app-types";
 import { STATUS_COPY, canStopTurn } from "./app-view-model";
 
 export interface TaskView {

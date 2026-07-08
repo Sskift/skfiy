@@ -1,4 +1,4 @@
-import type { DesktopApi } from "./App";
+import type { DesktopApi } from "./app-types";
 import {
   UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS,
   UNKNOWN_PERMISSIONS

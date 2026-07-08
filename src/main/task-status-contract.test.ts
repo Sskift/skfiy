@@ -23,7 +23,7 @@ describe("task status boundary contract", () => {
     const sources = {
       mainTaskEvents: readFileSync(path.join(process.cwd(), "src/main/task-event-view.ts"), "utf8"),
       preload: readFileSync(path.join(process.cwd(), "src/main/preload.cts"), "utf8"),
-      renderer: readFileSync(path.join(process.cwd(), "src/renderer/App.tsx"), "utf8"),
+      rendererTypes: readFileSync(path.join(process.cwd(), "src/renderer/app-types.ts"), "utf8"),
       petAtlas: readFileSync(path.join(process.cwd(), "src/renderer/pet-atlas.ts"), "utf8")
     };
 
@@ -46,7 +46,7 @@ describe("task status boundary contract", () => {
     const sources = {
       mainTaskEvents: readFileSync(path.join(process.cwd(), "src/main/task-event-view.ts"), "utf8"),
       preload: readFileSync(path.join(process.cwd(), "src/main/preload.cts"), "utf8"),
-      renderer: readFileSync(path.join(process.cwd(), "src/renderer/App.tsx"), "utf8"),
+      rendererTypes: readFileSync(path.join(process.cwd(), "src/renderer/app-types.ts"), "utf8"),
       rendererTaskState: readFileSync(path.join(process.cwd(), "src/renderer/app-task-state.ts"), "utf8")
     };
 

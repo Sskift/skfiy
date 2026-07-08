@@ -8,7 +8,7 @@ import {
 } from "./app-permission-state";
 import type {
   PermissionSummary
-} from "./App";
+} from "./app-types";
 
 const grantedPermissions: PermissionSummary = {
   screenRecording: { state: "granted" },

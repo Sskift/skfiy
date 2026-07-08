@@ -1,7 +1,7 @@
 import type {
   DesktopSessionDiagnostics,
   PermissionSummary
-} from "./App";
+} from "./app-types";
 import { readMissingPermissionRows } from "./app-view-model";
 
 export const UNKNOWN_PERMISSIONS: PermissionSummary = {

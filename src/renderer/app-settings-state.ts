@@ -6,7 +6,7 @@ import type {
   AssistantAgentSettingsResponse,
   PlannerProviderMode,
   PlannerProviderSettings
-} from "./App";
+} from "./app-types";
 
 export const APP_POLICY_OPTIONS: Array<{ policy: AppPolicy; label: string }> = [
   { policy: "allow", label: "允许" },

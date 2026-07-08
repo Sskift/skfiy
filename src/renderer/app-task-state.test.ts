@@ -19,7 +19,7 @@ import {
   updateReplayRecordsForTaskEvent,
   type AssistantConversationMessage
 } from "./app-task-state";
-import type { ObserveAppReplayRecord } from "./App";
+import type { ObserveAppReplayRecord } from "./app-types";
 
 function createReplayRecord(stage: ObserveAppReplayRecord["stage"], screenshotPath: string): ObserveAppReplayRecord {
   return {

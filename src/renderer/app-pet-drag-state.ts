@@ -1,4 +1,4 @@
-import type { VisiblePetRect } from "./App";
+import type { VisiblePetRect } from "./app-types";
 
 export interface PetDragState {
   pointerId: number;

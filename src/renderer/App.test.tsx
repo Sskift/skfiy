@@ -1,13 +1,14 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App, {
-  type AppPolicySettings,
-  type AssistantAgentMode,
-  type AssistantAgentSettingsResponse,
-  type DesktopApi,
-  type PlannerProviderSettings,
-  type TaskEvent
-} from "./App";
+import App from "./App";
+import type {
+  AppPolicySettings,
+  AssistantAgentMode,
+  AssistantAgentSettingsResponse,
+  DesktopApi,
+  PlannerProviderSettings,
+  TaskEvent
+} from "./app-types";
 import type { PetAtlasManifest } from "./pet-atlas";
 
 let emitTaskEvent: (event: TaskEvent) => void;

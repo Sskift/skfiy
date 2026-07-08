@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { DesktopApi } from "./App";
+import type { DesktopApi } from "./app-types";
 import { fallbackDesktopApi, getDesktopApi } from "./app-desktop-api";
 import {
   UNKNOWN_DESKTOP_SESSION_DIAGNOSTICS,
