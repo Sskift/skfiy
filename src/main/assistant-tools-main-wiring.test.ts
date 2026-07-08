@@ -33,8 +33,10 @@ describe("assistant tool bridge main-process wiring", () => {
 
   it("stores approval continuations by assistant Computer Use tool identity", () => {
     const source = readFileSync(path.join(process.cwd(), "src/main/main.ts"), "utf8");
+    const helperSource = readFileSync(path.join(process.cwd(), "src/main/main-pending-approval.ts"), "utf8");
 
-    expect(source).toContain("interface PendingApproval extends AssistantComputerUseToolIdentity");
+    expect(source).toContain("type PendingApproval");
+    expect(helperSource).toContain("interface PendingApproval extends AssistantComputerUseToolIdentity");
     expect(source).toContain("identity: AssistantComputerUseToolIdentity");
     expect(source).toContain("pendingApproval = createPendingApproval(command, mode, toolIdentity");
     expect(source).toContain("activeComputerUseToolIdentity = toolIdentity");
@@ -66,6 +68,7 @@ describe("assistant tool bridge main-process wiring", () => {
     expect(approveHandler).not.toContain("runCommandTask(");
     expect(denyHandler).toContain("assistantComputerUseExecutor.resumeApproval({");
     expect(denyHandler).toContain("decision: \"denied\"");
+    expect(denyHandler).toContain("createPendingApprovalDeniedTaskEvent(approval)");
     expect(stopHandler).toContain("cancelActiveComputerUseToolCall(\"Task stopped.\")");
   });
 });

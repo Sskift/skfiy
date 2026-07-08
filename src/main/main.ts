@@ -74,7 +74,7 @@ import {
   readPermissionDiagnosticsForRenderer,
   readPermissionsForRenderer
 } from "./permissions.js";
-import { selectCommandRoute, type CommandRoute, type ExecutableCommandRoute } from "./task-routing.js";
+import { selectCommandRoute, type CommandRoute } from "./task-routing.js";
 import { readStartupWarnings } from "./startup-guard.js";
 import {
   registerStopTurnHotkey,
@@ -123,6 +123,13 @@ import {
 } from "./main-assistant-agent-settings-response.js";
 import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-snapshot-payload.js";
 import {
+  createPendingApproval,
+  createPendingApprovalDeniedTaskEvent,
+  USER_DENIED_COMPUTER_USE_REASON,
+  type ComputerUseCommandRoute,
+  type PendingApproval
+} from "./main-pending-approval.js";
+import {
   createTaskEvent,
   readTurnReplayTaskEvent,
   withRouteTaskEventMetadata,
@@ -130,15 +137,6 @@ import {
   type ManualMode,
   type TaskEvent
 } from "./task-event-view.js";
-
-type ComputerUseCommandRoute = ExecutableCommandRoute;
-
-interface PendingApproval extends AssistantComputerUseToolIdentity {
-  command: string;
-  mode: ManualMode;
-  route: ComputerUseCommandRoute;
-  planApproved?: boolean;
-}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -338,22 +336,6 @@ function emitAssistantToolPlanTaskEvent(
     message: summary.message,
     command
   }, route));
-}
-
-function createPendingApproval(
-  command: string,
-  mode: ManualMode,
-  identity: AssistantComputerUseToolIdentity,
-  route: ComputerUseCommandRoute,
-  planApproved = false
-): PendingApproval {
-  return {
-    ...identity,
-    command,
-    mode,
-    route,
-    ...(planApproved ? { planApproved } : {})
-  };
 }
 
 function requireComputerUseApproval({
@@ -1146,7 +1128,7 @@ ipcMain.handle("skfiy:deny-task", async (event) => {
       turnId: approval.turnId,
       toolCallId: approval.toolCallId,
       decision: "denied",
-      reason: "User denied this Computer Use turn."
+      reason: USER_DENIED_COMPUTER_USE_REASON
     });
   }
 
@@ -1156,17 +1138,7 @@ ipcMain.handle("skfiy:deny-task", async (event) => {
   activeComputerUseToolIdentity = null;
   currentTaskId += 1;
 
-  const taskEvent: TaskEvent = {
-    status: approval ? "denied" : "idle",
-    message: approval ? "Task denied." : "No task is waiting for approval.",
-    ...(approval ? { command: approval.command } : {})
-  };
-  emitTaskEvent(window, approval
-    ? withRouteTaskEventMetadata(taskEvent, approval.route, {
-      routeReason: "User denied this Computer Use turn.",
-      denialKind: "user"
-    })
-    : taskEvent);
+  emitTaskEvent(window, createPendingApprovalDeniedTaskEvent(approval));
 });
 
 ipcMain.handle("skfiy:take-screenshot", async (event) => {
