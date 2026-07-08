@@ -111,6 +111,7 @@ Completed in this pass:
 - React Browser control now falls back to Chrome smoke artifact pageControl and tab-discovery summaries when the runtime extension snapshot is missing those fields, without exposing smoke artifact paths.
 - React Activity Release gate now renders the fallback dogfood/release details from the existing snapshot, showing alpha, manifest, cohort, workflow coverage, and drift summaries without exposing local artifact paths.
 - React Activity now renders fallback grouped dashboard alerts from the existing snapshot, keeping desktop, permission, Chrome bridge, smoke evidence, release, and runtime snapshot blockers visible without adding new APIs.
+- React Activity now renders fallback operator evidence handoff metrics from the existing snapshot, showing endpoint, dashboard bind, turn, replay, readiness, alert, extension, native host, and smoke artifact counts without exposing provider secrets or artifact paths.
 
 Acceptance:
 

@@ -191,6 +191,14 @@ export interface DashboardRuntimeEvidenceSummary {
   tone: Tone;
 }
 
+export interface DashboardOperatorEvidenceSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardRuntimeSnapshotDetail {
   id: "current-turn" | "replay";
   title: string;
@@ -2699,6 +2707,55 @@ export function readRuntimeEvidenceSummary(snapshot: DashboardSnapshot): Dashboa
         ? "warning"
         : "neutral"
   };
+}
+
+export function readOperatorEvidenceSummary(snapshot: DashboardSnapshot): DashboardOperatorEvidenceSummary {
+  const descriptor = readRecord(snapshot.descriptor) ?? {};
+  const bind = readRecord(descriptor.bind) ?? {};
+  const runtime = readRecord(snapshot.runtimeHealth) ?? {};
+  const extension = readRecord(runtime.extension) ?? {};
+  const nativeHost = readRecord(runtime.nativeHost) ?? {};
+  const readinessState = readString(snapshot.operatorReadiness.state) ?? "unknown";
+  const alertCount = snapshot.alerts.length;
+  const artifactCount = readRecordArray(snapshot.smokeEvidence.artifacts).length;
+  const hasError = snapshot.alerts.some((alert) => readString(alert.severity) === "error");
+  const hasWarning = snapshot.alerts.some((alert) => readString(alert.severity) === "warning");
+  const tone: Tone = hasError || readinessState === "blocked"
+    ? "danger"
+    : hasWarning
+      ? "warning"
+      : readinessState === "ready"
+        ? "success"
+        : "neutral";
+
+  return {
+    title: "Operator evidence",
+    value: hasError || readinessState === "blocked"
+      ? "Blocked"
+      : hasWarning
+        ? "Attention"
+        : readinessState,
+    detail: "Dashboard, runtime, and readiness handoff payload.",
+    tone,
+    items: [
+      createStatusItem("endpoint", "/api/operator-evidence"),
+      createStatusItem("dashboard", readString(descriptor.url) ?? "unknown"),
+      createStatusItem("bind", formatDashboardBind(bind)),
+      createStatusItem("turn", readString(snapshot.currentTurn.state) ?? "unknown"),
+      createStatusItem("replay", readString(snapshot.replay.state) ?? "unknown"),
+      createStatusItem("readiness", readinessState, readReadinessTone(readinessState)),
+      createStatusItem("alerts", alertCount, alertCount > 0 ? (hasError ? "danger" : "warning") : "success"),
+      createStatusItem("extension", readString(extension.state) ?? "unknown"),
+      createStatusItem("native host", readString(nativeHost.state) ?? "unknown"),
+      createStatusItem("smoke artifacts", artifactCount)
+    ]
+  };
+}
+
+function formatDashboardBind(bind: Record<string, unknown>): string {
+  const host = readString(bind.host);
+  const port = readNumber(bind.port);
+  return host && Number.isInteger(port) ? `${host}:${port}` : "unknown";
 }
 
 export function readRuntimeSnapshotDetails(snapshot: DashboardSnapshot): DashboardRuntimeSnapshotDetail[] {

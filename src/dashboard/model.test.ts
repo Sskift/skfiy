@@ -16,6 +16,7 @@ import {
   readLatestTaskSignal,
   readLongHorizonSummary,
   readNextAction,
+  readOperatorEvidenceSummary,
   readPersonalMutationReceipt,
   readRouteOutcome,
   readRuntimeSnapshotDetails,
@@ -471,6 +472,65 @@ describe("readRuntimeSnapshotDetails", () => {
         { label: "route detail", value: "Task stopped.", tone: "neutral" }
       ])
     });
+  });
+});
+
+describe("readOperatorEvidenceSummary", () => {
+  it("summarizes operator evidence handoff state without provider secrets or artifact paths", () => {
+    const summary = readOperatorEvidenceSummary({
+      ...createSnapshot(),
+      operatorReadiness: {
+        state: "blocked"
+      },
+      runtimeHealth: {
+        extension: { state: "connected" },
+        nativeHost: { state: "installed" }
+      },
+      currentTurn: {
+        state: "approval_required"
+      },
+      replay: {
+        state: "available"
+      },
+      providers: {
+        planner: {
+          mode: "external-cua",
+          label: "External CUA",
+          health: "available",
+          endpoint: "https://cua.example.test/plan?token=planner-secret"
+        }
+      },
+      smokeEvidence: {
+        artifacts: [
+          { target: "chrome", result: "passed", path: "/repo/.skfiy-smoke/chrome.json" },
+          { target: "dashboard", result: "passed", path: "/repo/.skfiy-smoke/dashboard.json" }
+        ]
+      },
+      alerts: [
+        { severity: "warning", code: "release-artifact-older-than-head", message: "Release artifact is behind HEAD." }
+      ]
+    });
+
+    expect(summary).toMatchObject({
+      title: "Operator evidence",
+      value: "Blocked",
+      detail: "Dashboard, runtime, and readiness handoff payload.",
+      tone: "danger",
+      items: expect.arrayContaining([
+        { label: "endpoint", value: "/api/operator-evidence", tone: "neutral" },
+        { label: "dashboard", value: "http://127.0.0.1:51234/", tone: "neutral" },
+        { label: "bind", value: "127.0.0.1:51234", tone: "neutral" },
+        { label: "turn", value: "approval_required", tone: "neutral" },
+        { label: "replay", value: "available", tone: "neutral" },
+        { label: "readiness", value: "blocked", tone: "danger" },
+        { label: "alerts", value: "1", tone: "warning" },
+        { label: "extension", value: "connected", tone: "neutral" },
+        { label: "native host", value: "installed", tone: "neutral" },
+        { label: "smoke artifacts", value: "2", tone: "neutral" }
+      ])
+    });
+    expect(JSON.stringify(summary)).not.toContain("planner-secret");
+    expect(JSON.stringify(summary)).not.toContain("/repo/.skfiy-smoke");
   });
 });
 

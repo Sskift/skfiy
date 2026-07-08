@@ -81,6 +81,7 @@ import {
   readLatestTaskSignal,
   readLongHorizonSummary,
   readNextAction,
+  readOperatorEvidenceSummary,
   readPersonalMutationReceipt,
   readProviderSummaries,
   readReadinessSummary,
@@ -107,6 +108,7 @@ import {
   type DashboardLongHorizonSummary,
   type DashboardMutationReceipt,
   type DashboardNextAction,
+  type DashboardOperatorEvidenceSummary,
   type DashboardReadinessSummary,
   type DashboardRecentActivity,
   type DashboardRouteOutcome,
@@ -476,6 +478,7 @@ function DashboardContent({
   const approvalQueue = useMemo(() => readApprovalQueueSummary(snapshot), [snapshot]);
   const latestSignal = useMemo(() => readLatestTaskSignal(snapshot), [snapshot]);
   const runtimeEvidence = useMemo(() => readRuntimeEvidenceSummary(snapshot), [snapshot]);
+  const operatorEvidence = useMemo(() => readOperatorEvidenceSummary(snapshot), [snapshot]);
   const runtimeSnapshotDetails = useMemo(() => readRuntimeSnapshotDetails(snapshot), [snapshot]);
   const longHorizon = useMemo(() => readLongHorizonSummary(snapshot), [snapshot]);
   const dogfood = useMemo(() => readDogfoodSummary(snapshot), [snapshot]);
@@ -859,31 +862,7 @@ function DashboardContent({
             onLoad={onLoadEvidenceSummary}
             summary={evidenceSummary}
           />
-          <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
-            <Card.Header className="skfiy-dashboard-card-header">
-              <div>
-                <Card.Title>Operator evidence</Card.Title>
-                <Card.Description>Read-only dashboard evidence payload</Card.Description>
-              </div>
-              <Eye size={18} aria-hidden="true" />
-            </Card.Header>
-            <Card.Content className="skfiy-dashboard-card-content">
-              <p className="skfiy-dashboard-message">
-                Dashboard, runtime, and readiness handoff payload.
-              </p>
-              <div className="skfiy-dashboard-inline-list skfiy-dashboard-operator-actions" aria-label="Operator evidence actions">
-                <a
-                  className="skfiy-dashboard-button button"
-                  href="/api/operator-evidence"
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <Eye size={14} aria-hidden="true" />
-                  Operator evidence JSON
-                </a>
-              </div>
-            </Card.Content>
-          </Card.Root>
+          <OperatorEvidenceCard summary={operatorEvidence} />
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
               <div>
@@ -2803,6 +2782,46 @@ function RuntimeEvidenceCard({ evidence }: { evidence: DashboardRuntimeEvidenceS
         <p className="skfiy-dashboard-message">{evidence.detail}</p>
         <div className="skfiy-dashboard-inline-list">
           <StatusChip tone={evidence.tone}>{evidence.value}</StatusChip>
+        </div>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function OperatorEvidenceCard({ summary }: { summary: DashboardOperatorEvidenceSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Read-only dashboard evidence payload</Card.Description>
+        </div>
+        <Eye size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Operator evidence details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+        <div className="skfiy-dashboard-inline-list skfiy-dashboard-operator-actions" aria-label="Operator evidence actions">
+          <a
+            className="skfiy-dashboard-button button"
+            href="/api/operator-evidence"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <Eye size={14} aria-hidden="true" />
+            Operator evidence JSON
+          </a>
         </div>
       </Card.Content>
     </Card.Root>
