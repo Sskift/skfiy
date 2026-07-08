@@ -17,6 +17,7 @@ import {
   readLongHorizonSummary,
   readNextAction,
   readOperatorEvidenceSummary,
+  readOperatorReadinessChecks,
   readPersonalMutationReceipt,
   readRouteOutcome,
   readRuntimeSnapshotDetails,
@@ -381,6 +382,51 @@ describe("readSmokeArtifactDetails", () => {
       })
     ]);
     expect(JSON.stringify(details)).not.toContain("/repo/.skfiy-smoke");
+  });
+});
+
+describe("readOperatorReadinessChecks", () => {
+  it("summarizes fallback operator readiness details without leaking local paths", () => {
+    const checks = readOperatorReadinessChecks({
+      ...createSnapshot(),
+      operatorReadiness: {
+        state: "blocked",
+        commandSurface: {
+          state: "ready",
+          binaryPath: "/Users/me/dev/skfiy/dist/skfiy"
+        },
+        extensionReadiness: {
+          state: "blocked",
+          manifestPath: "/Users/me/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.skfiy.json"
+        },
+        packagedBinary: {
+          state: "ready",
+          signingState: "unsigned",
+          appPath: "/Users/me/dev/skfiy/dist/skfiy.app"
+        },
+        recentSmokeEvidence: {
+          recentPassedTargets: ["dashboard"],
+          missingTargets: ["chrome", "cli"]
+        }
+      }
+    });
+
+    expect(checks).toMatchObject({
+      title: "Operator readiness checks",
+      value: "blocked",
+      detail: "Missing fresh evidence: chrome, cli.",
+      tone: "danger",
+      items: expect.arrayContaining([
+        { label: "state", value: "blocked", tone: "danger" },
+        { label: "command surface", value: "ready", tone: "success" },
+        { label: "extension", value: "blocked", tone: "danger" },
+        { label: "binary", value: "ready", tone: "success" },
+        { label: "signing", value: "unsigned", tone: "warning" },
+        { label: "smoke passed", value: "dashboard", tone: "neutral" },
+        { label: "smoke missing", value: "chrome, cli", tone: "warning" }
+      ])
+    });
+    expect(JSON.stringify(checks)).not.toContain("/Users/me");
   });
 });
 

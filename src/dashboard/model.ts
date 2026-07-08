@@ -57,6 +57,14 @@ export interface DashboardReadinessSummary {
   tone: Tone;
 }
 
+export interface DashboardOperatorReadinessChecks {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardComputerUseReadiness {
   desktop: {
     value: string;
@@ -1545,6 +1553,100 @@ export function readReadinessSummary(snapshot: DashboardSnapshot): DashboardRead
     detail: "The runtime is present, but skfiy needs newer proof before it can be treated as ready.",
     tone: "warning"
   };
+}
+
+export function readOperatorReadinessChecks(snapshot: DashboardSnapshot): DashboardOperatorReadinessChecks {
+  const readiness = readRecord(snapshot.operatorReadiness) ?? {};
+  const commandSurface = readRecord(readiness.commandSurface) ?? {};
+  const extensionReadiness = readRecord(readiness.extensionReadiness) ?? {};
+  const packagedBinary = readRecord(readiness.packagedBinary) ?? {};
+  const recentSmokeEvidence = readRecord(readiness.recentSmokeEvidence) ?? {};
+  const state = readString(readiness.state) ?? "unknown";
+  const passedTargets = readStringArray(recentSmokeEvidence.recentPassedTargets);
+  const missingTargets = readStringArray(recentSmokeEvidence.missingTargets);
+  const tone = readOperatorReadinessTone(state);
+
+  return {
+    title: "Operator readiness checks",
+    value: state,
+    detail: missingTargets.length > 0
+      ? `Missing fresh evidence: ${missingTargets.join(", ")}.`
+      : state === "ready"
+        ? "Command surface, packaged runtime, and smoke evidence are aligned."
+        : "Review readiness checks before starting the next Computer Use turn.",
+    tone,
+    items: [
+      createStatusItem("state", state, tone),
+      createStatusItem(
+        "command surface",
+        readString(commandSurface.state) ?? "unknown",
+        readOperatorCheckTone(readString(commandSurface.state))
+      ),
+      createStatusItem(
+        "extension",
+        readString(extensionReadiness.state) ?? "unknown",
+        readOperatorCheckTone(readString(extensionReadiness.state))
+      ),
+      createStatusItem(
+        "binary",
+        readString(packagedBinary.state) ?? "unknown",
+        readOperatorCheckTone(readString(packagedBinary.state))
+      ),
+      createStatusItem(
+        "signing",
+        readString(packagedBinary.signingState) ?? "unknown",
+        readSigningTone(readString(packagedBinary.signingState))
+      ),
+      createStatusItem("smoke passed", formatStringList(passedTargets)),
+      createStatusItem("smoke missing", formatStringList(missingTargets), missingTargets.length > 0 ? "warning" : "success")
+    ]
+  };
+}
+
+function readOperatorReadinessTone(state: string): Tone {
+  if (state === "ready") {
+    return "success";
+  }
+  if (state === "blocked") {
+    return "danger";
+  }
+  if (state === "unknown" || state === "missing") {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function readOperatorCheckTone(state: string | undefined): Tone {
+  if (state === "ready" || state === "installed" || state === "connected" || state === "passed") {
+    return "success";
+  }
+  if (state === "blocked" || state === "missing" || state === "failed" || state === "invalid") {
+    return "danger";
+  }
+  if (!state || state === "unknown") {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function readSigningTone(state: string | undefined): Tone {
+  if (state === "signed" || state === "valid" || state === "not-required") {
+    return "success";
+  }
+  if (state === "invalid" || state === "missing") {
+    return "danger";
+  }
+  if (!state || state === "unknown") {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function formatStringList(values: string[]): string {
+  return values.length > 0 ? values.join(", ") : "none";
 }
 
 export function readComputerUseReadiness(snapshot: DashboardSnapshot): DashboardComputerUseReadiness {

@@ -78,6 +78,16 @@ const snapshot: DashboardSnapshot = {
   },
   operatorReadiness: {
     state: "blocked",
+    commandSurface: {
+      state: "ready"
+    },
+    extensionReadiness: {
+      state: "blocked"
+    },
+    packagedBinary: {
+      state: "ready",
+      signingState: "unsigned"
+    },
     appReadiness: {
       chrome: {
         app: "Chrome",
@@ -343,6 +353,17 @@ describe("DashboardApp", () => {
     expect(within(commandCenter).getByRole("progressbar", { name: "Operational confidence" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("progressbar", { name: "Browser context" })).toBeInTheDocument();
     expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Operator readiness checks" })).toBeInTheDocument();
+    const operatorChecks = within(overview).getByRole("list", { name: "Operator readiness checks" });
+    expect(within(operatorChecks).getByText("command surface")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("extension")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("binary")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("signing")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("unsigned")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("smoke passed")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("dashboard")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("smoke missing")).toBeInTheDocument();
+    expect(within(operatorChecks).getByText("chrome, cli")).toBeInTheDocument();
 
     const provider = screen.getByRole("region", { name: "Background Agent" });
     expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();

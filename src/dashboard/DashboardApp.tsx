@@ -82,6 +82,7 @@ import {
   readLongHorizonSummary,
   readNextAction,
   readOperatorEvidenceSummary,
+  readOperatorReadinessChecks,
   readPersonalMutationReceipt,
   readProviderSummaries,
   readReadinessSummary,
@@ -109,6 +110,7 @@ import {
   type DashboardMutationReceipt,
   type DashboardNextAction,
   type DashboardOperatorEvidenceSummary,
+  type DashboardOperatorReadinessChecks,
   type DashboardReadinessSummary,
   type DashboardRecentActivity,
   type DashboardRouteOutcome,
@@ -460,6 +462,7 @@ function DashboardContent({
 }) {
   const stateItems = useMemo(() => readSnapshotState(snapshot), [snapshot]);
   const readiness = useMemo(() => readReadinessSummary(snapshot), [snapshot]);
+  const readinessChecks = useMemo(() => readOperatorReadinessChecks(snapshot), [snapshot]);
   const capabilities = useMemo(() => readCapabilitySummaries(snapshot), [snapshot]);
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
   const chromeSetupGuide = useMemo(() => readChromeSetupGuideSummary(snapshot), [snapshot]);
@@ -546,6 +549,7 @@ function DashboardContent({
           runtimeEvidence={runtimeEvidence}
           stateItems={stateItems}
         />
+        <OperatorReadinessChecksCard summary={readinessChecks} />
         <HomeSummaryCard summary={homeSummary} />
         <AppsSitesSummaryCard summary={appsSitesSummary} />
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--four">
@@ -1056,6 +1060,35 @@ function DashboardCommandCenter({
             ))}
           </div>
         </section>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function OperatorReadinessChecksCard({ summary }: { summary: DashboardOperatorReadinessChecks }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Command surface and runtime proof</Card.Description>
+        </div>
+        <Gauge size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Operator readiness checks">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
       </Card.Content>
     </Card.Root>
   );
