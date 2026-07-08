@@ -6,6 +6,10 @@ import type {
   TurnTranscriptScreenshot
 } from "./computer-use/turn-transcript.js";
 import { readRecord } from "./record-utils.js";
+import {
+  readRouteOutcome,
+  type RouteOutcome
+} from "../shared/route-outcome.js";
 
 export const RUNTIME_SNAPSHOT_SCHEMA_VERSION = 1;
 export const RUNTIME_TURN_MARKER_SCHEMA_VERSION = 1;
@@ -53,6 +57,7 @@ export interface RuntimeSnapshot {
   schemaVersion: typeof RUNTIME_SNAPSHOT_SCHEMA_VERSION;
   observedAt: string;
   currentTurn: Record<string, unknown>;
+  routeOutcome: RouteOutcome;
   replay: Record<string, unknown>;
 }
 
@@ -95,14 +100,18 @@ export function createRuntimeSnapshotFromReplay({
   observedAt = new Date().toISOString()
 }: RuntimeSnapshotInput): RuntimeSnapshot {
   if (!replay) {
+    const snapshotCurrentTurn = createRuntimeCurrentTurnPanel(currentTurn);
+    const snapshotReplay = {
+      state: "empty",
+      source: "runtime-snapshot"
+    };
+
     return {
       schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
       observedAt,
-      currentTurn: createRuntimeCurrentTurnPanel(currentTurn),
-      replay: {
-        state: "empty",
-        source: "runtime-snapshot"
-      }
+      currentTurn: snapshotCurrentTurn,
+      routeOutcome: createRuntimeRouteOutcome(snapshotCurrentTurn, snapshotReplay),
+      replay: snapshotReplay
     };
   }
 
@@ -167,26 +176,28 @@ export function createRuntimeSnapshotFromReplay({
     },
     currentTurn
   );
+  const snapshotReplay = {
+    state: "available",
+    outcome: replay.transcript.outcome,
+    screenshotCount: replay.transcript.screenshots.length,
+    actionCount: replay.transcript.actions.length,
+    verificationCount,
+    timelineCount: replay.timeline.length,
+    ...(latestMessage ? { latestMessage } : {}),
+    ...(latestToolCall ? { latestToolCall } : {}),
+    screenshots: screenshotSummaries,
+    actions: actionSummaries,
+    verifications: verificationSummaries,
+    timelineTail,
+    source: "runtime-snapshot"
+  };
 
   return {
     schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
     observedAt,
     currentTurn: snapshotCurrentTurn,
-    replay: {
-      state: "available",
-      outcome: replay.transcript.outcome,
-      screenshotCount: replay.transcript.screenshots.length,
-      actionCount: replay.transcript.actions.length,
-      verificationCount,
-      timelineCount: replay.timeline.length,
-      ...(latestMessage ? { latestMessage } : {}),
-      ...(latestToolCall ? { latestToolCall } : {}),
-      screenshots: screenshotSummaries,
-      actions: actionSummaries,
-      verifications: verificationSummaries,
-      timelineTail,
-      source: "runtime-snapshot"
-    }
+    routeOutcome: createRuntimeRouteOutcome(snapshotCurrentTurn, snapshotReplay),
+    replay: snapshotReplay
   };
 }
 
@@ -569,6 +580,19 @@ function sanitizeRuntimeSnapshotText(value: string): string {
   return redacted.length > MAX_RUNTIME_SNAPSHOT_TEXT_LENGTH
     ? `${redacted.slice(0, MAX_RUNTIME_SNAPSHOT_TEXT_LENGTH - 1)}...`
     : redacted;
+}
+
+function createRuntimeRouteOutcome(
+  currentTurn: Record<string, unknown>,
+  replay: Record<string, unknown>
+): RouteOutcome {
+  return readRouteOutcome({
+    currentTurn,
+    replay,
+    defaultSource: "runtime-snapshot",
+    includeCommandDetail: false,
+    sanitizeString: sanitizeRuntimeSnapshotText
+  });
 }
 
 function createDefaultRuntimeSnapshotIo(): RuntimeSnapshotIo {

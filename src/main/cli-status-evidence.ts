@@ -21,6 +21,7 @@ import {
 import { sanitizeSensitiveString } from "./cli-output-sanitize.js";
 import { createChromePageControlCapability } from "./cli-chrome-capabilities.js";
 import { createBinaryReadinessEvidence } from "./cli-status-readiness.js";
+import { readRouteOutcome } from "../shared/route-outcome.js";
 
 const RUNTIME_EVIDENCE_RECENT_SECONDS = 300;
 const RUNTIME_EVIDENCE_SKEW_SECONDS = 5;
@@ -79,12 +80,20 @@ export function createCliStatusEvidence(
 
 export function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string): Record<string, unknown> {
   if (!homeDir) {
+    const currentTurn = {
+      state: "unknown",
+      source: "runtime-snapshot"
+    };
+    const replay = {
+      state: "empty",
+      source: "runtime-snapshot"
+    };
+
     return {
       state: "not-probed",
-      currentTurn: {
-        state: "unknown",
-        source: "runtime-snapshot"
-      },
+      currentTurn,
+      routeOutcome: summarizeRouteOutcome(undefined, currentTurn, replay),
+      replay,
       reason: "Home directory is required to locate the runtime snapshot."
     };
   }
@@ -102,6 +111,20 @@ export function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string
         ? "Runtime snapshot is missing even though a recent runtime turn marker exists."
         : "Runtime snapshot is missing and the last runtime turn marker is stale.";
       const currentTurn = readRecord(turnMarker?.currentTurn);
+      const summarizedCurrentTurn = {
+        ...(currentTurn ?? {
+          state: "unknown",
+          source: "runtime-turn-marker"
+        }),
+        emptyReasonCode,
+        reason
+      };
+      const replay = {
+        state: "empty",
+        source: "runtime-snapshot",
+        emptyReasonCode,
+        reason
+      };
 
       return compactRecord({
         state,
@@ -112,22 +135,24 @@ export function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string
         markerAgeSeconds: readNumber(turnMarker?.ageSeconds),
         emptyReasonCode,
         reason,
-        currentTurn: {
-          ...(currentTurn ?? {
-            state: "unknown",
-            source: "runtime-turn-marker"
-          }),
-          emptyReasonCode,
-          reason
-        },
-        replay: {
-          state: "empty",
-          source: "runtime-snapshot",
-          emptyReasonCode,
-          reason
-        }
+        currentTurn: summarizedCurrentTurn,
+        routeOutcome: summarizeRouteOutcome(undefined, summarizedCurrentTurn, replay),
+        replay
       });
     }
+
+    const currentTurn = {
+      state: "idle",
+      source: "runtime-snapshot",
+      freshInstall: true,
+      emptyReasonCode: "runtime-snapshot-missing"
+    };
+    const replay = {
+      state: "empty",
+      source: "runtime-snapshot",
+      freshInstall: true,
+      emptyReasonCode: "runtime-snapshot-missing"
+    };
 
     return {
       state: "missing",
@@ -135,18 +160,9 @@ export function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string
       freshInstall: true,
       emptyReasonCode: "runtime-snapshot-missing",
       reason: "Runtime snapshot has not been recorded yet.",
-      currentTurn: {
-        state: "idle",
-        source: "runtime-snapshot",
-        freshInstall: true,
-        emptyReasonCode: "runtime-snapshot-missing"
-      },
-      replay: {
-        state: "empty",
-        source: "runtime-snapshot",
-        freshInstall: true,
-        emptyReasonCode: "runtime-snapshot-missing"
-      }
+      currentTurn,
+      routeOutcome: summarizeRouteOutcome(undefined, currentTurn, replay),
+      replay
     };
   }
 
@@ -156,13 +172,16 @@ export function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string
     const replay = readRecord(parsed?.replay);
 
     if (parsed?.schemaVersion !== 1 || !currentTurn || !replay) {
+      const invalidCurrentTurn = {
+        state: "unknown",
+        source: "runtime-snapshot"
+      };
+
       return {
         state: "invalid",
         path: snapshotPath,
-        currentTurn: {
-          state: "unknown",
-          source: "runtime-snapshot"
-        },
+        currentTurn: invalidCurrentTurn,
+        routeOutcome: summarizeRouteOutcome(undefined, invalidCurrentTurn, undefined),
         reason: "Runtime snapshot is not a valid skfiy snapshot."
       };
     }
@@ -172,6 +191,9 @@ export function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string
     const staleByAge = ageSeconds !== undefined && ageSeconds > RUNTIME_EVIDENCE_RECENT_SECONDS;
     const staleByMarker = isRuntimeMarkerNewerThanSnapshot(turnMarker, observedAt);
     const state = staleByAge || staleByMarker ? "stale-after-turn" : "available";
+
+    const summarizedCurrentTurn = summarizeRuntimeCurrentTurn(currentTurn);
+    const summarizedReplay = summarizeRuntimeReplay(replay);
 
     return compactRecord({
       state,
@@ -185,17 +207,21 @@ export function readRuntimeSnapshotEvidence(homeDir: string, generatedAt: string
       reason: state === "stale-after-turn"
         ? "Runtime snapshot is older than the latest runtime turn evidence."
         : undefined,
-      currentTurn: summarizeRuntimeCurrentTurn(currentTurn),
-      replay: summarizeRuntimeReplay(replay)
+      currentTurn: summarizedCurrentTurn,
+      routeOutcome: summarizeRouteOutcome(readRecord(parsed?.routeOutcome), currentTurn, replay),
+      replay: summarizedReplay
     });
   } catch (error) {
+    const currentTurn = {
+      state: "unknown",
+      source: "runtime-snapshot"
+    };
+
     return {
       state: "invalid",
       path: snapshotPath,
-      currentTurn: {
-        state: "unknown",
-        source: "runtime-snapshot"
-      },
+      currentTurn,
+      routeOutcome: summarizeRouteOutcome(undefined, currentTurn, undefined),
       reason: readErrorMessage(error)
     };
   }
@@ -356,13 +382,20 @@ function summarizeRuntimeCurrentTurn(currentTurn: Record<string, unknown>): Reco
     state: readString(currentTurn.state) ?? "unknown",
     source: readString(currentTurn.source) ?? "runtime-snapshot",
     command: sanitizeStatusEvidenceString(readString(currentTurn.command)),
+    route: sanitizeStatusEvidenceString(readString(currentTurn.route)),
+    targetRoute: sanitizeStatusEvidenceString(readString(currentTurn.targetRoute)),
     targetApp: sanitizeStatusEvidenceString(readString(currentTurn.targetApp)),
     targetBundleId: readString(currentTurn.targetBundleId),
     risk: readString(currentTurn.risk),
+    routeReason: sanitizeStatusEvidenceString(readString(currentTurn.routeReason)),
+    reason: sanitizeStatusEvidenceString(readString(currentTurn.reason)),
+    denialKind: readString(currentTurn.denialKind),
+    policyKind: readString(currentTurn.policyKind),
     approvalRequired: readBoolean(currentTurn.approvalRequired),
     approvalState: readString(currentTurn.approvalState),
     stopState: readString(currentTurn.stopState),
     updateSource: readString(currentTurn.updateSource),
+    latestToolStatus: readString(currentTurn.latestToolStatus),
     latestMessage: sanitizeStatusEvidenceString(readString(currentTurn.latestMessage)),
     latestAction: summarizeNamedStatusRecord(readRecord(currentTurn.latestAction), ["type", "action", "stage", "status"]),
     latestVerification: summarizeNamedStatusRecord(readRecord(currentTurn.latestVerification), ["actionType", "status", "message", "reason"]),
@@ -379,7 +412,36 @@ function summarizeRuntimeReplay(replay: Record<string, unknown>): Record<string,
     actionCount: readNumber(replay.actionCount),
     verificationCount: readNumber(replay.verificationCount),
     timelineCount: readNumber(replay.timelineCount),
-    latestMessage: sanitizeStatusEvidenceString(readString(replay.latestMessage))
+    latestMessage: sanitizeStatusEvidenceString(readString(replay.latestMessage)),
+    latestToolCall: summarizeNamedStatusRecord(
+      readRecord(replay.latestToolCall),
+      ["type", "route", "status", "summary", "evidenceSummary", "artifactCount"]
+    )
+  });
+}
+
+function summarizeRouteOutcome(
+  routeOutcome: Record<string, unknown> | undefined,
+  currentTurn: Record<string, unknown> | undefined,
+  replay: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const outcome: Record<string, unknown> = routeOutcome ?? { ...readRouteOutcome({
+    currentTurn,
+    replay,
+    defaultSource: "runtime-snapshot",
+    includeCommandDetail: false,
+    sanitizeString: sanitizeStatusEvidenceString
+  }) };
+
+  return compactRecord({
+    kind: readString(outcome.kind),
+    title: sanitizeStatusEvidenceString(readString(outcome.title)),
+    value: sanitizeStatusEvidenceString(readString(outcome.value)),
+    detail: sanitizeStatusEvidenceString(readString(outcome.detail)),
+    tone: readString(outcome.tone),
+    source: sanitizeStatusEvidenceString(readString(outcome.source)),
+    routeLabel: sanitizeStatusEvidenceString(readString(outcome.routeLabel)),
+    state: sanitizeStatusEvidenceString(readString(outcome.state))
   });
 }
 

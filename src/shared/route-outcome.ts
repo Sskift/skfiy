@@ -254,12 +254,15 @@ function readRouteDetail({
   sanitizeString?: (value: string) => string | undefined;
 }): string {
   const error = readRecord(currentTurn?.error);
+  const latestToolCall = readRecord(replay?.latestToolCall);
   return readString(error?.message, sanitizeString)
     ?? readString(currentTurn?.error, sanitizeString)
     ?? readString(currentTurn?.routeReason, sanitizeString)
     ?? readString(currentTurn?.reason, sanitizeString)
     ?? readString(currentTurn?.latestMessage, sanitizeString)
     ?? readString(currentTurn?.message, sanitizeString)
+    ?? readString(latestToolCall?.summary, sanitizeString)
+    ?? readString(latestToolCall?.evidenceSummary, sanitizeString)
     ?? (includeCommandDetail ? readString(currentTurn?.command, sanitizeString) : undefined)
     ?? readString(currentTurn?.targetApp, sanitizeString)
     ?? readString(replay?.latestMessage, sanitizeString)

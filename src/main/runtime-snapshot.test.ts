@@ -110,6 +110,15 @@ describe("runtime snapshot", () => {
         },
         source: "runtime-snapshot"
       },
+      routeOutcome: {
+        kind: "approval_required",
+        title: "Route approval required",
+        value: "approval_required",
+        state: "approval_required",
+        source: "runtime-snapshot",
+        routeLabel: "Ghostty",
+        detail: "Approval required (low): Read-only terminal command."
+      },
       replay: {
         state: "available",
         outcome: "running",
@@ -178,6 +187,14 @@ describe("runtime snapshot", () => {
         stopState: "available",
         source: "runtime-snapshot",
         updateSource: "live-task-event"
+      },
+      routeOutcome: {
+        kind: "running",
+        value: "observing",
+        state: "observing",
+        source: "runtime-snapshot",
+        routeLabel: "unknown",
+        detail: "Capturing the desktop."
       },
       replay: {
         state: "empty",
@@ -252,6 +269,15 @@ describe("runtime snapshot", () => {
         approvalRequired: true,
         approvalState: "approved",
         stopState: "inactive"
+      },
+      routeOutcome: {
+        kind: "completed",
+        title: "Route completed",
+        value: "completed",
+        state: "completed",
+        source: "runtime-snapshot",
+        routeLabel: "chrome",
+        detail: "Chrome page opened."
       },
       replay: {
         state: "available",
@@ -343,6 +369,7 @@ describe("runtime snapshot", () => {
     const serialized = JSON.stringify(snapshot);
 
     expect(snapshot.currentTurn.command).toBe("curl https://example.test?token=[redacted]");
+    expect(snapshot.routeOutcome.detail).toBe("Running with secret=[redacted]");
     expect(serialized).toContain("api_key=[redacted]");
     expect(serialized).toContain("Bearer [redacted]");
     expect(serialized).toContain("secret=[redacted]");
@@ -378,6 +405,11 @@ describe("runtime snapshot", () => {
       currentTurn: {
         state: "approval_required",
         command: "pwd"
+      },
+      routeOutcome: {
+        kind: "approval_required",
+        state: "approval_required",
+        routeLabel: "Ghostty"
       }
     });
     expect(files[runtimePath]).not.toContain("token=");

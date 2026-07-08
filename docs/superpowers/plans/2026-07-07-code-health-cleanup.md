@@ -120,6 +120,7 @@ Completed in this pass:
 - React Dashboard Activity now shows a distinct Route outcome card derived from current-turn state, keeping app-policy denial, user denial, blocked, confirmation, cancellation, failure, and completion visibly separate.
 - Dashboard runtime-turn-marker summaries preserve safe `route` and route-reason strings so route-state evidence is not dropped when the runtime snapshot is missing or stale.
 - `/api/operator-evidence` now includes a token-free route outcome summary and status fields so CLI/plugin handoffs can distinguish app-policy denial, user denial, blocked, confirmation, cancellation, failure, and completion without exposing raw commands.
+- Runtime snapshots now write a token-free shared route outcome, and CLI status evidence preserves it with safe route, route-reason, denial, policy, and latest-tool status fields.
 
 Acceptance:
 

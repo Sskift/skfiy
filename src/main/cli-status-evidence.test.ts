@@ -1,8 +1,12 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createCliStatusEvidence, withCliStatusEvidence } from "./cli-status-evidence";
+import {
+  createRuntimeSnapshotFromReplay,
+  createRuntimeSnapshotStatePath
+} from "./runtime-snapshot";
 
 describe("CLI status evidence", () => {
   it("adds binary readiness, runtime snapshot, current turn, dashboard smoke, and page-control evidence", () => {
@@ -44,7 +48,12 @@ describe("CLI status evidence", () => {
         }),
         runtimeSnapshot: expect.objectContaining({
           state: "missing",
-          freshInstall: true
+          freshInstall: true,
+          routeOutcome: expect.objectContaining({
+            kind: "idle",
+            state: "idle",
+            routeLabel: "unknown"
+          })
         }),
         currentTurn: expect.objectContaining({
           state: "idle",
@@ -59,6 +68,91 @@ describe("CLI status evidence", () => {
         evidence,
         runtimeSnapshot: evidence.runtimeSnapshot
       }));
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true });
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves token-free route outcome semantics from runtime snapshots", () => {
+    const rootDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-root-"));
+    const homeDir = mkdtempSync(path.join(tmpdir(), "skfiy-status-home-"));
+
+    try {
+      const runtimeSnapshotPath = createRuntimeSnapshotStatePath(homeDir);
+      mkdirSync(path.dirname(runtimeSnapshotPath), { recursive: true });
+      writeFileSync(runtimeSnapshotPath, `${JSON.stringify(createRuntimeSnapshotFromReplay({
+        replay: {
+          transcript: {
+            command: "Open Chrome with token=secret-token",
+            approvalRequired: true,
+            apps: [],
+            screenshots: [],
+            actions: [
+              {
+                type: "tool_result",
+                turnId: "turn-1",
+                toolCallId: "tool-1",
+                route: "chrome",
+                status: "blocked",
+                summary: "Chrome route denied by app policy for token=secret-token.",
+                evidenceSummary: "No browser mutation executed.",
+                artifactCount: 0
+              }
+            ],
+            outcome: "blocked"
+          },
+          timeline: [
+            {
+              status: "blocked",
+              route: "chrome",
+              command: "Open Chrome with token=secret-token",
+              message: "Chrome route denied by app policy for token=secret-token.",
+              turnId: "turn-1",
+              toolCallId: "tool-1"
+            }
+          ]
+        },
+        observedAt: "2026-07-07T00:00:00.000Z"
+      }), null, 2)}\n`);
+
+      const evidence = createCliStatusEvidence({
+        app: { state: "installed", path: "/repo/dist/skfiy.app" },
+        cli: { state: "installed", path: "/repo/dist/skfiy" },
+        helper: { state: "installed", path: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper" },
+        extension: { state: "unknown" }
+      }, {
+        rootDir,
+        homeDir,
+        appPath: "/repo/dist/skfiy.app",
+        helperPath: "/repo/dist/skfiy.app/Contents/MacOS/skfiy-helper",
+        cliShimPath: "/repo/dist/skfiy",
+        extensionIds: [],
+        generatedAt: "2026-07-07T00:00:00.000Z"
+      });
+
+      expect(evidence.runtimeSnapshot).toMatchObject({
+        state: "available",
+        currentTurn: {
+          state: "blocked",
+          route: "chrome",
+          latestToolStatus: "blocked"
+        },
+        routeOutcome: {
+          kind: "app_policy_denied",
+          state: "blocked",
+          routeLabel: "chrome",
+          detail: "Chrome route denied by app policy for redacted=[redacted]"
+        },
+        replay: {
+          latestToolCall: {
+            type: "tool_result",
+            route: "chrome",
+            status: "blocked"
+          }
+        }
+      });
+      expect(JSON.stringify(evidence)).not.toContain("secret-token");
     } finally {
       rmSync(rootDir, { recursive: true, force: true });
       rmSync(homeDir, { recursive: true, force: true });
