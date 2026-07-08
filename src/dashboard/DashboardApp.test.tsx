@@ -636,6 +636,23 @@ describe("DashboardApp", () => {
     expect(within(activity).queryByText("/tmp/after.png")).not.toBeInTheDocument();
   });
 
+  it("shows the fallback activity feed in Activity without Chrome commands or screenshot paths", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createActivityFeedDashboardSnapshot())} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Activity feed" })).toBeInTheDocument();
+    expect(within(activity).getByText("Recent local activity from the current turn and replay snapshots.")).toBeInTheDocument();
+    const details = within(activity).getByRole("list", { name: "Activity feed details" });
+    expect(within(details).getByText("Chrome fill: Verified - example.test tab 42")).toBeInTheDocument();
+    expect(within(details).getByText("type_text: 3 chars")).toBeInTheDocument();
+    expect(within(details).getByText("press_key: passed - enter accepted")).toBeInTheDocument();
+    expect(within(details).getByText("after (structured_first 2 sources)")).toBeInTheDocument();
+    expect(within(details).getByText("available")).toBeInTheDocument();
+    expect(within(activity).queryByText("/repo/dist/skfiy")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("typed-secret")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("/tmp/after.png")).not.toBeInTheDocument();
+  });
+
   it("shows long-horizon supervision details in Activity without pane tails or probe commands", async () => {
     render(<DashboardApp loadSnapshot={vi.fn(async () => createLongHorizonDashboardSnapshot())} />);
 
@@ -1851,6 +1868,27 @@ function createApprovalQueueDashboardSnapshot(): DashboardSnapshot {
         label: "External CUA",
         health: "available",
         endpoint: "https://cua.example.test/plan?token=planner-secret"
+      }
+    }
+  };
+}
+
+function createActivityFeedDashboardSnapshot(): DashboardSnapshot {
+  return {
+    ...createRuntimeSnapshotDashboardSnapshot(),
+    currentTurn: {
+      ...createRuntimeSnapshotDashboardSnapshot().currentTurn,
+      chromeControlActivity: {
+        kind: "chrome-control-action",
+        title: "Chrome fill",
+        target: {
+          app: "Google Chrome",
+          host: "example.test",
+          tabId: 42
+        },
+        result: "verified",
+        command: "/repo/dist/skfiy chrome fill --selector #token --text typed-secret --json",
+        timestamp: "2026-06-20T00:00:30.000Z"
       }
     }
   };

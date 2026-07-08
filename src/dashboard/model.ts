@@ -111,6 +111,14 @@ export interface DashboardRecentActivity {
   verificationCount?: number;
 }
 
+export interface DashboardActivityFeedSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export type DashboardRouteOutcomeKind = RouteOutcomeKind;
 export type DashboardRouteOutcome = RouteOutcome;
 
@@ -1937,6 +1945,89 @@ export function readApprovalQueueSummary(snapshot: DashboardSnapshot): Dashboard
     tone: items.length > 0 ? "warning" : "success",
     items
   };
+}
+
+export function readActivityFeedSummary(snapshot: DashboardSnapshot): DashboardActivityFeedSummary {
+  const turnState = readString(snapshot.currentTurn.state) ?? "idle";
+  const replayState = readString(snapshot.replay.state) ?? "empty";
+  const active = Boolean(turnState && turnState !== "idle");
+  const items = [
+    ...readChromeControlActivityItems(snapshot),
+    createStatusItem("latest action", formatRuntimeAction(readRecord(snapshot.currentTurn.latestAction))),
+    createStatusItem("verification", formatRuntimeVerification(readRecord(snapshot.currentTurn.latestVerification))),
+    createStatusItem("screenshot", readRuntimeActivityScreenshot(snapshot)),
+    createStatusItem("replay", replayState, replayState === "available" ? "success" : "neutral")
+  ];
+
+  return {
+    title: "Activity feed",
+    value: active ? "live" : replayState === "available" ? "recent" : "idle",
+    detail: "Recent local activity from the current turn and replay snapshots.",
+    tone: active ? "warning" : replayState === "available" ? "success" : "neutral",
+    items
+  };
+}
+
+function readChromeControlActivityItems(snapshot: DashboardSnapshot): DashboardStatusItem[] {
+  const entries = [
+    readRecord(snapshot.currentTurn.chromeControlActivity),
+    readRecord(snapshot.currentTurn.latestChromeControlAction),
+    ...readRecordArray(snapshot.replay.chromeControlActions)
+  ].filter((entry): entry is Record<string, unknown> => Boolean(entry));
+
+  return entries.slice(-4).map((entry) => createStatusItem(
+    readString(entry.title) ?? "Chrome action",
+    formatChromeControlActivity(entry),
+    readChromeControlActivityTone(entry)
+  ));
+}
+
+function formatChromeControlActivity(entry: Record<string, unknown>): string {
+  const target = readRecord(entry.target) ?? {};
+  const title = readString(entry.title) ?? "Chrome action";
+  const host = readString(target.host) ?? "current page";
+  const tabId = readNumber(target.tabId);
+  const tab = tabId !== undefined ? ` tab ${tabId}` : "";
+  return `${title}: ${formatChromeControlActivityResult(entry)} - ${host}${tab}`;
+}
+
+function formatChromeControlActivityResult(entry: Record<string, unknown>): string {
+  const result = readString(entry.result);
+  if (result === "verified") {
+    return "Verified";
+  }
+  if (result === "blocked") {
+    return readString(entry.blockerReason) ?? "Blocked";
+  }
+  if (result === "failed") {
+    return readString(entry.blockerReason) ?? "Failed";
+  }
+
+  return readString(entry.blockerReason) ?? "Unknown";
+}
+
+function readChromeControlActivityTone(entry: Record<string, unknown>): Tone {
+  const result = readString(entry.result);
+  if (result === "verified") {
+    return "success";
+  }
+  if (result === "blocked") {
+    return "warning";
+  }
+  if (result === "failed") {
+    return "danger";
+  }
+
+  return "neutral";
+}
+
+function readRuntimeActivityScreenshot(snapshot: DashboardSnapshot): string {
+  const latestScreenshot = readRecord(snapshot.currentTurn.latestScreenshot);
+  if (latestScreenshot) {
+    return formatRuntimeScreenshot(latestScreenshot);
+  }
+
+  return `screenshots ${formatUnknownNumber(readNumber(snapshot.replay.screenshotCount))}`;
 }
 
 export function readRuntimeEvidenceSummary(snapshot: DashboardSnapshot): DashboardRuntimeEvidenceSummary {

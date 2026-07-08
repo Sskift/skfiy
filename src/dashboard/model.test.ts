@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSnapshot } from "./contracts";
 import {
+  readActivityFeedSummary,
   readApprovalQueueSummary,
   readChromeControlCommandHints,
   readChromeControlState,
@@ -385,6 +386,33 @@ describe("readApprovalQueueSummary", () => {
       tone: "success",
       items: []
     });
+  });
+});
+
+describe("readActivityFeedSummary", () => {
+  it("summarizes replay activity without leaking Chrome commands or screenshot paths", () => {
+    const summary = readActivityFeedSummary(createActivityFeedSnapshotFixture());
+
+    expect(summary).toMatchObject({
+      title: "Activity feed",
+      value: "live",
+      detail: "Recent local activity from the current turn and replay snapshots.",
+      tone: "warning",
+      items: expect.arrayContaining([
+        {
+          label: "Chrome fill",
+          value: "Chrome fill: Verified - example.test tab 42",
+          tone: "success"
+        },
+        { label: "latest action", value: "type_text: 3 chars", tone: "neutral" },
+        { label: "verification", value: "press_key: passed - enter accepted", tone: "neutral" },
+        { label: "screenshot", value: "after (structured_first 2 sources)", tone: "neutral" },
+        { label: "replay", value: "available", tone: "success" }
+      ])
+    });
+    expect(JSON.stringify(summary)).not.toContain("/tmp/after.png");
+    expect(JSON.stringify(summary)).not.toContain("/repo/dist/skfiy");
+    expect(JSON.stringify(summary)).not.toContain("typed-secret");
   });
 });
 
@@ -968,6 +996,33 @@ function createRuntimeSnapshotDetailFixture(): DashboardSnapshot {
         { status: "executing", message: "Typing command." },
         { status: "completed", command: "pwd" }
       ]
+    }
+  };
+}
+
+function createActivityFeedSnapshotFixture(): DashboardSnapshot {
+  const activity = {
+    kind: "chrome-control-action",
+    title: "Chrome fill",
+    target: {
+      app: "Google Chrome",
+      host: "example.test",
+      tabId: 42
+    },
+    result: "verified",
+    command: "/repo/dist/skfiy chrome fill --selector #token --text typed-secret --json",
+    timestamp: "2026-06-20T00:00:30.000Z"
+  };
+
+  return {
+    ...createRuntimeSnapshotDetailFixture(),
+    currentTurn: {
+      ...createRuntimeSnapshotDetailFixture().currentTurn,
+      chromeControlActivity: activity
+    },
+    replay: {
+      ...createRuntimeSnapshotDetailFixture().replay,
+      chromeControlActions: [activity]
     }
   };
 }

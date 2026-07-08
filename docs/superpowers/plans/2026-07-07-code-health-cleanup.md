@@ -102,6 +102,7 @@ Completed in this pass:
 - React Browser control now renders Chrome setup guide next actions and command hints from the existing snapshot, while default Chrome smoke hints stay output-free.
 - React Activity now renders long-horizon money-run supervision state from the existing snapshot, keeping pane tails and probe command contents out of the React surface.
 - React Activity now renders the fallback Approvals queue from the existing snapshot, combining pending Computer Use approval, Chrome extension heartbeat, and Chrome host policy approval state without exposing provider secrets.
+- React Activity now renders the fallback activity feed from the existing snapshot, showing recent Chrome page-control activity, runtime action, verification, screenshot stage, and replay state without exposing Chrome command text or screenshot paths.
 
 Acceptance:
 

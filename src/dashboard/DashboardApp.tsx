@@ -63,6 +63,7 @@ import type {
   DashboardSnapshot
 } from "./contracts";
 import {
+  readActivityFeedSummary,
   readAlertMessages,
   readAppReadinessLanes,
   readApprovalQueueSummary,
@@ -86,6 +87,7 @@ import {
   readSmokeArtifactDetails,
   readSnapshotState,
   readUnsupportedSmokeEvidence,
+  type DashboardActivityFeedSummary,
   type DashboardAppReadinessLane,
   type DashboardApprovalQueueSummary,
   type DashboardCapabilitySummary,
@@ -457,6 +459,7 @@ function DashboardContent({
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
+  const activityFeed = useMemo(() => readActivityFeedSummary(snapshot), [snapshot]);
   const routeOutcome = useMemo(() => readRouteOutcome(snapshot), [snapshot]);
   const approvalQueue = useMemo(() => readApprovalQueueSummary(snapshot), [snapshot]);
   const latestSignal = useMemo(() => readLatestTaskSignal(snapshot), [snapshot]);
@@ -821,6 +824,7 @@ function DashboardContent({
               </div>
             </Card.Content>
           </Card.Root>
+          <ActivityFeedCard summary={activityFeed} />
           <RouteOutcomeCard outcome={routeOutcome} />
           <ApprovalQueueCard summary={approvalQueue} />
           <LatestSignalCard signal={latestSignal} />
@@ -2738,6 +2742,35 @@ function RuntimeSnapshotDetailsCard({ details }: { details: DashboardRuntimeSnap
                   </li>
                 ))}
               </ul>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function ActivityFeedCard({ summary }: { summary: DashboardActivityFeedSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Recent actions and replay</Card.Description>
+        </div>
+        <MousePointerClick size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Activity feed details">
+          {summary.items.map((item, index) => (
+            <li key={`${item.label}-${index}`}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
             </li>
           ))}
         </ul>
