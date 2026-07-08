@@ -19,8 +19,8 @@ and decision records are references, not active implementation plans.
 - `release-evidence/latest-alpha.json`: latest published alpha pointer used by
   dashboard and dogfood readiness checks.
 - `superpowers/plans/2026-07-07-code-health-cleanup.md`: the single
-  active implementation plan for current code-health cleanup, CLI slimming,
-  test diet, and pure-logic extraction.
+  active implementation plan for current feature enrichment, starting with
+  React Dashboard operator controls and evidence entry points.
 
 ## Reference Docs
 

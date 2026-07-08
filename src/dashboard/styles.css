@@ -1661,6 +1661,14 @@ a:focus-visible {
   color: #b91c1c;
 }
 
+.skfiy-dashboard-operator-actions .skfiy-dashboard-button.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  text-decoration: none;
+}
+
 .skfiy-dashboard-provider-form-message {
   min-height: 0;
   padding: 9px 10px;

@@ -762,6 +762,31 @@ function DashboardContent({
           <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
             <Card.Header className="skfiy-dashboard-card-header">
               <div>
+                <Card.Title>Operator evidence</Card.Title>
+                <Card.Description>Read-only dashboard evidence payload</Card.Description>
+              </div>
+              <Eye size={18} aria-hidden="true" />
+            </Card.Header>
+            <Card.Content className="skfiy-dashboard-card-content">
+              <p className="skfiy-dashboard-message">
+                Open the local operator evidence JSON for dashboard, runtime, and readiness handoffs.
+              </p>
+              <div className="skfiy-dashboard-inline-list skfiy-dashboard-operator-actions" aria-label="Operator evidence actions">
+                <a
+                  className="skfiy-dashboard-button button"
+                  href="/api/operator-evidence"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <Eye size={14} aria-hidden="true" />
+                  Operator evidence JSON
+                </a>
+              </div>
+            </Card.Content>
+          </Card.Root>
+          <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+            <Card.Header className="skfiy-dashboard-card-header">
+              <div>
                 <Card.Title>Release gate</Card.Title>
                 <Card.Description>Release drift and cohort status</Card.Description>
               </div>

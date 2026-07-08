@@ -1,131 +1,129 @@
-# skfiy Code Health Cleanup Plan
+# skfiy Feature Enrichment Plan
 
-> **For agentic workers:** This is the only active implementation plan as of 2026-07-07. `docs/superpowers/plans/` must contain exactly one active plan file. Dated research and decision records under `docs/research/` or `docs/decisions/` are archival references, not active task plans.
+> **For agentic workers:** This is the only active implementation plan as of 2026-07-08. `docs/superpowers/plans/` must contain exactly one active plan file. Dated research and decision records under `docs/research/` or `docs/decisions/` are archival references, not active task plans.
 
 ## Current State
 
-- skfiy is a local-first macOS Computer Use runtime with a pixel desktop pet, packaged CLI, local Dashboard, Chrome extension bridge, and focused app adapters.
-- Computer Use remains a permissioned tool capability requested by the selected Background Agent. It is not a competing chat mode and must stay inside skfiy's approval, policy, replay, Screen Recording, Accessibility, Finder Automation, and browser-permission gates.
+- skfiy is an agent-first local-first macOS Computer Use runtime with a pixel desktop pet, packaged CLI, local Dashboard, Chrome extension bridge, and focused app adapters.
+- Computer Use is a tool capability requested by the selected Background Agent. It is not a competing chat mode and must stay inside skfiy's approval, policy, replay, Screen Recording, Accessibility, Finder Automation, and browser-permission gates.
 - Background Agent provider selection remains separate from Computer Use Planner selection.
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
-- Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, and dogfood/release state.
+- Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 - Plan audit status: `docs/superpowers/plans/` contains only this active plan, and extra plan files should not be restored.
 
-## Completed Cleanup
+## Completed Foundation
 
-- CLI command-surface slimming is complete for the current pass. Status formatting, readiness JSON, Chrome readiness, Dashboard probing, money-run status, permission output, Chrome capability envelopes, operator status output, extension info output, doctor output, status capabilities, skeleton output, status-reader inputs, local evidence, Chrome files, desktop status, default status reading, Chrome command execution, MCP serve, Dashboard command execution, status/doctor/operator execution, smoke/skin execution, permission opening, code-signature reading, and child-process execution now live in focused helpers.
-- Chrome extension background test diet is complete for the current pass. Repeated Chrome globals, runtime message dispatch, tab lifecycle helpers, host-policy fixtures, page-control wake envelopes, native-response envelopes, and popup wake setup were consolidated. Low-value listener-count, duplicated-order, and redundant negative tests were removed while preserving behavior coverage.
-- Chrome extension manifest coverage now checks manifest structure and declared files instead of source-string snapshots of background, content-script, popup HTML, and popup JS internals. Message, host-policy, native-bridge, page-control, and popup behavior remain covered by focused behavior tests.
-- Main and renderer pure-logic extraction is complete for the current pass. Renderer task state, panel state, settings state, permission fallback state, pet drag state, desktop API fallback, and view-model decisions now live behind focused helpers. Main-process IPC payloads, runtime snapshot payloads, renderer payloads, Browser Context reading, Background Agent settings responses, Computer Use tool-result mapping, and duplicate window-bound clamping have been extracted or removed.
-- The final Task 3 opportunistic pass removed the unused renderer permission-onboarding row forwarding helper and its forwarding-only test. Permission-onboarding completion now calls the shared missing-permission row helper directly, while onboarding row display remains covered through the root view-model tests.
-- Remaining source-string cleanup removed renderer CSS implementation assertions and a money-run smoke script source snapshot assertion. App behavior and money-run dry-run/product-path behavior remain covered through observable tests.
-- Project hygiene pass removed stale smoke artifact defaults, temporary smoke directories, source-string smoke tests, duplicate record helpers, and extra active-plan files.
+- CLI command-surface slimming, Chrome extension background test diet, manifest source-string cleanup, and main/renderer pure-logic extraction are complete for the current code-health pass.
+- Chrome extension background tests preserve permission recovery, page observe, native-message forwarding, target-tab popup behavior, and blocked-state classification without listener-count or source-string coverage.
+- React Dashboard already owns provider, Computer Use, Browser Context, Dogfood/release, replay, Chrome/Finder/Ghostty readiness, Chrome page action controls, Chrome host-policy controls, memory controls, and provider settings.
+- React Dashboard now exposes the existing read-only operator evidence JSON entry point from the Activity surface.
+- Default smoke behavior is output-free, and Dashboard compact smoke skips Knowledge Graph evidence when no output path is provided.
 
 ## Active Scope
 
-This is not a feature expansion plan. The remaining work is project slimming:
+This is a feature enrichment plan. Keep changes product-facing but narrow:
 
-- reduce oversized orchestration files only where extraction is still obvious,
-- remove duplicated or low-value tests,
-- extract pure logic from broad integration files,
-- keep product behavior, UI copy, preload APIs, Chrome permissions, provider boundaries, and smoke artifact defaults stable.
+- move safe operator controls from fallback/server-only Dashboard paths into React Dashboard,
+- keep provider secrets redacted,
+- keep product language precise: Background Agent, Computer Use, Computer Use Planner, Browser Context,
+- keep preload APIs, Chrome host permissions, and macOS permission boundaries stable,
+- preserve the unsupported generic visible-app boundary until there is an explicit adapter contract and smoke result.
 
 ## Next Work Order
 
-1. Keep planning single-source. If a stale plan file reappears under `docs/superpowers/plans/`, delete it in the same cleanup change or replace this file with exactly one newer active plan.
-2. Treat the final Task 3 opportunistic scan as complete for this pass. Do not split JSX components just to reduce line count.
-3. Treat `src/main/cli-command-surface.ts` and `src/main/main.ts` as mostly slimmed for this pass. Only move more code if the extracted unit is pure, named, tested, and keeps Electron/CLI side effects easier to follow.
-4. Treat `src/main/chrome-extension-background.test.js` as slimmed for this pass. Do not add back listener-count tests, source-string assertions, duplicate fixtures, or redundant negative coverage.
-5. After each focused cleanup commit, run Task 4 gates. If no clear pure extraction remains, pause code-health slimming and only address typed smoke blockers when the local macOS/Chrome environment is available.
+1. Keep planning single-source. If another plan file appears under `docs/superpowers/plans/`, delete it in the same change or replace this file with exactly one newer active plan.
+2. Start with Dashboard P1: expose existing read-only operator evidence from the React Dashboard instead of leaving it only in the fallback/server shell.
+3. Continue Dashboard P1 only where an API already exists and the React surface can safely express it without new permissions or secret leakage.
+4. Keep route-state enrichment focused on preserving app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped` semantics.
+5. Do not add menu action primitives until a supported adapter route and safety/status model are in place.
+6. Run Task 4 gates after each focused feature commit. If a product smoke is blocked by local macOS/Chrome state, report the exact typed blocker.
 
 ## File Ownership Map
 
-- `src/main/cli-command-surface.ts`: top-level CLI dispatch and compatibility exports.
-- `src/main/cli-*.ts`: CLI parsing, status shaping, command-family runners, and injected side-effect helpers.
-- `src/main/main.ts`: Electron BrowserWindow lifecycle, IPC registration, runtime wiring, and OS side effects.
-- `src/main/main-*.ts`: pure main-process payload, settings, Browser Context, runtime snapshot, and tool-result helpers.
-- `src/renderer/App.tsx`: pet UI composition, React state wiring, callbacks, and event subscriptions.
-- `src/renderer/app-*.ts`: renderer-local pure state, transition, fallback, API-selection, and view-model helpers.
-- `src/main/preload.cts`: narrow typed renderer API surface. Do not broaden it during cleanup.
-- `chrome-extension/background.js`: Chrome extension pageControl worker.
-- `src/main/chrome-extension-background.test.js`: browser bridge behavior tests.
-- `src/dashboard/`: Dashboard frontend.
+- `src/dashboard/DashboardApp.tsx`: React operator Dashboard and controls.
+- `src/dashboard/model.ts`: pure Dashboard view models.
+- `src/dashboard/api.ts`: typed Dashboard loopback API calls.
+- `src/main/dashboard-server.ts`: loopback server, fallback shell, and local API handlers.
 - `src/main/dashboard-data.ts`: Dashboard snapshot assembly.
+- `src/main/main.ts`: Electron BrowserWindow lifecycle, IPC registration, runtime wiring, and OS side effects.
+- `src/main/preload.cts`: narrow typed renderer API surface. Do not broaden it during Dashboard enrichment.
+- `src/main/task-routing.ts`: supported route selection and unsupported visible-app boundary.
+- `chrome-extension/background.js`: Chrome extension pageControl worker.
 
 ## Execution Rules
 
-- Start from a clean worktree and keep one commit per task.
+- Start from a clean worktree and keep one commit per feature package.
 - Prefer behavior tests over source-string assertions.
-- Extract pure helpers before changing integration wiring.
-- Do not change UI behavior, product language, preload API shape, Chrome host permissions, or macOS permission boundaries unless the task explicitly requires it.
+- Use existing Dashboard loopback APIs before adding new endpoints.
+- Do not change UI copy or layout outside the touched surface.
+- Do not broaden preload APIs, Chrome host permissions, provider boundaries, or macOS permission boundaries unless a task explicitly requires it.
 - Keep `docs/superpowers/plans/` to exactly one active plan file.
 - Run focused verification before committing.
 - Clean generated local smoke directories unless an explicit release, dogfood, or debugging handoff needs them.
 
-## Task 1: CLI Command Surface
+## Task 1: React Dashboard Operator Evidence
 
-Status: complete for the current cleanup pass.
+Status: complete.
 
-Acceptance remains:
+Move the existing read-only `/api/operator-evidence` entry from fallback/server-only discovery into the React Dashboard Activity area.
 
-- `status`, `doctor`, Chrome readiness, Dashboard readiness, and smoke summary output stay backward compatible.
-- Helpers accept typed inputs and return plain objects or strings where practical.
-- `cli-command-surface.ts` stays focused on top-level dispatch instead of status assembly or process spawning.
-- Tests assert observable command output, parsed options, returned status, or typed blockers.
+Acceptance:
+
+- React Dashboard exposes an obvious operator evidence entry point.
+- The entry opens `/api/operator-evidence` without adding a new endpoint or mutation.
+- Provider secrets, local token-like values, and raw hidden paths are not newly displayed.
+- Server fallback behavior remains compatible.
 
 Focused verification:
 
 ```bash
-npx vitest run src/main/cli-command-surface.test.ts src/main/dashboard-status.test.ts src/main/chrome-readiness.test.ts --reporter=dot
+npx vitest run src/dashboard/DashboardApp.test.tsx src/main/dashboard-server.test.ts --reporter=dot
 npm run typecheck -- --pretty false
 ```
 
-## Task 2: Chrome Extension Background Test Diet
+## Task 2: Dashboard Advanced Control Migration
 
-Status: complete for the current cleanup pass.
+Status: pending.
 
-Acceptance remains:
+Continue moving fallback/server-only Dashboard controls into React only when the existing API contract is safe, local, and covered.
 
-- Local test helpers remove repeated Chrome API, tab, permission, and native-message setup.
-- Coverage remains for permission recovery, page observe, native-message forwarding, target-tab popup behavior, and blocked-state classification.
-- Low-value listener-registration, duplicated-order, and source-string-style coverage should not come back.
+Acceptance:
+
+- Advanced controls remain bounded to existing local APIs.
+- React tests assert observable controls and API requests.
+- Dashboard server tests keep fallback shell compatibility.
+- Provider secret fields remain redacted.
 
 Focused verification:
 
 ```bash
-npx vitest run src/main/chrome-extension-background.test.js src/main/chrome-extension-popup.test.js src/main/chrome-extension-page-control.test.ts --reporter=dot
+npx vitest run src/main/dashboard-data.test.ts src/main/dashboard-server.test.ts src/main/dashboard-status.test.ts src/dashboard/DashboardApp.test.tsx --reporter=dot
 npm run typecheck -- --pretty false
 ```
 
-## Task 3: Main And Renderer Pure Logic
+## Task 3: Route State Semantics
 
-Status: complete for the current cleanup pass.
+Status: pending.
 
-Future scope, only if new obvious cleanup appears:
+As supported adapters grow, preserve distinct route outcomes across dashboard, replay, preload, and pet UI.
 
-- Remove unused forwarding helpers only when direct callers and tests confirm the behavior is covered elsewhere.
-- Extract repeated renderer state/view-model assembly only if the extracted helper is clearer than the inline React code.
-- Extract more main-process code only if it is pure mapping or payload normalization, not Electron lifecycle wiring.
+Acceptance:
 
-Do not:
-
-- change UI copy or layout,
-- broaden preload APIs,
-- change Chrome host permissions,
-- change provider or Computer Use boundaries,
-- split JSX components solely to chase line count.
+- App-policy denial, user denial, blocked, confirmation, cancellation, failure, and completion remain distinct.
+- `stopTurnBehavior` and `Task stopped` remain visible in docs and tests.
+- Unsupported generic visible-app requests still clarify instead of selecting shared primitives.
 
 Focused verification:
 
 ```bash
-npx vitest run src/renderer/App.test.tsx src/main/runtime-snapshot-main-wiring.test.ts src/main/assistant-tools-main-wiring.test.ts --reporter=dot
+npx vitest run src/main/task-routing.test.ts src/main/assistant-agent.test.ts src/main/assistant-tools-main-wiring.test.ts src/main/task-status-contract.test.ts src/renderer/App.test.tsx --reporter=dot
 npm run typecheck -- --pretty false
 ```
 
 ## Task 4: Product Readiness Gates
 
-Run after each focused cleanup commit:
+Run after each focused feature commit:
 
 ```bash
 git diff --check

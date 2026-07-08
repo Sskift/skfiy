@@ -467,6 +467,9 @@ describe("DashboardApp", () => {
     expect(within(activity).getByRole("heading", { name: "Activity" })).toBeInTheDocument();
     expect(within(activity).getByRole("heading", { name: "Latest blocker" })).toBeInTheDocument();
     expect(within(activity).getByRole("heading", { name: "Runtime evidence" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Operator evidence" })).toBeInTheDocument();
+    expect(within(activity).getByRole("link", { name: "Operator evidence JSON" }))
+      .toHaveAttribute("href", "/api/operator-evidence");
     expect(within(activity).getByText("release behind-head")).toBeInTheDocument();
     expect(within(activity).getByText("cohort 1/1")).toBeInTheDocument();
 

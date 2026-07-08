@@ -112,22 +112,23 @@ describe("implementation plan status docs", () => {
     expect(readiness).not.toContain("app-agnostic observe any visible app");
   });
 
-  it("keeps the active plan focused on current code-health cleanup", () => {
+  it("keeps the active plan focused on current feature enrichment", () => {
     const activePlan = readFileSync(activePlanPath, "utf8");
 
-    expect(activePlan).toContain("# skfiy Code Health Cleanup Plan");
+    expect(activePlan).toContain("# skfiy Feature Enrichment Plan");
     expect(activePlan).toContain("For agentic workers");
     expect(activePlan).toContain("only active implementation plan");
     expect(activePlan).toContain("Dated research and decision records");
-    expect(activePlan).toContain("Task 1: CLI Command Surface");
-    expect(activePlan).toContain("Task 2: Chrome Extension Background Test Diet");
-    expect(activePlan).toContain("Task 3: Main And Renderer Pure Logic");
+    expect(activePlan).toContain("Task 1: React Dashboard Operator Evidence");
+    expect(activePlan).toContain("Task 2: Dashboard Advanced Control Migration");
+    expect(activePlan).toContain("Task 3: Route State Semantics");
     expect(activePlan).toContain("Task 4: Product Readiness Gates");
     expect(activePlan).toContain("Background Agent");
     expect(activePlan).toContain("Computer Use Planner");
     expect(activePlan).toContain("Computer Use");
     expect(activePlan).toContain("Chrome extension");
     expect(activePlan).toContain("Dashboard");
+    expect(activePlan).toContain("/api/operator-evidence");
     expect(activePlan).toContain("dist/skfiy.app");
     expect(activePlan).toContain("dist/skfiy");
     expect(activePlan).not.toContain("smoke:voice");
