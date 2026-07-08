@@ -31,12 +31,30 @@ export type RiskLevel = "low" | "medium" | "high" | "blocked";
 export type TurnTranscriptOutcome =
   | "completed"
   | "approval_required"
+  | "needs_confirmation"
+  | "needs_clarification"
   | "verification_failed"
   | "denied"
   | "blocked"
   | "cancelled"
   | "failed"
   | "running";
+export type RouteOutcomeKind =
+  | "idle"
+  | "running"
+  | "approval_required"
+  | "needs_confirmation"
+  | "needs_clarification"
+  | "app_policy_denied"
+  | "chrome_host_policy_denied"
+  | "user_denied"
+  | "blocked"
+  | "cancelled"
+  | "stopped"
+  | "failed"
+  | "completed"
+  | "unknown";
+export type RouteOutcomeTone = "success" | "warning" | "danger" | "neutral";
 
 export interface ControlledAppPolicyEntry {
   name: string;
@@ -143,6 +161,16 @@ export interface TurnTranscript {
 
 export interface TurnReplay {
   transcript: TurnTranscript;
+  routeOutcome?: {
+    kind: RouteOutcomeKind;
+    title: string;
+    value: string;
+    detail: string;
+    tone: RouteOutcomeTone;
+    source: string;
+    routeLabel: string;
+    state: string;
+  };
   timeline: Array<{
     status: TaskStatus;
     message?: string;

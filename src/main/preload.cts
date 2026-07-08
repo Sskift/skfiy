@@ -32,12 +32,53 @@ type RiskLevel = "low" | "medium" | "high" | "blocked";
 type TurnTranscriptOutcome =
   | "completed"
   | "approval_required"
+  | "needs_confirmation"
+  | "needs_clarification"
   | "verification_failed"
   | "denied"
   | "blocked"
   | "cancelled"
   | "failed"
   | "running";
+type RouteOutcomeKind =
+  | "idle"
+  | "running"
+  | "approval_required"
+  | "needs_confirmation"
+  | "needs_clarification"
+  | "app_policy_denied"
+  | "chrome_host_policy_denied"
+  | "user_denied"
+  | "blocked"
+  | "cancelled"
+  | "stopped"
+  | "failed"
+  | "completed"
+  | "unknown";
+type RouteOutcomeTone = "success" | "warning" | "danger" | "neutral";
+
+const routeOutcomeKinds = new Set<RouteOutcomeKind>([
+  "idle",
+  "running",
+  "approval_required",
+  "needs_confirmation",
+  "needs_clarification",
+  "app_policy_denied",
+  "chrome_host_policy_denied",
+  "user_denied",
+  "blocked",
+  "cancelled",
+  "stopped",
+  "failed",
+  "completed",
+  "unknown"
+]);
+const routeOutcomeTones = new Set<RouteOutcomeTone>([
+  "success",
+  "warning",
+  "danger",
+  "neutral"
+]);
 
 interface TaskEvent {
   status: TaskStatus;
@@ -208,6 +249,7 @@ interface TurnTranscript {
 
 interface TurnReplay {
   transcript: TurnTranscript;
+  routeOutcome?: RouteOutcome;
   timeline: Array<{
     status: TaskStatus;
     message?: string;
@@ -217,6 +259,17 @@ interface TurnReplay {
     denialKind?: string;
     policyKind?: string;
   }>;
+}
+
+interface RouteOutcome {
+  kind: RouteOutcomeKind;
+  title: string;
+  value: string;
+  detail: string;
+  tone: RouteOutcomeTone;
+  source: string;
+  routeLabel: string;
+  state: string;
 }
 
 interface PermissionSummary {
@@ -705,7 +758,8 @@ function isTurnReplay(value: unknown): value is TurnReplay {
 
   const replay = value as Partial<TurnReplay>;
   return isTurnTranscript(replay.transcript) && Array.isArray(replay.timeline)
-    && replay.timeline.every(isTurnReplayTimelineEvent);
+    && replay.timeline.every(isTurnReplayTimelineEvent)
+    && (replay.routeOutcome === undefined || isRouteOutcome(replay.routeOutcome));
 }
 
 function isTurnTranscript(value: unknown): value is TurnTranscript {
@@ -857,6 +911,8 @@ function isTurnTranscriptOutcome(value: unknown): value is TurnTranscriptOutcome
   return (
     value === "completed"
     || value === "approval_required"
+    || value === "needs_confirmation"
+    || value === "needs_clarification"
     || value === "verification_failed"
     || value === "denied"
     || value === "blocked"
@@ -864,6 +920,32 @@ function isTurnTranscriptOutcome(value: unknown): value is TurnTranscriptOutcome
     || value === "failed"
     || value === "running"
   );
+}
+
+function isRouteOutcome(value: unknown): value is RouteOutcome {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const outcome = value as Partial<RouteOutcome>;
+  return (
+    isRouteOutcomeKind(outcome.kind)
+    && typeof outcome.title === "string"
+    && typeof outcome.value === "string"
+    && typeof outcome.detail === "string"
+    && isRouteOutcomeTone(outcome.tone)
+    && typeof outcome.source === "string"
+    && typeof outcome.routeLabel === "string"
+    && typeof outcome.state === "string"
+  );
+}
+
+function isRouteOutcomeKind(value: unknown): value is RouteOutcomeKind {
+  return typeof value === "string" && routeOutcomeKinds.has(value as RouteOutcomeKind);
+}
+
+function isRouteOutcomeTone(value: unknown): value is RouteOutcomeTone {
+  return typeof value === "string" && routeOutcomeTones.has(value as RouteOutcomeTone);
 }
 
 function isTurnReplayTimelineEvent(

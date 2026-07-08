@@ -608,6 +608,81 @@ describe("app view model", () => {
     });
   });
 
+  it("uses explicit replay route outcome for the pet route signal with UI redaction", () => {
+    const outcome = readPetRouteOutcome({
+      task: {
+        status: "blocked",
+        message: "Blocked by policy."
+      },
+      turnReplay: {
+        routeOutcome: {
+          kind: "app_policy_denied",
+          title: "App policy denied route",
+          value: "app_policy_denied",
+          detail: "Ghostty denied by app policy with token=secret-token",
+          tone: "danger",
+          source: "turn-replay",
+          routeLabel: "ghostty",
+          state: "blocked"
+        },
+        transcript: {
+          actions: []
+        }
+      }
+    });
+
+    expect(outcome).toEqual({
+      kind: "app_policy_denied",
+      title: "App policy denied route",
+      value: "app_policy_denied",
+      detail: "Ghostty denied by app policy with token=[redacted]",
+      tone: "danger",
+      source: "turn-replay",
+      routeLabel: "ghostty",
+      state: "blocked"
+    });
+    expect(getPetRouteOutcomeSignal(outcome)).toEqual({
+      label: "应用策略拒绝",
+      detail: "ghostty · Ghostty denied by app policy with token=[redacted]",
+      tone: "danger"
+    });
+  });
+
+  it("keeps idle pet route signal from being overwritten by stale replay outcome", () => {
+    expect(readPetRouteOutcome({
+      task: {
+        status: "idle",
+        message: "待命中."
+      },
+      turnReplay: {
+        routeOutcome: {
+          kind: "completed",
+          title: "Route completed",
+          value: "completed",
+          detail: "Chrome page opened.",
+          tone: "success",
+          source: "turn-replay",
+          routeLabel: "chrome",
+          state: "completed"
+        },
+        transcript: {
+          command: "open Chrome",
+          actions: [
+            {
+              type: "tool_result",
+              route: "chrome",
+              status: "completed",
+              summary: "Chrome page opened."
+            }
+          ]
+        }
+      }
+    })).toMatchObject({
+      kind: "unknown",
+      source: "pet-ui"
+    });
+  });
+
   it("keeps idle pet route signal compact", () => {
     expect(getPetRouteOutcomeSignal(readPetRouteOutcome({
       task: {

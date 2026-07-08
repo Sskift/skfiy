@@ -97,6 +97,12 @@ describe("createTurnReplayStore", () => {
       transcript: {
         outcome: "needs_confirmation"
       },
+      routeOutcome: {
+        kind: "needs_confirmation",
+        source: "turn-replay",
+        routeLabel: "ghostty",
+        detail: "Verification failed (after): Completion marker was not observed."
+      },
       timeline: [
         {
           status: "needs_confirmation",
@@ -126,6 +132,12 @@ describe("createTurnReplayStore", () => {
       transcript: {
         outcome: "needs_clarification"
       },
+      routeOutcome: {
+        kind: "needs_clarification",
+        source: "turn-replay",
+        routeLabel: "unknown",
+        detail: "No supported desktop control route matched this request."
+      },
       timeline: [
         {
           status: "needs_clarification",
@@ -135,11 +147,47 @@ describe("createTurnReplayStore", () => {
       ]
     });
     expect(updates.at(-1)).toMatchObject({
+      routeOutcome: {
+        kind: "needs_clarification"
+      },
       timeline: [
         {
           status: "needs_clarification"
         }
       ]
+    });
+  });
+
+  it("preserves replay route outcome metadata without leaking token-like details", () => {
+    const store = createTurnReplayStore();
+
+    store.startTurn();
+    store.recordComputerUseEvent({
+      type: "tool_result",
+      turnId: "turn-agent-1",
+      toolCallId: "turn-agent-1-tool-1",
+      command: "open Ghostty",
+      route: "ghostty",
+      status: "blocked",
+      summary: "Ghostty denied by app policy with token=secret-token",
+      evidence: {
+        summary: "blocked by local policy",
+        artifacts: []
+      }
+    });
+    store.recordTaskEvent({
+      status: "blocked",
+      message: "Ghostty denied by app policy with token=secret-token",
+      route: "ghostty",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+
+    expect(store.getReplay()?.routeOutcome).toMatchObject({
+      kind: "app_policy_denied",
+      source: "turn-replay",
+      routeLabel: "ghostty",
+      detail: "Ghostty denied by app policy with token=[redacted]"
     });
   });
 

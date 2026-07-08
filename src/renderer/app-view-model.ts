@@ -3,6 +3,8 @@ import {
   type PetAtlasState
 } from "./pet-atlas";
 import {
+  isRouteOutcomeKind,
+  isRouteOutcomeTone,
   readRouteOutcome,
   type RouteOutcome
 } from "../shared/route-outcome.js";
@@ -29,6 +31,8 @@ export type Tone = "success" | "warning" | "danger" | "neutral";
 export type TurnTranscriptOutcome =
   | "completed"
   | "approval_required"
+  | "needs_confirmation"
+  | "needs_clarification"
   | "verification_failed"
   | "denied"
   | "blocked"
@@ -494,6 +498,8 @@ export function getRecentExecutionCopy(replay: {
   const outcomeCopy: Record<TurnTranscriptOutcome, string> = {
     completed: "已完成",
     approval_required: "等待审批",
+    needs_confirmation: "需要确认",
+    needs_clarification: "需要澄清",
     verification_failed: "需要确认",
     denied: "已拒绝",
     blocked: "环境阻塞",
@@ -533,6 +539,7 @@ export function readPetRouteOutcome({
     policyKind?: string;
   };
   turnReplay: {
+    routeOutcome?: PetRouteOutcome;
     transcript?: {
       command?: string;
       actions?: Array<{
@@ -555,6 +562,11 @@ export function readPetRouteOutcome({
     }>;
   } | null;
 }): PetRouteOutcome {
+  const explicitRouteOutcome = readExplicitPetRouteOutcome(turnReplay?.routeOutcome);
+  if (explicitRouteOutcome && (task.status !== "idle" || explicitRouteOutcome.kind === "idle")) {
+    return explicitRouteOutcome;
+  }
+
   const latestTimelineEvent = turnReplay?.timeline?.at(-1);
   const latestToolAction = turnReplay?.transcript?.actions
     ?.filter((action) => action.type === "tool_call" || action.type === "tool_result")
@@ -610,6 +622,7 @@ export function getUserDashboardPanelViewModel({
     policyKind?: string;
   };
   turnReplay: {
+    routeOutcome?: PetRouteOutcome;
     transcript: {
       outcome: TurnTranscriptOutcome;
       command?: string;
@@ -711,6 +724,37 @@ function summarizePetRouteToolAction(action: {
     ...(action.evidenceSummary ? { evidenceSummary: action.evidenceSummary } : {}),
     ...(action.command ? { command: action.command } : {})
   };
+}
+
+function readExplicitPetRouteOutcome(outcome?: Partial<PetRouteOutcome>): PetRouteOutcome | null {
+  if (!outcome || !isRouteOutcomeKind(outcome.kind) || !isRouteOutcomeTone(outcome.tone)) {
+    return null;
+  }
+
+  const title = readSanitizedPetRouteOutcomeField(outcome.title);
+  const value = readSanitizedPetRouteOutcomeField(outcome.value);
+  const detail = readSanitizedPetRouteOutcomeField(outcome.detail);
+  const source = readSanitizedPetRouteOutcomeField(outcome.source);
+  const routeLabel = readSanitizedPetRouteOutcomeField(outcome.routeLabel);
+  const state = readSanitizedPetRouteOutcomeField(outcome.state);
+  if (!title || !source || !state) {
+    return null;
+  }
+
+  return {
+    kind: outcome.kind,
+    title,
+    value: value || outcome.kind,
+    detail: detail || "No route activity has been recorded yet.",
+    tone: outcome.tone,
+    source,
+    routeLabel: routeLabel || "unknown",
+    state
+  };
+}
+
+function readSanitizedPetRouteOutcomeField(value: unknown): string | undefined {
+  return typeof value === "string" ? sanitizePetRouteOutcomeString(value) : undefined;
 }
 
 function sanitizePetRouteOutcomeString(value: string): string {

@@ -1,8 +1,14 @@
 import {
   createTurnTranscript,
   type ComputerUseTurnEvent,
-  type TurnTranscript
+  type TurnTranscript,
+  type TurnTranscriptAction,
+  type TurnTranscriptOutcome
 } from "./turn-transcript.js";
+import {
+  readRouteOutcome,
+  type RouteOutcome
+} from "../../shared/route-outcome.js";
 
 export type TurnReplayTaskStatus =
   | "idle"
@@ -33,6 +39,7 @@ export interface TurnReplayTaskEvent {
 
 export interface TurnReplay {
   transcript: TurnTranscript;
+  routeOutcome?: RouteOutcome;
   timeline: TurnReplayTaskEvent[];
 }
 
@@ -101,8 +108,11 @@ export function createTurnReplayStore(options: TurnReplayStoreOptions = {}) {
       return null;
     }
 
+    const transcript = createReplayTranscript(computerUseEvents, timeline);
+
     return {
-      transcript: createReplayTranscript(computerUseEvents, timeline),
+      transcript,
+      routeOutcome: createReplayRouteOutcome(transcript, timeline),
       timeline: timeline.map((event) => ({ ...event }))
     };
   }
@@ -130,4 +140,73 @@ function createReplayTranscript(
   }
 
   return transcript;
+}
+
+function createReplayRouteOutcome(
+  transcript: TurnTranscript,
+  timeline: readonly TurnReplayTaskEvent[]
+): RouteOutcome {
+  const latestTimelineEvent = timeline.at(-1);
+  const latestToolAction = transcript.actions.filter(isRouteToolAction).at(-1);
+  const currentTurn = {
+    state: latestTimelineEvent?.status ?? readRouteStateFromTranscriptOutcome(transcript.outcome),
+    source: "turn-replay",
+    ...(transcript.command ? { command: transcript.command } : {}),
+    ...(latestTimelineEvent?.command ? { command: latestTimelineEvent.command } : {}),
+    ...(latestTimelineEvent?.route ? { route: latestTimelineEvent.route } : {}),
+    ...(latestTimelineEvent?.routeReason ? { routeReason: latestTimelineEvent.routeReason } : {}),
+    ...(latestTimelineEvent?.denialKind ? { denialKind: latestTimelineEvent.denialKind } : {}),
+    ...(latestTimelineEvent?.policyKind ? { policyKind: latestTimelineEvent.policyKind } : {}),
+    ...(latestTimelineEvent?.message ? { latestMessage: latestTimelineEvent.message } : {}),
+    ...(latestToolAction ? { latestAction: summarizeRouteToolAction(latestToolAction) } : {})
+  };
+  const replay = {
+    source: "turn-replay",
+    outcome: transcript.outcome,
+    ...(latestTimelineEvent?.message ? { latestMessage: latestTimelineEvent.message } : {}),
+    ...(latestToolAction ? { latestToolCall: summarizeRouteToolAction(latestToolAction) } : {})
+  };
+
+  return readRouteOutcome({
+    currentTurn,
+    replay,
+    defaultSource: "turn-replay",
+    includeCommandDetail: false,
+    sanitizeString: sanitizeTurnReplayRouteOutcomeString
+  });
+}
+
+function readRouteStateFromTranscriptOutcome(outcome: TurnTranscriptOutcome): string {
+  if (outcome === "verification_failed") {
+    return "failed";
+  }
+
+  return outcome;
+}
+
+function isRouteToolAction(
+  action: TurnTranscriptAction
+): action is Extract<TurnTranscriptAction, { type: "tool_call" | "tool_result" }> {
+  return action.type === "tool_call" || action.type === "tool_result";
+}
+
+function summarizeRouteToolAction(
+  action: Extract<TurnTranscriptAction, { type: "tool_call" | "tool_result" }>
+): Record<string, unknown> {
+  return {
+    type: action.type,
+    route: action.route,
+    status: action.status,
+    ...("summary" in action && action.summary ? { summary: action.summary } : {}),
+    ...("evidenceSummary" in action && action.evidenceSummary
+      ? { evidenceSummary: action.evidenceSummary }
+      : {}),
+    ...("command" in action && action.command ? { command: action.command } : {})
+  };
+}
+
+function sanitizeTurnReplayRouteOutcomeString(value: string): string {
+  return value
+    .replace(/\b(token|password|secret|api[_-]?key)=([^\s&]+)/gi, "$1=[redacted]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]");
 }
