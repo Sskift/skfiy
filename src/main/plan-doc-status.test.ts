@@ -222,14 +222,15 @@ describe("implementation plan status docs", () => {
     expect(activePlan).toContain("# skfiy Feature Enrichment Plan");
     expect(activePlan).toContain("For agentic workers");
     expect(activePlan).toContain("only active implementation plan");
-    expect(activePlan).toContain("Dated decision records");
-    expect(activePlan).toContain("dated research/log checklists stay out of the repo");
-    expect(activePlan).toContain("not work queues, task lists, or progress trackers");
-    expect(activePlan).toContain("ADR-only archive");
+    expect(activePlan).toContain("Retired dated implementation plans");
+    expect(activePlan).toContain("must stay out of repo docs");
+    expect(activePlan).toContain("ADR-only context");
+    expect(activePlan).toContain("Guard coverage must stay structural");
     expect(activePlan).toContain("Task 1: React Dashboard Operator Evidence");
     expect(activePlan).toContain("Task 2: Dashboard Advanced Control Migration");
     expect(activePlan).toContain("Task 3: Route State Semantics");
-    expect(activePlan).toContain("Task 4: Product Readiness Gates");
+    expect(activePlan).toContain("Task 4: Code-Health Slimming");
+    expect(activePlan).toContain("Task 5: Product Readiness Gates");
     expect(activePlan).toContain("Background Agent");
     expect(activePlan).toContain("Computer Use Planner");
     expect(activePlan).toContain("Computer Use");
@@ -238,6 +239,7 @@ describe("implementation plan status docs", () => {
     expect(activePlan).toContain("/api/operator-evidence");
     expect(activePlan).toContain("dist/skfiy.app");
     expect(activePlan).toContain("dist/skfiy");
+    expect(activePlan).not.toContain("Completed in this pass");
     expect(activePlan).not.toContain("smoke:voice");
     expect(activePlan).not.toContain("native-macos voice");
   });
