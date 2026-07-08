@@ -902,6 +902,32 @@ describe("readApprovalQueueSummary", () => {
     expect(JSON.stringify(summary)).not.toContain("planner-secret");
   });
 
+  it("keeps route confirmation distinct from Computer Use approval", () => {
+    const summary = readApprovalQueueSummary({
+      ...createClearApprovalQueueSnapshotFixture(),
+      currentTurn: {
+        state: "needs_confirmation",
+        approvalState: "required",
+        targetRoute: { kind: "finder", bundleId: "com.apple.finder" },
+        latestMessage: "Confirm before organizing Finder."
+      }
+    });
+
+    expect(summary).toMatchObject({
+      title: "Approvals",
+      value: "1 pending",
+      detail: "Review pending route confirmation and browser access requests.",
+      tone: "warning",
+      items: [
+        {
+          label: "Route confirmation",
+          value: "Confirm before organizing Finder.",
+          tone: "warning"
+        }
+      ]
+    });
+  });
+
   it("reports a clear queue when no local approvals are waiting", () => {
     expect(readApprovalQueueSummary(createClearApprovalQueueSnapshotFixture())).toMatchObject({
       title: "Approvals",

@@ -889,12 +889,15 @@ describe("dashboard loopback HTTP response helper", () => {
 
     try {
       const homePanel = document.querySelector('[data-user-panel="home"]');
+      const approvalsPanel = document.querySelector('[data-user-panel="approvals"]');
 
       expect(homePanel?.textContent).toContain("Confirm");
       expect(homePanel?.textContent).toContain("Route needs confirmation");
       expect(homePanel?.textContent).toContain("Confirm route");
       expect(homePanel?.textContent).not.toContain("Approval required");
       expect(homePanel?.textContent).not.toContain("Review the pending approval");
+      expect(approvalsPanel?.textContent).toContain("Route confirmation: Confirm before organizing Finder.");
+      expect(approvalsPanel?.textContent).not.toContain("Computer Use approval");
     } finally {
       cleanup();
     }

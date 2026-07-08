@@ -3117,9 +3117,13 @@ export function readApprovalQueueSummary(snapshot: DashboardSnapshot): Dashboard
   const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
   const approvalState = readString(snapshot.currentTurn.approvalState) ?? "";
 
-  if (
+  if (currentTurnState === "needs_confirmation") {
+    const detail = readString(snapshot.currentTurn.latestMessage)
+      ?? readString(snapshot.currentTurn.command)
+      ?? "Review the pending route confirmation.";
+    items.push(createStatusItem("Route confirmation", detail, "warning"));
+  } else if (
     currentTurnState.includes("approval")
-    || currentTurnState === "needs_confirmation"
     || approvalState === "pending"
     || approvalState === "required"
     || snapshot.currentTurn.approvalRequired === true
@@ -3151,11 +3155,17 @@ export function readApprovalQueueSummary(snapshot: DashboardSnapshot): Dashboard
     title: "Approvals",
     value: items.length > 0 ? `${items.length} pending` : "clear",
     detail: items.length > 0
-      ? "Review pending local approval and browser access requests."
+      ? readApprovalQueueDetail(items)
       : "No pending local approvals.",
     tone: items.length > 0 ? "warning" : "success",
     items
   };
+}
+
+function readApprovalQueueDetail(items: DashboardStatusItem[]): string {
+  return items.some((item) => item.label === "Route confirmation")
+    ? "Review pending route confirmation and browser access requests."
+    : "Review pending local approval and browser access requests.";
 }
 
 export function readActivityFeedSummary(snapshot: DashboardSnapshot): DashboardActivityFeedSummary {

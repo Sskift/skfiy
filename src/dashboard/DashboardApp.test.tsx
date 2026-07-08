@@ -822,6 +822,26 @@ describe("DashboardApp", () => {
     expect(within(activity).queryByText("planner-secret")).not.toBeInTheDocument();
   });
 
+  it("shows route confirmation distinctly in the Activity approval queue", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => ({
+      ...snapshot,
+      currentTurn: {
+        state: "needs_confirmation",
+        approvalState: "required",
+        targetRoute: { kind: "finder", bundleId: "com.apple.finder" },
+        latestMessage: "Confirm before organizing Finder."
+      }
+    }))} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    const details = within(activity).getByRole("list", { name: "Approval queue details" });
+    expect(within(activity).getByText("Review pending route confirmation and browser access requests.")).toBeInTheDocument();
+    expect(within(activity).getByText("1 pending")).toBeInTheDocument();
+    expect(within(details).getByText("Route confirmation")).toBeInTheDocument();
+    expect(within(details).getByText("Confirm before organizing Finder.")).toBeInTheDocument();
+    expect(within(details).queryByText("Computer Use approval")).not.toBeInTheDocument();
+  });
+
   it("shows runtime snapshot freshness and latest replay details in Activity without screenshot paths", async () => {
     render(<DashboardApp loadSnapshot={vi.fn(async () => createRuntimeSnapshotDashboardSnapshot())} />);
 
