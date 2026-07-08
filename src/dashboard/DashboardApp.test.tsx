@@ -617,6 +617,25 @@ describe("DashboardApp", () => {
     expect(within(activity).queryByText("/tmp/after.png")).not.toBeInTheDocument();
   });
 
+  it("shows long-horizon supervision details in Activity without pane tails or probe commands", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createLongHorizonDashboardSnapshot())} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Long-horizon supervision" })).toBeInTheDocument();
+    expect(within(activity).getAllByText(
+      "money-run has 2 windows, 3 panes, and no obvious block markers."
+    )).toHaveLength(2);
+    const details = within(activity).getByRole("list", { name: "Long-horizon supervision details" });
+    expect(within(details).getByText("money-run")).toBeInTheDocument();
+    expect(within(details).getByText("%1")).toBeInTheDocument();
+    expect(within(details).getByText("zsh")).toBeInTheDocument();
+    expect(within(details).getByText("continue_observing")).toBeInTheDocument();
+    expect(within(details).getByText("no")).toBeInTheDocument();
+    expect(within(details).getByText("2")).toBeInTheDocument();
+    expect(within(activity).queryByText("building...")).not.toBeInTheDocument();
+    expect(within(activity).queryByText("tmux capture-pane -p -t %1 -S -120")).not.toBeInTheDocument();
+  });
+
   it("shows a browser context access checklist for the current tab permission chain", async () => {
     const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
     const blockedSnapshot: DashboardSnapshot = {
@@ -1776,6 +1795,41 @@ function createRuntimeSnapshotDashboardSnapshot(): DashboardSnapshot {
       timelineTail: [
         { status: "executing", message: "Typing command." },
         { status: "completed", command: "pwd" }
+      ]
+    }
+  };
+}
+
+function createLongHorizonDashboardSnapshot(): DashboardSnapshot {
+  return {
+    ...snapshot,
+    longHorizon: {
+      state: "observing",
+      session: "money-run",
+      source: "tmux-read-only-probe",
+      mutatesSession: false,
+      summary: {
+        windowCount: 2,
+        paneCount: 3,
+        activePaneIds: ["%1"],
+        deadPaneIds: []
+      },
+      activePane: {
+        id: "%1",
+        windowName: "agent",
+        currentCommand: "zsh",
+        title: "main",
+        recentTailPreview: "building...\nwaiting for next event"
+      },
+      signals: [],
+      recommendation: {
+        action: "continue_observing",
+        reason: "money-run has 2 windows, 3 panes, and no obvious block markers.",
+        mutatesSession: false
+      },
+      probeCommands: [
+        "tmux has-session -t money-run",
+        "tmux capture-pane -p -t %1 -S -120"
       ]
     }
   };

@@ -144,6 +144,14 @@ export interface DashboardRuntimeSnapshotDetail {
   items: DashboardStatusItem[];
 }
 
+export interface DashboardLongHorizonSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 interface DashboardRuntimeSnapshotFreshness {
   state: DashboardRuntimeSnapshotFreshnessState;
   source: string;
@@ -1971,6 +1979,57 @@ export function readRuntimeSnapshotDetails(snapshot: DashboardSnapshot): Dashboa
       ]
     }
   ];
+}
+
+export function readLongHorizonSummary(snapshot: DashboardSnapshot): DashboardLongHorizonSummary {
+  const longHorizon = readRecord(snapshot.longHorizon) ?? {};
+  const activePane = readRecord(longHorizon.activePane) ?? {};
+  const recommendation = readRecord(longHorizon.recommendation) ?? {};
+  const state = readString(longHorizon.state) ?? "unknown";
+  const session = readString(longHorizon.session) ?? "money-run";
+  const recommendationAction = readString(recommendation.action) ?? "none";
+  const recommendationReason = readString(recommendation.reason) ?? readString(longHorizon.probeError);
+  const probeCount = Array.isArray(longHorizon.probeCommands)
+    ? longHorizon.probeCommands.length
+    : undefined;
+  const signalCount = readRecordArray(longHorizon.signals).length;
+  const detail = recommendationReason
+    ?? (state === "observing"
+      ? `${session} is being observed through read-only probes.`
+      : `No long-horizon supervision recommendation has been recorded for ${session}.`);
+
+  return {
+    title: "Long-horizon supervision",
+    value: state,
+    detail,
+    tone: readLongHorizonTone(state),
+    items: [
+      createStatusItem("state", state, readLongHorizonTone(state)),
+      createStatusItem("session", session),
+      createStatusItem("source", readString(longHorizon.source) ?? "unknown"),
+      createStatusItem("active pane", readString(activePane.id) ?? "none"),
+      createStatusItem("command", readString(activePane.currentCommand) ?? "none"),
+      createStatusItem("recommend", recommendationAction),
+      createStatusItem("reason", recommendationReason ?? "none"),
+      createStatusItem("mutates", readBoolean(longHorizon.mutatesSession) ?? false),
+      createStatusItem("signals", formatUnknownNumber(signalCount)),
+      createStatusItem("probes", formatUnknownNumber(probeCount))
+    ]
+  };
+}
+
+function readLongHorizonTone(state: string): Tone {
+  if (state === "observing" || state === "ready") {
+    return "success";
+  }
+  if (state === "blocked" || state === "failed") {
+    return "danger";
+  }
+  if (state === "unknown" || state === "missing") {
+    return "neutral";
+  }
+
+  return "warning";
 }
 
 function readRuntimeSnapshotFreshness(

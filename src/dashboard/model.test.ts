@@ -6,6 +6,7 @@ import {
   readChromeSetupGuideSummary,
   readComputerUseReadiness,
   readKnowledgeGraph,
+  readLongHorizonSummary,
   readPersonalMutationReceipt,
   readRouteOutcome,
   readRuntimeSnapshotDetails,
@@ -311,6 +312,37 @@ describe("readRuntimeSnapshotDetails", () => {
     });
 
     expect(JSON.stringify(details)).not.toContain("/tmp/after.png");
+  });
+});
+
+describe("readLongHorizonSummary", () => {
+  it("summarizes money-run supervision without exposing pane tail or probe commands", () => {
+    const summary = readLongHorizonSummary(createLongHorizonSnapshotFixture());
+
+    expect(summary).toMatchObject({
+      title: "Long-horizon supervision",
+      value: "observing",
+      detail: "money-run has 2 windows, 3 panes, and no obvious block markers.",
+      tone: "success",
+      items: expect.arrayContaining([
+        { label: "state", value: "observing", tone: "success" },
+        { label: "session", value: "money-run", tone: "neutral" },
+        { label: "source", value: "tmux-read-only-probe", tone: "neutral" },
+        { label: "active pane", value: "%1", tone: "neutral" },
+        { label: "command", value: "zsh", tone: "neutral" },
+        { label: "recommend", value: "continue_observing", tone: "neutral" },
+        {
+          label: "reason",
+          value: "money-run has 2 windows, 3 panes, and no obvious block markers.",
+          tone: "neutral"
+        },
+        { label: "mutates", value: "no", tone: "neutral" },
+        { label: "signals", value: "0", tone: "neutral" },
+        { label: "probes", value: "2", tone: "neutral" }
+      ])
+    });
+    expect(JSON.stringify(summary)).not.toContain("building...");
+    expect(JSON.stringify(summary)).not.toContain("tmux capture-pane");
   });
 });
 
@@ -893,6 +925,41 @@ function createRuntimeSnapshotDetailFixture(): DashboardSnapshot {
       timelineTail: [
         { status: "executing", message: "Typing command." },
         { status: "completed", command: "pwd" }
+      ]
+    }
+  };
+}
+
+function createLongHorizonSnapshotFixture(): DashboardSnapshot {
+  return {
+    ...createSnapshot(),
+    longHorizon: {
+      state: "observing",
+      session: "money-run",
+      source: "tmux-read-only-probe",
+      mutatesSession: false,
+      summary: {
+        windowCount: 2,
+        paneCount: 3,
+        activePaneIds: ["%1"],
+        deadPaneIds: []
+      },
+      activePane: {
+        id: "%1",
+        windowName: "agent",
+        currentCommand: "zsh",
+        title: "main",
+        recentTailPreview: "building...\nwaiting for next event"
+      },
+      signals: [],
+      recommendation: {
+        action: "continue_observing",
+        reason: "money-run has 2 windows, 3 panes, and no obvious block markers.",
+        mutatesSession: false
+      },
+      probeCommands: [
+        "tmux has-session -t money-run",
+        "tmux capture-pane -p -t %1 -S -120"
       ]
     }
   };
