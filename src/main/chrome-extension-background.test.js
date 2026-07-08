@@ -464,6 +464,29 @@ function mockWakeAndLocalhostTargetTabs(mock, wakeUrl, { wakeTabId = 99, targetT
   });
 }
 
+function createTabsDiscoveryResponse(requestId = "tabs-discover-response") {
+  return createNativeResponse(TABS_DISCOVER, requestId);
+}
+
+function createTabsWakeTab(options = {}) {
+  const { id = 99, windowId = 7, active = true, wake = "tabs", requestId } = options;
+  return {
+    id,
+    windowId,
+    active,
+    url: createWakeUrl({ wake, wakeAction: "tabs", requestId })
+  };
+}
+
+function createHttpsTab({ id, host, title, windowId = 7 }) {
+  return {
+    id,
+    windowId,
+    title,
+    url: `https://${host}/dashboard`
+  };
+}
+
 async function waitForAssertion(assertion) {
   let lastError;
   for (let index = 0; index < 25; index += 1) {
@@ -476,6 +499,24 @@ async function waitForAssertion(assertion) {
     }
   }
   throw lastError;
+}
+
+async function waitForPostedTabsDiscovery(mock, tabMatchers, options = {}) {
+  await waitForAssertion(() => {
+    const discoveryMessage = mock.postedMessages.find((message) => message.type === TABS_DISCOVER);
+    if (options.requestId) {
+      expect(discoveryMessage?.requestId).toBe(options.requestId);
+    }
+    expect(discoveryMessage).toMatchObject({
+      schemaVersion: 1,
+      type: TABS_DISCOVER,
+      payload: expect.objectContaining({
+        pageTabs: expect.objectContaining({
+          tabs: expect.arrayContaining(tabMatchers)
+        })
+      })
+    });
+  });
 }
 
 async function waitForWakeProcessing(delayMs = 200) {
@@ -1470,51 +1511,22 @@ describe("Chrome extension background policy sync", () => {
 
   it("runs tab discovery when the service worker starts after a tabs wake page already loaded", async () => {
     const mock = createChromeMock([
-      createNativeResponse(TABS_DISCOVER, "tabs-discover-response"),
+      createTabsDiscoveryResponse(),
       createPolicyResponse({ allowedHosts: ["loaded.example"] }),
       createPageObserveResponse()
     ], {
       allTabs: [
-        {
-          id: 99,
-          windowId: 7,
-          active: true,
-          url: createWakeUrl({ wake: "late-tabs", wakeAction: "tabs" })
-        },
-        {
-          id: 41,
-          windowId: 7,
-          title: "Loaded app",
-          url: "https://loaded.example/dashboard"
-        }
+        createTabsWakeTab({ wake: "late-tabs" }),
+        createHttpsTab({ id: 41, title: "Loaded app", host: "loaded.example" })
       ]
     });
     await loadBackground(mock, { autoHeartbeat: true });
     await waitForWakeProcessing();
 
-    await waitForAssertion(() => {
-      expect(mock.postedMessages).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          schemaVersion: 1,
-          type: TABS_DISCOVER,
-          payload: expect.objectContaining({
-            pageTabs: expect.objectContaining({
-              result: "passed",
-              tabs: expect.arrayContaining([
-                expect.objectContaining({
-                  id: 99,
-                  blocker: "chrome_extension_page"
-                }),
-                expect.objectContaining({
-                  id: 41,
-                  host: "loaded.example"
-                })
-              ])
-            })
-          })
-        })
-      ]));
-    });
+    await waitForPostedTabsDiscovery(mock, [
+      expect.objectContaining({ id: 99, blocker: "chrome_extension_page" }),
+      expect.objectContaining({ id: 41, host: "loaded.example" })
+    ]);
   });
 
   it("records tab discovery blocker evidence when Chrome tab query fails", async () => {
@@ -1556,21 +1568,11 @@ describe("Chrome extension background policy sync", () => {
   it("runs and closes tab-discovery wake tabs from created events without delayed timers", async () => {
     const wakeUrl = createWakeUrl({ wake: "created-tabs", wakeAction: "tabs", requestId: "tabs-discover-created" });
     const mock = createChromeMock([
-      createNativeResponse(TABS_DISCOVER, "tabs-discover-created")
+      createTabsDiscoveryResponse("tabs-discover-created")
     ], {
       allTabs: [
-        {
-          id: 99,
-          windowId: 7,
-          active: true,
-          url: wakeUrl
-        },
-        {
-          id: 41,
-          windowId: 7,
-          title: "Created wake app",
-          url: "https://created.example/dashboard"
-        }
+        createTabsWakeTab({ wake: "created-tabs", requestId: "tabs-discover-created" }),
+        createHttpsTab({ id: 41, title: "Created wake app", host: "created.example" })
       ]
     });
     await loadBackground(mock);
@@ -1583,14 +1585,10 @@ describe("Chrome extension background policy sync", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    await waitForAssertion(() => {
-      const discoveryMessage = mock.postedMessages.find((message) => message.type === TABS_DISCOVER);
-      expect(discoveryMessage?.requestId).toBe("tabs-discover-created");
-      expect(discoveryMessage?.payload?.pageTabs?.tabs).toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: 41, host: "created.example" })
-      ]));
-      expect(mock.chrome.tabs.remove).toHaveBeenCalledWith(99);
-    });
+    await waitForPostedTabsDiscovery(mock, [
+      expect.objectContaining({ id: 41, host: "created.example" })
+    ], { requestId: "tabs-discover-created" });
+    expect(mock.chrome.tabs.remove).toHaveBeenCalledWith(99);
   });
 
   it("times out stalled content diagnostics during tab discovery", async () => {
@@ -1639,9 +1637,7 @@ describe("Chrome extension background policy sync", () => {
 
       await vi.advanceTimersByTimeAsync(1_000);
 
-      const discoveryMessage = mock.postedMessages.find((message) => message.type === TABS_DISCOVER);
-      expect(discoveryMessage?.requestId).toBe("tabs-discover-stalled-diagnostics");
-      expect(discoveryMessage?.payload?.pageTabs?.tabs).toEqual(expect.arrayContaining([
+      await waitForPostedTabsDiscovery(mock, [
         expect.objectContaining({
           id: 41,
           state: "blocked",
@@ -1651,7 +1647,7 @@ describe("Chrome extension background policy sync", () => {
           id: 42,
           state: "eligible"
         })
-      ]));
+      ], { requestId: "tabs-discover-stalled-diagnostics" });
     } finally {
       vi.useRealTimers();
     }
@@ -1659,21 +1655,11 @@ describe("Chrome extension background policy sync", () => {
 
   it("recovers tab discovery when an extension wake update omits the query string", async () => {
     const mock = createChromeMock([
-      createNativeResponse(TABS_DISCOVER, "tabs-discover-response")
+      createTabsDiscoveryResponse()
     ], {
       allTabs: [
-        {
-          id: 99,
-          windowId: 7,
-          active: true,
-          url: createWakeUrl({ wake: "recovered-tabs", wakeAction: "tabs" })
-        },
-        {
-          id: 41,
-          windowId: 7,
-          title: "Recovered app",
-          url: "https://recovered.example/dashboard"
-        }
+        createTabsWakeTab({ wake: "recovered-tabs" }),
+        createHttpsTab({ id: 41, title: "Recovered app", host: "recovered.example" })
       ]
     });
     await loadBackground(mock);
@@ -1685,29 +1671,10 @@ describe("Chrome extension background policy sync", () => {
     );
     await new Promise((resolve) => setTimeout(resolve, 450));
 
-    await waitForAssertion(() => {
-      expect(mock.postedMessages).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          schemaVersion: 1,
-          type: TABS_DISCOVER,
-          payload: expect.objectContaining({
-            pageTabs: expect.objectContaining({
-              result: "passed",
-              tabs: expect.arrayContaining([
-                expect.objectContaining({
-                  id: 99,
-                  blocker: "chrome_extension_page"
-                }),
-                expect.objectContaining({
-                  id: 41,
-                  host: "recovered.example"
-                })
-              ])
-            })
-          })
-        })
-      ]));
-    });
+    await waitForPostedTabsDiscovery(mock, [
+      expect.objectContaining({ id: 99, blocker: "chrome_extension_page" }),
+      expect.objectContaining({ id: 41, host: "recovered.example" })
+    ]);
   });
 
   it("refreshes page-control heartbeat when the active tab finishes loading", async () => {
