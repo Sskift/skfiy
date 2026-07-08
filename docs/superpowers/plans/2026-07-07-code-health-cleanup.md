@@ -140,6 +140,7 @@ Completed in this pass:
 - Shared route outcomes now classify explicit stop-turn results as `stopped` while preserving generic cancellation as `cancelled`, keeping `Task stopped` visible across Dashboard, runtime snapshot, CLI status evidence, operator evidence, and pet view-model tests.
 - React Dashboard Home and Latest signal summaries now reuse shared route outcomes so app-policy denial and explicit stop-turn results stay visible outside the dedicated Route outcome card.
 - React Dashboard Knowledge Graph now adds a shared route outcome node and route-specific graph labels so app-policy denial and explicit stop-turn results stay visible in the Overview graph.
+- React Dashboard Next action now reuses shared route outcomes after explicit alerts, keeping app-policy denial and explicit stop-turn results from being hidden by browser/readiness fallback suggestions.
 
 Acceptance:
 

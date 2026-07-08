@@ -580,7 +580,8 @@ describe("DashboardApp", () => {
         reason: "Ghostty is denied by app policy.",
         latestMessage: "Ghostty is denied by app policy.",
         command: "run pwd in Ghostty"
-      }
+      },
+      alerts: []
     };
 
     render(<DashboardApp loadSnapshot={vi.fn(async () => routeBlockedSnapshot)} />);
@@ -595,6 +596,10 @@ describe("DashboardApp", () => {
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("App policy denied route").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("denied by app policy").length).toBeGreaterThan(0);
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: "Review app policy denial" })).toBeInTheDocument();
+    expect(within(nextAction).getByText("Ghostty is denied by app policy.")).toBeInTheDocument();
   });
 
   it("shows stop-turn route outcome semantics in Activity", async () => {
@@ -608,7 +613,8 @@ describe("DashboardApp", () => {
           afterStatus: "cancelled",
           afterMessage: "Task stopped."
         }
-      }
+      },
+      alerts: []
     };
 
     render(<DashboardApp loadSnapshot={vi.fn(async () => stoppedSnapshot)} />);
@@ -625,6 +631,10 @@ describe("DashboardApp", () => {
     const graph = screen.getByRole("region", { name: "Knowledge graph" });
     expect(within(graph).getAllByText("Route stopped").length).toBeGreaterThan(0);
     expect(within(graph).getAllByText("stopped route").length).toBeGreaterThan(0);
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: "Task stopped" })).toBeInTheDocument();
+    expect(within(nextAction).getByText("Task stopped.")).toBeInTheDocument();
   });
 
   it("shows the fallback Home summary in Overview without provider secrets", async () => {

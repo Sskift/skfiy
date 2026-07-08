@@ -12,6 +12,7 @@ import {
   readKnowledgeGraph,
   readLatestTaskSignal,
   readLongHorizonSummary,
+  readNextAction,
   readPersonalMutationReceipt,
   readRouteOutcome,
   readRuntimeSnapshotDetails,
@@ -677,6 +678,79 @@ describe("readLatestTaskSignal", () => {
       detail: "Task stopped.",
       tone: "neutral",
       source: "Current turn"
+    });
+  });
+});
+
+describe("readNextAction", () => {
+  it("keeps app-policy denial as the current route next action", () => {
+    const action = readNextAction({
+      ...createSnapshot(),
+      alerts: [],
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy.",
+        latestMessage: "Ghostty is denied by app policy.",
+        command: "run pwd in Ghostty"
+      }
+    });
+
+    expect(action).toEqual({
+      title: "Review app policy denial",
+      detail: "Ghostty is denied by app policy.",
+      tone: "danger",
+      source: "Current route"
+    });
+  });
+
+  it("keeps stop-turn outcomes visible as the current route next action", () => {
+    const action = readNextAction({
+      ...createSnapshot(),
+      alerts: [],
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      }
+    });
+
+    expect(action).toEqual({
+      title: "Task stopped",
+      detail: "Task stopped.",
+      tone: "neutral",
+      source: "Current route"
+    });
+  });
+
+  it("keeps explicit dashboard alerts ahead of route outcomes", () => {
+    const action = readNextAction({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy.",
+        latestMessage: "Ghostty is denied by app policy."
+      },
+      alerts: [
+        {
+          code: "accessibility-missing",
+          severity: "error",
+          message: "Accessibility is not granted.",
+          nextAction: "Grant Accessibility before routing another task."
+        }
+      ]
+    });
+
+    expect(action).toEqual({
+      title: "Grant Accessibility",
+      detail: "Grant Accessibility before routing another task.",
+      tone: "danger",
+      source: "Dashboard alert"
     });
   });
 });

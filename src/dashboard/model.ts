@@ -2731,6 +2731,11 @@ export function readNextAction(snapshot: DashboardSnapshot): DashboardNextAction
     };
   }
 
+  const routeNextAction = readNextActionFromRouteOutcome(readRouteOutcome(snapshot));
+  if (routeNextAction) {
+    return routeNextAction;
+  }
+
   const chromeControl = readChromeControlState(snapshot);
   if (chromeControl.browserContext.tone !== "success" && chromeControl.browserContext.nextAction) {
     return {
@@ -2770,6 +2775,90 @@ export function readNextAction(snapshot: DashboardSnapshot): DashboardNextAction
     tone: readinessState === "blocked" ? "danger" : "warning",
     source: "Readiness"
   };
+}
+
+function readNextActionFromRouteOutcome(routeOutcome: DashboardRouteOutcome): DashboardNextAction | undefined {
+  switch (routeOutcome.kind) {
+    case "approval_required":
+      return {
+        title: "Review pending approval",
+        detail: routeOutcome.detail,
+        tone: "warning",
+        source: "Current route"
+      };
+    case "needs_confirmation":
+      return {
+        title: "Confirm route",
+        detail: routeOutcome.detail,
+        tone: "warning",
+        source: "Current route"
+      };
+    case "needs_clarification":
+      return {
+        title: "Clarify route",
+        detail: routeOutcome.detail,
+        tone: "warning",
+        source: "Current route"
+      };
+    case "app_policy_denied":
+      return {
+        title: "Review app policy denial",
+        detail: routeOutcome.detail,
+        tone: "danger",
+        source: "Current route"
+      };
+    case "user_denied":
+      return {
+        title: "Route denied by user",
+        detail: routeOutcome.detail,
+        tone: "neutral",
+        source: "Current route"
+      };
+    case "blocked":
+      return {
+        title: "Resolve route blocker",
+        detail: routeOutcome.detail,
+        tone: "danger",
+        source: "Current route"
+      };
+    case "cancelled":
+      return {
+        title: "Route cancelled",
+        detail: routeOutcome.detail,
+        tone: "neutral",
+        source: "Current route"
+      };
+    case "stopped":
+      return {
+        title: "Task stopped",
+        detail: routeOutcome.detail,
+        tone: "neutral",
+        source: "Current route"
+      };
+    case "failed":
+      return {
+        title: "Review route failure",
+        detail: routeOutcome.detail,
+        tone: "danger",
+        source: "Current route"
+      };
+    case "completed":
+      return {
+        title: "Route completed",
+        detail: routeOutcome.detail,
+        tone: "success",
+        source: "Current route"
+      };
+    case "running":
+      return {
+        title: "Monitor running route",
+        detail: routeOutcome.detail,
+        tone: "warning",
+        source: "Current route"
+      };
+    default:
+      return undefined;
+  }
 }
 
 function createPermissionStatus(label: string, value: unknown): DashboardStatusItem {
