@@ -477,6 +477,11 @@ describe("DashboardApp", () => {
 
     const activity = screen.getByRole("region", { name: "Activity" });
     expect(within(activity).getByRole("heading", { name: "Activity" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Alerts" })).toBeInTheDocument();
+    const alertGroups = within(activity).getByRole("list", { name: "Alert groups" });
+    expect(within(alertGroups).getByText("Permissions")).toBeInTheDocument();
+    expect(within(alertGroups).getByText("screen-recording-missing")).toBeInTheDocument();
+    expect(within(alertGroups).getByText("Screen Recording is not granted.")).toBeInTheDocument();
     expect(within(activity).getByRole("heading", { name: "Latest blocker" })).toBeInTheDocument();
     expect(within(activity).getByRole("heading", { name: "Runtime evidence" })).toBeInTheDocument();
     expect(within(activity).getByRole("heading", { name: "Operator evidence" })).toBeInTheDocument();

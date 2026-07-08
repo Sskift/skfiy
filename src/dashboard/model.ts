@@ -98,6 +98,23 @@ export interface DashboardDogfoodSummary {
   items: DashboardStatusItem[];
 }
 
+export interface DashboardAlertGroup {
+  id: "desktop" | "permissions" | "chrome" | "evidence" | "release" | "runtime" | "other";
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
+export interface DashboardAlertGroupSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  groups: DashboardAlertGroup[];
+}
+
 export interface DashboardCapabilitySummary {
   id: "assistant-provider" | "computer-use" | "browser-context" | "current-turn";
   title: string;
@@ -2141,6 +2158,131 @@ export function readAlertMessages(snapshot: DashboardSnapshot): string[] {
   return snapshot.alerts
     .map((alert) => readString(alert.message))
     .filter((message): message is string => Boolean(message));
+}
+
+export function readAlertGroupSummary(snapshot: DashboardSnapshot): DashboardAlertGroupSummary {
+  const groups = readAlertGroups(snapshot.alerts);
+  const errorCount = snapshot.alerts.filter((alert) => readString(alert.severity) === "error").length;
+  const warningCount = snapshot.alerts.filter((alert) => readString(alert.severity) === "warning").length;
+  const tone: Tone = errorCount > 0 ? "danger" : warningCount > 0 ? "warning" : "success";
+
+  return {
+    title: "Alerts",
+    value: snapshot.alerts.length === 0 ? "clear" : `${snapshot.alerts.length} alert${snapshot.alerts.length === 1 ? "" : "s"}`,
+    detail: snapshot.alerts.length === 0
+      ? "No dashboard alerts are active."
+      : `Grouped by ${groups.length} blocker area${groups.length === 1 ? "" : "s"}.`,
+    tone,
+    groups
+  };
+}
+
+function readAlertGroups(alerts: Array<Record<string, unknown>>): DashboardAlertGroup[] {
+  const grouped = new Map<DashboardAlertGroup["id"], {
+    definition: AlertGroupDefinition;
+    alerts: Array<Record<string, unknown>>;
+    severityRank: number;
+  }>();
+
+  for (const alert of alerts) {
+    const definition = classifyAlertGroup(alert);
+    const existing = grouped.get(definition.id) ?? {
+      definition,
+      alerts: [],
+      severityRank: 0
+    };
+    existing.alerts.push(alert);
+    existing.severityRank = Math.max(existing.severityRank, readAlertSeverityRank(alert));
+    grouped.set(definition.id, existing);
+  }
+
+  return [...grouped.values()]
+    .sort((left, right) =>
+      right.severityRank - left.severityRank || left.definition.order - right.definition.order
+    )
+    .map(({ definition, alerts: groupAlerts }) => {
+      const tone = groupAlerts.reduce<Tone>((highest, alert) =>
+        readHigherAlertTone(highest, readAlertTone(alert)), "neutral");
+      const firstAlert = groupAlerts[0];
+
+      return {
+        id: definition.id,
+        title: definition.title,
+        value: `${groupAlerts.length} alert${groupAlerts.length === 1 ? "" : "s"}`,
+        detail: readString(firstAlert?.message)
+          ?? readString(firstAlert?.code)
+          ?? "Review dashboard alert.",
+        tone,
+        items: groupAlerts.map((alert) => createStatusItem(
+          readString(alert.code) ?? "alert",
+          readString(alert.message) ?? readString(alert.severity) ?? "Review dashboard alert.",
+          readAlertTone(alert)
+        ))
+      };
+    });
+}
+
+interface AlertGroupDefinition {
+  id: DashboardAlertGroup["id"];
+  title: string;
+  order: number;
+}
+
+function classifyAlertGroup(alert: Record<string, unknown>): AlertGroupDefinition {
+  const code = readString(alert.code) ?? "";
+  if (code.startsWith("desktop-") || code === "desktop-session-blocked") {
+    return { id: "desktop", title: "Desktop session", order: 10 };
+  }
+  if (code.includes("recording") || code.includes("accessibility") || code.includes("finder-automation")) {
+    return { id: "permissions", title: "Permissions", order: 20 };
+  }
+  if (code.startsWith("chrome-") || code.startsWith("extension-")) {
+    return { id: "chrome", title: "Chrome bridge", order: 30 };
+  }
+  if (code.startsWith("smoke-")) {
+    return { id: "evidence", title: "Smoke evidence", order: 40 };
+  }
+  if (code.startsWith("release-")) {
+    return { id: "release", title: "Release drift", order: 50 };
+  }
+  if (code.startsWith("runtime-snapshot")) {
+    return { id: "runtime", title: "Runtime snapshot", order: 60 };
+  }
+
+  return { id: "other", title: "Other", order: 90 };
+}
+
+function readAlertSeverityRank(alert: Record<string, unknown>): number {
+  const severity = readString(alert.severity);
+  if (severity === "error") {
+    return 3;
+  }
+  if (severity === "warning") {
+    return 2;
+  }
+  if (severity === "info") {
+    return 1;
+  }
+
+  return 0;
+}
+
+function readHigherAlertTone(left: Tone, right: Tone): Tone {
+  return readToneSeverity(right) > readToneSeverity(left) ? right : left;
+}
+
+function readToneSeverity(tone: Tone): number {
+  if (tone === "danger") {
+    return 3;
+  }
+  if (tone === "warning") {
+    return 2;
+  }
+  if (tone === "success") {
+    return 1;
+  }
+
+  return 0;
 }
 
 export function readLatestMessage(snapshot: DashboardSnapshot): string {

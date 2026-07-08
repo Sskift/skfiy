@@ -65,6 +65,7 @@ import type {
 import {
   readActivityFeedSummary,
   readAgentSupervisionSummary,
+  readAlertGroupSummary,
   readAlertMessages,
   readAppReadinessLanes,
   readAppsSitesSummary,
@@ -92,6 +93,7 @@ import {
   readUnsupportedSmokeEvidence,
   type DashboardAgentSupervisionSummary,
   type DashboardActivityFeedSummary,
+  type DashboardAlertGroupSummary,
   type DashboardAppReadinessLane,
   type DashboardAppsSitesSummary,
   type DashboardApprovalQueueSummary,
@@ -469,6 +471,7 @@ function DashboardContent({
   const homeSummary = useMemo(() => readHomeSummary(snapshot), [snapshot]);
   const appsSitesSummary = useMemo(() => readAppsSitesSummary(snapshot), [snapshot]);
   const activityFeed = useMemo(() => readActivityFeedSummary(snapshot), [snapshot]);
+  const alertGroups = useMemo(() => readAlertGroupSummary(snapshot), [snapshot]);
   const routeOutcome = useMemo(() => readRouteOutcome(snapshot), [snapshot]);
   const approvalQueue = useMemo(() => readApprovalQueueSummary(snapshot), [snapshot]);
   const latestSignal = useMemo(() => readLatestTaskSignal(snapshot), [snapshot]);
@@ -843,6 +846,7 @@ function DashboardContent({
             </Card.Content>
           </Card.Root>
           <ActivityFeedCard summary={activityFeed} />
+          <AlertGroupCard summary={alertGroups} />
           <RouteOutcomeCard outcome={routeOutcome} />
           <ApprovalQueueCard summary={approvalQueue} />
           <LatestSignalCard signal={latestSignal} />
@@ -2869,6 +2873,51 @@ function ActivityFeedCard({ summary }: { summary: DashboardActivityFeedSummary }
             </li>
           ))}
         </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function AlertGroupCard({ summary }: { summary: DashboardAlertGroupSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Grouped blocker areas</Card.Description>
+        </div>
+        <TriangleAlert size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        {summary.groups.length > 0 ? (
+          <ul className="skfiy-dashboard-evidence-list" aria-label="Alert groups">
+            {summary.groups.map((group) => (
+              <li key={group.id}>
+                <span>{group.title}</span>
+                <strong>{group.value}</strong>
+                <small>{group.tone}</small>
+                <ul
+                  aria-label={`${group.title} alerts`}
+                  className="skfiy-dashboard-evidence-detail-list"
+                >
+                  {group.items.map((item) => (
+                    <li key={`${group.id}-${item.label}`}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.tone}</small>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="skfiy-dashboard-empty">No dashboard alerts are active.</p>
+        )}
       </Card.Content>
     </Card.Root>
   );

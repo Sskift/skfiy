@@ -3,6 +3,7 @@ import type { DashboardSnapshot } from "./contracts";
 import {
   readActivityFeedSummary,
   readAgentSupervisionSummary,
+  readAlertGroupSummary,
   readAppsSitesSummary,
   readApprovalQueueSummary,
   readChromeControlCommandHints,
@@ -659,6 +660,94 @@ describe("readDogfoodSummary", () => {
     expect(JSON.stringify(summary)).not.toContain(".skfiy-alpha");
     expect(JSON.stringify(summary)).not.toContain(".skfiy-dogfood");
     expect(JSON.stringify(summary)).not.toContain("/repo/");
+  });
+});
+
+describe("readAlertGroupSummary", () => {
+  it("groups dashboard alerts by blocker area using fallback dashboard semantics", () => {
+    const summary = readAlertGroupSummary({
+      ...createSnapshot(),
+      alerts: [
+        {
+          code: "chrome-native-host-missing",
+          severity: "error",
+          message: "Chrome Native Messaging host is not installed."
+        },
+        {
+          code: "release-artifact-older-than-head",
+          severity: "warning",
+          message: "Latest alpha release is older than the current HEAD."
+        },
+        {
+          code: "screen-recording-missing",
+          severity: "warning",
+          message: "Screen Recording is not granted."
+        },
+        {
+          code: "desktop-session-loginwindow",
+          severity: "error",
+          message: "Desktop is at loginwindow."
+        }
+      ]
+    });
+
+    expect(summary).toMatchObject({
+      title: "Alerts",
+      value: "4 alerts",
+      detail: "Grouped by 4 blocker areas.",
+      tone: "danger",
+      groups: [
+        expect.objectContaining({
+          id: "desktop",
+          title: "Desktop session",
+          value: "1 alert",
+          tone: "danger",
+          items: [
+            { label: "desktop-session-loginwindow", value: "Desktop is at loginwindow.", tone: "danger" }
+          ]
+        }),
+        expect.objectContaining({
+          id: "chrome",
+          title: "Chrome bridge",
+          value: "1 alert",
+          tone: "danger",
+          items: [
+            { label: "chrome-native-host-missing", value: "Chrome Native Messaging host is not installed.", tone: "danger" }
+          ]
+        }),
+        expect.objectContaining({
+          id: "permissions",
+          title: "Permissions",
+          value: "1 alert",
+          tone: "warning",
+          items: [
+            { label: "screen-recording-missing", value: "Screen Recording is not granted.", tone: "warning" }
+          ]
+        }),
+        expect.objectContaining({
+          id: "release",
+          title: "Release drift",
+          value: "1 alert",
+          tone: "warning",
+          items: [
+            { label: "release-artifact-older-than-head", value: "Latest alpha release is older than the current HEAD.", tone: "warning" }
+          ]
+        })
+      ]
+    });
+  });
+
+  it("reports a clear alert state when no dashboard alerts are active", () => {
+    expect(readAlertGroupSummary({
+      ...createSnapshot(),
+      alerts: []
+    })).toEqual({
+      title: "Alerts",
+      value: "clear",
+      detail: "No dashboard alerts are active.",
+      tone: "success",
+      groups: []
+    });
   });
 });
 
