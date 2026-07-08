@@ -19,7 +19,7 @@
 - Dated decision records under `docs/decisions/` are ADR-only context. They must not contain active plan sections, task status blocks, next-work queues, checklists, focused verification blocks, or references to active plan paths.
 - Date-stamped Markdown in the repository is allowed only for this active plan and durable ADRs under `docs/decisions/`.
 - Markdown dated before the active plan date is retired implementation material unless it is a durable ADR under `docs/decisions/`; delete it from the live repo tree instead of renaming, archiving, or parking it.
-- Old 2026-06 implementation plans, including 2026-06-23-era plan material, must remain absent from the live repo tree. Keep only durable ADRs under `docs/decisions/` and current canonical docs.
+- Retired implementation plan material must remain absent from the live repo tree without naming old plan dates in current docs. Keep only durable ADRs under `docs/decisions/` and current canonical docs.
 - Treat plan cleanup as a file-tree and reference invariant: one active plan file, zero retired dated implementation Markdown files, zero stale handoff/checklist Markdown files, and zero stale workflow references to old plan paths across docs, scripts, tests, package metadata, and AGENTS.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.
 

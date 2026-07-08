@@ -400,6 +400,15 @@ describe("implementation plan status docs", () => {
     expect(activePlan).not.toContain("native-macos voice");
   });
 
+  it("keeps retired plan date anchors out of the active plan", () => {
+    const activePlan = readFileSync(activePlanPath, "utf8");
+    const staleDateAnchors = [...activePlan.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)]
+      .map((match) => match[0])
+      .filter((dateStamp) => Date.parse(`${dateStamp}T00:00:00.000Z`) < activePlanDate);
+
+    expect(staleDateAnchors).toEqual([]);
+  });
+
   it("documents panic stop behavior evidence in alpha and report instructions", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
     const workflow = readFileSync(path.join(process.cwd(), "docs", "development-workflow.md"), "utf8");
