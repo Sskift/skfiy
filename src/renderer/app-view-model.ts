@@ -668,6 +668,7 @@ const PET_ROUTE_OUTCOME_SIGNAL_LABELS: Record<PetRouteOutcome["kind"], string> =
   needs_confirmation: "路由待确认",
   needs_clarification: "路由待澄清",
   app_policy_denied: "应用策略拒绝",
+  chrome_host_policy_denied: "Chrome 站点策略拒绝",
   user_denied: "用户已拒绝",
   blocked: "路由阻塞",
   cancelled: "路由已取消",

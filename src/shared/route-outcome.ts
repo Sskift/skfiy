@@ -7,6 +7,7 @@ export type RouteOutcomeKind =
   | "needs_confirmation"
   | "needs_clarification"
   | "app_policy_denied"
+  | "chrome_host_policy_denied"
   | "user_denied"
   | "blocked"
   | "cancelled"
@@ -115,6 +116,19 @@ export function readRouteOutcome({
       title: "App policy denied route",
       state,
       value: "app_policy_denied",
+      detail,
+      tone: "danger",
+      source,
+      routeLabel
+    });
+  }
+
+  if (state === "blocked" && isChromeHostPolicyDenial(classifierText, currentTurn, sanitizeString)) {
+    return createRouteOutcome({
+      kind: "chrome_host_policy_denied",
+      title: "Chrome host policy denied route",
+      state,
+      value: "chrome_host_policy_denied",
       detail,
       tone: "danger",
       source,
@@ -254,6 +268,16 @@ function isAppPolicyDenial(
   return classifierText.includes("denied by app policy")
     || readString(currentTurn?.denialKind, sanitizeString) === "app_policy"
     || readString(currentTurn?.policyKind, sanitizeString) === "app-policy";
+}
+
+function isChromeHostPolicyDenial(
+  classifierText: string,
+  currentTurn: Record<string, unknown> | undefined,
+  sanitizeString?: (value: string) => string | undefined
+): boolean {
+  return classifierText.includes("chrome host policy blocked")
+    || classifierText.includes("chrome-host-policy")
+    || readString(currentTurn?.policyKind, sanitizeString) === "chrome-host-policy";
 }
 
 function isStopTurnOutcome(

@@ -666,6 +666,8 @@ function readCurrentTurnGraphEdgeLabel(
       return "needs clarification";
     case "app_policy_denied":
       return "denied by app policy";
+    case "chrome_host_policy_denied":
+      return "denied by Chrome host policy";
     case "user_denied":
       return "denied by user";
     case "blocked":
@@ -2908,6 +2910,8 @@ function readHomeAssistantStateFromRouteOutcome(
       return { label: "Clarify", detail: routeOutcome.title, tone: "warning" };
     case "app_policy_denied":
       return { label: "Policy denied", detail: routeOutcome.title, tone: "danger" };
+    case "chrome_host_policy_denied":
+      return { label: "Chrome policy denied", detail: routeOutcome.title, tone: "danger" };
     case "user_denied":
       return { label: "Denied", detail: routeOutcome.title, tone: "neutral" };
     case "blocked":
@@ -3073,6 +3077,7 @@ function readLatestRouteOutcomeSignal(routeOutcome: DashboardRouteOutcome): Dash
         source: routeOutcome.source
       };
     case "app_policy_denied":
+    case "chrome_host_policy_denied":
     case "blocked":
     case "failed":
       return {
@@ -3814,6 +3819,13 @@ function readNextActionFromRouteOutcome(routeOutcome: DashboardRouteOutcome): Da
     case "app_policy_denied":
       return {
         title: "Review app policy denial",
+        detail: routeOutcome.detail,
+        tone: "danger",
+        source: "Current route"
+      };
+    case "chrome_host_policy_denied":
+      return {
+        title: "Review Chrome host policy denial",
         detail: routeOutcome.detail,
         tone: "danger",
         source: "Current route"

@@ -8,6 +8,7 @@ import {
   writeRuntimeSnapshot,
   writeRuntimeTurnMarker
 } from "./runtime-snapshot";
+import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-snapshot-payload";
 import type { TurnReplay } from "./computer-use/turn-replay-store";
 
 function createReplay(): TurnReplay {
@@ -229,6 +230,40 @@ describe("runtime snapshot", () => {
         source: "runtime-snapshot",
         routeLabel: "unknown",
         detail: "Task stopped."
+      }
+    });
+  });
+
+  it("records Chrome host policy denial as a distinct blocked route outcome", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: createRuntimeSnapshotCurrentTurnFromTaskEvent({
+        status: "blocked",
+        message: "Chrome host policy blocked this approved task: blocked.example",
+        command: "summarize current Chrome page",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy"
+      }),
+      observedAt: "2026-06-20T10:01:15.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:15.000Z",
+      currentTurn: {
+        state: "blocked",
+        command: "summarize current Chrome page",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+      },
+      routeOutcome: {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        state: "blocked",
+        source: "runtime-snapshot",
+        routeLabel: "chrome",
+        detail: "Chrome host policy blocked this approved task: blocked.example"
       }
     });
   });

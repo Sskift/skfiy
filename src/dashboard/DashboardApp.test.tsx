@@ -743,6 +743,36 @@ describe("DashboardApp", () => {
     expect(within(nextAction).getByText("Ghostty is denied by app policy.")).toBeInTheDocument();
   });
 
+  it("shows Chrome host policy denial as a distinct route outcome", async () => {
+    const hostPolicyBlockedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "blocked",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example",
+        command: "summarize current Chrome page"
+      },
+      alerts: []
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => hostPolicyBlockedSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByText("Chrome host policy denied route")).toBeInTheDocument();
+    expect(within(activity).getAllByText("chrome_host_policy_denied").length).toBeGreaterThan(0);
+    expect(within(activity).getByText("state blocked")).toBeInTheDocument();
+    expect(within(activity).getByText("route chrome")).toBeInTheDocument();
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText("denied by Chrome host policy").length).toBeGreaterThan(0);
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: "Review Chrome host policy denial" })).toBeInTheDocument();
+    expect(within(nextAction).getByText("Chrome host policy blocked this approved task: blocked.example")).toBeInTheDocument();
+  });
+
   it("shows stop-turn route outcome semantics in Activity", async () => {
     const stoppedSnapshot: DashboardSnapshot = {
       ...snapshot,

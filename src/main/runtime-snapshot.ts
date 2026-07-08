@@ -72,6 +72,10 @@ export interface RuntimeSnapshotCurrentTurnInput {
   status?: string;
   message?: string;
   command?: string;
+  route?: string;
+  routeReason?: string;
+  denialKind?: string;
+  policyKind?: string;
 }
 
 export function createRuntimeSnapshotStatePath(homeDir: string): string {
@@ -363,6 +367,7 @@ function createRuntimeCurrentTurnPanel(
   return {
     state,
     ...(command ? { command } : {}),
+    ...readRuntimeCurrentTurnRouteMetadata(currentTurn),
     approvalRequired: state === "approval_required",
     approvalState: state === "approval_required" ? "required" : "not-required",
     stopState: isActiveTurnState(state) ? "available" : "inactive",
@@ -389,6 +394,7 @@ function mergeRuntimeCurrentTurnPanel(
     ...base,
     ...(state ? { state } : {}),
     ...(command ? { command } : {}),
+    ...readRuntimeCurrentTurnRouteMetadata(currentTurn),
     ...(message ? { latestMessage: message } : {}),
     approvalRequired: base.approvalRequired === true || nextState === "approval_required",
     approvalState: base.approvalRequired === true || nextState === "approval_required"
@@ -416,6 +422,17 @@ function readRuntimeCurrentTurnCommand(
   currentTurn?: RuntimeSnapshotCurrentTurnInput
 ): string | undefined {
   return currentTurn?.command ? sanitizeRuntimeSnapshotText(currentTurn.command) : undefined;
+}
+
+function readRuntimeCurrentTurnRouteMetadata(
+  currentTurn?: RuntimeSnapshotCurrentTurnInput
+): Record<string, string> {
+  return {
+    ...(currentTurn?.route ? { route: sanitizeRuntimeSnapshotText(currentTurn.route) } : {}),
+    ...(currentTurn?.routeReason ? { routeReason: sanitizeRuntimeSnapshotText(currentTurn.routeReason) } : {}),
+    ...(currentTurn?.denialKind ? { denialKind: sanitizeRuntimeSnapshotText(currentTurn.denialKind) } : {}),
+    ...(currentTurn?.policyKind ? { policyKind: sanitizeRuntimeSnapshotText(currentTurn.policyKind) } : {})
+  };
 }
 
 function summarizeScreenshot(screenshot: TurnTranscriptScreenshot): Record<string, unknown> {

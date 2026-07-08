@@ -1392,6 +1392,28 @@ describe("readNextAction", () => {
     });
   });
 
+  it("keeps Chrome host policy denial as a distinct current route next action", () => {
+    const action = readNextAction({
+      ...createSnapshot(),
+      alerts: [],
+      currentTurn: {
+        state: "blocked",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example",
+        command: "summarize current Chrome page"
+      }
+    });
+
+    expect(action).toEqual({
+      title: "Review Chrome host policy denial",
+      detail: "Chrome host policy blocked this approved task: blocked.example",
+      tone: "danger",
+      source: "Current route"
+    });
+  });
+
   it("keeps stop-turn outcomes visible as the current route next action", () => {
     const action = readNextAction({
       ...createSnapshot(),
@@ -2140,6 +2162,23 @@ describe("readRouteOutcome", () => {
         title: "User denied route",
         value: "user_denied",
         tone: "neutral",
+        routeLabel: "chrome"
+      }
+    ],
+    [
+      "Chrome host policy denial",
+      {
+        state: "blocked",
+        route: "chrome",
+        routeReason: "Chrome host policy blocked this approved task: blocked.example",
+        policyKind: "chrome-host-policy",
+        latestMessage: "Chrome host policy blocked this approved task: blocked.example"
+      },
+      {
+        kind: "chrome_host_policy_denied",
+        title: "Chrome host policy denied route",
+        value: "chrome_host_policy_denied",
+        tone: "danger",
         routeLabel: "chrome"
       }
     ],
