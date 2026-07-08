@@ -139,7 +139,10 @@ export function createRuntimeSnapshotFromReplay({
       ...(event.command ? { command: sanitizeRuntimeSnapshotText(event.command) } : {}),
       ...(event.turnId ? { turnId: event.turnId } : {}),
       ...(event.toolCallId ? { toolCallId: event.toolCallId } : {}),
-      ...(event.route ? { route: event.route } : {})
+      ...(event.route ? { route: event.route } : {}),
+      ...(event.routeReason ? { routeReason: sanitizeRuntimeSnapshotText(event.routeReason) } : {}),
+      ...(event.denialKind ? { denialKind: sanitizeRuntimeSnapshotText(event.denialKind) } : {}),
+      ...(event.policyKind ? { policyKind: sanitizeRuntimeSnapshotText(event.policyKind) } : {})
     }));
   const verificationCount = replay.transcript.actions
     .filter((action) => action.type === "verify")

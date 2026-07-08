@@ -9,6 +9,11 @@ import { STATUS_COPY, canStopTurn } from "./app-view-model";
 export interface TaskView {
   status: TaskStatus;
   message: string;
+  command?: string;
+  route?: string;
+  routeReason?: string;
+  denialKind?: string;
+  policyKind?: string;
   finderPlanPreview?: FinderPlanPreview;
 }
 
@@ -41,6 +46,11 @@ export function createTaskViewFromEvent(event: TaskEvent): TaskView {
   return {
     status: event.status,
     message: event.message ?? STATUS_COPY[event.status].message,
+    ...(event.command ? { command: event.command } : {}),
+    ...(event.route ? { route: event.route } : {}),
+    ...(event.routeReason ? { routeReason: event.routeReason } : {}),
+    ...(event.denialKind ? { denialKind: event.denialKind } : {}),
+    ...(event.policyKind ? { policyKind: event.policyKind } : {}),
     finderPlanPreview: event.finderPlanPreview
   };
 }

@@ -508,7 +508,15 @@ export function readPetRouteOutcome({
   task,
   turnReplay
 }: {
-  task: { status: TaskStatus; message: string; command?: string };
+  task: {
+    status: TaskStatus;
+    message: string;
+    command?: string;
+    route?: string;
+    routeReason?: string;
+    denialKind?: string;
+    policyKind?: string;
+  };
   turnReplay: {
     transcript?: {
       command?: string;
@@ -526,6 +534,9 @@ export function readPetRouteOutcome({
       message?: string;
       command?: string;
       route?: string;
+      routeReason?: string;
+      denialKind?: string;
+      policyKind?: string;
     }>;
   } | null;
 }): PetRouteOutcome {
@@ -534,19 +545,26 @@ export function readPetRouteOutcome({
     ?.filter((action) => action.type === "tool_call" || action.type === "tool_result")
     .at(-1);
   const command = task.command ?? latestTimelineEvent?.command ?? turnReplay?.transcript?.command;
-  const route = latestToolAction?.route ?? latestTimelineEvent?.route;
+  const route = task.route ?? latestToolAction?.route ?? latestTimelineEvent?.route;
+  const routeReason = task.routeReason ?? latestTimelineEvent?.routeReason;
+  const denialKind = task.denialKind ?? latestTimelineEvent?.denialKind;
+  const policyKind = task.policyKind ?? latestTimelineEvent?.policyKind;
   const latestMessage = task.message || latestTimelineEvent?.message;
   const currentTurn = {
     state: task.status,
     source: "pet-ui",
     ...(command ? { command } : {}),
     ...(route ? { route } : {}),
+    ...(routeReason ? { routeReason } : {}),
+    ...(denialKind ? { denialKind } : {}),
+    ...(policyKind ? { policyKind } : {}),
     ...(latestMessage ? { latestMessage } : {}),
     ...(latestToolAction ? { latestAction: summarizePetRouteToolAction(latestToolAction) } : {})
   };
   const replay = {
     source: "pet-ui-replay",
     ...(latestTimelineEvent?.message ? { latestMessage: latestTimelineEvent.message } : {}),
+    ...(latestTimelineEvent?.routeReason ? { routeReason: latestTimelineEvent.routeReason } : {}),
     ...(latestToolAction ? { latestToolCall: summarizePetRouteToolAction(latestToolAction) } : {})
   };
 
@@ -567,7 +585,15 @@ export function getUserDashboardPanelViewModel({
 }: {
   desktopSessionDiagnostics: { state: DesktopSessionDiagnosticState; reason: string };
   permissions: Record<PermissionKey, { state: PermissionState }>;
-  task: { status: TaskStatus; message: string };
+  task: {
+    status: TaskStatus;
+    message: string;
+    command?: string;
+    route?: string;
+    routeReason?: string;
+    denialKind?: string;
+    policyKind?: string;
+  };
   turnReplay: {
     transcript: {
       outcome: TurnTranscriptOutcome;
@@ -578,6 +604,15 @@ export function getUserDashboardPanelViewModel({
         requiresApproval: boolean;
       };
     };
+    timeline?: Array<{
+      status: TaskStatus;
+      message?: string;
+      command?: string;
+      route?: string;
+      routeReason?: string;
+      denialKind?: string;
+      policyKind?: string;
+    }>;
   } | null;
 }): {
   canApprove: boolean;

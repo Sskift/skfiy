@@ -25,6 +25,9 @@ export interface TurnReplayTaskEvent {
   turnId?: string;
   toolCallId?: string;
   route?: string;
+  routeReason?: string;
+  denialKind?: string;
+  policyKind?: string;
 }
 
 export interface TurnReplay {

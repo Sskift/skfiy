@@ -80,6 +80,26 @@ describe("app task state", () => {
     });
   });
 
+  it("preserves route metadata from task events", () => {
+    expect(createTaskViewFromEvent({
+      status: "blocked",
+      message: "Ghostty is blocked by configured app policy.",
+      command: "run pwd",
+      route: "ghostty",
+      routeReason: "Ghostty is denied by configured app policy.",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    })).toMatchObject({
+      status: "blocked",
+      message: "Ghostty is blocked by configured app policy.",
+      command: "run pwd",
+      route: "ghostty",
+      routeReason: "Ghostty is denied by configured app policy.",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    });
+  });
+
   it("updates replay records from reset, merge, and idle task events", () => {
     const before = createReplayRecord("before", "/tmp/before.png");
     const after = createReplayRecord("after", "/tmp/after.png");
@@ -189,6 +209,7 @@ describe("app task state", () => {
       task: {
         status: "running",
         message: "正在运行.",
+        command: "observe_app",
         finderPlanPreview: undefined
       },
       conversationAction: "remove-pending",

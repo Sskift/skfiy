@@ -7,6 +7,10 @@ export function createRuntimeSnapshotCurrentTurnFromTaskEvent(
   return {
     state: event.status,
     ...(event.message ? { message: event.message } : {}),
-    ...(event.command ? { command: event.command } : {})
+    ...(event.command ? { command: event.command } : {}),
+    ...(event.route ? { route: event.route } : {}),
+    ...(event.routeReason ? { routeReason: event.routeReason } : {}),
+    ...(event.denialKind ? { denialKind: event.denialKind } : {}),
+    ...(event.policyKind ? { policyKind: event.policyKind } : {})
   };
 }

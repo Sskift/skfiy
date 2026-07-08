@@ -42,6 +42,10 @@ interface TaskEvent {
   status: TaskStatus;
   message?: string;
   command?: string;
+  route?: string;
+  routeReason?: string;
+  denialKind?: string;
+  policyKind?: string;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;
@@ -207,6 +211,10 @@ interface TurnReplay {
     status: TaskStatus;
     message?: string;
     command?: string;
+    route?: string;
+    routeReason?: string;
+    denialKind?: string;
+    policyKind?: string;
   }>;
 }
 
@@ -354,7 +362,16 @@ function isTaskEvent(value: unknown): value is TaskEvent {
   }
 
   const candidate = value as Partial<TaskEvent>;
-  return typeof candidate.status === "string" && taskStatuses.has(candidate.status);
+  return (
+    typeof candidate.status === "string"
+    && taskStatuses.has(candidate.status)
+    && (candidate.message === undefined || typeof candidate.message === "string")
+    && (candidate.command === undefined || typeof candidate.command === "string")
+    && (candidate.route === undefined || typeof candidate.route === "string")
+    && (candidate.routeReason === undefined || typeof candidate.routeReason === "string")
+    && (candidate.denialKind === undefined || typeof candidate.denialKind === "string")
+    && (candidate.policyKind === undefined || typeof candidate.policyKind === "string")
+  );
 }
 
 const api: DesktopApi = {
@@ -859,6 +876,10 @@ function isTurnReplayTimelineEvent(
     isTaskStatus(event.status)
     && (event.message === undefined || typeof event.message === "string")
     && (event.command === undefined || typeof event.command === "string")
+    && (event.route === undefined || typeof event.route === "string")
+    && (event.routeReason === undefined || typeof event.routeReason === "string")
+    && (event.denialKind === undefined || typeof event.denialKind === "string")
+    && (event.policyKind === undefined || typeof event.policyKind === "string")
   );
 }
 

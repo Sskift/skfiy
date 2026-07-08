@@ -126,6 +126,7 @@ import { createRuntimeSnapshotCurrentTurnFromTaskEvent } from "./main-runtime-sn
 import {
   createTaskEvent,
   readTurnReplayTaskEvent,
+  withRouteTaskEventMetadata,
   type ComputerUseTaskEvent,
   type ManualMode,
   type TaskEvent
@@ -359,18 +360,19 @@ function schedulePersonalMemoryPostTurnReview(
 function emitAssistantToolPlanTaskEvent(
   window: BrowserWindow | null,
   turn: AssistantAgentTurnResult,
-  command: string
+  command: string,
+  route: CommandRoute
 ): void {
   const summary = summarizeAssistantToolPlan(turn);
   if (!summary) {
     return;
   }
 
-  emitTurnReplayTaskEvent(window, {
+  emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
     status: "observing",
     message: summary.message,
     command
-  });
+  }, route));
 }
 
 function createPendingApproval(
@@ -514,11 +516,15 @@ async function continueComputerUseTask({
     activeTaskController = null;
     currentTaskId += 1;
     completeComputerUseToolCall(toolIdentity, createToolResult("blocked", appPolicy.reason));
-    emitTaskEvent(window, {
+    emitTaskEvent(window, withRouteTaskEventMetadata({
       status: "blocked",
       message: appPolicy.reason,
       command
-    });
+    }, route, {
+      routeReason: appPolicy.reason,
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    }));
     return;
   }
 
@@ -533,11 +539,14 @@ async function continueComputerUseTask({
       toolIdentity,
       reason: appPolicy.reason
     });
-    emitTaskEvent(window, {
+    emitTaskEvent(window, withRouteTaskEventMetadata({
       status: "approval_required",
       message: `Approval required (app policy): ${appPolicy.reason}`,
       command
-    });
+    }, route, {
+      routeReason: appPolicy.reason,
+      policyKind: "app-policy"
+    }));
     return;
   }
 
@@ -557,11 +566,14 @@ async function continueComputerUseTask({
         toolIdentity,
         createToolResult("blocked", `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`)
       );
-      emitTaskEvent(window, {
+      emitTaskEvent(window, withRouteTaskEventMetadata({
         status: "blocked",
         message: `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`,
         command
-      });
+      }, route, {
+        routeReason: `Chrome host policy blocked this approved task: ${hostPolicyApproval.host}`,
+        policyKind: "chrome-host-policy"
+      }));
       return;
     }
 
@@ -574,20 +586,26 @@ async function continueComputerUseTask({
         toolIdentity,
         createToolResult("failed", `Chrome host policy approval failed: ${hostPolicyApproval.message}`)
       );
-      emitTaskEvent(window, {
+      emitTaskEvent(window, withRouteTaskEventMetadata({
         status: "failed",
         message: `Chrome host policy approval failed: ${hostPolicyApproval.message}`,
         command
-      });
+      }, route, {
+        routeReason: `Chrome host policy approval failed: ${hostPolicyApproval.message}`,
+        policyKind: "chrome-host-policy"
+      }));
       return;
     }
 
     if (hostPolicyApproval.status === "updated") {
-      emitTurnReplayTaskEvent(window, {
+      emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
         status: "executing",
         message: `Chrome host policy allowed for current turn: ${hostPolicyApproval.host}`,
         command
-      });
+      }, route, {
+        routeReason: `Chrome host policy allowed for current turn: ${hostPolicyApproval.host}`,
+        policyKind: "chrome-host-policy"
+      }));
     }
   }
 
@@ -638,7 +656,7 @@ async function continueComputerUseTask({
         }
 
         const result = createToolResultFromTaskEvent(taskEvent);
-        const taskStatus = createTaskEvent(taskEvent, mode);
+        const taskStatus = withRouteTaskEventMetadata(createTaskEvent(taskEvent, mode), route);
         if (result) {
           completeComputerUseToolCall(toolIdentity, result);
           emitTaskEvent(window, taskStatus);
@@ -678,7 +696,7 @@ async function continueComputerUseTask({
         }
 
         const result = createToolResultFromTaskEvent(taskEvent);
-        const taskStatus = createTaskEvent(taskEvent, mode);
+        const taskStatus = withRouteTaskEventMetadata(createTaskEvent(taskEvent, mode), route);
         if (result) {
           completeComputerUseToolCall(toolIdentity, result);
           emitTaskEvent(window, taskStatus);
@@ -697,11 +715,13 @@ async function continueComputerUseTask({
       activeTaskController = null;
       currentTaskId += 1;
       completeComputerUseToolCall(toolIdentity, createToolResult("failed", plannerRuntime.message));
-      emitTaskEvent(window, {
+      emitTaskEvent(window, withRouteTaskEventMetadata({
         status: plannerRuntime.status,
         message: plannerRuntime.message,
         command
-      });
+      }, route, {
+        routeReason: plannerRuntime.message
+      }));
       return;
     }
 
@@ -720,13 +740,13 @@ async function continueComputerUseTask({
         command: plannedCommand.command,
         rationale: plannedCommand.rationale
       });
-      emitTurnReplayTaskEvent(window, {
+      emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
         status: "executing",
         message: plannedCommand.rationale
           ? `${plannedCommand.providerLabel} planned: ${plannedCommand.command} (${plannedCommand.rationale})`
           : `${plannedCommand.providerLabel} planned: ${plannedCommand.command}`,
         command
-      });
+      }, route));
     }
 
     const helper = createDesktopHelper();
@@ -754,7 +774,7 @@ async function continueComputerUseTask({
       }
 
       const result = createToolResultFromTaskEvent(taskEvent);
-      const taskStatus = createTaskEvent(taskEvent, mode);
+      const taskStatus = withRouteTaskEventMetadata(createTaskEvent(taskEvent, mode), route);
       if (result) {
         completeComputerUseToolCall(toolIdentity, result);
         emitTaskEvent(window, taskStatus);
@@ -769,11 +789,13 @@ async function continueComputerUseTask({
 
     const message = error instanceof Error ? error.message : "Task failed.";
     completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
-    emitTaskEvent(window, {
+    emitTaskEvent(window, withRouteTaskEventMetadata({
       status: "failed",
       message,
       command
-    });
+    }, route, {
+      routeReason: message
+    }));
   } finally {
     if (activeTaskController === controller) {
       activeTaskController = null;
@@ -826,7 +848,7 @@ async function runTmuxSupervisionCommandTask(
       }
 
       const result = createToolResultFromTaskEvent(taskEvent);
-      const taskStatus = createTaskEvent(taskEvent, mode);
+      const taskStatus = withRouteTaskEventMetadata(createTaskEvent(taskEvent, mode), route);
       if (result) {
         completeComputerUseToolCall(toolIdentity, result);
         emitTaskEvent(window, taskStatus);
@@ -841,11 +863,13 @@ async function runTmuxSupervisionCommandTask(
 
     const message = error instanceof Error ? error.message : "tmux supervision failed.";
     completeComputerUseToolCall(toolIdentity, createToolResult("failed", message));
-    emitTaskEvent(window, {
+    emitTaskEvent(window, withRouteTaskEventMetadata({
       status: "failed",
       message,
       command
-    });
+    }, route, {
+      routeReason: message
+    }));
   } finally {
     if (activeTaskController === controller) {
       activeTaskController = null;
@@ -884,11 +908,13 @@ async function runCommandTask(
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
+    emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
       status: "failed",
       message: createAssistantAgentTaskMessage(assistantTurn),
       command
-    });
+    }, route, {
+      routeReason: createAssistantAgentTaskMessage(assistantTurn)
+    }));
     return;
   }
 
@@ -897,10 +923,10 @@ async function runCommandTask(
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
+    emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
       status: "needs_confirmation",
       message: `${route.reason} 请明确目标应用和动作。`
-    });
+    }, route));
     return;
   }
 
@@ -909,11 +935,11 @@ async function runCommandTask(
     activeTaskController?.abort();
     activeTaskController = null;
     currentTaskId += 1;
-    emitTurnReplayTaskEvent(window, {
+    emitTurnReplayTaskEvent(window, withRouteTaskEventMetadata({
       status: route.kind,
       message: route.reason,
       command
-    });
+    }, route));
     return;
   }
 
@@ -931,7 +957,7 @@ async function runCommandTask(
     createdAt: plannedToolCall.createdAt
   });
 
-  emitAssistantToolPlanTaskEvent(window, assistantTurn, command);
+  emitAssistantToolPlanTaskEvent(window, assistantTurn, command, route);
 
   if (route.kind === "needs_confirmation" && !approved) {
     activeTaskController?.abort();
@@ -944,11 +970,11 @@ async function runCommandTask(
       toolIdentity,
       reason: route.reason
     });
-    emitTaskEvent(window, {
+    emitTaskEvent(window, withRouteTaskEventMetadata({
       status: "needs_confirmation",
       message: route.reason,
       command
-    });
+    }, route));
     return;
   }
 
@@ -1165,11 +1191,17 @@ ipcMain.handle("skfiy:deny-task", async (event) => {
   activeComputerUseToolIdentity = null;
   currentTaskId += 1;
 
-  emitTaskEvent(window, {
+  const taskEvent: TaskEvent = {
     status: approval ? "denied" : "idle",
     message: approval ? "Task denied." : "No task is waiting for approval.",
     ...(approval ? { command: approval.command } : {})
-  });
+  };
+  emitTaskEvent(window, approval
+    ? withRouteTaskEventMetadata(taskEvent, approval.route, {
+      routeReason: "User denied this Computer Use turn.",
+      denialKind: "user"
+    })
+    : taskEvent);
 });
 
 ipcMain.handle("skfiy:take-screenshot", async (event) => {

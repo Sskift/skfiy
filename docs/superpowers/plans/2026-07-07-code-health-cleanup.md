@@ -123,6 +123,7 @@ Completed in this pass:
 - `/api/operator-evidence` now includes a token-free route outcome summary and status fields so CLI/plugin handoffs can distinguish app-policy denial, user denial, blocked, confirmation, cancellation, failure, and completion without exposing raw commands.
 - Runtime snapshots now write a token-free shared route outcome, and CLI status evidence preserves it with safe route, route-reason, denial, policy, and latest-tool status fields.
 - Pet UI view-model logic now derives the shared route outcome from local task state and replay evidence, preserving app-policy denial, user denial, confirmation, cancellation, and completion without changing visible UI behavior.
+- Task events now carry safe route, route-reason, denial-kind, and policy-kind metadata through main, preload, renderer task state, replay timeline, and runtime snapshot payloads so route outcomes no longer depend on message-text parsing.
 
 Acceptance:
 

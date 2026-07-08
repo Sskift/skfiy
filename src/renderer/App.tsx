@@ -235,6 +235,10 @@ export interface TurnReplay {
     status: TaskStatus;
     message?: string;
     command?: string;
+    route?: string;
+    routeReason?: string;
+    denialKind?: string;
+    policyKind?: string;
   }>;
 }
 
@@ -306,6 +310,10 @@ export interface TaskEvent {
   status: TaskStatus;
   message?: string;
   command?: string;
+  route?: string;
+  routeReason?: string;
+  denialKind?: string;
+  policyKind?: string;
   replayReset?: boolean;
   replayRecord?: ObserveAppReplayRecord;
   finderSelection?: FinderSelectionResult;

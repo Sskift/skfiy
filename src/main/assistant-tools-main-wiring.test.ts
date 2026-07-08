@@ -11,7 +11,7 @@ describe("assistant tool bridge main-process wiring", () => {
     const terminalRouteStateIndex = source.indexOf("if (route.kind === \"denied\" || route.kind === \"blocked\")");
     const confirmationIndex = source.indexOf("if (route.kind === \"needs_confirmation\" && !approved)");
     const executorPlanIndex = source.indexOf("assistantComputerUseExecutor.planToolCall");
-    const toolPlanIndex = source.indexOf("emitAssistantToolPlanTaskEvent(window, assistantTurn, command)");
+    const toolPlanIndex = source.indexOf("emitAssistantToolPlanTaskEvent(window, assistantTurn, command, route)");
     const continuationIndex = source.indexOf("await continueComputerUseTask({", toolPlanIndex);
     const tmuxIndex = source.indexOf("if (route.kind === \"tmux_supervision\")");
 

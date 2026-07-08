@@ -40,4 +40,20 @@ describe("task status boundary contract", () => {
       expect(preload).toContain(`"${status}"`);
     }
   });
+
+  it("keeps route metadata fields on task events across the bridge boundary", () => {
+    const sources = {
+      mainTaskEvents: readFileSync(path.join(process.cwd(), "src/main/task-event-view.ts"), "utf8"),
+      preload: readFileSync(path.join(process.cwd(), "src/main/preload.cts"), "utf8"),
+      renderer: readFileSync(path.join(process.cwd(), "src/renderer/App.tsx"), "utf8"),
+      rendererTaskState: readFileSync(path.join(process.cwd(), "src/renderer/app-task-state.ts"), "utf8")
+    };
+
+    for (const [name, source] of Object.entries(sources)) {
+      expect(source, `${name} should preserve route labels`).toContain("route?: string");
+      expect(source, `${name} should preserve route reasons`).toContain("routeReason?: string");
+      expect(source, `${name} should preserve denial kind`).toContain("denialKind?: string");
+      expect(source, `${name} should preserve policy kind`).toContain("policyKind?: string");
+    }
+  });
 });

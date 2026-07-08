@@ -8,11 +8,17 @@ describe("main runtime snapshot payload helpers", () => {
       status: "approval_required",
       message: "Approval required.",
       command: "organize Downloads",
+      route: "finder",
+      routeReason: "Finder current-folder organization needs confirmation.",
+      policyKind: "route-policy",
       replayReset: true
     })).toEqual({
       state: "approval_required",
       message: "Approval required.",
-      command: "organize Downloads"
+      command: "organize Downloads",
+      route: "finder",
+      routeReason: "Finder current-folder organization needs confirmation.",
+      policyKind: "route-policy"
     });
   });
 

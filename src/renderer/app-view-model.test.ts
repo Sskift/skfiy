@@ -499,6 +499,27 @@ describe("app view model", () => {
     });
   });
 
+  it("uses task event route metadata before falling back to message text", () => {
+    expect(readPetRouteOutcome({
+      task: {
+        status: "blocked",
+        message: "Ghostty cannot continue.",
+        route: "ghostty",
+        routeReason: "Configured app policy blocked Ghostty.",
+        denialKind: "app_policy",
+        policyKind: "app-policy"
+      },
+      turnReplay: null
+    })).toMatchObject({
+      kind: "app_policy_denied",
+      title: "App policy denied route",
+      value: "app_policy_denied",
+      tone: "danger",
+      routeLabel: "ghostty",
+      detail: "Configured app policy blocked Ghostty."
+    });
+  });
+
   it("derives the local replay viewer model", () => {
     expect(getLocalReplayViewModel(null)).toEqual({
       actionItems: [],
