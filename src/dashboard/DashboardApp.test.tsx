@@ -608,6 +608,22 @@ describe("DashboardApp", () => {
     expect(screen.getByLabelText("Dashboard connection: connected")).toBeInTheDocument();
   });
 
+  it("keeps dashboard descriptor tokens out of the React overview", async () => {
+    const tokenizedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      descriptor: {
+        ...snapshot.descriptor,
+        url: "http://127.0.0.1:52363/?token=secret-dashboard-token#hidden"
+      }
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => tokenizedSnapshot)} />);
+
+    const overview = await screen.findByRole("region", { name: "Overview" });
+    expect(within(overview).getByText("127.0.0.1:52363")).toHaveAttribute("title", "127.0.0.1:52363");
+    expect(document.body.innerHTML).not.toContain("secret-dashboard-token");
+  });
+
   it("frames Computer Use as an agent tool layer instead of a primary chat surface", async () => {
     render(<DashboardApp
       loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({

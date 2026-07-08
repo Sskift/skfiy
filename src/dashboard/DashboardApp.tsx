@@ -501,6 +501,7 @@ function DashboardContent({
   const nextAction = useMemo(() => readNextAction(snapshot), [snapshot]);
   const alerts = useMemo(() => readAlertMessages(snapshot), [snapshot]);
   const knowledgeGraph = useMemo(() => readKnowledgeGraph(snapshot), [snapshot]);
+  const dashboardUrl = formatDashboardUrl(snapshot.descriptor.url);
 
   return (
     <div className="skfiy-dashboard-content">
@@ -527,7 +528,7 @@ function DashboardContent({
             </div>
             <div>
               <span>Dashboard</span>
-              <strong title={snapshot.descriptor.url}>{formatDashboardUrl(snapshot.descriptor.url)}</strong>
+              <strong title={dashboardUrl}>{dashboardUrl}</strong>
             </div>
             <div>
               <span>Alerts</span>
@@ -3411,6 +3412,6 @@ function formatDashboardUrl(value: string): string {
     const url = new URL(value);
     return `${url.host}${url.pathname === "/" ? "" : url.pathname}`;
   } catch {
-    return value || "unknown";
+    return value.replace(/[?#].*$/u, "") || "unknown";
   }
 }
