@@ -65,6 +65,14 @@ export interface DashboardOperatorReadinessChecks {
   items: DashboardStatusItem[];
 }
 
+export interface DashboardRuntimeHealthSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardComputerUseReadiness {
   desktop: {
     value: string;
@@ -748,6 +756,116 @@ export function readSnapshotState(snapshot: DashboardSnapshot): DashboardStatusI
       tone: snapshot.currentTurn.state === "failed" ? "danger" : "neutral"
     }
   ];
+}
+
+export function readRuntimeHealthSummary(snapshot: DashboardSnapshot): DashboardRuntimeHealthSummary {
+  const runtime = readRecord(snapshot.runtimeHealth) ?? {};
+  const packageInfo = readRecord(runtime.package) ?? {};
+  const app = readRecord(runtime.app) ?? {};
+  const helper = readRecord(runtime.helper) ?? {};
+  const cli = readRecord(runtime.cli) ?? {};
+  const dashboard = readRecord(runtime.dashboard) ?? {};
+  const extension = readRecord(runtime.extension) ?? {};
+  const desktopSession = readRecord(runtime.desktopSession) ?? {};
+  const pageControl = readRecord(extension.pageControl)
+    ?? readRecord(findSmokeArtifact(snapshot, "chrome")?.pageControl);
+  const dashboardState = readString(dashboard.state) ?? "unknown";
+  const componentStates = [
+    readString(app.state),
+    readString(helper.state),
+    readString(cli.state),
+    dashboardState,
+    readString(extension.state),
+    readString(desktopSession.state)
+  ].filter((state): state is string => Boolean(state));
+  const tone = readRuntimeHealthTone(componentStates);
+  const version = readString(packageInfo.version) ?? "unknown";
+
+  return {
+    title: "Runtime health",
+    value: dashboardState,
+    detail: version === "unknown"
+      ? "Local runtime health from the dashboard snapshot."
+      : `skfiy ${version} local runtime health from the dashboard snapshot.`,
+    tone,
+    items: [
+      createStatusItem("version", version),
+      createStatusItem("app", readString(app.state) ?? "unknown", readRuntimeComponentTone(readString(app.state))),
+      createStatusItem("helper", readString(helper.state) ?? "unknown", readRuntimeComponentTone(readString(helper.state))),
+      createStatusItem("cli", readString(cli.state) ?? "unknown", readRuntimeComponentTone(readString(cli.state))),
+      createStatusItem("dashboard", dashboardState, readRuntimeComponentTone(dashboardState)),
+      createStatusItem("pid", formatUnknownNumber(readNumber(dashboard.pid))),
+      createStatusItem("uptime", formatUnknownNumber(readNumber(dashboard.uptimeSeconds))),
+      createStatusItem("extension", readString(extension.state) ?? "unknown", readRuntimeComponentTone(readString(extension.state))),
+      createStatusItem("pageControl", formatRuntimePageControlState(pageControl), readRuntimePageControlTone(pageControl)),
+      createStatusItem(
+        "pageControl next",
+        readString(pageControl?.nextAction) ?? readString(pageControl?.reason) ?? "needs-action"
+      ),
+      createStatusItem(
+        "desktop",
+        readString(desktopSession.state) ?? "unknown",
+        readRuntimeComponentTone(readString(desktopSession.state))
+      )
+    ]
+  };
+}
+
+function readRuntimeHealthTone(states: string[]): Tone {
+  const tones = states.map(readRuntimeComponentTone);
+  if (tones.some((tone) => tone === "danger")) {
+    return "danger";
+  }
+  if (tones.length > 0 && tones.every((tone) => tone === "success")) {
+    return "success";
+  }
+  if (tones.some((tone) => tone === "warning")) {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function readRuntimeComponentTone(state: string | undefined): Tone {
+  if (
+    state === "installed"
+    || state === "running"
+    || state === "connected"
+    || state === "ready"
+    || state === "controllable"
+    || state === "passed"
+  ) {
+    return "success";
+  }
+  if (
+    state === "blocked"
+    || state === "missing"
+    || state === "failed"
+    || state === "invalid"
+    || state === "stale"
+    || state === "unavailable"
+  ) {
+    return "danger";
+  }
+  if (!state || state === "unknown") {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function formatRuntimePageControlState(pageControl: Record<string, unknown> | undefined): string {
+  const state = readString(pageControl?.state) ?? "not-probed";
+  return `${pageControl?.capable === true ? "capable" : "not capable"}/${state}`;
+}
+
+function readRuntimePageControlTone(pageControl: Record<string, unknown> | undefined): Tone {
+  const state = readString(pageControl?.state);
+  if (pageControl?.capable === true && (state === "ready" || state === "partial" || state === "sensitive-paused")) {
+    return "success";
+  }
+
+  return readRuntimeComponentTone(state);
 }
 
 export function readChromeControlState(snapshot: DashboardSnapshot): DashboardChromeControlState {

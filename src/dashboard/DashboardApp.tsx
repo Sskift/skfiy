@@ -89,6 +89,7 @@ import {
   readRecentActivity,
   readRouteOutcome,
   readRuntimeEvidenceSummary,
+  readRuntimeHealthSummary,
   readRuntimeSnapshotDetails,
   readSmokeArtifactDetails,
   readSnapshotState,
@@ -115,6 +116,7 @@ import {
   type DashboardRecentActivity,
   type DashboardRouteOutcome,
   type DashboardRuntimeEvidenceSummary,
+  type DashboardRuntimeHealthSummary,
   type DashboardRuntimeSnapshotDetail,
   type DashboardSmokeArtifactDetail,
   type DashboardStatusItem,
@@ -481,6 +483,7 @@ function DashboardContent({
   const approvalQueue = useMemo(() => readApprovalQueueSummary(snapshot), [snapshot]);
   const latestSignal = useMemo(() => readLatestTaskSignal(snapshot), [snapshot]);
   const runtimeEvidence = useMemo(() => readRuntimeEvidenceSummary(snapshot), [snapshot]);
+  const runtimeHealth = useMemo(() => readRuntimeHealthSummary(snapshot), [snapshot]);
   const operatorEvidence = useMemo(() => readOperatorEvidenceSummary(snapshot), [snapshot]);
   const runtimeSnapshotDetails = useMemo(() => readRuntimeSnapshotDetails(snapshot), [snapshot]);
   const longHorizon = useMemo(() => readLongHorizonSummary(snapshot), [snapshot]);
@@ -550,6 +553,7 @@ function DashboardContent({
           stateItems={stateItems}
         />
         <OperatorReadinessChecksCard summary={readinessChecks} />
+        <RuntimeHealthCard summary={runtimeHealth} />
         <HomeSummaryCard summary={homeSummary} />
         <AppsSitesSummaryCard summary={appsSitesSummary} />
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--four">
@@ -1081,6 +1085,35 @@ function OperatorReadinessChecksCard({ summary }: { summary: DashboardOperatorRe
           <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
         </div>
         <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Operator readiness checks">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function RuntimeHealthCard({ summary }: { summary: DashboardRuntimeHealthSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Local process and bridge state</Card.Description>
+        </div>
+        <MonitorCog size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Runtime health details">
           {summary.items.map((item) => (
             <li key={item.label}>
               <span>{item.label}</span>

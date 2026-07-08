@@ -21,9 +21,10 @@ const snapshot: DashboardSnapshot = {
     panels: []
   },
   runtimeHealth: {
+    package: { version: "0.1.0" },
     app: { state: "installed" },
     helper: { state: "installed" },
-    dashboard: { state: "running", url: "http://127.0.0.1:52363/" },
+    dashboard: { state: "running", url: "http://127.0.0.1:52363/", pid: 4242, uptimeSeconds: 37 },
     extension: {
       state: "connected",
       liveConnection: "connected",
@@ -51,6 +52,8 @@ const snapshot: DashboardSnapshot = {
       },
       pageControl: {
         state: "ready",
+        capable: true,
+        nextAction: "Use pageControl actions.",
         activeTab: { host: "127.0.0.1:52363", tabId: 42, scheme: "http" },
         contentScript: { state: "loaded" },
         capabilities: {
@@ -364,6 +367,20 @@ describe("DashboardApp", () => {
     expect(within(operatorChecks).getByText("dashboard")).toBeInTheDocument();
     expect(within(operatorChecks).getByText("smoke missing")).toBeInTheDocument();
     expect(within(operatorChecks).getByText("chrome, cli")).toBeInTheDocument();
+    expect(within(overview).getByRole("heading", { name: "Runtime health" })).toBeInTheDocument();
+    const runtimeHealth = within(overview).getByRole("list", { name: "Runtime health details" });
+    expect(within(runtimeHealth).getByText("version")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("0.1.0")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("helper")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("cli")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("pid")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("4242")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("uptime")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("37")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("pageControl")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("capable/ready")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("pageControl next")).toBeInTheDocument();
+    expect(within(runtimeHealth).getByText("Use pageControl actions.")).toBeInTheDocument();
 
     const provider = screen.getByRole("region", { name: "Background Agent" });
     expect(within(provider).getByText("assistant · codex")).toBeInTheDocument();

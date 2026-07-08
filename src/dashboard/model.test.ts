@@ -21,6 +21,7 @@ import {
   readPersonalMutationReceipt,
   readRouteOutcome,
   readRuntimeSnapshotDetails,
+  readRuntimeHealthSummary,
   readSmokeArtifactDetails
 } from "./model";
 
@@ -382,6 +383,67 @@ describe("readSmokeArtifactDetails", () => {
       })
     ]);
     expect(JSON.stringify(details)).not.toContain("/repo/.skfiy-smoke");
+  });
+});
+
+describe("readRuntimeHealthSummary", () => {
+  it("summarizes fallback runtime health details without leaking local paths", () => {
+    const summary = readRuntimeHealthSummary({
+      ...createSnapshot(),
+      runtimeHealth: {
+        package: { version: "0.1.0" },
+        app: {
+          state: "installed",
+          path: "/Users/me/dev/skfiy/dist/skfiy.app"
+        },
+        helper: {
+          state: "installed",
+          path: "/Users/me/dev/skfiy/dist/skfiy-helper"
+        },
+        cli: {
+          state: "installed",
+          path: "/Users/me/dev/skfiy/dist/skfiy"
+        },
+        dashboard: {
+          state: "running",
+          pid: 4242,
+          uptimeSeconds: 37
+        },
+        extension: {
+          state: "connected",
+          pageControl: {
+            state: "ready",
+            capable: true,
+            nextAction: "Use pageControl actions.",
+            source: "runtime-health"
+          }
+        },
+        desktopSession: {
+          state: "controllable"
+        }
+      }
+    });
+
+    expect(summary).toMatchObject({
+      title: "Runtime health",
+      value: "running",
+      detail: "skfiy 0.1.0 local runtime health from the dashboard snapshot.",
+      tone: "success",
+      items: expect.arrayContaining([
+        { label: "version", value: "0.1.0", tone: "neutral" },
+        { label: "app", value: "installed", tone: "success" },
+        { label: "helper", value: "installed", tone: "success" },
+        { label: "cli", value: "installed", tone: "success" },
+        { label: "dashboard", value: "running", tone: "success" },
+        { label: "pid", value: "4242", tone: "neutral" },
+        { label: "uptime", value: "37", tone: "neutral" },
+        { label: "extension", value: "connected", tone: "success" },
+        { label: "pageControl", value: "capable/ready", tone: "success" },
+        { label: "pageControl next", value: "Use pageControl actions.", tone: "neutral" },
+        { label: "desktop", value: "controllable", tone: "success" }
+      ])
+    });
+    expect(JSON.stringify(summary)).not.toContain("/Users/me");
   });
 });
 
