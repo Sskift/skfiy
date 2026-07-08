@@ -73,6 +73,7 @@ import {
   readChromeSetupGuideSummary,
   readComputerUseReadiness,
   readDogfoodSummary,
+  readHomeSummary,
   readKnowledgeGraph,
   readLatestTaskSignal,
   readLongHorizonSummary,
@@ -95,6 +96,7 @@ import {
   type DashboardChromeSetupGuideSummary,
   type DashboardComputerUseReadiness,
   type DashboardDogfoodSummary,
+  type DashboardHomeSummary,
   type DashboardLatestTaskSignal,
   type DashboardLongHorizonSummary,
   type DashboardMutationReceipt,
@@ -459,6 +461,7 @@ function DashboardContent({
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
+  const homeSummary = useMemo(() => readHomeSummary(snapshot), [snapshot]);
   const activityFeed = useMemo(() => readActivityFeedSummary(snapshot), [snapshot]);
   const routeOutcome = useMemo(() => readRouteOutcome(snapshot), [snapshot]);
   const approvalQueue = useMemo(() => readApprovalQueueSummary(snapshot), [snapshot]);
@@ -531,6 +534,7 @@ function DashboardContent({
           runtimeEvidence={runtimeEvidence}
           stateItems={stateItems}
         />
+        <HomeSummaryCard summary={homeSummary} />
         <div className="skfiy-dashboard-grid skfiy-dashboard-grid--four">
           {capabilities.map((capability) => (
             <CapabilityCard key={capability.id} capability={capability} />
@@ -1036,6 +1040,35 @@ function DashboardCommandCenter({
             ))}
           </div>
         </section>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function HomeSummaryCard({ summary }: { summary: DashboardHomeSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Assistant task snapshot</Card.Description>
+        </div>
+        <Home size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Home summary details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
       </Card.Content>
     </Card.Root>
   );

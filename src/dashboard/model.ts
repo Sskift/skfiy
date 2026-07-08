@@ -111,6 +111,14 @@ export interface DashboardRecentActivity {
   verificationCount?: number;
 }
 
+export interface DashboardHomeSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardActivityFeedSummary {
   title: string;
   value: string;
@@ -1817,6 +1825,99 @@ export function readRecentActivity(snapshot: DashboardSnapshot): DashboardRecent
     screenshotCount: readNumber(snapshot.replay.screenshotCount),
     verificationCount: readNumber(snapshot.replay.verificationCount)
   };
+}
+
+export function readHomeSummary(snapshot: DashboardSnapshot): DashboardHomeSummary {
+  const runtime = readRecord(snapshot.runtimeHealth) ?? {};
+  const desktopSession = readRecord(runtime.desktopSession) ?? {};
+  const freshness = readRuntimeSnapshotFreshness(snapshot, snapshot.currentTurn);
+  const assistant = readHomeAssistantState(snapshot, snapshot.currentTurn, freshness);
+  const nextAction = readHomeNextAction(snapshot);
+
+  return {
+    title: "Home",
+    value: assistant.label,
+    detail: assistant.detail,
+    tone: assistant.tone,
+    items: [
+      createStatusItem("assistant", assistant.detail, assistant.tone),
+      createStatusItem(
+        "current task",
+        readString(snapshot.currentTurn.command)
+          ?? readString(snapshot.currentTurn.latestMessage)
+          ?? "No active task"
+      ),
+      createStatusItem(
+        "target",
+        readString(snapshot.currentTurn.targetApp)
+          ?? readString(desktopSession.frontmostLocalizedName)
+          ?? "None"
+      ),
+      createStatusItem("risk", readString(snapshot.currentTurn.risk) ?? "not evaluated"),
+      createStatusItem("next", nextAction.detail, nextAction.tone),
+      createStatusItem("stop", readString(snapshot.currentTurn.stopState) ?? "inactive")
+    ]
+  };
+}
+
+function readHomeAssistantState(
+  snapshot: DashboardSnapshot,
+  turn: Record<string, unknown>,
+  freshness: DashboardRuntimeSnapshotFreshness
+): { label: string; detail: string; tone: Tone } {
+  if (snapshot.alerts.some((alert) => readString(alert.severity) === "error")) {
+    return { label: "Blocked", detail: "Needs your attention", tone: "danger" };
+  }
+  if (freshness.state === "stale") {
+    return { label: "Stale", detail: "Runtime stream is stale", tone: "warning" };
+  }
+
+  const turnState = readString(turn.state);
+  if (turnState === "approval_required" || turnState === "needs_confirmation") {
+    return { label: "Waiting", detail: "Approval required", tone: "warning" };
+  }
+  if (turnState === "executing") {
+    return { label: "Acting", detail: "Executing a task", tone: "warning" };
+  }
+  if (turnState === "observing") {
+    return { label: "Watching", detail: "Reading the desktop", tone: "warning" };
+  }
+  if (turnState === "failed") {
+    return { label: "Failed", detail: "Last task failed", tone: "danger" };
+  }
+  if (turnState === "completed") {
+    return { label: "Done", detail: "Last task completed", tone: "success" };
+  }
+
+  return { label: "Idle", detail: "Ready for an agent task", tone: "success" };
+}
+
+function readHomeNextAction(snapshot: DashboardSnapshot): { detail: string; tone: Tone } {
+  const blocker = snapshot.alerts.find((alert) => {
+    const severity = readString(alert.severity);
+    return severity === "error" || severity === "warning";
+  });
+  if (blocker) {
+    return {
+      detail: readString(blocker.message) ?? readString(blocker.code) ?? "Review dashboard alert.",
+      tone: readAlertTone(blocker)
+    };
+  }
+
+  if (readString(snapshot.currentTurn.approvalState) === "required") {
+    return { detail: "Review the pending approval.", tone: "warning" };
+  }
+
+  const extension = readRecord(snapshot.runtimeHealth.extension) ?? {};
+  const liveConnection = readString(extension.liveConnection)
+    ?? readString(extension.connectionState)
+    ?? readString(extension.state)
+    ?? "unknown";
+  if (liveConnection !== "connected") {
+    return { detail: "Refresh Chrome extension heartbeat.", tone: "warning" };
+  }
+
+  return { detail: "Ready for the next agent task.", tone: "success" };
 }
 
 export function readRouteOutcome(snapshot: DashboardSnapshot): DashboardRouteOutcome {

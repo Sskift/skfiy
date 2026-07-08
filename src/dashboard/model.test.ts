@@ -7,6 +7,7 @@ import {
   readChromeControlState,
   readChromeSetupGuideSummary,
   readComputerUseReadiness,
+  readHomeSummary,
   readKnowledgeGraph,
   readLongHorizonSummary,
   readPersonalMutationReceipt,
@@ -413,6 +414,55 @@ describe("readActivityFeedSummary", () => {
     expect(JSON.stringify(summary)).not.toContain("/tmp/after.png");
     expect(JSON.stringify(summary)).not.toContain("/repo/dist/skfiy");
     expect(JSON.stringify(summary)).not.toContain("typed-secret");
+  });
+});
+
+describe("readHomeSummary", () => {
+  it("summarizes fallback Home state without exposing provider secrets", () => {
+    const summary = readHomeSummary(createHomeSummarySnapshotFixture());
+
+    expect(summary).toMatchObject({
+      title: "Home",
+      value: "Waiting",
+      detail: "Approval required",
+      tone: "warning",
+      items: [
+        { label: "assistant", value: "Approval required", tone: "warning" },
+        { label: "current task", value: "organize Downloads", tone: "neutral" },
+        { label: "target", value: "Finder", tone: "neutral" },
+        { label: "risk", value: "high", tone: "neutral" },
+        { label: "next", value: "Review the pending approval.", tone: "warning" },
+        { label: "stop", value: "armed", tone: "neutral" }
+      ]
+    });
+    expect(JSON.stringify(summary)).not.toContain("planner-secret");
+  });
+
+  it("surfaces stale runtime state before idle readiness", () => {
+    const summary = readHomeSummary({
+      ...createSnapshot(),
+      generatedAt: "2026-07-07T12:10:00.000Z",
+      currentTurn: {
+        state: "idle",
+        source: "runtime-snapshot",
+        observedAt: "2026-07-07T12:00:00.000Z"
+      },
+      runtimeHealth: {
+        ...createSnapshot().runtimeHealth,
+        runtimeSnapshot: {
+          state: "available",
+          source: "runtime-snapshot",
+          observedAt: "2026-07-07T12:00:00.000Z"
+        }
+      },
+      alerts: []
+    });
+
+    expect(summary).toMatchObject({
+      value: "Stale",
+      detail: "Runtime stream is stale",
+      tone: "warning"
+    });
   });
 });
 
@@ -1024,6 +1074,39 @@ function createActivityFeedSnapshotFixture(): DashboardSnapshot {
       ...createRuntimeSnapshotDetailFixture().replay,
       chromeControlActions: [activity]
     }
+  };
+}
+
+function createHomeSummarySnapshotFixture(): DashboardSnapshot {
+  return {
+    ...createSnapshot(),
+    currentTurn: {
+      state: "needs_confirmation",
+      command: "organize Downloads",
+      targetApp: "Finder",
+      risk: "high",
+      approvalState: "required",
+      stopState: "armed",
+      latestMessage: "Confirm the Finder plan."
+    },
+    runtimeHealth: {
+      ...createSnapshot().runtimeHealth,
+      desktopSession: {
+        state: "controllable",
+        frontmostLocalizedName: "Finder"
+      }
+    },
+    providers: {
+      ...createSnapshot().providers,
+      planner: {
+        provider: "planner",
+        mode: "external-cua",
+        label: "External CUA",
+        health: "available",
+        endpoint: "https://cua.example.test/plan?token=planner-secret"
+      }
+    },
+    alerts: []
   };
 }
 

@@ -593,6 +593,23 @@ describe("DashboardApp", () => {
     expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
   });
 
+  it("shows the fallback Home summary in Overview without provider secrets", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createHomeSummaryDashboardSnapshot())} />);
+
+    const overview = await screen.findByRole("region", { name: "Overview" });
+    expect(within(overview).getByRole("heading", { name: "Home" })).toBeInTheDocument();
+    expect(within(overview).getAllByText("Approval required").length).toBeGreaterThan(0);
+    expect(within(overview).getByText("Waiting")).toBeInTheDocument();
+    const details = within(overview).getByRole("list", { name: "Home summary details" });
+    expect(within(details).getByText("current task")).toBeInTheDocument();
+    expect(within(details).getByText("organize Downloads")).toBeInTheDocument();
+    expect(within(details).getByText("Finder")).toBeInTheDocument();
+    expect(within(details).getByText("high")).toBeInTheDocument();
+    expect(within(details).getByText("Review the pending approval.")).toBeInTheDocument();
+    expect(within(details).getByText("armed")).toBeInTheDocument();
+    expect(within(overview).queryByText("planner-secret")).not.toBeInTheDocument();
+  });
+
   it("shows the fallback approvals queue in Activity without provider secrets", async () => {
     render(<DashboardApp loadSnapshot={vi.fn(async () => createApprovalQueueDashboardSnapshot())} />);
 
@@ -1870,6 +1887,39 @@ function createApprovalQueueDashboardSnapshot(): DashboardSnapshot {
         endpoint: "https://cua.example.test/plan?token=planner-secret"
       }
     }
+  };
+}
+
+function createHomeSummaryDashboardSnapshot(): DashboardSnapshot {
+  return {
+    ...snapshot,
+    currentTurn: {
+      state: "needs_confirmation",
+      command: "organize Downloads",
+      targetApp: "Finder",
+      risk: "high",
+      approvalState: "required",
+      stopState: "armed",
+      latestMessage: "Confirm the Finder plan."
+    },
+    runtimeHealth: {
+      ...snapshot.runtimeHealth,
+      desktopSession: {
+        state: "controllable",
+        frontmostLocalizedName: "Finder"
+      }
+    },
+    providers: {
+      ...snapshot.providers,
+      planner: {
+        provider: "planner",
+        mode: "external-cua",
+        label: "External CUA",
+        health: "available",
+        endpoint: "https://cua.example.test/plan?token=planner-secret"
+      }
+    },
+    alerts: []
   };
 }
 
