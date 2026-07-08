@@ -3,6 +3,7 @@ import type { DashboardSnapshot } from "./contracts";
 import {
   readChromeControlCommandHints,
   readChromeControlState,
+  readChromeSetupGuideSummary,
   readComputerUseReadiness,
   readKnowledgeGraph,
   readPersonalMutationReceipt,
@@ -396,6 +397,117 @@ describe("readChromeControlState", () => {
 
   it("does not create Chrome command hints before page actions are ready", () => {
     expect(readChromeControlCommandHints(readChromeControlState(createSnapshot()))).toEqual([]);
+  });
+
+  it("derives Chrome setup guide commands from the runtime snapshot without artifact output paths", () => {
+    const setupGuide = readChromeSetupGuideSummary({
+      ...createSnapshot(),
+      runtimeHealth: {
+        ...createSnapshot().runtimeHealth,
+        extension: {
+          state: "native-host-missing",
+          setupGuide: {
+            nextActions: [
+              {
+                title: "Install the Chrome Native Messaging host.",
+                command: [
+                  "skfiy",
+                  "chrome",
+                  "install-host",
+                  "--extension-id",
+                  "abcdefghijklmnopabcdefghijklmnop"
+                ]
+              }
+            ],
+            installHostCommand: [
+              "skfiy",
+              "chrome",
+              "install-host",
+              "--extension-id",
+              "abcdefghijklmnopabcdefghijklmnop"
+            ],
+            verifyStatusCommand: [
+              "skfiy",
+              "chrome",
+              "status",
+              "--json",
+              "--extension-id",
+              "abcdefghijklmnopabcdefghijklmnop"
+            ],
+            smokeCommand: [
+              "npm",
+              "run",
+              "smoke:chrome",
+              "--",
+              "--output",
+              ".skfiy-smoke/chrome.json"
+            ]
+          }
+        },
+        nativeHost: {
+          state: "missing"
+        }
+      }
+    });
+
+    expect(setupGuide).toEqual({
+      source: "runtime",
+      nativeHostState: "missing",
+      liveConnectionState: "unknown",
+      nextActions: [
+        "Install the Chrome Native Messaging host. skfiy chrome install-host --extension-id abcdefghijklmnopabcdefghijklmnop"
+      ],
+      commands: [
+        {
+          id: "install-host",
+          label: "Install host",
+          command: "skfiy chrome install-host --extension-id abcdefghijklmnopabcdefghijklmnop",
+          mutates: true
+        },
+        {
+          id: "status",
+          label: "Status",
+          command: "skfiy chrome status --json --extension-id abcdefghijklmnopabcdefghijklmnop",
+          mutates: false
+        },
+        {
+          id: "smoke",
+          label: "Smoke",
+          command: "npm run smoke:chrome",
+          mutates: false
+        }
+      ]
+    });
+    expect(JSON.stringify(setupGuide)).not.toContain(".skfiy-smoke");
+  });
+
+  it("uses output-free default Chrome setup commands when no setup guide is present", () => {
+    const setupGuide = readChromeSetupGuideSummary(createSnapshot());
+
+    expect(setupGuide.source).toBe("derived");
+    expect(setupGuide.nextActions).toEqual([
+      "Run the Chrome smoke with the default output-free command."
+    ]);
+    expect(setupGuide.commands).toEqual(expect.arrayContaining([
+      {
+        id: "install-host",
+        label: "Install host",
+        command: "skfiy chrome install-host --extension-id <extension-id>",
+        mutates: true
+      },
+      {
+        id: "status",
+        label: "Status",
+        command: "skfiy chrome status --json --extension-id <extension-id>",
+        mutates: false
+      },
+      {
+        id: "smoke",
+        label: "Smoke",
+        command: "npm run smoke:chrome",
+        mutates: false
+      }
+    ]));
   });
 
   it("turns Browser Context permission blockers into popup grant and observe steps", () => {

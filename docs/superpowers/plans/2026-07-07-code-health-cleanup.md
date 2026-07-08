@@ -99,6 +99,7 @@ Completed in this pass:
 - React Browser control now renders the fallback Chrome page-control CLI command hints for the actionable current tab, with read-only versus mutating action labels and no new endpoint or permission surface.
 - React Agent tools now render fallback smoke artifact probe details for Chrome page safety, Chrome pageControl, and Finder smoke state from the existing snapshot, without exposing artifact paths.
 - React Activity now renders fallback runtime snapshot freshness and latest current-turn/replay summaries from the existing snapshot, keeping local screenshot paths out of the React surface.
+- React Browser control now renders Chrome setup guide next actions and command hints from the existing snapshot, while default Chrome smoke hints stay output-free.
 
 Acceptance:
 

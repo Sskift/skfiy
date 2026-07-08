@@ -68,6 +68,7 @@ import {
   readCapabilitySummaries,
   readChromeControlCommandHints,
   readChromeControlState,
+  readChromeSetupGuideSummary,
   readComputerUseReadiness,
   readDogfoodSummary,
   readKnowledgeGraph,
@@ -86,6 +87,7 @@ import {
   type DashboardAppReadinessLane,
   type DashboardCapabilitySummary,
   type DashboardChromeControlState,
+  type DashboardChromeSetupGuideSummary,
   type DashboardComputerUseReadiness,
   type DashboardDogfoodSummary,
   type DashboardLatestTaskSignal,
@@ -444,6 +446,7 @@ function DashboardContent({
   const readiness = useMemo(() => readReadinessSummary(snapshot), [snapshot]);
   const capabilities = useMemo(() => readCapabilitySummaries(snapshot), [snapshot]);
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
+  const chromeSetupGuide = useMemo(() => readChromeSetupGuideSummary(snapshot), [snapshot]);
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
   const appReadiness = useMemo(() => readAppReadinessLanes(snapshot), [snapshot]);
   const smokeArtifactDetails = useMemo(() => readSmokeArtifactDetails(snapshot), [snapshot]);
@@ -761,6 +764,7 @@ function DashboardContent({
                 onRefresh={onRefresh}
                 onRunAction={onRunChromeControlAction}
               />
+              <ChromeSetupGuidePanel setupGuide={chromeSetupGuide} />
               <ChromeHostPolicyControls
                 chromeControl={chromeControl}
                 onLoadPolicy={onLoadChromeHostPolicy}
@@ -2197,6 +2201,46 @@ function ChromeControlActions({
         {feedback}
       </p>
     </form>
+  );
+}
+
+function ChromeSetupGuidePanel({ setupGuide }: { setupGuide: DashboardChromeSetupGuideSummary }) {
+  return (
+    <div className="skfiy-dashboard-control-panel" aria-label="Chrome setup guide" role="region">
+      <h4>Chrome setup guide</h4>
+      <div className="skfiy-dashboard-key-value">
+        <span>Source</span>
+        <strong>{setupGuide.source}</strong>
+        <span>Native host</span>
+        <strong>{setupGuide.nativeHostState}</strong>
+        <span>Live connection</span>
+        <strong>{setupGuide.liveConnectionState}</strong>
+      </div>
+      {setupGuide.nextActions.length > 0 ? (
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Chrome setup next actions">
+          {setupGuide.nextActions.map((action) => (
+            <li key={action}>
+              <span>next</span>
+              <strong>{action}</strong>
+              <small>action</small>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {setupGuide.commands.length > 0 ? (
+        <ul className="skfiy-dashboard-evidence-command-list" aria-label="Chrome setup command hints">
+          {setupGuide.commands.map((command) => (
+            <li key={`${command.id}-${command.command}`}>
+              <span>{command.label}</span>
+              <code>{command.command}</code>
+              <StatusChip tone={command.mutates ? "warning" : "neutral"}>
+                {command.mutates ? "mutates" : "read-only"}
+              </StatusChip>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 

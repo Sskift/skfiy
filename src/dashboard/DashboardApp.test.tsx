@@ -463,6 +463,16 @@ describe("DashboardApp", () => {
     expect(within(browser).getByText("screenshot: background_required")).toBeInTheDocument();
     expect(within(browser).getByText("Using Chrome tab fallback")).toBeInTheDocument();
     expect(within(browser).getByText("allow:always:127.0.0.1")).toBeInTheDocument();
+    const setupGuide = within(browser).getByRole("region", { name: "Chrome setup guide" });
+    expect(within(setupGuide).getByText("derived")).toBeInTheDocument();
+    const setupCommands = within(setupGuide).getByRole("list", { name: "Chrome setup command hints" });
+    expect(within(setupCommands).getByText("Install host")).toBeInTheDocument();
+    expect(within(setupCommands).getByText(
+      "skfiy chrome install-host --extension-id plcpkkhlcacihjfohlojdknnkademlno"
+    )).toBeInTheDocument();
+    expect(within(setupCommands).getByText("npm run smoke:chrome")).toBeInTheDocument();
+    expect(within(setupGuide).queryByText(/--output/u)).not.toBeInTheDocument();
+    expect(within(setupGuide).queryByText(/\.skfiy-smoke/u)).not.toBeInTheDocument();
 
     const activity = screen.getByRole("region", { name: "Activity" });
     expect(within(activity).getByRole("heading", { name: "Activity" })).toBeInTheDocument();

@@ -2382,7 +2382,7 @@ function renderDashboardScript(): string {
     "    return [",
     "      { id: \"install-host\", label: \"Install host\", command: `skfiy chrome install-host --extension-id ${extensionId}`, mutates: true },",
     "      { id: \"status\", label: \"Status\", command: `skfiy chrome status --json --extension-id ${extensionId}` },",
-    "      { id: \"smoke\", label: \"Smoke\", command: \"npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json\" }",
+    "      { id: \"smoke\", label: \"Smoke\", command: \"npm run smoke:chrome\" }",
     "    ];",
     "  }",
     "",

@@ -456,7 +456,7 @@ function createDefaultChromeCommands(extensionId: string): EvidenceCommand[] {
     {
       id: "smoke",
       label: "Smoke",
-      command: "npm run smoke:chrome -- --output .skfiy-smoke/chrome-page.json"
+      command: "npm run smoke:chrome"
     }
   ];
 }

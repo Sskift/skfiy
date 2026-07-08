@@ -35,6 +35,14 @@ export interface DashboardCommandHint {
   mutates: boolean;
 }
 
+export interface DashboardChromeSetupGuideSummary {
+  source: string;
+  nativeHostState: string;
+  liveConnectionState: string;
+  nextActions: string[];
+  commands: DashboardCommandHint[];
+}
+
 export interface DashboardMutationReceipt {
   title: string;
   result: string;
@@ -731,6 +739,284 @@ export function readChromeControlCommandHints(
       mutates: true
     }
   ];
+}
+
+export function readChromeSetupGuideSummary(snapshot: DashboardSnapshot): DashboardChromeSetupGuideSummary {
+  const extension = readRecord(snapshot.runtimeHealth.extension) ?? {};
+  const nativeHost = readRecord(snapshot.runtimeHealth.nativeHost) ?? {};
+  const chromeArtifact = findSmokeArtifact(snapshot, "chrome");
+  const runtimeGuide = readChromeSetupGuide(readRecord(extension.setupGuide), "runtime");
+  const nativeHostGuide = readChromeSetupGuide(readRecord(nativeHost.setupGuide), "native-host");
+  const artifactGuide = readChromeSetupGuide(readRecord(chromeArtifact?.setupGuide), "smoke-artifact");
+  const guide = runtimeGuide ?? nativeHostGuide ?? artifactGuide;
+  const nativeHostState = readString(nativeHost.state) ?? "unknown";
+  const liveConnectionState = readString(extension.liveConnection)
+    ?? readNestedString(extension, ["connection", "liveConnection"])
+    ?? readNestedString(extension, ["connection", "state"])
+    ?? (readString(extension.state) === "connected" ? "connected" : undefined)
+    ?? "unknown";
+  const extensionId = readChromeExtensionId(extension, nativeHost) ?? "<extension-id>";
+
+  return {
+    source: guide?.source ?? "derived",
+    nativeHostState,
+    liveConnectionState,
+    nextActions: guide?.nextActions.length
+      ? guide.nextActions
+      : createDefaultChromeSetupNextActions(nativeHostState, liveConnectionState, chromeArtifact),
+    commands: guide?.commands.length
+      ? guide.commands
+      : createDefaultChromeSetupCommands(extensionId)
+  };
+}
+
+function readChromeSetupGuide(
+  guide: Record<string, unknown> | undefined,
+  source: DashboardChromeSetupGuideSummary["source"]
+): Pick<DashboardChromeSetupGuideSummary, "source" | "nextActions" | "commands"> | undefined {
+  if (!guide) {
+    return undefined;
+  }
+
+  const nextActions = readChromeSetupActionTexts(guide.nextActions);
+  const commands = dedupeChromeSetupCommands([
+    ...readChromeSetupCommands(guide.commands),
+    ...readChromeSetupCommands(guide.copyableCommands),
+    ...readChromeNamedSetupCommands(guide)
+  ]);
+  if (nextActions.length === 0 && commands.length === 0) {
+    return undefined;
+  }
+
+  return {
+    source,
+    nextActions,
+    commands
+  };
+}
+
+function readChromeSetupActionTexts(value: unknown): string[] {
+  return (Array.isArray(value) ? value : [])
+    .flatMap((entry) => {
+      if (typeof entry === "string") {
+        return [entry];
+      }
+
+      const record = readRecord(entry);
+      if (!record) {
+        return [];
+      }
+
+      const command = Array.isArray(record.command)
+        ? formatChromeSetupCommandParts(record.command)
+        : readString(record.copyText);
+      const text = readString(record.title)
+        ?? readString(record.guidance)
+        ?? readString(record.nextAction)
+        ?? readString(record.reason)
+        ?? readString(record.copyText);
+      if (text && command && text !== command) {
+        return [`${text} ${command}`];
+      }
+      if (text) {
+        return [text];
+      }
+      return command ? [command] : [];
+    });
+}
+
+function readChromeSetupCommands(value: unknown): DashboardCommandHint[] {
+  if (Array.isArray(value)) {
+    if (value.every((entry) => typeof entry === "string")) {
+      return normalizeChromeSetupCommand(value, "command");
+    }
+
+    return value.flatMap((entry, index) => normalizeChromeSetupCommand(entry, `command-${index + 1}`));
+  }
+
+  const record = readRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  return Object.entries(record).flatMap(([key, entry]) =>
+    normalizeChromeSetupCommand(entry, key)
+  );
+}
+
+function readChromeNamedSetupCommands(guide: Record<string, unknown>): DashboardCommandHint[] {
+  return [
+    ["install-host", guide.installHostCommand],
+    ["status", guide.verifyStatusCommand],
+    ["smoke", guide.smokeCommand]
+  ].flatMap(([id, value]) => normalizeChromeSetupCommand(value, String(id)));
+}
+
+function normalizeChromeSetupCommand(value: unknown, idHint: string): DashboardCommandHint[] {
+  const id = normalizeChromeSetupCommandId(idHint);
+  if (typeof value === "string") {
+    return createChromeSetupCommandHint(id, readChromeSetupCommandLabel(id), value);
+  }
+  if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) {
+    return createChromeSetupCommandHint(id, readChromeSetupCommandLabel(id), formatChromeSetupCommandParts(value));
+  }
+
+  const record = readRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  const command = readString(record.copyText)
+    ?? readString(record.commandText)
+    ?? readString(record.commandLine)
+    ?? readChromeSetupCommandFromRecord(record)
+    ?? readString(record.command ?? record.value);
+  if (!command) {
+    return [];
+  }
+
+  return createChromeSetupCommandHint(
+    normalizeChromeSetupCommandId(readString(record.id) ?? idHint),
+    readString(record.label) ?? readChromeSetupCommandLabel(id),
+    command,
+    readBoolean(record.mutates)
+  );
+}
+
+function readChromeSetupCommandFromRecord(record: Record<string, unknown>): string | undefined {
+  const command = readString(record.command);
+  const args = readStringArray(record.args);
+  if (!command || args.length === 0) {
+    return undefined;
+  }
+
+  return formatChromeSetupCommandParts([command, ...args]);
+}
+
+function createChromeSetupCommandHint(
+  id: string,
+  label: string,
+  command: string,
+  explicitMutates?: boolean
+): DashboardCommandHint[] {
+  const normalizedCommand = normalizeDefaultSmokeCommand(command, id);
+  if (!normalizedCommand) {
+    return [];
+  }
+
+  return [{
+    id,
+    label,
+    command: normalizedCommand,
+    mutates: explicitMutates ?? (id === "install-host" || normalizedCommand.includes(" install-host "))
+  }];
+}
+
+function dedupeChromeSetupCommands(commands: DashboardCommandHint[]): DashboardCommandHint[] {
+  const seen = new Set<string>();
+  const deduped: DashboardCommandHint[] = [];
+  for (const command of commands) {
+    const key = `${command.id}\n${command.command}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(command);
+  }
+
+  return deduped;
+}
+
+function formatChromeSetupCommandParts(parts: unknown[]): string {
+  return parts.map((part) => {
+    const text = String(part);
+    return /^[A-Za-z0-9_./:=@%+-]+$/.test(text) ? text : JSON.stringify(text);
+  }).join(" ");
+}
+
+function normalizeDefaultSmokeCommand(command: string, id: string): string {
+  const trimmed = command.trim();
+  const isSmokeCommand = id === "smoke"
+    || /\bsmoke:chrome\b/u.test(trimmed)
+    || /\bsmoke\s+chrome\b/u.test(trimmed);
+  if (!isSmokeCommand) {
+    return trimmed;
+  }
+
+  return trimmed
+    .replace(/\s+--output(?:=|\s+)(?:"[^"]+"|'[^']+'|\S+)/gu, "")
+    .replace(/\s+--\s*$/u, "")
+    .trim();
+}
+
+function createDefaultChromeSetupCommands(extensionId: string): DashboardCommandHint[] {
+  return [
+    {
+      id: "install-host",
+      label: "Install host",
+      command: `skfiy chrome install-host --extension-id ${extensionId}`,
+      mutates: true
+    },
+    {
+      id: "status",
+      label: "Status",
+      command: `skfiy chrome status --json --extension-id ${extensionId}`,
+      mutates: false
+    },
+    {
+      id: "smoke",
+      label: "Smoke",
+      command: "npm run smoke:chrome",
+      mutates: false
+    }
+  ];
+}
+
+function createDefaultChromeSetupNextActions(
+  nativeHostState: string,
+  liveConnectionState: string,
+  chromeArtifact: Record<string, unknown> | undefined
+): string[] {
+  if (nativeHostState !== "installed") {
+    return ["Install or repair the Chrome Native Messaging host from the packaged skfiy binary."];
+  }
+  if (liveConnectionState !== "connected") {
+    return ["Refresh the installed extension heartbeat, then rerun Chrome status."];
+  }
+  if (readString(chromeArtifact?.result) !== "passed") {
+    return ["Run the Chrome smoke with the default output-free command."];
+  }
+
+  return [];
+}
+
+function normalizeChromeSetupCommandId(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    || "command";
+}
+
+function readChromeSetupCommandLabel(idHint: string): string {
+  const id = normalizeChromeSetupCommandId(idHint);
+  if (id === "install-host") {
+    return "Install host";
+  }
+  if (id === "status") {
+    return "Status";
+  }
+  if (id === "smoke") {
+    return "Smoke";
+  }
+
+  return id
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ")
+    || "Command";
 }
 
 function readBrowserContextAccessSteps(
