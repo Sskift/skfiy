@@ -2,6 +2,10 @@ import {
   getPetStateForTask,
   type PetAtlasState
 } from "./pet-atlas";
+import {
+  readRouteOutcome,
+  type RouteOutcome
+} from "../shared/route-outcome.js";
 
 export type PermissionKey = "screenRecording" | "accessibility";
 export type PermissionState = "granted" | "denied" | "not-determined" | "unknown";
@@ -31,6 +35,7 @@ export type TurnTranscriptOutcome =
   | "failed"
   | "running";
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
+export type PetRouteOutcome = RouteOutcome;
 
 export const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
   idle: {
@@ -499,6 +504,61 @@ export function getRecentExecutionCopy(replay: {
   };
 }
 
+export function readPetRouteOutcome({
+  task,
+  turnReplay
+}: {
+  task: { status: TaskStatus; message: string; command?: string };
+  turnReplay: {
+    transcript?: {
+      command?: string;
+      actions?: Array<{
+        type: string;
+        route?: string;
+        status?: string;
+        summary?: string;
+        evidenceSummary?: string;
+        command?: string;
+      }>;
+    };
+    timeline?: Array<{
+      status: TaskStatus;
+      message?: string;
+      command?: string;
+      route?: string;
+    }>;
+  } | null;
+}): PetRouteOutcome {
+  const latestTimelineEvent = turnReplay?.timeline?.at(-1);
+  const latestToolAction = turnReplay?.transcript?.actions
+    ?.filter((action) => action.type === "tool_call" || action.type === "tool_result")
+    .at(-1);
+  const command = task.command ?? latestTimelineEvent?.command ?? turnReplay?.transcript?.command;
+  const route = latestToolAction?.route ?? latestTimelineEvent?.route;
+  const latestMessage = task.message || latestTimelineEvent?.message;
+  const currentTurn = {
+    state: task.status,
+    source: "pet-ui",
+    ...(command ? { command } : {}),
+    ...(route ? { route } : {}),
+    ...(latestMessage ? { latestMessage } : {}),
+    ...(latestToolAction ? { latestAction: summarizePetRouteToolAction(latestToolAction) } : {})
+  };
+  const replay = {
+    source: "pet-ui-replay",
+    ...(latestTimelineEvent?.message ? { latestMessage: latestTimelineEvent.message } : {}),
+    ...(latestToolAction ? { latestToolCall: summarizePetRouteToolAction(latestToolAction) } : {})
+  };
+
+  return readRouteOutcome({
+    currentTurn,
+    replay,
+    defaultSource: "pet-ui",
+    includeCommandDetail: false,
+    sanitizeString: sanitizePetRouteOutcomeString
+  });
+}
+
 export function getUserDashboardPanelViewModel({
   desktopSessionDiagnostics,
   permissions,
@@ -525,6 +585,7 @@ export function getUserDashboardPanelViewModel({
   permissionHealth: { label: string; detail: string; tone: Tone };
   recent: { label: string; detail: string; tone: Tone };
   risk: { label: string; detail: string; tone: Tone };
+  routeOutcome: PetRouteOutcome;
   status: { label: string; detail: string; tone: Tone };
 } {
   return {
@@ -533,8 +594,33 @@ export function getUserDashboardPanelViewModel({
     permissionHealth: getPermissionHealthCopy(permissions, desktopSessionDiagnostics),
     recent: getRecentExecutionCopy(turnReplay),
     risk: getRiskCopy(turnReplay?.transcript.risk),
+    routeOutcome: readPetRouteOutcome({ task, turnReplay }),
     status: getDashboardStatusCopy(task)
   };
+}
+
+function summarizePetRouteToolAction(action: {
+  type: string;
+  route?: string;
+  status?: string;
+  summary?: string;
+  evidenceSummary?: string;
+  command?: string;
+}): Record<string, unknown> {
+  return {
+    type: action.type,
+    ...(action.route ? { route: action.route } : {}),
+    ...(action.status ? { status: action.status } : {}),
+    ...(action.summary ? { summary: action.summary } : {}),
+    ...(action.evidenceSummary ? { evidenceSummary: action.evidenceSummary } : {}),
+    ...(action.command ? { command: action.command } : {})
+  };
+}
+
+function sanitizePetRouteOutcomeString(value: string): string {
+  return value
+    .replace(/\b(token|password|secret|api[_-]?key)=([^\s&]+)/gi, "$1=[redacted]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]");
 }
 
 export function getAppRootViewModel<

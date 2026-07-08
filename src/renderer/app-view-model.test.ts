@@ -14,6 +14,7 @@ import {
   getReplayOcrLabel,
   getTaskReplayRows,
   getUserDashboardPanelViewModel,
+  readPetRouteOutcome,
   readSelectedAssistantAgentProvider
 } from "./app-view-model";
 
@@ -315,11 +316,186 @@ describe("app view model", () => {
         detail: "Moving files needs review.",
         tone: "warning"
       },
+      routeOutcome: {
+        kind: "approval_required",
+        title: "Route approval required",
+        value: "approval_required",
+        detail: "Need approval.",
+        tone: "warning",
+        source: "pet-ui",
+        routeLabel: "unknown",
+        state: "approval_required"
+      },
       status: {
         label: "等待审批",
         detail: "Need approval.",
         tone: "warning"
       }
+    });
+  });
+
+  it.each([
+    [
+      "app-policy denial",
+      {
+        task: {
+          status: "blocked" as const,
+          message: "Ghostty is denied by app policy with token=secret-token.",
+          command: "open Ghostty"
+        },
+        turnReplay: {
+          transcript: {
+            command: "open Ghostty",
+            actions: [
+              {
+                type: "tool_result",
+                route: "ghostty",
+                status: "blocked",
+                summary: "Ghostty is denied by app policy with token=secret-token."
+              }
+            ]
+          },
+          timeline: [
+            {
+              status: "blocked" as const,
+              route: "ghostty",
+              message: "Ghostty is denied by app policy."
+            }
+          ]
+        }
+      },
+      {
+        kind: "app_policy_denied",
+        title: "App policy denied route",
+        value: "app_policy_denied",
+        tone: "danger",
+        routeLabel: "ghostty",
+        detail: "Ghostty is denied by app policy with token=[redacted]"
+      }
+    ],
+    [
+      "user denial",
+      {
+        task: {
+          status: "denied" as const,
+          message: "User denied this Computer Use turn."
+        },
+        turnReplay: {
+          transcript: {
+            actions: [
+              {
+                type: "tool_call",
+                route: "chrome",
+                status: "approval_required"
+              }
+            ]
+          },
+          timeline: [
+            {
+              status: "denied" as const,
+              route: "chrome",
+              message: "User denied this Computer Use turn."
+            }
+          ]
+        }
+      },
+      {
+        kind: "user_denied",
+        title: "User denied route",
+        value: "user_denied",
+        tone: "neutral",
+        routeLabel: "chrome"
+      }
+    ],
+    [
+      "confirmation gate",
+      {
+        task: {
+          status: "needs_confirmation" as const,
+          message: "Finder plan confirmation required."
+        },
+        turnReplay: {
+          transcript: {
+            actions: [
+              {
+                type: "tool_call",
+                route: "finder",
+                status: "approval_required"
+              }
+            ]
+          }
+        }
+      },
+      {
+        kind: "needs_confirmation",
+        title: "Route needs confirmation",
+        value: "needs_confirmation",
+        tone: "warning",
+        routeLabel: "finder"
+      }
+    ],
+    [
+      "cancellation",
+      {
+        task: {
+          status: "cancelled" as const,
+          message: "Task stopped."
+        },
+        turnReplay: {
+          transcript: {
+            actions: [
+              {
+                type: "tool_result",
+                route: "tmux_supervision",
+                status: "cancelled"
+              }
+            ]
+          }
+        }
+      },
+      {
+        kind: "cancelled",
+        title: "Route cancelled",
+        value: "cancelled",
+        tone: "neutral",
+        routeLabel: "tmux_supervision",
+        detail: "Task stopped."
+      }
+    ],
+    [
+      "completion",
+      {
+        task: {
+          status: "completed" as const,
+          message: "Chrome page opened."
+        },
+        turnReplay: {
+          transcript: {
+            command: "open Chrome",
+            actions: [
+              {
+                type: "tool_result",
+                route: "chrome",
+                status: "completed",
+                summary: "Chrome page opened."
+              }
+            ]
+          }
+        }
+      },
+      {
+        kind: "completed",
+        title: "Route completed",
+        value: "completed",
+        tone: "success",
+        routeLabel: "chrome",
+        detail: "Chrome page opened."
+      }
+    ]
+  ])("preserves pet route outcome for %s", (_label, input, expected) => {
+    expect(readPetRouteOutcome(input)).toMatchObject({
+      ...expected,
+      source: "pet-ui"
     });
   });
 
