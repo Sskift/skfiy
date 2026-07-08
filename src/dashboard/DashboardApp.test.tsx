@@ -1035,7 +1035,21 @@ describe("DashboardApp", () => {
           recentUserEntries: []
         }
       };
-      return { result: "forgotten" };
+      return {
+        command: "dashboard personal memory",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "forgotten",
+        applied: 1,
+        ignored: 0,
+        blocked: 0,
+        pendingWriteCount: 2,
+        personalMemory: {
+          userEntryCount: 0,
+          agentEntryCount: 1
+        }
+      };
     });
 
     render(<DashboardApp
@@ -1058,6 +1072,14 @@ describe("DashboardApp", () => {
       })).not.toBeInTheDocument();
     });
     expect(within(memory).getByText("Memory forgotten")).toBeInTheDocument();
+    const receipt = within(memory).getByRole("region", { name: "Personal memory mutation receipt" });
+    expect(within(receipt).getByRole("heading", { name: "Personal memory mutation receipt" })).toBeInTheDocument();
+    expect(within(receipt).getByText("result forgotten")).toBeInTheDocument();
+    expect(within(receipt).getByText("planned mutation yes")).toBeInTheDocument();
+    expect(within(receipt).getByText("system mutation yes")).toBeInTheDocument();
+    expect(within(receipt).getByText("applied 1")).toBeInTheDocument();
+    expect(within(receipt).getByText("blocked 0")).toBeInTheDocument();
+    expect(within(receipt).queryByText("User prefers concise Chinese updates.")).not.toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });
 
@@ -1101,7 +1123,21 @@ describe("DashboardApp", () => {
           }
         };
       }
-      return { result: (request as { action?: string }).action === "approve-pending" ? "approved" : "rejected" };
+      return {
+        command: "dashboard personal memory",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: (request as { action?: string }).action === "approve-pending" ? "approved" : "rejected",
+        applied: (request as { action?: string }).action === "approve-pending" ? 1 : 0,
+        ignored: 0,
+        blocked: 0,
+        pendingWriteCount: currentSnapshot.personalMemory?.pendingWriteCount ?? 0,
+        personalMemory: {
+          userEntryCount: currentSnapshot.personalMemory?.userEntryCount ?? 0,
+          agentEntryCount: currentSnapshot.personalMemory?.agentEntryCount ?? 0
+        }
+      };
     });
 
     render(<DashboardApp
@@ -1121,6 +1157,7 @@ describe("DashboardApp", () => {
       });
     });
     expect(within(memory).getByText("Pending memory approved")).toBeInTheDocument();
+    expect(within(memory).getByText("result approved")).toBeInTheDocument();
 
     fireEvent.click(within(memory).getByRole("button", {
       name: "Reject pending memory: Use pending review before changing durable operating notes."
@@ -1132,6 +1169,7 @@ describe("DashboardApp", () => {
       });
     });
     expect(within(memory).getByText("Pending memory rejected")).toBeInTheDocument();
+    expect(within(memory).getByText("result rejected")).toBeInTheDocument();
   });
 
   it("renders pending replace memory writes as explicit revisions", async () => {
@@ -1226,7 +1264,17 @@ describe("DashboardApp", () => {
           ))
         }
       };
-      return { result: "muted" };
+      return {
+        command: "dashboard personal skills",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "muted",
+        personalSkills: {
+          disabledSkillIds: ["dashboard-knowledge-surface"],
+          mutedSkillCount: 1
+        }
+      };
     });
 
     render(<DashboardApp
@@ -1249,6 +1297,10 @@ describe("DashboardApp", () => {
       expect(within(memory).queryByText("Obsidian-style knowledge dashboard")).not.toBeInTheDocument();
     });
     expect(within(memory).getByText("Personal skill muted")).toBeInTheDocument();
+    const receipt = within(memory).getByRole("region", { name: "Personal memory mutation receipt" });
+    expect(within(receipt).getByRole("heading", { name: "Personal skill mutation receipt" })).toBeInTheDocument();
+    expect(within(receipt).getByText("result muted")).toBeInTheDocument();
+    expect(within(receipt).getByText("muted skills 1")).toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });
 
@@ -1284,7 +1336,17 @@ describe("DashboardApp", () => {
           personalSkills: snapshot.personalMemory!.personalSkills
         }
       };
-      return { result: "unmuted" };
+      return {
+        command: "dashboard personal skills",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "unmuted",
+        personalSkills: {
+          disabledSkillIds: [],
+          mutedSkillCount: 0
+        }
+      };
     });
 
     render(<DashboardApp
@@ -1309,6 +1371,8 @@ describe("DashboardApp", () => {
       expect(within(memory).getByText("Obsidian-style knowledge dashboard")).toBeInTheDocument();
     });
     expect(within(memory).getByText("Personal skill unmuted")).toBeInTheDocument();
+    expect(within(memory).getByText("result unmuted")).toBeInTheDocument();
+    expect(within(memory).getByText("muted skills 0")).toBeInTheDocument();
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });
 

@@ -95,6 +95,7 @@ Completed in this pass:
 - The React Activity surface can call `/api/evidence-summary` on demand and render the compact evidence lane state, ready count, attention count, and blocked count.
 - The React evidence summary now renders lane checks, next actions, and command mutability labels from the same read-only API.
 - React personal memory controls now expose the existing `/api/personal-skills` unmute path for muted personal skills, without adding a new endpoint or changing provider/preload permissions.
+- React personal memory controls now render the existing mutation safety receipt from `/api/personal-memory` and `/api/personal-skills`, showing planned/system mutation metadata without echoing memory content.
 
 Acceptance:
 

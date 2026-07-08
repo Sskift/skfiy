@@ -72,6 +72,7 @@ import {
   readKnowledgeGraph,
   readLatestTaskSignal,
   readNextAction,
+  readPersonalMutationReceipt,
   readProviderSummaries,
   readReadinessSummary,
   readRecentActivity,
@@ -85,6 +86,7 @@ import {
   type DashboardComputerUseReadiness,
   type DashboardDogfoodSummary,
   type DashboardLatestTaskSignal,
+  type DashboardMutationReceipt,
   type DashboardNextAction,
   type DashboardReadinessSummary,
   type DashboardRecentActivity,
@@ -174,6 +176,7 @@ export function DashboardApp({
   const [providerSettingsNotice, setProviderSettingsNotice] = useState<string | null>(null);
   const [memoryError, setMemoryError] = useState<string | null>(null);
   const [memoryNotice, setMemoryNotice] = useState<string | null>(null);
+  const [memoryMutationReceipt, setMemoryMutationReceipt] = useState<DashboardMutationReceipt | null>(null);
   const [evidenceSummary, setEvidenceSummary] = useState<DashboardEvidenceSummary | null>(null);
   const [evidenceSummaryError, setEvidenceSummaryError] = useState<string | null>(null);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
@@ -212,9 +215,11 @@ export function DashboardApp({
     setIsSavingMemory(true);
     setMemoryError(null);
     setMemoryNotice(null);
+    setMemoryMutationReceipt(null);
     try {
       const response = await runPersonalMemoryAction(request);
       await refresh();
+      setMemoryMutationReceipt(readPersonalMutationReceipt(response));
       setMemoryNotice(readPersonalMemoryNotice(response.result));
     } catch (submitError) {
       setMemoryError(readErrorMessage(submitError));
@@ -229,9 +234,11 @@ export function DashboardApp({
     setIsSavingMemory(true);
     setMemoryError(null);
     setMemoryNotice(null);
+    setMemoryMutationReceipt(null);
     try {
       const response = await runPersonalSkillAction(request);
       await refresh();
+      setMemoryMutationReceipt(readPersonalMutationReceipt(response));
       setMemoryNotice(response.result === "unmuted" ? "Personal skill unmuted" : "Personal skill muted");
     } catch (submitError) {
       setMemoryError(readErrorMessage(submitError));
@@ -341,6 +348,7 @@ export function DashboardApp({
             isLoadingEvidenceSummary={isLoadingEvidenceSummary}
             isMemorySaving={isSavingMemory}
             memoryError={memoryError}
+            memoryMutationReceipt={memoryMutationReceipt}
             memoryNotice={memoryNotice}
             onLoadChromeHostPolicy={loadChromeHostPolicy}
             onRefresh={refresh}
@@ -384,6 +392,7 @@ function DashboardContent({
   isLoadingEvidenceSummary,
   isMemorySaving,
   memoryError,
+  memoryMutationReceipt,
   memoryNotice,
   onLoadChromeHostPolicy,
   onRefresh,
@@ -405,6 +414,7 @@ function DashboardContent({
   isLoadingEvidenceSummary: boolean;
   isMemorySaving: boolean;
   memoryError: string | null;
+  memoryMutationReceipt: DashboardMutationReceipt | null;
   memoryNotice: string | null;
   onLoadChromeHostPolicy: () => Promise<DashboardChromeHostPolicyResponse>;
   onRefresh: () => Promise<void>;
@@ -561,6 +571,7 @@ function DashboardContent({
           error={memoryError}
           isSaving={isMemorySaving}
           memory={snapshot.personalMemory}
+          mutationReceipt={memoryMutationReceipt}
           notice={memoryNotice}
           onForget={onRunPersonalMemoryAction}
           onMuteSkill={onRunPersonalSkillAction}
@@ -1187,6 +1198,7 @@ function PersonalMemoryPanel({
   error,
   isSaving,
   memory,
+  mutationReceipt,
   notice,
   onForget,
   onMuteSkill
@@ -1195,6 +1207,7 @@ function PersonalMemoryPanel({
   error: string | null;
   isSaving: boolean;
   memory: DashboardPersonalMemorySummary | undefined;
+  mutationReceipt: DashboardMutationReceipt | null;
   notice: string | null;
   onForget: (request: DashboardPersonalMemoryActionRequest) => Promise<void>;
   onMuteSkill: (request: DashboardPersonalSkillActionRequest) => Promise<void>;
@@ -1278,6 +1291,7 @@ function PersonalMemoryPanel({
           sessions={memory?.recentSessions ?? []}
           targetProviderLabel={assistantProviderLabel}
         />
+        <PersonalMutationReceiptPanel receipt={mutationReceipt} />
         <p
           aria-live="polite"
           className="skfiy-dashboard-control-feedback"
@@ -1287,6 +1301,34 @@ function PersonalMemoryPanel({
         </p>
       </Card.Content>
     </Card.Root>
+  );
+}
+
+function PersonalMutationReceiptPanel({
+  receipt
+}: {
+  receipt: DashboardMutationReceipt | null;
+}) {
+  if (!receipt) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-label="Personal memory mutation receipt"
+      className="skfiy-dashboard-control-panel"
+      role="region"
+    >
+      <h3>{receipt.title}</h3>
+      <div className="skfiy-dashboard-inline-list">
+        <StatusChip tone={receipt.tone}>result {receipt.result}</StatusChip>
+        {receipt.items.map((item) => (
+          <StatusChip key={`${item.label}-${item.value}`} tone={item.tone}>
+            {item.label} {item.value}
+          </StatusChip>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSnapshot } from "./contracts";
-import { readChromeControlState, readComputerUseReadiness, readKnowledgeGraph, readRouteOutcome } from "./model";
+import {
+  readChromeControlState,
+  readComputerUseReadiness,
+  readKnowledgeGraph,
+  readPersonalMutationReceipt,
+  readRouteOutcome
+} from "./model";
 
 describe("readKnowledgeGraph", () => {
   it("connects memory, sessions, provider, browser context, Computer Use, and alerts", () => {
@@ -254,6 +260,68 @@ describe("readChromeControlState", () => {
         tone: "neutral"
       }
     ]));
+  });
+});
+
+describe("readPersonalMutationReceipt", () => {
+  it("summarizes personal memory mutation safety without echoing memory content", () => {
+    const receipt = readPersonalMutationReceipt({
+      command: "dashboard personal memory",
+      source: "dashboard",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: "forgotten",
+      applied: 1,
+      ignored: 0,
+      blocked: 0,
+      pendingWriteCount: 2,
+      personalMemory: {
+        userEntryCount: 0,
+        agentEntryCount: 1
+      }
+    });
+
+    expect(receipt).toEqual({
+      title: "Personal memory mutation receipt",
+      result: "forgotten",
+      tone: "success",
+      items: [
+        { label: "command", value: "dashboard personal memory", tone: "neutral" },
+        { label: "source", value: "dashboard", tone: "neutral" },
+        { label: "planned mutation", value: "yes", tone: "warning" },
+        { label: "system mutation", value: "yes", tone: "warning" },
+        { label: "applied", value: "1", tone: "success" },
+        { label: "ignored", value: "0", tone: "neutral" },
+        { label: "blocked", value: "0", tone: "success" },
+        { label: "pending writes", value: "2", tone: "warning" }
+      ]
+    });
+    expect(JSON.stringify(receipt)).not.toContain("User prefers concise Chinese updates.");
+  });
+
+  it("summarizes personal skill mute receipts", () => {
+    expect(readPersonalMutationReceipt({
+      command: "dashboard personal skills",
+      source: "dashboard",
+      plannedMutation: true,
+      executesSystemMutation: true,
+      result: "muted",
+      personalSkills: {
+        disabledSkillIds: ["dashboard-knowledge-surface"],
+        mutedSkillCount: 1
+      }
+    })).toEqual({
+      title: "Personal skill mutation receipt",
+      result: "muted",
+      tone: "success",
+      items: [
+        { label: "command", value: "dashboard personal skills", tone: "neutral" },
+        { label: "source", value: "dashboard", tone: "neutral" },
+        { label: "planned mutation", value: "yes", tone: "warning" },
+        { label: "system mutation", value: "yes", tone: "warning" },
+        { label: "muted skills", value: "1", tone: "warning" }
+      ]
+    });
   });
 });
 

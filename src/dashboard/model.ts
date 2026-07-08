@@ -3,7 +3,9 @@ import type {
   DashboardKnowledgeGraphEdge,
   DashboardKnowledgeGraphNode,
   DashboardPendingPersonalMemoryWrite,
+  DashboardPersonalMemoryActionResponse,
   DashboardPersonalMemoryJournalEntry,
+  DashboardPersonalSkillActionResponse,
   DashboardPersonalMemoryUsageBucket,
   DashboardProviderSummary,
   DashboardSnapshot
@@ -20,6 +22,13 @@ export interface DashboardStatusItem {
   label: string;
   value: string;
   tone: Tone;
+}
+
+export interface DashboardMutationReceipt {
+  title: string;
+  result: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
 }
 
 export interface DashboardReadinessSummary {
@@ -432,6 +441,71 @@ export function readKnowledgeGraph(snapshot: DashboardSnapshot): DashboardKnowle
       nodes.some((node) => node.id === edge.from)
       && nodes.some((node) => node.id === edge.to)
     ))
+  };
+}
+
+export function readPersonalMutationReceipt(
+  response: DashboardPersonalMemoryActionResponse | DashboardPersonalSkillActionResponse | null | undefined
+): DashboardMutationReceipt | null {
+  if (!response) {
+    return null;
+  }
+
+  const record = response as unknown as Record<string, unknown>;
+  const result = readString(response.result) ?? "reported";
+  const command = readString(response.command);
+  const source = readString(response.source);
+  const plannedMutation = readBoolean(record.plannedMutation);
+  const executesSystemMutation = readBoolean(record.executesSystemMutation);
+  const applied = readNumber(record.applied);
+  const ignored = readNumber(record.ignored);
+  const blocked = readNumber(record.blocked);
+  const pendingWriteCount = readNumber(record.pendingWriteCount);
+  const personalSkills = readRecord(record.personalSkills);
+  const mutedSkillCount = readNumber(personalSkills?.mutedSkillCount);
+  const items: DashboardStatusItem[] = [];
+
+  if (command) {
+    items.push({ label: "command", value: command, tone: "neutral" });
+  }
+  if (source) {
+    items.push({ label: "source", value: source, tone: "neutral" });
+  }
+  if (typeof plannedMutation === "boolean") {
+    items.push({
+      label: "planned mutation",
+      value: plannedMutation ? "yes" : "no",
+      tone: plannedMutation ? "warning" : "success"
+    });
+  }
+  if (typeof executesSystemMutation === "boolean") {
+    items.push({
+      label: "system mutation",
+      value: executesSystemMutation ? "yes" : "no",
+      tone: executesSystemMutation ? "warning" : "success"
+    });
+  }
+  if (typeof applied === "number") {
+    items.push({ label: "applied", value: String(applied), tone: applied > 0 ? "success" : "neutral" });
+  }
+  if (typeof ignored === "number") {
+    items.push({ label: "ignored", value: String(ignored), tone: ignored > 0 ? "warning" : "neutral" });
+  }
+  if (typeof blocked === "number") {
+    items.push({ label: "blocked", value: String(blocked), tone: blocked > 0 ? "danger" : "success" });
+  }
+  if (typeof pendingWriteCount === "number") {
+    items.push({ label: "pending writes", value: String(pendingWriteCount), tone: pendingWriteCount > 0 ? "warning" : "success" });
+  }
+  if (typeof mutedSkillCount === "number") {
+    items.push({ label: "muted skills", value: String(mutedSkillCount), tone: mutedSkillCount > 0 ? "warning" : "success" });
+  }
+
+  return {
+    title: command === "dashboard personal skills" ? "Personal skill mutation receipt" : "Personal memory mutation receipt",
+    result,
+    tone: readMutationReceiptTone({ result, blocked }),
+    items
   };
 }
 
@@ -1520,6 +1594,25 @@ function createMemoryEvolutionNodeDetail(entries: DashboardPersonalMemoryJournal
   return `${entries.length} ${entries.length === 1 ? "learning receipt" : "learning receipts"} across ${providerCount} ${providerCount === 1 ? "provider" : "providers"}`;
 }
 
+function readMutationReceiptTone({
+  blocked,
+  result
+}: {
+  blocked: number | undefined;
+  result: string;
+}): Tone {
+  if (blocked && blocked > 0) {
+    return "danger";
+  }
+  if (result === "error") {
+    return "danger";
+  }
+  if (result === "not-found" || result === "unchanged") {
+    return "neutral";
+  }
+  return "success";
+}
+
 function formatInteger(value: number): string {
   return value.toLocaleString("en-US");
 }
@@ -1640,6 +1733,10 @@ function readNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function readStringArray(value: unknown): string[] {
