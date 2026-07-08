@@ -10,13 +10,13 @@
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
-- Plan audit status: `docs/superpowers/plans/` contains only this active plan. Markdown docs may reference only this active plan path; retired dated implementation plans and dated research/log checklists stay out of the repo and are available only through git history. Guard coverage stays structural and must not preserve obsolete plan-date anchors. Dated decision files are archive-only context, not work queues.
+- Plan audit status: `docs/superpowers/plans/` contains only this active plan. Markdown docs may reference only this active plan path; retired dated implementation plans and dated research/log checklists stay out of the repo and are available only through git history. Date-stamped Markdown under `docs/` is allowed only for this active plan and durable decision records. Guard coverage stays structural and must not preserve obsolete plan-date anchors. Dated decision files are archive-only context, not work queues.
 
 ## Completed Foundation
 
 - CLI command-surface slimming, Chrome extension background test diet, manifest source-string cleanup, and main/renderer pure-logic extraction are complete for the current code-health pass.
 - Plan hygiene is complete for the current pass: retired planning files are absent, Markdown docs point only at this active plan, date-specific retired-plan guard coverage has been removed, and the active plan directory is no longer a plan archive.
-- Plan hygiene guard coverage now also rejects retired plan-like Markdown files anywhere under `docs/` and keeps dated research/log Markdown out of the repo, while preserving `docs/decisions/` only as non-plan archival references.
+- Plan hygiene guard coverage now also rejects retired plan-like Markdown files anywhere under `docs/` and keeps date-stamped non-decision Markdown out of the repo, while preserving `docs/decisions/` only as non-plan archival references.
 - Chrome extension background tests preserve permission recovery, page observe, native-message forwarding, target-tab popup behavior, and blocked-state classification without listener-count or source-string coverage.
 - React Dashboard already owns provider, Computer Use, Browser Context, Dogfood/release, replay, Chrome/Finder/Ghostty readiness, Chrome page action controls, Chrome host-policy controls, memory controls, and provider settings.
 - React Dashboard now exposes the existing read-only operator evidence JSON entry point from the Activity surface.
@@ -61,7 +61,7 @@ This is a feature enrichment plan. Keep changes product-facing but narrow:
 - Use existing Dashboard loopback APIs before adding new endpoints.
 - Do not change UI copy or layout outside the touched surface.
 - Do not broaden preload APIs, Chrome host permissions, provider boundaries, or macOS permission boundaries unless a task explicitly requires it.
-- Keep `docs/superpowers/plans/` to exactly one active plan file; do not add retired dated implementation plans back as repo files.
+- Keep `docs/superpowers/plans/` to exactly one active plan file; do not add retired dated implementation plans back as repo files, even outside the active plan directory.
 - Run focused verification before committing.
 - Clean generated local smoke directories unless an explicit release, dogfood, or debugging handoff needs them.
 

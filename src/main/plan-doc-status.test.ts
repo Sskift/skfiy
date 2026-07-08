@@ -92,6 +92,23 @@ describe("implementation plan status docs", () => {
     expect(datedResearchOrLogs).toEqual([]);
   });
 
+  it("keeps dated non-decision markdown out of docs", () => {
+    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const docsRoot = path.join(process.cwd(), "docs");
+    const markdownDocs = collectMarkdownDocs(docsRoot).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const datedNonDecisionDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference || docPath.startsWith("docs/decisions/")) {
+        return false;
+      }
+
+      return /^\d{4}-\d{2}-\d{2}-/.test(path.basename(docPath));
+    });
+
+    expect(datedNonDecisionDocs).toEqual([]);
+  });
+
   it("keeps workflow docs pointed at the current active plan path only", () => {
     const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
     const planReferencePattern = /docs\/superpowers\/plans\/[^\s`),]+\.md/g;

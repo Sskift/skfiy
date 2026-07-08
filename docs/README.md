@@ -4,7 +4,8 @@ This directory separates current operator instructions from archival context.
 When a workflow changes, update the canonical document first. Dated decision
 records are references, not active implementation plans. Historical research
 and implementation notes should be folded into canonical docs or left in git
-history, not kept as live repo checklists.
+history, not kept as live repo checklists. Date-stamped Markdown under this
+directory is reserved for durable decision records and the single active plan.
 
 ## Canonical Docs
 
