@@ -28,9 +28,10 @@ and decision records are references, not active implementation plans.
   decision changes.
 - `research/`: dated research, architecture notes, and implementation logs.
   These files are archival context, not active task lists or plans.
-- `superpowers/plans/`: active implementation plans for agentic work. Keep
-  exactly one active plan unless the project owner explicitly asks for a
-  temporary split.
+- `superpowers/plans/`: the current active implementation plan for agentic
+  work. Keep exactly one plan file here. Retired dated plans, including the old
+  2026-06-23 browser/dashboard plan, belong outside the active plan directory
+  and must not be restored.
 
 ## Local Artifact Hygiene
 

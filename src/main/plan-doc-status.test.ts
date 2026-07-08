@@ -42,6 +42,7 @@ describe("implementation plan status docs", () => {
       : [];
 
     expect(activePlanFiles).toEqual(["2026-07-07-code-health-cleanup.md"]);
+    expect(activePlanFiles).not.toContain("2026-06-23-browser-dashboard-plan.md");
   });
 
   it("keeps AGENTS pointed at the current active plan", () => {
@@ -49,6 +50,9 @@ describe("implementation plan status docs", () => {
 
     expect(agents).toContain("docs/superpowers/plans/2026-07-07-code-health-cleanup.md");
     expect(agents).toContain("Historical implementation material is archival reference only");
+    expect(agents).toContain("old 2026-06-23");
+    expect(agents).toContain("browser/dashboard plan");
+    expect(agents).toContain("must not be restored");
     expect(agents).toContain("not active");
     expect(agents).toContain("with exactly one newer active plan");
   });
@@ -131,6 +135,7 @@ describe("implementation plan status docs", () => {
     expect(activePlan).toContain("/api/operator-evidence");
     expect(activePlan).toContain("dist/skfiy.app");
     expect(activePlan).toContain("dist/skfiy");
+    expect(activePlan).not.toContain("2026-06-23");
     expect(activePlan).not.toContain("smoke:voice");
     expect(activePlan).not.toContain("native-macos voice");
   });
