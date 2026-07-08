@@ -75,6 +75,7 @@ import {
   readProviderSummaries,
   readReadinessSummary,
   readRecentActivity,
+  readRouteOutcome,
   readRuntimeEvidenceSummary,
   readSnapshotState,
   readUnsupportedSmokeEvidence,
@@ -87,6 +88,7 @@ import {
   type DashboardNextAction,
   type DashboardReadinessSummary,
   type DashboardRecentActivity,
+  type DashboardRouteOutcome,
   type DashboardRuntimeEvidenceSummary,
   type DashboardStatusItem,
   type Tone
@@ -432,6 +434,7 @@ function DashboardContent({
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
+  const routeOutcome = useMemo(() => readRouteOutcome(snapshot), [snapshot]);
   const latestSignal = useMemo(() => readLatestTaskSignal(snapshot), [snapshot]);
   const runtimeEvidence = useMemo(() => readRuntimeEvidenceSummary(snapshot), [snapshot]);
   const dogfood = useMemo(() => readDogfoodSummary(snapshot), [snapshot]);
@@ -495,6 +498,7 @@ function DashboardContent({
           knowledgeGraph={knowledgeGraph}
           nextAction={nextAction}
           readiness={readiness}
+          routeOutcome={routeOutcome}
           runtimeEvidence={runtimeEvidence}
           stateItems={stateItems}
         />
@@ -788,6 +792,7 @@ function DashboardContent({
               </div>
             </Card.Content>
           </Card.Root>
+          <RouteOutcomeCard outcome={routeOutcome} />
           <LatestSignalCard signal={latestSignal} />
           <RuntimeEvidenceCard evidence={runtimeEvidence} />
           <EvidenceSummaryCard
@@ -886,6 +891,7 @@ function DashboardCommandCenter({
   knowledgeGraph,
   nextAction,
   readiness,
+  routeOutcome,
   runtimeEvidence,
   stateItems
 }: {
@@ -898,6 +904,7 @@ function DashboardCommandCenter({
   knowledgeGraph: ReturnType<typeof readKnowledgeGraph>;
   nextAction: DashboardNextAction;
   readiness: DashboardReadinessSummary;
+  routeOutcome: DashboardRouteOutcome;
   runtimeEvidence: DashboardRuntimeEvidenceSummary;
   stateItems: DashboardStatusItem[];
 }) {
@@ -2439,6 +2446,31 @@ function ActivityCount({ label, value }: { label: string; value?: number }) {
       <span>{label}</span>
       <strong>{value ?? 0}</strong>
     </div>
+  );
+}
+
+function RouteOutcomeCard({ outcome }: { outcome: DashboardRouteOutcome }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>Route outcome</Card.Title>
+          <Card.Description>{outcome.source}</Card.Description>
+        </div>
+        <ArrowRight size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">
+          <strong>{outcome.title}</strong>
+          <span> {outcome.detail}</span>
+        </p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={outcome.tone}>{outcome.value}</StatusChip>
+          <StatusChip tone="neutral">state {outcome.state}</StatusChip>
+          <StatusChip tone="neutral">route {outcome.routeLabel}</StatusChip>
+        </div>
+      </Card.Content>
+    </Card.Root>
   );
 }
 

@@ -561,6 +561,28 @@ describe("DashboardApp", () => {
     expect(within(activity).getAllByText("Chrome host permission missing").length).toBeGreaterThan(0);
   });
 
+  it("shows distinct route outcome semantics in Activity", async () => {
+    const routeBlockedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy.",
+        latestMessage: "Ghostty is denied by app policy.",
+        command: "run pwd in Ghostty"
+      }
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => routeBlockedSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(activity).getByText("App policy denied route")).toBeInTheDocument();
+    expect(within(activity).getByText("app_policy_denied")).toBeInTheDocument();
+    expect(within(activity).getByText("state blocked")).toBeInTheDocument();
+    expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
+  });
+
   it("shows a browser context access checklist for the current tab permission chain", async () => {
     const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
     const blockedSnapshot: DashboardSnapshot = {

@@ -1776,6 +1776,8 @@ function summarizeRuntimeTurnMarkerCurrentTurn(
     ?? "unknown";
   const command = readSanitizedString(currentTurn.command);
   const targetApp = readSanitizedString(currentTurn.targetApp);
+  const route = readSanitizedString(currentTurn.route);
+  const reason = readSanitizedString(currentTurn.reason);
   const latestMessage = readSanitizedString(currentTurn.latestMessage)
     ?? readSanitizedString(currentTurn.message);
 
@@ -1784,6 +1786,8 @@ function summarizeRuntimeTurnMarkerCurrentTurn(
     source: "runtime-turn-marker",
     ...(command ? { command } : {}),
     ...(targetApp ? { targetApp } : {}),
+    ...(route ? { route } : {}),
+    ...(reason ? { reason, routeReason: reason } : {}),
     ...(typeof currentTurn.targetBundleId === "string"
       ? { targetBundleId: currentTurn.targetBundleId }
       : {}),

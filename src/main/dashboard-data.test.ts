@@ -2326,6 +2326,8 @@ describe("dashboard snapshot data", () => {
         currentTurn: {
           state: "executing",
           command: "open Chrome with token=marker-secret",
+          route: "chrome",
+          reason: "User denied this desktop control request.",
           source: "runtime-turn-marker"
         }
       })
@@ -2363,6 +2365,9 @@ describe("dashboard snapshot data", () => {
     expect(snapshot.currentTurn).toMatchObject({
       state: "executing",
       command: "open Chrome with redacted=[redacted]",
+      route: "chrome",
+      routeReason: "User denied this desktop control request.",
+      reason: "Runtime snapshot is missing after a recent app turn was observed.",
       source: "runtime-turn-marker",
       freshInstall: false,
       markerPath,

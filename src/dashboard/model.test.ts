@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSnapshot } from "./contracts";
-import { readChromeControlState, readComputerUseReadiness, readKnowledgeGraph } from "./model";
+import { readChromeControlState, readComputerUseReadiness, readKnowledgeGraph, readRouteOutcome } from "./model";
 
 describe("readKnowledgeGraph", () => {
   it("connects memory, sessions, provider, browser context, Computer Use, and alerts", () => {
@@ -254,6 +254,110 @@ describe("readChromeControlState", () => {
         tone: "neutral"
       }
     ]));
+  });
+});
+
+describe("readRouteOutcome", () => {
+  it.each([
+    [
+      "app-policy denial",
+      {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy.",
+        latestMessage: "Ghostty is denied by app policy."
+      },
+      {
+        kind: "app_policy_denied",
+        title: "App policy denied route",
+        value: "app_policy_denied",
+        tone: "danger",
+        routeLabel: "ghostty"
+      }
+    ],
+    [
+      "user denial",
+      {
+        state: "denied",
+        route: "chrome",
+        reason: "User denied this browser mutation."
+      },
+      {
+        kind: "user_denied",
+        title: "User denied route",
+        value: "user_denied",
+        tone: "neutral",
+        routeLabel: "chrome"
+      }
+    ],
+    [
+      "environment blocker",
+      {
+        state: "blocked",
+        route: "finder",
+        latestMessage: "Screen Recording permission is denied."
+      },
+      {
+        kind: "blocked",
+        title: "Route blocked",
+        value: "blocked",
+        tone: "danger",
+        routeLabel: "finder"
+      }
+    ],
+    [
+      "confirmation gate",
+      {
+        state: "needs_confirmation",
+        targetRoute: { kind: "finder", bundleId: "com.apple.finder" },
+        reason: "Confirm before organizing Finder."
+      },
+      {
+        kind: "needs_confirmation",
+        title: "Route needs confirmation",
+        value: "needs_confirmation",
+        tone: "warning",
+        routeLabel: "finder"
+      }
+    ],
+    [
+      "cancellation",
+      {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped."
+      },
+      {
+        kind: "cancelled",
+        title: "Route cancelled",
+        value: "cancelled",
+        tone: "neutral",
+        routeLabel: "chrome"
+      }
+    ],
+    [
+      "completion",
+      {
+        state: "completed",
+        route: "tmux_supervision",
+        latestMessage: "money-run supervision completed.",
+        approvalRequired: true
+      },
+      {
+        kind: "completed",
+        title: "Route completed",
+        value: "completed",
+        tone: "success",
+        routeLabel: "tmux_supervision"
+      }
+    ]
+  ])("keeps %s distinct", (_label, currentTurn, expected) => {
+    const outcome = readRouteOutcome({
+      ...createSnapshot(),
+      currentTurn
+    });
+
+    expect(outcome).toMatchObject(expected);
   });
 });
 

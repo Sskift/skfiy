@@ -110,9 +110,14 @@ npm run typecheck -- --pretty false
 
 ## Task 3: Route State Semantics
 
-Status: pending.
+Status: in progress.
 
 As supported adapters grow, preserve distinct route outcomes across dashboard, replay, preload, and pet UI.
+
+Completed in this pass:
+
+- React Dashboard Activity now shows a distinct Route outcome card derived from current-turn state, keeping app-policy denial, user denial, blocked, confirmation, cancellation, failure, and completion visibly separate.
+- Dashboard runtime-turn-marker summaries preserve safe `route` and route-reason strings so route-state evidence is not dropped when the runtime snapshot is missing or stale.
 
 Acceptance:
 
