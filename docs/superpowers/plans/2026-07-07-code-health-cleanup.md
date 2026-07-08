@@ -92,6 +92,7 @@ Continue moving fallback/server-only Dashboard controls into React only when the
 Completed in this pass:
 
 - The React Activity surface can call `/api/evidence-summary` on demand and render the compact evidence lane state, ready count, attention count, and blocked count.
+- The React evidence summary now renders lane checks, next actions, and command mutability labels from the same read-only API.
 
 Acceptance:
 

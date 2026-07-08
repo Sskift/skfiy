@@ -262,11 +262,39 @@ export interface DashboardEvidenceSummary {
     title: string;
     state: DashboardEvidenceSummaryState;
     summary: string;
+    checks: DashboardEvidenceSummaryCheck[];
+    nextActions: string[];
+    commands?: DashboardEvidenceSummaryCommand[];
+    setupGuide?: DashboardEvidenceSummarySetupGuide;
   }>;
   outputPolicy?: {
     tokenFree?: boolean;
     source?: string;
   };
+}
+
+export interface DashboardEvidenceSummaryCheck {
+  id: string;
+  label: string;
+  state: DashboardEvidenceSummaryState;
+  value?: string | number | boolean;
+  ageSeconds?: number;
+  stale?: boolean;
+}
+
+export interface DashboardEvidenceSummaryCommand {
+  id: string;
+  label: string;
+  command: string;
+  mutates?: boolean;
+}
+
+export interface DashboardEvidenceSummarySetupGuide {
+  source: "runtime" | "native-host" | "smoke-artifact" | "derived" | string;
+  nativeHostState: string;
+  liveConnectionState: string;
+  nextActions: string[];
+  commands: DashboardEvidenceSummaryCommand[];
 }
 
 export type DashboardKnowledgeGraphNodeKind =

@@ -805,19 +805,59 @@ describe("DashboardApp", () => {
           id: "computer-use-operator",
           title: "Computer Use operator",
           state: "blocked",
-          summary: "Operator runtime still needs fresh controllability evidence."
+          summary: "Operator runtime still needs fresh controllability evidence.",
+          checks: [
+            {
+              id: "operator-readiness",
+              label: "Operator readiness",
+              state: "blocked",
+              value: "blocked"
+            }
+          ],
+          nextActions: ["Clear dashboard alerts before starting a real Computer Use task."]
         },
         {
           id: "codex-plugin",
           title: "Codex plugin",
           state: "ready",
-          summary: "Latest artifact is passed."
+          summary: "Latest artifact is passed.",
+          checks: [
+            {
+              id: "codex-plugin-smoke",
+              label: "Latest Codex plugin smoke",
+              state: "ready",
+              value: "passed"
+            }
+          ],
+          nextActions: []
         },
         {
           id: "chrome-extension",
           title: "Chrome extension",
           state: "needs-evidence",
-          summary: "Chrome bridge still needs installed-extension evidence."
+          summary: "Chrome bridge still needs installed-extension evidence.",
+          checks: [
+            {
+              id: "native-host",
+              label: "Native host install status",
+              state: "ready",
+              value: "installed"
+            }
+          ],
+          nextActions: ["Refresh the installed extension heartbeat, then rerun Chrome status."],
+          commands: [
+            {
+              id: "install-host",
+              label: "Install host",
+              command: "skfiy chrome install-host --extension-id plcpkkhlcacihjfohlojdknnkademlno",
+              mutates: true
+            },
+            {
+              id: "status",
+              label: "Status",
+              command: "skfiy chrome status --json --extension-id plcpkkhlcacihjfohlojdknnkademlno"
+            }
+          ]
         }
       ],
       outputPolicy: {
@@ -856,6 +896,16 @@ describe("DashboardApp", () => {
     expect(within(lanes).getByText("Operator runtime still needs fresh controllability evidence.")).toBeInTheDocument();
     expect(within(lanes).getByText("Codex plugin")).toBeInTheDocument();
     expect(within(lanes).getByText("Chrome extension")).toBeInTheDocument();
+    const operatorChecks = within(activity).getByRole("list", { name: "Checks for Computer Use operator" });
+    expect(within(operatorChecks).getByText("Operator readiness")).toBeInTheDocument();
+    const chromeActions = within(activity).getByRole("list", { name: "Next actions for Chrome extension" });
+    expect(within(chromeActions).getByText("Refresh the installed extension heartbeat, then rerun Chrome status.")).toBeInTheDocument();
+    const chromeCommands = within(activity).getByRole("list", { name: "Commands for Chrome extension" });
+    expect(within(chromeCommands).getByText("Install host")).toBeInTheDocument();
+    expect(within(chromeCommands).getByText("skfiy chrome install-host --extension-id plcpkkhlcacihjfohlojdknnkademlno")).toBeInTheDocument();
+    expect(within(chromeCommands).getByText("mutates")).toBeInTheDocument();
+    expect(within(chromeCommands).getByText("Status")).toBeInTheDocument();
+    expect(within(chromeCommands).getByText("read-only")).toBeInTheDocument();
   });
 
   it("submits planner settings, refreshes status, and never echoes the API key", async () => {

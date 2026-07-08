@@ -2249,6 +2249,48 @@ function EvidenceSummaryCard({
                 <span>{lane.title}</span>
                 <strong>{lane.state}</strong>
                 <small>{lane.summary}</small>
+                {lane.checks.length > 0 ? (
+                  <ul
+                    aria-label={`Checks for ${lane.title}`}
+                    className="skfiy-dashboard-evidence-detail-list"
+                  >
+                    {lane.checks.map((check) => (
+                      <li key={check.id}>
+                        <span>{check.label}</span>
+                        <strong>{formatEvidenceCheckValue(check.value, check.state)}</strong>
+                        <small>{check.stale ? `${check.state} · stale` : check.state}</small>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {lane.nextActions.length > 0 ? (
+                  <ul
+                    aria-label={`Next actions for ${lane.title}`}
+                    className="skfiy-dashboard-evidence-detail-list"
+                  >
+                    {lane.nextActions.map((action) => (
+                      <li key={action}>
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {lane.commands?.length ? (
+                  <ul
+                    aria-label={`Commands for ${lane.title}`}
+                    className="skfiy-dashboard-evidence-command-list"
+                  >
+                    {lane.commands.map((command) => (
+                      <li key={`${command.id}-${command.command}`}>
+                        <span>{command.label}</span>
+                        <code>{command.command}</code>
+                        <StatusChip tone={command.mutates ? "warning" : "neutral"}>
+                          {command.mutates ? "mutates" : "read-only"}
+                        </StatusChip>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -2261,6 +2303,19 @@ function EvidenceSummaryCard({
       </Card.Content>
     </Card.Root>
   );
+}
+
+function formatEvidenceCheckValue(
+  value: DashboardEvidenceSummary["lanes"][number]["checks"][number]["value"],
+  fallback: string
+): string {
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  return value ?? fallback;
 }
 
 function readEvidenceSummaryTone(state: DashboardEvidenceSummary["status"]["state"] | undefined): Tone {
