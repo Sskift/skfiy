@@ -105,6 +105,14 @@ export interface DashboardSmokeArtifactDetail {
   items: DashboardStatusItem[];
 }
 
+export interface DashboardSmokeArtifactInventory {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardDogfoodSummary {
   releaseState: string;
   releaseDriftState: string;
@@ -1988,6 +1996,49 @@ export function readUnsupportedSmokeEvidence(snapshot: DashboardSnapshot): strin
   return unsupported.length > 0
     ? `ignored unsupported smoke: ${unsupported.join(", ")}`
     : undefined;
+}
+
+export function readSmokeArtifactInventory(snapshot: DashboardSnapshot): DashboardSmokeArtifactInventory {
+  const artifacts = readRecordArray(snapshot.smokeEvidence.artifacts);
+  const staleCount = artifacts.filter((artifact) => artifact.stale === true).length;
+  const passedCount = artifacts.filter((artifact) => readString(artifact.result) === "passed").length;
+  const attentionCount = artifacts.filter((artifact) => {
+    const result = readString(artifact.result) ?? "unknown";
+    return artifact.stale === true || !["passed", "available"].includes(result);
+  }).length;
+  const value = artifacts.length === 0
+    ? "none"
+    : staleCount > 0
+      ? "stale"
+      : attentionCount > 0
+        ? "attention"
+        : "fresh";
+  const tone = artifacts.length === 0
+    ? "warning"
+    : staleCount > 0 || attentionCount > 0
+      ? "warning"
+      : "success";
+
+  return {
+    title: "Artifact inventory",
+    value,
+    detail: artifacts.length === 0
+      ? "No smoke artifacts found."
+      : `${artifacts.length} artifacts: ${passedCount} passed, ${attentionCount} attention, ${staleCount} stale.`,
+    tone,
+    items: artifacts.length > 0
+      ? artifacts.map((artifact) => createStatusItem(
+        readString(artifact.target) ?? "unknown",
+        formatSmokeArtifactInventoryValue(artifact),
+        artifact.stale === true ? "warning" : readSmokeDetailTone(readString(artifact.result) ?? "missing")
+      ))
+      : [createStatusItem("artifacts", "none", "warning")]
+  };
+}
+
+function formatSmokeArtifactInventoryValue(artifact: Record<string, unknown>): string {
+  const result = readString(artifact.result) ?? "unknown";
+  return artifact.stale === true ? `${result} (stale)` : result;
 }
 
 export function readSmokeArtifactDetails(snapshot: DashboardSnapshot): DashboardSmokeArtifactDetail[] {

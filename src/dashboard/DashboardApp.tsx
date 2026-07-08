@@ -8,6 +8,7 @@ import {
   Chrome,
   Eye,
   EyeOff,
+  FileSearch,
   Folder,
   Gauge,
   History,
@@ -91,6 +92,7 @@ import {
   readRuntimeEvidenceSummary,
   readRuntimeHealthSummary,
   readRuntimeSnapshotDetails,
+  readSmokeArtifactInventory,
   readSmokeArtifactDetails,
   readSnapshotState,
   readUnsupportedSmokeEvidence,
@@ -118,6 +120,7 @@ import {
   type DashboardRuntimeEvidenceSummary,
   type DashboardRuntimeHealthSummary,
   type DashboardRuntimeSnapshotDetail,
+  type DashboardSmokeArtifactInventory,
   type DashboardSmokeArtifactDetail,
   type DashboardStatusItem,
   type Tone
@@ -471,6 +474,7 @@ function DashboardContent({
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
   const agentSupervision = useMemo(() => readAgentSupervisionSummary(snapshot), [snapshot]);
   const appReadiness = useMemo(() => readAppReadinessLanes(snapshot), [snapshot]);
+  const smokeArtifactInventory = useMemo(() => readSmokeArtifactInventory(snapshot), [snapshot]);
   const smokeArtifactDetails = useMemo(() => readSmokeArtifactDetails(snapshot), [snapshot]);
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
@@ -696,6 +700,7 @@ function DashboardContent({
               <StatusChip tone="warning">{unsupportedSmoke}</StatusChip>
             </div>
           ) : null}
+          <SmokeArtifactInventoryCard summary={smokeArtifactInventory} />
           <SmokeArtifactDetailsCard details={smokeArtifactDetails} />
         </div>
       </section>
@@ -2645,6 +2650,39 @@ function readEvidenceSummaryTone(state: DashboardEvidenceSummary["status"]["stat
     return "warning";
   }
   return "neutral";
+}
+
+function SmokeArtifactInventoryCard({
+  summary
+}: {
+  summary: DashboardSmokeArtifactInventory;
+}) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>Smoke evidence</Card.Description>
+          <Card.Title>{summary.title}</Card.Title>
+        </div>
+        <FileSearch size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Smoke artifact inventory">
+          {summary.items.map((item, index) => (
+            <li key={`${item.label}-${index}`}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
+      </Card.Content>
+    </Card.Root>
+  );
 }
 
 function SmokeArtifactDetailsCard({

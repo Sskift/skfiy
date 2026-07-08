@@ -22,6 +22,7 @@ import {
   readRouteOutcome,
   readRuntimeSnapshotDetails,
   readRuntimeHealthSummary,
+  readSmokeArtifactInventory,
   readSmokeArtifactDetails
 } from "./model";
 
@@ -332,6 +333,37 @@ describe("readComputerUseReadiness", () => {
 });
 
 describe("readSmokeArtifactDetails", () => {
+  it("summarizes the smoke artifact inventory without artifact paths", () => {
+    const base = createSmokeDetailSnapshot();
+    const inventory = readSmokeArtifactInventory({
+      ...base,
+      smokeEvidence: {
+        artifacts: [
+          ...base.smokeEvidence.artifacts,
+          {
+            target: "dashboard",
+            result: "failed",
+            stale: true,
+            path: "/repo/.skfiy-smoke/dashboard-current.json"
+          }
+        ]
+      }
+    });
+
+    expect(inventory).toEqual({
+      title: "Artifact inventory",
+      value: "stale",
+      detail: "3 artifacts: 1 passed, 2 attention, 1 stale.",
+      tone: "warning",
+      items: [
+        { label: "chrome", value: "passed", tone: "success" },
+        { label: "finder", value: "blocked", tone: "danger" },
+        { label: "dashboard", value: "failed (stale)", tone: "warning" }
+      ]
+    });
+    expect(JSON.stringify(inventory)).not.toContain(".skfiy-smoke");
+  });
+
   it("summarizes Chrome safety, Chrome pageControl, and Finder smoke probes without artifact paths", () => {
     const details = readSmokeArtifactDetails(createSmokeDetailSnapshot());
 

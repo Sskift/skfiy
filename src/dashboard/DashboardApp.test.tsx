@@ -1169,6 +1169,15 @@ describe("DashboardApp", () => {
     />);
 
     const computerUse = await screen.findByRole("region", { name: "Agent tools" });
+    expect(within(computerUse).getByText("Artifact inventory")).toBeInTheDocument();
+    expect(within(computerUse).getByText("3 artifacts: 1 passed, 2 attention, 1 stale.")).toBeInTheDocument();
+    const smokeInventory = within(computerUse).getByRole("list", { name: "Smoke artifact inventory" });
+    expect(within(smokeInventory).getByText("chrome")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("passed")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("finder")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("blocked")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("dashboard")).toBeInTheDocument();
+    expect(within(smokeInventory).getByText("failed (stale)")).toBeInTheDocument();
     expect(within(computerUse).getByText("Artifact probes")).toBeInTheDocument();
 
     const chromeSafety = within(computerUse).getByRole("list", { name: "Chrome page safety artifact details" });
@@ -1184,6 +1193,7 @@ describe("DashboardApp", () => {
     expect(within(finderSmoke).getByText("com.apple.loginwindow")).toBeInTheDocument();
     expect(within(finderSmoke).getByText("blocked - Desktop session is not controllable before target app launch.")).toBeInTheDocument();
     expect(within(finderSmoke).getAllByText("skipped - Desktop preflight blocked.")).toHaveLength(2);
+    expect(within(computerUse).queryByText("/repo/.skfiy-smoke/dashboard-current.json")).not.toBeInTheDocument();
     expect(within(computerUse).queryByText("/repo/.skfiy-smoke/finder-current.json")).not.toBeInTheDocument();
   });
 
@@ -2058,6 +2068,12 @@ function createSmokeArtifactDashboardSnapshot(): DashboardSnapshot {
             },
             reason: "Desktop session is not controllable before target app launch."
           }
+        },
+        {
+          target: "dashboard",
+          result: "failed",
+          stale: true,
+          path: "/repo/.skfiy-smoke/dashboard-current.json"
         }
       ]
     }
