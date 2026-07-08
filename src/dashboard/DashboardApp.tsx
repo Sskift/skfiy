@@ -40,6 +40,7 @@ import {
   postPersonalSkillAction,
   postPlannerProviderSettings
 } from "./api";
+import { buildChromeControlActionRequest } from "./chrome-control-actions";
 import type {
   DashboardChromeControlActionRequest,
   DashboardChromeHostPolicyAction,
@@ -2294,58 +2295,24 @@ function ChromeControlActions({
   const commandHints = useMemo(() => readChromeControlCommandHints(chromeControl), [chromeControl]);
 
   const launchAction = async (action: DashboardChromeControlActionRequest["action"]) => {
-    const trimmedSelector = selector.trim();
-    const trimmedText = text.trim();
-    const targetTabId = Number.isInteger(chromeControl.tabId) ? chromeControl.tabId : undefined;
-    const canLaunch = action === "open-popup" ? canOpenAccessPage : canRun;
-    if (!canLaunch || !chromeControl.extensionId || targetTabId === undefined) {
-      setFeedbackTone("warning");
-      setFeedback(action === "open-popup"
-        ? "Chrome access page is not available for the current tab."
-        : chromeControl.actionUnavailableReason ?? "Chrome action controls are not ready.");
-      return;
-    }
-    if ((action === "click" || action === "fill") && !trimmedSelector) {
-      setFeedbackTone("warning");
-      setFeedback("Enter a selector before launching this action.");
-      return;
-    }
-    if (action === "fill" && !trimmedText) {
-      setFeedbackTone("warning");
-      setFeedback("Enter fill text before launching this action.");
-      return;
-    }
-
-    const request: DashboardChromeControlActionRequest = {
+    const requestResult = buildChromeControlActionRequest({
       action,
-      extensionId: chromeControl.extensionId,
-      ...(chromeControl.chromeAppName ? { chromeAppName: chromeControl.chromeAppName } : {}),
-      targetTabId
-    };
-    if (action === "click" || action === "fill") {
-      request.selector = trimmedSelector;
-    }
-    if (action === "submit") {
-      request.selector = trimmedSelector || "form";
-    }
-    if (action === "fill") {
-      request.text = trimmedText;
-    }
-    if (action === "scroll") {
-      const scrollDelta = readScrollDelta(dy);
-      if (scrollDelta === undefined) {
-        setFeedbackTone("warning");
-        setFeedback("Enter a numeric scroll delta before launching this action.");
-        return;
-      }
-      request.dy = scrollDelta;
+      chromeControl,
+      dy,
+      selector,
+      text
+    });
+    if (!requestResult.ok) {
+      setFeedbackTone("warning");
+      setFeedback(requestResult.message);
+      return;
     }
 
     setBusyAction(action);
     setFeedbackTone("neutral");
     setFeedback(`Running Chrome ${action}...`);
     try {
-      const payload = await onRunAction(request);
+      const payload = await onRunAction(requestResult.request);
       setFeedbackTone("success");
       setFeedback(formatChromeActionFeedback(action, payload));
       await onRefresh();
@@ -2871,14 +2838,6 @@ function AppReadinessCard({ lane }: { lane: DashboardAppReadinessLane }) {
       </Card.Content>
     </Card.Root>
   );
-}
-
-function readScrollDelta(value: string): number | undefined {
-  if (!value.trim()) {
-    return 600;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function formatChromeActionFeedback(
