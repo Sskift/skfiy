@@ -109,6 +109,23 @@ describe("implementation plan status docs", () => {
     expect(datedNonDecisionDocs).toEqual([]);
   });
 
+  it("keeps decision records from becoming archived implementation plans", () => {
+    const decisionsRoot = path.join(process.cwd(), "docs", "decisions");
+    const decisionDocs = collectMarkdownDocs(decisionsRoot);
+    const planLikeDecisionDocs = decisionDocs.filter((docPath) => {
+      const contents = readFileSync(docPath, "utf8");
+      return /^##\s+(?:Active Scope|Next Work Order|Execution Rules|Handoff Requirements|Audit Queue|Current Cleanup Evidence)\b/im.test(contents)
+        || /^##\s+Task\s+\d+\b/im.test(contents)
+        || /^\s*Focused verification:/im.test(contents)
+        || /^\s*Acceptance:/im.test(contents)
+        || /^\s*Status:\s+(?:pending|in progress|complete)\b/im.test(contents)
+        || /^\s*-\s+\[[ x]\]\s+/im.test(contents)
+        || /docs\/superpowers\/plans\//i.test(contents);
+    }).map((docPath) => path.relative(process.cwd(), docPath).split(path.sep).join("/"));
+
+    expect(planLikeDecisionDocs).toEqual([]);
+  });
+
   it("keeps workflow docs pointed at the current active plan path only", () => {
     const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
     const planReferencePattern = /docs\/superpowers\/plans\/[^\s`),]+\.md/g;
@@ -207,6 +224,8 @@ describe("implementation plan status docs", () => {
     expect(activePlan).toContain("only active implementation plan");
     expect(activePlan).toContain("Dated decision records");
     expect(activePlan).toContain("dated research/log checklists stay out of the repo");
+    expect(activePlan).toContain("not work queues, task lists, or progress trackers");
+    expect(activePlan).toContain("ADR-only archive");
     expect(activePlan).toContain("Task 1: React Dashboard Operator Evidence");
     expect(activePlan).toContain("Task 2: Dashboard Advanced Control Migration");
     expect(activePlan).toContain("Task 3: Route State Semantics");

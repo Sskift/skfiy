@@ -2,10 +2,11 @@
 
 This directory separates current operator instructions from archival context.
 When a workflow changes, update the canonical document first. Dated decision
-records are references, not active implementation plans. Historical research
-and implementation notes should be folded into canonical docs or left in git
-history, not kept as live repo checklists. Date-stamped Markdown under this
-directory is reserved for durable decision records and the single active plan.
+records are ADR references, not active implementation plans, task queues, or
+progress trackers. Historical research and implementation notes should be
+folded into canonical docs or left in git history, not kept as live repo
+checklists. Date-stamped Markdown under this directory is reserved for durable
+decision records and the single active plan.
 
 ## Canonical Docs
 
@@ -27,8 +28,9 @@ directory is reserved for durable decision records and the single active plan.
 
 ## Reference Docs
 
-- `decisions/`: durable decision records that should stay stable unless the
-  decision changes.
+- `decisions/`: durable ADR records that should stay stable unless the
+  decision changes. They must not carry active plan sections, status blocks,
+  task checklists, or next-work queues.
 - `superpowers/plans/`: the current active implementation plan for agentic
   work. Keep exactly one plan file here. Retired dated plans belong outside the
   active plan directory and must not be restored.

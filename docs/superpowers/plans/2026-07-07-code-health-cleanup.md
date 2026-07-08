@@ -10,7 +10,7 @@
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
-- Plan audit status: `docs/superpowers/plans/` contains only this active plan. Markdown docs may reference only this active plan path; retired dated implementation plans and dated research/log checklists stay out of the repo and are available only through git history. Date-stamped Markdown under `docs/` is allowed only for this active plan and durable decision records. Guard coverage stays structural and must not preserve obsolete plan-date anchors. Dated decision files are archive-only context, not work queues.
+- Plan audit status: `docs/superpowers/plans/` contains only this active plan. Markdown docs may reference only this active plan path; retired dated implementation plans and dated research/log checklists stay out of the repo and are available only through git history. Date-stamped Markdown under `docs/` is allowed only for this active plan and durable decision records. Guard coverage stays structural and must not preserve obsolete plan-date anchors. Dated decision files are archive-only context, not work queues, task lists, or progress trackers.
 
 ## Completed Foundation
 
@@ -62,6 +62,7 @@ This is a feature enrichment plan. Keep changes product-facing but narrow:
 - Do not change UI copy or layout outside the touched surface.
 - Do not broaden preload APIs, Chrome host permissions, provider boundaries, or macOS permission boundaries unless a task explicitly requires it.
 - Keep `docs/superpowers/plans/` to exactly one active plan file; do not add retired dated implementation plans back as repo files, even outside the active plan directory.
+- Keep `docs/decisions/` as ADR-only archive. Do not move old plan sections, status blocks, checklist tasks, or next-work queues into decision records.
 - Run focused verification before committing.
 - Clean generated local smoke directories unless an explicit release, dogfood, or debugging handoff needs them.
 
