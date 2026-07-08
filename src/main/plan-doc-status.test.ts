@@ -177,6 +177,31 @@ describe("implementation plan status docs", () => {
     expect(planLikeDecisionDocs).toEqual([]);
   });
 
+  it("keeps canonical docs from carrying stale cleanup queues", () => {
+    const canonicalDocPaths = [
+      "README.md",
+      "docs/README.md",
+      "docs/development-workflow.md",
+      "docs/internal-alpha-build.md",
+      "docs/chrome-extension-setup.md",
+      "docs/product-readiness-matrix.md"
+    ];
+    const staleCleanupPatterns = [
+      /^##\s+(?:Audit Queue|Current Cleanup Evidence|Subagent Convergence)\b/im,
+      /^\s*Cleanup baseline commit:/im,
+      /^\s*Latest local alpha evidence recorded during this cleanup:/im,
+      /\bcurrent supervisor queue\b/i,
+      /\bcleanup batch\b/i,
+      /\bsubagent audits converged\b/i
+    ];
+    const staleDocs = canonicalDocPaths.filter((docPath) => {
+      const contents = readFileSync(path.join(process.cwd(), docPath), "utf8");
+      return staleCleanupPatterns.some((pattern) => pattern.test(contents));
+    });
+
+    expect(staleDocs).toEqual([]);
+  });
+
   it("keeps repository markdown pointed at the current active plan path only", () => {
     const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
     const planReferencePattern = /docs\/superpowers\/plans\/[^\s`),]+\.md/g;
