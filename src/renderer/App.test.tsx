@@ -306,8 +306,27 @@ describe("App", () => {
     expect(within(dashboard).getByText("当前任务")).toBeInTheDocument();
     expect(within(dashboard).getByText(/授权/)).toBeInTheDocument();
     expect(within(dashboard).getByText("未评估风险")).toBeInTheDocument();
+    expect(within(dashboard).getByText("路由待命")).toBeInTheDocument();
     expect(within(dashboard).getByText("暂无最近执行")).toBeInTheDocument();
     expect(screen.getByText("诊断/高级")).toBeInTheDocument();
+  });
+
+  it("shows route denial detail in the user-mode dashboard", async () => {
+    render(<App />);
+
+    act(() => emitTaskEvent({
+      status: "blocked",
+      message: "Ghostty cannot continue.",
+      route: "ghostty",
+      routeReason: "Configured app policy blocked Ghostty.",
+      denialKind: "app_policy",
+      policyKind: "app-policy"
+    }));
+    fireEvent.contextMenu(screen.getByLabelText(/skfiy codex-style pet/i));
+
+    const dashboard = await screen.findByLabelText("用户态 dashboard");
+    expect(within(dashboard).getByText("应用策略拒绝")).toBeInTheDocument();
+    expect(within(dashboard).getByText("ghostty · Configured app policy blocked Ghostty.")).toBeInTheDocument();
   });
 
   it("shows startup guard warnings as a non-blocking pet bubble", async () => {

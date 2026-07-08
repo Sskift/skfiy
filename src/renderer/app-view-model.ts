@@ -37,6 +37,12 @@ export type TurnTranscriptOutcome =
 export type RiskLevel = "low" | "medium" | "high" | "blocked";
 export type PetRouteOutcome = RouteOutcome;
 
+export interface PetRouteOutcomeSignal {
+  label: string;
+  detail: string;
+  tone: Tone;
+}
+
 export const STATUS_COPY: Record<TaskStatus, { label: string; message: string; pulse: string }> = {
   idle: {
     label: "Idle",
@@ -621,17 +627,61 @@ export function getUserDashboardPanelViewModel({
   recent: { label: string; detail: string; tone: Tone };
   risk: { label: string; detail: string; tone: Tone };
   routeOutcome: PetRouteOutcome;
+  routeOutcomeSignal: PetRouteOutcomeSignal;
   status: { label: string; detail: string; tone: Tone };
 } {
+  const routeOutcome = readPetRouteOutcome({ task, turnReplay });
+
   return {
     canApprove: task.status === "approval_required",
     canStop: canStopTurn(task.status),
     permissionHealth: getPermissionHealthCopy(permissions, desktopSessionDiagnostics),
     recent: getRecentExecutionCopy(turnReplay),
     risk: getRiskCopy(turnReplay?.transcript.risk),
-    routeOutcome: readPetRouteOutcome({ task, turnReplay }),
+    routeOutcome,
+    routeOutcomeSignal: getPetRouteOutcomeSignal(routeOutcome),
     status: getDashboardStatusCopy(task)
   };
+}
+
+export function getPetRouteOutcomeSignal(outcome: PetRouteOutcome): PetRouteOutcomeSignal {
+  return {
+    label: PET_ROUTE_OUTCOME_SIGNAL_LABELS[outcome.kind],
+    detail: getPetRouteOutcomeSignalDetail(outcome),
+    tone: outcome.tone
+  };
+}
+
+const PET_ROUTE_OUTCOME_SIGNAL_LABELS: Record<PetRouteOutcome["kind"], string> = {
+  idle: "路由待命",
+  running: "路由运行中",
+  approval_required: "路由待审批",
+  needs_confirmation: "路由待确认",
+  needs_clarification: "路由待澄清",
+  app_policy_denied: "应用策略拒绝",
+  user_denied: "用户已拒绝",
+  blocked: "路由阻塞",
+  cancelled: "路由已停止",
+  failed: "路由失败",
+  completed: "路由完成",
+  unknown: "路由未知"
+};
+
+function getPetRouteOutcomeSignalDetail(outcome: PetRouteOutcome): string {
+  const routePrefix = outcome.routeLabel && outcome.routeLabel !== "unknown"
+    ? `${outcome.routeLabel} · `
+    : "";
+  const detail = outcome.detail.trim();
+
+  if (outcome.kind === "idle" && !routePrefix) {
+    return "暂无路由活动";
+  }
+
+  if (outcome.kind === "unknown" && !routePrefix && !detail) {
+    return "状态待确认";
+  }
+
+  return `${routePrefix}${detail || outcome.value}`;
 }
 
 function summarizePetRouteToolAction(action: {

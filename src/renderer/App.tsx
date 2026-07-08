@@ -7,6 +7,7 @@ import {
   History,
   Play,
   RefreshCw,
+  Route as RouteIcon,
   ShieldCheck,
   ShieldQuestion,
   SlidersHorizontal
@@ -535,7 +536,7 @@ function UserDashboardPanel({
   turnReplay: TurnReplay | null;
 }) {
   const plannerProviderDisplay = getPlannerProviderDisplayViewModel(plannerProviderSettings);
-  const { canApprove, canStop, permissionHealth, recent, risk, status } =
+  const { canApprove, canStop, permissionHealth, recent, risk, routeOutcomeSignal, status } =
     getUserDashboardPanelViewModel({ desktopSessionDiagnostics, permissions, task, turnReplay });
 
   return (
@@ -566,6 +567,12 @@ function UserDashboardPanel({
           label={risk.label}
           detail={risk.detail}
           tone={risk.tone}
+        />
+        <DashboardSignal
+          icon={<RouteIcon size={14} />}
+          label={routeOutcomeSignal.label}
+          detail={routeOutcomeSignal.detail}
+          tone={routeOutcomeSignal.tone}
         />
         <DashboardSignal
           icon={<History size={14} />}

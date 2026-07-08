@@ -7,6 +7,7 @@ import {
   getFinderPlanPreviewSummaryViewModel,
   getLocalReplayViewModel,
   getPanelVisibilityState,
+  getPetRouteOutcomeSignal,
   getPermissionDisplayRows,
   getPermissionsPanelViewModel,
   getPlannerProviderDisplayViewModel,
@@ -326,6 +327,11 @@ describe("app view model", () => {
         routeLabel: "unknown",
         state: "approval_required"
       },
+      routeOutcomeSignal: {
+        label: "路由待审批",
+        detail: "Need approval.",
+        tone: "warning"
+      },
       status: {
         label: "等待审批",
         detail: "Need approval.",
@@ -500,7 +506,7 @@ describe("app view model", () => {
   });
 
   it("uses task event route metadata before falling back to message text", () => {
-    expect(readPetRouteOutcome({
+    const outcome = readPetRouteOutcome({
       task: {
         status: "blocked",
         message: "Ghostty cannot continue.",
@@ -510,13 +516,34 @@ describe("app view model", () => {
         policyKind: "app-policy"
       },
       turnReplay: null
-    })).toMatchObject({
+    });
+
+    expect(outcome).toMatchObject({
       kind: "app_policy_denied",
       title: "App policy denied route",
       value: "app_policy_denied",
       tone: "danger",
       routeLabel: "ghostty",
       detail: "Configured app policy blocked Ghostty."
+    });
+    expect(getPetRouteOutcomeSignal(outcome)).toEqual({
+      label: "应用策略拒绝",
+      detail: "ghostty · Configured app policy blocked Ghostty.",
+      tone: "danger"
+    });
+  });
+
+  it("keeps idle pet route signal compact", () => {
+    expect(getPetRouteOutcomeSignal(readPetRouteOutcome({
+      task: {
+        status: "idle",
+        message: "待命中."
+      },
+      turnReplay: null
+    }))).toEqual({
+      label: "路由待命",
+      detail: "暂无路由活动",
+      tone: "neutral"
     });
   });
 
