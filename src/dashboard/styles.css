@@ -312,7 +312,8 @@ a:focus-visible {
   background: #fafafa;
 }
 
-.skfiy-dashboard-key-value-list h3 {
+.skfiy-dashboard-key-value-list h3,
+.skfiy-dashboard-key-value-list h4 {
   margin: 0;
   color: #3f3f46;
   font-size: 12px;
@@ -2302,6 +2303,7 @@ body {
 
 .skfiy-dashboard-card-header .card__title,
 .skfiy-dashboard-key-value-list h3,
+.skfiy-dashboard-key-value-list h4,
 .skfiy-dashboard-capability-card-heading h3,
 .skfiy-dashboard-provider-card .card__title,
 .skfiy-dashboard-assistant-provider-heading h3,

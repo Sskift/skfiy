@@ -1252,6 +1252,66 @@ describe("DashboardApp", () => {
     expect(loadSnapshot).toHaveBeenCalledTimes(2);
   });
 
+  it("unmutes a personal skill card from dashboard controls and refreshes the snapshot", async () => {
+    const mutedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      personalMemory: {
+        ...snapshot.personalMemory!,
+        mutedPersonalSkillIds: ["dashboard-knowledge-surface"],
+        personalSkills: snapshot.personalMemory!.personalSkills!.filter((skill) => (
+          skill.id !== "dashboard-knowledge-surface"
+        ))
+      }
+    };
+    let currentSnapshot = mutedSnapshot;
+    const loadSnapshot = vi.fn(async () => currentSnapshot);
+    const loadProviderSettings = vi.fn(async () => createProviderSettingsPayload({
+      mode: "external-cua",
+      externalProviderLabel: "OpenAI CUA",
+      externalEndpoint: "https://cua.example.test/plan",
+      externalApiKeyConfigured: true
+    }));
+    const runPersonalSkillAction = vi.fn(async (request: unknown): Promise<DashboardPersonalSkillActionResponse> => {
+      expect(request).toEqual({
+        action: "unmute",
+        skillId: "dashboard-knowledge-surface"
+      });
+      currentSnapshot = {
+        ...snapshot,
+        personalMemory: {
+          ...snapshot.personalMemory!,
+          mutedPersonalSkillIds: [],
+          personalSkills: snapshot.personalMemory!.personalSkills
+        }
+      };
+      return { result: "unmuted" };
+    });
+
+    render(<DashboardApp
+      loadProviderSettings={loadProviderSettings}
+      loadSnapshot={loadSnapshot}
+      runPersonalSkillAction={runPersonalSkillAction}
+    />);
+
+    const memory = await screen.findByRole("region", { name: "Memory" });
+    expect(within(memory).getByRole("heading", { name: "Muted personal skills" })).toBeInTheDocument();
+    expect(within(memory).getByText("dashboard knowledge surface")).toBeInTheDocument();
+    expect(within(memory).queryByText("Obsidian-style knowledge dashboard")).not.toBeInTheDocument();
+
+    fireEvent.click(within(memory).getByRole("button", {
+      name: "Unmute personal skill: dashboard-knowledge-surface"
+    }));
+
+    await waitFor(() => {
+      expect(runPersonalSkillAction).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(within(memory).getByText("Obsidian-style knowledge dashboard")).toBeInTheDocument();
+    });
+    expect(within(memory).getByText("Personal skill unmuted")).toBeInTheDocument();
+    expect(loadSnapshot).toHaveBeenCalledTimes(2);
+  });
+
   it("launches Chrome control actions from the React browser section and refreshes the snapshot", async () => {
     const actionRequests: unknown[] = [];
     const loadSnapshot = vi.fn(async () => snapshot);

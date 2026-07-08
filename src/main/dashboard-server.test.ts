@@ -2082,6 +2082,38 @@ describe("dashboard loopback HTTP response helper", () => {
         expect.objectContaining({ id: "dashboard-knowledge-surface" })
       ]));
 
+      const unmuted = await requestUrl(`${dashboard.url}api/personal-skills`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "unmute",
+          skillId: "dashboard-knowledge-surface"
+        })
+      });
+
+      expect(unmuted.status).toBe(200);
+      expect(JSON.parse(unmuted.body)).toMatchObject({
+        command: "dashboard personal skills",
+        source: "dashboard",
+        plannedMutation: true,
+        executesSystemMutation: true,
+        result: "unmuted",
+        personalSkills: {
+          disabledSkillIds: [],
+          mutedSkillCount: 0
+        }
+      });
+      expect(JSON.parse(files[personalSkillsPath])).toMatchObject({
+        disabledSkillIds: []
+      });
+      expect(unmuted.body).not.toContain("Obsidian-like knowledge surfaces");
+
+      const unmutedSnapshotResponse = await requestUrl(`${dashboard.url}snapshot.json`);
+      const unmutedSnapshot = JSON.parse(unmutedSnapshotResponse.body) as DashboardSnapshot;
+      expect(unmutedSnapshot.personalMemory?.mutedPersonalSkillIds ?? []).toEqual([]);
+      expect(unmutedSnapshot.personalMemory?.personalSkills).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "dashboard-knowledge-surface" })
+      ]));
+
       const rejected = await requestUrl(`${dashboard.url}api/personal-skills`, {
         method: "POST",
         body: JSON.stringify({

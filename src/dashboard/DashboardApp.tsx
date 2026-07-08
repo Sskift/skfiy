@@ -1203,6 +1203,7 @@ function PersonalMemoryPanel({
   const agentEntries = memory?.recentAgentEntries ?? [];
   const pendingWrites = memory?.pendingWrites ?? [];
   const personalSkills = memory?.personalSkills ?? [];
+  const mutedSkillIds = memory?.mutedPersonalSkillIds ?? [];
   const memoryJournal = memory?.memoryJournal ?? [];
 
   return (
@@ -1266,6 +1267,8 @@ function PersonalMemoryPanel({
         <PersonalSkillCardList
           isSaving={isSaving}
           onMute={(skill) => onMuteSkill({ action: "mute", skillId: skill.id })}
+          onUnmute={(skillId) => onMuteSkill({ action: "unmute", skillId })}
+          mutedSkillIds={mutedSkillIds}
           skills={personalSkills}
         />
         <WorkingProfilePanel profile={memory?.workingProfile} />
@@ -1409,11 +1412,15 @@ function formatMemoryJournalAction(
 
 function PersonalSkillCardList({
   isSaving,
+  mutedSkillIds,
   onMute,
+  onUnmute,
   skills
 }: {
   isSaving: boolean;
+  mutedSkillIds: string[];
   onMute: (skill: DashboardPersonalSkillCard) => Promise<void>;
+  onUnmute: (skillId: string) => Promise<void>;
   skills: DashboardPersonalSkillCard[];
 }) {
   return (
@@ -1453,8 +1460,36 @@ function PersonalSkillCardList({
       ) : (
         <p className="skfiy-dashboard-empty">No personal skills have been distilled yet.</p>
       )}
+      {mutedSkillIds.length > 0 ? (
+        <>
+          <h4>Muted personal skills</h4>
+          <ul aria-label="Muted personal skills">
+            {mutedSkillIds.map((skillId) => (
+              <li key={skillId}>
+                <span>muted</span>
+                <strong>{formatMutedPersonalSkillLabel(skillId)}</strong>
+                <small>{skillId}</small>
+                <button
+                  aria-label={`Unmute personal skill: ${skillId}`}
+                  className="skfiy-dashboard-icon-button"
+                  disabled={isSaving}
+                  onClick={() => void onUnmute(skillId)}
+                  title="Unmute personal skill"
+                  type="button"
+                >
+                  <Eye size={14} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
     </div>
   );
+}
+
+function formatMutedPersonalSkillLabel(skillId: string): string {
+  return skillId.trim().replace(/-/gu, " ");
 }
 
 function PendingMemoryWriteList({
