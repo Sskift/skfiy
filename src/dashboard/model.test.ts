@@ -6,7 +6,8 @@ import {
   readComputerUseReadiness,
   readKnowledgeGraph,
   readPersonalMutationReceipt,
-  readRouteOutcome
+  readRouteOutcome,
+  readSmokeArtifactDetails
 } from "./model";
 
 describe("readKnowledgeGraph", () => {
@@ -212,6 +213,61 @@ describe("readComputerUseReadiness", () => {
   });
 });
 
+describe("readSmokeArtifactDetails", () => {
+  it("summarizes Chrome safety, Chrome pageControl, and Finder smoke probes without artifact paths", () => {
+    const details = readSmokeArtifactDetails(createSmokeDetailSnapshot());
+
+    expect(details).toEqual([
+      expect.objectContaining({
+        id: "chrome-page-safety",
+        title: "Chrome page safety",
+        value: "sensitive-paused",
+        tone: "warning",
+        items: expect.arrayContaining([
+          { label: "sensitive pause", value: "yes", tone: "warning" },
+          { label: "pause count", value: "2", tone: "neutral" },
+          { label: "checked runs", value: "2", tone: "neutral" },
+          { label: "finding kinds", value: "credential", tone: "neutral" },
+          { label: "sensitive page", value: "sensitive-paused (paused) - Sensitive UI text is visible.", tone: "warning" },
+          { label: "form prefill", value: "passed (not paused)", tone: "success" },
+          { label: "source", value: "chrome-smoke", tone: "neutral" }
+        ])
+      }),
+      expect.objectContaining({
+        id: "chrome-page-control",
+        title: "Chrome pageControl",
+        value: "ready",
+        tone: "success",
+        items: expect.arrayContaining([
+          { label: "capable", value: "capable", tone: "success" },
+          { label: "active tab", value: "eligible 127.0.0.1:60329 tab 123", tone: "neutral" },
+          { label: "content script", value: "loaded", tone: "neutral" },
+          { label: "DOM actions", value: "ready", tone: "neutral" },
+          { label: "screenshot", value: "background_required", tone: "neutral" },
+          { label: "click/fill/submit/scroll", value: "click:ready, fill:ready, submit:ready, scroll:ready", tone: "neutral" }
+        ])
+      }),
+      expect.objectContaining({
+        id: "finder-smoke",
+        title: "Finder smoke",
+        value: "blocked",
+        tone: "danger",
+        items: expect.arrayContaining([
+          { label: "desktop preflight", value: "blocked - Desktop session is not controllable before target app launch.", tone: "danger" },
+          { label: "frontmost bundle", value: "com.apple.loginwindow", tone: "neutral" },
+          { label: "display asleep", value: "no", tone: "neutral" },
+          { label: "desktop controllable", value: "no", tone: "neutral" },
+          { label: "finder observation", value: "blocked - Skipped because desktop preflight is blocked.", tone: "danger" },
+          { label: "accessibility trusted", value: "yes", tone: "neutral" },
+          { label: "finder semantic", value: "skipped - Desktop preflight blocked.", tone: "warning" },
+          { label: "finder drag/drop", value: "skipped - Desktop preflight blocked.", tone: "warning" }
+        ])
+      })
+    ]);
+    expect(JSON.stringify(details)).not.toContain("/repo/.skfiy-smoke");
+  });
+});
+
 describe("readChromeControlState", () => {
   it("derives Chrome control command hints for an actionable current tab", () => {
     const chromeControl = readChromeControlState({
@@ -347,6 +403,102 @@ describe("readChromeControlState", () => {
     ]));
   });
 });
+
+function createSmokeDetailSnapshot(): DashboardSnapshot {
+  return {
+    ...createSnapshot(),
+    smokeEvidence: {
+      artifacts: [
+        {
+          target: "chrome",
+          result: "passed",
+          path: "/repo/.skfiy-smoke/chrome-current.json",
+          pageSafety: {
+            state: "sensitive-paused",
+            source: "chrome-smoke",
+            sensitivePause: true,
+            pauseCount: 2,
+            checkedRuns: 2,
+            runs: [
+              {
+                kind: "sensitive-page",
+                result: "sensitive-paused",
+                sensitivePause: true,
+                reason: "Sensitive UI text is visible.",
+                pageSafety: {
+                  findings: [
+                    {
+                      kind: "credential",
+                      severity: "sensitive"
+                    }
+                  ]
+                }
+              },
+              {
+                kind: "sensitive-form-prefill",
+                result: "passed",
+                sensitivePause: false
+              }
+            ]
+          },
+          pageControl: {
+            source: "chrome-smoke-action",
+            state: "ready",
+            capable: true,
+            activeTab: {
+              state: "eligible",
+              tabId: 123,
+              host: "127.0.0.1:60329"
+            },
+            contentScript: {
+              state: "loaded"
+            },
+            capabilities: {
+              domActions: true,
+              screenshot: "background_required",
+              click: true,
+              fill: true,
+              submit: true,
+              scroll: true
+            },
+            reason: "pageControl is ready.",
+            nextAction: "Use pageControl actions."
+          }
+        },
+        {
+          target: "finder",
+          result: "blocked",
+          path: "/repo/.skfiy-smoke/finder-current.json",
+          finder: {
+            result: "blocked",
+            source: "finder-smoke",
+            desktopPreflight: {
+              result: "blocked",
+              reason: "Desktop session is not controllable before target app launch.",
+              frontmostBundleId: "com.apple.loginwindow",
+              mainDisplayAsleep: false,
+              controllable: false
+            },
+            finderObservation: {
+              result: "blocked",
+              reason: "Skipped because desktop preflight is blocked.",
+              accessibilityTrusted: true
+            },
+            finderSemanticObservation: {
+              result: "skipped",
+              reason: "Desktop preflight blocked."
+            },
+            finderItemDragDrop: {
+              result: "skipped",
+              reason: "Desktop preflight blocked."
+            },
+            reason: "Desktop session is not controllable before target app launch."
+          }
+        }
+      ]
+    }
+  };
+}
 
 describe("readPersonalMutationReceipt", () => {
   it("summarizes personal memory mutation safety without echoing memory content", () => {

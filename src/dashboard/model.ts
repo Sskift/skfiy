@@ -64,6 +64,14 @@ export interface DashboardAppReadinessLane {
   tone: Tone;
 }
 
+export interface DashboardSmokeArtifactDetail {
+  id: string;
+  title: string;
+  value: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardDogfoodSummary {
   releaseState: string;
   releaseDriftState: string;
@@ -1205,6 +1213,106 @@ export function readUnsupportedSmokeEvidence(snapshot: DashboardSnapshot): strin
     : undefined;
 }
 
+export function readSmokeArtifactDetails(snapshot: DashboardSnapshot): DashboardSmokeArtifactDetail[] {
+  const chromeArtifact = findSmokeArtifact(snapshot, "chrome");
+  const pageSafety = readRecord(chromeArtifact?.pageSafety);
+  const pageControl = readRecord(readRecord(snapshot.runtimeHealth.extension)?.pageControl)
+    ?? readRecord(chromeArtifact?.pageControl);
+  const finderArtifact = findSmokeArtifact(snapshot, "finder");
+  const finder = readRecord(finderArtifact?.finder);
+
+  return [
+    createChromePageSafetyDetail(pageSafety),
+    createChromePageControlDetail(pageControl),
+    createFinderSmokeDetail(finder)
+  ];
+}
+
+function createChromePageSafetyDetail(
+  pageSafety: Record<string, unknown> | undefined
+): DashboardSmokeArtifactDetail {
+  const state = readString(pageSafety?.state) ?? "empty";
+  const sensitivePause = pageSafety?.sensitivePause === true;
+  const sensitivePage = formatChromePageSafetyRun(pageSafety, "sensitive-page");
+  const formPrefill = formatChromePageSafetyRun(pageSafety, "sensitive-form-prefill");
+
+  return {
+    id: "chrome-page-safety",
+    title: "Chrome page safety",
+    value: state,
+    tone: readSmokeDetailTone(state),
+    items: [
+      createStatusItem("state", state, readSmokeDetailTone(state)),
+      createStatusItem("sensitive pause", sensitivePause ? "yes" : "no", sensitivePause ? "warning" : "success"),
+      createStatusItem("pause count", formatUnknownNumber(readNumber(pageSafety?.pauseCount))),
+      createStatusItem("checked runs", formatUnknownNumber(readNumber(pageSafety?.checkedRuns))),
+      createStatusItem("finding kinds", readChromePageSafetyFindingKinds(pageSafety).join(", ") || "none"),
+      createStatusItem("sensitive page", sensitivePage.value, sensitivePage.tone),
+      createStatusItem("form prefill", formPrefill.value, formPrefill.tone),
+      createStatusItem("reason", readChromePageSafetyReason(pageSafety)),
+      createStatusItem("source", readString(pageSafety?.source) ?? "chrome-smoke-empty")
+    ]
+  };
+}
+
+function createChromePageControlDetail(
+  pageControl: Record<string, unknown> | undefined
+): DashboardSmokeArtifactDetail {
+  const state = readString(pageControl?.state) ?? "not-probed";
+  const capabilities = readRecord(pageControl?.capabilities);
+  const tone = readSmokeDetailTone(state);
+
+  return {
+    id: "chrome-page-control",
+    title: "Chrome pageControl",
+    value: state,
+    tone,
+    items: [
+      createStatusItem("state", state, tone),
+      createStatusItem("capable", pageControl?.capable === true ? "capable" : "not capable", pageControl?.capable === true ? "success" : "warning"),
+      createStatusItem("active tab", formatChromePageControlActiveTab(readRecord(pageControl?.activeTab))),
+      createStatusItem("content script", formatChromePageControlContentScript(readRecord(pageControl?.contentScript))),
+      createStatusItem("DOM actions", formatChromePageControlCapability(capabilities?.domActions)),
+      createStatusItem("screenshot", formatChromePageControlCapability(capabilities?.screenshot)),
+      createStatusItem("click/fill/submit/scroll", formatChromePageControlActions(capabilities)),
+      createStatusItem("reason", readString(pageControl?.reason) ?? "Chrome pageControl readiness has not been probed yet."),
+      createStatusItem("next", readString(pageControl?.nextAction) ?? "needs-action"),
+      createStatusItem("source", readString(pageControl?.source) ?? "dashboard-empty")
+    ]
+  };
+}
+
+function createFinderSmokeDetail(
+  finder: Record<string, unknown> | undefined
+): DashboardSmokeArtifactDetail {
+  const result = readString(finder?.result) ?? "missing";
+  const desktopPreflight = readRecord(finder?.desktopPreflight);
+  const finderObservation = readRecord(finder?.finderObservation);
+  const finderSemanticObservation = readRecord(finder?.finderSemanticObservation);
+  const finderItemDragDrop = readRecord(finder?.finderItemDragDrop);
+  const tone = readSmokeDetailTone(result);
+
+  return {
+    id: "finder-smoke",
+    title: "Finder smoke",
+    value: result,
+    tone,
+    items: [
+      createStatusItem("result", result, tone),
+      createStatusItem("desktop preflight", formatFinderSmokeProbe(desktopPreflight), readSmokeDetailTone(readString(desktopPreflight?.result) ?? "missing")),
+      createStatusItem("frontmost bundle", readString(desktopPreflight?.frontmostBundleId) ?? "unknown"),
+      createStatusItem("display asleep", formatBoolean(desktopPreflight?.mainDisplayAsleep)),
+      createStatusItem("desktop controllable", formatBoolean(desktopPreflight?.controllable)),
+      createStatusItem("finder observation", formatFinderSmokeProbe(finderObservation), readSmokeDetailTone(readString(finderObservation?.result) ?? "missing")),
+      createStatusItem("accessibility trusted", formatBoolean(finderObservation?.accessibilityTrusted)),
+      createStatusItem("finder semantic", formatFinderSmokeProbe(finderSemanticObservation), readSmokeDetailTone(readString(finderSemanticObservation?.result) ?? "missing")),
+      createStatusItem("finder drag/drop", formatFinderSmokeProbe(finderItemDragDrop), readSmokeDetailTone(readString(finderItemDragDrop?.result) ?? "missing")),
+      createStatusItem("reason", readString(finder?.reason) ?? "Latest Finder smoke has not reported desktop preflight evidence yet."),
+      createStatusItem("source", readString(finder?.source) ?? "finder-smoke-empty")
+    ]
+  };
+}
+
 export function readDogfoodSummary(snapshot: DashboardSnapshot): DashboardDogfoodSummary {
   const release = readRecord(snapshot.dogfoodRelease);
   const releaseState = readString(release?.state) ?? "unknown";
@@ -1580,6 +1688,153 @@ function createPermissionStatus(label: string, value: unknown): DashboardStatusI
     value: state.replaceAll("-", " "),
     tone: state === "granted" ? "success" : state === "denied" ? "danger" : "warning"
   };
+}
+
+function createStatusItem(label: string, value: unknown, tone: Tone = "neutral"): DashboardStatusItem {
+  return {
+    label,
+    value: formatStatusValue(value),
+    tone
+  };
+}
+
+function findSmokeArtifact(
+  snapshot: DashboardSnapshot,
+  target: string
+): Record<string, unknown> | undefined {
+  return readRecordArray(snapshot.smokeEvidence.artifacts)
+    .find((artifact) => readString(artifact.target) === target);
+}
+
+function formatChromePageControlActiveTab(activeTab: Record<string, unknown> | undefined): string {
+  if (!activeTab) {
+    return "not-probed";
+  }
+  const state = readString(activeTab.state) ?? "unknown";
+  const host = readString(activeTab.host) ?? "unknown-host";
+  const tabId = readNumber(activeTab.tabId);
+  return `${state} ${host}${Number.isInteger(tabId) ? ` tab ${tabId}` : ""}`;
+}
+
+function formatChromePageControlContentScript(contentScript: Record<string, unknown> | undefined): string {
+  if (!contentScript) {
+    return "not-probed";
+  }
+
+  return [
+    readString(contentScript.state) ?? "unknown",
+    readString(contentScript.reason) ?? readString(contentScript.lastError)
+  ].filter(Boolean).join(" - ");
+}
+
+function formatChromePageControlCapability(value: unknown): string {
+  if (value === true) {
+    return "ready";
+  }
+  if (value === false) {
+    return "needs-action";
+  }
+  return readString(value) ?? "not-probed";
+}
+
+function formatChromePageControlActions(capabilities: Record<string, unknown> | undefined): string {
+  return ["click", "fill", "submit", "scroll"]
+    .map((key) => `${key}:${formatChromePageControlCapability(capabilities?.[key])}`)
+    .join(", ");
+}
+
+function formatChromePageSafetyRun(
+  pageSafety: Record<string, unknown> | undefined,
+  kind: string
+): { value: string; tone: Tone } {
+  const run = readRecordArray(pageSafety?.runs)
+    .find((entry) => readString(entry.kind) === kind);
+  if (!run) {
+    return { value: "missing", tone: "neutral" };
+  }
+
+  const result = readString(run.result) ?? "unknown";
+  const pause = run.sensitivePause === true ? "paused" : "not paused";
+  const reason = readString(run.reason);
+  return {
+    value: `${result} (${pause})${reason ? ` - ${reason}` : ""}`,
+    tone: readSmokeDetailTone(result)
+  };
+}
+
+function readChromePageSafetyReason(pageSafety: Record<string, unknown> | undefined): string {
+  return readString(pageSafety?.reason)
+    ?? readRecordArray(pageSafety?.runs).map((run) => readString(run.reason)).find(Boolean)
+    ?? readStringArray(pageSafety?.findingReasons)[0]
+    ?? "-";
+}
+
+function readChromePageSafetyFindingKinds(pageSafety: Record<string, unknown> | undefined): string[] {
+  const explicitKinds = readStringArray(pageSafety?.findingKinds);
+  if (explicitKinds.length > 0) {
+    return explicitKinds;
+  }
+
+  return [...new Set(readRecordArray(pageSafety?.runs)
+    .flatMap((run) => readRecordArray(readRecord(run.pageSafety)?.findings))
+    .map((finding) => readString(finding.kind))
+    .filter((kind): kind is string => Boolean(kind)))];
+}
+
+function formatFinderSmokeProbe(probe: Record<string, unknown> | undefined): string {
+  if (!probe) {
+    return "missing";
+  }
+
+  const result = readString(probe.result) ?? "unknown";
+  const reason = readString(probe.reason);
+  return reason ? `${result} - ${reason}` : result;
+}
+
+function readSmokeDetailTone(state: string): Tone {
+  if (["passed", "ready", "capable", "eligible"].includes(state)) {
+    return "success";
+  }
+  if (
+    state === "blocked"
+    || state === "failed"
+    || state === "unavailable"
+    || state.startsWith("blocked_")
+  ) {
+    return "danger";
+  }
+  if (
+    state === "sensitive-paused"
+    || state === "needs-action"
+    || state === "needs_confirmation"
+    || state === "partial"
+    || state === "skipped"
+  ) {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function formatUnknownNumber(value: number | undefined): string {
+  return value === undefined ? "unknown" : String(value);
+}
+
+function formatBoolean(value: unknown): string {
+  return typeof value === "boolean" ? (value ? "yes" : "no") : "unknown";
+}
+
+function formatStatusValue(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "yes" : "no";
+  }
+  return "unknown";
 }
 
 function pushNode(nodes: DashboardKnowledgeGraphNode[], node: DashboardKnowledgeGraphNode): void {

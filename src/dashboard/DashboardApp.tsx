@@ -79,6 +79,7 @@ import {
   readRecentActivity,
   readRouteOutcome,
   readRuntimeEvidenceSummary,
+  readSmokeArtifactDetails,
   readSnapshotState,
   readUnsupportedSmokeEvidence,
   type DashboardAppReadinessLane,
@@ -93,6 +94,7 @@ import {
   type DashboardRecentActivity,
   type DashboardRouteOutcome,
   type DashboardRuntimeEvidenceSummary,
+  type DashboardSmokeArtifactDetail,
   type DashboardStatusItem,
   type Tone
 } from "./model";
@@ -442,6 +444,7 @@ function DashboardContent({
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
   const appReadiness = useMemo(() => readAppReadinessLanes(snapshot), [snapshot]);
+  const smokeArtifactDetails = useMemo(() => readSmokeArtifactDetails(snapshot), [snapshot]);
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
@@ -646,6 +649,7 @@ function DashboardContent({
               <StatusChip tone="warning">{unsupportedSmoke}</StatusChip>
             </div>
           ) : null}
+          <SmokeArtifactDetailsCard details={smokeArtifactDetails} />
         </div>
       </section>
 
@@ -2428,6 +2432,46 @@ function readEvidenceSummaryTone(state: DashboardEvidenceSummary["status"]["stat
     return "warning";
   }
   return "neutral";
+}
+
+function SmokeArtifactDetailsCard({
+  details
+}: {
+  details: DashboardSmokeArtifactDetail[];
+}) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Description>Smoke evidence</Card.Description>
+          <Card.Title>Artifact probes</Card.Title>
+        </div>
+        <CheckCircle2 size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        {details.map((detail) => (
+          <div key={detail.id} className="skfiy-dashboard-control-panel">
+            <div className="skfiy-dashboard-inline-list">
+              <StatusChip tone={detail.tone}>{detail.title}</StatusChip>
+              <StatusChip tone={detail.tone}>{detail.value}</StatusChip>
+            </div>
+            <ul
+              aria-label={`${detail.title} artifact details`}
+              className="skfiy-dashboard-evidence-detail-list"
+            >
+              {detail.items.map((item) => (
+                <li key={`${detail.id}-${item.label}`}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <small>{item.tone}</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </Card.Content>
+    </Card.Root>
+  );
 }
 
 function AppReadinessCard({ lane }: { lane: DashboardAppReadinessLane }) {

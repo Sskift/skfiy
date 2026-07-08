@@ -775,6 +775,36 @@ describe("DashboardApp", () => {
     expect(within(checklist).getByText("Rerun Finder smoke")).toBeInTheDocument();
   });
 
+  it("renders Chrome and Finder smoke artifact probe details in the React tool surface", async () => {
+    render(<DashboardApp
+      loadProviderSettings={vi.fn(async () => createProviderSettingsPayload({
+        mode: "external-cua",
+        externalProviderLabel: "OpenAI CUA",
+        externalEndpoint: "https://cua.example.test/plan",
+        externalApiKeyConfigured: true
+      }))}
+      loadSnapshot={vi.fn(async () => createSmokeArtifactDashboardSnapshot())}
+    />);
+
+    const computerUse = await screen.findByRole("region", { name: "Agent tools" });
+    expect(within(computerUse).getByText("Artifact probes")).toBeInTheDocument();
+
+    const chromeSafety = within(computerUse).getByRole("list", { name: "Chrome page safety artifact details" });
+    expect(within(chromeSafety).getByText("sensitive pause")).toBeInTheDocument();
+    expect(within(chromeSafety).getByText("credential")).toBeInTheDocument();
+    expect(within(chromeSafety).getByText("sensitive-paused (paused) - Sensitive UI text is visible.")).toBeInTheDocument();
+
+    const chromeControl = within(computerUse).getByRole("list", { name: "Chrome pageControl artifact details" });
+    expect(within(chromeControl).getByText("eligible 127.0.0.1:60329 tab 123")).toBeInTheDocument();
+    expect(within(chromeControl).getByText("click:ready, fill:ready, submit:ready, scroll:ready")).toBeInTheDocument();
+
+    const finderSmoke = within(computerUse).getByRole("list", { name: "Finder smoke artifact details" });
+    expect(within(finderSmoke).getByText("com.apple.loginwindow")).toBeInTheDocument();
+    expect(within(finderSmoke).getByText("blocked - Desktop session is not controllable before target app launch.")).toBeInTheDocument();
+    expect(within(finderSmoke).getAllByText("skipped - Desktop preflight blocked.")).toHaveLength(2);
+    expect(within(computerUse).queryByText("/repo/.skfiy-smoke/finder-current.json")).not.toBeInTheDocument();
+  });
+
   it("loads redacted planner settings from the provider settings endpoint", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
@@ -1539,6 +1569,110 @@ describe("DashboardApp", () => {
     expect(loadSnapshot).toHaveBeenCalledTimes(4);
   });
 });
+
+function createSmokeArtifactDashboardSnapshot(): DashboardSnapshot {
+  const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+  return {
+    ...snapshot,
+    runtimeHealth: {
+      ...snapshot.runtimeHealth,
+      extension: {
+        ...extension,
+        pageControl: undefined
+      }
+    },
+    smokeEvidence: {
+      artifacts: [
+        {
+          target: "chrome",
+          result: "passed",
+          path: "/repo/.skfiy-smoke/chrome-current.json",
+          pageSafety: {
+            state: "sensitive-paused",
+            source: "chrome-smoke",
+            sensitivePause: true,
+            pauseCount: 2,
+            checkedRuns: 2,
+            runs: [
+              {
+                kind: "sensitive-page",
+                result: "sensitive-paused",
+                sensitivePause: true,
+                reason: "Sensitive UI text is visible.",
+                pageSafety: {
+                  findings: [
+                    {
+                      kind: "credential",
+                      severity: "sensitive"
+                    }
+                  ]
+                }
+              },
+              {
+                kind: "sensitive-form-prefill",
+                result: "passed",
+                sensitivePause: false
+              }
+            ]
+          },
+          pageControl: {
+            source: "chrome-smoke-action",
+            state: "ready",
+            capable: true,
+            activeTab: {
+              state: "eligible",
+              tabId: 123,
+              host: "127.0.0.1:60329"
+            },
+            contentScript: {
+              state: "loaded"
+            },
+            capabilities: {
+              domActions: true,
+              screenshot: "background_required",
+              click: true,
+              fill: true,
+              submit: true,
+              scroll: true
+            },
+            reason: "pageControl is ready.",
+            nextAction: "Use pageControl actions."
+          }
+        },
+        {
+          target: "finder",
+          result: "blocked",
+          path: "/repo/.skfiy-smoke/finder-current.json",
+          finder: {
+            result: "blocked",
+            source: "finder-smoke",
+            desktopPreflight: {
+              result: "blocked",
+              reason: "Desktop session is not controllable before target app launch.",
+              frontmostBundleId: "com.apple.loginwindow",
+              mainDisplayAsleep: false,
+              controllable: false
+            },
+            finderObservation: {
+              result: "blocked",
+              reason: "Skipped because desktop preflight is blocked.",
+              accessibilityTrusted: true
+            },
+            finderSemanticObservation: {
+              result: "skipped",
+              reason: "Desktop preflight blocked."
+            },
+            finderItemDragDrop: {
+              result: "skipped",
+              reason: "Desktop preflight blocked."
+            },
+            reason: "Desktop session is not controllable before target app launch."
+          }
+        }
+      ]
+    }
+  };
+}
 
 function createProviderSettingsPayload(planner: {
   mode: "local-deterministic" | "external-cua" | "disabled";
