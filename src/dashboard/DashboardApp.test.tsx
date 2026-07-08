@@ -831,6 +831,34 @@ describe("DashboardApp", () => {
     expect(within(browser).getByText("Chrome open-popup: verified")).toBeInTheDocument();
   });
 
+  it("shows the fallback Permissions summary in Agent tools without provider secrets", async () => {
+    const permissionSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      permissions: {
+        screenRecording: "missing",
+        accessibility: "granted",
+        finderAutomation: "unknown"
+      },
+      providers: {
+        ...snapshot.providers,
+        planner: {
+          provider: "planner",
+          mode: "external-cua",
+          label: "External CUA",
+          health: "available",
+          endpoint: "https://cua.example.test/plan?token=planner-secret"
+        }
+      }
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => permissionSnapshot)} />);
+
+    const computerUse = await screen.findByRole("region", { name: "Agent tools" });
+    expect(within(computerUse).getByText("2 needed")).toBeInTheDocument();
+    expect(within(computerUse).getByText("Screen Recording and Finder Automation need attention.")).toBeInTheDocument();
+    expect(within(computerUse).queryByText("planner-secret")).not.toBeInTheDocument();
+  });
+
   it("shows a Finder Automation access checklist when Finder smoke exposes the macOS permission blocker", async () => {
     const blockedSnapshot: DashboardSnapshot = {
       ...snapshot,

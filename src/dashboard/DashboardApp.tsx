@@ -625,6 +625,12 @@ function DashboardContent({
               <p className="skfiy-dashboard-muted-message">
                 Permissioned desktop/app-control tool invoked by the selected Background Agent.
               </p>
+              <div className="skfiy-dashboard-inline-list" aria-label="Computer Use permission summary">
+                <StatusChip tone={computerUse.permissionSummary.tone}>
+                  {computerUse.permissionSummary.value}
+                </StatusChip>
+                <span>{computerUse.permissionSummary.detail}</span>
+              </div>
               <StatusRow
                 icon={<MousePointer2 size={16} aria-hidden="true" />}
                 label="Desktop session"

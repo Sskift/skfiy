@@ -63,6 +63,11 @@ export interface DashboardComputerUseReadiness {
     detail: string;
     tone: Tone;
   };
+  permissionSummary: {
+    value: string;
+    detail: string;
+    tone: Tone;
+  };
   permissions: DashboardStatusItem[];
   accessSteps: DashboardComputerUseAccessStep[];
 }
@@ -1442,6 +1447,11 @@ export function readComputerUseReadiness(snapshot: DashboardSnapshot): Dashboard
   const frontmost = readString(desktopSession?.frontmostLocalizedName)
     ?? readString(desktopSession?.frontmostBundleId)
     ?? "No frontmost app reported";
+  const permissions = [
+    createPermissionStatus("Screen Recording", snapshot.permissions.screenRecording),
+    createPermissionStatus("Accessibility", snapshot.permissions.accessibility),
+    createPermissionStatus("Finder Automation", snapshot.permissions.finderAutomation)
+  ];
 
   return {
     desktop: {
@@ -1453,13 +1463,48 @@ export function readComputerUseReadiness(snapshot: DashboardSnapshot): Dashboard
           ? "danger"
           : "warning"
     },
-    permissions: [
-      createPermissionStatus("Screen Recording", snapshot.permissions.screenRecording),
-      createPermissionStatus("Accessibility", snapshot.permissions.accessibility),
-      createPermissionStatus("Finder Automation", snapshot.permissions.finderAutomation)
-    ],
+    permissionSummary: readPermissionSummary(permissions),
+    permissions,
     accessSteps: readComputerUseAccessSteps(snapshot)
   };
+}
+
+function readPermissionSummary(permissions: DashboardStatusItem[]): DashboardComputerUseReadiness["permissionSummary"] {
+  const attention = permissions.filter((permission) => isPermissionAttentionState(permission.value));
+  if (attention.length === 0) {
+    return {
+      value: "Ready",
+      detail: "Screen Recording, Accessibility, and Finder Automation are ready.",
+      tone: "success"
+    };
+  }
+  const verb = attention.length === 1 ? "needs" : "need";
+
+  return {
+    value: `${attention.length} needed`,
+    detail: `${formatPermissionLabelList(attention.map((permission) => permission.label))} ${verb} attention.`,
+    tone: "warning"
+  };
+}
+
+function formatPermissionLabelList(labels: string[]): string {
+  if (labels.length <= 1) {
+    return labels[0] ?? "Permissions";
+  }
+  if (labels.length === 2) {
+    return `${labels[0]} and ${labels[1]}`;
+  }
+
+  return `${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
+}
+
+function isPermissionAttentionState(value: string): boolean {
+  const normalized = value.toLowerCase().replaceAll("_", "-").replaceAll(" ", "-");
+  return normalized === "denied"
+    || normalized === "unknown"
+    || normalized === "not-determined"
+    || normalized === "missing"
+    || normalized === "blocked";
 }
 
 function readComputerUseAccessSteps(snapshot: DashboardSnapshot): DashboardComputerUseAccessStep[] {

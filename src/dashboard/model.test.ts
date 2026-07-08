@@ -173,6 +173,51 @@ describe("readKnowledgeGraph", () => {
 });
 
 describe("readComputerUseReadiness", () => {
+  it("summarizes fallback permission readiness without exposing provider secrets", () => {
+    const readiness = readComputerUseReadiness({
+      ...createSnapshot(),
+      permissions: {
+        screenRecording: "missing",
+        accessibility: "granted",
+        finderAutomation: "not-determined"
+      },
+      providers: {
+        ...createSnapshot().providers,
+        planner: {
+          provider: "planner",
+          mode: "external-cua",
+          label: "External CUA",
+          health: "available",
+          endpoint: "https://cua.example.test/plan?token=planner-secret"
+        }
+      }
+    });
+
+    expect(readiness.permissionSummary).toEqual({
+      value: "2 needed",
+      detail: "Screen Recording and Finder Automation need attention.",
+      tone: "warning"
+    });
+    expect(JSON.stringify(readiness)).not.toContain("planner-secret");
+  });
+
+  it("reports ready when Computer Use permissions are granted", () => {
+    const readiness = readComputerUseReadiness({
+      ...createSnapshot(),
+      permissions: {
+        screenRecording: "granted",
+        accessibility: "granted",
+        finderAutomation: "granted"
+      }
+    });
+
+    expect(readiness.permissionSummary).toEqual({
+      value: "Ready",
+      detail: "Screen Recording, Accessibility, and Finder Automation are ready.",
+      tone: "success"
+    });
+  });
+
   it("builds Finder Automation access steps from blocked Finder smoke", () => {
     const readiness = readComputerUseReadiness({
       ...createSnapshot(),
