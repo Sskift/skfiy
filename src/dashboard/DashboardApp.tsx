@@ -790,6 +790,15 @@ function DashboardContent({
                   <span>Default</span>
                   <strong>{chromeControl.hostPolicy.defaultMode}</strong>
                 </div>
+                <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Chrome host policy details">
+                  {chromeControl.hostPolicy.items.map((item) => (
+                    <li key={item.label}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.tone}</small>
+                    </li>
+                  ))}
+                </ul>
                 <div className="skfiy-dashboard-inline-list">
                   {chromeControl.hostPolicy.entries.length > 0 ? (
                     chromeControl.hostPolicy.entries.map((entry) => (

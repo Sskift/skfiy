@@ -37,6 +37,9 @@ const snapshot: DashboardSnapshot = {
       hostPolicy: {
         schemaVersion: 1,
         state: "configured",
+        source: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+        path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+        updatedAt: "2026-07-08T10:00:00.000Z",
         reason: "Chrome host policy loaded from disk.",
         policy: {
           defaultMode: "ask",
@@ -502,6 +505,19 @@ describe("DashboardApp", () => {
     expect(within(browser).getByText("screenshot: background_required")).toBeInTheDocument();
     expect(within(browser).getByText("Using Chrome tab fallback")).toBeInTheDocument();
     expect(within(browser).getByText("allow:always:127.0.0.1")).toBeInTheDocument();
+    const hostPolicyDetails = within(browser).getByRole("list", { name: "Chrome host policy details" });
+    expect(within(hostPolicyDetails).getByText("chrome policy")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("chrome-host-policy.json")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("2026-07-08T10:00:00.000Z")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("always allow")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("127.0.0.1")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("current turn")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("turn.example")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("blocked")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("blocked.example")).toBeInTheDocument();
+    expect(within(hostPolicyDetails).getByText("/api/chrome-host-policy")).toBeInTheDocument();
+    expect(within(browser).queryByText("/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json"))
+      .not.toBeInTheDocument();
     const setupGuide = within(browser).getByRole("region", { name: "Chrome setup guide" });
     expect(within(setupGuide).getByText("derived")).toBeInTheDocument();
     const setupCommands = within(setupGuide).getByRole("list", { name: "Chrome setup command hints" });

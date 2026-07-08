@@ -262,6 +262,7 @@ export interface DashboardChromeHostPolicySummary {
   updatedAt?: string;
   defaultMode: string;
   entries: string[];
+  items: DashboardStatusItem[];
   tone: Tone;
 }
 
@@ -1503,16 +1504,82 @@ function readChromeHostPolicySummary(
   const policy = readRecord(hostPolicy?.policy);
   const entries = summarizeChromeHostPolicyEntries(readChromeHostPolicyEntries(hostPolicy, policy));
   const state = readString(hostPolicy?.state) ?? "unknown";
+  const source = formatChromeHostPolicySource(hostPolicy);
+  const updatedAt = readString(hostPolicy?.updatedAt);
+  const defaultMode = readString(policy?.defaultMode) ?? "ask";
+  const tone = state === "invalid" ? "danger" : state === "configured" ? "success" : "warning";
 
   return {
     state,
     reason: readString(hostPolicy?.reason),
-    source: readString(hostPolicy?.source),
-    updatedAt: readString(hostPolicy?.updatedAt),
-    defaultMode: readString(policy?.defaultMode) ?? "ask",
+    source,
+    updatedAt,
+    defaultMode,
     entries,
-    tone: state === "invalid" ? "danger" : state === "configured" ? "success" : "warning"
+    items: createChromeHostPolicyItems({ policy, state, source, updatedAt, defaultMode, entries, tone }),
+    tone
   };
+}
+
+function createChromeHostPolicyItems({
+  policy,
+  state,
+  source,
+  updatedAt,
+  defaultMode,
+  entries,
+  tone
+}: {
+  policy: Record<string, unknown> | undefined;
+  state: string;
+  source?: string;
+  updatedAt?: string;
+  defaultMode: string;
+  entries: string[];
+  tone: Tone;
+}): DashboardStatusItem[] {
+  const alwaysAllowedHosts = readStringArray(policy?.allowedHosts);
+  const currentTurnHosts = readStringArray(policy?.currentTurnAllowedHosts);
+  const blockedHosts = readStringArray(policy?.blockedHosts);
+
+  return [
+    createStatusItem("chrome policy", state, tone),
+    createStatusItem("source", source ?? "unknown"),
+    createStatusItem("updated", updatedAt ?? "unknown"),
+    createStatusItem("entries", formatStringList(entries)),
+    createStatusItem("default", defaultMode),
+    createStatusItem("always allow", formatStringList(alwaysAllowedHosts), alwaysAllowedHosts.length > 0 ? "success" : "neutral"),
+    createStatusItem("current turn", formatStringList(currentTurnHosts), currentTurnHosts.length > 0 ? "warning" : "neutral"),
+    createStatusItem("blocked", formatStringList(blockedHosts), blockedHosts.length > 0 ? "danger" : "neutral"),
+    createStatusItem("endpoint", "/api/chrome-host-policy")
+  ];
+}
+
+function formatChromeHostPolicySource(hostPolicy: Record<string, unknown> | undefined): string | undefined {
+  const source = readString(hostPolicy?.source);
+  if (source) {
+    return formatChromeHostPolicySourceValue(source);
+  }
+
+  const policyPath = readString(hostPolicy?.path);
+  if (!policyPath) {
+    return undefined;
+  }
+
+  return formatChromeHostPolicySourceValue(policyPath);
+}
+
+function formatChromeHostPolicySourceValue(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "unknown";
+  }
+
+  if (!/[\\/]/.test(trimmed) && !trimmed.startsWith("~")) {
+    return trimmed;
+  }
+
+  return trimmed.split(/[\\/]/).filter(Boolean).at(-1) ?? "local policy file";
 }
 
 function summarizeChromeHostPolicyEntries(entries: string[]): string[] {

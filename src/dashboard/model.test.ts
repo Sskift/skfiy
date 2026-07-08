@@ -1317,6 +1317,69 @@ describe("readChromeControlState", () => {
     expect(JSON.stringify(chromeControl)).not.toContain(".skfiy-smoke");
   });
 
+  it("summarizes Chrome host policy details without exposing local policy paths", () => {
+    const chromeControl = readChromeControlState({
+      ...createSnapshot(),
+      runtimeHealth: {
+        ...createSnapshot().runtimeHealth,
+        extension: {
+          state: "connected",
+          liveConnection: "connected",
+          extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"],
+          hostPolicy: {
+            schemaVersion: 1,
+            state: "configured",
+            source: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+            path: "/Users/tester/Library/Application Support/skfiy/chrome-host-policy.json",
+            updatedAt: "2026-07-08T10:00:00.000Z",
+            reason: "Chrome host policy loaded from disk.",
+            policy: {
+              defaultMode: "ask",
+              allowedHosts: ["127.0.0.1"],
+              currentTurnAllowedHosts: ["turn.example"],
+              blockedHosts: ["blocked.example"]
+            },
+            entries: [
+              { decision: "allow", scope: "always", host: "127.0.0.1" },
+              { decision: "allow", scope: "current-turn", host: "turn.example" },
+              { decision: "block", scope: "host", host: "blocked.example" }
+            ]
+          },
+          pageControl: {
+            state: "ready",
+            capable: true,
+            activeTab: {
+              host: "127.0.0.1:51234",
+              tabId: 42,
+              scheme: "http"
+            },
+            capabilities: {
+              domActions: true,
+              observe: true
+            }
+          }
+        }
+      }
+    });
+
+    expect(chromeControl.hostPolicy.items).toEqual([
+      { label: "chrome policy", value: "configured", tone: "success" },
+      { label: "source", value: "chrome-host-policy.json", tone: "neutral" },
+      { label: "updated", value: "2026-07-08T10:00:00.000Z", tone: "neutral" },
+      {
+        label: "entries",
+        value: "allow:always:127.0.0.1, allow:current-turn:turn.example, block:host:blocked.example",
+        tone: "neutral"
+      },
+      { label: "default", value: "ask", tone: "neutral" },
+      { label: "always allow", value: "127.0.0.1", tone: "success" },
+      { label: "current turn", value: "turn.example", tone: "warning" },
+      { label: "blocked", value: "blocked.example", tone: "danger" },
+      { label: "endpoint", value: "/api/chrome-host-policy", tone: "neutral" }
+    ]);
+    expect(JSON.stringify(chromeControl.hostPolicy)).not.toContain("/Users/tester");
+  });
+
   it("summarizes current page access for the React Apps and Sites card", () => {
     const summary = readAppsSitesSummary({
       ...createSnapshot(),
