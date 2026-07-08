@@ -10,12 +10,12 @@
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
-- Plan audit status: `docs/superpowers/plans/` contains only this active plan. Retired dated plans and stale date anchors should not be restored in agent workflow docs; dated research and decision files are archive-only context, not work queues.
+- Plan audit status: `docs/superpowers/plans/` contains only this active plan. Workflow docs may reference only this active plan path; guard coverage should stay structural and must not preserve obsolete plan-date anchors. Dated research and decision files are archive-only context, not work queues.
 
 ## Completed Foundation
 
 - CLI command-surface slimming, Chrome extension background test diet, manifest source-string cleanup, and main/renderer pure-logic extraction are complete for the current code-health pass.
-- Plan hygiene is complete for the current pass: retired planning files are absent, workflow docs point only at this active plan, and the active plan directory is no longer a plan archive.
+- Plan hygiene is complete for the current pass: retired planning files are absent, workflow docs point only at this active plan, date-specific retired-plan guard coverage has been removed, and the active plan directory is no longer a plan archive.
 - Chrome extension background tests preserve permission recovery, page observe, native-message forwarding, target-tab popup behavior, and blocked-state classification without listener-count or source-string coverage.
 - React Dashboard already owns provider, Computer Use, Browser Context, Dogfood/release, replay, Chrome/Finder/Ghostty readiness, Chrome page action controls, Chrome host-policy controls, memory controls, and provider settings.
 - React Dashboard now exposes the existing read-only operator evidence JSON entry point from the Activity surface.
@@ -34,7 +34,7 @@ This is a feature enrichment plan. Keep changes product-facing but narrow:
 
 ## Next Work Order
 
-1. Keep planning single-source. If another plan file appears under `docs/superpowers/plans/`, delete it in the same change or replace this file with exactly one newer active plan.
+1. Keep planning single-source. If another plan file appears under `docs/superpowers/plans/`, delete it in the same change or replace this file with exactly one newer active plan. Use structural checks for one plan file and no workflow references to other plan files.
 2. Finish Dashboard P1 migrations only where a local API already exists and the React surface can express it without new permissions, new endpoints, or secret leakage.
 3. Continue route-state enrichment only for durable outcome semantics: app-policy denial, user denial, blocked, confirmation, failure, cancellation, completion, `stopTurnBehavior`, and `Task stopped`.
 4. Keep any remaining code-health slimming scoped to pure-logic extraction, duplicate fixture removal, or command-surface decomposition that directly supports the active Dashboard/routing work.

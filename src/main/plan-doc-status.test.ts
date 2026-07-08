@@ -44,8 +44,9 @@ describe("implementation plan status docs", () => {
     expect(activePlanFiles).toEqual(["2026-07-07-code-health-cleanup.md"]);
   });
 
-  it("keeps retired June plan anchors out of active workflow docs", () => {
-    const retiredPlanDate = ["2026", "06", "23"].join("-");
+  it("keeps workflow docs pointed at the current active plan path only", () => {
+    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+    const planReferencePattern = /docs\/superpowers\/plans\/[^\s`),]+\.md/g;
     const workflowDocPaths = [
       "AGENTS.md",
       "docs/README.md",
@@ -55,7 +56,11 @@ describe("implementation plan status docs", () => {
 
     for (const docPath of workflowDocPaths) {
       const contents = readFileSync(path.join(process.cwd(), docPath), "utf8");
-      expect(contents).not.toContain(retiredPlanDate);
+      const stalePlanReferences = [...contents.matchAll(planReferencePattern)]
+        .map((match) => match[0])
+        .filter((reference) => reference !== activePlanReference);
+
+      expect(stalePlanReferences).toEqual([]);
     }
   });
 
