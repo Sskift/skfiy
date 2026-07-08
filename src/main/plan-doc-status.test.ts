@@ -24,6 +24,8 @@ const activePlanPath = path.join(
   "plans",
   "2026-07-07-code-health-cleanup.md"
 );
+const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
+const activePlanDate = Date.parse("2026-07-07T00:00:00.000Z");
 
 const repoMarkdownSkipDirs = new Set([
   ".git",
@@ -140,7 +142,6 @@ describe("implementation plan status docs", () => {
   });
 
   it("keeps stale dated plan material out of repository markdown", () => {
-    const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
     const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
       path.relative(process.cwd(), docPath).split(path.sep).join("/")
     ));
@@ -158,6 +159,22 @@ describe("implementation plan status docs", () => {
     });
 
     expect(staleDatedPlanDocs).toEqual([]);
+  });
+
+  it("keeps pre-active-plan dated markdown out of repository docs except ADRs", () => {
+    const markdownDocs = collectRepositoryMarkdownDocs(process.cwd()).map((docPath) => (
+      path.relative(process.cwd(), docPath).split(path.sep).join("/")
+    ));
+    const staleDatedDocs = markdownDocs.filter((docPath) => {
+      if (docPath === activePlanReference || docPath.startsWith("docs/decisions/")) {
+        return false;
+      }
+
+      const dateMatch = /^(\d{4}-\d{2}-\d{2})-/.exec(path.basename(docPath));
+      return dateMatch ? Date.parse(`${dateMatch[1]}T00:00:00.000Z`) < activePlanDate : false;
+    });
+
+    expect(staleDatedDocs).toEqual([]);
   });
 
   it("keeps decision records from becoming retired implementation plans", () => {

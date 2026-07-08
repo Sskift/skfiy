@@ -6,7 +6,8 @@ decision records are ADR references, not active implementation plans, task
 queues, or progress trackers. Historical research and implementation notes
 should be folded into canonical docs or left in git history, not kept as live
 repo checklists. Date-stamped Markdown under this directory is reserved for
-durable decision records and the single active plan.
+durable decision records and the single active plan. Older dated implementation
+plans, handoffs, checklists, and research notes belong in git history only.
 
 ## Canonical Docs
 

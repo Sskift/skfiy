@@ -18,6 +18,7 @@
 - Retired dated plans must not be restored under `docs/`, even in parking or reference folders.
 - Dated decision records under `docs/decisions/` are ADR-only context. They must not contain active plan sections, task status blocks, next-work queues, checklists, focused verification blocks, or references to active plan paths.
 - Date-stamped Markdown under `docs/` is allowed only for this active plan and durable decision records.
+- Pre-active-plan dated Markdown is retired implementation material unless it is a durable ADR under `docs/decisions/`.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.
 
 ## Active Scope
