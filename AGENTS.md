@@ -13,9 +13,9 @@ Use the single active plan:
 - `docs/superpowers/plans/2026-07-07-code-health-cleanup.md`
 
 Historical implementation material is archival reference only, not active
-planning scope. Retired dated plans, including the old 2026-06-23
-browser/dashboard plan, must not be restored. If future scope changes, update
-this active plan or replace it with exactly one newer active plan.
+planning scope. Retired dated plans must not be restored or named as active
+work. If future scope changes, update this active plan or replace it with
+exactly one newer active plan.
 
 ## Development Loop
 

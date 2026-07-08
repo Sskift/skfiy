@@ -10,11 +10,12 @@
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
-- Plan audit status: `docs/superpowers/plans/` contains only this active plan, and extra plan files should not be restored.
+- Plan audit status: `docs/superpowers/plans/` contains only this active plan. Retired dated plans and stale date anchors should not be restored in agent workflow docs.
 
 ## Completed Foundation
 
 - CLI command-surface slimming, Chrome extension background test diet, manifest source-string cleanup, and main/renderer pure-logic extraction are complete for the current code-health pass.
+- Plan hygiene is complete for the current pass: old dated plan files are absent, and workflow docs point only at this active plan.
 - Chrome extension background tests preserve permission recovery, page observe, native-message forwarding, target-tab popup behavior, and blocked-state classification without listener-count or source-string coverage.
 - React Dashboard already owns provider, Computer Use, Browser Context, Dogfood/release, replay, Chrome/Finder/Ghostty readiness, Chrome page action controls, Chrome host-policy controls, memory controls, and provider settings.
 - React Dashboard now exposes the existing read-only operator evidence JSON entry point from the Activity surface.
