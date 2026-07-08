@@ -1332,6 +1332,13 @@ describe("DashboardApp", () => {
             }
           ],
           nextActions: ["Refresh the installed extension heartbeat, then rerun Chrome status."],
+          setupGuide: {
+            source: "runtime",
+            nativeHostState: "installed",
+            liveConnectionState: "stale",
+            nextActions: ["Refresh the installed extension heartbeat, then rerun Chrome status."],
+            commands: []
+          },
           commands: [
             {
               id: "install-host",
@@ -1389,6 +1396,13 @@ describe("DashboardApp", () => {
     expect(within(operatorChecks).getByText("app_policy_denied")).toBeInTheDocument();
     const chromeActions = within(activity).getByRole("list", { name: "Next actions for Chrome extension" });
     expect(within(chromeActions).getByText("Refresh the installed extension heartbeat, then rerun Chrome status.")).toBeInTheDocument();
+    const chromeSetupGuide = within(activity).getByRole("list", { name: "Setup guide for Chrome extension" });
+    expect(within(chromeSetupGuide).getByText("source")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("runtime")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("native host")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("installed")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("live connection")).toBeInTheDocument();
+    expect(within(chromeSetupGuide).getByText("stale")).toBeInTheDocument();
     const chromeCommands = within(activity).getByRole("list", { name: "Commands for Chrome extension" });
     expect(within(chromeCommands).getByText("Install host")).toBeInTheDocument();
     expect(within(chromeCommands).getByText("skfiy chrome install-host --extension-id plcpkkhlcacihjfohlojdknnkademlno")).toBeInTheDocument();

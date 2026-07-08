@@ -2677,6 +2677,25 @@ function EvidenceSummaryCard({
                     ))}
                   </ul>
                 ) : null}
+                {lane.setupGuide ? (
+                  <ul
+                    aria-label={`Setup guide for ${lane.title}`}
+                    className="skfiy-dashboard-evidence-detail-list"
+                  >
+                    <li>
+                      <span>source</span>
+                      <strong>{lane.setupGuide.source}</strong>
+                    </li>
+                    <li>
+                      <span>native host</span>
+                      <strong>{lane.setupGuide.nativeHostState}</strong>
+                    </li>
+                    <li>
+                      <span>live connection</span>
+                      <strong>{lane.setupGuide.liveConnectionState}</strong>
+                    </li>
+                  </ul>
+                ) : null}
                 {lane.commands?.length ? (
                   <ul
                     aria-label={`Commands for ${lane.title}`}
