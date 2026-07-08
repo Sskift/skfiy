@@ -141,6 +141,7 @@ Completed in this pass:
 - React Dashboard Home and Latest signal summaries now reuse shared route outcomes so app-policy denial and explicit stop-turn results stay visible outside the dedicated Route outcome card.
 - React Dashboard Knowledge Graph now adds a shared route outcome node and route-specific graph labels so app-policy denial and explicit stop-turn results stay visible in the Overview graph.
 - React Dashboard Next action now reuses shared route outcomes after explicit alerts, keeping app-policy denial and explicit stop-turn results from being hidden by browser/readiness fallback suggestions.
+- React Dashboard command center now includes the shared route outcome in its radar, runtime flow, and progress stack so Overview preserves route semantics without relying on the Activity card.
 
 Acceptance:
 

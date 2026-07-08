@@ -958,10 +958,13 @@ function DashboardCommandCenter({
   runtimeEvidence: DashboardRuntimeEvidenceSummary;
   stateItems: DashboardStatusItem[];
 }) {
+  const routeTone = routeOutcome.kind === "idle" ? "success" : routeOutcome.tone;
+  const routeScore = routeOutcome.kind === "idle" ? 100 : readToneScore(routeOutcome.tone);
   const radarMetrics = [
     { label: "Readiness", score: readToneScore(readiness.tone), tone: readiness.tone },
     { label: "Desktop", score: readToneScore(computerUse.desktop.tone), tone: computerUse.desktop.tone },
     { label: "Browser", score: readToneScore(chromeControl.tone), tone: chromeControl.tone },
+    { label: "Route", score: routeScore, tone: routeTone },
     { label: "Evidence", score: readToneScore(runtimeEvidence.tone), tone: runtimeEvidence.tone },
     { label: "Release", score: readToneScore(dogfood.tone), tone: dogfood.tone },
     { label: "Alerts", score: alerts.length === 0 ? 100 : Math.max(10, 80 - alerts.length * 18), tone: alerts.length === 0 ? "success" as const : "warning" as const }
@@ -974,6 +977,7 @@ function DashboardCommandCenter({
     { label: "Memory", detail: `${knowledgeGraph.nodes.filter((node) => node.kind === "memory").length} nodes`, tone: readGraphTone(knowledgeGraph, "memory") },
     { label: "Browser", detail: chromeControl.label, tone: chromeControl.tone },
     { label: "Tool layer", detail: computerUse.desktop.value, tone: computerUse.desktop.tone },
+    { label: "Route", detail: routeOutcome.value, tone: routeTone },
     { label: "Evidence", detail: runtimeEvidence.value, tone: runtimeEvidence.tone }
   ];
   const activityBars = [
@@ -993,6 +997,12 @@ function DashboardCommandCenter({
       value: chromeControl.browserContext.state,
       score: readToneScore(chromeControl.browserContext.tone),
       tone: chromeControl.browserContext.tone
+    },
+    {
+      label: "Route outcome",
+      value: routeOutcome.value,
+      score: routeScore,
+      tone: routeTone
     },
     {
       label: "Next action",
