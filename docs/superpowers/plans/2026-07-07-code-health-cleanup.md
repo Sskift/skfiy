@@ -9,13 +9,13 @@
 - Background Agent provider selection remains separate from Computer Use Planner selection.
 - Browser Context enters provider prompts only through the explicit Chrome extension pageControl bridge and bounded prompt blocks.
 - Dashboard remains the operator surface for provider readiness, Browser Context, Computer Use state, current turn, replay, memory, sessions, prompt stack, dogfood/release state, and read-only operator evidence.
-- The current code-health pass has already removed the old plan archive shape, slimmed the CLI command surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
+- The current code-health pass has already removed the old retired-plan doc shape, slimmed the CLI command surface, reduced Chrome extension background test fixture sprawl, cleaned manifest/source-string coverage, and started main/renderer pure-logic extraction.
 - Default smoke runs stay output-free. Use `.skfiy-smoke/` artifacts only for explicit release, dogfood, or debugging evidence capture.
 
 ## Plan Hygiene
 
 - `docs/superpowers/plans/` must contain only this file unless this plan is replaced by exactly one newer active plan.
-- Retired dated plans must not be restored under `docs/`, even as archive files.
+- Retired dated plans must not be restored under `docs/`, even in parking or reference folders.
 - Dated decision records under `docs/decisions/` are ADR-only context. They must not contain active plan sections, task status blocks, next-work queues, checklists, focused verification blocks, or references to active plan paths.
 - Date-stamped Markdown under `docs/` is allowed only for this active plan and durable decision records.
 - Guard coverage must stay structural. Do not add per-retired-plan allowlists or preserve old plan-date anchors in tests.

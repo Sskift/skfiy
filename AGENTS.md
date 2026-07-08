@@ -12,10 +12,10 @@ Use the single active plan:
 
 - `docs/superpowers/plans/2026-07-07-code-health-cleanup.md`
 
-Historical implementation material is archival reference only, not active
-planning scope. Retired dated plans must not be restored or named as active
-work. If future scope changes, update this active plan or replace it with
-exactly one newer active plan.
+Historical implementation material lives in git history only, not repo docs or
+active planning scope. Retired dated plans must not be restored or named as
+active work. If future scope changes, update this active plan or replace it
+with exactly one newer active plan.
 
 ## Development Loop
 

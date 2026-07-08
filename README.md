@@ -49,7 +49,7 @@ be deleted locally.
 
 ## Documentation Map
 
-- [docs/README.md](docs/README.md): repository documentation index, archive
+- [docs/README.md](docs/README.md): repository documentation index, single-plan
   policy, and local artifact cleanup rules.
 - [docs/development-workflow.md](docs/development-workflow.md): mandatory
   product-path testing contract for user-visible work.

@@ -160,7 +160,7 @@ describe("implementation plan status docs", () => {
     expect(staleDatedPlanDocs).toEqual([]);
   });
 
-  it("keeps decision records from becoming archived implementation plans", () => {
+  it("keeps decision records from becoming retired implementation plans", () => {
     const decisionsRoot = path.join(process.cwd(), "docs", "decisions");
     const decisionDocs = collectMarkdownDocs(decisionsRoot);
     const planLikeDecisionDocs = decisionDocs.filter((docPath) => {
@@ -177,14 +177,10 @@ describe("implementation plan status docs", () => {
     expect(planLikeDecisionDocs).toEqual([]);
   });
 
-  it("keeps workflow docs pointed at the current active plan path only", () => {
+  it("keeps repository markdown pointed at the current active plan path only", () => {
     const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
     const planReferencePattern = /docs\/superpowers\/plans\/[^\s`),]+\.md/g;
-    const workflowDocPaths = [
-      path.join(process.cwd(), "AGENTS.md"),
-      path.join(process.cwd(), "README.md"),
-      ...collectMarkdownDocs(path.join(process.cwd(), "docs"))
-    ];
+    const workflowDocPaths = collectRepositoryMarkdownDocs(process.cwd());
 
     for (const docPath of workflowDocPaths) {
       const contents = readFileSync(docPath, "utf8");
@@ -200,15 +196,15 @@ describe("implementation plan status docs", () => {
     const agents = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8");
 
     expect(agents).toContain("docs/superpowers/plans/2026-07-07-code-health-cleanup.md");
-    expect(agents).toContain("Historical implementation material is archival reference only");
+    expect(agents).toContain("Historical implementation material lives in git history only");
     expect(agents).toContain("Retired dated plans must not be restored");
     expect(agents).toContain("must not be restored");
-    expect(agents).toContain("not active");
+    expect(agents).toContain("not repo docs or");
     expect(agents).toContain("exactly one newer active plan");
     expect(agents).not.toContain("old 20");
   });
 
-  it("documents output-free default smoke runs in README instead of plan archives", () => {
+  it("documents output-free default smoke runs in README instead of retired plan docs", () => {
     const readme = readFileSync(path.join(process.cwd(), "README.md"), "utf8");
 
     expect(readme).toContain("## Smoke Policy");
