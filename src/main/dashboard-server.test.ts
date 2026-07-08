@@ -1078,6 +1078,8 @@ describe("dashboard loopback HTTP response helper", () => {
           currentTurn: {
             state: "approval_required",
             source: "runtime-snapshot",
+            route: "chrome",
+            routeReason: "Chrome navigation changes browser state.",
             targetApp: "Chrome token=secret-token",
             risk: "medium",
             approvalState: "pending",
@@ -1152,6 +1154,16 @@ describe("dashboard loopback HTTP response helper", () => {
           risk: "medium",
           approvalState: "pending"
         },
+        routeOutcome: {
+          kind: "approval_required",
+          title: "Route approval required",
+          value: "approval_required",
+          state: "approval_required",
+          detail: "Chrome navigation changes browser state.",
+          tone: "warning",
+          source: "runtime-snapshot",
+          routeLabel: "chrome"
+        },
         replay: {
           state: "available",
           source: "runtime-snapshot",
@@ -1222,6 +1234,8 @@ describe("dashboard loopback HTTP response helper", () => {
           port: 8787
         },
         currentTurnState: "approval_required",
+        routeOutcomeKind: "approval_required",
+        routeOutcomeState: "approval_required",
         replayState: "available",
         readinessState: "needs-evidence",
         alertCount: 1,

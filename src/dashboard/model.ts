@@ -8,6 +8,11 @@ import type {
   DashboardProviderSummary,
   DashboardSnapshot
 } from "./contracts";
+import {
+  readRouteOutcome as readSharedRouteOutcome,
+  type RouteOutcome,
+  type RouteOutcomeKind
+} from "../shared/route-outcome.js";
 
 export type Tone = "success" | "warning" | "danger" | "neutral";
 
@@ -70,30 +75,8 @@ export interface DashboardRecentActivity {
   verificationCount?: number;
 }
 
-export type DashboardRouteOutcomeKind =
-  | "idle"
-  | "running"
-  | "approval_required"
-  | "needs_confirmation"
-  | "needs_clarification"
-  | "app_policy_denied"
-  | "user_denied"
-  | "blocked"
-  | "cancelled"
-  | "failed"
-  | "completed"
-  | "unknown";
-
-export interface DashboardRouteOutcome {
-  kind: DashboardRouteOutcomeKind;
-  title: string;
-  value: string;
-  detail: string;
-  tone: Tone;
-  source: string;
-  routeLabel: string;
-  state: string;
-}
+export type DashboardRouteOutcomeKind = RouteOutcomeKind;
+export type DashboardRouteOutcome = RouteOutcome;
 
 export interface DashboardAssistantProviderView {
   label: string;
@@ -1263,191 +1246,11 @@ export function readRecentActivity(snapshot: DashboardSnapshot): DashboardRecent
 }
 
 export function readRouteOutcome(snapshot: DashboardSnapshot): DashboardRouteOutcome {
-  const currentTurn = snapshot.currentTurn;
-  const state = readString(currentTurn.state) ?? "idle";
-  const approvalState = readString(currentTurn.approvalState);
-  const routeLabel = readCurrentRouteLabel(snapshot) ?? "unknown";
-  const source = readString(currentTurn.source) ?? "Current turn";
-  const detail = readCurrentTurnRouteDetail(snapshot);
-  const classifierText = [
-    readString(currentTurn.denialKind),
-    readString(currentTurn.routeReason),
-    readString(currentTurn.reason),
-    readString(currentTurn.latestMessage),
-    readString(currentTurn.message),
-    detail,
-    readString(currentTurn.updateSource)
-  ].filter(Boolean).join(" ").toLowerCase();
-
-  if (state === "idle" && !readString(currentTurn.command)) {
-    return createRouteOutcome({
-      kind: "idle",
-      title: "No active route",
-      state,
-      value: "idle",
-      detail,
-      tone: "neutral",
-      source,
-      routeLabel
-    });
-  }
-
-  if (state === "approval_required") {
-    return createRouteOutcome({
-      kind: "approval_required",
-      title: "Route approval required",
-      state,
-      value: "approval_required",
-      detail,
-      tone: "warning",
-      source,
-      routeLabel
-    });
-  }
-
-  if (state === "needs_confirmation") {
-    return createRouteOutcome({
-      kind: "needs_confirmation",
-      title: "Route needs confirmation",
-      state,
-      value: "needs_confirmation",
-      detail,
-      tone: "warning",
-      source,
-      routeLabel
-    });
-  }
-
-  if (state === "needs_clarification") {
-    return createRouteOutcome({
-      kind: "needs_clarification",
-      title: "Route needs clarification",
-      state,
-      value: "needs_clarification",
-      detail,
-      tone: "warning",
-      source,
-      routeLabel
-    });
-  }
-
-  if (state === "blocked" && isAppPolicyDenial(classifierText, currentTurn)) {
-    return createRouteOutcome({
-      kind: "app_policy_denied",
-      title: "App policy denied route",
-      state,
-      value: "app_policy_denied",
-      detail,
-      tone: "danger",
-      source,
-      routeLabel
-    });
-  }
-
-  if (state === "denied") {
-    return createRouteOutcome({
-      kind: "user_denied",
-      title: "User denied route",
-      state,
-      value: "user_denied",
-      detail,
-      tone: "neutral",
-      source,
-      routeLabel
-    });
-  }
-
-  if (state === "blocked") {
-    return createRouteOutcome({
-      kind: "blocked",
-      title: classifierText.includes("route policy") ? "Route policy blocked" : "Route blocked",
-      state,
-      value: "blocked",
-      detail,
-      tone: "danger",
-      source,
-      routeLabel
-    });
-  }
-
-  if (state === "cancelled") {
-    return createRouteOutcome({
-      kind: "cancelled",
-      title: "Route cancelled",
-      state,
-      value: "cancelled",
-      detail,
-      tone: "neutral",
-      source,
-      routeLabel
-    });
-  }
-
-  if (state === "failed") {
-    return createRouteOutcome({
-      kind: "failed",
-      title: "Route failed",
-      state,
-      value: "failed",
-      detail,
-      tone: "danger",
-      source,
-      routeLabel
-    });
-  }
-
-  if (state === "completed") {
-    return createRouteOutcome({
-      kind: "completed",
-      title: "Route completed",
-      state,
-      value: "completed",
-      detail,
-      tone: "success",
-      source,
-      routeLabel
-    });
-  }
-
-  if (["planned", "observing", "executing", "running"].includes(state)) {
-    return createRouteOutcome({
-      kind: "running",
-      title: "Route running",
-      state,
-      value: state,
-      detail,
-      tone: "warning",
-      source,
-      routeLabel
-    });
-  }
-
-  if (
-    approvalState === "required"
-    || approvalState === "pending"
-    || currentTurn.approvalRequired === true
-  ) {
-    return createRouteOutcome({
-      kind: "approval_required",
-      title: "Route approval required",
-      state,
-      value: "approval_required",
-      detail,
-      tone: "warning",
-      source,
-      routeLabel
-    });
-  }
-
-  return createRouteOutcome({
-    kind: "unknown",
-    title: "Route state unknown",
-    state,
-    value: state,
-    detail,
-    tone: "neutral",
-    source,
-    routeLabel
+  return readSharedRouteOutcome({
+    currentTurn: snapshot.currentTurn,
+    replay: snapshot.replay,
+    defaultSource: "Current turn",
+    includeCommandDetail: true
   });
 }
 
@@ -1552,56 +1355,6 @@ function readCurrentTurnDetail(snapshot: DashboardSnapshot): string {
     ?? readString(snapshot.currentTurn.message)
     ?? readString(snapshot.currentTurn.command)
     ?? readLatestMessage(snapshot);
-}
-
-function readCurrentTurnRouteDetail(snapshot: DashboardSnapshot): string {
-  const currentTurn = snapshot.currentTurn;
-  const error = readRecord(currentTurn.error);
-  return readString(error?.message)
-    ?? readString(currentTurn.error)
-    ?? readString(currentTurn.routeReason)
-    ?? readString(currentTurn.reason)
-    ?? readString(currentTurn.latestMessage)
-    ?? readString(currentTurn.message)
-    ?? readString(currentTurn.command)
-    ?? readString(snapshot.replay.latestMessage)
-    ?? "No route activity has been recorded yet.";
-}
-
-function createRouteOutcome(outcome: DashboardRouteOutcome): DashboardRouteOutcome {
-  return outcome;
-}
-
-function isAppPolicyDenial(classifierText: string, currentTurn: Record<string, unknown>): boolean {
-  return classifierText.includes("denied by app policy")
-    || readString(currentTurn.denialKind) === "app_policy"
-    || readString(currentTurn.policyKind) === "app-policy";
-}
-
-function readCurrentRouteLabel(snapshot: DashboardSnapshot): string | undefined {
-  const currentTurn = snapshot.currentTurn;
-  const latestAction = readRecord(currentTurn.latestAction);
-  const latestToolCall = readRecord(snapshot.replay.latestToolCall);
-
-  return readRouteLabel(currentTurn.route)
-    ?? readRouteLabel(currentTurn.targetRoute)
-    ?? readRouteLabel(latestAction?.route)
-    ?? readRouteLabel(latestToolCall?.route)
-    ?? readString(currentTurn.targetApp)
-    ?? readString(currentTurn.targetBundleId);
-}
-
-function readRouteLabel(value: unknown): string | undefined {
-  const text = readString(value);
-  if (text) {
-    return text;
-  }
-
-  const record = readRecord(value);
-  return readString(record?.kind)
-    ?? readString(record?.route)
-    ?? readString(record?.bundleId)
-    ?? readString(record?.sessionName);
 }
 
 export function readNextAction(snapshot: DashboardSnapshot): DashboardNextAction {

@@ -1,6 +1,7 @@
 import type { DashboardSnapshot } from "./dashboard-data.js";
 import type { DashboardDescriptor } from "./dashboard-status.js";
 import { readRecord } from "./record-utils.js";
+import { readRouteOutcome } from "../shared/route-outcome.js";
 
 export interface DashboardOperatorEvidenceInput {
   descriptor: DashboardDescriptor;
@@ -37,6 +38,13 @@ export function createDashboardOperatorEvidence({
   const readiness = summarizeReadiness(readRecord(snapshot.operatorReadiness));
   const currentTurn = summarizeCurrentTurn(readRecord(snapshot.currentTurn));
   const replay = summarizeReplay(readRecord(snapshot.replay));
+  const routeOutcome = readRouteOutcome({
+    currentTurn: readRecord(snapshot.currentTurn),
+    replay: readRecord(snapshot.replay),
+    defaultSource: "current-turn",
+    includeCommandDetail: false,
+    sanitizeString: sanitizeText
+  });
 
   return {
     schemaVersion: 1,
@@ -56,6 +64,7 @@ export function createDashboardOperatorEvidence({
       schemaVersion: snapshot.schemaVersion,
       generatedAt: sanitizeText(snapshot.generatedAt),
       currentTurn,
+      routeOutcome,
       replay,
       readiness,
       alerts,
@@ -68,6 +77,8 @@ export function createDashboardOperatorEvidence({
       dashboardUrl: descriptor.url,
       bind: { ...descriptor.bind },
       currentTurnState: currentTurn.state,
+      routeOutcomeKind: routeOutcome.kind,
+      routeOutcomeState: routeOutcome.state,
       replayState: replay.state,
       readinessState: readiness.state,
       alertCount: alerts.total,
