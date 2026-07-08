@@ -743,6 +743,46 @@ describe("DashboardApp", () => {
     expect(within(nextAction).getByText("Ghostty is denied by app policy.")).toBeInTheDocument();
   });
 
+  it("shows user denial as a distinct route outcome", async () => {
+    const deniedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "denied",
+        route: "chrome",
+        routeReason: "User denied this desktop control request.",
+        latestMessage: "User denied this desktop control request.",
+        command: "do not open Chrome"
+      },
+      alerts: []
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => deniedSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Latest outcome" })).toBeInTheDocument();
+    expect(within(activity).getByText("User denied route")).toBeInTheDocument();
+    expect(within(activity).getAllByText("user_denied").length).toBeGreaterThan(0);
+    expect(within(activity).getByText("state denied")).toBeInTheDocument();
+    expect(within(activity).getByText("route chrome")).toBeInTheDocument();
+
+    const graph = screen.getByRole("region", { name: "Knowledge graph" });
+    expect(within(graph).getAllByText("User denied route").length).toBeGreaterThan(0);
+    expect(within(graph).getAllByText("denied by user").length).toBeGreaterThan(0);
+
+    const commandCenter = screen.getByRole("region", { name: "Agent workspace" });
+    expect(within(commandCenter).getByRole("progressbar", { name: "Route outcome" })).toHaveTextContent("user_denied");
+    expect(within(commandCenter).getAllByText("user_denied").length).toBeGreaterThan(0);
+
+    const overview = screen.getByRole("region", { name: "Overview" });
+    const homeDetails = within(overview).getByRole("list", { name: "Home summary details" });
+    expect(within(homeDetails).getByText("Route denied by user")).toBeInTheDocument();
+
+    const nextAction = screen.getByRole("region", { name: "Next action" });
+    expect(within(nextAction).getByRole("heading", { name: "Route denied by user" })).toBeInTheDocument();
+    expect(within(nextAction).getByText("User denied this desktop control request.")).toBeInTheDocument();
+  });
+
   it("shows Chrome host policy denial as a distinct route outcome", async () => {
     const hostPolicyBlockedSnapshot: DashboardSnapshot = {
       ...snapshot,
