@@ -1932,10 +1932,12 @@ describe("readChromeControlState", () => {
         ...snapshot.runtimeHealth,
         extension: {
           ...extension,
+          extensionIds: ["plcpkkhlcacihjfohlojdknnkademlno"],
           pageControl: {
             state: "blocked_by_chrome_host_permission",
             activeTab: {
-              host: "mew.bytedance.net"
+              host: "mew.bytedance.net",
+              tabId: 1782098572
             },
             hostPolicy: {
               decision: "allowed"
@@ -1971,6 +1973,14 @@ describe("readChromeControlState", () => {
         tone: "neutral"
       }
     ]));
+    expect(readChromeControlCommandHints(chromeControl)).toEqual([
+      {
+        id: "open-popup",
+        label: "Open access page",
+        command: "POST /api/chrome-control-action {\"action\":\"open-popup\",\"extensionId\":\"plcpkkhlcacihjfohlojdknnkademlno\",\"targetTabId\":1782098572}",
+        mutates: true
+      }
+    ]);
   });
 });
 

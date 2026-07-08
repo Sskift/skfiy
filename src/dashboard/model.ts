@@ -1001,18 +1001,37 @@ export function readChromeControlState(snapshot: DashboardSnapshot): DashboardCh
 export function readChromeControlCommandHints(
   chromeControl: DashboardChromeControlState
 ): DashboardCommandHint[] {
+  const extensionId = chromeControl.extensionId;
+  const targetTabId = Number.isInteger(chromeControl.tabId) ? chromeControl.tabId : undefined;
   if (
-    !chromeControl.actionable
-    || !chromeControl.extensionId
-    || !Number.isInteger(chromeControl.tabId)
+    !extensionId
+    || targetTabId === undefined
   ) {
     return [];
   }
 
-  const commandFor = (action: string) =>
-    `./dist/skfiy chrome ${action} --extension-id ${chromeControl.extensionId} --target-tab-id ${chromeControl.tabId}`;
+  const commandHints: DashboardCommandHint[] = [];
+  if (chromeControl.browserContextAccessSteps.some((step) => step.id === "open-skfiy-chrome-popup")) {
+    commandHints.push({
+      id: "open-popup",
+      label: "Open access page",
+      command: `POST /api/chrome-control-action ${JSON.stringify({
+        action: "open-popup",
+        extensionId,
+        targetTabId
+      })}`,
+      mutates: true
+    });
+  }
 
-  return [
+  if (!chromeControl.actionable) {
+    return commandHints;
+  }
+
+  const commandFor = (action: string) =>
+    `./dist/skfiy chrome ${action} --extension-id ${extensionId} --target-tab-id ${targetTabId}`;
+
+  commandHints.push(
     {
       id: "observe",
       label: "Observe current page",
@@ -1049,7 +1068,8 @@ export function readChromeControlCommandHints(
       command: `${commandFor("scroll")} --dy 600 --json`,
       mutates: true
     }
-  ];
+  );
+  return commandHints;
 }
 
 export function readChromeSetupGuideSummary(snapshot: DashboardSnapshot): DashboardChromeSetupGuideSummary {

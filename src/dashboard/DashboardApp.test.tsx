@@ -1215,6 +1215,12 @@ describe("DashboardApp", () => {
     />);
 
     const browser = await screen.findByRole("region", { name: "Browser" });
+    const commandHints = within(browser).getByRole("list", { name: "Chrome control command hints" });
+    expect(within(commandHints).getByText("Open access page")).toBeInTheDocument();
+    expect(within(commandHints).getByText(
+      "POST /api/chrome-control-action {\"action\":\"open-popup\",\"extensionId\":\"plcpkkhlcacihjfohlojdknnkademlno\",\"targetTabId\":1782098572}"
+    )).toBeInTheDocument();
+    expect(within(commandHints).getByText("mutates")).toBeInTheDocument();
     fireEvent.click(within(browser).getByRole("button", { name: "Open access page" }));
 
     await waitFor(() => expect(runChromeControlAction).toHaveBeenCalledTimes(1));
