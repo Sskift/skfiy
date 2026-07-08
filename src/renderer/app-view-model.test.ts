@@ -445,7 +445,7 @@ describe("app view model", () => {
       {
         task: {
           status: "cancelled" as const,
-          message: "Task stopped."
+          message: "Browser task cancelled before execution."
         },
         turnReplay: {
           transcript: {
@@ -463,6 +463,34 @@ describe("app view model", () => {
         kind: "cancelled",
         title: "Route cancelled",
         value: "cancelled",
+        tone: "neutral",
+        routeLabel: "tmux_supervision",
+        detail: "Browser task cancelled before execution."
+      }
+    ],
+    [
+      "stop turn",
+      {
+        task: {
+          status: "cancelled" as const,
+          message: "Task stopped."
+        },
+        turnReplay: {
+          transcript: {
+            actions: [
+              {
+                type: "tool_result",
+                route: "tmux_supervision",
+                status: "cancelled"
+              }
+            ]
+          }
+        }
+      },
+      {
+        kind: "stopped",
+        title: "Route stopped",
+        value: "stopped",
         tone: "neutral",
         routeLabel: "tmux_supervision",
         detail: "Task stopped."

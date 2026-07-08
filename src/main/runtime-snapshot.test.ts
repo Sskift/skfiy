@@ -203,6 +203,36 @@ describe("runtime snapshot", () => {
     });
   });
 
+  it("records Task stopped as a stopped route outcome", () => {
+    expect(createRuntimeSnapshotFromReplay({
+      replay: null,
+      currentTurn: {
+        status: "cancelled",
+        message: "Task stopped.",
+        command: "stop current task"
+      },
+      observedAt: "2026-06-20T10:01:10.000Z"
+    })).toMatchObject({
+      observedAt: "2026-06-20T10:01:10.000Z",
+      currentTurn: {
+        state: "cancelled",
+        command: "stop current task",
+        latestMessage: "Task stopped.",
+        stopState: "inactive",
+        updateSource: "live-task-event"
+      },
+      routeOutcome: {
+        kind: "stopped",
+        title: "Route stopped",
+        value: "stopped",
+        state: "cancelled",
+        source: "runtime-snapshot",
+        routeLabel: "unknown",
+        detail: "Task stopped."
+      }
+    });
+  });
+
   it("summarizes agent-owned tool lifecycle identity and result evidence", () => {
     expect(createRuntimeSnapshotFromReplay({
       replay: {

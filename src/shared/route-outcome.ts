@@ -10,6 +10,7 @@ export type RouteOutcomeKind =
   | "user_denied"
   | "blocked"
   | "cancelled"
+  | "stopped"
   | "failed"
   | "completed"
   | "unknown";
@@ -147,6 +148,19 @@ export function readRouteOutcome({
     });
   }
 
+  if (state === "cancelled" && isStopTurnOutcome(classifierText, currentTurn, replay, sanitizeString)) {
+    return createRouteOutcome({
+      kind: "stopped",
+      title: "Route stopped",
+      state,
+      value: "stopped",
+      detail,
+      tone: "neutral",
+      source,
+      routeLabel
+    });
+  }
+
   if (state === "cancelled") {
     return createRouteOutcome({
       kind: "cancelled",
@@ -240,6 +254,31 @@ function isAppPolicyDenial(
   return classifierText.includes("denied by app policy")
     || readString(currentTurn?.denialKind, sanitizeString) === "app_policy"
     || readString(currentTurn?.policyKind, sanitizeString) === "app-policy";
+}
+
+function isStopTurnOutcome(
+  classifierText: string,
+  currentTurn: Record<string, unknown> | undefined,
+  replay: Record<string, unknown> | undefined,
+  sanitizeString?: (value: string) => string | undefined
+): boolean {
+  if (classifierText.includes("task stopped") || classifierText.includes("stop turn")) {
+    return true;
+  }
+
+  const stopTurnBehavior = readRecord(currentTurn?.stopTurnBehavior)
+    ?? readRecord(replay?.stopTurnBehavior);
+  if (!stopTurnBehavior) {
+    return false;
+  }
+
+  const afterStatus = readString(stopTurnBehavior.afterStatus, sanitizeString)
+    ?? readString(stopTurnBehavior.status, sanitizeString);
+  const afterMessage = readString(stopTurnBehavior.afterMessage, sanitizeString)
+    ?? readString(stopTurnBehavior.message, sanitizeString);
+
+  return afterStatus === "cancelled"
+    || afterMessage?.toLowerCase().includes("task stopped") === true;
 }
 
 function readRouteDetail({

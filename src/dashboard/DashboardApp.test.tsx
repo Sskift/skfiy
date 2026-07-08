@@ -593,6 +593,31 @@ describe("DashboardApp", () => {
     expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
   });
 
+  it("shows stop-turn route outcome semantics in Activity", async () => {
+    const stoppedSnapshot: DashboardSnapshot = {
+      ...snapshot,
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      }
+    };
+
+    render(<DashboardApp loadSnapshot={vi.fn(async () => stoppedSnapshot)} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(activity).getByText("Route stopped")).toBeInTheDocument();
+    expect(within(activity).getAllByText("Task stopped.").length).toBeGreaterThan(0);
+    expect(within(activity).getByText("stopped")).toBeInTheDocument();
+    expect(within(activity).getByText("state cancelled")).toBeInTheDocument();
+    expect(within(activity).getByText("route chrome")).toBeInTheDocument();
+  });
+
   it("shows the fallback Home summary in Overview without provider secrets", async () => {
     render(<DashboardApp loadSnapshot={vi.fn(async () => createHomeSummaryDashboardSnapshot())} />);
 

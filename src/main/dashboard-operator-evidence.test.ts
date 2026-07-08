@@ -41,6 +41,28 @@ describe("createDashboardOperatorEvidence", () => {
       }
     ],
     [
+      "stop turn",
+      {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        },
+        command: "stop Chrome token=secret-token"
+      },
+      {
+        kind: "stopped",
+        title: "Route stopped",
+        value: "stopped",
+        state: "cancelled",
+        tone: "neutral",
+        routeLabel: "chrome",
+        detail: "Task stopped."
+      }
+    ],
+    [
       "completion with stale approval flag",
       {
         state: "completed",

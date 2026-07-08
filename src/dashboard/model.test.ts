@@ -1024,7 +1024,7 @@ describe("readRouteOutcome", () => {
       {
         state: "cancelled",
         route: "chrome",
-        latestMessage: "Task stopped."
+        latestMessage: "Browser task cancelled before execution."
       },
       {
         kind: "cancelled",
@@ -1032,6 +1032,39 @@ describe("readRouteOutcome", () => {
         value: "cancelled",
         tone: "neutral",
         routeLabel: "chrome"
+      }
+    ],
+    [
+      "stop turn",
+      {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped."
+      },
+      {
+        kind: "stopped",
+        title: "Route stopped",
+        value: "stopped",
+        tone: "neutral",
+        routeLabel: "chrome"
+      }
+    ],
+    [
+      "stopTurnBehavior artifact",
+      {
+        state: "cancelled",
+        route: "finder",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      {
+        kind: "stopped",
+        title: "Route stopped",
+        value: "stopped",
+        tone: "neutral",
+        routeLabel: "finder"
       }
     ],
     [

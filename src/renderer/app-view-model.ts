@@ -661,7 +661,8 @@ const PET_ROUTE_OUTCOME_SIGNAL_LABELS: Record<PetRouteOutcome["kind"], string> =
   app_policy_denied: "应用策略拒绝",
   user_denied: "用户已拒绝",
   blocked: "路由阻塞",
-  cancelled: "路由已停止",
+  cancelled: "路由已取消",
+  stopped: "路由已停止",
   failed: "路由失败",
   completed: "路由完成",
   unknown: "路由未知"
