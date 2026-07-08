@@ -65,6 +65,7 @@ import type {
 import {
   readAlertMessages,
   readAppReadinessLanes,
+  readApprovalQueueSummary,
   readCapabilitySummaries,
   readChromeControlCommandHints,
   readChromeControlState,
@@ -86,6 +87,7 @@ import {
   readSnapshotState,
   readUnsupportedSmokeEvidence,
   type DashboardAppReadinessLane,
+  type DashboardApprovalQueueSummary,
   type DashboardCapabilitySummary,
   type DashboardChromeControlState,
   type DashboardChromeSetupGuideSummary,
@@ -456,6 +458,7 @@ function DashboardContent({
   const providers = useMemo(() => readProviderSummaries(snapshot), [snapshot]);
   const activity = useMemo(() => readRecentActivity(snapshot), [snapshot]);
   const routeOutcome = useMemo(() => readRouteOutcome(snapshot), [snapshot]);
+  const approvalQueue = useMemo(() => readApprovalQueueSummary(snapshot), [snapshot]);
   const latestSignal = useMemo(() => readLatestTaskSignal(snapshot), [snapshot]);
   const runtimeEvidence = useMemo(() => readRuntimeEvidenceSummary(snapshot), [snapshot]);
   const runtimeSnapshotDetails = useMemo(() => readRuntimeSnapshotDetails(snapshot), [snapshot]);
@@ -819,6 +822,7 @@ function DashboardContent({
             </Card.Content>
           </Card.Root>
           <RouteOutcomeCard outcome={routeOutcome} />
+          <ApprovalQueueCard summary={approvalQueue} />
           <LatestSignalCard signal={latestSignal} />
           <RuntimeEvidenceCard evidence={runtimeEvidence} />
           <RuntimeSnapshotDetailsCard details={runtimeSnapshotDetails} />
@@ -2737,6 +2741,39 @@ function RuntimeSnapshotDetailsCard({ details }: { details: DashboardRuntimeSnap
             </li>
           ))}
         </ul>
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function ApprovalQueueCard({ summary }: { summary: DashboardApprovalQueueSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card skfiy-dashboard-card--wide" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Local approval queue</Card.Description>
+        </div>
+        <ShieldCheck size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        {summary.items.length > 0 ? (
+          <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Approval queue details">
+            {summary.items.map((item) => (
+              <li key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.tone}</small>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="skfiy-dashboard-empty">No approval requests are waiting.</p>
+        )}
       </Card.Content>
     </Card.Root>
   );

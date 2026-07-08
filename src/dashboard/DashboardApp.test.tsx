@@ -593,6 +593,25 @@ describe("DashboardApp", () => {
     expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
   });
 
+  it("shows the fallback approvals queue in Activity without provider secrets", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => createApprovalQueueDashboardSnapshot())} />);
+
+    const activity = await screen.findByRole("region", { name: "Activity" });
+    expect(within(activity).getByRole("heading", { name: "Approvals" })).toBeInTheDocument();
+    expect(within(activity).getByText("Review pending local approval and browser access requests.")).toBeInTheDocument();
+    expect(within(activity).getByText("3 pending")).toBeInTheDocument();
+    const details = within(activity).getByRole("list", { name: "Approval queue details" });
+    expect(within(details).getByText("Computer Use approval")).toBeInTheDocument();
+    expect(within(details).getByText("high: Approval required before moving files.")).toBeInTheDocument();
+    expect(within(details).getByText("Chrome extension")).toBeInTheDocument();
+    expect(within(details).getByText(
+      "heartbeat not connected; refresh the extension before trusting page control"
+    )).toBeInTheDocument();
+    expect(within(details).getByText("Chrome host policy")).toBeInTheDocument();
+    expect(within(details).getByText("ask-by-default; new sites will request approval")).toBeInTheDocument();
+    expect(within(activity).queryByText("planner-secret")).not.toBeInTheDocument();
+  });
+
   it("shows runtime snapshot freshness and latest replay details in Activity without screenshot paths", async () => {
     render(<DashboardApp loadSnapshot={vi.fn(async () => createRuntimeSnapshotDashboardSnapshot())} />);
 
@@ -1796,6 +1815,43 @@ function createRuntimeSnapshotDashboardSnapshot(): DashboardSnapshot {
         { status: "executing", message: "Typing command." },
         { status: "completed", command: "pwd" }
       ]
+    }
+  };
+}
+
+function createApprovalQueueDashboardSnapshot(): DashboardSnapshot {
+  const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
+  return {
+    ...snapshot,
+    currentTurn: {
+      state: "approval_required",
+      approvalState: "required",
+      approvalRequired: true,
+      risk: "high",
+      command: "move files in Finder",
+      latestMessage: "Approval required before moving files."
+    },
+    runtimeHealth: {
+      ...snapshot.runtimeHealth,
+      extension: {
+        ...extension,
+        state: "stale",
+        liveConnection: "disconnected",
+        hostPolicy: {
+          state: "default",
+          reason: "Chrome host policy has not been configured."
+        }
+      }
+    },
+    providers: {
+      ...snapshot.providers,
+      planner: {
+        provider: "planner",
+        mode: "external-cua",
+        label: "External CUA",
+        health: "available",
+        endpoint: "https://cua.example.test/plan?token=planner-secret"
+      }
     }
   };
 }

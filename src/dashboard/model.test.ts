@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardSnapshot } from "./contracts";
 import {
+  readApprovalQueueSummary,
   readChromeControlCommandHints,
   readChromeControlState,
   readChromeSetupGuideSummary,
@@ -343,6 +344,47 @@ describe("readLongHorizonSummary", () => {
     });
     expect(JSON.stringify(summary)).not.toContain("building...");
     expect(JSON.stringify(summary)).not.toContain("tmux capture-pane");
+  });
+});
+
+describe("readApprovalQueueSummary", () => {
+  it("summarizes pending Computer Use and browser approvals without exposing provider secrets", () => {
+    const summary = readApprovalQueueSummary(createApprovalQueueSnapshotFixture());
+
+    expect(summary).toMatchObject({
+      title: "Approvals",
+      value: "3 pending",
+      detail: "Review pending local approval and browser access requests.",
+      tone: "warning",
+      items: [
+        {
+          label: "Computer Use approval",
+          value: "high: Approval required before moving files.",
+          tone: "warning"
+        },
+        {
+          label: "Chrome extension",
+          value: "heartbeat not connected; refresh the extension before trusting page control",
+          tone: "warning"
+        },
+        {
+          label: "Chrome host policy",
+          value: "ask-by-default; new sites will request approval",
+          tone: "warning"
+        }
+      ]
+    });
+    expect(JSON.stringify(summary)).not.toContain("planner-secret");
+  });
+
+  it("reports a clear queue when no local approvals are waiting", () => {
+    expect(readApprovalQueueSummary(createClearApprovalQueueSnapshotFixture())).toMatchObject({
+      title: "Approvals",
+      value: "clear",
+      detail: "No pending local approvals.",
+      tone: "success",
+      items: []
+    });
   });
 });
 
@@ -961,6 +1003,61 @@ function createLongHorizonSnapshotFixture(): DashboardSnapshot {
         "tmux has-session -t money-run",
         "tmux capture-pane -p -t %1 -S -120"
       ]
+    }
+  };
+}
+
+function createApprovalQueueSnapshotFixture(): DashboardSnapshot {
+  return {
+    ...createSnapshot(),
+    currentTurn: {
+      state: "approval_required",
+      approvalState: "required",
+      approvalRequired: true,
+      risk: "high",
+      command: "move files in Finder",
+      latestMessage: "Approval required before moving files."
+    },
+    runtimeHealth: {
+      ...createSnapshot().runtimeHealth,
+      extension: {
+        state: "stale",
+        liveConnection: "disconnected",
+        hostPolicy: {
+          state: "default",
+          reason: "Chrome host policy has not been configured."
+        }
+      }
+    },
+    providers: {
+      ...createSnapshot().providers,
+      planner: {
+        provider: "planner",
+        mode: "external-cua",
+        label: "External CUA",
+        health: "available",
+        endpoint: "https://cua.example.test/plan?token=planner-secret"
+      }
+    }
+  };
+}
+
+function createClearApprovalQueueSnapshotFixture(): DashboardSnapshot {
+  return {
+    ...createSnapshot(),
+    currentTurn: {
+      state: "idle",
+      latestMessage: "Ready."
+    },
+    runtimeHealth: {
+      ...createSnapshot().runtimeHealth,
+      extension: {
+        state: "connected",
+        liveConnection: "connected",
+        hostPolicy: {
+          state: "configured"
+        }
+      }
     }
   };
 }

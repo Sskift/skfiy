@@ -129,6 +129,14 @@ export interface DashboardLatestTaskSignal {
   source: string;
 }
 
+export interface DashboardApprovalQueueSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 export interface DashboardRuntimeEvidenceSummary {
   title: string;
   value: string;
@@ -1876,6 +1884,58 @@ export function readLatestTaskSignal(snapshot: DashboardSnapshot): DashboardLate
     detail: readLatestMessage(snapshot),
     tone: "success",
     source: "Current turn"
+  };
+}
+
+export function readApprovalQueueSummary(snapshot: DashboardSnapshot): DashboardApprovalQueueSummary {
+  const extension = readRecord(snapshot.runtimeHealth.extension) ?? {};
+  const hostPolicy = readRecord(extension.hostPolicy) ?? {};
+  const liveConnection = readString(extension.liveConnection)
+    ?? readString(extension.connectionState)
+    ?? readString(extension.state)
+    ?? "unknown";
+  const items: DashboardStatusItem[] = [];
+  const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
+  const approvalState = readString(snapshot.currentTurn.approvalState) ?? "";
+
+  if (
+    currentTurnState.includes("approval")
+    || currentTurnState === "needs_confirmation"
+    || approvalState === "pending"
+    || approvalState === "required"
+    || snapshot.currentTurn.approvalRequired === true
+  ) {
+    const risk = readString(snapshot.currentTurn.risk) ?? "review";
+    const detail = readString(snapshot.currentTurn.latestMessage)
+      ?? readString(snapshot.currentTurn.command)
+      ?? "Review the pending Computer Use action.";
+    items.push(createStatusItem("Computer Use approval", `${risk}: ${detail}`, "warning"));
+  }
+
+  if (liveConnection !== "connected") {
+    items.push(createStatusItem(
+      "Chrome extension",
+      "heartbeat not connected; refresh the extension before trusting page control",
+      "warning"
+    ));
+  }
+
+  if (readString(hostPolicy.state) === "default") {
+    items.push(createStatusItem(
+      "Chrome host policy",
+      "ask-by-default; new sites will request approval",
+      "warning"
+    ));
+  }
+
+  return {
+    title: "Approvals",
+    value: items.length > 0 ? `${items.length} pending` : "clear",
+    detail: items.length > 0
+      ? "Review pending local approval and browser access requests."
+      : "No pending local approvals.",
+    tone: items.length > 0 ? "warning" : "success",
+    items
   };
 }
 
