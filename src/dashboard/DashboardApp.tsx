@@ -64,6 +64,7 @@ import type {
 } from "./contracts";
 import {
   readActivityFeedSummary,
+  readAgentSupervisionSummary,
   readAlertMessages,
   readAppReadinessLanes,
   readApprovalQueueSummary,
@@ -88,6 +89,7 @@ import {
   readSmokeArtifactDetails,
   readSnapshotState,
   readUnsupportedSmokeEvidence,
+  type DashboardAgentSupervisionSummary,
   type DashboardActivityFeedSummary,
   type DashboardAppReadinessLane,
   type DashboardApprovalQueueSummary,
@@ -456,6 +458,7 @@ function DashboardContent({
   const chromeControl = useMemo(() => readChromeControlState(snapshot), [snapshot]);
   const chromeSetupGuide = useMemo(() => readChromeSetupGuideSummary(snapshot), [snapshot]);
   const computerUse = useMemo(() => readComputerUseReadiness(snapshot), [snapshot]);
+  const agentSupervision = useMemo(() => readAgentSupervisionSummary(snapshot), [snapshot]);
   const appReadiness = useMemo(() => readAppReadinessLanes(snapshot), [snapshot]);
   const smokeArtifactDetails = useMemo(() => readSmokeArtifactDetails(snapshot), [snapshot]);
   const unsupportedSmoke = useMemo(() => readUnsupportedSmokeEvidence(snapshot), [snapshot]);
@@ -666,6 +669,7 @@ function DashboardContent({
               ) : null}
             </Card.Content>
           </Card.Root>
+          <AgentSupervisionCard summary={agentSupervision} />
           {appReadiness.map((lane) => (
             <AppReadinessCard key={lane.id} lane={lane} />
           ))}
@@ -2846,6 +2850,35 @@ function ApprovalQueueCard({ summary }: { summary: DashboardApprovalQueueSummary
         ) : (
           <p className="skfiy-dashboard-empty">No approval requests are waiting.</p>
         )}
+      </Card.Content>
+    </Card.Root>
+  );
+}
+
+function AgentSupervisionCard({ summary }: { summary: DashboardAgentSupervisionSummary }) {
+  return (
+    <Card.Root className="skfiy-dashboard-card" variant="secondary">
+      <Card.Header className="skfiy-dashboard-card-header">
+        <div>
+          <Card.Title>{summary.title}</Card.Title>
+          <Card.Description>Read-only Background Agent supervision</Card.Description>
+        </div>
+        <Bot size={18} aria-hidden="true" />
+      </Card.Header>
+      <Card.Content className="skfiy-dashboard-card-content">
+        <p className="skfiy-dashboard-message">{summary.detail}</p>
+        <div className="skfiy-dashboard-inline-list">
+          <StatusChip tone={summary.tone}>{summary.value}</StatusChip>
+        </div>
+        <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Agent supervision details">
+          {summary.items.map((item) => (
+            <li key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.tone}</small>
+            </li>
+          ))}
+        </ul>
       </Card.Content>
     </Card.Root>
   );

@@ -689,6 +689,37 @@ describe("DashboardApp", () => {
     expect(within(activity).queryByText("tmux capture-pane -p -t %1 -S -120")).not.toBeInTheDocument();
   });
 
+  it("shows fallback Agent supervision in Agent tools without pane tails, probes, or provider secrets", async () => {
+    render(<DashboardApp loadSnapshot={vi.fn(async () => ({
+      ...createLongHorizonDashboardSnapshot(),
+      providers: {
+        ...snapshot.providers,
+        planner: {
+          provider: "planner",
+          mode: "external-cua",
+          label: "External CUA",
+          health: "available",
+          endpoint: "https://cua.example.test/plan?token=planner-secret"
+        }
+      }
+    }))} />);
+
+    const tools = await screen.findByRole("region", { name: "Agent tools" });
+    expect(within(tools).getByRole("heading", { name: "Agent supervision" })).toBeInTheDocument();
+    expect(within(tools).getAllByText("Ready").length).toBeGreaterThan(0);
+    expect(within(tools).getAllByText(
+      "money-run has 2 windows, 3 panes, and no obvious block markers."
+    )).toHaveLength(2);
+    const details = within(tools).getByRole("list", { name: "Agent supervision details" });
+    expect(within(details).getByText("observing")).toBeInTheDocument();
+    expect(within(details).getByText("%1")).toBeInTheDocument();
+    expect(within(details).getByText("continue_observing")).toBeInTheDocument();
+    expect(within(details).getByText("no")).toBeInTheDocument();
+    expect(within(tools).queryByText("building...")).not.toBeInTheDocument();
+    expect(within(tools).queryByText("tmux capture-pane -p -t %1 -S -120")).not.toBeInTheDocument();
+    expect(within(tools).queryByText("planner-secret")).not.toBeInTheDocument();
+  });
+
   it("shows a browser context access checklist for the current tab permission chain", async () => {
     const extension = snapshot.runtimeHealth.extension as Record<string, unknown>;
     const blockedSnapshot: DashboardSnapshot = {

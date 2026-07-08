@@ -181,6 +181,14 @@ export interface DashboardLongHorizonSummary {
   items: DashboardStatusItem[];
 }
 
+export interface DashboardAgentSupervisionSummary {
+  title: string;
+  value: string;
+  detail: string;
+  tone: Tone;
+  items: DashboardStatusItem[];
+}
+
 interface DashboardRuntimeSnapshotFreshness {
   state: DashboardRuntimeSnapshotFreshnessState;
   source: string;
@@ -2313,6 +2321,42 @@ export function readLongHorizonSummary(snapshot: DashboardSnapshot): DashboardLo
       createStatusItem("probes", formatUnknownNumber(probeCount))
     ]
   };
+}
+
+export function readAgentSupervisionSummary(snapshot: DashboardSnapshot): DashboardAgentSupervisionSummary {
+  const longHorizon = readRecord(snapshot.longHorizon) ?? {};
+  const readinessState = readString(snapshot.operatorReadiness.state) ?? "unknown";
+  const activePane = readRecord(longHorizon.activePane) ?? {};
+  const recommendation = readRecord(longHorizon.recommendation) ?? {};
+  const moneyRunState = readString(longHorizon.state) ?? "not observed";
+  const recommendationAction = readString(recommendation.action) ?? readNextAction(snapshot).detail;
+  const recommendationReason = readString(recommendation.reason) ?? readString(longHorizon.probeError);
+  const tone = readAgentSupervisionTone(moneyRunState, readinessState);
+
+  return {
+    title: "Agent supervision",
+    value: tone === "success" ? "Ready" : "Needs evidence",
+    detail: recommendationReason ?? recommendationAction,
+    tone,
+    items: [
+      createStatusItem("money-run", moneyRunState, readLongHorizonTone(moneyRunState)),
+      createStatusItem("active pane", readString(activePane.id) ?? "none"),
+      createStatusItem("recommendation", recommendationAction),
+      createStatusItem("reason", recommendationReason ?? "none"),
+      createStatusItem("mutates session", readBoolean(longHorizon.mutatesSession) ?? "unknown")
+    ]
+  };
+}
+
+function readAgentSupervisionTone(moneyRunState: string, readinessState: string): Tone {
+  if (moneyRunState === "observing" || moneyRunState === "ready" || readinessState === "ready") {
+    return "success";
+  }
+  if (moneyRunState === "blocked" || moneyRunState === "failed" || readinessState === "blocked") {
+    return "danger";
+  }
+
+  return "warning";
 }
 
 function readLongHorizonTone(state: string): Tone {

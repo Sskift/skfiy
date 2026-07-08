@@ -105,6 +105,7 @@ Completed in this pass:
 - React Activity now renders the fallback activity feed from the existing snapshot, showing recent Chrome page-control activity, runtime action, verification, screenshot stage, and replay state without exposing Chrome command text or screenshot paths.
 - React Overview now renders the fallback Home summary from the existing snapshot, showing assistant state, current task, target, risk, next action, and stop state without exposing provider secrets.
 - React Agent tools now render the fallback Permissions summary from the existing snapshot, showing Computer Use permission readiness counts without opening system settings or exposing provider secrets.
+- React Agent tools now render the fallback Agents supervision summary from the existing snapshot, showing money-run state, active pane, recommendation, reason, and mutation safety without exposing pane tails or probe commands.
 
 Acceptance:
 

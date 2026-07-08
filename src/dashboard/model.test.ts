@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DashboardSnapshot } from "./contracts";
 import {
   readActivityFeedSummary,
+  readAgentSupervisionSummary,
   readApprovalQueueSummary,
   readChromeControlCommandHints,
   readChromeControlState,
@@ -391,6 +392,45 @@ describe("readLongHorizonSummary", () => {
     });
     expect(JSON.stringify(summary)).not.toContain("building...");
     expect(JSON.stringify(summary)).not.toContain("tmux capture-pane");
+  });
+});
+
+describe("readAgentSupervisionSummary", () => {
+  it("summarizes fallback Agents state without exposing pane tails, probes, or provider secrets", () => {
+    const summary = readAgentSupervisionSummary({
+      ...createLongHorizonSnapshotFixture(),
+      providers: {
+        ...createSnapshot().providers,
+        planner: {
+          provider: "planner",
+          mode: "external-cua",
+          label: "External CUA",
+          health: "available",
+          endpoint: "https://cua.example.test/plan?token=planner-secret"
+        }
+      }
+    });
+
+    expect(summary).toMatchObject({
+      title: "Agent supervision",
+      value: "Ready",
+      detail: "money-run has 2 windows, 3 panes, and no obvious block markers.",
+      tone: "success",
+      items: [
+        { label: "money-run", value: "observing", tone: "success" },
+        { label: "active pane", value: "%1", tone: "neutral" },
+        { label: "recommendation", value: "continue_observing", tone: "neutral" },
+        {
+          label: "reason",
+          value: "money-run has 2 windows, 3 panes, and no obvious block markers.",
+          tone: "neutral"
+        },
+        { label: "mutates session", value: "no", tone: "neutral" }
+      ]
+    });
+    expect(JSON.stringify(summary)).not.toContain("building...");
+    expect(JSON.stringify(summary)).not.toContain("tmux capture-pane");
+    expect(JSON.stringify(summary)).not.toContain("planner-secret");
   });
 });
 
