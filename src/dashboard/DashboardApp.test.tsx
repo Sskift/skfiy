@@ -1271,7 +1271,7 @@ describe("DashboardApp", () => {
       schemaVersion: 1,
       generatedAt: "2026-06-22T08:01:00.000Z",
       dashboard: {
-        url: "http://127.0.0.1:52363/",
+        url: "http://127.0.0.1:52363/?token=secret-evidence-token",
         endpoint: "/api/evidence-summary"
       },
       status: {
@@ -1384,6 +1384,14 @@ describe("DashboardApp", () => {
     expect(within(activity).getByText("ready 1")).toBeInTheDocument();
     expect(within(activity).getByText("attention 1")).toBeInTheDocument();
     expect(within(activity).getByText("blocked 1")).toBeInTheDocument();
+    const contract = within(activity).getByRole("list", { name: "Evidence summary contract" });
+    expect(within(contract).getByText("endpoint")).toBeInTheDocument();
+    expect(within(contract).getByText("/api/evidence-summary")).toBeInTheDocument();
+    expect(within(contract).getByText("token free")).toBeInTheDocument();
+    expect(within(contract).getByText("yes")).toBeInTheDocument();
+    expect(within(contract).getByText("source")).toBeInTheDocument();
+    expect(within(contract).getByText("dashboard-evidence-summary")).toBeInTheDocument();
+    expect(within(activity).queryByText(/secret-evidence-token/u)).not.toBeInTheDocument();
 
     const lanes = within(activity).getByRole("list", { name: "Evidence summary lanes" });
     expect(within(lanes).getByText("Computer Use operator")).toBeInTheDocument();

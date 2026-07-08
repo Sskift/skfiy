@@ -2644,6 +2644,25 @@ function EvidenceSummaryCard({
           <RefreshCw size={15} aria-hidden="true" />
           {isLoading ? "Loading summary" : "Load evidence summary"}
         </button>
+        {summary ? (
+          <ul
+            aria-label="Evidence summary contract"
+            className="skfiy-dashboard-evidence-detail-list"
+          >
+            <li>
+              <span>endpoint</span>
+              <strong>{summary.dashboard.endpoint}</strong>
+            </li>
+            <li>
+              <span>token free</span>
+              <strong>{summary.outputPolicy?.tokenFree ? "yes" : "unknown"}</strong>
+            </li>
+            <li>
+              <span>source</span>
+              <strong>{summary.outputPolicy?.source ?? "unknown"}</strong>
+            </li>
+          </ul>
+        ) : null}
         {summary?.lanes.length ? (
           <ul className="skfiy-dashboard-evidence-list" aria-label="Evidence summary lanes">
             {summary.lanes.map((lane) => (

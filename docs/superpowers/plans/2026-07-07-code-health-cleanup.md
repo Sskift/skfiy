@@ -120,6 +120,7 @@ Completed in this pass:
 - React Overview now renders the local Dashboard descriptor panel catalog from the existing snapshot, showing panel, signal, and local action inventory without adding execution controls or exposing token-like descriptor fields.
 - React Background Agent now renders a snapshot-backed Prompt stack inventory, showing provider identity, durable memory counts, session recall, personal skills, working profile, Browser Context, and route context without echoing memory/session text or provider secrets.
 - React Activity evidence summary now renders Chrome setup-guide source, native-host state, and live-connection state from the existing read-only `/api/evidence-summary` payload without exposing local policy paths or provider secrets.
+- React Activity evidence summary now renders the compact handoff contract endpoint, token-free flag, and source from `/api/evidence-summary` without exposing dashboard URL tokens.
 
 Acceptance:
 
