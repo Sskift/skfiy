@@ -740,6 +740,10 @@ describe("readOperatorEvidenceSummary", () => {
   it("summarizes operator evidence handoff state without provider secrets or artifact paths", () => {
     const summary = readOperatorEvidenceSummary({
       ...createSnapshot(),
+      descriptor: {
+        ...createSnapshot().descriptor,
+        url: "http://127.0.0.1:51234/?token=secret-dashboard-token#hidden"
+      },
       operatorReadiness: {
         state: "blocked"
       },
@@ -781,6 +785,8 @@ describe("readOperatorEvidenceSummary", () => {
         { label: "endpoint", value: "/api/operator-evidence", tone: "neutral" },
         { label: "dashboard", value: "http://127.0.0.1:51234/", tone: "neutral" },
         { label: "bind", value: "127.0.0.1:51234", tone: "neutral" },
+        { label: "token free", value: "yes", tone: "success" },
+        { label: "source", value: "allowlisted-dashboard-summary", tone: "neutral" },
         { label: "turn", value: "approval_required", tone: "neutral" },
         { label: "replay", value: "available", tone: "neutral" },
         { label: "readiness", value: "blocked", tone: "danger" },
@@ -791,6 +797,7 @@ describe("readOperatorEvidenceSummary", () => {
       ])
     });
     expect(JSON.stringify(summary)).not.toContain("planner-secret");
+    expect(JSON.stringify(summary)).not.toContain("secret-dashboard-token");
     expect(JSON.stringify(summary)).not.toContain("/repo/.skfiy-smoke");
   });
 });

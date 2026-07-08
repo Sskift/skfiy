@@ -3253,8 +3253,10 @@ export function readOperatorEvidenceSummary(snapshot: DashboardSnapshot): Dashbo
     tone,
     items: [
       createStatusItem("endpoint", "/api/operator-evidence"),
-      createStatusItem("dashboard", readString(descriptor.url) ?? "unknown"),
+      createStatusItem("dashboard", formatSafeDashboardUrl(readString(descriptor.url))),
       createStatusItem("bind", formatDashboardBind(bind)),
+      createStatusItem("token free", "yes", "success"),
+      createStatusItem("source", "allowlisted-dashboard-summary"),
       createStatusItem("turn", readString(snapshot.currentTurn.state) ?? "unknown"),
       createStatusItem("replay", readString(snapshot.replay.state) ?? "unknown"),
       createStatusItem("readiness", readinessState, readReadinessTone(readinessState)),
@@ -3264,6 +3266,19 @@ export function readOperatorEvidenceSummary(snapshot: DashboardSnapshot): Dashbo
       createStatusItem("smoke artifacts", artifactCount)
     ]
   };
+}
+
+function formatSafeDashboardUrl(value: string | undefined): string {
+  if (!value) {
+    return "unknown";
+  }
+
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return value.replace(/[?#].*$/u, "") || "unknown";
+  }
 }
 
 function formatDashboardBind(bind: Record<string, unknown>): string {

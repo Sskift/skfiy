@@ -583,6 +583,10 @@ describe("DashboardApp", () => {
     expect(within(operatorEvidenceDetails).getByText("http://127.0.0.1:52363/")).toBeInTheDocument();
     expect(within(operatorEvidenceDetails).getByText("bind")).toBeInTheDocument();
     expect(within(operatorEvidenceDetails).getByText("127.0.0.1:52363")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("token free")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("yes")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("source")).toBeInTheDocument();
+    expect(within(operatorEvidenceDetails).getByText("allowlisted-dashboard-summary")).toBeInTheDocument();
     expect(within(operatorEvidenceDetails).getByText("readiness")).toBeInTheDocument();
     expect(within(operatorEvidenceDetails).getByText("blocked")).toBeInTheDocument();
     expect(within(operatorEvidenceDetails).getByText("smoke artifacts")).toBeInTheDocument();
