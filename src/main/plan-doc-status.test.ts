@@ -37,6 +37,19 @@ const repoMarkdownSkipDirs = new Set([
   "dist",
   "node_modules"
 ]);
+const repositoryTextFileExtensions = new Set([
+  ".css",
+  ".cts",
+  ".html",
+  ".js",
+  ".json",
+  ".md",
+  ".mjs",
+  ".ts",
+  ".tsx",
+  ".yaml",
+  ".yml"
+]);
 
 function collectMarkdownDocs(rootPath: string): string[] {
   if (!existsSync(rootPath)) {
@@ -69,6 +82,27 @@ function collectRepositoryMarkdownDocs(rootPath: string): string[] {
     }
 
     return entry.isFile() && entry.name.endsWith(".md") ? [entryPath] : [];
+  });
+}
+
+function collectRepositoryTextFiles(rootPath: string): string[] {
+  if (!existsSync(rootPath)) {
+    return [];
+  }
+
+  return readdirSync(rootPath, { withFileTypes: true }).flatMap((entry) => {
+    if (repoMarkdownSkipDirs.has(entry.name)) {
+      return [];
+    }
+
+    const entryPath = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      return collectRepositoryTextFiles(entryPath);
+    }
+
+    return entry.isFile() && repositoryTextFileExtensions.has(path.extname(entry.name).toLowerCase())
+      ? [entryPath]
+      : [];
   });
 }
 
@@ -226,7 +260,7 @@ describe("implementation plan status docs", () => {
 
   it("keeps repository markdown pointed at the current active plan path only", () => {
     const activePlanReference = "docs/superpowers/plans/2026-07-07-code-health-cleanup.md";
-    const planReferencePattern = /docs\/superpowers\/plans\/[^\s`),]+\.md/g;
+    const planReferencePattern = /docs\/superpowers\/plans\/[^\s`'"),]+\.md/g;
     const workflowDocPaths = collectRepositoryMarkdownDocs(process.cwd());
 
     for (const docPath of workflowDocPaths) {
@@ -237,6 +271,20 @@ describe("implementation plan status docs", () => {
 
       expect(stalePlanReferences).toEqual([]);
     }
+  });
+
+  it("keeps repository workflow files pointed at the current active plan path only", () => {
+    const planReferencePattern = /docs\/superpowers\/plans\/[^\s`'"),]+\.md/g;
+    const workflowFilePaths = collectRepositoryTextFiles(process.cwd());
+    const stalePlanReferences = workflowFilePaths.flatMap((filePath) => {
+      const contents = readFileSync(filePath, "utf8");
+      return [...contents.matchAll(planReferencePattern)]
+        .map((match) => match[0])
+        .filter((reference) => reference !== activePlanReference)
+        .map((reference) => `${path.relative(process.cwd(), filePath).split(path.sep).join("/")}: ${reference}`);
+    });
+
+    expect(stalePlanReferences).toEqual([]);
   });
 
   it("keeps AGENTS pointed at the current active plan", () => {

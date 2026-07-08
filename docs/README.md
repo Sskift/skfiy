@@ -34,7 +34,8 @@ plans, handoffs, checklists, and research notes belong in git history only.
   task checklists, or next-work queues.
 - `superpowers/plans/`: the current active implementation plan for agentic
   work. Keep exactly one plan file here. Retired dated plans belong in git
-  history only, not repo docs, and must not be restored.
+  history only, not repo docs, scripts, tests, or workflow references, and must
+  not be restored.
 
 ## Local Artifact Hygiene
 
