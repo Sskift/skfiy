@@ -2436,6 +2436,7 @@ export function readRuntimeEvidenceSummary(snapshot: DashboardSnapshot): Dashboa
 export function readRuntimeSnapshotDetails(snapshot: DashboardSnapshot): DashboardRuntimeSnapshotDetail[] {
   const currentTurnFreshness = readRuntimeSnapshotFreshness(snapshot, snapshot.currentTurn);
   const replayFreshness = readRuntimeSnapshotFreshness(snapshot, snapshot.replay);
+  const routeOutcome = readRouteOutcome(snapshot);
 
   return [
     {
@@ -2445,6 +2446,8 @@ export function readRuntimeSnapshotDetails(snapshot: DashboardSnapshot): Dashboa
       tone: readRuntimePanelTone(snapshot.currentTurn, currentTurnFreshness, "current-turn"),
       items: [
         createStatusItem("state", readString(snapshot.currentTurn.state) ?? "idle"),
+        createStatusItem("route outcome", routeOutcome.value, routeOutcome.tone),
+        createStatusItem("route detail", routeOutcome.detail),
         createStatusItem(
           "snapshot freshness",
           currentTurnFreshness.state,

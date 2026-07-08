@@ -397,6 +397,8 @@ describe("readRuntimeSnapshotDetails", () => {
         { label: "target", value: "Ghostty", tone: "neutral" },
         { label: "risk", value: "low", tone: "neutral" },
         { label: "approval", value: "approved", tone: "neutral" },
+        { label: "route outcome", value: "executing", tone: "warning" },
+        { label: "route detail", value: "Typing command.", tone: "neutral" },
         { label: "latest action", value: "type_text: 3 chars", tone: "neutral" },
         { label: "latest verify", value: "press_key: passed - enter accepted", tone: "neutral" },
         { label: "latest screenshot", value: "after (structured_first 2 sources)", tone: "neutral" }
@@ -422,6 +424,51 @@ describe("readRuntimeSnapshotDetails", () => {
     });
 
     expect(JSON.stringify(details)).not.toContain("/tmp/after.png");
+  });
+
+  it("keeps route outcome semantics visible in current-turn snapshot details", () => {
+    const details = readRuntimeSnapshotDetails({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy.",
+        latestMessage: "Ghostty is denied by app policy."
+      },
+      alerts: []
+    });
+    const currentTurn = details.find((detail) => detail.id === "current-turn");
+
+    expect(currentTurn).toMatchObject({
+      items: expect.arrayContaining([
+        { label: "route outcome", value: "app_policy_denied", tone: "danger" },
+        { label: "route detail", value: "Ghostty is denied by app policy.", tone: "neutral" }
+      ])
+    });
+  });
+
+  it("keeps Task stopped visible in current-turn snapshot details", () => {
+    const details = readRuntimeSnapshotDetails({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      alerts: []
+    });
+    const currentTurn = details.find((detail) => detail.id === "current-turn");
+
+    expect(currentTurn).toMatchObject({
+      items: expect.arrayContaining([
+        { label: "route outcome", value: "stopped", tone: "neutral" },
+        { label: "route detail", value: "Task stopped.", tone: "neutral" }
+      ])
+    });
   });
 });
 

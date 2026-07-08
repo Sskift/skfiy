@@ -144,6 +144,7 @@ Completed in this pass:
 - React Dashboard Next action now reuses shared route outcomes after explicit alerts, keeping app-policy denial and explicit stop-turn results from being hidden by browser/readiness fallback suggestions.
 - React Dashboard command center now includes the shared route outcome in its radar, runtime flow, and progress stack so Overview preserves route semantics without relying on the Activity card.
 - React Dashboard Home next-action summary now reuses shared route outcomes after explicit alerts and pending approvals, keeping app-policy denial and explicit stop-turn results visible in the Overview summary.
+- React Dashboard runtime snapshot details now include the shared route outcome and detail rows so app-policy denial and explicit stop-turn results remain visible in the Activity diagnostics panel.
 
 Acceptance:
 

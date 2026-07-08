@@ -702,6 +702,8 @@ describe("DashboardApp", () => {
       name: "Current turn snapshot details"
     });
     expect(within(currentTurnDetails).getByText("40s old (2026-06-20T00:00:20.000Z)")).toBeInTheDocument();
+    expect(within(currentTurnDetails).getByText("route outcome")).toBeInTheDocument();
+    expect(within(currentTurnDetails).getAllByText("executing").length).toBeGreaterThanOrEqual(2);
     expect(within(currentTurnDetails).getByText("type_text: 3 chars")).toBeInTheDocument();
     expect(within(currentTurnDetails).getByText("press_key: passed - enter accepted")).toBeInTheDocument();
     expect(within(currentTurnDetails).getByText("after (structured_first 2 sources)")).toBeInTheDocument();
