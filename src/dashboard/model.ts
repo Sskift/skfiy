@@ -95,6 +95,7 @@ export interface DashboardDogfoodSummary {
   cohortLabel: string;
   detail: string;
   tone: Tone;
+  items: DashboardStatusItem[];
 }
 
 export interface DashboardCapabilitySummary {
@@ -1783,10 +1784,27 @@ export function readDogfoodSummary(snapshot: DashboardSnapshot): DashboardDogfoo
   const drift = readRecord(release?.releaseDrift);
   const releaseDriftState = readString(drift?.state) ?? "unknown";
   const cohort = readRecord(release?.cohort);
+  const latestAlpha = readRecord(release?.latestAlpha);
+  const manifest = readRecord(release?.manifest);
+  const currentHead = readRecord(release?.currentHead);
   const acceptedReports = readNumber(cohort?.acceptedReportCount) ?? 0;
   const distinctTesters = readNumber(cohort?.distinctRealTesterCount) ?? 0;
+  const totalReports = readNumber(cohort?.totalReports);
   const ready = cohort?.ready === true;
   const passedReady = cohort?.passedReady === true;
+  const releaseCommit = readString(drift?.releaseCommitSha)
+    ?? readString(latestAlpha?.shortCommit)
+    ?? readString(latestAlpha?.commitSha);
+  const headCommit = readString(drift?.currentHeadCommitSha)
+    ?? readString(currentHead?.shortCommit)
+    ?? readString(currentHead?.commitSha);
+  const manifestState = readString(manifest?.state) ?? "unknown";
+  const latestAlphaState = readString(latestAlpha?.state) ?? "unknown";
+  const zipSha = readString(manifest?.zipSha256) ?? readString(latestAlpha?.zipSha256);
+  const coverage = readRecord(cohort?.workflowCoverage);
+  const passedCoverage = readRecord(cohort?.passedWorkflowCoverage);
+  const cohortReadyValue = ready ? passedReady ? "passed" : "partial" : "no";
+  const cohortReadyTone: Tone = ready ? passedReady ? "success" : "warning" : "neutral";
 
   return {
     releaseState,
@@ -1801,8 +1819,116 @@ export function readDogfoodSummary(snapshot: DashboardSnapshot): DashboardDogfoo
       ? "warning"
       : releaseState === "cohort-ready" && passedReady
         ? "success"
-        : "neutral"
+        : "neutral",
+    items: [
+      createStatusItem("state", releaseState, readDogfoodStateTone(releaseState, passedReady)),
+      createStatusItem(
+        "alpha",
+        readString(latestAlpha?.tagName) ?? latestAlphaState,
+        readDogfoodStateTone(latestAlphaState, passedReady)
+      ),
+      createStatusItem(
+        "release commit",
+        formatShortCommit(releaseCommit),
+        releaseDriftState === "behind-head" ? "warning" : "neutral"
+      ),
+      createStatusItem(
+        "head commit",
+        formatShortCommit(headCommit),
+        releaseDriftState === "behind-head" ? "warning" : "neutral"
+      ),
+      createStatusItem("manifest", manifestState, manifestState === "present" ? "success" : "warning"),
+      createStatusItem("zip sha", formatShortSha(zipSha)),
+      createStatusItem("cohort ready", cohortReadyValue, cohortReadyTone),
+      createStatusItem(
+        "reports",
+        totalReports === undefined
+          ? `${acceptedReports} accepted / ${distinctTesters} testers`
+          : `${acceptedReports} accepted / ${distinctTesters} testers / ${totalReports} total`
+      ),
+      createStatusItem("workflow coverage", formatCoverageSummary(coverage), readCoverageTone(coverage)),
+      createStatusItem("passed workflows", formatCoverageSummary(passedCoverage), readCoverageTone(passedCoverage)),
+      createStatusItem(
+        "drift",
+        readDogfoodDriftLabel(releaseDriftState, releaseCommit, headCommit),
+        releaseDriftState === "behind-head" ? "warning" : "success"
+      )
+    ]
   };
+}
+
+function readDogfoodStateTone(state: string, passedReady: boolean): Tone {
+  if (
+    state === "passed-cohort-ready"
+    || (state === "cohort-ready" && passedReady)
+    || state === "published"
+    || state === "present"
+  ) {
+    return "success";
+  }
+  if (state === "missing" || state === "invalid") {
+    return "danger";
+  }
+  if (state === "waiting-for-dogfood" || state === "cohort-ready") {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function readDogfoodDriftLabel(
+  state: string,
+  releaseCommit: string | undefined,
+  headCommit: string | undefined
+): string {
+  if (state === "behind-head") {
+    return `${state} ${formatShortCommit(releaseCommit)} -> ${formatShortCommit(headCommit)}`;
+  }
+
+  return state;
+}
+
+function formatShortCommit(value: string | undefined): string {
+  if (!value) {
+    return "unknown";
+  }
+
+  return /^[a-f0-9]{7,40}$/iu.test(value) ? value.slice(0, 7) : value;
+}
+
+function formatShortSha(value: string | undefined): string {
+  if (!value) {
+    return "unknown";
+  }
+
+  return /^[a-f0-9]{12,}$/iu.test(value) ? value.slice(0, 12) : value;
+}
+
+function formatCoverageSummary(coverage: Record<string, unknown> | undefined): string {
+  if (!coverage) {
+    return "unknown";
+  }
+
+  const entries = Object.entries(coverage).filter(([, value]) => typeof value === "boolean");
+  if (entries.length === 0) {
+    return "unknown";
+  }
+
+  const covered = entries.filter(([, value]) => value === true).length;
+  return `${covered}/${entries.length}`;
+}
+
+function readCoverageTone(coverage: Record<string, unknown> | undefined): Tone {
+  if (!coverage) {
+    return "neutral";
+  }
+
+  const entries = Object.entries(coverage).filter(([, value]) => typeof value === "boolean");
+  if (entries.length === 0) {
+    return "neutral";
+  }
+
+  return entries.every(([, value]) => value === true) ? "success" : "warning";
 }
 
 export function readProviderSummaries(snapshot: DashboardSnapshot): DashboardProviderSummary[] {

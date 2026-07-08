@@ -484,6 +484,11 @@ describe("DashboardApp", () => {
       .toHaveAttribute("href", "/api/operator-evidence");
     expect(within(activity).getByText("release behind-head")).toBeInTheDocument();
     expect(within(activity).getByText("cohort 1/1")).toBeInTheDocument();
+    const releaseDetails = within(activity).getByRole("list", { name: "Release gate details" });
+    expect(within(releaseDetails).getByText("reports")).toBeInTheDocument();
+    expect(within(releaseDetails).getByText("1 accepted / 1 testers")).toBeInTheDocument();
+    expect(within(releaseDetails).getByText("drift")).toBeInTheDocument();
+    expect(within(releaseDetails).getByText("behind-head aaaaaaa -> bbbbbbb")).toBeInTheDocument();
 
     const nextAction = screen.getByRole("region", { name: "Next action" });
     expect(within(nextAction).getByRole("heading", { name: "Grant Screen Recording" })).toBeInTheDocument();

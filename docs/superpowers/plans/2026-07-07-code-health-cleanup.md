@@ -108,6 +108,7 @@ Completed in this pass:
 - React Agent tools now render the fallback Permissions summary from the existing snapshot, showing Computer Use permission readiness counts without opening system settings or exposing provider secrets.
 - React Agent tools now render the fallback Agents supervision summary from the existing snapshot, showing money-run state, active pane, recommendation, reason, and mutation safety without exposing pane tails or probe commands.
 - React Browser control now falls back to Chrome smoke artifact pageControl and tab-discovery summaries when the runtime extension snapshot is missing those fields, without exposing smoke artifact paths.
+- React Activity Release gate now renders the fallback dogfood/release details from the existing snapshot, showing alpha, manifest, cohort, workflow coverage, and drift summaries without exposing local artifact paths.
 
 Acceptance:
 

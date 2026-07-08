@@ -896,6 +896,15 @@ function DashboardContent({
                 <StatusChip tone="neutral">{dogfood.cohortLabel}</StatusChip>
                 <StatusChip tone="neutral">replay {activity.replayState}</StatusChip>
               </div>
+              <ul className="skfiy-dashboard-evidence-detail-list" aria-label="Release gate details">
+                {dogfood.items.map((item) => (
+                  <li key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <small>{item.tone}</small>
+                  </li>
+                ))}
+              </ul>
             </Card.Content>
           </Card.Root>
         </div>

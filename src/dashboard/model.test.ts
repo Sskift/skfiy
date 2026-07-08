@@ -9,6 +9,7 @@ import {
   readChromeControlState,
   readChromeSetupGuideSummary,
   readComputerUseReadiness,
+  readDogfoodSummary,
   readHomeSummary,
   readKnowledgeGraph,
   readLatestTaskSignal,
@@ -580,6 +581,84 @@ describe("readApprovalQueueSummary", () => {
       tone: "success",
       items: []
     });
+  });
+});
+
+describe("readDogfoodSummary", () => {
+  it("summarizes release gate details without exposing local artifact paths", () => {
+    const summary = readDogfoodSummary({
+      ...createSnapshot(),
+      dogfoodRelease: {
+        state: "cohort-ready",
+        latestAlpha: {
+          state: "published",
+          path: "/repo/docs/release-evidence/latest-alpha.json",
+          tagName: "skfiy-alpha-def4567",
+          commitSha: "def4567890abcdef1234567890abcdef12345678",
+          shortCommit: "def4567",
+          manifestPath: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
+          zipPath: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.zip",
+          zipSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        },
+        currentHead: {
+          state: "present",
+          commitSha: "fedcba9876543210fedcba9876543210fedcba98",
+          shortCommit: "fedcba9"
+        },
+        releaseDrift: {
+          state: "behind-head",
+          releaseCommitSha: "def4567890abcdef1234567890abcdef12345678",
+          currentHeadCommitSha: "fedcba9876543210fedcba9876543210fedcba98"
+        },
+        manifest: {
+          state: "present",
+          path: "/repo/.skfiy-alpha/skfiy-0.1.0-def4567-macos-unsigned.json",
+          zipSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        },
+        cohort: {
+          state: "present",
+          path: "/repo/.skfiy-dogfood/internal-alpha-cohort.json",
+          totalReports: 3,
+          acceptedReportCount: 3,
+          distinctRealTesterCount: 3,
+          ready: true,
+          passedReady: false,
+          workflowCoverage: {
+            "coding-terminal": true,
+            "browser-fallback": true,
+            "finder-file": true
+          },
+          passedWorkflowCoverage: {
+            "coding-terminal": true,
+            "browser-fallback": false,
+            "finder-file": true
+          }
+        }
+      }
+    });
+
+    expect(summary).toMatchObject({
+      releaseState: "cohort-ready",
+      releaseDriftState: "behind-head",
+      cohortLabel: "cohort 3/3",
+      detail: "Accepted dogfood cohort exists, but passed workflow coverage is incomplete.",
+      tone: "warning",
+      items: expect.arrayContaining([
+        { label: "alpha", value: "skfiy-alpha-def4567", tone: "success" },
+        { label: "release commit", value: "def4567", tone: "warning" },
+        { label: "head commit", value: "fedcba9", tone: "warning" },
+        { label: "manifest", value: "present", tone: "success" },
+        { label: "zip sha", value: "0123456789ab", tone: "neutral" },
+        { label: "cohort ready", value: "partial", tone: "warning" },
+        { label: "reports", value: "3 accepted / 3 testers / 3 total", tone: "neutral" },
+        { label: "workflow coverage", value: "3/3", tone: "success" },
+        { label: "passed workflows", value: "2/3", tone: "warning" },
+        { label: "drift", value: "behind-head def4567 -> fedcba9", tone: "warning" }
+      ])
+    });
+    expect(JSON.stringify(summary)).not.toContain(".skfiy-alpha");
+    expect(JSON.stringify(summary)).not.toContain(".skfiy-dogfood");
+    expect(JSON.stringify(summary)).not.toContain("/repo/");
   });
 });
 
