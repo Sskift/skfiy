@@ -138,6 +138,7 @@ Completed in this pass:
 - Pet user dashboard now renders the derived route outcome as a compact status signal, keeping app-policy denial visibly distinct from generic blocked states without adding preload or permission surface.
 - Task events now carry safe route, route-reason, denial-kind, and policy-kind metadata through main, preload, renderer task state, replay timeline, and runtime snapshot payloads so route outcomes no longer depend on message-text parsing.
 - Shared route outcomes now classify explicit stop-turn results as `stopped` while preserving generic cancellation as `cancelled`, keeping `Task stopped` visible across Dashboard, runtime snapshot, CLI status evidence, operator evidence, and pet view-model tests.
+- React Dashboard Home and Latest signal summaries now reuse shared route outcomes so app-policy denial and explicit stop-turn results stay visible outside the dedicated Route outcome card.
 
 Acceptance:
 

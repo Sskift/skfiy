@@ -588,7 +588,7 @@ describe("DashboardApp", () => {
     const activity = await screen.findByRole("region", { name: "Activity" });
     expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
     expect(within(activity).getByText("App policy denied route")).toBeInTheDocument();
-    expect(within(activity).getByText("app_policy_denied")).toBeInTheDocument();
+    expect(within(activity).getAllByText("app_policy_denied").length).toBeGreaterThan(0);
     expect(within(activity).getByText("state blocked")).toBeInTheDocument();
     expect(within(activity).getByText("route ghostty")).toBeInTheDocument();
   });
@@ -611,9 +611,10 @@ describe("DashboardApp", () => {
 
     const activity = await screen.findByRole("region", { name: "Activity" });
     expect(within(activity).getByRole("heading", { name: "Route outcome" })).toBeInTheDocument();
+    expect(within(activity).getByRole("heading", { name: "Latest outcome" })).toBeInTheDocument();
     expect(within(activity).getByText("Route stopped")).toBeInTheDocument();
     expect(within(activity).getAllByText("Task stopped.").length).toBeGreaterThan(0);
-    expect(within(activity).getByText("stopped")).toBeInTheDocument();
+    expect(within(activity).getAllByText("stopped").length).toBeGreaterThan(0);
     expect(within(activity).getByText("state cancelled")).toBeInTheDocument();
     expect(within(activity).getByText("route chrome")).toBeInTheDocument();
   });

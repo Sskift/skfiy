@@ -1891,7 +1891,8 @@ export function readHomeSummary(snapshot: DashboardSnapshot): DashboardHomeSumma
   const runtime = readRecord(snapshot.runtimeHealth) ?? {};
   const desktopSession = readRecord(runtime.desktopSession) ?? {};
   const freshness = readRuntimeSnapshotFreshness(snapshot, snapshot.currentTurn);
-  const assistant = readHomeAssistantState(snapshot, snapshot.currentTurn, freshness);
+  const routeOutcome = readRouteOutcome(snapshot);
+  const assistant = readHomeAssistantState(snapshot, snapshot.currentTurn, freshness, routeOutcome);
   const nextAction = readHomeNextAction(snapshot);
 
   return {
@@ -1923,7 +1924,8 @@ export function readHomeSummary(snapshot: DashboardSnapshot): DashboardHomeSumma
 function readHomeAssistantState(
   snapshot: DashboardSnapshot,
   turn: Record<string, unknown>,
-  freshness: DashboardRuntimeSnapshotFreshness
+  freshness: DashboardRuntimeSnapshotFreshness,
+  routeOutcome: DashboardRouteOutcome
 ): { label: string; detail: string; tone: Tone } {
   if (snapshot.alerts.some((alert) => readString(alert.severity) === "error")) {
     return { label: "Blocked", detail: "Needs your attention", tone: "danger" };
@@ -1942,6 +1944,12 @@ function readHomeAssistantState(
   if (turnState === "observing") {
     return { label: "Watching", detail: "Reading the desktop", tone: "warning" };
   }
+
+  const routeAssistant = readHomeAssistantStateFromRouteOutcome(routeOutcome);
+  if (routeAssistant) {
+    return routeAssistant;
+  }
+
   if (turnState === "failed") {
     return { label: "Failed", detail: "Last task failed", tone: "danger" };
   }
@@ -1950,6 +1958,25 @@ function readHomeAssistantState(
   }
 
   return { label: "Idle", detail: "Ready for an agent task", tone: "success" };
+}
+
+function readHomeAssistantStateFromRouteOutcome(
+  routeOutcome: DashboardRouteOutcome
+): { label: string; detail: string; tone: Tone } | undefined {
+  switch (routeOutcome.kind) {
+    case "app_policy_denied":
+      return { label: "Policy denied", detail: routeOutcome.title, tone: "danger" };
+    case "user_denied":
+      return { label: "Denied", detail: routeOutcome.title, tone: "neutral" };
+    case "blocked":
+      return { label: "Blocked", detail: routeOutcome.title, tone: "danger" };
+    case "cancelled":
+      return { label: "Cancelled", detail: routeOutcome.title, tone: "neutral" };
+    case "stopped":
+      return { label: "Stopped", detail: routeOutcome.title, tone: "neutral" };
+    default:
+      return undefined;
+  }
 }
 
 function readHomeNextAction(snapshot: DashboardSnapshot): { detail: string; tone: Tone } {
@@ -1992,6 +2019,11 @@ export function readRouteOutcome(snapshot: DashboardSnapshot): DashboardRouteOut
 export function readLatestTaskSignal(snapshot: DashboardSnapshot): DashboardLatestTaskSignal {
   const currentTurnState = readString(snapshot.currentTurn.state) ?? "idle";
   const currentTurnDetail = readCurrentTurnDetail(snapshot);
+  const routeOutcome = readRouteOutcome(snapshot);
+  const routeSignal = readLatestRouteOutcomeSignal(routeOutcome);
+  if (routeSignal) {
+    return routeSignal;
+  }
 
   if (["failed", "blocked", "denied"].includes(currentTurnState)) {
     return {
@@ -2054,6 +2086,33 @@ export function readLatestTaskSignal(snapshot: DashboardSnapshot): DashboardLate
     tone: "success",
     source: "Current turn"
   };
+}
+
+function readLatestRouteOutcomeSignal(routeOutcome: DashboardRouteOutcome): DashboardLatestTaskSignal | undefined {
+  switch (routeOutcome.kind) {
+    case "app_policy_denied":
+    case "blocked":
+    case "failed":
+      return {
+        title: "Latest blocker",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    case "user_denied":
+    case "cancelled":
+    case "stopped":
+      return {
+        title: "Latest outcome",
+        value: routeOutcome.value,
+        detail: routeOutcome.detail,
+        tone: routeOutcome.tone,
+        source: routeOutcome.source
+      };
+    default:
+      return undefined;
+  }
 }
 
 export function readApprovalQueueSummary(snapshot: DashboardSnapshot): DashboardApprovalQueueSummary {

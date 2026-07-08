@@ -10,6 +10,7 @@ import {
   readComputerUseReadiness,
   readHomeSummary,
   readKnowledgeGraph,
+  readLatestTaskSignal,
   readLongHorizonSummary,
   readPersonalMutationReceipt,
   readRouteOutcome,
@@ -547,6 +548,77 @@ describe("readHomeSummary", () => {
       value: "Stale",
       detail: "Runtime stream is stale",
       tone: "warning"
+    });
+  });
+
+  it("surfaces stopped route state instead of falling back to idle", () => {
+    const summary = readHomeSummary({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      },
+      alerts: []
+    });
+
+    expect(summary).toMatchObject({
+      value: "Stopped",
+      detail: "Route stopped",
+      tone: "neutral",
+      items: expect.arrayContaining([
+        { label: "assistant", value: "Route stopped", tone: "neutral" },
+        { label: "current task", value: "Task stopped.", tone: "neutral" }
+      ])
+    });
+  });
+});
+
+describe("readLatestTaskSignal", () => {
+  it("keeps app-policy denial distinct from a generic blocked turn", () => {
+    const signal = readLatestTaskSignal({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "blocked",
+        route: "ghostty",
+        reason: "Ghostty is denied by app policy.",
+        latestMessage: "Ghostty is denied by app policy."
+      }
+    });
+
+    expect(signal).toEqual({
+      title: "Latest blocker",
+      value: "app_policy_denied",
+      detail: "Ghostty is denied by app policy.",
+      tone: "danger",
+      source: "Current turn"
+    });
+  });
+
+  it("surfaces Task stopped as the latest route outcome", () => {
+    const signal = readLatestTaskSignal({
+      ...createSnapshot(),
+      currentTurn: {
+        state: "cancelled",
+        route: "chrome",
+        latestMessage: "Task stopped.",
+        stopTurnBehavior: {
+          afterStatus: "cancelled",
+          afterMessage: "Task stopped."
+        }
+      }
+    });
+
+    expect(signal).toEqual({
+      title: "Latest outcome",
+      value: "stopped",
+      detail: "Task stopped.",
+      tone: "neutral",
+      source: "Current turn"
     });
   });
 });
